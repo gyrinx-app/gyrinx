@@ -1060,6 +1060,8 @@ class ModelCard:
     #: not where a browsing screen lives. Empty draws no control, which
     #: is what a print sheet and a hire preview want.
     skills_href: str = ""
+    #: Owner-only equipment-card management. Empty on previews and prints.
+    model_cards_href: str = ""
     #: Kept outside question_lists so only the Edit page can restore them;
     #: they never draw among the card's choices, including on print.
     dismissed_choices: list[ChoiceLine] = field(default_factory=list)

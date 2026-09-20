@@ -14,6 +14,12 @@ what makes it a move rather than a change.
 
 from n26.core.views.api import preview_view
 from n26.core.views.arrivals import gang_next
+from n26.core.views.assignment_sets import (
+    edit_model_card,
+    model_cards,
+    remove_model_card,
+)
+from n26.core.views.battles import battle, edit_battle
 from n26.core.views.campaigns import (
     add_asset,
     add_asset_type,
@@ -47,6 +53,7 @@ from n26.core.views.campaigns import (
 from n26.core.views.changelog import changelog, changelog_entry
 from n26.core.views.choose import choose, dismiss_offer, restore_offer
 from n26.core.views.cloning import clone_fighter, clone_gang
+from n26.core.views.crews import crew_sheet, edit_crew
 from n26.core.views.edit import edit_fighter
 from n26.core.views.equip import equip, equip_gang
 from n26.core.views.gangs import (
@@ -79,10 +86,29 @@ from n26.core.views.owned import (
     sell_assignment,
     tally_counter,
 )
+from n26.core.views.post_battle import (
+    battle_report,
+    correct_post_battle,
+    gang_post_battle,
+    post_battle_editor,
+    post_battle_receipt,
+)
 from n26.core.views.printing import print_gang, print_setup
 from n26.core.views.skills import skills
 
 __all__ = [
+    "battle_report",
+    "correct_post_battle",
+    "crew_sheet",
+    "edit_crew",
+    "edit_model_card",
+    "gang_post_battle",
+    "model_cards",
+    "post_battle_editor",
+    "post_battle_receipt",
+    "remove_model_card",
+    "battle",
+    "edit_battle",
     "accessorise_assignment",
     "campaign",
     "campaign_log",

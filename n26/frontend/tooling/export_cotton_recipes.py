@@ -25,14 +25,84 @@ class Elements(HTMLParser):
         self.elements.append((tag, dict(attrs)))
 
 
-def classes(source, *tags):
+def attributes(source, *tags):
     """Fail the build if a primitive's extracted tag sequence changes."""
     rendered = Template(CottonCompiler().process(source)).render(Context())
     elements = Elements(rendered).elements
     found = [(tag, attrs) for tag, attrs in elements if tag in tags]
     if tuple(tag for tag, _ in found) != tags:
         raise ValueError(f"Cotton structure changed: {source}: {found}")
-    return [" ".join(attrs.get("class", "").split()) for _, attrs in found]
+    return [attrs for _, attrs in found]
+
+
+def class_name(attrs):
+    return " ".join(attrs.get("class", "").split())
+
+
+def classes(source, *tags):
+    return [class_name(attrs) for attrs in attributes(source, *tags)]
+
+
+def checked_classes(attrs):
+    """Extract only the fixed class alternatives of the checkbox's picked state."""
+    expression = attrs.get(":class", "")
+    match = re.fullmatch(r"picked\s*\?\s*'([^']*)'\s*:\s*'([^']*)'", expression)
+    if not match:
+        raise ValueError(f"Checkbox class expression changed: {expression}")
+    return {"checked": match[1], "unchecked": match[2]}
+
+
+def native_select_recipe():
+    (select,) = attributes('<c-ui.select.native placeholder="" />', "select")
+    style = select.get("style", "").strip()
+    match = re.fullmatch(
+        r"background-image:\s*(url\('[^']*'\));\s*background-size:\s*([^;]+);?",
+        style,
+    )
+    if not match:
+        raise ValueError(f"Native select chevron style changed: {style}")
+    return {
+        "className": class_name(select),
+        "style": {"backgroundImage": match[1], "backgroundSize": match[2]},
+    }
+
+
+def checkbox_card_recipe():
+    parts = attributes(
+        '<c-n26.checkbox-card label="Model" description="Profile">Controls</c-n26.checkbox-card>',
+        "div",
+        "label",
+        "input",
+        "span",
+        "span",
+        "span",
+        "div",
+    )
+    root, _, checkbox, _, _, _, body = parts
+    if checkbox.get("type") != "checkbox" or body.get(":inert") != "!picked":
+        raise ValueError("Checkbox card control or nested inert state changed")
+    return {
+        **dict(
+            zip(
+                ("root", "header", "checkbox", "text", "label", "description", "body"),
+                map(class_name, parts),
+                strict=True,
+            )
+        ),
+        "selection": checked_classes(root),
+        "nested": checked_classes(body),
+    }
+
+
+def callout_recipe():
+    """Extract the static, icon-free warning used beside selection controls."""
+    root, content, body = classes(
+        '<c-ui.alert variant="warning" :icon="False">Explanation.</c-ui.alert>',
+        "div",
+        "div",
+        "div",
+    )
+    return {"root": root, "content": content, "body": body}
 
 
 def filter_menu_recipe():
@@ -156,13 +226,35 @@ def recipes():
         "input",
         "button",
     )
+    button_variants = ("default", "primary", "success", "danger", "ghost")
+    field = classes(
+        '<c-ui.field label="Name" for="recipe-field">Control</c-ui.field>',
+        "div",
+        "label",
+        "span",
+    )
     return {
         "button": {
             variant: classes(
                 f'<c-ui.button variant="{variant}">Save</c-ui.button>', "button"
             )[0]
-            for variant in ("default", "primary", "success", "danger")
+            for variant in button_variants
         },
+        "buttonLink": {
+            variant: classes(
+                f'<c-ui.button href="/" variant="{variant}">Cancel</c-ui.button>',
+                "a",
+            )[0]
+            for variant in button_variants
+        },
+        "checkboxCard": checkbox_card_recipe(),
+        "callout": callout_recipe(),
+        "nativeSelect": native_select_recipe(),
+        "field": {
+            **dict(zip(("root", "label", "labelText"), field, strict=True)),
+            "error": classes('<c-ui.error message="Select a model." />', "div")[0],
+        },
+        "formActions": classes("<c-n26.form-actions />", "div")[0],
         "table": classes("<c-ui.table />", "div", "table"),
         "link": classes('<c-n26.link href="/">Name</c-n26.link>', "a", "span"),
         "stagedBadge": classes(

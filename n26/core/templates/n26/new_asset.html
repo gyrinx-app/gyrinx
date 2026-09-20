@@ -47,6 +47,7 @@ with no script and a redisplay keeps the pick.
                                             value="{{ asset_type.value }}"
                                             label="{{ asset_type.label }}"
                                             description="{{ asset_type.description }}"
+                                            :wrap="True"
                                             :checked="asset_type.checked" />
                 {% endfor %}
             </c-n26.radio-cards>

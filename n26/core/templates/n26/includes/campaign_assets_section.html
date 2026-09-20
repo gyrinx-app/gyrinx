@@ -1,13 +1,11 @@
 {% comment %}
-The Assets section — one table per asset type whose ownership is Holding,
-under one heading with its count and the arbitrator's controls — in the host
-a roll's update replaces. Drawn by the campaign sheet component and by
-campaign_update.html from the same include, so the two cannot drift.
+One table per transferable asset type, with each type's own heading and count.
+Drawn by the campaign sheet and campaign_update.html in the same replacement host.
 
 A possession has no table here: every gang has its own, and it is on the
 gang's row above. An asset type the arbitrator adds is one more table, so the
-control that adds one sits on this heading. The whole section is the host
-because a roll changes the heading's count as well as adding a line.
+control that adds one sits above the tables. The whole section is the host
+because a roll changes a type's count as well as adding a line.
 
 Expects `sheet` with its addresses filled and `assets_actions` (the caller's
 extra controls, usually empty); `redrawn` marks the copy an update delivers.
@@ -16,7 +14,7 @@ extra controls, usually empty); `redrawn` marks the copy an update delivers.
      {% if redrawn %}hx-swap-oob="true"{% endif %}>
     <c-n26.section id="assets"
                    title="Assets"
-                   count="{% if sheet.asset_count %}{{ sheet.assets_held }} held, {{ sheet.assets_unclaimed }} unclaimed{% endif %}">
+                   heading_class="text-sm font-medium text-muted">
         {% if assets_actions.strip or sheet.add_asset_type_href or sheet.tables_href %}
             <c-slot name="actions">
                 {% if sheet.tables_href %}
@@ -39,7 +37,7 @@ extra controls, usually empty); `redrawn` marks the copy an update delivers.
                 {% endfor %}
             </div>
         {% else %}
-            <p class="text-sm text-muted">{{ sheet.campaign_type }} has no asset types with Holding ownership.</p>
+            <p class="text-sm text-muted">{{ sheet.campaign_type }} has no transferable asset types.</p>
         {% endif %}
     </c-n26.section>
 </div>

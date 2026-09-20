@@ -49,12 +49,30 @@ def may_mark_status(gang, user):
     the Mark as dialog that change it by hand, the ransom that is paid
     for a held model, and Clean House, which clears every model In
     Recovery at the end of the cycle. Clean House is drawn in the Actions
-    square, so the whole of it reaches the owners that square reaches —
+    square, so the whole of it reaches the owners founding reaches —
     those the ``founding`` flag admits — and lifts with it. Shut, a model
     still carries a status and a result from a table still sets it; there
     is simply no control saying so.
     """
-    return may_see_activities_square(gang, user)
+    return may_see_founding(gang, user)
+
+
+def link_model_cards(gang, cards, user):
+    """Owner-only card management links, with one feature check per page."""
+    from django.urls import reverse
+
+    from n26.flags import CAMPAIGNS, enabled
+
+    available = (
+        user is not None
+        and user.is_authenticated
+        and gang.owner_id == user.pk
+        and enabled(CAMPAIGNS, user)
+    )
+    if available:
+        for card in cards:
+            card.model_cards_href = reverse("n26-model-cards", args=[gang.pk, card.id])
+    return available
 
 
 def status_href(gang, miniature, user=None, *, back="", ransom=True):
@@ -118,31 +136,12 @@ def link_campaign(block, user):
 
 
 def may_see_founding(gang, user):
-    """Whether the reader is shown the founding Trade Point budgets.
+    """Whether this owner may use founding controls and Trade Point budgets.
 
-    The figures on the model cards, the allowance block on the equip
-    screen and the terms that make list lines count Trade Points are one
-    feature, and it reaches the same readers as the Actions square that
-    completes the founding: owners the ``founding`` flag admits. For
-    everyone else no figure is drawn, no list line counts Trade Points and
-    a purchase records no founding action. The two gates lift together,
-    by opening the flag.
-    """
-    return may_see_activities_square(gang, user)
-
-
-def may_see_activities_square(gang, user):
-    """Whether the gang page draws its Actions square for this reader.
-
-    The square is shown to the gang's owner where the ``founding`` flag
-    admits them — a named few while the actions are tried out, everyone
-    once it opens. Every other reader gets no square; the Trading Post
-    visit line stays on the stash card for every owner.
-
-    Owning the gang is checked first, so the flag is only read for an
-    owner on their own gang: the flag row, and on the allowlist the
-    owner's membership of its group. Nobody else pays for it. A view that
-    needs the reading more than once takes it once and passes it on.
+    The same gate controls manual status changes, ransom and Clean House.
+    Other features can appear in Actions without granting this permission.
+    Check ownership before reading the flag, and share the result across
+    a page's cards, budgets and founding controls.
     """
     from n26.flags import FOUNDING, enabled
 

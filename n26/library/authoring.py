@@ -294,8 +294,8 @@ def create_asset_table(
         raise ValidationError("A table needs a name.")
     if not asset_type.is_holding:
         raise ValidationError(
-            f"{asset_type} is a Possession asset type: every gang has its own, "
-            "so there is nothing to roll for. A table lists a Holding asset type."
+            f"{asset_type} is an inherent asset type: every gang has its own, "
+            "so there is nothing to roll for. A table lists a transferable asset type."
         )
     giver = given_by if given_by is not None else asset_type.campaign_type
     pack_id = kwargs["pack"].pk if "pack" in kwargs else kwargs["pack_id"]
@@ -1162,7 +1162,9 @@ def rank_allowance_rule(counter, **kwargs):
 
 
 @guarded_write
-def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
+def create_slot_type(
+    name, plural_name="", allows_repeats=True, is_lasting_effect=False, **kwargs
+):
     """What is chosen — Gang Legacy, Specialisation, Path.
 
     The first thing built: its pickables, its picklists and the slots
@@ -1174,6 +1176,7 @@ def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
         name=name,
         plural_name=plural_name,
         allows_repeats=allows_repeats,
+        is_lasting_effect=is_lasting_effect,
         **kwargs,
     )
 

@@ -1,0 +1,41 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}Recorded results · {{ receipt.gang }}{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <div class="w-full space-y-6">
+        <c-n26.page-header title="Recorded results"
+                           lead="{{ receipt.gang }} · {{ receipt.date }}">
+            <c-slot name="breadcrumb"><c-ui.breadcrumbs>{% if battle %}<c-ui.breadcrumbs.item href="{% url 'n26-battle' battle.campaign_id battle.pk %}">{{ receipt.battle }}</c-ui.breadcrumbs.item>{% else %}<c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ receipt.gang }}</c-ui.breadcrumbs.item>{% endif %}<c-ui.breadcrumbs.item :current="True">Recorded results</c-ui.breadcrumbs.item></c-ui.breadcrumbs></c-slot>
+            <c-slot name="actions"><c-ui.button href="{% url 'n26-gang' gang.pk %}">View gang</c-ui.button></c-slot>
+        </c-n26.page-header>
+        <c-ui.alert variant="success">
+            Recorded{% if revision.actor %} by {{ revision.actor.username }}{% endif %} on {{ revision.created|date:'j F Y, H:i' }}. This receipt keeps the values recorded at that time.
+        </c-ui.alert>
+        <c-n26.section title="Gang results"><dl class="grid gap-3 text-sm sm:grid-cols-2"><div><dt class="text-muted">Credits adjustment</dt><dd class="mt-1 text-lg font-semibold tabular-nums">{{ receipt.credits_change|stringformat:'+d' }}¢</dd></div><div><dt class="text-muted">Credits balance after applying</dt><dd class="mt-1 text-lg font-semibold tabular-nums">{% if receipt.credits_after != None %}{{ receipt.credits_after }}¢{% else %}Untracked{% endif %}</dd></div>{% if receipt.reason %}<div class="sm:col-span-2"><dt class="text-muted">Reason</dt><dd class="mt-1">{{ receipt.reason }}</dd></div>{% endif %}</dl></c-n26.section>
+        <c-n26.section title="Model results">
+            <ul class="divide-y divide-box-border">
+                {% for model in receipt.models %}
+                    <li class="space-y-2 py-4">
+                        <div class="flex flex-wrap items-baseline justify-between gap-2">
+                            <h3 class="font-semibold">{{ model.name }}</h3>
+                            <span class="text-sm text-muted">{% if model.participated %}Took part{% else %}Did not take part{% endif %}</span>
+                        </div>
+                        <p class="text-sm">{{ model.xp_change|stringformat:'+d' }} XP adjustment · {{ model.xp_before }} → {{ model.xp_after }} XP</p>
+                        <p class="text-sm text-muted">Status: {{ model.status_before_label|default:model.status_before }} → {{ model.status_after_label|default:model.status_after }}</p>
+                        {% if model.effects %}<ul class="list-disc space-y-1 pl-5 text-sm">{% for effect in model.effects %}<li>{{ effect }}</li>{% endfor %}</ul>{% endif %}
+                        {% if model.equipment_changed %}
+                            <p class="text-sm">{% if model.equipment_disposition == "stash" %}Moved to stash{% else %}Marked lost{% endif %}: {{ model.equipment_names|join:', '|default:'No equipment' }}.</p>
+                            {% if model.equipment_exclusions %}<p class="text-sm text-muted">Stayed with the model: {{ model.equipment_exclusions|join:', ' }}.</p>{% endif %}
+                        {% endif %}
+                    </li>
+{% empty %}<li class="text-sm text-muted">No model updates.</li>{% endfor %}
+    </ul>
+    </c-n26.section>
+    <div class="flex flex-wrap items-center justify-between gap-4 border-t border-box-border pt-4">
+        <div class="flex flex-wrap gap-3 text-sm">{% for previous in revisions %}{% if previous.sequence == revision.sequence %}<span class="font-semibold">Revision {{ previous.sequence }}</span>{% else %}<c-n26.link href="{% url 'n26-post-battle-revision' report.pk previous.sequence %}">Revision {{ previous.sequence }}</c-n26.link>{% endif %}{% endfor %}</div>
+        {% if may_edit %}{% if report.state == "draft" %}<c-ui.button href="{% url 'n26-post-battle-editor' report.pk %}">Continue correction</c-ui.button>{% else %}<form method="post" action="{% url 'n26-post-battle-correct' report.pk %}">{% csrf_token %}<c-ui.button type="submit">Correct results</c-ui.button></form>{% endif %}{% endif %}
+    </div>
+    </div>
+{% endblock %}

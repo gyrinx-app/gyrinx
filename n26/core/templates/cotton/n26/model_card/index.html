@@ -108,7 +108,7 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                     </c-ui.tooltip>
                 </div>
 
-                {% if actions or card.image_url %}
+                {% if actions or card.image_url or card.model_cards_href %}
 
                     <div class="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-end gap-2">
                         {% if card.image_url %}
@@ -129,6 +129,19 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                                          class="w-56 max-w-[75vw] rounded-control">
                                 </div>
                             </c-ui.dropdown>
+                        {% endif %}
+                        {% if card.model_cards_href %}
+                            <c-ui.tooltip size="sm">
+                                <c-ui.button size="xs"
+                                             variant="ghost"
+                                             href="{{ card.model_cards_href }}"
+                                             aria-label="Model cards">
+                                    <span class="n26-icon-only">
+                                        <c-n26.icon name="layers" class="size-3.5" />
+                                    </span>
+                                </c-ui.button>
+                                <c-slot name="content">Model cards</c-slot>
+                            </c-ui.tooltip>
                         {% endif %}
                         {{ actions }}
                     </div>

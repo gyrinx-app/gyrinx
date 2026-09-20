@@ -1363,14 +1363,21 @@ def _table_row(model, name, qualifier, slot_type, defaults):
 
 
 def _create_lasting_effect_tables():
+    from django.conf import settings
+
     from n26.library.models import Pickable, Picklist, PicklistMember, Slot, SlotType
 
     for index, (name, plural, rows, dice, _) in enumerate(LASTING_EFFECT_TABLES):
         slot_type = SlotType.objects.filter(name__iexact=name).first()
         if slot_type is None:
             slot_type = SlotType.objects.create(
-                name=name, plural_name=plural, allows_repeats=True
+                name=name,
+                plural_name=plural,
+                allows_repeats=True,
+                is_lasting_effect=True,
             )
+        elif slot_type.pack.slug == settings.DEFAULT_CONTENT_PACK_SLUG:
+            SlotType.objects.filter(pk=slot_type.pk).update(is_lasting_effect=True)
         table = Picklist.objects.filter(
             slot_type=slot_type, name__iexact=f"{name} Table"
         ).first()

@@ -10,6 +10,7 @@ from django.urls import reverse
 
 from n26.core.views.permissions import (
     _own_miniature_or_404,
+    link_model_cards,
     may_mark_status,
     status_href,
     trade_points_href,
@@ -441,6 +442,7 @@ def render_card_update(request, miniature, at):
     back, host_at = card_screen(miniature, at)
     host = EquipHost.fighter(gang, own, miniature, host_at)
     card = link_model_card(gang, miniature, own, computed, host, back=back)
+    link_model_cards(gang, [card], request.user)
 
     response = render(
         request,
@@ -804,6 +806,7 @@ def edit_fighter(request, pk):
     card = link_model_card(
         gang, miniature, own, computed, host, back=request.get_full_path(), among=sets
     )
+    link_model_cards(gang, [card], request.user)
 
     subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
         own, computed, "subtype", "Subtypes", include_staged=shown

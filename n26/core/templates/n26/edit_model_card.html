@@ -1,0 +1,56 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% block head_title %}{% if assignment_set %}Edit model card{% else %}Add model card{% endif %} · {{ miniature.name }}{% endblock %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="gangs" %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page title="{% if assignment_set %}Edit model card{% else %}Add model card{% endif %}"
+                     lead="Choose the equipment to show on this card. Ammunition and accessories follow their weapon."
+                     :form="form"
+                     submit_label="Save model card"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-edit-fighter' miniature.pk %}">{{ miniature.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    Model cards
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">{% if assignment_set %}Edit{% else %}Add{% endif %}</c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {{ form.revision }}
+        <c-n26.form-section title="The card">
+            <c-ui.field label="Card name *"
+                        description="{{ form.name.help_text }}"
+                        error="x"
+                        :form="form"
+                        name="name"
+                        for="model-card-name">
+                <c-ui.input id="model-card-name"
+                            name="name"
+                            maxlength="200"
+                            autocomplete="off"
+                            required
+                            value="{{ form.name.value|default:'' }}" />
+            </c-ui.field>
+            <c-ui.field label="Equipment" error="x" :form="form" name="assignments">
+                <div class="flex flex-col gap-1.5">
+                    {% for choice in form.assignments %}
+                        <label class="flex min-h-11 items-center gap-3 text-base"
+                               for="{{ choice.id_for_label }}">{{ choice.tag }} {{ choice.choice_label }}</label>
+                    {% empty %}
+                        <p class="text-sm text-muted">This model has no weapons or wargear to choose from.</p>
+                    {% endfor %}
+                </div>
+            </c-ui.field>
+            <p class="text-sm text-muted">Equipment left off this card stays owned by the model. Its full rating, XP and status are shared across all its cards.</p>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock %}
