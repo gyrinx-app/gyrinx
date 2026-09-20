@@ -205,8 +205,37 @@ class TestSuitEvolutionForms:
         assert "After a cycle" in header.get_text(" ", strip=True)
         assert start_button.get_text(" ", strip=True) == "Start →"
         assert "bg-transparent" in start_button.get("class", [])
+        figures = title.find_parent("section").find("dl")
+        values = figures.find_all("dd")
+        assert [value.get_text(" ", strip=True) for value in values] == [
+            "6 Kill Count",
+            "4 Kill Count",
+        ]
+        assert all(
+            "text-muted" in value.find("span", string="Kill Count").get("class", [])
+            for value in values
+        )
         assert html.index("Available") < html.index("Price")
         assert "After payment" not in html
+
+    def test_credit_payment_figures_use_the_currency_symbol_without_a_unit(self):
+        from bs4 import BeautifulSoup
+        from django.template import Context, Template
+        from django_cotton.compiler_regex import CottonCompiler
+
+        from n26.core.flow import PaymentFigures
+
+        figures = PaymentFigures("", "1500¢", "100¢", "1400¢")
+        drawn = Template(
+            CottonCompiler().process('<c-n26.payment-figures :figures="figures" />')
+        ).render(Context({"figures": figures}))
+        values = BeautifulSoup(drawn, "html.parser").find_all("dd")
+
+        assert [value.get_text(" ", strip=True) for value in values] == [
+            "1500¢",
+            "100¢",
+        ]
+        assert "Credits" not in drawn
 
     def test_the_gear_menu_sits_with_the_name_above_its_tier(self, client, hunt):
         from bs4 import BeautifulSoup
