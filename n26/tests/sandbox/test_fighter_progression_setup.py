@@ -626,8 +626,18 @@ class TestPromotions:
         }
 
     @pytest.mark.parametrize("progression", [36], indirect=True)
+    @pytest.mark.parametrize(
+        "retired_result",
+        [
+            None,
+            "member_archived",
+            "member_staged",
+            "pickable_archived",
+            "pickable_staged",
+        ],
+    )
     def test_a_ganger_gets_the_advancement_and_champion_promotion(
-        self, client, monkeypatch, progression
+        self, client, monkeypatch, progression, retired_result
     ):
         from n26.library.models import Skill
 
@@ -638,6 +648,17 @@ class TestPromotions:
             attach_to=progression.profile,
         )
         prepare_fighter_progression()
+        promotion = AdvancementPromotion.objects.get(threshold=37)
+        if retired_result:
+            extra = a.create_pickable(
+                "Other promotion result", promotion.slot.slot_type
+            )
+            member = a.add_picklist_member(promotion.slot.picklist, extra)
+            target, field = retired_result.split("_")
+            row = member if target == "member" else extra
+            setattr(row, field, True)
+            row.save()
+        promotion.full_clean()
         existing_skill = Skill.objects.get(name="Clamber")
         with operation(progression.gang, actor=progression.owner) as op:
             held_skill = op.assign(existing_skill, miniature=progression.fighter)

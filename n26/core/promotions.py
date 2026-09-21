@@ -202,9 +202,9 @@ def apply_bonus_promotion(op, record, selection, pick):
     promotion = selection.promotion
     if promotion is None or promotion.replaces_advancement:
         return
-    choices = list(promotion.slot.picklist.members.select_related("pickable"))
+    choices = list(promotion.slot.picklist.available_members())
     if len(choices) != 1:
-        raise ValueError("A promotion after an advancement needs exactly one result.")
+        raise Refusal("This promotion needs one configured result.")
     anchor = op.assign(
         promotion.slot,
         miniature=record.fighter,

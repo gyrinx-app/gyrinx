@@ -371,7 +371,7 @@ class AdvancementPromotion(Content):
         if (
             self.slot_id
             and not self.replaces_advancement
-            and self.slot.picklist.members.count() != 1
+            and self.slot.picklist.available_members().count() != 1
         ):
             raise ValidationError(
                 {"slot": "An additional promotion needs exactly one result."}

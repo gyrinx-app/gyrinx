@@ -845,7 +845,7 @@ def preview_advancement(record, configured, terms):
     selection = record.advancement_selection
     promotion = promotion_for(record, configured)
     bonus = (
-        list(promotion.slot.picklist.members.select_related("pickable"))
+        list(promotion.slot.picklist.available_members())
         if promotion and not promotion.replaces_advancement
         else []
     )
