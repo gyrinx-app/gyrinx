@@ -476,7 +476,7 @@ def record_action_roll(
     return selection
 
 
-def _effect_text(pickable, seen=None):
+def _effect_text(pickable, index=None, seen=None):
     """Describe fixed hidden choices by their effects, not their container slot."""
     from n26.library.prose import CARD, sentence_for
 
@@ -484,11 +484,13 @@ def _effect_text(pickable, seen=None):
     if pickable.pk in seen:
         return ""
     seen.add(pickable.pk)
+    if index is None:
+        index = build_modifier_index([pickable])
     sentences = []
-    for modifier in pickable.modifiers.all():
+    for modifier, _ in index.for_thing(pickable):
         grant = modifier.adds_assignable
         if grant and grant.slot_id and grant.slot.hidden and grant.with_pick_id:
-            sentences.append(_effect_text(grant.with_pick, seen))
+            sentences.append(_effect_text(grant.with_pick, index, seen))
         else:
             sentences.append(sentence_for(modifier, carriage=CARD, thing=pickable).text)
     return " ".join(dict.fromkeys(filter(None, sentences)))
@@ -576,7 +578,7 @@ def advancement_options(record, configured):
             gainable[member.pk],
             offers[member.pk] is not None,
             offers[member.pk].mode if offers[member.pk] else "",
-            _effect_text(member.pickable),
+            _effect_text(member.pickable, index),
         )
         for member in offered
     )

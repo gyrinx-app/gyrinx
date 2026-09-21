@@ -810,9 +810,14 @@ def cancel_action(op, record):
         return record
     if record.state != ActionRecord.State.STARTED or record.payment_id is not None:
         raise Refusal("That action use can no longer be cancelled.")
-    if LedgerEvent.objects.filter(
-        action_record=record, kind=LedgerEvent.Kind.ROLLED
-    ).exists():
+    if (
+        AdvancementSelection.objects.filter(
+            action_record=record, roll_event__isnull=False
+        ).exists()
+        or LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).exists()
+    ):
         raise Refusal("A recorded advancement roll must be resumed.")
     from n26.core.promotions import remove_unfinished_promotion
 

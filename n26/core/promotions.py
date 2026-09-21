@@ -27,7 +27,9 @@ def promotion_for(record, configured):
     if record.allowance_id is None or record.allowance.threshold is None:
         return None
     rules = list(
-        configured.promotions.filter(threshold__lte=record.allowance.threshold)
+        configured.promotions.unarchived()
+        .live()
+        .filter(threshold__lte=record.allowance.threshold)
         .select_related("slot__picklist", "from_subtype")
         .order_by("-threshold")
     )

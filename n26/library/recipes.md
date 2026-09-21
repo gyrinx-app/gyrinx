@@ -27,9 +27,10 @@ The supplied content includes these promotions:
   it keeps weapons only if every equipped weapon profile has Melee. Other weapons
   move to the gang's stash.
 
-Resolve earlier earned advancements first. The promotion is part of one earned
-use, not a second use. A completed result can be corrected until a later
-advancement depends on it. Correction does not move equipment back from the stash.
+When a promotion is due, resolve earlier earned advancements first. The promotion
+is part of one earned use, not a second use. A completed result can be corrected
+until a later advancement depends on it. Correction does not move equipment back
+from the stash.
 
 For profile-level testing, choose **Apply to staged content**. This attaches
 progression only to staged profiles and gang types. To launch, choose **Review

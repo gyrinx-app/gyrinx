@@ -411,6 +411,32 @@ class TestPromotionAuthoring:
 class TestPromotions:
     """A promotion is part of its earned advancement, not an additional use."""
 
+    @pytest.mark.parametrize("field", ["staged", "archived"])
+    def test_unavailable_promotions_are_not_discovered(
+        self, client, progression, field
+    ):
+        promotion = AdvancementPromotion.objects.get(threshold=13)
+        setattr(promotion, field, True)
+        promotion.save()
+        record, url = _start(client, progression, _earned(progression, 13))
+        assert client.get(url).context["stage"] == "roll"
+
+    @pytest.mark.parametrize("field", ["staged", "archived"])
+    def test_recorded_promotions_survive_content_withdrawal(
+        self, client, progression, field
+    ):
+        from n26.core.promotions import promotion_for
+
+        record, url = _start(client, progression, _earned(progression, 13))
+        pick = Pickable.objects.get(name="Ganger specialist: Scout")
+        assert client.post(url, {"pickable_id": str(pick.pk)}).status_code == 302
+        promotion = AdvancementPromotion.objects.get(threshold=13)
+        setattr(promotion, field, True)
+        promotion.save()
+        record.refresh_from_db()
+        assert promotion_for(record, progression.outcome.operation) == promotion
+        assert client.get(url).context["stage"] == "advancement"
+
     def test_a_stored_subtype_qualifies_for_promotion(self, client, progression):
         progression.profile.modifiers.remove(
             progression.profile.modifiers.get(name="Prospect rank")
@@ -702,10 +728,24 @@ class TestPromotions:
             == 1
         )
 
-    def test_a_later_rank_cannot_be_used_before_the_earlier_one(self, progression):
+    @pytest.mark.parametrize("promotion_enabled", [True, False])
+    def test_rank_order_is_required_only_for_a_promotion(
+        self, progression, promotion_enabled
+    ):
+        if not promotion_enabled:
+            progression.profile.modifiers.remove(
+                progression.profile.modifiers.get(name="Fighter progression: Promotion")
+            )
         with operation(progression.gang, actor=progression.owner) as op:
             op.tally(progression.xp, 7)
         later = ActionAllowance.objects.get(fighter=progression.fighter, threshold=19)
+        if not promotion_enabled:
+            with operation(progression.gang, actor=progression.owner) as op:
+                record = op.start_action(
+                    progression.fighter, progression.action, uuid4(), allowance=later
+                )
+            assert record.state == ActionRecord.State.STARTED
+            return
         with pytest.raises(Refusal, match="earlier"):
             with operation(progression.gang, actor=progression.owner) as op:
                 op.start_action(
