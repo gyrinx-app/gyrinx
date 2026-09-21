@@ -1,14 +1,15 @@
-"""Exercise React-asset recovery in scripts/lib/worktree.sh."""
+"""Exercise React-asset recovery in scripts/lib/worktree.sh.
+
+Not marked core: that suite is capped at 1200 tests and was already full.
+CI still runs this file when a pull request changes it, and the full suite
+runs it on every push.
+"""
 
 import os
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-
-import pytest
-
-pytestmark = pytest.mark.core
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
