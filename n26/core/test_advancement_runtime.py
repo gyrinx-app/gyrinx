@@ -778,7 +778,7 @@ def test_completed_random_attempt_is_not_offered_after_skill_becomes_owned(fight
         for row in advancement_options(completed, configured)
     )
     with operation(fighter.gang) as op:
-        with pytest.raises(Refusal, match="Choose an advancement result"):
+        with pytest.raises(Refusal, match="Choose an available advancement result"):
             op.review_action_correction(
                 completed, terms={"pickable_id": random_primary.id}
             )
@@ -1077,7 +1077,7 @@ def test_all_eighteen_results_are_fallback_when_none_landed_are_gainable(
 
     assert len(options) == 18
     random = next(option for option in options if option.needs_skill)
-    with pytest.raises(Refusal, match="not available for this roll"):
+    with pytest.raises(Refusal, match="not available for this advancement"):
         skill_options(record, outcome.resolve_advancement, random.id)
     assert all(option.gainable is False for option in options)
 

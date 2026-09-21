@@ -2,6 +2,7 @@ from n26.library.models.actions import (
     Action,
     ActionOutcome,
     ActionPriceComponent,
+    AdvancementPromotion,
     ApplyChange,
     ApplyChanges,
     AugmentCarriedItem,
@@ -112,6 +113,7 @@ from n26.library.models.statline import (
 )
 
 __all__ = [
+    "AdvancementPromotion",
     "Action",
     "ActionOutcome",
     "ActionPriceComponent",

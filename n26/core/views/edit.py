@@ -551,7 +551,17 @@ def edit_fighter(request, pk):
     statline_class = statline_override_form_for(profile) if profile else None
     statline_edit = None
 
-    if request.method == "POST" and request.POST.get("act") == "statline":
+    if request.method == "POST" and request.POST.get("act") == "track-progression":
+        try:
+            with operation(gang, actor=request.user) as op:
+                assignment = op.track_progression_counter(
+                    miniature, request.POST.get("counter", "")
+                )
+            messages.success(request, f"{assignment.counter} tracking started at 0.")
+        except Refusal as refusal:
+            messages.error(request, str(refusal))
+        return redirect("n26-edit-fighter", pk=miniature.pk)
+    elif request.method == "POST" and request.POST.get("act") == "statline":
         if statline_class is not None:
             statline_edit = statline_class.opened_on(miniature, request.POST)
             if statline_edit.is_valid():
@@ -854,6 +864,8 @@ def edit_fighter(request, pk):
     # the same numbers the equip face keeps there. One query.
     members = roster(gang)
     may_mark = may_mark_status(gang, request.user)
+    from n26.core.allowances import missing_progression_counters
+
     return render(
         request,
         "n26/fighter_edit.html",
@@ -863,6 +875,11 @@ def edit_fighter(request, pk):
             "card": card,
             "action_panels": flows,
             "action_history_panels": action_history,
+            "missing_progression_counters": missing_progression_counters(
+                miniature, card=own, computed=computed
+            )
+            if counter_tracking_is_active()
+            else [],
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
             # One reading of the flag, passed to both: the badge leads to

@@ -16,6 +16,14 @@ from n26.core.models import (
     SkillSelection,
 )
 from n26.core.operations import Refusal, subtree
+from n26.core.promotions import (
+    apply_bonus_promotion,
+    may_decline,
+    promotion_for,
+    promotion_state,
+    replaces_roll,
+    result_slot,
+)
 
 
 @dataclass(frozen=True)
@@ -96,6 +104,18 @@ def _correction_result(record, *, lock=False):
     ):
         raise Refusal("Later changes depend on this advancement.")
     permitted = {old_skill.pk} if old_skill is not None else set()
+    if selection.promotion_assignment_id:
+        permitted.add(selection.promotion_assignment_id)
+        permitted.add(selection.promotion_assignment.caused_by_id)
+    if (
+        selection.promotion_id
+        and record.fighter.action_records.filter(
+            action=record.action,
+            created__gt=record.created,
+            state__in=[ActionRecord.State.STARTED, ActionRecord.State.COMPLETED],
+        ).exists()
+    ):
+        raise Refusal("A later advancement depends on this promotion.")
     if any(
         not descendant.archived and descendant.pk not in permitted
         for descendant in subtree(old_pick)
@@ -112,6 +132,9 @@ def _counterfactual_card(record):
     hidden = {selection.pick_assignment_id}
     if skill_selection and skill_selection.skill_assignment_id:
         hidden.add(skill_selection.skill_assignment_id)
+    if selection.promotion_assignment_id:
+        hidden.add(selection.promotion_assignment_id)
+        hidden.add(selection.promotion_assignment.caused_by_id)
 
     def without_hidden(nodes):
         kept = []
@@ -366,10 +389,24 @@ def _roll_table(configured):
     return members, state
 
 
-def record_action_roll(op, record, configured, request_key, *, rolled=None, rng=None):
+def record_action_roll(
+    op,
+    record,
+    configured,
+    request_key,
+    *,
+    rolled=None,
+    rng=None,
+    decline_promotion=False,
+):
     """Persist one 2D6 roll and its record-owned slot before any result pick."""
     requested_record = record
     record = _validate_draft(op, record, configured)
+    promotion = promotion_for(record, configured)
+    if replaces_roll(record, configured) and not (
+        decline_promotion and may_decline(record, promotion)
+    ):
+        raise Refusal("Choose a promotion instead of rolling this advancement.")
     selection, _ = AdvancementSelection.objects.select_for_update().get_or_create(
         action_record=record
     )
@@ -380,6 +417,9 @@ def record_action_roll(op, record, configured, request_key, *, rolled=None, rng=
         ):
             raise Refusal("This action already has a roll for another advancement.")
         return selection
+    from n26.core.promotions import remove_unfinished_promotion
+
+    remove_unfinished_promotion(op, record, selection)
     _members, table_state = _roll_table(configured)
     slots_owned_by_other_drafts = (
         AdvancementSelection.objects.filter(
@@ -420,30 +460,56 @@ def record_action_roll(op, record, configured, request_key, *, rolled=None, rng=
         action_record=record,
     )
     selection.slot_assignment, selection.roll_event = anchor, event
-    selection.save(update_fields=["slot_assignment", "roll_event", "modified"])
+    selection.promotion = promotion
+    selection.save(
+        update_fields=["slot_assignment", "roll_event", "promotion", "modified"]
+    )
     record.terms = {
         **record.terms,
         "action_roll_request": str(request_key),
         "advancement_table": table_state,
+        "promotion_rule": str(promotion.pk) if promotion else None,
+        "decline_promotion": bool(promotion and promotion.replaces_advancement),
     }
     record.save(update_fields=["terms", "modified"])
     requested_record.terms = record.terms
     return selection
 
 
-def advancement_options(record, configured):
-    from n26.library.prose import sentence_for
+def _effect_text(pickable, seen=None):
+    """Describe fixed hidden choices by their effects, not their container slot."""
+    from n26.library.prose import CARD, sentence_for
 
-    try:
-        selection = record.advancement_selection
-    except AdvancementSelection.DoesNotExist as error:
-        raise Refusal("Roll 2D6 for this advancement first.") from error
-    if not selection.roll_event_id:
-        raise Refusal("Roll 2D6 for this advancement first.")
-    members, table_state = _roll_table(configured)
-    if record.terms.get("advancement_table") != table_state:
-        raise Refusal("This advancement table changed after the roll was recorded.")
-    landed = configured.slot.picklist.landing(selection.roll_event.roll, members)
+    seen = set() if seen is None else seen
+    if pickable.pk in seen:
+        return ""
+    seen.add(pickable.pk)
+    sentences = []
+    for modifier in pickable.modifiers.all():
+        grant = modifier.adds_assignable
+        if grant and grant.slot_id and grant.slot.hidden and grant.with_pick_id:
+            sentences.append(_effect_text(grant.with_pick, seen))
+        else:
+            sentences.append(sentence_for(modifier, carriage=CARD, thing=pickable).text)
+    return " ".join(dict.fromkeys(filter(None, sentences)))
+
+
+def advancement_options(record, configured):
+    if replaces_roll(record, configured):
+        slot = result_slot(record, configured)
+        members, _ = _roll_table(SimpleNamespace(slot=slot, slot_id=slot.pk))
+        landed = members
+    else:
+        try:
+            selection = record.advancement_selection
+        except AdvancementSelection.DoesNotExist as error:
+            raise Refusal("Roll 2D6 for this advancement first.") from error
+        if not selection.roll_event_id:
+            raise Refusal("Roll 2D6 for this advancement first.")
+        members, table_state = _roll_table(configured)
+        if record.terms.get("advancement_table") != table_state:
+            raise Refusal("This advancement table changed after the roll was recorded.")
+        landed = configured.slot.picklist.landing(selection.roll_event.roll, members)
     card, _selection, _skill_selection = _counterfactual_card(record)
     index = build_modifier_index(
         [*carriers(card), *(member.pickable for member in members)]
@@ -510,10 +576,7 @@ def advancement_options(record, configured):
             gainable[member.pk],
             offers[member.pk] is not None,
             offers[member.pk].mode if offers[member.pk] else "",
-            " ".join(
-                sentence_for(modifier, thing=member.pickable).text
-                for modifier, _ in index.for_thing(member.pickable)
-            ),
+            _effect_text(member.pickable),
         )
         for member in offered
     )
@@ -529,8 +592,12 @@ def skill_options(record, configured, pickable_id):
         None,
     )
     if option is None or not option.gainable:
-        raise Refusal("That advancement result is not available for this roll.")
-    pickable = configured.slot.picklist.members.get(pickable_id=pickable_id).pickable
+        raise Refusal("That result is not available for this advancement.")
+    pickable = (
+        result_slot(record, configured)
+        .picklist.members.get(pickable_id=pickable_id)
+        .pickable
+    )
     offer = _skill_offer(pickable)
     if offer is None:
         return {}
@@ -540,22 +607,30 @@ def skill_options(record, configured, pickable_id):
     return grouped
 
 
-def _skill_access(configured, pickable_id):
-    pickable = configured.slot.picklist.members.get(pickable_id=pickable_id).pickable
+def _skill_access(record, configured, pickable_id):
+    pickable = (
+        result_slot(record, configured)
+        .picklist.members.get(pickable_id=pickable_id)
+        .pickable
+    )
     offer = _skill_offer(pickable)
     return "any" if offer.from_section_id is None else offer.from_section.name.lower()
 
 
 def recorded_skill(record, configured, pickable_id):
     """Return the immutable random result only when it belongs to this choice."""
-    pickable = configured.slot.picklist.members.get(pickable_id=pickable_id).pickable
+    pickable = (
+        result_slot(record, configured)
+        .picklist.members.get(pickable_id=pickable_id)
+        .pickable
+    )
     offer = _skill_offer(pickable)
     if offer is None or offer.mode != offer.Mode.RANDOM:
         return None
     selection = getattr(record, "skill_selection", None)
     if selection is None:
         return None
-    access = _skill_access(configured, pickable_id)
+    access = _skill_access(record, configured, pickable_id)
     if record.state != ActionRecord.State.COMPLETED:
         if selection.mode != offer.Mode.RANDOM:
             return None
@@ -610,16 +685,21 @@ def record_skill_roll(
     from n26.core.browse import picklist_lines
 
     member = (
-        picklist_lines(configured.slot.picklist).filter(pickable_id=pickable_id).first()
+        picklist_lines(result_slot(record, configured).picklist)
+        .filter(pickable_id=pickable_id)
+        .first()
     )
     if member is None:
-        raise Refusal("That advancement result is not available for this roll.")
+        raise Refusal("That result is not available for this advancement.")
     offer = _skill_offer(member.pickable)
     if offer is None or offer.mode != offer.Mode.RANDOM:
         raise Refusal("That advancement result does not use a random skill roll.")
     selection, _ = SkillSelection.objects.select_for_update().get_or_create(
         action_record=record,
-        defaults={"mode": "random", "access": _skill_access(configured, pickable_id)},
+        defaults={
+            "mode": "random",
+            "access": _skill_access(record, configured, pickable_id),
+        },
     )
     for attempt in selection.random_attempts:
         if attempt["request_key"] == str(request_key):
@@ -634,7 +714,7 @@ def record_skill_roll(
     category = next((row for row in options if str(row.pk) == str(skill_set_id)), None)
     if category is None:
         raise Refusal("That skill set is not available for this advancement.")
-    access = _skill_access(configured, pickable_id)
+    access = _skill_access(record, configured, pickable_id)
     latest = selection.random_attempts[-1] if selection.random_attempts else None
     matching = [
         attempt
@@ -728,8 +808,12 @@ def _resolved(record, configured, terms):
         option.id: option for option in advancement_options(record, configured)
     }
     if pickable_id not in options_by_id or not options_by_id[pickable_id].gainable:
-        raise Refusal("Choose an advancement result available for this roll.")
-    pickable = configured.slot.picklist.members.get(pickable_id=pickable_id).pickable
+        raise Refusal("Choose an available advancement result.")
+    pickable = (
+        result_slot(record, configured)
+        .picklist.members.get(pickable_id=pickable_id)
+        .pickable
+    )
     offer, skill = _skill_offer(pickable), None
     if offer is not None:
         options = skill_options(record, configured, pickable_id)
@@ -757,12 +841,23 @@ def _resolved(record, configured, terms):
 def preview_advancement(record, configured, terms):
     pickable, offer, skill = _resolved(record, configured, terms)
     selection = record.advancement_selection
+    promotion = promotion_for(record, configured)
+    bonus = (
+        list(promotion.slot.picklist.members.select_related("pickable"))
+        if promotion and not promotion.replaces_advancement
+        else []
+    )
+    if promotion and not promotion.replaces_advancement and len(bonus) != 1:
+        raise Refusal("This promotion needs one configured result.")
     snapshot = {
-        "roll": selection.roll_event.roll,
-        "roll_event_id": str(selection.roll_event_id),
+        "roll": selection.roll_event.roll if selection.roll_event_id else None,
+        "roll_event_id": str(selection.roll_event_id)
+        if selection.roll_event_id
+        else None,
         "slot_assignment_id": str(selection.slot_assignment_id),
         "pickable_id": str(pickable.pk),
         "result": str(pickable),
+        "effect": _effect_text(pickable),
         "rating": pickable.rating_contribution,
         "skill_id": str(skill.pk) if skill else None,
         "skill": str(skill) if skill else None,
@@ -771,8 +866,15 @@ def preview_advancement(record, configured, terms):
         "skill_will_be_assigned_to": offer.will_be_assigned_to if offer else None,
         "fighter_state": _fighter_state(record),
         "result_state": _fighter_state(
-            record, [pickable, *([skill] if skill is not None else [])]
+            record,
+            [
+                pickable,
+                *([skill] if skill is not None else []),
+                *(member.pickable for member in bonus),
+            ],
         ),
+        "promotion": promotion_state(record, configured),
+        "promotion_result": str(bonus[0].pickable) if bonus else "",
     }
     original, original_skill = _correction_result(record)
     if original is not None:
@@ -800,16 +902,20 @@ def apply_advancement(op, record, configured, terms):
     selection = record.advancement_selection
     if selection.pick_assignment_id:
         return snapshot
+    from n26.core.promotions import stash_promotion_weapons
+
+    stash_promotion_weapons(op, record, configured)
     pickable, offer, skill = _resolved(record, configured, terms)
     pick = op.choose(
         selection.slot_assignment,
         pickable,
-        slot=configured.slot,
+        slot=result_slot(record, configured),
         roll=selection.roll_event,
         action_record=record,
     )
     selection.intended_pick, selection.pick_assignment = pickable, pick
     selection.save(update_fields=["intended_pick", "pick_assignment", "modified"])
+    apply_bonus_promotion(op, record, selection, pick)
     if skill is not None:
         skill_pick = op.choose(
             pick, skill, offer=offer, miniature=record.fighter, action_record=record
@@ -818,12 +924,12 @@ def apply_advancement(op, record, configured, terms):
             action_record=record,
             defaults={
                 "mode": offer.mode,
-                "access": _skill_access(configured, pickable.pk),
+                "access": _skill_access(record, configured, pickable.pk),
             },
         )
         skill_selection.mode, skill_selection.access = (
             offer.mode,
-            _skill_access(configured, pickable.pk),
+            _skill_access(record, configured, pickable.pk),
         )
         skill_selection.skill_set, skill_selection.selected_skill = (
             skill.category,
@@ -844,7 +950,7 @@ def correct_advancement(op, record, configured, terms):
         op.remove(old_skill, action_record=record, before_pick=old_skill)
     replacement = op.replace_slot_pick(
         selection.slot_assignment,
-        configured.slot,
+        result_slot(record, configured),
         pickable,
         previous_pick=old_pick,
         miniature=record.fighter,
@@ -853,6 +959,7 @@ def correct_advancement(op, record, configured, terms):
     )
     selection.intended_pick, selection.pick_assignment = pickable, replacement
     selection.save(update_fields=["intended_pick", "pick_assignment", "modified"])
+    apply_bonus_promotion(op, record, selection, replacement)
     if skill_selection is not None:
         skill_selection.skill_set = None
         skill_selection.selected_skill = None
@@ -877,12 +984,12 @@ def correct_advancement(op, record, configured, terms):
             action_record=record,
             defaults={
                 "mode": offer.mode,
-                "access": _skill_access(configured, pickable.pk),
+                "access": _skill_access(record, configured, pickable.pk),
             },
         )
         skill_selection.mode, skill_selection.access = (
             offer.mode,
-            _skill_access(configured, pickable.pk),
+            _skill_access(record, configured, pickable.pk),
         )
         skill_selection.skill_set, skill_selection.selected_skill = (
             skill.category,

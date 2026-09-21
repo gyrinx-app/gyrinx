@@ -95,7 +95,7 @@ def _description(outcome):
         return "Raise the level of one carried item by one tier."
     if isinstance(configured, ApplyChanges):
         return ""
-    return "Roll and choose an advancement result."
+    return "Resolve one earned advancement."
 
 
 def _steps(record=None, *, action=None, stage="start", correction=False):
@@ -105,11 +105,16 @@ def _steps(record=None, *, action=None, stage="start", correction=False):
         if len(outcomes) == 1:
             configured = outcomes[0].operation
     if isinstance(configured, ResolveAdvancement):
-        stages = [] if correction else [("start", "Outcome"), ("roll", "Roll")]
-        stages += [("advancement", "Advancement")]
+        from n26.core.promotions import replaces_roll
+
+        promotion = record is not None and replaces_roll(record, configured)
+        stages = [] if correction else [("start", "Outcome")]
+        if not correction and not promotion:
+            stages.append(("roll", "Roll"))
+        stages += [("advancement", "Promotion" if promotion else "Advancement")]
         target = record.review.get("target", {}) if record else {}
         skill = getattr(record, "skill_selection", None)
-        if stage in {"start", "roll", "advancement"}:
+        if stage in {"start", "roll", "advancement"} and not promotion:
             stages.append(("skill", "Skill (if needed)"))
         elif (
             stage == "skill"
@@ -269,7 +274,10 @@ def _can_cancel(record):
     if record is None or record.state != ActionRecord.State.STARTED:
         return False
     advancement = getattr(record, "advancement_selection", None)
-    return not advancement or not advancement.roll_event_id
+    skill = getattr(record, "skill_selection", None)
+    return not (advancement and advancement.roll_event_id) and not (
+        skill and skill.random_attempts
+    )
 
 
 def _selection_summary(record, stage):
@@ -323,11 +331,27 @@ def _review_choice(record):
             ),
         }
     if target.get("result"):
+        stashed = target.get("promotion", {}) or {}
+        equipment = stashed.get("stash", [])
+        equipment_note = (
+            "Move to stash: " + ", ".join(item["name"] for item in equipment)
+            if equipment
+            else ""
+        )
         return {
             "label": "Advancement",
             "title": target["result"],
-            "description": target.get("skill", ""),
-            "meta": "",
+            "description": ". ".join(
+                text.rstrip(". ")
+                for text in [
+                    target.get("effect"),
+                    target.get("skill"),
+                    target.get("promotion_result"),
+                    equipment_note,
+                ]
+                if text
+            ),
+            "meta": f"Rating +{target['rating']}¢" if target.get("rating") else "",
         }
     return None
 
@@ -364,7 +388,7 @@ def action_start(request, pk, action_id):
                 ActionRecord.State.COMPLETED,
             ]
         )
-        .order_by("created", "pk")
+        .order_by("threshold", "created", "pk")
     )
     if not allowances and action.pk not in {
         access.action.pk for access in actions_for(fighter)
