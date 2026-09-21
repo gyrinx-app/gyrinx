@@ -242,3 +242,90 @@ def test_provisioner_recovers_an_abandoned_empty_lock(tmp_path):
     assert result.returncode == 0, result.stderr
     assert not (worktree / ".gyrinx-venv-provision.lock").exists()
     assert call_log.read_text().splitlines() == ["sync"]
+
+
+def _worktree_python(worktree: Path, *, path: str):
+    return subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            'source "$1" && worktree_python "$2"',
+            "test",
+            str(REPO_ROOT / "scripts/lib/worktree.sh"),
+            str(worktree),
+        ],
+        text=True,
+        capture_output=True,
+        env=os.environ | {"PATH": path},
+    )
+
+
+def test_worktree_python_prefers_venv_when_path_has_no_interpreter(tmp_path):
+    worktree = tmp_path / "worktree"
+    python = worktree / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("#!/bin/bash\nexit 0\n")
+    python.chmod(0o755)
+
+    result = _worktree_python(worktree, path="/no-such-bin")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == str(python)
+
+
+def test_worktree_python_falls_back_to_path_without_a_venv(tmp_path):
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    python3 = bin_dir / "python3"
+    python3.write_text("#!/bin/bash\nexit 0\n")
+    python3.chmod(0o755)
+
+    result = _worktree_python(worktree, path=str(bin_dir))
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == str(python3)
+
+
+def test_worktree_python_errors_when_no_interpreter_exists(tmp_path):
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+
+    result = _worktree_python(worktree, path="/no-such-bin")
+
+    assert result.returncode != 0
+    assert "No Python interpreter found" in result.stderr
+
+
+def test_precommit_script_hooks_resolve_worktree_python():
+    for relative in (
+        "scripts/check_migrations.sh",
+        "scripts/check_migration_conflicts.sh",
+        "scripts/check_cotton.sh",
+        "scripts/check_raw_markup.sh",
+    ):
+        text = (REPO_ROOT / relative).read_text()
+        assert "worktree_python" in text, relative
+    precommit = (REPO_ROOT / ".pre-commit-config.yaml").read_text()
+    assert "check_raw_markup.sh" in precommit
+    assert "python3 scripts/check_raw_markup.py" not in precommit
+
+
+def test_check_cotton_sh_ignores_a_broken_python_on_path(tmp_path):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name in ("python", "python3"):
+        executable = bin_dir / name
+        executable.write_text("#!/bin/bash\necho 'used PATH python' >&2\nexit 97\n")
+        executable.chmod(0o755)
+
+    result = subprocess.run(
+        ["/bin/bash", str(REPO_ROOT / "scripts" / "check_cotton.sh")],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        env=os.environ | {"PATH": f"{bin_dir}:/usr/bin:/bin"},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "used PATH python" not in result.stderr

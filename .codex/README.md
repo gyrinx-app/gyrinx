@@ -27,7 +27,9 @@ Shared `.env`, `.venv` and `node_modules` symlinks are rejected. Database clonin
 uses the existing dev script, which briefly disconnects template DB connections.
 
 Setup exports do not persist into later agent commands. Use `.codex/run.sh`
-for Python commands, such as `.codex/run.sh manage check`.
+for Python commands, such as `.codex/run.sh manage check`. Pre-commit hook
+scripts resolve `.venv/bin/python` themselves, so a plain `git commit` works
+once setup has created the venv.
 
 ## Cleanup
 

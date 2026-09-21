@@ -12,6 +12,11 @@
 #      error silently disappears -- the exact bug #2001 was about.
 #
 # Run from the repo root. Wired into pre-commit and CI.
-set -uo pipefail
-cd "$(dirname "$0")/.."
-exec python3 scripts/check_cotton.py "$@"
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=lib/worktree.sh
+source "${SCRIPT_DIR}/lib/worktree.sh"
+PYTHON=$(worktree_python "$ROOT") || exit 1
+cd "$ROOT"
+exec "$PYTHON" scripts/check_cotton.py "$@"
