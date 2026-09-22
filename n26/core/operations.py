@@ -2701,6 +2701,11 @@ class Operation:
             action_record=action_record,
         )
 
+    def track_progression_counter(self, fighter, counter_id):
+        from n26.core.allowances import track_progression_counter
+
+        return track_progression_counter(self, fighter, counter_id)
+
     def tally(self, assignment, change, note="", **event_fields):
         """Change a counter's value — the only writer it has.
 
@@ -2746,12 +2751,25 @@ class Operation:
         return held.value
 
     def record_action_roll(
-        self, record, configured, request_key, *, rolled=None, rng=None
+        self,
+        record,
+        configured,
+        request_key,
+        *,
+        rolled=None,
+        rng=None,
+        decline_promotion=False,
     ):
         from n26.core.advancements import record_action_roll
 
         return record_action_roll(
-            self, record, configured, request_key, rolled=rolled, rng=rng
+            self,
+            record,
+            configured,
+            request_key,
+            rolled=rolled,
+            rng=rng,
+            decline_promotion=decline_promotion,
         )
 
     def record_skill_roll(
@@ -2849,7 +2867,7 @@ class Operation:
             )
         return held
 
-    def move(self, assignment, to, note=""):
+    def move(self, assignment, to, note="", *, action_record=None):
         """Re-home an assignment — model to stash, stash to model, onto a gun.
 
         The rulebook's equipment redistribution: stash gear "can be moved
@@ -2920,7 +2938,9 @@ class Operation:
                 row.miniature, row.stash = host
             row.save()  # roots re-derive from the parent chain
         self.touched(assignment.miniature_root)
-        self.event(assignment, LedgerEvent.Kind.MOVED, note=note)
+        self.event(
+            assignment, LedgerEvent.Kind.MOVED, note=note, action_record=action_record
+        )
         return assignment
 
     def buy_weapon_profile(self, weapon_assignment, weapon_profile, **kwargs):

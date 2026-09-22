@@ -99,7 +99,8 @@ would invent a new client/server contract inside this feature.
         {% elif stage == "roll" %}
             <p>Roll 2D6 to see the available advancement results.</p>
         {% elif stage == "advancement" %}
-            <c-n26.form-section title="Choose an advancement">
+            <c-n26.form-section title="{{ advancement_title }}"
+                                description="{{ promotion_description }}">
                 {% if roll_value %}<p class="text-lg font-semibold">2D6: {{ roll_value }}</p>{% endif %}
                 <c-n26.radio-cards :form="form" name="pickable_id" min="min(100%, 18rem)">
                     {% for choice in advancement_options %}
@@ -115,6 +116,16 @@ would invent a new client/server contract inside this feature.
                         <p class="text-muted">No advancement can change this model.</p>
                     {% endfor %}
                 </c-n26.radio-cards>
+                {% if decline_promotion %}
+                    <input type="hidden" name="request_key" value="{{ promotion_request_key }}">
+                    <c-ui.button type="submit"
+                                 name="decline_promotion"
+                                 value="1"
+                                 variant="default"
+                                 formnovalidate>
+                        Keep current rank and roll 2D6
+                    </c-ui.button>
+                {% endif %}
             </c-n26.form-section>
         {% elif stage == "skill" %}
             {% include "n26/includes/action_skills.html" %}
