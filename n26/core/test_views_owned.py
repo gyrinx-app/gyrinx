@@ -385,6 +385,112 @@ class TestRemoving:
         assert_reconciled(gang)
 
 
+class TestAWeaponsOwnProfiles:
+    """A shotgun's scatter and solid shot ride with the gun. They are
+    how it shoots, not something the owner bought, and taking one off
+    leaves no way to put it back. Bought ammunition is the other case
+    and keeps Sell, Refund and Remove.
+    """
+
+    @pytest.fixture
+    def shotgun(self):
+        from n26.library.authoring import create_weapon
+
+        return create_weapon(
+            "Shotgun",
+            profiles=[("scatter shot", 0), ("solid shot", 0)],
+            price=25,
+        )
+
+    @pytest.fixture
+    def gun(self, gang, fighter, tester, shotgun):
+        with operation(gang, actor=tester) as op:
+            return op.give_weapon(fighter, shotgun, paid=25)
+
+    @pytest.fixture
+    def scatter(self, gun):
+        return gun.children.get(weapon_profile__name="scatter shot")
+
+    @staticmethod
+    def dialog(fighter, **query):
+        from django.test import RequestFactory
+
+        from n26.core.card import build_card
+        from n26.core.owned import EquipHost
+        from n26.core.views.owned import owned_dialog
+
+        request = RequestFactory().get(AT, query)
+        host = EquipHost.fighter(fighter.gang, build_card(fighter), fighter, AT)
+        return owned_dialog(request, host)
+
+    def test_a_named_free_profile_offers_no_way_to_leave(
+        self, fighter, shotgun, gun, scatter
+    ):
+        from n26.core.card import build_card
+        from n26.core.listing import copy_row
+        from n26.core.owned import owned_things, thing_key
+
+        (held,) = owned_things(build_card(fighter), AT)[thing_key(shotgun)]
+        part = next(part for part in held.parts if part.id == str(scatter.pk))
+
+        assert part.sell_href == ""
+        assert part.refund_href == ""
+        assert part.remove_href == ""
+        row = copy_row(held)
+        drawn = next(drawn for drawn in row.parts if drawn.id == str(scatter.pk))
+        assert drawn.sell is None
+        assert drawn.more == ()
+
+    def test_the_confirmation_does_not_open(self, fighter, scatter):
+        assert self.dialog(fighter, sell=str(scatter.pk)) is None
+        assert self.dialog(fighter, refund=str(scatter.pk)) is None
+        assert self.dialog(fighter, remove=str(scatter.pk)) is None
+
+    def test_a_hand_made_sell_is_answered_in_words(self, client, tester, gang, scatter):
+        client.force_login(tester)
+        response = client.post(url("n26-sell", scatter), follow=True)
+
+        assert "You cannot sell scatter shot on its own." in response.content.decode()
+        scatter.refresh_from_db()
+        assert scatter.archived is False
+        assert_reconciled(gang)
+
+    def test_a_hand_made_refund_is_answered_in_words(
+        self, client, tester, gang, scatter
+    ):
+        client.force_login(tester)
+        response = client.post(url("n26-refund", scatter), follow=True)
+
+        assert "You cannot refund scatter shot on its own." in response.content.decode()
+        scatter.refresh_from_db()
+        assert scatter.archived is False
+        assert_reconciled(gang)
+
+    def test_a_hand_made_remove_is_answered_in_words(
+        self, client, tester, gang, scatter
+    ):
+        client.force_login(tester)
+        response = client.post(url("n26-remove", scatter), follow=True)
+
+        assert "You cannot remove scatter shot on its own." in response.content.decode()
+        scatter.refresh_from_db()
+        assert scatter.archived is False
+        assert_reconciled(gang)
+
+    def test_selling_the_gun_still_takes_its_profiles(
+        self, client, tester, gang, gun, scatter
+    ):
+        client.force_login(tester)
+        client.post(url("n26-sell", gun))
+
+        gang.refresh_from_db()
+        gun.refresh_from_db()
+        scatter.refresh_from_db()
+        assert gun.archived is True
+        assert scatter.archived is True
+        assert_reconciled(gang)
+
+
 class TestWhatMayBeClickedOn:
     """These acts are about kit, and a gang holds a great deal that is not
     kit — every bit of it an assignment with a primary key of its own.
