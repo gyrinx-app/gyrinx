@@ -5368,6 +5368,7 @@ def foundations(request):
 
     from n26.library.fighter_action_setup import (
         PROGRESSION_RULE,
+        ProgressionSetupConflict,
         attach_fighter_progression,
         prepare_fighter_progression,
         progression_plan,
@@ -5391,8 +5392,12 @@ def foundations(request):
     if request.method == "POST" and "progression" in request.POST:
         mode = request.POST["progression"]
         if mode == "prepare":
-            prepare_fighter_progression()
-            messages.success(request, "Prepared fighter progression for testing.")
+            try:
+                prepare_fighter_progression()
+            except ProgressionSetupConflict as error:
+                messages.error(request, str(error))
+            else:
+                messages.success(request, "Prepared fighter progression for testing.")
         elif mode in {"staged", "live"}:
             if mode == "live":
                 try:
@@ -5411,12 +5416,17 @@ def foundations(request):
                     return redirect(
                         reverse("authoring-foundations") + "?progression=live"
                     )
-            count = attach_fighter_progression(
-                staged_only=mode == "staged", target_ids={row[0] for row in plan_ids}
-            )
-            messages.success(
-                request, f"Updated fighter progression for {count} content entries."
-            )
+            try:
+                count = attach_fighter_progression(
+                    staged_only=mode == "staged",
+                    target_ids={row[0] for row in plan_ids},
+                )
+            except ProgressionSetupConflict as error:
+                messages.error(request, str(error))
+            else:
+                messages.success(
+                    request, f"Updated fighter progression for {count} content entries."
+                )
         else:
             raise Http404("No such progression setup")
         return redirect("authoring-foundations")

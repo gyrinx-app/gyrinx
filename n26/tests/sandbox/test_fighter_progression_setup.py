@@ -13,6 +13,7 @@ from n26.core.models import ActionAllowance, ActionRecord, Assignment, LedgerEve
 from n26.core.operations import Refusal, operation
 from n26.library import authoring as a
 from n26.library.fighter_action_setup import (
+    ProgressionSetupConflict,
     attach_fighter_progression,
     prepare_fighter_progression,
     progression_plan,
@@ -132,11 +133,71 @@ class TestFoundationSetup:
             Pickable.objects.count(),
             Action.objects.count(),
         )
-        with pytest.raises(RuntimeError, match="already uses another slot type"):
+        with pytest.raises(
+            ProgressionSetupConflict, match="already uses another slot type"
+        ):
             prepare_fighter_progression()
         existing.refresh_from_db()
         assert existing.slot_type == slot_type
         assert existing.modified == before
+        assert counts == (
+            Modifier.objects.count(),
+            Pickable.objects.count(),
+            Action.objects.count(),
+        )
+        assert not AdvancementPromotion.objects.exists()
+
+    @pytest.mark.parametrize("mode", ["prepare", "staged", "live"])
+    def test_foundations_reports_setup_conflicts_without_changing_content(
+        self, client, default_pack, mode
+    ):
+        owner = User.objects.create_user("content-author", is_staff=True)
+        client.force_login(owner)
+        kind = a.create_slot_type("Unrelated choice")
+        pick = a.create_pickable("Scout", kind)
+        counts = (
+            Modifier.objects.count(),
+            Pickable.objects.count(),
+            Action.objects.count(),
+        )
+        url = reverse("authoring-foundations")
+        page = client.get(url + "?progression=live")
+        response = client.post(
+            url,
+            {"progression": mode, "plan": page.context["progression_token"]},
+            follow=True,
+        )
+        assert response.status_code == 200
+        assert response.redirect_chain == [(url, 302)]
+        assert "already uses another slot type" in response.content.decode()
+        pick.refresh_from_db()
+        assert pick.slot_type == kind
+        assert counts == (
+            Modifier.objects.count(),
+            Pickable.objects.count(),
+            Action.objects.count(),
+        )
+
+    @pytest.mark.parametrize(
+        "name", ["Fighter progression", "Outcast leader progression", "Promotion"]
+    )
+    @pytest.mark.parametrize("state", ["live", "archived"])
+    def test_preparation_preserves_incompatible_rule_states(
+        self, default_pack, name, state
+    ):
+        rule = a.create_rule(name, staged=state != "live", archived=state == "archived")
+        before = rule.staged, rule.archived, rule.modified
+        counts = (
+            Modifier.objects.count(),
+            Pickable.objects.count(),
+            Action.objects.count(),
+        )
+        with pytest.raises(
+            ProgressionSetupConflict, match="must be staged and unarchived"
+        ):
+            prepare_fighter_progression()
+        rule.refresh_from_db()
+        assert (rule.staged, rule.archived, rule.modified) == before
         assert counts == (
             Modifier.objects.count(),
             Pickable.objects.count(),

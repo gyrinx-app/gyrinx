@@ -33,6 +33,10 @@ PROMOTION_RULE = "Promotion"
 TARGET_KINDS = {"profile": Profile, "gang-type": GangType}
 
 
+class ProgressionSetupConflict(RuntimeError):
+    """Existing authored content cannot safely be used by the standard setup."""
+
+
 @dataclass(frozen=True)
 class ProgressionTarget:
     target: object
@@ -140,11 +144,19 @@ def _named(model, name, **defaults):
     if "slot_type" in defaults:
         row = candidates.filter(slot_type=defaults["slot_type"]).first()
         if row is None and candidates.exists():
-            raise RuntimeError(
+            raise ProgressionSetupConflict(
                 f'{model._meta.verbose_name.capitalize()} "{name}" already uses another slot type.'
             )
     else:
         row = candidates.first()
+    if (
+        row is not None
+        and "staged" in defaults
+        and (row.archived or row.staged != defaults["staged"])
+    ):
+        raise ProgressionSetupConflict(
+            f'Rule "{name}" must be staged and unarchived before preparing fighter progression.'
+        )
     return row or model.objects.create(name=name, pack=get_default_pack(), **defaults)
 
 
