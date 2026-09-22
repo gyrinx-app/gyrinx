@@ -500,6 +500,13 @@ def advancement_options(record, configured):
     if replaces_roll(record, configured):
         slot = result_slot(record, configured)
         members, _ = _roll_table(SimpleNamespace(slot=slot, slot_id=slot.pk))
+        if not members and (
+            record.state == ActionRecord.State.COMPLETED
+            or not may_decline(record, promotion_for(record, configured))
+        ):
+            raise Refusal(
+                "You cannot complete this promotion. A content author must make a result available."
+            )
         landed = members
     else:
         try:
@@ -545,7 +552,6 @@ def advancement_options(record, configured):
         return skill_cache[offer.pk]
 
     offers = {member.pk: _skill_offer(member.pickable) for member in members}
-    from n26.core.models import ActionRecord
 
     gainable = {}
     for member in members:

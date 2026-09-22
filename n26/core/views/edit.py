@@ -757,6 +757,7 @@ def edit_fighter(request, pk):
     from n26.core.counter_tracking import is_active as counter_tracking_is_active
     from n26.core.views.action_flows import link_action_panels, split_action_panels
 
+    tracking_active = counter_tracking_is_active()
     flows, action_history = split_action_panels(
         link_action_panels(
             miniature,
@@ -764,7 +765,7 @@ def edit_fighter(request, pk):
                 miniature,
                 card=own,
                 computed=computed,
-                counter_tracking_active=counter_tracking_is_active(),
+                counter_tracking_active=tracking_active,
             ),
         ),
     )
@@ -878,7 +879,7 @@ def edit_fighter(request, pk):
             "missing_progression_counters": missing_progression_counters(
                 miniature, card=own, computed=computed
             )
-            if counter_tracking_is_active()
+            if tracking_active
             else [],
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),

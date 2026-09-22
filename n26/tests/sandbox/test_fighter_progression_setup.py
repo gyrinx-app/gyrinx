@@ -412,6 +412,42 @@ class TestPromotions:
     """A promotion is part of its earned advancement, not an additional use."""
 
     @pytest.mark.parametrize("field", ["staged", "archived"])
+    def test_withdrawn_results_preserve_the_earned_use_until_a_result_is_restored(
+        self, client, progression, field
+    ):
+        promotion = AdvancementPromotion.objects.get(threshold=13)
+        members = list(promotion.slot.picklist.members.all())
+        for member in members:
+            a.revise(member, **{field: True})
+        record, url = _start(client, progression, _earned(progression, 13))
+        for response in (
+            client.get(url),
+            client.post(url, {"pickable_id": str(members[0].pickable_id)}),
+        ):
+            assert response.status_code == 200
+            assert "must make a result available" in response.content.decode()
+            assert response.context["cancel_href"]
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        assert not hasattr(record, "advancement_selection")
+        assert not LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).exists()
+
+        a.revise(members[0], **{field: False})
+        assert len(client.get(url).context["advancement_options"]) == 1
+        response = client.post(url, {"pickable_id": str(members[0].pickable_id)})
+        assert response.status_code == 302, _errors(response)
+        review = client.get(response.url)
+        response = client.post(
+            response.url, {"review": review.context["form"]["review"].value()}
+        )
+        assert response.status_code == 302, _errors(response)
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        assert ActionAllowance.objects.filter(fighter=progression.fighter).count() == 1
+
+    @pytest.mark.parametrize("field", ["staged", "archived"])
     def test_unavailable_promotions_are_not_discovered(
         self, client, progression, field
     ):
@@ -591,11 +627,15 @@ class TestPromotions:
         assert any(choice.slot == independent for choice in computed.choices)
         assert marker in {row.thing for row in computed.rules}
 
+    @pytest.mark.parametrize("withdrawn_field", [None, "staged", "archived"])
     def test_an_initiate_can_keep_its_subtype_and_roll(
-        self, client, monkeypatch, progression
+        self, client, monkeypatch, progression, withdrawn_field
     ):
         promotion = AdvancementPromotion.objects.get(threshold=13)
         promotion.optional_profiles.add(progression.profile)
+        if withdrawn_field:
+            for member in promotion.slot.picklist.members.all():
+                a.revise(member, **{withdrawn_field: True})
         record, url = _start(client, progression, _earned(progression, 13))
         monkeypatch.setattr(Dice, "roll", classmethod(lambda cls, dice, rng=None: 12))
         page = client.get(url)
