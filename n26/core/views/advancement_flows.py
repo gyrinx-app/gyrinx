@@ -17,11 +17,41 @@ from n26.core.operations import Refusal, operation
 
 def advancement_step(request, fighter, record, *, step="choose", correction=False):
     from n26.core.advancements import advancement_options, skill_options
+    from n26.core.promotions import (
+        may_decline,
+        prepare_promotion,
+        promotion_for,
+        replaces_roll,
+    )
     from n26.core.views.action_flows import _page, flow_url
 
     configured = record.outcome.operation
     selection = getattr(record, "advancement_selection", None)
-    if selection is None or selection.roll_event_id is None:
+    promotion = promotion_for(record, configured)
+    replacement = replaces_roll(record, configured)
+    if (
+        replacement
+        and request.method == "POST"
+        and request.POST.get("decline_promotion")
+    ):
+        form = ActionRollForm(request.POST)
+        if form.is_valid():
+            try:
+                with operation(fighter.gang, actor=request.user) as op:
+                    op.record_action_roll(
+                        record,
+                        configured,
+                        form.cleaned_data["request_key"],
+                        decline_promotion=True,
+                    )
+            except Refusal as refusal:
+                from n26.core.views.action_flows import _refusal_page
+
+                return _refusal_page(
+                    request, fighter, record.action, refusal, record=record
+                )
+            return redirect(flow_url(fighter, record, "choose"))
+    if not replacement and (selection is None or selection.roll_event_id is None):
         if correction:
             raise Refusal("This advancement has no recorded roll to correct.")
         form = ActionRollForm(request.POST or None, initial={"request_key": uuid4()})
@@ -78,12 +108,16 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
             if chosen.needs_skill:
                 if not correction:
                     with operation(fighter.gang, actor=request.user) as op:
+                        if replacement:
+                            record = prepare_promotion(op, record, configured)
                         op.save_action_choices(
                             record, outcome=record.outcome, terms=terms
                         )
                 tail = "?" + urlencode({"pick": chosen.id}) if correction else ""
                 return redirect(flow_url(fighter, record, "skill") + tail)
             with operation(fighter.gang, actor=request.user) as op:
+                if replacement and not correction:
+                    record = prepare_promotion(op, record, configured)
                 if correction:
                     op.review_action_correction(record, terms=terms)
                 else:
@@ -102,7 +136,21 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
         stage="advancement",
         correction=correction,
         form=form,
-        roll_value=selection.roll_event.roll,
+        roll_value=selection.roll_event.roll
+        if selection and selection.roll_event_id
+        else None,
+        advancement_title="Choose a promotion"
+        if replacement
+        else "Choose an advancement",
+        promotion_description=(
+            "Choose one result instead of rolling this advancement."
+            if replacement
+            else ""
+        ),
+        decline_promotion=not correction
+        and replacement
+        and may_decline(record, promotion),
+        promotion_request_key=uuid4(),
         advancement_options=[
             {"option": option, "checked": str(form["pickable_id"].value()) == option.id}
             for option in options

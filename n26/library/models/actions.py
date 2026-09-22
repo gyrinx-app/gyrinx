@@ -294,6 +294,94 @@ class ResolveAdvancement(Content):
     )
 
 
+class AdvancementPromotion(Content):
+    """A promotion for models with a particular subtype, resolved as part of an
+    earned advancement. It either replaces the advancement roll with a choice,
+    or grants one result after the normal advancement.
+    """
+
+    family = Family.FOUNDATION
+
+    advancement = models.ForeignKey(
+        ResolveAdvancement, on_delete=models.CASCADE, related_name="promotions"
+    )
+    from_subtype = models.ForeignKey(
+        "library.Subtype", on_delete=models.PROTECT, related_name="promotions"
+    )
+    threshold = models.PositiveIntegerField(
+        help_text="Minimum rank threshold at which an earned advancement includes this promotion."
+    )
+    slot = models.ForeignKey(
+        "library.Slot",
+        on_delete=models.PROTECT,
+        related_name="promotions",
+        help_text="The promotion results. An additional promotion needs exactly one result.",
+    )
+    replaces_advancement = models.BooleanField(
+        default=True,
+        help_text="Choose the promotion instead of rolling an advancement.",
+    )
+    optional_profiles = models.ManyToManyField(
+        "library.Profile",
+        blank=True,
+        related_name="optional_promotions",
+        help_text="Profiles that may remain at their current rank and roll instead.",
+    )
+    requires_rule = models.ForeignKey(
+        "library.Rule",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="advancement_promotions",
+        help_text="Apply this promotion only to models that have this rule.",
+    )
+    stash_weapons_for = models.ManyToManyField(
+        "library.Profile",
+        blank=True,
+        related_name="equipment_promotions",
+        help_text="Profiles that must stash weapons without the retained trait when promoted.",
+    )
+    keep_weapon_trait = models.ForeignKey(
+        "library.Trait",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="equipment_promotions",
+        help_text="For the profiles listed in Stash weapons for, keep weapons only when every equipped weapon profile has this trait.",
+    )
+
+    class Meta:
+        ordering = ["threshold", "pk"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(threshold__gt=0),
+                name="advancement_promotion_threshold_positive",
+            ),
+            models.UniqueConstraint(
+                fields=["advancement", "from_subtype", "threshold"],
+                name="advancement_promotion_once",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.from_subtype}: {self.threshold}"
+
+    def clean(self):
+        super().clean()
+        if (
+            self.slot_id
+            and not self.replaces_advancement
+            and self.slot.picklist.available_members().count() != 1
+        ):
+            raise ValidationError(
+                {"slot": "An additional promotion needs exactly one result."}
+            )
+        if self.slot_id and self.slot.picklist.dice:
+            raise ValidationError(
+                {"slot": "A promotion uses a choice, not a roll table."}
+            )
+
+
 class ApplyChanges(Content):
     """Apply each configured change in order as one outcome."""
 

@@ -1104,6 +1104,57 @@ def resolve_advancement(slot, **kwargs):
 
 
 @guarded_write
+@transaction.atomic
+def add_advancement_promotion(
+    advancement,
+    from_subtype,
+    threshold,
+    slot,
+    replaces_advancement=True,
+    optional_profiles=(),
+    requires_rule=None,
+    stash_weapons_for=(),
+    keep_weapon_trait=None,
+    **kwargs,
+):
+    from n26.library.models import AdvancementPromotion
+
+    if stash_weapons_for and keep_weapon_trait is None:
+        raise ValidationError(
+            {"keep_weapon_trait": "Choose the trait for weapons the model keeps."}
+        )
+    promotion = AdvancementPromotion(
+        advancement=advancement,
+        from_subtype=from_subtype,
+        threshold=threshold,
+        slot=slot,
+        replaces_advancement=replaces_advancement,
+        requires_rule=requires_rule,
+        keep_weapon_trait=keep_weapon_trait,
+        **kwargs,
+    )
+    promotion.full_clean()
+    promotion.save()
+    set_promotion_profiles(
+        promotion,
+        optional_profiles=optional_profiles,
+        stash_weapons_for=stash_weapons_for,
+    )
+    return promotion
+
+
+@guarded_write
+def set_promotion_profiles(promotion, *, optional_profiles, stash_weapons_for):
+    """Replace the profiles that may decline a promotion or must stash weapons."""
+    if stash_weapons_for and promotion.keep_weapon_trait_id is None:
+        raise ValidationError(
+            {"keep_weapon_trait": "Choose the trait for weapons the model keeps."}
+        )
+    promotion.optional_profiles.set(optional_profiles)
+    promotion.stash_weapons_for.set(stash_weapons_for)
+
+
+@guarded_write
 def apply_changes(*changes, **kwargs):
     from n26.library.models import ApplyChange, ApplyChanges, CounterChange
 

@@ -422,6 +422,17 @@ class Picklist(Content):
         if bool(self.dice) != bool(self.roll_selects):
             raise ValidationError({"dice": ROLL_TABLE_IS_WHOLE})
 
+    def available_members(self, *, include_staged=False):
+        """Members available for a new choice, rather than stored history."""
+        members = (
+            self.members.select_related("pickable")
+            .unarchived()
+            .filter(pickable__archived=False, pickable__pack__archived=False)
+        )
+        if not include_staged:
+            members = members.filter(staged=False, pickable__staged=False)
+        return members
+
     def landing(self, roll, members=None):
         """The rows a roll lands on: the one whose band holds it on a band
         table, every row whose band starts at or below it on a threshold

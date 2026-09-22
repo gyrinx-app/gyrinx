@@ -183,6 +183,15 @@ Both print on the card under their own headings. They arrive built in, given by 
 
 ### Other types
 
+- **Advancement promotion** — a subtype change resolved as part of an earned
+  advancement. Content specifies the starting subtype, minimum earned threshold
+  and result slot. It can replace the roll with a choice, or add one fixed result
+  after the normal advancement. Results are ordinary pickables with modifiers.
+  You can require a rule for eligibility and name profiles that may decline a
+  replacement promotion. Equipment rules can move weapons to the gang's stash.
+  Starting XP does not trigger a promotion. See
+  [the setup recipe](/n26/authoring/recipes/#stage-and-launch-fighter-progression).
+
 - **Subtype** — *a model subtype: Leader, Ganger, Specialist, Mounted, Wyrd.* No fields of its own. Prints in the card's type line, and is what scopes match on ("Champion or Leader models").
 - **Trait** — *a weapon trait: Melee, Rapid Fire (1), Knockback (6+).* The parameter is the annotation, so Knockback (5+) and Knockback (6+) are two traits. Lives on weapon profiles, never on the weapon itself.
 - **Skill tree** — *"Agility" as a thing a gang can pick.* Most gangs never need one: a fixed skill set is just a category. Venators pick four and rank them. A fact a gang owns has to be an assignment, and an assignment can only point at an assignable, so this type fills that gap. Everything else about the set (its skills, where it sits for a fighter) belongs to the category. Chosen, so it takes no built-ins.
