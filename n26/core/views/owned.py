@@ -134,14 +134,14 @@ def _possession_or_404(request, pk):
 
 
 def _bundled_profile_message(assignment, act):
-    """Why a weapon's own firing line cannot leave without the gun."""
+    """Why a weapon's own profile cannot leave without the gun."""
     name = assignment.assignable.name or str(assignment.assignable)
     weapon = str(assignment.parent.assignable) if assignment.parent_id else "the weapon"
     return f"You cannot {act} {name} on its own. It comes with {weapon}."
 
 
 def _refuse_bundled_profile(request, assignment, act, back):
-    """Answer a handmade click on a firing line that came with the gun."""
+    """Answer a handmade click on a weapon profile that came with the gun."""
     if not is_built_in_profile(assignment):
         return None
     messages.error(request, _bundled_profile_message(assignment, act))
@@ -438,7 +438,7 @@ def owned_dialog(request, host: EquipHost):
     assignment = _held(host, named)
     if assignment is None:
         return None
-    # A weapon's own firing line belongs to the gun. A screen must not
+    # A weapon's own profile belongs to the gun. A screen must not
     # ask a question its answer refuses, so those addresses draw nothing.
     if kind in {"sell", "refund", "remove"} and is_built_in_profile(assignment):
         return None

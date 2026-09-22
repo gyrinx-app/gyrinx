@@ -349,7 +349,7 @@ class TestWhatACopyOffers:
     def test_a_weapons_own_named_profile_is_offered_no_way_to_leave(
         self, fighter, house_list, armed
     ):
-        """A free firing mode rides with the gun. Drawing a kebab that
+        """A free weapon profile rides with the gun. Drawing a menu that
         sells one would be offering a click that leaves the weapon
         missing a line with no way to put it back."""
         first, _, _ = armed

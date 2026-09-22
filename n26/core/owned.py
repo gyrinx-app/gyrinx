@@ -123,7 +123,7 @@ def can_unbolt(assignment):
 
 
 def is_built_in_profile(assignment):
-    """Is this a weapon's own firing line, granted with the gun?
+    """Is this one of a weapon's own profiles, granted with the gun?
 
     Free profiles ride with the weapon: they *are* how it shoots, and
     selling one leaves no way to put it back. Bought ammunition is the
@@ -167,7 +167,7 @@ class OwnedPart:
     key: str
     name: str
     rating: int
-    #: Empty for a weapon's own firing line — it comes with the gun and
+    #: Empty for a weapon's own profile — it comes with the gun and
     #: cannot be sold, refunded or removed on its own. Bought ammunition
     #: keeps a real address.
     sell_href: str
@@ -286,7 +286,7 @@ def _parts_of(node, at, *, can_refit=False):
     Autogun's first line as "Autogun" — so it draws no row here either,
     the same rule ``n26.render.WeaponLine.own_line`` keeps for the card.
     A named free profile still draws a row, because the card needs the
-    extra firing line, but it cannot be sold apart from its gun: it
+    extra weapon profile, but it cannot be sold apart from its gun: it
     came with the weapon and there is no way to put it back.
 
     ``can_refit`` is whether this host carries another gun this part

@@ -455,7 +455,7 @@ def copy_row(copy, refunds=True):
                 ),
                 # A part is refundable for the same reason it is sellable:
                 # somebody paid for the wrong ammunition as easily as for
-                # the wrong gun. A firing line that came with the weapon
+                # the wrong gun. A weapon profile that came with the weapon
                 # is neither — selling it leaves no way to put it back.
                 # Removed rather than deleted, because what is left
                 # afterwards is still the fighter's gun.
