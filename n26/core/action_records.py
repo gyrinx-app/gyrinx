@@ -427,7 +427,7 @@ def start_action(op, fighter, action, request_key, allowance=None):
                     ActionRecord.State.COMPLETED,
                 ]
             )
-            .order_by("created", "pk")
+            .order_by("threshold", "created", "pk")
             .first()
         )
         if allowance is None:
@@ -435,6 +435,9 @@ def start_action(op, fighter, action, request_key, allowance=None):
     elif not _has_access(fighter, action):
         raise Refusal("That fighter can no longer use this action.")
 
+    from n26.core.promotions import require_earliest_allowance
+
+    require_earliest_allowance(fighter, action, allowance)
     source_assignment = _source_assignment(fighter, action)
     record = ActionRecord.objects.create(
         gang=op.gang,
@@ -498,9 +501,9 @@ def _validate_recorded_outcome(record, outcome):
 
     selection = (
         AdvancementSelection.objects.filter(
-            action_record=record, roll_event__isnull=False
+            action_record=record, slot_assignment__isnull=False
         )
-        .select_related("slot_assignment")
+        .select_related("slot_assignment", "promotion")
         .first()
     )
     if selection is None:
@@ -509,18 +512,32 @@ def _validate_recorded_outcome(record, outcome):
     if (
         (record.outcome_id is not None and record.outcome_id != outcome.pk)
         or not isinstance(configured, ResolveAdvancement)
-        or configured.slot_id != selection.slot_assignment.slot_id
-    ):
-        raise Refusal(
-            "You cannot change the outcome after recording its advancement roll."
+        or (
+            selection.promotion_id
+            and selection.promotion.advancement_id != configured.pk
         )
+        or (
+            (
+                selection.promotion.slot_id
+                if selection.promotion_id and not selection.roll_event_id
+                else configured.slot_id
+            )
+            != selection.slot_assignment.slot_id
+        )
+    ):
+        raise Refusal("You cannot change the outcome after starting its advancement.")
 
 
 def _recorded_action_terms(record):
     """System-owned roll provenance that user-entered terms may not replace."""
     return {
         key: deepcopy(record.terms[key])
-        for key in ("action_roll_request", "advancement_table")
+        for key in (
+            "action_roll_request",
+            "advancement_table",
+            "promotion_rule",
+            "decline_promotion",
+        )
         if key in record.terms
     }
 
@@ -793,10 +810,20 @@ def cancel_action(op, record):
         return record
     if record.state != ActionRecord.State.STARTED or record.payment_id is not None:
         raise Refusal("That action use can no longer be cancelled.")
-    if AdvancementSelection.objects.filter(
-        action_record=record, roll_event__isnull=False
-    ).exists():
+    if (
+        AdvancementSelection.objects.filter(
+            action_record=record, roll_event__isnull=False
+        ).exists()
+        or LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).exists()
+    ):
         raise Refusal("A recorded advancement roll must be resumed.")
+    from n26.core.promotions import remove_unfinished_promotion
+
+    remove_unfinished_promotion(
+        op, record, getattr(record, "advancement_selection", None)
+    )
     record.state = ActionRecord.State.CANCELLED
     op.event(
         record.fighter,
