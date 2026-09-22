@@ -257,6 +257,10 @@ class Operation(models.TextChoices):
         "n26_initialise_action_allowances",
         "n26: existing fighters receive earned action allowances",
     )
+    RESET_SPYRER_BUILT_INS = (
+        "n26_reset_spyrer_built_ins",
+        "n26: reset the mistaken Spyre Hunters built-ins",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -282,6 +286,7 @@ LOCK_KEYS = {
     Operation.ORDER_COLLECTIONS: 826_020_625,
     Operation.ACTIVATE_COUNTER_HISTORY: 826_020_627,
     Operation.INITIALISE_ACTION_ALLOWANCES: 826_020_626,
+    Operation.RESET_SPYRER_BUILT_INS: 826_020_628,
 }
 
 
@@ -1179,6 +1184,48 @@ def delete_legacy_affiliation_assignments_view(request):
         find,
         delete_legacy_affiliation_assignments,
         LEGACY_AFFILIATION_ASSIGNMENT_WORDS,
+    )
+
+
+@task
+def reset_spyrer_built_ins(backfill_id, **unused):
+    from n26.core.reset_spyrer_built_ins import Refused, apply_one, prepare
+
+    run_per_gang(
+        backfill_id,
+        operation=Operation.RESET_SPYRER_BUILT_INS,
+        what="Spyre Hunters built-in reset",
+        find=prepare,
+        apply_one=apply_one,
+        refusals=(Refused,),
+        again=lambda: reset_spyrer_built_ins.enqueue(backfill_id=backfill_id),
+    )
+
+
+def reset_spyrer_built_ins_view(request):
+    from n26.core.reset_spyrer_built_ins import find
+
+    return _deletion_view(
+        request,
+        Operation.RESET_SPYRER_BUILT_INS,
+        find,
+        reset_spyrer_built_ins,
+        {
+            "noun": "reset",
+            "intro": (
+                "Remove Fighter progression, Promotion, Suit Evolution and Suit "
+                "Maintenance from the Spyre Hunters built-ins and existing gangs. "
+                "Delete their three inspected action uses and restore the staff "
+                "test's counter values. Gangs, equipment, XP and other completed "
+                "advancements are kept. The shared rules and actions are kept."
+            ),
+            "nothing_heading": "Nothing to reset",
+            "nothing_flash": "The mistaken Spyre Hunters setup has been removed.",
+            "nothing_words": "The mistaken Spyre Hunters setup has been removed.",
+            "refuses_heading": "The reset cannot run",
+            "button": "Reset the mistaken setup",
+            "confirm": "Delete these attachments, propagated assignments and action uses? This cannot be undone.",
+        },
     )
 
 
@@ -2106,6 +2153,17 @@ register_operation(
 
 register_operation(
     MaintenanceOperation(
+        operation=Operation.RESET_SPYRER_BUILT_INS.value,
+        name=Operation.RESET_SPYRER_BUILT_INS.label,
+        added=date(2026, 9, 22),
+        description="Remove the four mistaken Spyre Hunters built-ins, their propagated assignments and three inspected action uses.",
+        view=reset_spyrer_built_ins_view,
+        detail_template="admin/maintenance/n26/_per_gang_detail.html",
+    )
+)
+
+register_operation(
+    MaintenanceOperation(
         operation=Operation.DELETE_EMPTY_AFFILIATIONS.value,
         name=Operation.DELETE_EMPTY_AFFILIATIONS.label,
         added=date(2026, 8, 29),
@@ -2884,6 +2942,7 @@ register_control_operation(
 #: from the declaration, and only there — the local backend fires no
 #: schedules, so dev and tests invoke the sweep function directly.
 task_routes = [
+    N26TaskRoute(reset_spyrer_built_ins, ack_deadline=600),
     N26PausedTaskRoute(activate_counter_history, ack_deadline=600),
     N26TaskRoute(delete_test_content, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(delete_firing_line, ack_deadline=600, min_retry_delay=60),
