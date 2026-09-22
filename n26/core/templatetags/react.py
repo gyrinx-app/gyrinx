@@ -25,8 +25,7 @@ def _manifest():
         raise ImproperlyConfigured(
             "React assets are missing. Rebuild them with the worktree venv "
             "on PATH: `.codex/run.sh npm run js` or "
-            "`PATH=$PWD/.venv/bin:$PATH npm run js`. "
-            "Do not run npm audit fix unless the task is the audit itself."
+            "`PATH=$PWD/.venv/bin:$PATH npm run js`."
         ) from exc
 
 
