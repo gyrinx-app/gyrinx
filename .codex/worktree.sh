@@ -25,3 +25,38 @@ codex_tree_root() {
   }
   printf '%s\n' "$root"
 }
+
+# Run git with a per-command HTTPS rewrite for git@github.com: URLs.
+# Codex sandboxes often have `gh` authenticated but no SSH agent key, so a
+# stored git@github.com: remote fails with "publickey". Passing -c keeps the
+# rewrite off the shared worktree config — `git config --local` in a linked
+# worktree writes the common config and would change the human's main checkout.
+# Apply the rewrite only when `gh` is on PATH, origin is still SSH, and no
+# existing insteadOf has already turned it into HTTPS. Does not exec, so
+# callers can inspect the exit status.
+codex_github_https_git() {
+  if ! command -v gh >/dev/null 2>&1; then
+    git "$@"
+    return $?
+  fi
+  local origin effective
+  origin=$(git remote get-url origin 2>/dev/null || true)
+  case "$origin" in
+    git@github.com:*|ssh://git@github.com/*|ssh://git@github.com:*) ;;
+    *)
+      git "$@"
+      return $?
+      ;;
+  esac
+  effective=$(git ls-remote --get-url origin 2>/dev/null || true)
+  case "$effective" in
+    git@github.com:*|ssh://git@github.com/*|ssh://git@github.com:*)
+      git \
+        -c "url.https://github.com/.insteadOf=git@github.com:" \
+        -c "credential.https://github.com.helper=!gh auth git-credential" \
+        "$@"
+      return $?
+      ;;
+  esac
+  git "$@"
+}

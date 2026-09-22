@@ -68,6 +68,10 @@ artifacts when the IDE Canvas surface is unavailable.
 - See [`.codex/README.md`](.codex/README.md) for worktree lifecycle and database
   isolation. Run `.codex/setup.sh` after creating a Codex worktree and
   `.codex/cleanup.sh` before deleting one.
+- If `git push` is rejected with `Permission denied (publickey)`, do not change
+  the remote. Codex sandboxes often have `gh` authenticated but no SSH key.
+  Use `.codex/push.sh` or `.codex/run.sh git push`, which rewrite
+  `git@github.com:` to HTTPS for that command only. See `.codex/README.md`.
 
 ## Development workflow
 

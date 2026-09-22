@@ -30,12 +30,14 @@ class CodexLifecycleTests(unittest.TestCase):
             PATH=f"{self.bin}:{os.environ['PATH']}",
             COMMAND_LOG=str(self.log),
             FAKE_TOOLS=str(self.bin.parent),
+            GIT_CONFIG_GLOBAL="/dev/null",
+            GIT_CONFIG_NOSYSTEM="1",
         )
         self.source.mkdir()
         self.git("init", "-q", cwd=self.source)
         (self.source / ".codex").mkdir()
         (self.source / "scripts" / "lib").mkdir(parents=True)
-        for name in ("setup.sh", "cleanup.sh", "worktree.sh", "dev-url.sh"):
+        for name in ("setup.sh", "cleanup.sh", "worktree.sh", "dev-url.sh", "push.sh"):
             shutil.copy2(REPO / ".codex" / name, self.source / ".codex" / name)
         shutil.copy2(
             REPO / "scripts" / "lib" / "worktree.sh",
@@ -113,6 +115,45 @@ class CodexLifecycleTests(unittest.TestCase):
             text=True,
             capture_output=True,
         )
+
+    def run_codex_git(self, *args, cwd=None, **env):
+        return subprocess.run(
+            [
+                "/bin/bash",
+                "-c",
+                'source "$1" && shift && codex_github_https_git "$@"',
+                "test",
+                str(self.source / ".codex" / "worktree.sh"),
+                *args,
+            ],
+            cwd=cwd or self.source,
+            env=self.env | env,
+            text=True,
+            capture_output=True,
+        )
+
+    def git_on_restricted_path(self):
+        git = shutil.which("git")
+        self.assertIsNotNone(git)
+        git_bin = self.root / "git-only"
+        git_bin.mkdir(exist_ok=True)
+        link = git_bin / "git"
+        if not link.exists():
+            link.symlink_to(git)
+        return f"{self.bin}:{git_bin}"
+
+    @staticmethod
+    def credential_free_url(url):
+        scheme, sep, rest = url.partition("://")
+        if not sep:
+            return url
+        _userinfo, at, hostpath = rest.rpartition("@")
+        if at:
+            return f"{scheme}://{hostpath}"
+        return url
+
+    def assert_remote_url(self, actual, expected):
+        self.assertEqual(self.credential_free_url(actual.strip()), expected)
 
     def commands(self):
         return self.log.read_text() if self.log.exists() else ""
@@ -262,6 +303,126 @@ class CodexLifecycleTests(unittest.TestCase):
         self.assertIn(f"open|{url}", self.commands())
         result = self.run_script("dev-url.sh", cwd=self.source)
         self.assertEqual(result.stdout.strip(), "http://localhost:8000/")
+
+    def test_https_git_rewrites_ssh_origin_when_gh_is_available(self):
+        self.write_script(self.bin / "gh", "exit 0\n")
+        self.git(
+            "remote",
+            "add",
+            "origin",
+            "git@github.com:gyrinx-app/gyrinx.git",
+            cwd=self.source,
+        )
+        result = self.run_codex_git("ls-remote", "--get-url", "origin")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_remote_url(
+            result.stdout, "https://github.com/gyrinx-app/gyrinx.git"
+        )
+        config = subprocess.run(
+            [
+                "git",
+                "config",
+                "--local",
+                "--get",
+                "url.https://github.com/.insteadOf",
+            ],
+            cwd=self.source,
+            env=self.env,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(config.returncode, 0)
+        self.assertEqual(config.stdout.strip(), "")
+
+    def test_https_git_leaves_ssh_origin_when_gh_is_missing(self):
+        self.git(
+            "remote",
+            "add",
+            "origin",
+            "git@github.com:gyrinx-app/gyrinx.git",
+            cwd=self.source,
+        )
+        result = self.run_codex_git(
+            "ls-remote",
+            "--get-url",
+            "origin",
+            PATH=self.git_on_restricted_path(),
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_remote_url(result.stdout, "git@github.com:gyrinx-app/gyrinx.git")
+
+    def test_https_git_leaves_https_origin_unchanged(self):
+        self.write_script(self.bin / "gh", "exit 0\n")
+        self.git(
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/gyrinx-app/gyrinx.git",
+            cwd=self.source,
+        )
+        result = self.run_codex_git("ls-remote", "--get-url", "origin")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_remote_url(
+            result.stdout, "https://github.com/gyrinx-app/gyrinx.git"
+        )
+
+    def test_https_git_leaves_an_existing_insteadof_rewrite_alone(self):
+        self.write_script(self.bin / "gh", "exit 0\n")
+        self.git(
+            "remote",
+            "add",
+            "origin",
+            "git@github.com:gyrinx-app/gyrinx.git",
+            cwd=self.source,
+        )
+        global_config = self.root / "existing.gitconfig"
+        global_config.write_text(
+            '[url "https://example.test/"]\n\tinsteadOf = git@github.com:\n'
+        )
+        result = self.run_codex_git(
+            "ls-remote",
+            "--get-url",
+            "origin",
+            GIT_CONFIG_GLOBAL=str(global_config),
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_remote_url(
+            result.stdout, "https://example.test/gyrinx-app/gyrinx.git"
+        )
+
+    def test_push_wrapper_and_run_sh_call_the_https_git_helper(self):
+        push = (self.source / ".codex" / "push.sh").read_text()
+        run = (REPO / ".codex" / "run.sh").read_text()
+        self.assertIn("codex_github_https_git push", push)
+        self.assertIn('if [ "$1" = "git" ]; then', run)
+        self.assertIn("codex_github_https_git", run)
+
+    def test_setup_does_not_write_github_insteadOf_into_shared_config(self):
+        self.write_script(self.bin / "gh", "exit 0\n")
+        self.git(
+            "remote",
+            "add",
+            "origin",
+            "git@github.com:gyrinx-app/gyrinx.git",
+            cwd=self.source,
+        )
+        result = self.run_script("setup.sh")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        config = subprocess.run(
+            [
+                "git",
+                "config",
+                "--local",
+                "--get",
+                "url.https://github.com/.insteadOf",
+            ],
+            cwd=self.target,
+            env=self.env,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(config.returncode, 0)
+        self.assertEqual(config.stdout.strip(), "")
 
 
 if __name__ == "__main__":

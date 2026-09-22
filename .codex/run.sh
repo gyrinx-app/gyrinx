@@ -10,6 +10,7 @@ fi
 PROJECT_DIR=$(git rev-parse --show-toplevel)
 VENV_ACTIVATE="${PROJECT_DIR}/.venv/bin/activate"
 WORKTREE_LIB="${PROJECT_DIR}/scripts/lib/worktree.sh"
+CODEX_LIB="${PROJECT_DIR}/.codex/worktree.sh"
 
 if [ ! -f "$VENV_ACTIVATE" ]; then
   echo "No worktree virtualenv found at ${PROJECT_DIR}/.venv." >&2
@@ -21,6 +22,8 @@ fi
 # uses a dependency-input stamp, so this is a cheap no-op unless they changed.
 # shellcheck disable=SC1090
 source "$WORKTREE_LIB"
+# shellcheck disable=SC1090
+source "$CODEX_LIB"
 provision_worktree_venv "$PROJECT_DIR" || exit 1
 
 # The activation script includes the repository's per-worktree DB hook, which
@@ -44,6 +47,13 @@ export DJANGO_SETTINGS_MODULE=gyrinx.settings_dev
 PG_BIN_DIR=$(homebrew_postgres_bin)
 if [ -n "$PG_BIN_DIR" ]; then
   export PATH="${PG_BIN_DIR}:${PATH}"
+fi
+
+# `.codex/run.sh git push` uses the same HTTPS rewrite as `.codex/push.sh`.
+if [ "$1" = "git" ]; then
+  shift
+  codex_github_https_git "$@"
+  exit $?
 fi
 
 exec "$@"
