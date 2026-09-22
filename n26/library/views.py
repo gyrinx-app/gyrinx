@@ -25,6 +25,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.defaultfilters import capfirst
 from django.urls import reverse
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
@@ -4044,6 +4045,30 @@ _NOT_CARRIED = ("csrfmiddlewaretoken", "act", "drop_condition")
 MAX_CARRIED_ADDRESS = 2000
 
 
+def _modifier_naming_props(composer):
+    """The name controls React owns when a carrier can shape the derived name."""
+    if composer is None or composer.attach_to is None:
+        return None
+
+    def field_props(field, value):
+        return {
+            "htmlName": field.html_name,
+            "label": capfirst(field.label),
+            "helpText": str(field.help_text),
+            "value": value,
+            "errors": [str(error) for error in field.errors],
+        }
+
+    name = composer["name"]
+    reusable = composer["make_reusable"]
+    typed = name.value()
+    return {
+        "carrier": str(composer.attach_to),
+        "name": field_props(name, "" if typed is None else str(typed)),
+        "reusable": field_props(reusable, bool(reusable.value())),
+    }
+
+
 def _carried_state(request):
     """The composer's own fields as this address carries them, or
     ``None`` where the address carries no form at all.
@@ -4102,6 +4127,7 @@ def _composer_state(request, attach_to=None, bound_composer=None):
         "composer_scope": scope_kind,
         "composer_effect": effect_kind,
         "composer_chips": chips,
+        "modifier_naming": _modifier_naming_props(composer),
         # The two kind pickers as cards: each carries its own blurb and
         # example, what it produces or applies to (the client-side gate),
         # and — where the composer hangs on a carrier — whether it can
@@ -4422,10 +4448,6 @@ def modifier_create(request):
         {
             "carrier": carrier,
             "carrier_kind": for_kind,
-            # With a carrier there is something to name the modifier
-            # after, so the choice between a name of its own and a
-            # generic one is a real choice and the switch is offered.
-            "show_reusable_flag": carrier is not None,
             # Composing for a carrier ends in the modifier hanging on it,
             # which "Create" does not say; composing for nothing creates
             # a row and hangs it nowhere, which "Attach" would misname.

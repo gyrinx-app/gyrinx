@@ -67,6 +67,60 @@ def native_select_recipe():
     }
 
 
+def input_recipe():
+    root, control = classes('<c-ui.input type="text" />', "div", "input")
+    return {"root": root, "control": control}
+
+
+def switch_recipe():
+    root, control, track, thumb = attributes(
+        '<c-ui.switch name="example" />', "div", "input", "button", "span"
+    )
+
+    def states(attrs, prefix, expected):
+        found = tuple(re.findall(r"'([^']+)'\s*:", attrs.get(":class", "")))
+        if found != expected:
+            raise ValueError(f"Cotton switch state classes changed: {found}")
+        return dict(
+            zip(
+                (
+                    f"{prefix}Transition",
+                    f"{prefix}Checked",
+                    f"{prefix}Unchecked",
+                ),
+                found,
+                strict=True,
+            )
+        )
+
+    track_states = states(
+        track,
+        "track",
+        (
+            "transition-colors",
+            "bg-accent",
+            "bg-ink-200 dark:bg-ink-700",
+        ),
+    )
+    thumb_states = states(
+        thumb,
+        "thumb",
+        (
+            "transition-transform",
+            "translate-x-[1.375rem]",
+            "translate-x-0.5",
+        ),
+    )
+    return {
+        "root": class_name(root),
+        "control": class_name(control),
+        "track": class_name(track),
+        "thumb": class_name(thumb),
+        **track_states,
+        **thumb_states,
+    }
+
+
 def checkbox_card_recipe():
     parts = attributes(
         '<c-n26.checkbox-card label="Model" description="Profile">Controls</c-n26.checkbox-card>',
@@ -228,11 +282,38 @@ def recipes():
     )
     button_variants = ("default", "primary", "success", "danger", "ghost")
     field = classes(
-        '<c-ui.field label="Name" for="recipe-field">Control</c-ui.field>',
+        '<c-ui.field label="Name" description_trailing="Help" for="recipe-field">Control</c-ui.field>',
         "div",
         "label",
         "span",
+        "div",
     )
+    toggle_field = classes(
+        '<c-ui.field variant="toggle" label="Name" description_trailing="Help" for="recipe-field">Control</c-ui.field>',
+        "div",
+        "div",
+        "div",
+        "label",
+        "span",
+        "div",
+        "div",
+    )
+    (
+        toggle_root,
+        toggle_row,
+        toggle_text,
+        toggle_label,
+        toggle_label_text,
+        toggle_control,
+        toggle_description,
+    ) = toggle_field
+    if (
+        toggle_root,
+        toggle_label,
+        toggle_label_text,
+        toggle_description,
+    ) != tuple(field):
+        raise ValueError("Cotton toggle field no longer reuses the block field recipe")
     return {
         "button": {
             variant: classes(
@@ -249,11 +330,22 @@ def recipes():
         },
         "checkboxCard": checkbox_card_recipe(),
         "callout": callout_recipe(),
+        "input": input_recipe(),
         "nativeSelect": native_select_recipe(),
         "field": {
-            **dict(zip(("root", "label", "labelText"), field, strict=True)),
+            **dict(
+                zip(
+                    ("root", "label", "labelText", "description"),
+                    field,
+                    strict=True,
+                )
+            ),
+            "toggleRow": toggle_row,
+            "toggleText": toggle_text,
+            "toggleControl": toggle_control,
             "error": classes('<c-ui.error message="Select a model." />', "div")[0],
         },
+        "switch": switch_recipe(),
         "formActions": classes("<c-n26.form-actions />", "div")[0],
         "table": classes("<c-ui.table />", "div", "table"),
         "link": classes('<c-n26.link href="/">Name</c-n26.link>', "a", "span"),
