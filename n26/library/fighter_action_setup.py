@@ -136,7 +136,15 @@ def _named(model, name, **defaults):
     query = {"pack": get_default_pack(), "name__iexact": name}
     if "qualifier" in fields:
         query["qualifier"] = ""
-    row = model.objects.filter(**query).first()
+    candidates = model.objects.filter(**query)
+    if "slot_type" in defaults:
+        row = candidates.filter(slot_type=defaults["slot_type"]).first()
+        if row is None and candidates.exists():
+            raise RuntimeError(
+                f'{model._meta.verbose_name.capitalize()} "{name}" already uses another slot type.'
+            )
+    else:
+        row = candidates.first()
     return row or model.objects.create(name=name, pack=get_default_pack(), **defaults)
 
 

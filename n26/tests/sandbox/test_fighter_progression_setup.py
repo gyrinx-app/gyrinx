@@ -108,6 +108,42 @@ def _start(client, progression, allowance):
 class TestFoundationSetup:
     """Test preparation cannot attach progression to an existing live profile."""
 
+    @pytest.mark.parametrize(
+        "kind,name",
+        [
+            ("pickable", "Ganger specialist: Scout"),
+            ("pickable", "Scout"),
+            ("picklist", "Prospect promotion"),
+            ("slot", "Prospect promotion"),
+        ],
+    )
+    def test_preparation_refuses_another_slot_types_content_without_changes(
+        self, default_pack, kind, name
+    ):
+        slot_type = a.create_slot_type("Unrelated choice")
+        if kind == "slot":
+            table = a.create_picklist("Unrelated results", slot_type)
+            existing = a.create_slot(name, slot_type, picklist=table)
+        else:
+            existing = getattr(a, f"create_{kind}")(name, slot_type)
+        before = existing.modified
+        counts = (
+            Modifier.objects.count(),
+            Pickable.objects.count(),
+            Action.objects.count(),
+        )
+        with pytest.raises(RuntimeError, match="already uses another slot type"):
+            prepare_fighter_progression()
+        existing.refresh_from_db()
+        assert existing.slot_type == slot_type
+        assert existing.modified == before
+        assert counts == (
+            Modifier.objects.count(),
+            Pickable.objects.count(),
+            Action.objects.count(),
+        )
+        assert not AdvancementPromotion.objects.exists()
+
     def test_preparation_is_repeatable_and_live_profiles_are_untouched(
         self, default_pack, make_profile
     ):
@@ -287,7 +323,7 @@ class TestFoundationSetup:
 
     @pytest.mark.parametrize("case", ["archived", "departed", "inactive", "invalid"])
     def test_tracking_refuses_unavailable_counters_without_writes(
-        self, progression, counter_tracking, case
+        self, client, progression, counter_tracking, case
     ):
         counter_id = progression.xp.counter_id
         # Retain the caller's cached membership while changing its stored state.
@@ -300,6 +336,11 @@ class TestFoundationSetup:
             counter_tracking.save()
         elif case == "archived":
             Assignment.objects.filter(pk=progression.xp.pk).update(archived=True)
+            client.force_login(progression.owner)
+            page = client.get(
+                reverse("n26-edit-fighter", args=[progression.fighter.pk])
+            )
+            assert page.context["missing_progression_counters"] == []
         else:
             counter_id = "not-a-counter"
         before = Assignment.objects.count(), LedgerEvent.objects.count()
@@ -307,6 +348,50 @@ class TestFoundationSetup:
             with operation(progression.gang, actor=progression.owner) as op:
                 op.track_progression_counter(progression.fighter, counter_id)
         assert before == (Assignment.objects.count(), LedgerEvent.objects.count())
+
+    @pytest.mark.parametrize("granted", [False, True])
+    def test_more_rank_actions_do_not_grow_missing_counter_queries(
+        self, client, progression, granted
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def add_rank_action(index):
+            counter = a.create_counter(f"Progress {index}")
+            table = a.create_rank_table(f"Progress ranks {index}", counter, [1])
+            action = a.create_action(
+                f"Progress action {index}",
+                "post_cycle",
+                rank_allowance_rule=a.rank_allowance_rule(counter),
+            )
+            for thing in (table, action):
+                if granted:
+                    a.modifier(
+                        f"Give {thing}",
+                        a.targets_model(),
+                        a.ef_adds(thing),
+                        attach_to=progression.profile,
+                    )
+                else:
+                    with operation(progression.gang, actor=progression.owner) as op:
+                        op.assign(thing, miniature=progression.fighter)
+
+        client.force_login(progression.owner)
+        url = reverse("n26-edit-fighter", args=[progression.fighter.pk])
+
+        def query_count(expected):
+            client.get(url)
+            with CaptureQueriesContext(connection) as captured:
+                page = client.get(url)
+            assert page.status_code == 200
+            assert len(page.context["missing_progression_counters"]) == expected
+            return len(captured)
+
+        add_rank_action(0)
+        small = query_count(1)
+        for index in range(1, 6):
+            add_rank_action(index)
+        assert query_count(6) == small
 
     def test_a_broken_shared_binding_is_reported_and_repaired(self, progression):
         modifier = Modifier.objects.get(name="Fighter progression: Advancement")

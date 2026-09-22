@@ -18,6 +18,8 @@ def _membership(fighter):
 def missing_progression_counters(fighter, *, card=None, computed=None):
     """Counters required by the model's rank actions but never assigned to it."""
     from n26.core.access import rank_tables_for
+    from n26.core.models import Assignment
+    from n26.library.models import Counter, RankAllowanceRule
 
     if card is None:
         card = build_card(fighter)
@@ -28,17 +30,31 @@ def missing_progression_counters(fighter, *, card=None, computed=None):
         for node in card.all_nodes()
         if not node.broadcast and node.assignment and node.assignment.counter_id
     }
-    used = {
-        row.action.rank_allowance_rule.counter_id
+    rule_ids = {
+        row.action.rank_allowance_rule_id
         for row in actions_for(fighter, card=card, computed=computed)
         if row.action.rank_allowance_rule_id
     }
+    used = set(
+        RankAllowanceRule.objects.filter(pk__in=rule_ids).values_list(
+            "counter_id", flat=True
+        )
+    )
+    missing = {
+        row.rank_table.counter_id
+        for row in rank_tables_for(fighter, card=card, computed=computed)
+        if row.rank_table.counter_id in used - held
+    }
+    if not missing:
+        return []
     return list(
-        {
-            row.rank_table.counter_id: row.rank_table.counter
-            for row in rank_tables_for(fighter, card=card, computed=computed)
-            if row.rank_table.counter_id in used - held
-        }.values()
+        Counter.objects.unarchived()
+        .filter(pk__in=missing)
+        .exclude(
+            pk__in=Assignment.objects.filter(
+                miniature_root=fighter, counter_id__in=missing
+            ).values("counter_id")
+        )
     )
 
 
