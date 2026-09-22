@@ -10,7 +10,9 @@ import {
     CheckboxCard,
     Field,
     FormActions,
+    Input,
     NativeSelect,
+    Switch,
 } from "./index";
 
 function setupCard(initialChecked = false, disabled = false) {
@@ -191,7 +193,7 @@ describe("checkbox card", () => {
     });
 });
 
-describe("field and native select", () => {
+describe("form controls", () => {
     it("associates labels and errors while preserving an existing description", () => {
         const { rerender } = render(
             <Field label="Crew role" htmlFor="role" errors={["Select a role."]}>
@@ -279,6 +281,72 @@ describe("field and native select", () => {
         expect(select.style.backgroundSize).toBe(
             cotton.nativeSelect.style.backgroundSize,
         );
+    });
+
+    it("associates a Cotton text input with trailing help and errors", () => {
+        render(
+            <Field
+                label="Name"
+                htmlFor="name"
+                description="Leave blank to use the generated name."
+                errors={["Use a shorter name."]}
+            >
+                <Input id="name" name="name" defaultValue="Berserker" />
+            </Field>,
+        );
+
+        const input = screen.getByRole("textbox", {
+            name: "Name",
+        }) as HTMLInputElement;
+        expect(input.value).toBe("Berserker");
+        expect(input.className).toContain(cotton.input.control);
+        const descriptions = input.getAttribute("aria-describedby")!.split(" ");
+        expect(document.getElementById(descriptions[0])?.textContent).toBe(
+            "Leave blank to use the generated name.",
+        );
+        expect(document.getElementById(descriptions[1])?.textContent).toBe(
+            "Use a shorter name.",
+        );
+    });
+
+    it("submits the Cotton switch only while it is on", async () => {
+        const user = userEvent.setup();
+
+        function Example() {
+            const [checked, setChecked] = useState(false);
+            return (
+                <form>
+                    <Field
+                        label="Make reusable"
+                        htmlFor="reusable"
+                        description="Use a generic name."
+                        variant="toggle"
+                    >
+                        <Switch
+                            id="reusable"
+                            name="make_reusable"
+                            checked={checked}
+                            onCheckedChange={setChecked}
+                            label="Make reusable"
+                        />
+                    </Field>
+                </form>
+            );
+        }
+
+        const { container } = render(<Example />);
+        const control = screen.getByRole("switch", {
+            name: "Make reusable",
+        });
+        const form = container.querySelector("form")!;
+        expect(control.className).toContain(cotton.switch.trackUnchecked);
+        expect(new FormData(form).has("make_reusable")).toBe(false);
+        await user.click(screen.getByText("Make reusable"));
+        expect(control.getAttribute("aria-checked")).toBe("true");
+        expect(control.className).toContain(cotton.switch.trackChecked);
+        expect(new FormData(form).get("make_reusable")).toBe("on");
+        await user.keyboard(" ");
+        expect(new FormData(form).has("make_reusable")).toBe(false);
     });
 });
 

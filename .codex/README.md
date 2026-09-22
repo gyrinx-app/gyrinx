@@ -35,6 +35,31 @@ changes `package-lock.json` or `n26/frontend`, `.codex/run.sh` runs `npm ci`
 scripts resolve `.venv/bin/python` themselves, so a plain `git commit` works
 once setup has created the venv.
 
+## Pushing
+
+Codex sandboxes often have `gh` authenticated but no SSH agent key. A stored
+`git@github.com:` remote then fails with `Permission denied (publickey)`. Do
+not change the remote. Push through the wrapper, which rewrites that prefix to
+HTTPS for that command only via `gh auth git-credential`:
+
+```bash
+.codex/push.sh
+.codex/push.sh -u origin HEAD
+.codex/run.sh git push origin HEAD
+```
+
+Equivalent one-liner if you are not using the wrappers:
+
+```bash
+git -c 'url.https://github.com/.insteadOf=git@github.com:' \
+    -c 'credential.https://github.com.helper=!gh auth git-credential' \
+    push origin HEAD
+```
+
+Do not run `git config` to install that rewrite: in a linked worktree,
+`--local` writes the shared repository config and would change the main
+checkout.
+
 ## Cleanup
 
 Run this command **before** the worktree is removed, with
@@ -76,6 +101,7 @@ checkout in the integrated terminal.
 | Check Django | `./.codex/run.sh manage check` |
 | Run core tests | `./.codex/run.sh pytest -m core -n 4` |
 | Format | `./scripts/fmt.sh` |
+| Push to GitHub | `./.codex/push.sh` |
 
 The URL helper calculates the checkout's port without requiring setup or a running
 server. Opening it does not start the server. Stop the Run action with Ctrl-C in

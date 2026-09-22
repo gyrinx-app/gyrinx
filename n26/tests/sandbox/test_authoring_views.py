@@ -4767,6 +4767,7 @@ class TestComposingOnItsOwnPage:
         # No reusable switch: there is nothing to attach to, so there
         # is no carrier whose name the modifier could take instead.
         assert 'name="make_reusable"' not in body
+        assert "data-react-module" not in body
 
     def test_a_modifier_can_be_made_here_and_attaches_nowhere(
         self, author, client, default_pack
@@ -6612,8 +6613,52 @@ class TestComposingOnAPageOfItsOwn:
             "/n26/authoring/modifiers/new/?scope_kind=targets_model&effect_kind=ef_adds"
         ).content.decode()
 
-        assert "Make reusable" in with_carrier
+        props = island_props(with_carrier)
+        assert props["carrier"] == "Berserker"
+        assert props["name"] == {
+            "htmlName": "name",
+            "label": "Name",
+            "helpText": "Blank writes the modifier's own sentence as its name.",
+            "value": "",
+            "errors": [],
+        }
+        assert props["reusable"]["htmlName"] == "make_reusable"
+        assert props["reusable"]["label"] == "Make reusable"
+        assert props["reusable"]["value"] is False
         assert "Make reusable" not in alone
+        assert "data-react-module" not in alone
+
+    def test_a_refused_name_returns_to_the_island_with_its_error(
+        self, rule, client, default_pack
+    ):
+        from n26.library.authoring import (
+            create_subtype,
+            ef_adds,
+            modifier,
+            targets_model,
+        )
+
+        mounted = create_subtype("Mounted")
+        modifier("Already used", targets_model(), ef_adds(mounted))
+        response = client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            self.composed(
+                rule,
+                **{
+                    "what-thing_subtype": str(mounted.pk),
+                    "name": "Already used",
+                    "make_reusable": "on",
+                },
+            ),
+        )
+
+        assert response.status_code == 200
+        props = island_props(response.content.decode())
+        assert props["name"]["value"] == "Already used"
+        assert props["name"]["errors"] == [
+            "A modifier with that name already exists in this pack."
+        ]
+        assert props["reusable"]["value"] is True
 
     def test_the_switch_still_decides_the_name(self, rule, client, default_pack):
         from n26.library.authoring import create_subtype
@@ -6770,7 +6815,7 @@ class TestRemovingAConditionRemovesIt:
         assert not drawn_picked(body, leader.pk)
         # The panes and the name box are not chips, and must survive too.
         assert drawn_picked(body, mounted.pk)
-        assert 'value="Half typed"' in body
+        assert island_props(body)["name"]["value"] == "Half typed"
 
     def test_the_removed_chip_stays_gone_when_the_page_is_reloaded(
         self, rule, client, default_pack
@@ -7006,7 +7051,7 @@ class TestRemovingAConditionRemovesIt:
         assert body.count('name="drop_condition"') == 1
         assert drawn_picked(body, champion.pk)
         assert not drawn_picked(body, leader.pk)
-        assert 'value="Half typed"' in body
+        assert island_props(body)["name"]["value"] == "Half typed"
 
     def test_a_position_naming_no_chip_leaves_the_form_alone(
         self, rule, client, default_pack

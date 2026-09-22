@@ -1,10 +1,11 @@
+{% load react %}
 {% comment %}
 The two-step composer, shared by every carrier page and the standalone
 create page. Step one is a GET so the chosen kinds live in the URL —
 step two survives a refresh, and "add a condition" is a plain link.
 
 Takes kind_picker, composer, composer_scope, composer_effect,
-composer_chips, and show_reusable_flag. composer_switch_label is step
+composer_chips, and modifier_naming. composer_switch_label is step
 one's button — the caller's wording, like the submit's and the heading.
 
   --- where step one leads ---
@@ -24,9 +25,9 @@ and where to go back to.
 
   --- the reusable switch ---
 
-`show_reusable_flag` is offered wherever there is a carrier to name the
+`modifier_naming` is offered wherever there is a carrier to name the
 modifier after, which is the whole of what the switch decides. The
-standalone page hides it only while it is reached with no carrier: with
+standalone page keeps the ordinary name field and no switch: with
 nothing to attach to, everything it makes is reusable and there is no
 choice to put in front of anyone.
 
@@ -162,42 +163,15 @@ leaves one out gets a section with no heading.
             {% endif %}
             <c-ui.error :form="composer" name="__all__" />
             {% include "authoring/_panes.html" %}
-            {% include "authoring/_field.html" with form=composer field=composer.name %}
-            {% if show_reusable_flag %}
+            {% if modifier_naming %}
                 {% comment %}
-                The toggle and the name it will produce, together, so the
-                switch is read by its effect rather than by its label.
+                The name, reusable switch and preview are one owner because
+                every change to either control changes the preview. The
+                surrounding form keeps the server's existing POST contract.
                 {% endcomment %}
-                {% comment %}
-                The switch sets its checkbox through x-model, and a property
-                Alpine assigns fires no native change event — so this reads
-                the controls on the click that reaches it rather than
-                listening for one, a tick later, because the click is what
-                Alpine is about to act on. Typing is caught on the window:
-                the name box is a field above this block, not inside it, so
-                its own input event never arrives here.
-
-                "what it does" stands in for the modifier's own sentence,
-                which is compiled from the panes on the server and is not
-                knowable here. Rebuilding it from the option labels is how a
-                preview comes to promise a name that is not the one written;
-                the prefix is the part this can be right about, and it is the
-                part the switch changes.
-
-                attach_to is stringified before it is dumped — it is the
-                carrier row itself, which JSON knows nothing about.
-                {% endcomment %}
-                <div x-data="{ typed: '', reusable: false, carrier: {% if composer.attach_to %}{{ composer.attach_to|stringformat:'s'|json_dumps }}{% else %}''{% endif %}, read() { const form = $el.closest('form'); const name = form.querySelector('#{{ composer.name.auto_id }}'); const flag = form.querySelector('#{{ composer.make_reusable.auto_id }}'); this.typed = name ? name.value.trim() : ''; this.reusable = !!(flag && flag.checked); }, get preview() { if (this.typed) return this.typed; if (this.reusable || !this.carrier) return 'what it does'; return this.carrier + ': what it does'; }, }"
-                     x-init="read()"
-                     @input.window="read()"
-                     @click="$nextTick(() => read())"
-                     @keyup="$nextTick(() => read())">
-                    {% include "authoring/_field.html" with form=composer field=composer.make_reusable %}
-                    <p class="mt-1 text-xs text-muted" x-cloak>
-                        Will be named
-                        <span class="font-medium text-ink-900 dark:text-ink-100" x-text="preview"></span>
-                    </p>
-                </div>
+                {% react_island "modifier-naming" modifier_naming %}
+            {% else %}
+                {% include "authoring/_field.html" with form=composer field=composer.name %}
             {% endif %}
             <c-n26.form-actions submit_label="{{ composer_submit_label }}"
                                 cancel_url="{{ composer_cancel_url }}" />
