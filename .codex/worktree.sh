@@ -42,7 +42,7 @@ codex_github_https_git() {
   local origin effective
   origin=$(git remote get-url origin 2>/dev/null || true)
   case "$origin" in
-    git@github.com:*|ssh://git@github.com/*|ssh://git@github.com:*) ;;
+    git@github.com:*|ssh://git@github.com/*) ;;
     *)
       git "$@"
       return $?
@@ -50,9 +50,10 @@ codex_github_https_git() {
   esac
   effective=$(git ls-remote --get-url origin 2>/dev/null || true)
   case "$effective" in
-    git@github.com:*|ssh://git@github.com/*|ssh://git@github.com:*)
+    git@github.com:*|ssh://git@github.com/*)
       git \
         -c "url.https://github.com/.insteadOf=git@github.com:" \
+        -c "url.https://github.com/.insteadOf=ssh://git@github.com/" \
         -c "credential.https://github.com.helper=!gh auth git-credential" \
         "$@"
       return $?

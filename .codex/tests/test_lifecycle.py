@@ -334,6 +334,21 @@ class CodexLifecycleTests(unittest.TestCase):
         self.assertNotEqual(config.returncode, 0)
         self.assertEqual(config.stdout.strip(), "")
 
+    def test_https_git_rewrites_an_ssh_scheme_origin(self):
+        self.write_script(self.bin / "gh", "exit 0\n")
+        self.git(
+            "remote",
+            "add",
+            "origin",
+            "ssh://git@github.com/gyrinx-app/gyrinx.git",
+            cwd=self.source,
+        )
+        result = self.run_codex_git("ls-remote", "--get-url", "origin")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_remote_url(
+            result.stdout, "https://github.com/gyrinx-app/gyrinx.git"
+        )
+
     def test_https_git_leaves_ssh_origin_when_gh_is_missing(self):
         self.git(
             "remote",
