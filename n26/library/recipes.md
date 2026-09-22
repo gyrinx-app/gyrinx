@@ -1,16 +1,88 @@
 # Recipes
 
-## Bind the standard fighter actions
+## Stage and launch fighter progression
+
+Open **Foundations → Fighter progression** and choose **Prepare for testing**.
+This creates the standard advancement definitions and two staged preview rules:
+
+- **Fighter progression** grants progression to eligible models in a test gang.
+- **Outcast leader progression** also covers an elevated Leader whose source
+  profile would normally be excluded from XP.
+
+Assign the first rule to a test gang. For an Outcast test, assign both. The rules
+grant action access; they do not change XP or grant past advancements. Open a test
+model's edit page. If it has no XP counter, choose **Track XP** to open one at 0.
+Then increase its XP through a rank threshold. Starting XP is not earned XP and
+grants no free advancement.
+
+The supplied content includes these promotions:
+
+- A prospect that earns an advancement at 13 XP or above chooses a specialisation
+  instead of rolling. The result replaces Prospect with Ganger and Specialist,
+  grants the specialisation's skill, and adds 15 rating.
+- A ganger that earns an advancement at 37 XP or above rolls normally and also
+  becomes a Champion with Inspiring. Other subtypes remain. The starting Primary
+  skill offer does not grant another skill for this promotion.
+- A Corpse Grinder Initiate may keep its rank and roll instead. If promoted,
+  it keeps weapons only if every equipped weapon profile has Melee. Other weapons
+  move to the gang's stash.
+
+When a promotion is due, resolve earlier earned advancements first. The promotion
+is part of one earned use, not a second use. A completed result can be corrected
+until a later advancement depends on it. Correction does not move equipment back
+from the stash.
+
+For profile-level testing, choose **Apply to staged content**. This attaches
+progression only to staged profiles and gang types. To launch, choose **Review
+live rollout**, check the named targets and exclusions, then **Apply content
+setup**. The confirmation expires after 30 minutes or when the target list changes.
+Existing models gain access through their profiles; future hires receive an XP
+counter where one was missing. Existing starting XP values are preserved.
+
+The standard recipes exclude Hired Guns, Dramatis Personae and alliance
+delegations. Vehicles and other eligible profiles remain included. The Outcast
+exception uses a modifier on the gang type that grants progression only to
+leaders.
+
+After applying the content, review **Initialise fighter action allowances** in
+admin maintenance for models that already earned XP. That separate operation
+uses recorded counter history; review its reported problems before running it.
+Applying content does not create or rewrite player counter history. Run the
+content setup again after importing new profiles into the default content pack.
+
+### Author a promotion
+
+Open the **Resolve advancement** definition from its outcome. Under **Promotions**,
+select the starting subtype, minimum earned threshold and result slot. A
+replacement promotion offers the slot's results instead of a roll. An additional
+promotion uses a slot with exactly one result and applies it after the normal
+advancement. Promotion slots use a choice table, without dice.
+
+The results are ordinary pickables. Their modifiers add and remove subtypes,
+grant skills or offer a skill selection. Set the rating contribution on each
+pickable. Use **Optional profiles** for profiles that may decline a replacement
+promotion. For equipment changes, set both **Stash weapons for** and **Keep weapon
+trait**. **Requires rule** limits a promotion to models carrying that rule.
+
+The supplied promotions require the **Promotion** rule, granted by the setup.
+This keeps preparation from changing models with manually authored advancement
+access. Prepare for testing restores the supplied promotion definitions and
+preview rules. It also repairs shared content, including the starting-skill
+offer; those repairs affect models already using that content. Use separate
+definitions for house rules you want to preserve.
+
+## Bind other fighter actions
 
 First create **Fighter actions and advancement table** under Foundations. This
 creates the reusable actions, outcomes, advancement slot and table, and the
 standard XP rank table. It does not guess which house rules or profiles use
 them.
 
-For the campaign-wide progression rule, add three **Adds assignable** modifiers
+For a custom campaign-wide progression rule, add three **Adds assignable** modifiers
 that reach every model: **Advancement**, **Standard fighter ranks**, and the
 **Advancement** slot. The slot supplies the recorded 2D6 question, the rank
 table supplies the XP thresholds, and the action supplies the earned use.
+Add the **Promotion** rule too if the supplied promotions should apply.
 
 On the Spyrer progression rule, add bearer-scoped **Adds assignable** modifiers
 for **Suit Evolution** and **Suit Maintenance**. On the Hunt Master profile, add
