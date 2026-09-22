@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Actions: data model proposal</title>
+<style>
+
+*{box-sizing:border-box}body{margin:0;background:#f7f8fa;color:#202a3c;font:16px/1.6 system-ui,sans-serif}main{max-width:1000px;margin:auto;padding:36px 28px}h1{font-size:30px;line-height:1.25}h2{font-size:24px;margin:0 0 16px}h3{font-size:18px}p{max-width:80ch}.eyebrow,.muted,footer{color:#697386}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.06em}.lead{font-size:19px}a{color:#076bd8;text-underline-offset:3px}nav{display:flex;flex-wrap:wrap;gap:12px 24px;padding:18px 0;border-block:1px solid #dfe3e9;margin-top:24px}section{padding-top:36px;scroll-margin-top:15px}details{background:white;border:1px solid #dfe3e9;padding:14px 18px;margin:10px 0;border-radius:4px}summary{font-weight:650;cursor:pointer}article{margin:22px 0 32px}pre{background:#eef0f4;border:1px solid #dfe3e9;border-radius:4px;padding:18px;overflow:auto;font:13px/1.65 ui-monospace,SFMono-Regular,monospace;tab-size:2}li{margin:8px 0}footer{font-size:13px;border-top:1px solid #dfe3e9;margin-top:36px;padding-top:20px}@media(max-width:600px){main{padding:24px 16px}h1{font-size:26px}pre{font-size:12px;padding:12px}details{padding:12px}nav{gap:10px 18px}}
+.status{display:block;color:#46556a;font:600 11px/1.5 system-ui,sans-serif;letter-spacing:.025em;margin:4px 0}summary .status{font-weight:500}#reuse article{border-left:3px solid #dfe3e9;padding-left:18px}#reuse h3{margin:5px 0}.diagram{overflow-x:auto;background:#f7f8fa;border:1px solid #dfe3e9;margin:20px 0;padding:10px}.diagram img{display:block;width:100%;min-width:780px}#relationships,#process{scroll-margin-top:12px}
+.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #dfe3e9}th{font-weight:650}#naming td:first-child{white-space:nowrap}
+
+@media(max-width:600px){#naming table,#naming tbody,#naming tr,#naming td{display:block}#naming thead{display:none}#naming tr{padding:16px 0;border-bottom:1px solid #dfe3e9}#naming td{padding:6px 0;border:0}#naming td:first-child{font-size:19px;font-weight:650}#naming td:not(:first-child)::before{content:attr(data-label);display:block;font-size:12px;font-weight:650;color:#697386}}
+</style>
+</head>
+<body>
+<main><p class="eyebrow">n26 · accepted design</p><h1>Assignable actions, allowances and payments</h1><p class="lead">Grant access with existing assignments and modifiers. Record each paid or earned use separately.</p><p>This page preserves the accepted design sketch. The application implements the flows; NEW, EXTEND and REUSE labels record the work identified during design.</p><p><a href="index.html">Flow prototype</a> · <a href="action-data-model.yaml">Full YAML</a> · <a href="action-data-model.md">Markdown</a> · <a href="../../../n26/design/fighter-actions.md">Implementation guide</a></p><nav><a href="#naming">Names</a><a href="#relationships">Relationships</a><a href="#process">Allowance flow</a><a href="#rank-changes">Simpler rank changes</a><a href="#assignable">Assignable objects</a><a href="#purchase">Shared payments</a><a href="#reuse">Reuse map</a><a href="#access">Access wiring</a><a href="#actions">Four actions</a><a href="#domain">Domain definitions</a><a href="#outcomes">Outcomes</a><a href="#decisions">Decisions</a></nav><section id="naming"><h2>What should we call the assignable action?</h2><p>Use Action for assignable content, ActionRecord for one use, and Activity for the surrounding gang task. Rename the existing core.Action to core.Activity when implementing this design.</p><div class="table-wrap"><table><thead><tr><th>Name</th><th>In conversation</th><th>Why use it?</th><th>Trade-off</th></tr></thead><tbody><tr><td data-label="Name">Action</td><td data-label="In conversation">Assign Suit Evolution to this fighter. Start a Suit Evolution action.</td><td data-label="Why use it?">Names something the fighter can do. Fits both the shop and the rulebook examples.</td><td data-label="Trade-off">Can mean the available action or a particular use. Use ActionRecord for the latter. Renaming the existing gang model to Activity would remove the code-name collision.</td></tr><tr><td data-label="Name">Capability</td><td data-label="In conversation">Grant the Suit Evolution capability. Start an action using it.</td><td data-label="Why use it?">Makes the distinction between having access and using it explicit. Avoids the existing Action model name.</td><td data-label="Trade-off">Broad enough to suggest passive benefits as well as actions. Requires another noun when the player starts a use.</td></tr><tr><td data-label="Name">Activity</td><td data-label="In conversation">Make Suit Evolution available as an activity. Start the activity.</td><td data-label="Why use it?">Works for something with several steps and avoids the existing model name.</td><td data-label="Trade-off">Use this name for the gang task, such as founding or a Trading Post visit. Action more specifically describes something available for a fighter to perform.</td></tr><tr><td data-label="Name">Procedure</td><td data-label="In conversation">Assign the Suit Evolution procedure. Follow the procedure.</td><td data-label="Why use it?">Makes the sequence of steps obvious.</td><td data-label="Trade-off">Suggests that content defines a workflow. Here, the supported operation supplies the forms and steps.</td></tr></tbody></table></div><h3>Names in code</h3><ul><li><code>library.Action</code>: NEW assignable content: what can be done, its use price, outcomes and optional allowance rule.</li><li><code>Assignment(action=...)</code>: EXTEND the existing assignment registry with a typed reference to library.Action. This stores access; an effective grant can also supply access.</li><li><code>core.ActionRecord</code>: NEW player record: one started or completed use, with its selections, payment and changes.</li><li><code>core.Activity (currently core.Action)</code>: PROPOSED RENAME of the existing gang task: founding or a Trading Post visit. It has open/closed state, groups purchases and tracks its Trade Point budget.</li></ul><p>The proposed rename gives each concept its own name: library.Action, core.ActionRecord and core.Activity. Activity keeps the existing gang task’s data and behaviour. Grouping fighter ActionRecords under an Activity would be a separate relationship to design; it is not required by this naming choice.</p><p class="muted">ActionDefinition was the earlier name for the proposed assignable content model. The current application still calls the gang task core.Action; Activity is the proposed replacement name.</p></section><section id="relationships"><h2>Entity relationships</h2><p>An allowance rule is content. An allowance is one earned use. An action record is one attempt to perform the action. Paid actions have no allowance.</p><div class="diagram"><img src="action-relationships.svg" alt="Entity relationships between actions, allowance rules, allowances, action records, payments and changes"></div><p class="muted">Arrows show references and grant relationships. An allowance has at most one started or completed record; cancelled pre-roll attempts remain in history. <a href="action-relationships.svg">Open diagram</a> · <a href="action-relationships.mmd">Mermaid source</a></p></section><section id="process"><h2>From a rule to an allowance to a completed action</h2><div class="diagram"><img src="action-allowance-flow.svg" alt="Earned and paid routes into an action record, with atomic creation and completion"></div><p class="muted"><a href="action-allowance-flow.svg">Open diagram</a> · <a href="action-allowance-flow.mmd">Mermaid source</a></p><p>Saving an XP increase from 48 to 61 records separate allowances for 49 and 61. Starting the 49 allowance reserves only that one. Continuing it reuses its recorded roll; completion leaves the 61 allowance available.</p><p>A fighter with a different assigned rank table uses that table’s thresholds. Changing the table itself does nothing. The next player-saved XP increase uses the replacement table to find newly crossed thresholds.</p></section><section id="rank-changes"><h2>Rank grants when XP increases</h2><p>Agreed: record newly crossed ranks during the player’s XP save. Changing the rank table itself needs no special handling or extra baseline.</p><pre><code>status: AGREED and used by the action definitions and diagrams
+recommendation: &gt;-
+  Create earned allowances when XP increases. Changing the assigned rank table itself needs no handler,
+  history period or replacement baseline.
+crossing_test: before &lt; threshold &lt;= after
+reuse: &gt;-
+  Operation.tally already knows before and after. Read the current effective RankTable and retain the
+  existing unique allowance source key.
+extension: &gt;-
+  Run the rank allowance rule during an XP increase and save new allowances in the same transaction. The
+  player still chooses and applies the advancement during the post-cycle flow.
+table_change_example:
+  xp_when_table_changes: 55
+  replacement_thresholds:
+  - 50
+  - 60
+  - 70
+  on_table_change: &gt;-
+    No grant calculation. Unused allowances remain available; started and completed allowances keep their
+    records.
+  next_xp_increase:
+    before: 55
+    after: 60
+    new_allowance_thresholds:
+    - 60
+initial_counter_value: &gt;-
+  Opening a counter with starting XP does not cross earned thresholds. Existing built-in counters open
+  directly at member.amount.
+existing_fighters: &gt;-
+  One-off initial setup assumes all eligible past advancements are unused; no reconstruction or owner
+  reconciliation of past use.
+literal_do_nothing_with_original_scan:
+  behaviour: &gt;-
+    At the next post-cycle assessment, scan the currently assigned table and create each eligible threshold
+    that has no allowance record.
+  trade_off: &gt;-
+    A replacement threshold of 50 can grant another allowance at 55 XP even when an old-table allowance
+    at 49 already exists. This does not preserve the agreed future-only behaviour.
+  status: Earlier alternative, not selected
+scope: &gt;-
+  Rank grants run inside the user-triggered XP-change operation. No automatic background processing and
+  no table-change operation. Initial existing-fighter setup is separate and assumes no previous advancements
+  taken.
+allowance_rule:
+  kind: rank
+  event: counter_increased
+  counter: xp
+  rank_table_from: acting_fighter_effective_rank_table</code></pre></section><section id="payment-flow"><h2>Paid actions: one atomic purchase</h2><p><strong>Agreed:</strong> finish the choices before paying. Unfinished actions can be resumed or cancelled. Final confirmation writes the payment and result together.</p><div class="diagram"><img src="action-payment-flow.svg" alt="Unpaid choices followed by final confirmation, validation and atomic payment with result changes"></div><p><a href="action-payment-flow.svg">Open payment diagram</a> · <a href="action-payment-flow.mmd">Mermaid source</a></p></section><section id="assignable"><h2>Which objects should be assignable?</h2><article><p class="status">YES</p><h3>Action</h3><p>A fighter can possess and lose access to it through existing built-ins, grants and removals. A use is a separate ActionRecord.</p></article><article><p class="status">YES</p><h3>RankTable</h3><p>A fighter has an effective progression schedule which may differ by profile and change through modifiers.</p></article><article><p class="status">NO FOR NOW</p><h3>Outcome</h3><p>A result template belongs to action content. Performing it records changes; it does not make the fighter hold the outcome definition.</p></article><article><p class="status">NO FOR NOW</p><h3>AllowanceRule</h3><p>A policy of an action. Different rank schedules are already represented by assigned RankTables.</p></article><article><p class="status">NO</p><h3>Price / PriceComponent</h3><p>Terms of a transaction, not held game content.</p></article><article><p class="status">NO</p><h3>Allowance / ActionRecord / Payment / Change / SkillSelection</h3><p>Player records and historical evidence. Archiving a source assignment must not erase or replay them.</p></article></section><section id="purchase"><h2>Prices and payments can be shared with purchases</h2><p>Generalise transaction values and payment execution; leave collection discovery and equipment price calculation behind adapters.</p><h3>Existing</h3><ol><li>Collection price_of computes credits and Trade Points, with overrides.</li><li>Operation.buy/assign records actual payment and acquisition. LedgerEntry stores paid, trade_points, rating and provenance.</li><li>LedgerEvent already stores credit and Trade Point deltas. total_spent sums standalone gang credit events as well as acquisition events.</li><li>Trade Points belong to the original founding/trading action and spent_by; they are not a persistent counter.</li></ol><h3>Shared contract</h3><ol><li>Quote -&gt; list of PriceComponents resolving to exact balances.</li><li>Pay -&gt; after all selections, verify every debit under the gang lock and write payment-line events atomically with the acquired item or the completed ActionRecord and its result changes.</li><li>Receipt -&gt; reconstruct actual payment lines from events.</li><li>Refund -&gt; explicitly reverse original payment lines against their original sources.</li></ol><h3>Migration order</h3><ol><li>Implement counter/credit action payments through a common payment primitive inside operation().</li><li>Adapt equipment credit/Trade Point quotes to the same value representation without changing collection selection or pricing composition.</li><li>Route acquisition payment writes through the primitive, keeping the acquisition assignment as the ledger subject and preserving LedgerEntry folding.</li><li>Extend refund grouping and reconciliation tests before migrating more paths. Avoid recording both the old debit and the new debit.</li></ol><h3>Constraints</h3><ol><li>Signed catalogue prices, discounts, free acquisitions, negative equipment price adjustments and rating contribution are existing behaviours. A positive action-price component constraint must not silently change them.</li><li>Built-in acquisitions may produce several entries; each entry’s ledger fold must remain valid.</li><li>No collection migration is claimed complete or required to approve these action definitions.</li></ol><h3>A price can require both resources</h3><pre><code>name: Illustrative action, not a rulebook price
+use_price:
+- resource: credits
+  payer: gang
+  amount: 50
+- resource: counter
+  payer: fighter
+  counter: kill_count
+  amount: 4
+before:
+  gang_credits: 80
+  fighter_kill_count: 6
+after:
+  gang_credits: 30
+  fighter_kill_count: 2
+if_either_is_insufficient: no debit or result change; leave the action unfinished for revised review or
+  cancellation</code></pre></section><section id="reuse"><h2>What exists and what changes</h2><article><p class="status">REUSE UNCHANGED</p><h3>Who a modifier reaches</h3><p>TargetsMiniature(reach=bearer/every_model), existing condition models, as_selector()</p><p>The same scopes offer actions to the bearer or every fighter in the gang.</p><p class="muted"><code>n26/library/models/modifier.py:153</code></p></article><article><p class="status">REUSE UNCHANGED</p><h3>Matching profiles, subtypes and counter thresholds</h3><p>IsProfile, HasSubtypes, CounterAtLeast and n26.core.select Has/Exactly/All/Any</p><p>Any narrowing uses these persisted condition rows and their existing selector compilation. No has_rule/keeps_counter configuration language.</p><p class="muted"><code>n26/library/models/modifier.py:342</code></p></article><article><p class="status">REUSE MIXIN ON NEW MODEL</p><h3>Applicability notes</h3><p>UsableBy and usable_by_selector()</p><p>Action inherits the existing three lists, default-open semantics and notes.</p><p class="muted"><code>n26/library/models/assignable.py:283</code></p></article><article><p class="status">REUSE PATTERN; EXTEND PIPELINE</p><h3>Where access comes from</h3><p>Assignment, built-ins, AddsAssignable/RemovesAssignable and provenance</p><p>Register Action and RankTable as assignable/grantable kinds; extend access readers. No OffersAction effect or new eligibility grammar.</p><p class="muted"><code>n26/core/access.py:1</code></p></article><article><p class="status">REUSE UNCHANGED</p><h3>Primary and Secondary skills</h3><p>Existing category placements, skill grid, sections and skill UsableBy</p><p>Read the fighter’s existing skill access. Any-skill advancement deliberately includes all sets, with existing usability notes. The guided random procedure rerolls duplicates/unusable results as the rules specify.</p><p class="muted"><code>n26/core/access.py:178</code></p></article><article><p class="status">NEW</p><h3>An earned use</h3><p>AllowanceRule, ActionAllowance, RankTable</p><p>Record each crossed threshold once when the player saves an XP increase, using the current assigned table. Keep earned records when access changes.</p></article><article><p class="status">NEW MODELS; REUSE TRANSACTION BOUNDARY</p><h3>Starting and completing a use</h3><p>Action, Outcome, ActionRecord; operation(gang)</p><p>Distinct action lifecycle with existing gang locking and atomic writes.</p><p class="muted"><code>n26/core/operations.py:2812</code></p></article><article><p class="status">EXTEND EXISTING LEDGER</p><h3>What was paid or changed</h3><p>LedgerEvent action link, payment kinds, structured counter movements and reversal links</p><p>Group payment-line events; extend counter movement fields and receipt/refund readers. Existing standalone credit summation already applies. Preserve acquisition ledger folds during future reuse.</p><p class="muted"><code>n26/core/models/ledger.py:143</code></p></article><article><p class="status">EXTEND EXISTING SLOTS/PICKLIST MEMBERS</p><h3>Tier progression</h3><p>Ladder mode plus numeric member levels</p><p>Keep existing item slots and pickable effects; add enough structure to calculate the next tier.</p><p class="muted"><code>n26/library/models/slots.py:450</code></p></article><article><p class="status">EXTEND EXISTING OFFER; NEW SELECTION RECORD</p><h3>Skill follow-up</h3><p>OffersChoice select/random mode, SkillSelection, recorded skill-table rolls</p><p>Reuse skill selection/access and add the missing random mode and action completion link.</p><p class="muted"><code>n26/library/models/modifier.py:1243</code></p></article><article><p class="status">REUSE + EXPLICIT EXTENSION</p><h3>Counter clearing and pick removal</h3><p>OpChangesCounter configuration and Operation.remove; new action invocation and RemovePicks mutation</p><p>Apply both atomically for Clear glitches. The counter assignment remains; held glitch picks are removed.</p><p class="muted"><code>n26/library/models/modifier.py:1689</code></p></article><article><p class="status">NEW ASSIGNABLE KIND</p><h3>Rank tables as held content</h3><p>RankTable plus existing Assignment, built-in, grant and removal machinery</p><p>Follows existing assignable AssetTable precedent. Add explicit registry fields and an effective-table reader.</p><p class="muted"><code>n26/library/models/modifier.py:90</code></p></article></section><section id="access"><h2>Availability wiring</h2><p>TargetsMiniature and AddsAssignable already exist. Registering Action and RankTable as supported kinds, and reading their effective access, is the extension. No OffersAction effect is proposed.</p><article><h3>spyrer evolution</h3><pre><code>attached_to:
+  kind: Rule
+  ref: spyrer_rule
+scope:
+  kind: TargetsMiniature
+  reach: bearer
+  conditions: []
+effect:
+  kind: AddsAssignable
+  action: suit_evolution</code></pre></article><article><h3>spyrer maintenance</h3><pre><code>attached_to:
+  kind: Rule
+  ref: spyrer_rule
+scope:
+  kind: TargetsMiniature
+  reach: bearer
+  conditions: []
+effect:
+  kind: AddsAssignable
+  action: suit_maintenance</code></pre></article><article><h3>hunt master recruitment</h3><pre><code>attached_to:
+  kind: Profile
+  ref: spyre_hunt_master
+scope:
+  kind: TargetsMiniature
+  reach: bearer
+  conditions: []
+effect:
+  kind: AddsAssignable
+  action: hunt_master_augmentation</code></pre></article><article><h3>standard advancement</h3><pre><code>attached_to:
+  kind: Rule
+  ref: model_progression_rule
+scope:
+  kind: TargetsMiniature
+  reach: every_model
+  conditions: []
+effect:
+  kind: AddsAssignable
+  action: model_advancement</code></pre></article><article><h3>standard rank table</h3><pre><code>attached_to:
+  kind: Rule
+  ref: model_progression_rule
+scope:
+  kind: TargetsMiniature
+  reach: every_model
+  conditions: []
+effect:
+  kind: AddsAssignable
+  rank_table: model_ranks</code></pre></article><ul><li>Action and RankTable become assignable kinds. Existing typed grant/removal and assignment fields must explicitly be extended for both.</li><li>The named carriers are illustrative content wiring. Existing Rule/Profile kinds supply the carriers; the exact named seeds may need authoring.</li><li>The same action can be held by two fighters with different RankTables. The action’s allowance rule reads the fighter’s effective table.</li><li>The model progression Rule can grant a default rank table to all fighters. A different table requires an explicit removal/replacement of that default, so two effective tables do not silently compete.</li><li>Blank UsableBy lists mean unrestricted only when all three lists are empty. They retain current applicability-note semantics.</li></ul></section><section id="actions"><h2>The four actions</h2><p>use_price is the list paid to perform the action. The inherited price field is the credit price of acquiring the capability and remains zero in these examples.</p><article><h3>Suit Evolution</h3><pre><code>id: suit_evolution
+name: Suit Evolution
+subject: fighter
+timing: post_cycle
+outcomes:
+- augment_carried_item
+- clear_glitches
+usable_by_profile_types: []
+usable_by_subtypes: []
+usable_by_profiles: []
+allowance_rule:
+use_price:
+- resource: counter
+  payer: fighter
+  counter: kill_count
+  amount: 4
+price: 0</code></pre></article><article><h3>Suit Maintenance</h3><pre><code>id: suit_maintenance
+name: Suit Maintenance
+subject: fighter
+timing: post_cycle
+outcomes:
+- clear_glitches
+usable_by_profile_types: []
+usable_by_subtypes: []
+usable_by_profiles: []
+allowance_rule:
+use_price:
+- resource: credits
+  payer: gang
+  amount: 100
+price: 0</code></pre></article><article><h3>Recruitment augmentation</h3><pre><code>id: hunt_master_augmentation
+name: Recruitment augmentation
+subject: fighter
+timing: recruitment
+outcomes:
+- augment_carried_item
+usable_by_profile_types: []
+usable_by_subtypes: []
+usable_by_profiles: []
+allowance_rule:
+  kind: recruitment
+  event: recruitment_completed
+  quantity: 1
+use_price: []
+price: 0</code></pre></article><article><h3>Advancement</h3><pre><code>id: model_advancement
+name: Advancement
+subject: fighter
+timing: post_cycle
+outcomes:
+- resolve_advancement
+usable_by_profile_types: []
+usable_by_subtypes: []
+usable_by_profiles: []
+allowance_rule:
+  kind: rank
+  event: counter_increased
+  counter: xp
+  rank_table_from: acting_fighter_effective_rank_table
+use_price: []
+price: 0</code></pre></article></section><section id="domain"><h2>Domain definitions</h2><details><summary>Action <span class="status">NEW ASSIGNABLE KIND; EXTEND EXISTING REGISTRIES</span></summary><p>An assignable capability: a fighter with effective access to this action may start a use. Its definition names the price of a use, possible outcomes and any earned allowance required.</p><p class="muted">PROPOSED NEW ASSIGNABLE KIND: library.Action(Content, Assignable, UsableBy). Extend existing assignment, built-in, grant and removal registries.</p><pre><code>id: content ID
+name: player-facing name
+subject: fighter (initial supported subject)
+timing: recruitment | post_cycle; describes where it is offered, not a campaign phase enforcement engine
+outcomes: ordered, non-empty references to Outcome; exactly one is selected per use
+usable_by_profile_types: &#39;EXISTING UsableBy M2M: ProfileType references; combined with the other two lists.&#39;
+usable_by_subtypes: &#39;EXISTING UsableBy M2M: Subtype references; combined with the other two lists.&#39;
+usable_by_profiles: &#39;EXISTING UsableBy M2M: Profile references; combined with the other two lists.&#39;
+allowance_rule: &gt;-
+  NEW optional RecruitmentAllowanceRule or RankAllowanceRule. Null means no earned allowance is required;
+  each paid use still records its payment.
+use_price: &gt;-
+  ordered list of PriceComponent, charged at final confirmation after all selections; [] means a use has
+  no payment
+price: &gt;-
+  EXISTING inherited credit price of acquiring the action capability; fixed at 0 for these actions. Distinct
+  from use_price.</code></pre><ul><li>An action with an allowance rule has an empty use_price in these four definitions. Combining a price and an allowance is deferred.</li><li>Each action use selects exactly one listed outcome. A sole outcome is selected automatically.</li><li>Assigning an action capability never executes its outcomes. Starting a use creates an ActionRecord; results are applied only by that record’s operation.</li><li>Access comes from held Action assignments and existing AddsAssignable/RemovesAssignable effects extended to name this kind. UsableBy adds the existing applicability notes. No action-specific eligibility language or Availability table is introduced.</li><li>UsableBy is unrestricted when all three lists are empty; otherwise any matching entry is sufficient. It and other game restrictions retain the existing inform-not-police behaviour. Exact payment, ownership, stale-target checks and preventing duplicate allowance use are accounting/data-integrity checks.</li><li>Assigning or granting the capability does not perform it, charge use_price or create an allowance. Recruitment/rank hooks create allowances separately.</li></ul></details><details><summary>Outcome <span class="status">NEW CONTENT MODEL</span></summary><p>A named result an action can produce. Several actions may refer to the same outcome.</p><p class="muted">NEW library content with one typed operation configuration; action membership supplies ordering. It is not assignable.</p><pre><code>id: content ID
+name: player-facing name
+operation: &#39;AugmentCarriedItem | ResolveAdvancement | ApplyChanges(changes: list[CounterChange | RemovePicks])&#39;</code></pre><ul><li>Operations are explicitly supported typed code. ApplyChanges composes a small set of mutations in one transaction; it is not an author-defined branching workflow.</li><li>Their selection forms determine the progress indicator. Progress labels are presentation, not saved game state.</li><li>Each supported outcome operation supplies validation, reversal and replacement of its result for corrections. The shared correction operation checks the record revision and affected history, then reverses and replaces the result atomically. This is typed application code, not a content-authored workflow.</li></ul></details><details><summary>Price <span class="status">NEW USE-PRICE LIST; FUTURE SHARED PRICE VALUE</span></summary><p>The full price of one use: every component is required. The list means AND, not alternative ways of paying.</p><p class="muted">NEW use_price component rows attached to Action; normalised to a shared Price value before confirmation. Future collection prices can adapt to this value.</p><pre><code>components: ordered list[PriceComponent]
+combination: all components required</code></pre><ul><li>An empty component list means no payment. Each action component has a positive amount.</li><li>Coalesce components that resolve to the same balance, then verify the total under the gang lock. Repeating a counter in the list must not bypass affordability.</li><li>Confirm the full list after all selections. All component debits, result changes and completion of the action record commit or roll back together. Saving unfinished choices does not pay or reserve balances.</li><li>Preserve the accepted components on the action record. Future content edits cannot reprice an existing payment.</li><li>Alternatives such as credits OR Kill Count would be an explicit future payment-method choice, not another meaning for this list.</li><li>Inherited Assignable.price describes acquiring an action capability; use_price describes performing it. Keep those separate. The initial capabilities are all free.</li></ul></details><details><summary>Allowance <span class="status">NEW PLAYER MODEL</span></summary><p>One earned or granted use of an action, such as the advancement at 49 XP. This is internal bookkeeping, not a player-facing token.</p><p class="muted">New player-data model ActionAllowance.</p><pre><code>id: record ID
+action: library.Action reference
+fighter: Miniature reference
+source: membership Assignment reference
+provenance:
+  kind: recruitment | rank
+  threshold: integer for rank; null for recruitment
+  rank_table: RankTable content reference and acquisition provenance for rank grants; null for recruitment
+granted_event: LedgerEvent reference</code></pre><ul><li>RecruitmentSource uniqueness: action + source. RankSource uniqueness: action + source + threshold.</li><li>An allowance may have at most one started or completed action record. Cancellation before any roll can release it. After a roll, retain the same unfinished record for continuation or correction.</li><li>Payment-funded actions do not need allowances.</li><li>Rank grants remain unique on action + source + threshold. Changing tables never clears these records or grants anything by itself. A later XP increase uses the current table; re-crossing an already recorded threshold cannot grant it twice.</li></ul></details><details><summary>Action record <span class="status">NEW PLAYER MODEL</span></summary><p>One use of an action, including an unfinished use the player can continue.</p><p class="muted">New player-data model core.ActionRecord. The existing gang core.Action would be renamed core.Activity.</p><pre><code>id: record ID
+request_key: &gt;-
+  unique use ID scoped to the gang; repeated starts or final confirmations address the same record. Completed
+  records return their receipt without another payment.
+action: library.Action reference
+fighter: Miniature reference
+gang: Gang reference at start
+allowance: Allowance reference or null
+outcome: Outcome reference
+state: started | completed | cancelled
+terms: &gt;-
+  accepted snapshot of action/outcome names, use_price components, operation configuration and exact content
+  references; finalised with completion. Unpaid review terms can be refreshed. Recorded advancement rolls
+  retain their original rule context.
+started_event: LedgerEvent reference
+completed_event: LedgerEvent reference or null
+selection:
+  SlotSelection:
+    item_assignment: Assignment or null until selected
+    slot_assignment: Assignment or null
+    previous_pick: Assignment or null for level zero
+    new_pick: Assignment or null until committed
+    intended_pick: Pickable reference selected before checkout; new_pick remains null until completion
+  AdvancementSelection:
+    slot_assignment: Assignment reference
+    roll_event: LedgerEvent reference
+    intended_pick: Pickable reference or null
+    pick_assignment: Assignment reference or null until committed
+    skill_choice: SkillSelection or null
+  AppliedChangesResult:
+    change_events: ordered LedgerEvent references for each applied mutation
+revision: integer for detecting stale correction forms
+payment_id: payment group UUID or null
+source: &gt;-
+  source assignment and modifier provenance; may be a computed action grant rather than a direct action
+  assignment
+review: &gt;-
+  optional snapshot for confirmation: proposed price components, selected outcome and item/tier, exact
+  balance references and expected before-state. Revalidate under the gang lock; changed figures or targets
+  require another review.</code></pre><ul><li>Starting or resuming saves unpaid choices. Final confirmation writes every payment debit, the outcome changes and completed state in one existing operation transaction. Both augmentation and direct glitch clearing use this boundary.</li><li>A stable request key identifies one use. Repeated final submissions return its completed record and receipt. While it is unfinished, validate the submitted revision and review snapshot before committing; a stale form cannot apply different choices.</li><li>Selection references identify this fighter’s actual held item or slot assignments, not just their library definitions.</li><li>A completed record remains completed when corrected. Keep its payment, earned allowance and recorded roll; append correction history and update its current selection and revision. An augmentation may move to another carried item when the old result can be safely reversed and the new target is valid. Reverse the old result and apply the replacement in one transaction.</li><li>An unfinished action has no accepted payment. Price, balance, target or relevant content changes require renewed review before completion. Completed terms preserve the accepted transaction; later library edits cannot reprice it.</li><li>Action records and allowances are player history, not Assignments. Removing the capability must not cascade-delete or archive them.</li><li>For priced actions, the player can change the outcome or selections, leave and resume, or cancel the unpaid record before final confirmation. Changing the outcome clears incompatible selections and invalidates its review. Earned advancements reserve their allowance before rolling and record the roll before revealing it. An earned advancement can release its allowance only before a roll; afterwards it continues with the same recorded roll.</li><li>Corrections validate the exact affected state and later changes under the gang lock. If a later upgrade or other dependent change prevents safe reversal, identify that conflict and require it to be resolved first. Never overwrite later work or silently reprice a correction.</li></ul></details><details><summary>Payment <span class="status">EXTEND EXISTING LEDGER; GROUP ALL PAYMENT LINES</span></summary><p>One accepted payment, consisting of all its debit lines. It records actual movements, not today’s price definition.</p><p class="muted">EXTEND LedgerEvent with payment_id and action_record links. Payment is the grouped view of its events, not a parallel financial ledger or separate mutable balance.</p><pre><code>id: payment UUID shared by all payment-line events
+action_record: ActionRecord reference for these flows
+lines: non-empty list of PaymentLine views over ledger events
+actor: existing actor
+created: existing event timestamps
+refunded_by: separate reversal payment group, if explicitly refunded</code></pre><ul><li>One original payment group per action record, with one event per normalised component. Record the group ID on the action record. A zero-price use has no payment group.</li><li>Every debit succeeds together with the outcome changes and completed action record. Started actions have no payment group and do not reserve balances.</li><li>Counter debits must pay the whole amount. The current tally clamp-to-zero operation cannot fulfil that contract.</li><li>Credit-spend events retain positive credits_delta. Counter spending has negative counter_delta. Price amounts are positive in both cases.</li><li>Cancelling an unfinished priced action needs no refund. Correcting or removing a completed result never refunds automatically. An explicit Undo and refund must reverse the result and every original payment line together, against the original balance references, after checking for conflicting later changes. That explicit refund operation is deferred from the first release.</li><li>The existing total_spent query already sums standalone gang credit events. Preserve that path, add coverage for the new event shapes, and never also create a second paid acquisition event for the same debit.</li><li>A future equipment adapter must preserve LedgerEntry folding, action-scoped Trade Points and spent_by. Assigning an item and paying for it remain in one operation.</li></ul></details><details><summary>Change <span class="status">EXTENSION OF LedgerEvent</span></summary><p>Something an action did: a counter changed, an item tier changed, a pick was recorded or a glitch was removed.</p><p class="muted">Existing ledger events, extended with action_record and structured before/after references where required. No separate general-purpose Change table.</p><pre><code>action_record: ActionRecord reference on each related event
+subject: exact affected assignment or fighter
+kind: existing event kind, or a specifically added kind where needed
+before_after: &#39;typed fields for the operation: counter numbers or previous/new pick references&#39;
+actor_created_batch: existing ledger metadata</code></pre><ul><li>A counter adjustment caused by an outcome is a Change, not a Payment. Glitch Count becoming zero does not pay for the action.</li><li>Tier changes link to the existing item slot; the action record does not own that slot through caused_by.</li><li>Counter movements need structured opening and adjustment records for reconciliation. Existing counters require explicit checkpoint activation while n26 writes are paused; schema migration does not write player history, and old notes are not parsed as financial truth.</li><li>Correction events preserve the exact original result references, affected items and before/after states. Updating ActionRecord.selection must not erase the original history. A cross-item correction links the reversal on the original item and replacement on the new item to the same action record and transaction.</li></ul></details><details><summary>Tier ladder <span class="status">EXTENSION OF Slot + PicklistMember</span></summary><p>The ordered augmentation tiers for one item. These are cumulative states: selecting a tier replaces the previous tier.</p><p class="muted">Existing Slot + Picklist + Pickable, extended with explicit ladder mode and unique numeric levels on its members.</p><pre><code>slot: existing item-hosted Slot, max_picks 1
+mode: tier_ladder
+members: ordered pairs of level and Pickable reference; 1..N
+no_pick_level: &#39;0&#39;</code></pre><ul><li>Display position or a name such as Tier 2 is not sufficient to calculate a next level. Level is numeric content.</li><li>Each eligible carried item must resolve to exactly one matching augmentation slot assignment. Ambiguous content is an authoring error.</li><li>The previous and replacement tier, item ownership and latest state are checked again when the action completes.</li></ul></details><details><summary>Rank table <span class="status">NEW ASSIGNABLE KIND; REUSE GRANTS AND REMOVALS</span></summary><p>An assignable XP progression schedule. Different fighters can hold different effective rank tables.</p><p class="muted">PROPOSED NEW ASSIGNABLE KIND: RankTable(Content, Assignable). Extend assignments, built-ins and AddsAssignable/RemovesAssignable like existing AssetTable.</p><pre><code>id: content ID
+counter: XP Counter reference
+thresholds: ordered unique positive integers
+scope: used by the fighter who effectively holds it; no fixed RankTable FK on the advancement action
+price: EXISTING inherited acquisition price, fixed at 0 for these tables</code></pre><ul><li>REUSE assignment and computed-grant/removal semantics. A profile can bring its table as a built-in, and modifiers may grant or suppress it.</li><li>A rank grant requires exactly one effective table for the fighter and XP counter. Zero tables means no new rank awards; several tables is an explicit conflict, never first-row-wins.</li><li>Allowances already earned retain the table and threshold used when assessed. Removing that table does not erase the allowances.</li><li>On an XP increase, use the current effective table and grant thresholds where before &lt; threshold &lt;= after. The counter operation already has these values. Opening the counter at its starting XP does not grant advancements.</li><li>Replacing a table has no special operation, history period or new baseline. Keep existing allowances and records. Future XP increases use the replacement table; do not retrospectively grant its earlier thresholds.</li></ul></details><details><summary>Skill selection <span class="status">NEW PLAYER MODEL; EXTENDS SKILL OFFERS</span></summary><p>The skill choice required by one advancement result, including a chosen skill set and any random rolls.</p><p class="muted">Proposed typed child record of ActionRecord. It uses existing Skill and category/section content.</p><pre><code>action_record: ActionRecord reference
+mode: select | random
+access: primary | secondary | any, copied from the selected advancement result
+skill_set: Category reference or null until selected
+roll_events: ordered LedgerEvent references; every random attempt is retained
+selected_skill: Skill reference or null
+skill_assignment: Assignment reference or null until committed</code></pre><ul><li>A random roll uses the selected set’s authored D6 mapping. Duplicate or unusable results are recorded and rerolled.</li><li>The guided flow offers new, usable skills and follows the random-result reroll rule. Existing UsableBy notes and any owner override remain the shared policy; this proposal adds no separate hard usability enforcement.</li><li>The parent advancement completes only after this selection is resolved. Completing it writes the advancement pick and skill together.</li></ul></details><details><summary>Action access <span class="status">REUSE ASSIGNMENT/GRANT PATTERN; EXTEND READERS</span></summary><p>A computed listing of an action for a fighter, including the content that offered it.</p><p class="muted">EXTENSION of existing assignment/effects/access readers to recognise Action. No new stored access model and no new effect kind.</p><pre><code>action: library.Action reference
+source: existing modifier carrier/provenance
+usability: existing UsableBy result and notes</code></pre><ul><li>REUSE: stored assignments, built-ins, AddsAssignable, RemovesAssignable, TargetsMiniature, existing condition rows, selector compilation and provenance.</li><li>EXTEND: Assignment, DefaultAssignment and grant/removal typed fields and registries to name Action. Add computed action contributions and an actions_for reader.</li><li>Follow the existing collection/asset-table access pattern while keeping actions out of collection contents. The computed-card pipeline must remain query-free.</li><li>An action granted by several sources appears once with its provenance. Suppression/removal affects future access.</li><li>AGREED: removing Action access stops new grants. Existing earned allowances and their action records remain usable with their recorded source and roll. Ordinary unpaid shop drafts confer no earned entitlement and recheck effective Action access at checkout, along with ownership and valid targets.</li><li>Affordability does not determine access. Two kills still shows Suit Evolution and its four-kill price.</li></ul></details><details><summary>Allowance rule <span class="status">NEW GRANT BOOKKEEPING</span></summary><p>When to record one earned or granted use of an already offered action.</p><p class="muted">NEW typed content configuration owned by the action. This is bookkeeping for grants, not a replacement for availability selectors.</p><pre><code>RecruitmentAllowanceRule:
+  event: recruitment_completed
+  quantity: 1
+RankAllowanceRule:
+  event: counter_increased
+  counter: existing Counter reference
+  rank_table_from: exactly one effective RankTable held by this fighter for the configured counter</code></pre><ul><li>Determine which actions and rank tables are effectively held through existing assignments/grants/scopes before assessing new grants.</li><li>NEW hooks: after recruitment settles, create its recruitment allowance; when XP increases, create allowances for crossed thresholds in the same operation transaction. Both follow player actions. There is no scheduled assessment, background job or write caused by rendering a page.</li><li>REUSE the before/after counter values already known to Operation.tally and existing effective-access readers. EXTEND counter-increase processing with a typed rank allowance rule and once-per-threshold records. No CounterBaseline model or table-change checkpoint is needed for ongoing grants.</li><li>Unique source keys on ActionAllowance prevent duplicate grants when those hooks are repeated.</li><li>AllowanceRule remains part of the action definition. The assignable RankTable supplies the variable schedule; a separate assignable allowance rule is unnecessary for these examples.</li></ul></details><details><summary>Price component <span class="status">NEW PRICE COMPONENT; EXISTING BALANCES</span></summary><p>One required resource and amount in a price.</p><p class="muted">NEW ActionPriceComponent content rows; reusable typed value for a future payment operation.</p><pre><code>id: stable content component ID
+resource: credits | counter; trade_points via future purchase adapter
+payer: gang | fighter
+counter: Counter reference for counter resource only
+amount: positive integer for action use prices
+position: display order</code></pre><ul><li>Credits resolve to the gang balance. A counter resolves to one stored CounterValue assignment on the named payer.</li><li>Future Trade Points resolve to the original founding/trading action and buyer, not a generic persistent counter.</li><li>The execution quote records exact balance references; a fighter name or current holder of a weapon is insufficient.</li></ul></details><details><summary>Payment line <span class="status">EXTENSION OF LedgerEvent</span></summary><p>One actual debit from one identified balance.</p><p class="muted">EXTEND LedgerEvent; a typed view over the event, not another table.</p><pre><code>payment_id: group UUID
+component_key: normalised resource/source identity, unique within a payment
+balance: gang credits OR exact counter Assignment; future Trade Points includes original action and spent_by
+amount: derived from signed event delta
+before_after: structured counter values; optional credit receipt snapshots
+action_record: provenance link</code></pre><ul><li>The event is the accounting record. Do not duplicate the debit in another financial store.</li><li>Counter clearing is a Change, not a PaymentLine: it does not satisfy a price.</li></ul></details><details><summary>Counter change <span class="status">REUSE EFFECT DATA; EXTEND INVOCATION</span></summary><p>A stored mutation of a specific counter on a specific subject, such as setting Glitch Count to zero.</p><p class="muted">REUSE existing OpChangesCounter configuration (counter, mode, amount); EXTEND execution so an action can invoke it without creating a dummy carrier assignment.</p><pre><code>subject: acting_fighter
+counter: Counter reference
+mode: set | add | subtract
+amount: integer; zero for clear</code></pre><ul><li>Clearing means set to 0, not removing the Counter assignment.</li><li>The recorded event carries before, delta and after. This is a state change and does not count as paying a price.</li><li>The strict payment path is separate from ordinary counter adjustment semantics.</li></ul></details><details><summary>Remove picks <span class="status">NEW MUTATION; REUSE REMOVAL PRIMITIVE</span></summary><p>Remove all stored picks of a specified slot type held by the subject, including effects that depend on those picks.</p><p class="muted">NEW typed action mutation; REUSE Assignment filtering, archive/cause-chain removal and rating recomputation.</p><pre><code>subject: acting_fighter
+slot_type: SlotType reference
+selection: all live Pickable assignments of that slot type held by the fighter</code></pre><ul><li>Keep the slot and the counter assignments. Remove the picks and their dependent assignments using the existing removal operation.</li><li>This is a stored removal, not a temporary RemovesAssignable suppression.</li></ul></details></section><section id="outcomes"><h2>Shared outcomes</h2><p>Clear glitches now composes two named mutations. CounterChange reuses the current set/add/subtract configuration; RemovePicks is a new typed mutation using existing assignment removal.</p><article><h3>Hunting Rig Augmentation</h3><pre><code>id: augment_carried_item
+name: Hunting Rig Augmentation
+operation:
+  kind: augment_carried_item
+  target:
+    holder: acting_fighter
+    kinds:
+    - weapon
+    - wargear
+    location: carried
+    slot:
+      slot_type: augmentation
+      mode: tier_ladder
+  quantity: 1
+  characteristic_maxima: model_characteristic_maxima
+  change:
+    from: current_level
+    by: 1
+    if_characteristic_maximum_exceeded: try_one_additional_level
+    if_no_valid_target: do_not_start
+  completion: replace_selected_item_tier
+  rating: from_resulting_content; no action surcharge
+  correction: replace_item_and_level_with_validated_atomic_reversal</code></pre></article><article><h3>Advancement</h3><pre><code>id: resolve_advancement
+name: Advancement
+operation:
+  kind: resolve_advancement
+  target: acting_fighter
+  slot: model_advancement
+  instances: one_slot_assignment_per_action_record
+  table: model_advancement_table
+  roll:
+    dice: 2d6
+    selection: threshold_at_or_below_roll
+    record_before_choice: true
+  characteristic_maxima: model_characteristic_maxima
+  if_no_result_can_be_gained: allow_any_result_from_table
+  completion: advancement_pick_and_any_required_skill_choice_recorded
+  rating: selected_advancement_pick.rating_contribution
+  skill_rating: 0 additional for the skill acquired through this advancement</code></pre></article><article><h3>Clear glitches</h3><pre><code>id: clear_glitches
+name: Clear glitches
+operation:
+  kind: apply_changes
+  changes:
+  - kind: counter_change
+    subject: acting_fighter
+    counter: glitch_count
+    mode: set
+    amount: 0
+  - kind: remove_picks
+    subject: acting_fighter
+    slot_type: spyrer_glitch
+  commit: all_changes_together
+  rating: recompute_from_remaining_assignments</code></pre></article></section><section id="content"><h2>Tables and tiers</h2><details><summary>model ranks</summary><pre><code>kind: RankTable
+counter: xp
+thresholds:
+- 4
+- 7
+- 10
+- 13
+- 19
+- 25
+- 31
+- 37
+- 49
+- 61
+- 73
+- 85
+- 97
+- 109
+- 121
+- 133
+- 157
+- 181
+- 205
+- 229
+assignable: true</code></pre></details><details><summary>model advancement</summary><pre><code>kind: Slot
+slot_type: advancement
+picklist: model_advancement_table
+min_picks: 1
+max_picks: 1</code></pre></details><details><summary>model advancement table</summary><pre><code>kind: Picklist
+slot_type: advancement
+dice: 2d6
+roll_selects: threshold
+members:
+- id: advance_leadership
+  roll_minimum: 2
+  rating_contribution: 5
+  effect:
+    kind: improve_characteristic
+    characteristic: leadership
+    steps: 1
+- id: advance_intelligence
+  roll_minimum: 2
+  rating_contribution: 5
+  effect:
+    kind: improve_characteristic
+    characteristic: intelligence
+    steps: 1
+- id: random_primary_skill
+  roll_minimum: 2
+  rating_contribution: 5
+  effect:
+    kind: offers_skill
+    selection: random
+    from: primary
+    relative_to: acting_fighter
+    quantity: 1
+    duplicate_policy: new_skill
+    type_restrictions: must_be_usable_by_fighter
+    skill_set_selection: player_selects_an_eligible_set
+    random_roll:
+      dice: d6
+      mapping: selected_skill_set_table
+      unusable_or_already_held: record_roll_then_reroll
+      if_no_usable_skill: select_another_eligible_set
+- id: advance_cool
+  roll_minimum: 3
+  rating_contribution: 5
+  effect:
+    kind: improve_characteristic
+    characteristic: cool
+    steps: 1
+- id: advance_willpower
+  roll_minimum: 3
+  rating_contribution: 5
+  effect:
+    kind: improve_characteristic
+    characteristic: willpower
+    steps: 1
+- id: select_primary_skill
+  roll_minimum: 5
+  rating_contribution: 10
+  effect:
+    kind: offers_skill
+    selection: select
+    from: primary
+    relative_to: acting_fighter
+    quantity: 1
+    duplicate_policy: new_skill
+    type_restrictions: must_be_usable_by_fighter
+    skill_set_selection: player_selects_an_eligible_set
+    random_roll:
+- id: random_secondary_skill
+  roll_minimum: 5
+  rating_contribution: 10
+  effect:
+    kind: offers_skill
+    selection: random
+    from: secondary
+    relative_to: acting_fighter
+    quantity: 1
+    duplicate_policy: new_skill
+    type_restrictions: must_be_usable_by_fighter
+    skill_set_selection: player_selects_an_eligible_set
+    random_roll:
+      dice: d6
+      mapping: selected_skill_set_table
+      unusable_or_already_held: record_roll_then_reroll
+      if_no_usable_skill: select_another_eligible_set
+- id: advance_initiative
+  roll_minimum: 6
+  rating_contribution: 10
+  effect:
+    kind: improve_characteristic
+    characteristic: initiative
+    steps: 1
+- id: advance_movement
+  roll_minimum: 6
+  rating_contribution: 10
+  effect:
+    kind: improve_characteristic
+    characteristic: movement
+    steps: 1
+- id: select_secondary_skill
+  roll_minimum: 7
+  rating_contribution: 15
+  effect:
+    kind: offers_skill
+    selection: select
+    from: secondary
+    relative_to: acting_fighter
+    quantity: 1
+    duplicate_policy: new_skill
+    type_restrictions: must_be_usable_by_fighter
+    skill_set_selection: player_selects_an_eligible_set
+    random_roll:
+- id: advance_weapon_skill
+  roll_minimum: 9
+  rating_contribution: 15
+  effect:
+    kind: improve_characteristic
+    characteristic: weapon_skill
+    steps: 1
+- id: advance_ballistic_skill
+  roll_minimum: 9
+  rating_contribution: 15
+  effect:
+    kind: improve_characteristic
+    characteristic: ballistic_skill
+    steps: 1
+- id: advance_strength
+  roll_minimum: 10
+  rating_contribution: 20
+  effect:
+    kind: improve_characteristic
+    characteristic: strength
+    steps: 1
+- id: advance_toughness
+  roll_minimum: 10
+  rating_contribution: 20
+  effect:
+    kind: improve_characteristic
+    characteristic: toughness
+    steps: 1
+- id: advance_wounds
+  roll_minimum: 11
+  rating_contribution: 20
+  effect:
+    kind: improve_characteristic
+    characteristic: wounds
+    steps: 1
+- id: advance_attacks
+  roll_minimum: 11
+  rating_contribution: 20
+  effect:
+    kind: improve_characteristic
+    characteristic: attacks
+    steps: 1
+- id: advance_save
+  roll_minimum: 11
+  rating_contribution: 20
+  effect:
+    kind: improve_characteristic
+    characteristic: save
+    steps: 1
+- id: select_any_skill
+  roll_minimum: 12
+  rating_contribution: 30
+  effect:
+    kind: offers_skill
+    selection: select
+    from: any
+    relative_to: acting_fighter
+    quantity: 1
+    duplicate_policy: new_skill
+    type_restrictions: must_be_usable_by_fighter
+    skill_set_selection: player_selects_an_eligible_set
+    random_roll:</code></pre></details><details><summary>model characteristic maxima</summary><pre><code>movement: 12
+weapon_skill: 2+
+ballistic_skill: 2+
+strength: 10
+toughness: 10
+wounds: 10
+initiative: 10
+attacks: 10
+save: 3+
+leadership: 10
+cool: 10
+willpower: 10
+intelligence: 10</code></pre></details><details><summary>paired bolt launchers augmentation</summary><pre><code>kind: TierLadder
+slot_type: augmentation
+host_item: paired_bolt_launchers
+max_picks: 1
+members:
+- level: 1
+  pickable: paired_bolt_launchers_tier_1
+- level: 2
+  pickable: paired_bolt_launchers_tier_2
+- level: 3
+  pickable: paired_bolt_launchers_tier_3</code></pre></details><details><summary>orrus rig augmentation</summary><pre><code>kind: TierLadder
+slot_type: augmentation
+host_item: orrus_hunting_rig
+max_picks: 1
+members:
+- level: 1
+  pickable: orrus_rig_tier_1
+- level: 2
+  pickable: orrus_rig_tier_2</code></pre></details><details><summary>skill tables</summary><pre><code>agility:
+  dice: d6
+  faces:
+    &#39;1&#39;: Catfall
+    &#39;2&#39;: Clamber
+    &#39;3&#39;: Dodge
+    &#39;4&#39;: Mighty Leap
+    &#39;5&#39;: Spring Up
+    &#39;6&#39;: Sprint
+brawn:
+  dice: d6
+  faces:
+    &#39;1&#39;: Bull Charge
+    &#39;2&#39;: Bulging Biceps
+    &#39;3&#39;: Fearsome
+    &#39;4&#39;: Iron Jaw
+    &#39;5&#39;: Nerves of Steel
+    &#39;6&#39;: Unstoppable
+combat:
+  dice: d6
+  faces:
+    &#39;1&#39;: Berserker
+    &#39;2&#39;: Combat Master
+    &#39;3&#39;: Headbutt
+    &#39;4&#39;: Heavy Blows
+    &#39;5&#39;: Rain of Blows
+    &#39;6&#39;: Two-weapon Fighter
+cunning:
+  dice: d6
+  faces:
+    &#39;1&#39;: Backstab
+    &#39;2&#39;: Counter-attack
+    &#39;3&#39;: Cut-throat
+    &#39;4&#39;: Infiltrate
+    &#39;5&#39;: Lie Low
+    &#39;6&#39;: Overwatch
+savant:
+  dice: d6
+  faces:
+    &#39;1&#39;: Connected
+    &#39;2&#39;: Fast Reload
+    &#39;3&#39;: Iron Will
+    &#39;4&#39;: Medicate
+    &#39;5&#39;: Mentor
+    &#39;6&#39;: Munitioneer
+shooting:
+  dice: d6
+  faces:
+    &#39;1&#39;: Fast Shot
+    &#39;2&#39;: Gunfighter
+    &#39;3&#39;: Hip-shooting
+    &#39;4&#39;: Marksman
+    &#39;5&#39;: Precision Shot
+    &#39;6&#39;: Sharpshooter</code></pre></details><details><summary>reference contract</summary><pre><code>--- &gt;-
+  Symbolic references above stand for existing or proposed library rows, not string matching in production.
+  Every augmentable weapon and rig supplies its own ladder; the two examples demonstrate different lengths.
+  Skill Primary/Secondary membership is evaluated for this fighter using existing categories. Existing
+  tier effects stay on their Pickables.</code></pre></details></section><section id="records"><h2>Example player records</h2><p>Selected fields illustrate successive states and separate fighters. Common metadata is defined above.</p><details><summary>evolution_1 · started</summary><pre><code>id: evolution_1
+action: suit_evolution
+fighter: vaelen
+gang: ash_hunters
+request_key: confirm_evolution_1
+allowance:
+outcome: augment_carried_item
+state: started
+payment:
+selection:
+  item_assignment:
+  slot_assignment:
+  previous_pick:
+  new_pick:
+next: Choose one carried item and tier, then review. Leaving saves these unpaid choices.</code></pre></details><details><summary>evolution_1 · started</summary><pre><code>id: evolution_1
+state: started
+payment:
+selection:
+  item_assignment: vaelen_bolt_launchers_1
+  slot_assignment: vaelen_bolt_launchers_1_augmentation
+  previous_pick: bolt_tier_1_assignment
+  intended_pick: bolt_tier_2
+  new_pick:
+review:
+  counter_assignment: vaelen_kill_count
+  available: 8
+  price: 4
+  after_payment: 4
+  item_before_level: 1
+  item_after_level: 2
+next: Confirm to pay and apply this tier together, change the choices, or cancel.</code></pre></details><details><summary>evolution_1 · completed</summary><pre><code>id: evolution_1
+state: completed
+selection:
+  item_assignment: vaelen_bolt_launchers_1
+  slot_assignment: vaelen_bolt_launchers_1_augmentation
+  previous_pick: bolt_tier_1_assignment
+  new_pick: bolt_tier_2_assignment
+changes:
+- kind: tier_changed
+  before_level: 1
+  after_level: 2
+payment:
+  id: payment_for_evolution_1
+  lines:
+  - event: payment_1
+    counter_assignment: vaelen_kill_count
+    counter_before: 8
+    counter_delta: -4
+    counter_after: 4
+completion: &gt;-
+  Payment, tier change and completed state were committed together. Repeating confirm_evolution_1 returns
+  this receipt.</code></pre></details><details><summary>evolution_1 · completed</summary><pre><code>id: evolution_1
+state: completed
+revision: 2
+scenario: &gt;-
+  Correction to another item, before any later conflicting tier change. This is an alternative continuation
+  of the completed example.
+payment: payment_for_evolution_1 unchanged
+allowance:
+selection:
+  item_assignment: vaelen_orrus_rig_1
+  slot_assignment: vaelen_orrus_rig_1_augmentation
+  previous_pick:
+  new_pick: rig_tier_1_assignment
+correction_events:
+- kind: reverse_previous_result
+  subject: vaelen_bolt_launchers_1_augmentation
+  before_level: 2
+  after_level: 1
+- kind: apply_replacement_result
+  subject: vaelen_orrus_rig_1_augmentation
+  before_level: 0
+  after_level: 1
+transaction: &gt;-
+  Both item changes, current selection, revision and correction events commit together. No payment movement.
+  Original completion and change history remain recorded.</code></pre></details><details><summary>evolution_2 · completed</summary><pre><code>id: evolution_2
+action: suit_evolution
+fighter: vaelen
+allowance:
+outcome: clear_glitches
+state: completed
+payment:
+  id: payment_for_evolution_2
+  lines:
+  - counter_assignment: vaelen_kill_count
+    counter_before: 4
+    counter_delta: -4
+    counter_after: 0
+changes:
+- counter_assignment: vaelen_glitch_count
+  before: 2
+  delta: -2
+  after: 0
+- removed_pick_assignments:
+  - vaelen_glitch_a
+  - vaelen_glitch_b</code></pre></details><details><summary>maintenance_1 · completed</summary><pre><code>id: maintenance_1
+action: suit_maintenance
+fighter: other_spyrer
+allowance:
+outcome: clear_glitches
+state: completed
+payment:
+  id: payment_for_maintenance_1
+  lines:
+  - payer: ash_hunters
+    credits_before: 140
+    credits_delta: 100
+    credits_after: 40
+changes:
+- counter_assignment: other_spyrer_glitch_count
+  before: 2
+  delta: -2
+  after: 0
+- removed_pick_assignments:
+  - other_glitch_a
+  - other_glitch_b</code></pre></details><details><summary>recruitment_augmentation_1 · started</summary><pre><code>id: recruitment_augmentation_1
+action: hunt_master_augmentation
+fighter: hunt_master_1
+allowance:
+  id: hunt_master_bonus
+  source:
+    kind: recruitment
+    membership: hunt_master_membership_1
+outcome: augment_carried_item
+state: started
+payment:
+selection:
+  item_assignment:
+  slot_assignment:
+  previous_pick:
+  new_pick:</code></pre></details><details><summary>vex · allowances</summary><pre><code>fighter: vex
+current_xp: 61
+allowances:
+- id: advance_at_49
+  action: model_advancement
+  source:
+    kind: rank
+    membership: vex_membership_1
+    threshold: 49
+- id: advance_at_61
+  action: model_advancement
+  source:
+    kind: rank
+    membership: vex_membership_1
+    threshold: 61
+xp_change:
+  before: 48
+  after: 61
+  grant_thresholds:
+  - 49
+  - 61</code></pre></details><details><summary>advancement_49 · completed</summary><pre><code>id: advancement_49
+action: model_advancement
+fighter: vex
+allowance: advance_at_49
+outcome: resolve_advancement
+state: completed
+payment:
+selection:
+  slot_assignment: vex_advancement_49_slot
+  roll_event: vex_roll_9
+  roll: 9
+  pick: advance_weapon_skill
+  pick_assignment: vex_advancement_49_ws
+  skill_choice:
+changes:
+- rating_delta: 15
+xp_after: 61</code></pre></details><details><summary>advancement_61 · started</summary><pre><code>id: advancement_61
+action: model_advancement
+fighter: vex
+allowance: advance_at_61
+outcome: resolve_advancement
+state: started
+payment:
+selection:
+  slot_assignment: vex_advancement_61_slot
+  roll_event: vex_roll_5
+  roll: 5
+  pick: random_secondary_skill
+  pick_assignment:
+  skill_choice:
+    mode: random
+    skill_set:
+    roll_events: []
+    skill_assignment:
+next: &gt;-
+  Select a Secondary skill set and roll its D6 table, then commit the advancement pick and skill together.</code></pre></details></section><section id="decisions"><h2>Design notes and decisions</h2><article><h3>Clearing a counter is not clearing all glitches</h3><p>Set the linked Glitch Count to zero using the existing counter-change shape. Also remove all held glitch picks, whose penalties otherwise remain. The Clear glitches outcome lists both mutations and commits them together. The same outcome is shared by Suit Evolution and Suit Maintenance.</p></article><article><h3>Revisions proposed in this pass</h3><p>Make Action and RankTable assignable; this replaces OffersAction with existing assignment/grant/removal concepts. Use a list of price components. Clear glitches becomes a generic counter change plus a typed removal of picks. These are proposed refinements for discussion, not implemented changes.</p></article><article><h3>How to read the status labels</h3><p>REUSE means the named concept and behaviour already exist. EXTEND means an existing model or pipeline needs the specified fields or reader. NEW means a new domain model, effect or operation. All four action definitions are proposed content; symbolic YAML references are not an import API.</p></article><article><h3>What is already supported</h3><p>Counters, held item assignments, slots, picklists, roll thresholds, picks, modifiers, skill categories and the gang-locked operation boundary already exist. Register Action and RankTable as new assignable kinds and extend the existing readers. Action records, allowances, list prices for action uses, structured counter payments and numeric ladder levels remain proposed additions. Seeded Power Boost material is not used by these definitions.</p></article><article><h3>Checkout timing — agreed</h3><p>For priced actions, choose the outcome and finish every required selection before final confirmation. Starting or resuming saves an unpaid ActionRecord. Confirmation revalidates the review and commits payment, result changes and completed state together. Clearing glitches uses the same checkout and skips item selection. Cancelling these unpaid actions needs no refund. Earned advancements reserve their allowance before rolling and can release it only before a roll; afterwards they continue with the recorded roll. The prototype now follows this checkout order.</p></article><article><h3>Random skill outcomes need an extension</h3><p>Existing OffersChoice can select a skill but does not express random selection. The offers_skill configuration proposes select/random modes. The player selects an eligible skill set, then a D6 selects its numbered skill. Record every roll; unusable or already-held results require another roll. The local n26 skill rules specify this reroll behaviour. Skill tables are included below as symbolic references to existing skills. The ordinary per-slot roll API cannot currently roll a skill offer: add a SkillSelection record with its chosen set, mode, roll events and final skill. An any-skill result includes exclusive and Inherent skill sets, subject to the fighter’s Type/Subtype restrictions.</p></article><article><h3>Ratings and pending results</h3><p>Characteristic improvements and advancement rating are held by the chosen advancement Pickable. A skill granted through that pick adds zero additional rating. The selected result can be saved as an intention on the action record while a skill is still pending; the actual pick and skill are written together at completion. Slot assignments created for the action can be owned by its record through a dedicated relation. Existing item slots are only referenced, never adopted as dependent results of the action.</p></article><article><h3>Completed-result corrections — agreed</h3><p>Correct the result through the same completed ActionRecord. Keep the original payment, earned allowance and recorded roll; update effects and rating through the corrected picks. An augmentation can move to another carried item: reverse the original result and apply the replacement together. If later changes prevent safe reversal, show the conflicting change and require it to be resolved first. Each outcome supplies typed reversal and replacement behaviour. Editing or removing a result never refunds automatically. An explicit Undo and refund would reverse the result and original payment together with the same conflict checks; that explicit refund operation is deferred from the first release.</p></article><article><h3>Content changes and later item changes</h3><p>At final confirmation, validate the balance, price, exact carried item and its current tier against the review. If any changed, refresh the review or return to selection without charging. An unpaid record can be resumed but does not reserve its quoted balances. Once completed, preserve the accepted payment and before/after facts. Recorded advancement rolls retain their original rule context. Deleted or incompatible content needs an explicit correction or cancellation; full modifier versioning is outside this sketch.</p></article><article><h3>No-effect purchases — agreed</h3><p>Before charging, check whether the selected outcome has a valid target. All items at maximum tier makes augmentation unavailable. If the next tier exceeds a characteristic maximum, try the additional tier specified by the rule. Exhausting the ladder without a valid tier requires a rule decision; do not charge for an impossible choice. Clearing glitches is available when either the counter is nonzero or glitch picks remain. Refuse checkout only when both are empty. Each outcome supplies its valid-target and no-effect explanation to the shared checkout operation.</p></article><article><h3>Timing is not an action budget</h3><p>post_cycle describes when these actions are offered. This sketch does not account for which post-cycle action a fighter has already used. In particular, repeatable means separate uses can be recorded; it does not grant unlimited rulebook permission to perform Suit Maintenance. Suit Evolution repeats still pay four Kill Count each time. Campaign timing and action limits remain guidance; a campaign-phase or action-budget enforcement engine is outside the first release.</p></article><article><h3>Collision with the current Action model</h3><p>Use library.Action for assignable content and core.ActionRecord for one fighter use. Rename existing core.Action to core.Activity for gang founding and Trading Post visits, preserving its records, references and behaviour through a migration. This proposal does not merge their lifecycles or require fighter action records to belong to an activity.</p></article><article><h3>First implementation scope — agreed</h3><p>Checkout timing, correction policy, preservation of earned choices, access checks for unpaid drafts and rank grants on player-saved XP increases are agreed. Existing fighters are assumed to have taken no advancements. Refuse purchases that produce no changes and show campaign timing as guidance. Build all four actions, final payment, allowances and safe corrections. Defer explicit Undo and refund, collection-purchase migration and campaign-phase enforcement.</p></article><article><h3>Assignable does not mean performing</h3><p>Granting an Action grants access. Its inherited Assignable.price is the acquisition price and stays zero here. The use_price list is charged only at final confirmation, together with the result. Starting saves unpaid choices. Acquiring the Action assignment does not execute it or charge its use_price. Price mixin separation could be a later cleanup.</p></article><article><h3>Rank grants on XP changes — agreed</h3><p>When the player saves an XP increase, record each newly crossed threshold from the current assigned table as an unused allowance. Changing the table itself does nothing. Retain unused earned choices and all started/completed records. Starting XP opens the counter without earning advances. This replaces the earlier retrospective assessment and table-change checkpoint proposals; it requires no scheduled job, CounterBaseline model or table-period history. The player still takes the advancement during the post-cycle flow.</p></article><article><h3>Existing fighters — assume no advancements taken</h3><p>AGREED: initialise eligible earned advancements as unused for existing fighters. Do not infer previous advancement use from old picks or ask owners to reconcile it. This is initial setup; it does not mean repeating that retrospective calculation after every rank-table change.</p></article></section><footer><a href="README.md">About this exploration and how to rebuild it</a>. Sources: n26 assignments, grants, access, scopes, selectors, slots, counter effects, operations and ledger; local n26 rules.</footer></main>
+</body>
+</html>

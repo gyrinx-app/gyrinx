@@ -1,0 +1,211 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+This flow remains server-rendered until the React layer has a form bridge for
+Django validation, CSRF, signed review state, persisted random rolls and
+multi-stage resume state. Converting it before that shared primitive exists
+would invent a new client/server contract inside this feature.
+{% endcomment %}
+{% block head_title %}{{ action }} — {{ miniature.name }}{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="gangs" %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{{ request.get_full_path }}"
+                     title="{{ action }}"
+                     lead="{{ miniature.name }}"
+                     :form="form"
+                     submit_label="{{ submit_label }}"
+                     submit_variant="{{ submit_variant }}"
+                     cancel_url="{{ back_href }}"
+                     cancel_label="{{ back_label }}"
+                     cancel_variant="ghost"
+                     cancel_class="mr-auto">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ miniature.name }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ action }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        <c-slot name="actions">
+            {% if cancel_href and stage != "done" and stage != "cancel" and not correction %}
+                <c-ui.button href="{{ cancel_href }}"
+                             variant="ghost"
+                             class="text-red-600! dark:text-red-400!">
+                    Cancel
+                </c-ui.button>
+            {% endif %}
+            {% if done_href %}
+                <c-ui.button href="{{ done_href }}" variant="primary">
+                    Done
+                </c-ui.button>
+            {% endif %}
+        </c-slot>
+        <div class="max-w-3xl">
+            <c-n26.flow-progress :steps="steps" />
+        </div>
+        {% csrf_token %}
+        {% for field in form.hidden_fields %}
+            {{ field }}
+            {% if field.errors %}<c-ui.error :form="form" name="{{ field.name }}" />{% endif %}
+        {% endfor %}
+        {% if prices %}
+            <c-n26.form-section title="Price">
+                {% for figures in prices %}
+                    <c-n26.payment-figures :figures="figures" />
+                {% endfor %}
+            </c-n26.form-section>
+        {% endif %}
+        {% if tracking_unavailable %}
+        {% elif stage == "start" %}
+            <c-n26.radio-cards label="Choose an outcome"
+                               :form="form"
+                               name="outcome"
+                               min="min(100%, 18rem)">
+                {% for outcome in outcomes %}
+                    <c-n26.radio-cards.card name="outcome"
+                                            value="{{ outcome.key }}"
+                                            label="{{ outcome.name }}"
+                                            description="{{ outcome.description }}"
+                                            :wrap="True"
+                                            :checked="outcome.checked" />
+                {% endfor %}
+            </c-n26.radio-cards>
+        {% elif stage == "choose" or stage == "correct" %}
+            <c-n26.form-section title="Choose tier">
+                <c-ui.error :form="form" name="selection" />
+                {% for option in item_options %}
+                    <c-n26.radio-cards label="{{ option.item.item_name }}"
+                                       description="Current: {{ option.item.current_tier }}"
+                                       name="selection"
+                                       min="min(100%, 18rem)">
+                        <c-n26.radio-cards.card name="selection"
+                                                value="{{ option.key }}"
+                                                label="{{ option.item.candidate_tier }}"
+                                                description="{{ option.item.effect|capfirst }}"
+                                                :wrap="True"
+                                                :checked="option.checked">
+                            <span class="block text-muted">Model rating {{ option.item.rating_before }}¢ → {{ option.item.rating_after }}¢</span>
+                        </c-n26.radio-cards.card>
+                    </c-n26.radio-cards>
+                {% empty %}
+                    <p class="text-muted">No carried item has an available tier.</p>
+                {% endfor %}
+            </c-n26.form-section>
+        {% elif stage == "roll" %}
+            <p>Roll 2D6 to see the available advancement results.</p>
+        {% elif stage == "advancement" %}
+            <c-n26.form-section title="{{ advancement_title }}"
+                                description="{{ promotion_description }}">
+                {% if roll_value %}<p class="text-lg font-semibold">2D6: {{ roll_value }}</p>{% endif %}
+                <c-n26.radio-cards :form="form" name="pickable_id" min="min(100%, 18rem)">
+                    {% for choice in advancement_options %}
+                        <c-n26.radio-cards.card name="pickable_id"
+                                                value="{{ choice.option.id }}"
+                                                label="{{ choice.option.name }}"
+                                                description="{{ choice.option.effect|capfirst }}"
+                                                :checked="choice.checked"
+                                                :wrap="True">
+                            <span class="block text-muted">Rating +{{ choice.option.rating }}¢</span>
+                        </c-n26.radio-cards.card>
+                    {% empty %}
+                        <p class="text-muted">No advancement can change this model.</p>
+                    {% endfor %}
+                </c-n26.radio-cards>
+                {% if decline_promotion %}
+                    <input type="hidden" name="request_key" value="{{ promotion_request_key }}">
+                    <c-ui.button type="submit"
+                                 name="decline_promotion"
+                                 value="1"
+                                 variant="default"
+                                 formnovalidate>
+                        Keep current rank and roll 2D6
+                    </c-ui.button>
+                {% endif %}
+            </c-n26.form-section>
+        {% elif stage == "skill" %}
+            {% include "n26/includes/action_skills.html" %}
+        {% elif stage == "review" %}
+            <c-n26.form-section title="Review">
+                <div class="divide-y divide-box-border rounded-box border border-box-border">
+                    <div class="space-y-1 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-muted">Outcome</p>
+                        <h3 class="text-base font-semibold text-ink-900 dark:text-ink-100">{{ record.outcome }}</h3>
+                        {% if outcome_description %}<p class="text-sm text-muted">{{ outcome_description }}</p>{% endif %}
+                    </div>
+                    {% if review_choice %}
+                        <div class="p-4">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="min-w-0 space-y-1">
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-muted">{{ review_choice.label }}</p>
+                                    <h3 class="font-semibold text-ink-900 dark:text-ink-100">{{ review_choice.title }}</h3>
+                                    {% if review_choice.description %}<p class="text-sm">{{ review_choice.description|capfirst }}</p>{% endif %}
+                                    {% if review_choice.meta %}<p class="text-sm text-muted">{{ review_choice.meta }}</p>{% endif %}
+                                </div>
+                                {% if change_href %}
+                                    <c-ui.button href="{{ change_href }}" variant="default" size="sm">
+                                        Change selection
+                                    </c-ui.button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    {% if change_preview %}
+                        <div class="space-y-2 p-4">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Changes</p>
+                            {% for change in change_preview %}
+                                {% if change.kind == "counter" %}
+                                    <p>{{ change.name }}: {{ change.before }} → {{ change.after }}</p>
+                                {% elif change.removed_count %}
+                                    <p>Remove {{ change.removed_count }} {{ change.slot_type }} choice{{ change.removed_count|pluralize }}.</p>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                {% if correction and retained_payment %}<p class="mt-3 text-sm text-muted">The original payment is retained.</p>{% endif %}
+                {% if correction and retained_roll %}<p class="mt-1 text-sm text-muted">The recorded rolls are retained.</p>{% endif %}
+            </c-n26.form-section>
+            {% if payment_tallies %}
+                <c-n26.form-section title="Payment">
+                    <div class="space-y-5">
+                        {% for payment in payment_tallies %}<c-n26.tally :facts="payment.facts" class="max-w-sm" />{% endfor %}
+                    </div>
+                    <p class="mt-3 text-sm text-muted">Confirming pays this price. Changing the result later does not return the payment.</p>
+                </c-n26.form-section>
+            {% endif %}
+        {% elif stage == "done" %}
+            <c-n26.form-section title="Completed">
+                <div class="rounded-box border border-box-border p-4">
+                    <div class="flex items-start gap-3">
+                        <c-n26.icon name="circle-check"
+                                    class="mt-0.5 size-5 shrink-0 text-green-600 dark:text-green-400"
+                                    label="Completed" />
+                        <div class="min-w-0 space-y-1">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Outcome</p>
+                            <h3 class="font-semibold text-ink-900 dark:text-ink-100">{{ record.outcome }}</h3>
+                            {% if selection_summary %}<p>{{ selection_summary }}</p>{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% if receipt %}
+                    <div class="mt-5 max-w-sm">
+                        <h3 class="mb-2 text-sm font-semibold text-ink-900 dark:text-ink-100">Result</h3>
+                        <c-n26.tally :facts="receipt" />
+                    </div>
+                {% endif %}
+            </c-n26.form-section>
+        {% elif stage == "cancel" %}
+            <c-n26.form-section title="Cancel flow">
+                <div class="rounded-box border border-red-500/40 bg-red-500/5 p-4">
+                    <p class="font-semibold text-ink-900 dark:text-ink-100">Cancel this unfinished flow?</p>
+                    <p class="mt-1 text-sm text-muted">The saved outcome and selection will be discarded.</p>
+                </div>
+            </c-n26.form-section>
+        {% endif %}
+    </c-n26.form-page>
+{% endblock %}

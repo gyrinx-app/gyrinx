@@ -52,6 +52,14 @@ def legacies(legacy, cawdor):
 
 
 class TestASlotTypeNamesWhatIsChosen:
+    def test_ordinary_choices_are_not_post_battle_effects(self, legacy):
+        assert legacy.is_lasting_effect is False
+
+    def test_a_custom_table_can_be_used_for_post_battle_results(self, default_pack):
+        injuries = create_slot_type("Custom injuries", is_lasting_effect=True)
+        injuries.refresh_from_db()
+        assert injuries.is_lasting_effect is True
+
     def test_the_plural_is_the_authors_where_they_gave_one(self, legacy):
         assert legacy.plural == "Gang Legacies"
 

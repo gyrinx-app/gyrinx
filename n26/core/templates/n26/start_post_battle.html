@@ -1,0 +1,20 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}Post-battle · {{ gang.name }}{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    {% url 'n26-battle' campaign.pk battle.pk as back_url %}
+    <c-n26.form-page title="Record post-battle results"
+                     lead="{{ gang.name }} · {{ battle.title }}"
+                     :form="form"
+                     submit_label="Start draft"
+                     :cancel_url="back_url">
+        {% csrf_token %}
+        {{ form.request_key }}
+        <input type="hidden" name="date" value="{{ battle.date|date:'Y-m-d' }}">
+        <input type="hidden" name="reference" value="{{ battle.title }}">
+        <p>Your draft is saved on Gyrinx. The gang changes only when you apply the results.</p>
+        <p class="text-sm text-muted">Check which models actually took part, including any reinforcements. Crew selection does not confirm participation.</p>
+    </c-n26.form-page>
+{% endblock %}

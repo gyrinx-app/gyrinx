@@ -227,13 +227,16 @@ class TestNamingTheTestGangs:
     def test_a_staff_gang_that_fought_a_player_is_not_a_test_gang(
         self, author, player, test_type, test_fighter, test_weapon, campaign_type
     ):
-        from n26.core.campaigns import campaign_operation
+        from n26.core.models import Battle
 
         mine = check_with(author, test_type, test_fighter, test_weapon, "Mine")
         theirs = found_gang("Theirs", create_gang_type("Escher"), owner=player)
         campaign = found_campaign("Dust Falls", campaign_type, owner=author)
-        with campaign_operation(campaign, actor=author) as act:
-            act.record_battle(datetime.date(2026, 9, 9), gangs=[mine, theirs])
+        # A battle's participants need not still belong to the campaign.
+        battle = Battle.objects.create(
+            campaign=campaign, date=datetime.date(2026, 9, 9)
+        )
+        battle.gangs.set([mine, theirs])
 
         plan = plan_deletion([test_type, test_fighter])
 

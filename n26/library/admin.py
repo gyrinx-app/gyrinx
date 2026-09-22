@@ -253,8 +253,20 @@ class StatlineInline(admin.StackedInline):
 
 @admin.register(SlotType)
 class SlotTypeAdmin(admin.ModelAdmin):
-    list_display = ["name", "plural_name", "allows_repeats", "pack", "archived"]
-    list_filter = [AuthoringPackFilter, "allows_repeats", "archived"]
+    list_display = [
+        "name",
+        "plural_name",
+        "allows_repeats",
+        "is_lasting_effect",
+        "pack",
+        "archived",
+    ]
+    list_filter = [
+        AuthoringPackFilter,
+        "allows_repeats",
+        "is_lasting_effect",
+        "archived",
+    ]
     search_fields = ["name"]
     list_select_related = ["pack"]
 

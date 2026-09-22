@@ -10,6 +10,7 @@ from django.urls import reverse
 
 from n26.core.views.permissions import (
     _own_miniature_or_404,
+    link_model_cards,
     may_mark_status,
     status_href,
     trade_points_href,
@@ -441,6 +442,26 @@ def render_card_update(request, miniature, at):
     back, host_at = card_screen(miniature, at)
     host = EquipHost.fighter(gang, own, miniature, host_at)
     card = link_model_card(gang, miniature, own, computed, host, back=back)
+    link_model_cards(gang, [card], request.user)
+
+    on_edit = back.split("?")[0] == reverse("n26-edit-fighter", args=[miniature.pk])
+    flows = []
+    if on_edit:
+        from n26.core.action_flow import action_panels
+        from n26.core.counter_tracking import is_active as counter_tracking_is_active
+        from n26.core.views.action_flows import link_action_panels, split_action_panels
+
+        flows, _history = split_action_panels(
+            link_action_panels(
+                miniature,
+                action_panels(
+                    miniature,
+                    card=own,
+                    computed=computed,
+                    counter_tracking_active=counter_tracking_is_active(),
+                ),
+            ),
+        )
 
     response = render(
         request,
@@ -448,8 +469,8 @@ def render_card_update(request, miniature, at):
         {
             "card": card,
             "miniature": miniature,
-            "update_dismissed_choices": back.split("?")[0]
-            == reverse("n26-edit-fighter", args=[miniature.pk]),
+            "action_panels": flows,
+            "update_dismissed_choices": on_edit,
             "status_href": (
                 status_href(gang, miniature, back="edit")
                 if may_mark_status(gang, request.user)
@@ -530,7 +551,17 @@ def edit_fighter(request, pk):
     statline_class = statline_override_form_for(profile) if profile else None
     statline_edit = None
 
-    if request.method == "POST" and request.POST.get("act") == "statline":
+    if request.method == "POST" and request.POST.get("act") == "track-progression":
+        try:
+            with operation(gang, actor=request.user) as op:
+                assignment = op.track_progression_counter(
+                    miniature, request.POST.get("counter", "")
+                )
+            messages.success(request, f"{assignment.counter} tracking started at 0.")
+        except Refusal as refusal:
+            messages.error(request, str(refusal))
+        return redirect("n26-edit-fighter", pk=miniature.pk)
+    elif request.method == "POST" and request.POST.get("act") == "statline":
         if statline_class is not None:
             statline_edit = statline_class.opened_on(miniature, request.POST)
             if statline_edit.is_valid():
@@ -722,6 +753,23 @@ def edit_fighter(request, pk):
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
 
+    from n26.core.action_flow import action_panels
+    from n26.core.counter_tracking import is_active as counter_tracking_is_active
+    from n26.core.views.action_flows import link_action_panels, split_action_panels
+
+    tracking_active = counter_tracking_is_active()
+    flows, action_history = split_action_panels(
+        link_action_panels(
+            miniature,
+            action_panels(
+                miniature,
+                card=own,
+                computed=computed,
+                counter_tracking_active=tracking_active,
+            ),
+        ),
+    )
+
     # The same acts the equip listing offers, pointed at this page so
     # the confirmations open over it. A gang sheet and a print sheet
     # never call this, and their cards stay names with nothing to click.
@@ -804,6 +852,7 @@ def edit_fighter(request, pk):
     card = link_model_card(
         gang, miniature, own, computed, host, back=request.get_full_path(), among=sets
     )
+    link_model_cards(gang, [card], request.user)
 
     subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
         own, computed, "subtype", "Subtypes", include_staged=shown
@@ -816,6 +865,8 @@ def edit_fighter(request, pk):
     # the same numbers the equip face keeps there. One query.
     members = roster(gang)
     may_mark = may_mark_status(gang, request.user)
+    from n26.core.allowances import missing_progression_counters
+
     return render(
         request,
         "n26/fighter_edit.html",
@@ -823,6 +874,13 @@ def edit_fighter(request, pk):
             "miniature": miniature,
             "gang": gang,
             "card": card,
+            "action_panels": flows,
+            "action_history_panels": action_history,
+            "missing_progression_counters": missing_progression_counters(
+                miniature, card=own, computed=computed
+            )
+            if tracking_active
+            else [],
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
             # One reading of the flag, passed to both: the badge leads to

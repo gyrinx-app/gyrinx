@@ -1547,6 +1547,18 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="flow-progress",
+                tag="c-n26.flow-progress",
+                template="n26/flow_progress.html",
+                summary="The ordered steps above a form, horizontal on wide screens.",
+            ),
+            Component(
+                slug="payment-figures",
+                tag="c-n26.payment-figures",
+                template="n26/payment_figures.html",
+                summary="Available balance and price for one payment resource.",
+            ),
+            Component(
                 slug="form-actions",
                 tag="c-n26.form-actions",
                 template="n26/form_actions.html",
@@ -2046,9 +2058,11 @@ GROUPS: list[Group] = [
                     "starts a new one."
                 ),
                 notes=(
-                    "It is the first square of the gang sheet's grid, drawn only "
-                    "for the owner and always drawn: a square that came and went "
-                    "would move every card after it. The nothing-open message shows "
+                    "Draw it first in the gang sheet's grid for an owner with "
+                    "founding or campaigns access. Pass one square with only the "
+                    "controls the owner may use. Post-battle uses the same next-step "
+                    "layout as ransom and Clean House; recent history is shared. "
+                    "The nothing-open message shows "
                     "only when nothing is running and nothing is waiting. The start "
                     "control is a form, as is any waiting step that acts on the "
                     "click, because following a link must not change the roster. "
@@ -2261,8 +2275,8 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "Call it once per asset type whose ownership is Holding. A "
-                    "control is drawn only where the structure carries its address, "
+                    "Call it once per transferable asset type. A control is drawn "
+                    "only where the structure carries its address, "
                     "so a reader who may not act sees no controls rather than "
                     "disabled ones; n26.core.views.campaigns fills them for the "
                     "arbitrator and the holding gang's owner. Roll is the primary "

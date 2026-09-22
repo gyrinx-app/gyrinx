@@ -1,8 +1,7 @@
 {% comment %}
-The campaign's headline figures, in the host a roll's update replaces.
+The campaign's gang and battle counts, in the host a page update replaces.
 Expects `sheet`; `redrawn` marks the copy an update delivers, which
-replaces the one on the page by id. A roll moves Held or Unclaimed by one,
-so the whole strip is redrawn — see campaign_update.html.
+replaces the one on the page by id — see campaign_update.html.
 {% endcomment %}
 <div id="n26-campaign-figures"
      {% if redrawn %}hx-swap-oob="true"{% endif %}>

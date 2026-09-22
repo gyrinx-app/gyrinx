@@ -1363,14 +1363,21 @@ def _table_row(model, name, qualifier, slot_type, defaults):
 
 
 def _create_lasting_effect_tables():
+    from django.conf import settings
+
     from n26.library.models import Pickable, Picklist, PicklistMember, Slot, SlotType
 
     for index, (name, plural, rows, dice, _) in enumerate(LASTING_EFFECT_TABLES):
         slot_type = SlotType.objects.filter(name__iexact=name).first()
         if slot_type is None:
             slot_type = SlotType.objects.create(
-                name=name, plural_name=plural, allows_repeats=True
+                name=name,
+                plural_name=plural,
+                allows_repeats=True,
+                is_lasting_effect=True,
             )
+        elif slot_type.pack.slug == settings.DEFAULT_CONTENT_PACK_SLUG:
+            SlotType.objects.filter(pk=slot_type.pk).update(is_lasting_effect=True)
         table = Picklist.objects.filter(
             slot_type=slot_type, name__iexact=f"{name} Table"
         ).first()
@@ -1959,11 +1966,11 @@ def _create_fighter_actions():
                     else OffersChoice.Mode.SELECT
                 )
                 and effect.will_be_assigned_to == OffersChoice.WillBeAssignedTo.BEARER
+                and effect.label == ""
             ):
                 new_effect = authoring.ef_offers_choice(
                     Skill,
                     from_section=section,
-                    label=name,
                     mode="random" if name.startswith("Random") else "select",
                 )
                 if existing_modifier is None:
@@ -2309,7 +2316,7 @@ def _check_fighter_actions():
         pack=pack, name="Spyrer Hunting Rig Glitch"
     ).first()
     glitches = Counter.objects.filter(
-        pack=pack, name="Glitch count", qualifier=""
+        pack=pack, name__iexact="Glitch count", qualifier=""
     ).first()
     if (
         table is None
@@ -2408,6 +2415,7 @@ def _check_fighter_actions():
                 else OffersChoice.Mode.SELECT
             )
             and modifier.effect.will_be_assigned_to == "bearer"
+            and modifier.effect.label == ""
             and modifier.effect.from_section_id
             == (
                 None

@@ -1,0 +1,29 @@
+{% comment %}
+<c-n26.payment-figures> — available balance and price for one payment resource.
+
+    <c-n26.payment-figures :figures="payment" />
+
+Pass a PaymentFigures value. Figures are already formatted, including currency
+symbols or unlimited balances. When present, the balance name follows each
+number as a muted unit. Currency values carry their own symbol and omit it.
+Render one component per balance when a payment has several components.
+{% endcomment %}
+<c-vars :figures="None" class="" />
+<div {{ attrs }} class="{{ class }}">
+    <dl class="grid max-w-xs grid-cols-2 gap-x-6 text-left">
+        <div>
+            <dt class="text-sm text-muted">Available</dt>
+            <dd class="mt-0.5 flex flex-wrap items-baseline gap-x-1 text-base font-semibold tabular-nums">
+                <span>{{ figures.available }}</span>
+                {% if figures.label %}<span class="text-sm font-normal text-muted">{{ figures.label }}</span>{% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt class="text-sm text-muted">Price</dt>
+            <dd class="mt-0.5 flex flex-wrap items-baseline gap-x-1 text-base font-semibold tabular-nums">
+                <span>{{ figures.price }}</span>
+                {% if figures.label %}<span class="text-sm font-normal text-muted">{{ figures.label }}</span>{% endif %}
+            </dd>
+        </div>
+    </dl>
+</div>

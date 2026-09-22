@@ -153,7 +153,7 @@ class TestTheActivityCardPage:
 
 
 class TestTheActivitiesSquarePage:
-    """Its props and all five states reach the gallery drawn."""
+    """Its props and permission-dependent states reach the gallery drawn."""
 
     def test_the_page_documents_the_props_declared_in_the_template(self, reader):
         page = reader.get("/n26/design/c/activities-square/").content.decode()
@@ -163,7 +163,7 @@ class TestTheActivitiesSquarePage:
         page = reader.get("/n26/design/c/activities-square/").content.decode()
         assert "Current action" in page
 
-    def test_all_five_demos_render_rather_than_falling_back(self, reader):
+    def test_the_open_and_empty_states_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/activities-square/").content.decode()
         assert "Nothing open" in page
         assert "The founding open" in page
@@ -174,6 +174,35 @@ class TestTheActivitiesSquarePage:
         assert "No action is open." in page
         assert "Trading Post visit open" in page
         assert "Complete action" in page
+
+    def test_post_battle_uses_the_shared_steps_with_and_without_other_actions(
+        self, reader
+    ):
+        from bs4 import BeautifulSoup
+
+        from n26.core.activities import POST_BATTLE_HELP
+
+        page = BeautifulSoup(
+            reader.get("/n26/design/c/activities-square/").content, "html.parser"
+        )
+        squares = [
+            square
+            for square in page.select('[role="region"][aria-label="Actions"]')
+            if square.find("a", href="#post-battle")
+        ]
+        assert len(squares) == 3
+        combined, standalone, no_history = squares
+        for square in squares:
+            assert POST_BATTLE_HELP in square.get_text()
+            assert "Full history" in square.get_text()
+        assert "Current action" in combined.get_text()
+        assert "Pay ransom" in combined.get_text()
+        assert "Clean House" in combined.get_text()
+        for square in (standalone, no_history):
+            assert "Current action" not in square.get_text()
+            assert square.find("form") is None
+        assert "Recent history" in standalone.get_text()
+        assert "No history for this gang yet." in no_history.get_text()
 
     def test_the_story_under_the_square_is_drawn(self, reader):
         """The snapshot's own markup, and one of the sample sentences —
@@ -853,6 +882,29 @@ class TestTheModelEditPage:
             < heading("Characteristics")
             < heading("Lore")
         )
+
+    def test_action_panels_share_the_card_row_above_the_tabs(self, reader):
+        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
+        card = page.index('id="n26-model-card-host"')
+        actions = page.index('<span class="font-semibold">Actions</span>', card)
+        evolution = page.index("Suit Evolution", card)
+        advancement = page.index("Advancement", evolution)
+        notes = page.index('<span class="font-semibold">Notes</span>', advancement)
+        tabs = page.index("This model", advancement)
+        history = page.index('<span class="font-semibold">Action history</span>', notes)
+
+        assert card < actions < evolution < advancement < tabs < notes < history
+        assert "lg:grid-cols-2" in page[card - 500 : actions]
+        assert "Kill Count" in page[evolution:advancement]
+        assert "After payment" not in page[evolution:advancement]
+        assert 'aria-label="Start Suit Evolution flow"' in page[evolution:advancement]
+        assert "Resume Suit Evolution flow" in page[evolution:advancement]
+        assert "1 use available" in page[advancement:notes]
+        assert "Resume Advancement flow" in page[advancement:notes]
+        assert "Hunting Rig Augmentation" not in page[actions:tabs]
+        assert "Hunting Rig Augmentation" in page[history:]
+        assert "Hunting rig: Tier 1. Improve S by 1" in page[history:]
+        assert "minutes ago" in page[history:]
 
 
 class TestCounterLinesInTheGallery:

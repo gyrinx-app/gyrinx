@@ -54,7 +54,7 @@ class CampaignType(Content, Assignable):
     gang receives on joining — a Reputation counter, a Settlement —
     something to be caused by, and puts campaign-wide modifiers on every
     member's card. A counter or a rule is added to that list by hand; an
-    asset of a Possession asset type is added to it when the asset is
+    asset of an inherent asset type is added to it when the asset is
     created.
 
     It also declares its **asset types** — Territory, Settlement — and
@@ -125,16 +125,16 @@ class AssetType(Content):
     with the label a campaign page prints and the ownership that fixes
     how every asset of the type behaves.
 
-    **Possession** means every gang has its own: a
-    Settlement, a home territory. **Holding** means one gang holds it at a
+    **Inherent** means every gang has its own: a
+    Settlement, a home territory. **Transferable** means one gang holds it at a
     time, and it can change hands: a Territory.
     """
 
     class Ownership(models.TextChoices):
         #: Every gang has its own.
-        POSSESSION = "held-one-each", "Possession"
+        POSSESSION = "held-one-each", "Inherent"
         #: One gang holds it at a time, and it can change hands.
-        HOLDING = "pooled", "Holding"
+        HOLDING = "pooled", "Transferable"
 
     campaign_type = models.ForeignKey(
         CampaignType, on_delete=models.CASCADE, related_name="asset_types"
@@ -159,7 +159,7 @@ class AssetType(Content):
         choices=Ownership,
         verbose_name="Ownership",
         help_text=(
-            "Possession: every gang has its own. Holding: one "
+            "Inherent: every gang has its own. Transferable: one "
             "gang holds it at a time, and it can change hands."
         ),
     )
@@ -212,11 +212,11 @@ class Asset(Content, Assignable):
     (``n26.library.income``), so a gang's Income reads as the sum of what
     it holds. Nothing collects that reading yet.
 
-    Assignable so that a possession can be built into its campaign type
+    Assignable so that an inherent asset can be built into its campaign type
     and arrive on every member gang, and so that an asset of either
-    ownership can carry modifiers. A possession is built in when it is
+    ownership can carry modifiers. An inherent asset is built in when it is
     created and taken out when it is deleted or archived; nobody adds it
-    by hand. A holding is never assigned: the campaign's own record of
+    by hand. A transferable asset is never assigned: the campaign's own record of
     the asset says who holds it.
     """
 
@@ -311,8 +311,8 @@ class AssetTable(Content, Assignable):
     with dice is rolled on, and its entries claim bands of rolls: every
     roll the die can make lands on exactly one entry. A table without
     dice is an ordered list, chosen from rather than rolled. Only a
-    Holding asset type has tables: every gang has its own of a
-    Possession, so there is nothing to roll for.
+    transferable asset type has tables: every gang has its own inherent
+    assets, so there is nothing to roll for.
     """
 
     family = Family.CHOICE
@@ -382,9 +382,9 @@ class AssetTable(Content, Assignable):
             raise ValidationError(
                 {
                     "asset_type": (
-                        f"{self.asset_type} is a Possession asset type: every "
+                        f"{self.asset_type} is an inherent asset type: every "
                         "gang has its own, so there is nothing to roll for. A "
-                        "table lists a Holding asset type."
+                        "table lists a transferable asset type."
                     )
                 }
             )

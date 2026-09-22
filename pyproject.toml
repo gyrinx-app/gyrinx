@@ -214,7 +214,8 @@ custom_html = "c-[\\w.-]+"
 # excluded for the same path in .pre-commit-config.yaml.
 # Golden HTML snapshots are RENDERED OUTPUT, not templates. djlint --reformat
 # rewrites them (verified: "16 files would be updated"), which would silently
-extend_exclude = "gyrinx/templates/cotton,n26/core/templates/cotton"
+# Design explorations are standalone HTML prototypes, not Django templates.
+extend_exclude = "gyrinx/templates/cotton,n26/core/templates/cotton,design/exploration"
 
 [tool.bandit]
 exclude_dirs = [

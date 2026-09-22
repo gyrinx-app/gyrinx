@@ -17,7 +17,7 @@ playing catch up within moments. It shows as a column of the gangs table.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-add-counter' campaign.pk %}"
                      title="Add a counter"
-                     lead="A number every gang in the campaign tracks, such as Meat. Each gang's owner moves it on the gang sheet, and you can move it from the campaign page."
+                     lead="A value every gang in the campaign tracks, such as Reputation."
                      :form="form"
                      submit_label="Add counter"
                      cancel_url="{{ back }}">
@@ -38,7 +38,7 @@ playing catch up within moments. It shows as a column of the gangs table.
         {% csrf_token %}
         <c-n26.form-section title="The counter">
             <c-ui.field label="Name *"
-                        description='e.g. "Meat".'
+                        description="{{ form.name.help_text }}"
                         error="x"
                         :form="form"
                         name="name"
@@ -48,8 +48,7 @@ playing catch up within moments. It shows as a column of the gangs table.
                             autocomplete="off"
                             value="{{ form.name.value|default:'' }}" />
             </c-ui.field>
-            <c-ui.field label="Opening value *"
-                        description="What every gang starts at."
+            <c-ui.field label="Starting value *"
                         error="x"
                         :form="form"
                         name="opening"

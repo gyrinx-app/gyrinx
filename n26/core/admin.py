@@ -350,9 +350,9 @@ class BattleAdmin(ReadOnlyAdmin):
     """Read-only for the same reason a membership is: recording one writes a
     line in the campaign's log, and the two are meant to agree."""
 
-    list_display = ["date", "campaign", "created"]
+    list_display = ["scenario", "date", "result", "campaign", "created"]
     list_filter = ["campaign"]
-    search_fields = ["campaign__name"]
+    search_fields = ["campaign__name", "scenario"]
     list_select_related = ["campaign"]
 
 

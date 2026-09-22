@@ -18,7 +18,73 @@
             </c-ui.breadcrumbs>
         </c-slot>
     </c-n26.page-header>
-    <c-n26.form-section title="Standard content" class="mt-8">
+    <c-n26.form-section title="Fighter progression"
+                        class="mt-8"
+                        description="Prepare the shared advancement rules, test them, then apply the content recipes.">
+        <p>{{ progression_attached }} of {{ progression_eligible }} eligible content entries configured. {{ progression_excluded }} profiles excluded.</p>
+        {% if progression_review %}
+            <c-ui.alert variant="warning">
+                Applying this setup changes action access for existing models and future hires. Starting XP values are preserved. It does not grant past advancements or change player history.
+            </c-ui.alert>
+            <c-ui.table>
+                <thead>
+                    <tr>
+                        <th scope="col">Content</th>
+                        <th scope="col">Applies to</th>
+                        <th scope="col">Setup</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in progression_plan %}
+                        <tr>
+                            <td>{{ item.target }}</td>
+                            <td>{{ item.recipe.scope_label }}</td>
+                            <td>{% if item.excluded %}Excluded: {{ item.excluded }}{% elif item.attached %}Already configured{% else %}Add progression{% endif %}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="progression" value="live">
+                <input type="hidden" name="plan" value="{{ progression_token }}">
+                <c-n26.form-actions>
+                    <c-ui.button href="{% url 'authoring-foundations' %}" variant="default">Cancel</c-ui.button>
+                    <c-ui.button type="submit" variant="success">
+                        Apply content setup
+                    </c-ui.button>
+                </c-n26.form-actions>
+            </form>
+        {% else %}
+            <c-n26.prose>
+                <p>Choose Prepare for testing to create a staged Fighter progression rule. Add that rule to a test gang to try advancements and promotions.</p>
+                <p>Preparation also restores the shared standard definitions. Changes to definitions already in use affect those models.</p>
+                <p>For an Outcast test gang, add the staged Outcast leader progression rule too. If a model has no XP counter, open its edit page and choose Track XP.</p>
+                <p>Apply to staged content updates staged profiles and gang types only. When testing is complete, review the live rollout. Run this setup again after importing new profiles.</p>
+                <p><c-n26.link href="{% url 'authoring-recipes' %}#stage-and-launch-fighter-progression">Read the testing and rollout recipe</c-n26.link>.</p>
+            </c-n26.prose>
+            <div class="flex flex-wrap gap-3">
+                <form method="post">
+                    {% csrf_token %}
+                    <c-ui.button type="submit" name="progression" value="prepare" variant="success">
+                        Prepare for testing
+                    </c-ui.button>
+                </form>
+                {% if progression_rule %}
+                    <form method="post">
+                        {% csrf_token %}
+                        <c-ui.button type="submit" name="progression" value="staged" variant="success">
+                            Apply to staged content
+                        </c-ui.button>
+                    </form>
+                    <c-ui.button href="?progression=live" variant="primary">
+                        Review live rollout
+                    </c-ui.button>
+                {% endif %}
+            </div>
+        {% endif %}
+    </c-n26.form-section>
+    <c-n26.form-section title="Standard content" class="mt-10">
         <c-ui.table>
             <tbody>
                 {% for entry in entries %}

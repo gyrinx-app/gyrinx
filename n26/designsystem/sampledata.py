@@ -11,6 +11,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django.utils.text import slugify
 
+from n26.core.action_flow import ActionPanel, ActionUseLink
 from n26.core.activities import (
     FOUNDING_ABOUT,
     FOUNDING_HELP,
@@ -19,6 +20,7 @@ from n26.core.activities import (
     HistoryLine,
     VisitLine,
     open_card,
+    steps_waiting,
 )
 from n26.core.browse import (
     CategoryGroup,
@@ -29,6 +31,7 @@ from n26.core.browse import (
     SectionGroup,
 )
 from n26.core.confirm import Fact
+from n26.core.flow import FlowStep, PaymentFigures
 from n26.core.hire import (
     STANDARD_OPTION_NAME,
     HireCategory,
@@ -838,6 +841,60 @@ def roster_summary():
 
 def context():
     return {
+        "augmentation_flow_steps": (
+            FlowStep("Choose improvement", complete=True),
+            FlowStep("Choose item", complete=True),
+            FlowStep("Review and pay", current=True),
+            FlowStep("Complete"),
+        ),
+        "advancement_flow_steps": (
+            FlowStep("Roll", complete=True),
+            FlowStep("Choose advancement", current=True),
+            FlowStep("Review"),
+            FlowStep("Complete"),
+        ),
+        "counter_payment_figures": PaymentFigures("Kill Count", "8", "4", "4"),
+        "credit_payment_figures": PaymentFigures("", "430¢", "100¢", "330¢"),
+        "sample_action_panels": (
+            ActionPanel(
+                action_id="suit-evolution",
+                name="Suit Evolution",
+                timing="post-battle action",
+                prices=(PaymentFigures("Kill Count", "8", "4", "4"),),
+                start_href="#start-suit-evolution",
+                drafts=[
+                    ActionUseLink(
+                        "suit-evolution-draft",
+                        "Resume Suit Evolution flow",
+                        "#resume-suit-evolution",
+                    )
+                ],
+                completed=[
+                    ActionUseLink(
+                        "suit-evolution-result",
+                        "Hunting Rig Augmentation",
+                        "#suit-evolution-result",
+                        "Hunting rig: Tier 1. Improve S by 1",
+                        timezone.now() - timedelta(minutes=12),
+                    )
+                ],
+            ),
+            ActionPanel(
+                action_id="advancement",
+                name="Advancement",
+                timing="when an XP threshold is reached",
+                allowance_id="advancement-allowance",
+                available_uses=1,
+                start_href="#start-advancement",
+                drafts=[
+                    ActionUseLink(
+                        "advancement-draft",
+                        "Resume Advancement flow",
+                        "#resume-advancement",
+                    )
+                ],
+            ),
+        ),
         "houses": HOUSES,
         "gang_owner": OWNER,
         # Somebody for a demo to name who is not the reader: a fixed name,
@@ -1579,6 +1636,7 @@ def model_card():
                     ChoiceLine(
                         kind_label="Augmentation",
                         chosen="Tier 2",
+                        is_tier_ladder=True,
                         key="vesna-krail:lasgun:augmentation",
                         provenance=Provenance(
                             source="Lasgun", source_kind="weapon", computed=True
@@ -1642,7 +1700,17 @@ def model_card():
             *_printed("Spring Up"),
         ],
         equipment=[
-            *_printed("Mesh armour (15¢)", "Bio-booster (35¢)", "Photo-goggles (35¢)"),
+            *_printed("Mesh armour (15¢)", "Photo-goggles (35¢)"),
+            AssignableLine(
+                name="Bio-booster (35¢)",
+                choices=[
+                    ChoiceLine(
+                        kind_label="Augmentation",
+                        chosen="Tier 1",
+                        key="vesna-krail:bio-booster:augmentation",
+                    )
+                ],
+            ),
             # Two of one thing, drawn once with the count after the name —
             # the one shape where a line's count is drawn. The gallery
             # must hold a specimen or that arm is drawn nowhere.
@@ -2549,6 +2617,8 @@ def gang_sheet_context():
             (141, "You", "created the gang, a House Escher gang"),
         )
     )
+    post_battle_steps = steps_waiting(sheet, post_battle_at="#post-battle")
+    recovery_sheet = replace(sheet, models=[model_card_in_recovery()])
     return {
         "gang": sheet,
         # The two shapes an action card has: a visit, which has figures to
@@ -2577,6 +2647,24 @@ def gang_sheet_context():
         # than drawing a heading over nothing.
         "sample_square_no_history": ActivitiesSquare(
             start_founding="#", history_href="#"
+        ),
+        "sample_square_post_battle": ActivitiesSquare(
+            history=lately, history_href="#", to_do=post_battle_steps
+        ),
+        "sample_square_post_battle_empty": ActivitiesSquare(
+            history_href="#", to_do=post_battle_steps
+        ),
+        "sample_square_all_actions": ActivitiesSquare(
+            founding=founding_open,
+            visit=a_visit,
+            history=lately,
+            history_href="#",
+            to_do=steps_waiting(
+                recovery_sheet,
+                ransoms=(("Vex", "#ransom"),),
+                clean_house_at="#clean-house",
+                post_battle_at="#post-battle",
+            ),
         ),
         # The two blocks an equip screen's rail draws for a model
         # part-way through the founding: its own allowance, and the

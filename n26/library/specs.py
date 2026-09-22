@@ -375,6 +375,7 @@ def _build_registry():
         ActionOutcome,
         ActionPriceComponent,
         AddsAssignable,
+        AdvancementPromotion,
         Affiliation,
         AllowsAtMost,
         ApplyChange,
@@ -1097,6 +1098,7 @@ def _build_registry():
                 "name": Text(source=(SlotType, "name")),
                 "plural_name": Text(source=(SlotType, "plural_name")),
                 "allows_repeats": Bool(source=(SlotType, "allows_repeats")),
+                "is_lasting_effect": Bool(source=(SlotType, "is_lasting_effect")),
             },
         ),
         Spec(
@@ -1176,6 +1178,37 @@ def _build_registry():
             {"slot": One(model=Slot, source=(ResolveAdvancement, "slot"))},
             model=ResolveAdvancement,
             identity="slot",
+        ),
+        Spec(
+            authoring.add_advancement_promotion,
+            {
+                "from_subtype": One(
+                    model=Subtype, source=(AdvancementPromotion, "from_subtype")
+                ),
+                "threshold": Int(source=(AdvancementPromotion, "threshold")),
+                "slot": One(model=Slot, source=(AdvancementPromotion, "slot")),
+                "replaces_advancement": Bool(
+                    source=(AdvancementPromotion, "replaces_advancement")
+                ),
+                "optional_profiles": Many(
+                    model=Profile,
+                    source=(AdvancementPromotion, "optional_profiles"),
+                    replaced_by=authoring.set_promotion_profiles,
+                ),
+                "requires_rule": One(
+                    model=Rule, source=(AdvancementPromotion, "requires_rule")
+                ),
+                "stash_weapons_for": Many(
+                    model=Profile,
+                    source=(AdvancementPromotion, "stash_weapons_for"),
+                    replaced_by=authoring.set_promotion_profiles,
+                ),
+                "keep_weapon_trait": One(
+                    model=Trait, source=(AdvancementPromotion, "keep_weapon_trait")
+                ),
+            },
+            model=AdvancementPromotion,
+            identity="from_subtype",
         ),
         Spec(authoring.apply_changes, {}, model=ApplyChanges, identity=None),
         Spec(

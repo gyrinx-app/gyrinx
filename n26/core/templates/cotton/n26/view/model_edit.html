@@ -9,6 +9,8 @@ dismissed_choices stay off the card. Only this page draws them, so a print sheet
 The include draws the card in edit mode, which is where its controls come out.
 The editors are siblings of the card, not children, so replacing the card leaves them in place.
 Without name_action the include draws the rename pencil.
+flows renders action panels beside the model card and above the screen tabs.
+action_history renders completed results as one edit card, beside Lore when both are present.
 {% endcomment %}
 
 <c-vars
@@ -27,6 +29,8 @@ Without name_action the include draws the rename pencil.
     edits=""
     skills=""
     statline=""
+    flows=""
+    action_history=""
     :htmx="False"
     status_href=""
     class=""
@@ -48,6 +52,9 @@ Without name_action the include draws the rename pencil.
             {# The include reads htmx and status_href. Set htmx only when the page has the dialog hosts. #}
             {% include "n26/includes/model_card_host.html" with name_action=name_action %}
         </c-slot>
+        {% if flows.strip %}
+            <c-slot name="card_companion">{{ flows }}</c-slot>
+        {% endif %}
         {% if tab_actions.strip %}
             <c-slot name="tab_actions">{{ tab_actions }}</c-slot>
         {% endif %}
@@ -110,6 +117,8 @@ Without name_action the include draws the rename pencil.
                 {{ lore }}
             </c-ui.card>
         {% endif %}
+
+        {% if action_history.strip %}{{ action_history }}{% endif %}
 
         {{ dismissed_choices }}
     </div>

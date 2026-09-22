@@ -230,6 +230,20 @@ class AdvancementSelection(Base):
     action_record = models.OneToOneField(
         ActionRecord, on_delete=models.CASCADE, related_name="advancement_selection"
     )
+    promotion = models.ForeignKey(
+        "library.AdvancementPromotion",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="selections",
+    )
+    promotion_assignment = models.ForeignKey(
+        "n26.Assignment",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="action_promotions",
+    )
     slot_assignment = models.ForeignKey(
         "n26.Assignment",
         on_delete=models.RESTRICT,

@@ -15,6 +15,76 @@ def _membership(fighter):
     return membership
 
 
+def missing_progression_counters(fighter, *, card=None, computed=None):
+    """Counters required by the model's rank actions but never assigned to it."""
+    from n26.core.access import rank_tables_for
+    from n26.core.models import Assignment
+    from n26.library.models import Counter, RankAllowanceRule
+
+    if card is None:
+        card = build_card(fighter)
+    if computed is None:
+        computed = compute(card, build_modifier_index(carriers(card)))
+    held = {
+        node.assignment.counter_id
+        for node in card.all_nodes()
+        if not node.broadcast and node.assignment and node.assignment.counter_id
+    }
+    rule_ids = {
+        row.action.rank_allowance_rule_id
+        for row in actions_for(fighter, card=card, computed=computed)
+        if row.action.rank_allowance_rule_id
+    }
+    used = set(
+        RankAllowanceRule.objects.filter(pk__in=rule_ids).values_list(
+            "counter_id", flat=True
+        )
+    )
+    missing = {
+        row.rank_table.counter_id
+        for row in rank_tables_for(fighter, card=card, computed=computed)
+        if row.rank_table.counter_id in used - held
+    }
+    if not missing:
+        return []
+    return list(
+        Counter.objects.unarchived()
+        .filter(pk__in=missing)
+        .exclude(
+            pk__in=Assignment.objects.filter(
+                miniature_root=fighter, counter_id__in=missing
+            ).values("counter_id")
+        )
+    )
+
+
+def track_progression_counter(op, fighter, counter_id):
+    """Explicitly open a missing progression counter at zero, without backfill."""
+    from n26.core.action_records import _refuse_unless_owned
+    from n26.core.models import Assignment, Miniature
+    from n26.core.operations import Refusal
+
+    fighter = Miniature.objects.select_related("membership").get(pk=fighter.pk)
+    _refuse_unless_owned(op, fighter)
+    if not op.counter_tracking_active:
+        raise Refusal("Counter history must be active before tracking progression.")
+    counter = next(
+        (
+            row
+            for row in missing_progression_counters(fighter)
+            if str(row.pk) == str(counter_id)
+        ),
+        None,
+    )
+    if counter is None:
+        raise Refusal("That progression counter is already tracked or is unavailable.")
+    if Assignment.objects.filter(miniature_root=fighter, counter=counter).exists():
+        raise Refusal("Restore the existing counter before tracking progression.")
+    assignment = op.assign(counter, miniature=fighter, caused_by=fighter.membership)
+    op.open_counter(assignment, 0)
+    return assignment
+
+
 @transaction.atomic
 def grant_recruitment_allowances(op, fighter):
     """Grant each effective recruitment allowance once, after hire is complete."""
@@ -45,7 +115,15 @@ def grant_recruitment_allowances(op, fighter):
 
 
 @transaction.atomic
-def grant_rank_allowances(op, counter_assignment, before, after):
+def grant_rank_allowances(
+    op,
+    counter_assignment,
+    before,
+    after,
+    *,
+    action_accesses=None,
+    table_access=None,
+):
     """Grant allowances for strictly crossed thresholds of the current table."""
     if after <= before or not op.counter_tracking_active:
         return []
@@ -57,16 +135,25 @@ def grant_rank_allowances(op, counter_assignment, before, after):
 
     if not RankAllowanceRule.objects.filter(counter=counter).exists():
         return []
-    card = build_card(fighter)
-    computed = compute(card, build_modifier_index(carriers(card)))
-    table_access = rank_table_for(fighter, counter, card=card, computed=computed)
+
+    card = computed = None
+    if table_access is None or action_accesses is None:
+        card = build_card(fighter)
+        computed = compute(card, build_modifier_index(carriers(card)))
+    if table_access is None:
+        table_access = rank_table_for(fighter, counter, card=card, computed=computed)
     if table_access is None:
         return []
     table = table_access.rank_table
     recruitment = _membership(fighter)
+    accesses = (
+        action_accesses
+        if action_accesses is not None
+        else actions_for(fighter, card=card, computed=computed)
+    )
     actions = [
         access.action
-        for access in actions_for(fighter, card=card, computed=computed)
+        for access in accesses
         if access.action.rank_allowance_rule_id
         and access.action.rank_allowance_rule.counter_id == counter.pk
     ]

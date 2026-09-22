@@ -841,14 +841,7 @@ def picklist_lines(picklist, *, include_staged=False):
     see staged content. One statement of the rule, read by the pick
     screen and by the roll panel, so the two cannot come to disagree.
     """
-    lines = (
-        picklist.members.select_related("pickable")
-        .unarchived()
-        .filter(pickable__archived=False, pickable__pack__archived=False)
-    )
-    if not include_staged:
-        lines = lines.filter(staged=False, pickable__staged=False)
-    return lines
+    return picklist.available_members(include_staged=include_staged)
 
 
 def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):

@@ -294,8 +294,8 @@ def create_asset_table(
         raise ValidationError("A table needs a name.")
     if not asset_type.is_holding:
         raise ValidationError(
-            f"{asset_type} is a Possession asset type: every gang has its own, "
-            "so there is nothing to roll for. A table lists a Holding asset type."
+            f"{asset_type} is an inherent asset type: every gang has its own, "
+            "so there is nothing to roll for. A table lists a transferable asset type."
         )
     giver = given_by if given_by is not None else asset_type.campaign_type
     pack_id = kwargs["pack"].pk if "pack" in kwargs else kwargs["pack_id"]
@@ -1104,6 +1104,57 @@ def resolve_advancement(slot, **kwargs):
 
 
 @guarded_write
+@transaction.atomic
+def add_advancement_promotion(
+    advancement,
+    from_subtype,
+    threshold,
+    slot,
+    replaces_advancement=True,
+    optional_profiles=(),
+    requires_rule=None,
+    stash_weapons_for=(),
+    keep_weapon_trait=None,
+    **kwargs,
+):
+    from n26.library.models import AdvancementPromotion
+
+    if stash_weapons_for and keep_weapon_trait is None:
+        raise ValidationError(
+            {"keep_weapon_trait": "Choose the trait for weapons the model keeps."}
+        )
+    promotion = AdvancementPromotion(
+        advancement=advancement,
+        from_subtype=from_subtype,
+        threshold=threshold,
+        slot=slot,
+        replaces_advancement=replaces_advancement,
+        requires_rule=requires_rule,
+        keep_weapon_trait=keep_weapon_trait,
+        **kwargs,
+    )
+    promotion.full_clean()
+    promotion.save()
+    set_promotion_profiles(
+        promotion,
+        optional_profiles=optional_profiles,
+        stash_weapons_for=stash_weapons_for,
+    )
+    return promotion
+
+
+@guarded_write
+def set_promotion_profiles(promotion, *, optional_profiles, stash_weapons_for):
+    """Replace the profiles that may decline a promotion or must stash weapons."""
+    if stash_weapons_for and promotion.keep_weapon_trait_id is None:
+        raise ValidationError(
+            {"keep_weapon_trait": "Choose the trait for weapons the model keeps."}
+        )
+    promotion.optional_profiles.set(optional_profiles)
+    promotion.stash_weapons_for.set(stash_weapons_for)
+
+
+@guarded_write
 def apply_changes(*changes, **kwargs):
     from n26.library.models import ApplyChange, ApplyChanges, CounterChange
 
@@ -1162,7 +1213,9 @@ def rank_allowance_rule(counter, **kwargs):
 
 
 @guarded_write
-def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
+def create_slot_type(
+    name, plural_name="", allows_repeats=True, is_lasting_effect=False, **kwargs
+):
     """What is chosen — Gang Legacy, Specialisation, Path.
 
     The first thing built: its pickables, its picklists and the slots
@@ -1174,6 +1227,7 @@ def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
         name=name,
         plural_name=plural_name,
         allows_repeats=allows_repeats,
+        is_lasting_effect=is_lasting_effect,
         **kwargs,
     )
 

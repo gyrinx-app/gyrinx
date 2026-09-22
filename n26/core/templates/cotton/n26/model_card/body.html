@@ -2,6 +2,7 @@
 <c-n26.model-card.body> — The statline, counters, skills, gear and weapons under a model's header.
 
 Mode checks read mode from context. Pass it from the parent card or the choose controls vanish.
+readonly draws chosen values without the Add or Choose prompts. Pass cards without action URLs in this mode.
 Pass htmx through to counters and owned-actions. Without it those acts navigate the whole page.
 Set htmx only on a page that holds the card host and the dialog host. Otherwise the act runs and the screen does not change.
 An empty href must not reach a kit button. The kit still draws a clickable button that goes nowhere.
@@ -149,23 +150,27 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
         {% for choice in card.choices %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ choice.kind_label }}</dt>
             <dd class="flex min-w-0 items-center gap-0 text-ink-900 dark:text-ink-100">
-                {% if choice.is_resolved %}
-                    {% if choice.href %}
-                        <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs" class="max-w-full whitespace-normal! text-left">{{ choice.chosen }}</c-ui.button>
-                    {% else %}
-                        {{ choice.chosen }}
+                {% if mode == "readonly" %}
+                    {{ choice.chosen|default_if_none:"None" }}
+                {% else %}
+                    {% if choice.is_resolved %}
+                        {% if choice.href %}
+                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs" class="max-w-full whitespace-normal! text-left">{{ choice.chosen }}</c-ui.button>
+                        {% else %}
+                            {{ choice.chosen }}
+                        {% endif %}
                     {% endif %}
-                {% endif %}
 
-                {% if not choice.is_full %}
-                    {% if choice.takes_several %}
-                        {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Add</c-ui.button>{% else %}<span class="text-xs text-muted">Add</span>{% endif %}
-                    {% elif not choice.is_resolved %}
-                        {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose</c-ui.button>{% else %}<span class="text-xs text-muted">Choose</span>{% endif %}
+                    {% if not choice.is_full %}
+                        {% if choice.takes_several %}
+                            {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Add</c-ui.button>{% else %}<span class="text-xs text-muted">Add</span>{% endif %}
+                        {% elif not choice.is_resolved %}
+                            {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose</c-ui.button>{% else %}<span class="text-xs text-muted">Choose</span>{% endif %}
+                        {% endif %}
                     {% endif %}
-                {% endif %}
 
-                <c-n26.choice-dismiss :choice="choice" />
+                    <c-n26.choice-dismiss :choice="choice" />
+                {% endif %}
             </dd>
         {% endfor %}
 
@@ -294,7 +299,7 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
                                                     {# Dismiss on the gang sheet as well as the model page. Only edit mode can change the level. #}
                                                     <c-n26.model-card.mode when="edit">
                                                         {% if choice.href %}
-                                                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>
+                                                            <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_tier_ladder %}Choose tier{% elif choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>
                                                         {% endif %}
                                                     </c-n26.model-card.mode>
 

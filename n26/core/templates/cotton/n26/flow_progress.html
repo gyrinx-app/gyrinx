@@ -1,0 +1,27 @@
+{% comment %}
+<c-n26.flow-progress> — the ordered steps above a form.
+
+    <c-n26.flow-progress :steps="steps" />
+
+Pass FlowStep values with exactly one current step. The list is vertical below
+the md breakpoint and horizontal above it. Links may return to previous forms;
+the server decides which steps are available.
+{% endcomment %}
+<c-vars :steps="[]" label="Progress" class="" />
+<nav {{ attrs }} aria-label="{{ label }}" class="{{ class }}">
+    <ol class="flex flex-col gap-3 md:flex-row md:gap-4">
+        {% for step in steps %}
+            <li class="flex min-w-0 items-center gap-3 md:flex-1"{% if step.current %} aria-current="step"{% endif %}>
+                <span class="flex size-7 shrink-0 items-center justify-center rounded-full border text-sm font-semibold {% if step.current %}border-accent bg-accent text-white{% elif step.complete %}border-accent text-accent{% else %}border-box-border text-muted{% endif %}">
+                    {% if step.complete %}<c-n26.icon name="check" class="size-4" label="Completed" />{% else %}{{ forloop.counter }}{% endif %}
+                </span>
+                {% if step.href %}
+                    <a href="{{ step.href }}" class="text-sm underline underline-offset-2 {% if step.current %}font-semibold text-ink-900 dark:text-ink-100{% else %}text-muted{% endif %}">{{ step.label }}</a>
+                {% else %}
+                    <span class="text-sm {% if step.current %}font-semibold text-ink-900 dark:text-ink-100{% else %}text-muted{% endif %}">{{ step.label }}</span>
+                {% endif %}
+                {% if not forloop.last %}<span aria-hidden="true" class="hidden h-px min-w-3 flex-1 bg-box-border md:block"></span>{% endif %}
+            </li>
+        {% endfor %}
+    </ol>
+</nav>

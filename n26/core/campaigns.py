@@ -276,29 +276,127 @@ class CampaignOperation:
         player.delete()
         self.event(CampaignEvent.Kind.PLAYER_REMOVED, about_user=user)
 
-    def record_battle(self, date, gangs=()):
-        """Write down a battle that was fought, and who was in it.
+    def _battle_details(self, *, scenario, result, gangs, winners, battle=None):
+        """Validate shared metadata without changing any gang."""
+        from django.core.exceptions import ValidationError
 
-        Recording one changes no gang: it says a thing happened, and what it
-        did to anybody is written against that gang afterwards. So this is the
-        campaign's own act, and only the campaign's log carries it.
-        """
+        from n26.core.models import Battle, CampaignMembership
+        from n26.core.operations import Refusal
+
+        gangs, winners = list(gangs), list(winners)
+        scenario = scenario.strip()
+        if not scenario or len(scenario) > 200:
+            raise Refusal("Enter a scenario name of up to 200 characters.")
+        allowed = set(
+            CampaignMembership.objects.filter(
+                campaign=self.campaign, left__isnull=True
+            ).values_list("gang_id", flat=True)
+        )
+        if battle is not None:
+            allowed.update(battle.gangs.values_list("pk", flat=True))
+        if {gang.pk for gang in gangs} - allowed:
+            raise Refusal("Select gangs from this campaign.")
+        try:
+            Battle.validate_outcome(result=result, gangs=gangs, winners=winners)
+        except ValidationError as exc:
+            raise Refusal(" ".join(exc.messages)) from exc
+        return scenario, gangs, winners
+
+    def record_battle(
+        self, date, gangs=(), *, scenario, result="not_recorded", winners=()
+    ):
+        """Record a battle without applying rewards or changing any gang."""
         from n26.core.models import Battle
 
-        battle = Battle.objects.create(campaign=self.campaign, date=date)
+        scenario, gangs, winners = self._battle_details(
+            scenario=scenario, result=result, gangs=gangs, winners=winners
+        )
+        battle = Battle.objects.create(
+            campaign=self.campaign, date=date, scenario=scenario, result=result
+        )
         battle.gangs.set(gangs)
-        self.event(CampaignEvent.Kind.BATTLE_RECORDED, battle=battle)
+        battle.winners.set(winners)
+        self.event(
+            CampaignEvent.Kind.BATTLE_RECORDED,
+            battle=battle,
+            note=f"{scenario} on {date.isoformat()}",
+        )
         return battle
 
-    def remove_battle(self, battle):
-        """Take a battle off the campaign, for one written down in error.
+    def edit_battle(self, battle, *, scenario, date, gangs, result, winners, revision):
+        """Amend the battle record, retaining its gang history."""
+        from n26.core.operations import Refusal
 
-        What the gangs did in it keeps its own records; those simply stop
-        naming a battle. The log says the battle was removed rather than
-        losing the line that said it happened, because both are true.
-        """
+        battle = self._locked_battle(battle)
+        if battle.revision != revision:
+            raise Refusal("This battle changed. Reload it before saving your changes.")
+        scenario, gangs, winners = self._battle_details(
+            scenario=scenario,
+            result=result,
+            gangs=gangs,
+            winners=winners,
+            battle=battle,
+        )
+        gang_ids = {gang.pk for gang in gangs}
+        previous_gangs = set(battle.gangs.values_list("pk", flat=True))
+        removed_ids = previous_gangs - gang_ids
+        if (
+            battle.gang_events.filter(gang_id__in=removed_ids).exists()
+            or battle.reports.filter(gang_id__in=removed_ids).exists()
+            or battle.crews.filter(gang_id__in=removed_ids).exists()
+        ):
+            raise Refusal(
+                "You cannot remove a participant with recorded battle history, a saved crew or a post-battle report."
+            )
+        before = (battle.scenario, battle.date, battle.result)
+        if (
+            before == (scenario, date, result)
+            and previous_gangs == gang_ids
+            and set(battle.winners.values_list("pk", flat=True))
+            == {gang.pk for gang in winners}
+        ):
+            return battle
+        battle.scenario, battle.date, battle.result = scenario, date, result
+        battle.revision += 1
+        battle.save(
+            update_fields=["scenario", "date", "result", "revision", "modified"]
+        )
+        battle.gangs.set(gangs)
+        battle.winners.set(winners)
+        self.event(
+            CampaignEvent.Kind.BATTLE_EDITED,
+            battle=battle,
+            note=f"{scenario} on {date.isoformat()}",
+        )
+        return battle
+
+    def remove_battle(self, battle, *, revision):
+        """Remove an unused battle; attributed gang history keeps its occasion."""
+        from n26.core.operations import Refusal
+
+        battle = self._locked_battle(battle)
+        if battle.revision != revision:
+            raise Refusal("This battle changed. Reload it before removing it.")
+        if battle.gang_events.exists():
+            raise Refusal("You cannot remove a battle with recorded gang history.")
+        if battle.reports.exists() or battle.crews.exists():
+            raise Refusal(
+                "You cannot remove a battle with a saved crew or post-battle report."
+            )
         self.event(CampaignEvent.Kind.BATTLE_REMOVED, note=str(battle.date))
         battle.delete()
+
+    def _locked_battle(self, battle):
+        from n26.core.models import Battle
+        from n26.core.operations import Refusal
+
+        # The full lock also excludes concurrent inserts naming this battle.
+        try:
+            return Battle.objects.select_for_update().get(
+                pk=battle.pk, campaign=self.campaign
+            )
+        except Battle.DoesNotExist:
+            raise Refusal("This battle is no longer available.") from None
 
     def add_asset(self, asset, name=""):
         """Add one of an asset to the campaign, held by nobody.
@@ -315,7 +413,7 @@ class CampaignOperation:
         if not asset_type.is_holding:
             raise ValueError(
                 f"{asset} is a {asset_type}, which every gang has its own of. "
-                "Only an asset type with Holding ownership can be added to a "
+                "Only an asset type with Transferable ownership can be added to a "
                 "campaign."
             )
         if asset_type.campaign_type_id not in (

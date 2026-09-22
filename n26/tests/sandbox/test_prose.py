@@ -1445,9 +1445,10 @@ class TestTheQueryCountStaysFlat:
         discovery like any other. Actions and rank tables add the four
         assignable reference reads that let their grants and removals be
         described. And one query per condition kind a model scope can
-        carry, read whether or not the row has any.
+        carry, read whether or not the row has any. Promotion gates add
+        one reference scan for promotions requiring the rule.
         """
-        with django_assert_num_queries(72):
+        with django_assert_num_queries(73):
             prose_for(much_used)
 
 

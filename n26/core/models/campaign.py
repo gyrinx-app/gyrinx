@@ -147,6 +147,7 @@ class CampaignEvent(Base):
         SUMMARY_EDITED = "summary_edited", "Summary edited"
         ARCHIVED = "archived", "Archived"
         BATTLE_RECORDED = "battle_recorded", "Battle recorded"
+        BATTLE_EDITED = "battle_edited", "Battle edited"
         BATTLE_REMOVED = "battle_removed", "Battle removed"
         INVITED = "invited", "Invited a player"
         INVITE_ACCEPTED = "invite_accepted", "Invitation accepted"
@@ -399,17 +400,12 @@ class CampaignAsset(Base):
 
 
 class Battle(Base):
-    """One battle fought in a campaign: when, and who was in it.
+    """A campaign battle and its result, separate from changes to the gangs."""
 
-    Deliberately little. What a battle *did* — who won, what it dealt out,
-    what changed hands — is recorded against the gangs it happened to, in
-    their own ledgers, each event naming this battle. The row itself is only
-    the occasion those records hang from, so nothing here has to be kept in
-    step with them.
-
-    A gang in the fight need not still be in the campaign: a battle is a thing
-    that happened, and stays true after a gang leaves.
-    """
+    class Result(models.TextChoices):
+        NOT_RECORDED = "not_recorded", "Not recorded"
+        DRAW = "draw", "Draw"
+        WINNERS = "winners", "Winner or winners"
 
     campaign = models.ForeignKey(
         "n26.Campaign",
@@ -419,11 +415,18 @@ class Battle(Base):
     #: When it was fought, which is the players' own date rather than when
     #: somebody got round to writing it down.
     date = models.DateField()
+    # An unnamed record is valid; entry forms require a scenario name.
+    scenario = models.CharField(max_length=200, blank=True, default="")
+    result = models.CharField(
+        max_length=20, choices=Result, default=Result.NOT_RECORDED
+    )
+    revision = models.PositiveIntegerField(default=0)
     gangs = models.ManyToManyField(
         "n26.Gang",
         related_name="battles",
         blank=True,
     )
+    winners = models.ManyToManyField("n26.Gang", related_name="battles_won", blank=True)
 
     class Meta:
         verbose_name = "battle"
@@ -432,9 +435,40 @@ class Battle(Base):
         indexes = [
             models.Index(fields=["campaign", "-date"], name="battle_by_date_idx"),
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(result__in=["not_recorded", "draw", "winners"]),
+                name="battle_result_is_known",
+            )
+        ]
 
     def __str__(self):
-        return f"Battle on {self.date} in {self.campaign}"
+        return self.title
+
+    @property
+    def title(self):
+        return self.scenario or f"Battle on {self.date}"
+
+    @property
+    def result_label(self):
+        if self.result == self.Result.WINNERS:
+            return "Won by " + ", ".join(gang.name for gang in self.winners.all())
+        return self.get_result_display()
+
+    @classmethod
+    def validate_outcome(cls, *, result, gangs, winners):
+        from django.core.exceptions import ValidationError
+
+        if result not in cls.Result.values:
+            raise ValidationError({"result": "Select a result."})
+        if result == cls.Result.WINNERS and not winners:
+            raise ValidationError({"winners": "Select at least one winning gang."})
+        if result != cls.Result.WINNERS and winners:
+            raise ValidationError(
+                {"winners": "Clear the winners for a draw or an unrecorded result."}
+            )
+        if {gang.pk for gang in winners} - {gang.pk for gang in gangs}:
+            raise ValidationError({"winners": "Every winner must be a participant."})
 
 
 class CampaignParticipant(Base):
