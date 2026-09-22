@@ -64,7 +64,7 @@ export function ModifierNaming({
                         label={reusableField.label}
                     />
                 </Field>
-                <p className="mt-1 text-xs text-muted">
+                <p className="mt-1 text-xs text-muted" aria-live="polite">
                     Will be named{" "}
                     <span className="font-medium text-ink-900 dark:text-ink-100">
                         {preview}
