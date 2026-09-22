@@ -511,7 +511,27 @@ def _describe_apply_change(member):
     return str(member.change), []
 
 
+def _describe_advancement_promotion(promotion):
+    return str(promotion), [
+        str(promotion.slot),
+        "Replaces the advancement"
+        if promotion.replaces_advancement
+        else "In addition to the advancement",
+    ]
+
+
 DETAIL_KINDS = {
+    "resolve-advancement": {
+        "verb": "add_advancement_promotion",
+        "parts": "promotions",
+        "statline": False,
+        "describe": _describe_advancement_promotion,
+        "parts_hint": lambda parts: parts.select_related("from_subtype", "slot"),
+        "parts_label": "promotions",
+        "part_name": "promotion",
+        "nothing_yet": "No promotions yet. Add a subtype, an earned threshold and a result slot.",
+        "editable": True,
+    },
     "action": {
         "verb": "add_action_outcome",
         "parts": "outcomes",
@@ -5344,7 +5364,72 @@ def foundations(request):
     built until they exist. Each kind has its own page like anything
     else; this page is only the shortcut that fills them in.
     """
+    from django.core import signing
+
+    from n26.library.fighter_action_setup import (
+        PROGRESSION_RULE,
+        ProgressionSetupConflict,
+        attach_fighter_progression,
+        prepare_fighter_progression,
+        progression_plan,
+    )
     from n26.library.standard_content import STANDARD_CONTENT
+
+    rollout_plan = progression_plan()
+    plan_ids = [
+        (
+            str(row.target.pk),
+            row.target.modified.isoformat(),
+            row.excluded,
+            row.target.staged,
+            row.attached,
+            row.recipe.key,
+        )
+        for row in rollout_plan
+    ]
+    rollout_snapshot = [list(row) for row in plan_ids]
+    rollout_token = signing.dumps(rollout_snapshot, salt="fighter-progression-rollout")
+    if request.method == "POST" and "progression" in request.POST:
+        mode = request.POST["progression"]
+        if mode == "prepare":
+            try:
+                prepare_fighter_progression()
+            except ProgressionSetupConflict as error:
+                messages.error(request, str(error))
+            else:
+                messages.success(request, "Prepared fighter progression for testing.")
+        elif mode in {"staged", "live"}:
+            if mode == "live":
+                try:
+                    supplied = signing.loads(
+                        request.POST.get("plan", ""),
+                        salt="fighter-progression-rollout",
+                        max_age=1800,
+                    )
+                except signing.BadSignature:
+                    supplied = None
+                if supplied != rollout_snapshot:
+                    messages.error(
+                        request,
+                        "Review the current profiles and gang types before applying fighter progression.",
+                    )
+                    return redirect(
+                        reverse("authoring-foundations") + "?progression=live"
+                    )
+            try:
+                count = attach_fighter_progression(
+                    staged_only=mode == "staged",
+                    target_ids={row[0] for row in plan_ids},
+                )
+            except ProgressionSetupConflict as error:
+                messages.error(request, str(error))
+            else:
+                messages.success(
+                    request, f"Updated fighter progression for {count} content entries."
+                )
+        else:
+            raise Http404("No such progression setup")
+        return redirect("authoring-foundations")
 
     if request.method == "POST":
         item = STANDARD_CONTENT.get(request.POST.get("create", ""))
@@ -5368,13 +5453,24 @@ def foundations(request):
                 "total": total,
             }
         )
-    from n26.library.models import ProfileType
+    from n26.library.models import ProfileType, Rule
 
     return render(
         request,
         "authoring/foundations.html",
         {
             "entries": entries,
+            "progression_plan": rollout_plan,
+            "progression_eligible": sum(not row.excluded for row in rollout_plan),
+            "progression_attached": sum(
+                row.attached and not row.excluded for row in rollout_plan
+            ),
+            "progression_excluded": sum(bool(row.excluded) for row in rollout_plan),
+            "progression_review": request.GET.get("progression") == "live",
+            "progression_token": rollout_token,
+            "progression_rule": Rule.objects.in_default_pack()
+            .filter(name=PROGRESSION_RULE, qualifier="")
+            .first(),
             "profile_types": ProfileType.objects.select_related("statline_type"),
             "kinds": [
                 {

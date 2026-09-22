@@ -426,7 +426,8 @@ class TestABoughtAndAGrantedSkill:
         assert "(x2)" not in body
         assert body.count("Nerves of Steel") >= 2
         assert (
-            'Nerves of Steel<span class="sr-only"> (from Rebreather kit)</span>' in body
+            'Nerves of Steel<span class="sr-only"> (from Rebreather kit (wargear))</span>'
+            in body
         )
 
     def test_the_text_card_writes_both(self, gang, both):
