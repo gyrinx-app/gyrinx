@@ -2,8 +2,10 @@
 # Shared worktree utility library.
 #
 # Provides deterministic database names and Django ports for per-worktree
-# isolation, plus stamped venv and React-asset provisioners.  Sourced by
-# dev.sh, activate_venv_hook.sh, .codex/run.sh, and cleanup scripts.
+# isolation, the worktree Python interpreter used by git hook scripts, and
+# stamped venv and React-asset provisioners. Sourced by dev.sh,
+# activate_venv_hook.sh, .codex/run.sh, cleanup scripts, and pre-commit hook
+# wrappers.
 #
 # Usage:
 #   source scripts/lib/worktree.sh
@@ -107,6 +109,30 @@ worktree_label() {
 #   round-tripping without quoting tricks.
 db_config_for_local() {
   echo "{\"user\":\"$(whoami)\",\"password\":\"\"}"
+}
+
+# worktree_python [path]
+#   Print the Python interpreter for this worktree. Prefers
+#   <root>/.venv/bin/python so script-language pre-commit hooks still run
+#   when the caller has no interpreter on PATH — a plain `git commit`
+#   otherwise dies in the migration check. Falls back to python3, then
+#   python, from PATH.
+worktree_python() {
+  local wt_root="${1:-$(_worktree_root)}"
+  local candidate
+  if [ -n "$wt_root" ] && [ -x "${wt_root}/.venv/bin/python" ]; then
+    printf '%s\n' "${wt_root}/.venv/bin/python"
+    return 0
+  fi
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      command -v "$candidate"
+      return 0
+    fi
+  done
+  echo "No Python interpreter found. Create .venv (uv sync --locked or .codex/setup.sh) or put python3 on PATH." >&2
+  echo "Codex: .codex/run.sh git commit -m '...' still works if a hook needs the full worktree env." >&2
+  return 1
 }
 
 # homebrew_postgres_bin

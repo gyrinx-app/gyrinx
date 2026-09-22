@@ -82,9 +82,10 @@ the generated image out of git and check it for private data before uploading.
   databases plus their pytest `test_*` databases. Pass `--include-tests` to also clean
   test DBs for active worktrees (pytest will recreate them on next run). Run periodically
   to reclaim disk.
-- `lib/worktree.sh`: Shared helpers for deriving per-worktree database names and Django ports,
-  plus stamped venv and React-asset provisioners. Sourced by `dev.sh`,
-  `activate_venv_hook.sh`, `.codex/run.sh`, and `cleanup-worktree-dbs.sh`.
+- `lib/worktree.sh`: Shared helpers for per-worktree database names, Django ports,
+  the worktree Python interpreter used by git hook scripts, and stamped venv and
+  React-asset provisioners. Sourced by `dev.sh`, `activate_venv_hook.sh`,
+  `.codex/run.sh`, cleanup scripts, and pre-commit wrappers.
 - `test.sh`: Thin wrapper over `pytest`. All args are passed through. Parallel execution
   (`-n auto`) is already enabled via `pyproject.toml` addopts; use `-n 0` to force serial.
 - `check_migrations.sh`: Checks for migration conflicts.

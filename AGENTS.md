@@ -59,7 +59,9 @@ artifacts when the IDE Canvas surface is unavailable.
   `npm ci` and rebuilds the ignored React manifest when they are missing or
   stale. `npm run js` needs the worktree venv on PATH. Do not run
   `npm audit fix` unless the task is the audit itself. `scripts/dev.sh` and
-  `scripts/fmt.sh` activate the worktree environment themselves.
+  `scripts/fmt.sh` activate the worktree environment themselves. Pre-commit
+  hook scripts find `.venv/bin/python` themselves, so a plain `git commit`
+  works when PATH has no interpreter.
 - Use `./scripts/test.sh` for the full suite, or build React with `npm run js`
   before direct pytest runs on a clean checkout. `pyproject.toml` already runs
   pytest with xdist and `--nomigrations`.

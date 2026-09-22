@@ -31,7 +31,9 @@ Setup exports do not persist into later agent commands. Use `.codex/run.sh`
 for Python commands, such as `.codex/run.sh manage check`. After a rebase that
 changes `package-lock.json` or `n26/frontend`, `.codex/run.sh` runs `npm ci`
 (never `npm audit fix`) and `npm run js` with the worktree venv on PATH when
-`node_modules` or the React manifest is missing or stale.
+`node_modules` or the React manifest is missing or stale. Pre-commit hook
+scripts resolve `.venv/bin/python` themselves, so a plain `git commit` works
+once setup has created the venv.
 
 ## Cleanup
 
