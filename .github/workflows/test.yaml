@@ -41,8 +41,10 @@ jobs:
       DB_CONFIG: '{"user":"postgres","password":"postgres"}'
       # The core suite must stay small to be worth having as the gate, and
       # must not silently select nothing if the marker expression breaks.
+      # The count includes the tests a pull request touched, so leave room
+      # above the marked suite on main.
       CORE_SUITE_MIN: 300
-      CORE_SUITE_MAX: 1200
+      CORE_SUITE_MAX: 1400
     steps:
       - uses: actions/checkout@v7
         with:
