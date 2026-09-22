@@ -90,8 +90,8 @@ repos:
       # runs the same script, so CI enforces it too.
       - id: check-raw-markup
         name: check-raw-markup
-        entry: python3 scripts/check_raw_markup.py
-        language: system
+        entry: ./scripts/check_raw_markup.sh
+        language: script
         types: [html]
         pass_filenames: false
 

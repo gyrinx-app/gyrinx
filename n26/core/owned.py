@@ -122,6 +122,25 @@ def can_unbolt(assignment):
     )
 
 
+def is_built_in_profile(assignment):
+    """Is this one of a weapon's own profiles, granted with the gun?
+
+    Free profiles ride with the weapon: they *are* how it shoots, and
+    selling one leaves no way to put it back. Bought ammunition is the
+    other case — assigned with no cause, paid for on its own, and
+    handed back the same way.
+
+    ``caused_by`` is the signal. ``_grant_free_profiles`` writes it;
+    ``buy_weapon_profile`` does not.
+    """
+    from n26.library.models import WeaponProfile
+
+    return (
+        isinstance(assignment.assignable, WeaponProfile)
+        and assignment.caused_by_id is not None
+    )
+
+
 def thing_key(thing):
     """One string naming a piece of content — what a form submits to name it.
 
@@ -148,6 +167,9 @@ class OwnedPart:
     key: str
     name: str
     rating: int
+    #: Empty for a weapon's own profile — it comes with the gun and
+    #: cannot be sold, refunded or removed on its own. Bought ammunition
+    #: keeps a real address.
     sell_href: str
     refund_href: str
     remove_href: str
@@ -263,8 +285,9 @@ def _parts_of(node, at, *, can_refit=False):
     A weapon's *unnamed* profile is the weapon — the book prints an
     Autogun's first line as "Autogun" — so it draws no row here either,
     the same rule ``n26.render.WeaponLine.own_line`` keeps for the card.
-    It also cannot be sold apart from its gun, which is the same fact
-    said about money.
+    A named free profile still draws a row, because the card needs the
+    extra weapon profile, but it cannot be sold apart from its gun: it
+    came with the weapon and there is no way to put it back.
 
     ``can_refit`` is whether this host carries another gun this part
     could move onto. A screen must not ask a question its answer
@@ -278,15 +301,16 @@ def _parts_of(node, at, *, can_refit=False):
             continue
         pk = str(child.assignment.pk)
         unbolt = can_unbolt(child.assignment)
+        bundled = is_built_in_profile(child.assignment)
         parts.append(
             OwnedPart(
                 id=pk,
                 key=thing_key(child.assignable),
                 name=_part_name(child),
                 rating=child.rating,
-                sell_href=with_query(at, sell=pk),
-                refund_href=with_query(at, refund=pk),
-                remove_href=with_query(at, remove=pk),
+                sell_href="" if bundled else with_query(at, sell=pk),
+                refund_href="" if bundled else with_query(at, refund=pk),
+                remove_href="" if bundled else with_query(at, remove=pk),
                 paid_trade_points=child.paid_trade_points,
                 detach_href=with_query(at, detach=pk) if unbolt else "",
                 fit_href=(with_query(at, fit=pk) if unbolt and can_refit else ""),

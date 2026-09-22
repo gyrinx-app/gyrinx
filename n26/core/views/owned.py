@@ -68,6 +68,7 @@ from n26.core.owned import (
     DIALOGS,
     EquipHost,
     can_unbolt,
+    is_built_in_profile,
     is_detachable,
     is_possession,
     thing_key,
@@ -130,6 +131,21 @@ def _possession_or_404(request, pk):
     if not is_possession(assignment.assignable):
         raise Http404("Not something the gang owns")
     return assignment
+
+
+def _bundled_profile_message(assignment, act):
+    """Why a weapon's own profile cannot leave without the gun."""
+    name = assignment.assignable.name or str(assignment.assignable)
+    weapon = str(assignment.parent.assignable) if assignment.parent_id else "the weapon"
+    return f"You cannot {act} {name} on its own. It comes with {weapon}."
+
+
+def _refuse_bundled_profile(request, assignment, act, back):
+    """Answer a handmade click on a weapon profile that came with the gun."""
+    if not is_built_in_profile(assignment):
+        return None
+    messages.error(request, _bundled_profile_message(assignment, act))
+    return _unchanged(request, back)
 
 
 def _held(host, pk):
@@ -421,6 +437,10 @@ def owned_dialog(request, host: EquipHost):
     gang = host.gang
     assignment = _held(host, named)
     if assignment is None:
+        return None
+    # A weapon's own profile belongs to the gun. A screen must not
+    # ask a question its answer refuses, so those addresses draw nothing.
+    if kind in {"sell", "refund", "remove"} and is_built_in_profile(assignment):
         return None
 
     # What a refund of this would hand back, asked once and only where
@@ -836,6 +856,8 @@ def sell_assignment(request, pk):
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
     back = _back_to(request, assignment, gang)
+    if refused := _refuse_bundled_profile(request, assignment, "sell", back):
+        return refused
     touched = _row_behind(assignment)
 
     stash = getattr(gang, "stash", None)
@@ -1207,6 +1229,8 @@ def remove_assignment(request, pk):
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
     back = _back_to(request, assignment, gang)
+    if refused := _refuse_bundled_profile(request, assignment, "remove", back):
+        return refused
     touched = _row_behind(assignment)
 
     try:
@@ -1248,6 +1272,9 @@ def refund_assignment(request, pk):
 
     assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
+    back = _back_to(request, assignment, gang)
+    if refused := _refuse_bundled_profile(request, assignment, "refund", back):
+        return refused
     refunding, paid = refund_of(assignment)
     points = trade_points_in(refunding)
     # A gang with no budget pays no credits, so unless a founding
@@ -1257,7 +1284,6 @@ def refund_assignment(request, pk):
         return remove_assignment(request, pk)
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
-    back = _back_to(request, assignment, gang)
     touched = _row_behind(assignment)
 
     try:

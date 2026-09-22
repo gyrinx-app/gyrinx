@@ -55,7 +55,9 @@ artifacts when the IDE Canvas surface is unavailable.
 - For Codex shells, run direct Python and Django commands through
   `.codex/run.sh`, for example `.codex/run.sh manage check` or
   `.codex/run.sh pytest`. `scripts/dev.sh` and `scripts/fmt.sh` activate the
-  worktree environment themselves.
+  worktree environment themselves. Pre-commit hook scripts find
+  `.venv/bin/python` themselves, so a plain `git commit` works when PATH has
+  no interpreter.
 - Use `./scripts/test.sh` for the full suite, or build React with `npm run js`
   before direct pytest runs on a clean checkout. `pyproject.toml` already runs
   pytest with xdist and `--nomigrations`.
