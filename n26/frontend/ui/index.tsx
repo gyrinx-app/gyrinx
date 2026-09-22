@@ -55,39 +55,101 @@ export function FormActions({
 const FieldContext = createContext<{
     id: string;
     errorId?: string;
+    descriptionId?: string;
 } | null>(null);
+
+function useFieldControl(id?: string, describedBy?: string) {
+    const field = useContext(FieldContext);
+    const controlId = id ?? field?.id;
+    const owned = field !== null && field.id === controlId ? field : undefined;
+    return {
+        id: controlId,
+        errorId: owned?.errorId,
+        describedBy:
+            [describedBy, owned?.descriptionId, owned?.errorId]
+                .filter(Boolean)
+                .join(" ") || undefined,
+    };
+}
 
 export function Field({
     label,
     htmlFor,
     errors = [],
+    description,
+    variant = "block",
     children,
 }: {
     label: string;
     htmlFor: string;
     errors?: string[];
+    description?: string;
+    variant?: "block" | "toggle";
     children: ReactNode;
 }) {
     const id = useId();
     const errorId = errors.length ? `${id}-errors` : undefined;
+    const descriptionId = description ? `${id}-description` : undefined;
+    const recipe = cotton.field;
+    const labelControl = (
+        <label htmlFor={htmlFor} className={recipe.label}>
+            <span className={recipe.labelText}>{label}</span>
+        </label>
+    );
+    const descriptionControl = descriptionId && (
+        <div id={descriptionId} className={recipe.description}>
+            {description}
+        </div>
+    );
+    const errorControl = errorId && (
+        <div id={errorId}>
+            {errors.map((error, index) => (
+                <div key={index} className={recipe.error}>
+                    {error}
+                </div>
+            ))}
+        </div>
+    );
+
     return (
-        <FieldContext value={{ id: htmlFor, errorId }}>
-            <div className={cotton.field.root}>
-                <label htmlFor={htmlFor} className={cotton.field.label}>
-                    <span className={cotton.field.labelText}>{label}</span>
-                </label>
-                {children}
-                {errorId && (
-                    <div id={errorId}>
-                        {errors.map((error, index) => (
-                            <div key={index} className={cotton.field.error}>
-                                {error}
-                            </div>
-                        ))}
+        <FieldContext value={{ id: htmlFor, errorId, descriptionId }}>
+            <div className={recipe.root}>
+                {variant === "toggle" ? (
+                    <div className={recipe.toggleRow}>
+                        <div className={recipe.toggleText}>{labelControl}</div>
+                        <div className={recipe.toggleControl}>{children}</div>
                     </div>
+                ) : (
+                    <>
+                        {labelControl}
+                        {children}
+                    </>
                 )}
+                {descriptionControl}
+                {errorControl}
             </div>
         </FieldContext>
+    );
+}
+
+export function Input({
+    id,
+    className = "",
+    "aria-describedby": describedBy,
+    "aria-invalid": invalid,
+    ...props
+}: ComponentProps<"input">) {
+    const field = useFieldControl(id, describedBy);
+    return (
+        <div className={cotton.input.root}>
+            <input
+                {...props}
+                id={field.id}
+                className={`${cotton.input.control} ${className}`}
+                aria-invalid={invalid ?? (field.errorId ? true : undefined)}
+                aria-describedby={field.describedBy}
+            />
+        </div>
     );
 }
 
@@ -99,20 +161,65 @@ export function NativeSelect({
     "aria-invalid": invalid,
     ...props
 }: ComponentProps<"select">) {
-    const field = useContext(FieldContext);
-    const controlId = id ?? field?.id;
-    const errorId = field?.id === controlId ? field?.errorId : undefined;
+    const field = useFieldControl(id, describedBy);
     return (
         <select
             {...props}
-            id={controlId}
+            id={field.id}
             className={`${cotton.nativeSelect.className} ${className}`}
             style={{ ...cotton.nativeSelect.style, ...style }}
-            aria-invalid={invalid ?? (errorId ? true : undefined)}
-            aria-describedby={
-                [describedBy, errorId].filter(Boolean).join(" ") || undefined
-            }
+            aria-invalid={invalid ?? (field.errorId ? true : undefined)}
+            aria-describedby={field.describedBy}
         />
+    );
+}
+
+export function Switch({
+    id,
+    name,
+    checked,
+    onCheckedChange,
+    label,
+}: {
+    id?: string;
+    name: string;
+    checked: boolean;
+    onCheckedChange: (checked: boolean) => void;
+    label: string;
+}) {
+    const field = useFieldControl(id);
+    const recipe = cotton.switch;
+    return (
+        <div className={recipe.root}>
+            <input
+                type="checkbox"
+                name={name}
+                value="on"
+                checked={checked}
+                readOnly
+                tabIndex={-1}
+                aria-hidden="true"
+                className={recipe.control}
+            />
+            <button
+                id={field.id}
+                type="button"
+                role="switch"
+                aria-checked={checked}
+                aria-label={label}
+                aria-describedby={field.describedBy}
+                onClick={() => onCheckedChange(!checked)}
+                className={`${recipe.track} ${recipe.trackTransition} ${
+                    checked ? recipe.trackChecked : recipe.trackUnchecked
+                }`}
+            >
+                <span
+                    className={`${recipe.thumb} ${recipe.thumbTransition} ${
+                        checked ? recipe.thumbChecked : recipe.thumbUnchecked
+                    }`}
+                />
+            </button>
+        </div>
     );
 }
 
