@@ -41,9 +41,10 @@ jobs:
       DB_CONFIG: '{"user":"postgres","password":"postgres"}'
       # The core suite must stay small to be worth having as the gate, and
       # must not silently select nothing if the marker expression breaks.
-      # The count includes the tests a pull request touched, so leave room
-      # above the marked suite on main. The bounds script warns when the
-      # count is within CORE_SUITE_HEADROOM of the max.
+      # The count is the tests marked core on the branch, so a main suite
+      # sitting on the max fails the next pull request that marks another
+      # test core. The bounds script warns when the count is within
+      # CORE_SUITE_HEADROOM of the max.
       CORE_SUITE_MIN: 300
       CORE_SUITE_MAX: 1400
       CORE_SUITE_HEADROOM: 50

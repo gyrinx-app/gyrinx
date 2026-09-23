@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """Check that a collected core-suite count sits inside the CI bounds.
 
-The required `test` job runs `pytest -m core` plus every test the pull
-request touched, then refuses a count outside CORE_SUITE_MIN..CORE_SUITE_MAX
-in `.github/workflows/test.yaml`. The count includes those extra tests, so
-the marked suite on main must stay below the max with room to spare. This
-script also warns when the count is within HEADROOM of the max — otherwise
-the next pull request that adds a core test fails the required job, which
-is what happens when main sits on the cap.
+The required `test` job counts the tests marked core on the branch and
+refuses a count outside CORE_SUITE_MIN..CORE_SUITE_MAX in
+`.github/workflows/test.yaml`. When main sits on the max, the next pull
+request that marks another test core fails the required job, so this
+script also warns when the count is within HEADROOM of the max.
 
     scripts/check_core_suite_bounds.py COUNT MIN MAX
     scripts/check_core_suite_bounds.py COUNT MIN MAX HEADROOM
@@ -40,7 +38,7 @@ def check_core_suite_bounds(
 
     A count inside the range but at least as large as MAX - HEADROOM is
     still ok: the job must not fail until the cap is actually crossed.
-    It does warn, because PR-touched tests share the same ceiling.
+    It does warn, because the next core-marked test would cross it.
     """
     if headroom < 0:
         raise ValueError("headroom must be >= 0")
@@ -62,9 +60,8 @@ def check_core_suite_bounds(
                 summary,
                 "::warning::the core suite has "
                 f"{count} tests, {remaining} below CORE_SUITE_MAX={maximum}. "
-                "The required job also runs PR-touched tests, so a main suite "
-                "this close to the cap fails the next pull request that adds "
-                "a core test. Raise CORE_SUITE_MAX in "
+                "A main suite this close to the cap fails the next pull "
+                "request that marks another test core. Raise CORE_SUITE_MAX in "
                 ".github/workflows/test.yaml, or unmark tests that are not "
                 "fundamental behaviour.",
             ),
