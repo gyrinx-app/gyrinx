@@ -54,10 +54,14 @@ artifacts when the IDE Canvas surface is unavailable.
 - Run Django commands with `manage`, never `python manage.py`.
 - For Codex shells, run direct Python and Django commands through
   `.codex/run.sh`, for example `.codex/run.sh manage check` or
-  `.codex/run.sh pytest`. `scripts/dev.sh` and `scripts/fmt.sh` activate the
-  worktree environment themselves. Pre-commit hook scripts find
-  `.venv/bin/python` themselves, so a plain `git commit` works when PATH has
-  no interpreter.
+  `.codex/run.sh pytest`. After a rebase that changes `package-lock.json`,
+  `n26/frontend`, Cotton templates, or icon sources, `.codex/run.sh` runs
+  `npm ci` and rebuilds the ignored React manifest when they are missing or
+  stale. `npm run js` needs the worktree venv on PATH. Do not run
+  `npm audit fix` unless the task is the audit itself. `scripts/dev.sh` and
+  `scripts/fmt.sh` activate the worktree environment themselves. Pre-commit
+  hook scripts find `.venv/bin/python` themselves, so a plain `git commit`
+  works when PATH has no interpreter.
 - Use `./scripts/test.sh` for the full suite, or build React with `npm run js`
   before direct pytest runs on a clean checkout. `pyproject.toml` already runs
   pytest with xdist and `--nomigrations`.
