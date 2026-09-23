@@ -10,7 +10,6 @@ which choice values are selected.
 
 from django import template
 from django.forms import widgets
-from django.template.defaultfilters import capfirst
 
 register = template.Library()
 
@@ -47,10 +46,6 @@ def file_input_props(field):
     return {
         "htmlName": field.html_name,
         "id": field.auto_id,
-        "label": capfirst(field.label),
-        "helpText": str(field.help_text),
-        "errors": [str(error) for error in field.errors],
-        "required": field.field.required,
         "accept": str(field.field.widget.attrs.get("accept", "")),
     }
 

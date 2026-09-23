@@ -70,11 +70,19 @@ Takes `field` (a BoundField) and `form`.
     {% elif kind == "file" %}
         {% comment %}
         React owns the native file control and its transient drag state.
-        The surrounding Django form keeps multipart submission, validation
-        and the upload operation.
+        Cotton keeps the label, help and server errors around it. The
+        surrounding Django form keeps multipart submission and the upload.
         {% endcomment %}
         {% file_input_props field as file_input %}
-        <div class="[&_[data-react-module]]:min-h-0">{% react_island "file-input" file_input %}</div>
+        <c-ui.field data-field
+                    label="{{ label }}{% if field.field.required %} *{% endif %}"
+                    description_trailing="{{ help }}"
+                    error="x"
+                    :form="form"
+                    name="{{ field.name }}"
+                    for="{{ field.auto_id }}">
+            <div class="[&_[data-react-module]]:min-h-0">{% react_island "file-input" file_input %}</div>
+        </c-ui.field>
     {% elif kind == "select" or kind == "selectmultiple" %}
         <c-ui.field data-field
                     label="{{ label }}{% if field.field.required %} *{% endif %}"

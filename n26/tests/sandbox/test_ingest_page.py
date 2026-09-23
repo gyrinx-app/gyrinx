@@ -109,14 +109,10 @@ class TestHoldingTheSheets:
         assert props == {
             "htmlName": "file",
             "id": "id_file",
-            "label": "The All Profiles sheet",
-            "helpText": (
-                "A CSV export. Uploading replaces whichever file this sheet is holding."
-            ),
-            "errors": [],
-            "required": True,
             "accept": ".csv,text/csv",
         }
+        assert 'for="id_file"' in body
+        assert "A CSV export. Uploading replaces whichever file" in body
         assert "All Profiles" in body
 
     def test_an_upload_is_held_and_said_so(self, author, client, foundation):
@@ -207,13 +203,9 @@ class TestHoldingTheSheets:
             {"file": SimpleUploadedFile("notes.png", b"\x89PNG\r\n\x1a\n\x00\x01")},
         )
         body = response.content.decode()
-        soup = BeautifulSoup(body, "html.parser")
-        host = soup.select_one("[data-react-module]")
-        props = json.loads(soup.find(id=host["data-react-props"]).string)
 
         assert not UploadedSheet.objects.exists()
         assert "not text this can read" in body
-        assert any("not text this can read" in error for error in props["errors"])
 
     def test_a_sheet_with_no_lines_under_its_heading_is_refused(
         self, author, client, foundation
