@@ -34,8 +34,10 @@ pytest --cov=gyrinx
 ./scripts/test.sh
 
 # Or build the React assets once and invoke pytest directly. pyproject.toml
-# already sets -n auto, so this runs in parallel by default.
-npm run js
+# already sets -n auto, so this runs in parallel by default. The exporter
+# needs the worktree venv on PATH.
+PATH="$PWD/.venv/bin:$PATH" npm run js
+# Codex: .codex/run.sh npm run js
 pytest
 
 # Continuous test runner

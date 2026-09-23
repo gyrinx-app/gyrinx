@@ -23,7 +23,9 @@ def _manifest():
         return json.loads((BUILD / "manifest.json").read_text())
     except FileNotFoundError as exc:
         raise ImproperlyConfigured(
-            "React assets are missing. Run npm run js in the project environment."
+            "React assets are missing. Rebuild them with the worktree venv "
+            "on PATH: `.codex/run.sh npm run js` or "
+            "`PATH=$PWD/.venv/bin:$PATH npm run js`."
         ) from exc
 
 
@@ -43,7 +45,9 @@ def react_island(name, props):
     entry = f"islands/{name}/entry.tsx"
     if entry not in manifest:
         raise ImproperlyConfigured(
-            f"No built React entry for {name!r}. Run npm run js."
+            f"No built React entry for {name!r}. Rebuild with the worktree "
+            "venv on PATH: `.codex/run.sh npm run js` or "
+            "`PATH=$PWD/.venv/bin:$PATH npm run js`."
         )
     files = []
 

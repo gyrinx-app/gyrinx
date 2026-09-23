@@ -2,9 +2,10 @@
 # Shared worktree utility library.
 #
 # Provides deterministic database names and Django ports for per-worktree
-# isolation, and the worktree Python interpreter used by git hook scripts.
-# Sourced by dev.sh, activate_venv_hook.sh, cleanup scripts, and pre-commit
-# hook wrappers.
+# isolation, the worktree Python interpreter used by git hook scripts, and
+# stamped venv and React-asset provisioners. Sourced by dev.sh,
+# activate_venv_hook.sh, .codex/run.sh, cleanup scripts, and pre-commit hook
+# wrappers.
 #
 # Usage:
 #   source scripts/lib/worktree.sh
@@ -392,4 +393,191 @@ unset -f _gyrinx_set_db_env
 # <<< Gyrinx per-worktree DB env <<<
 BLOCK
   return 0
+}
+
+# _frontend_inputs_newer <worktree_root> <than>
+#   True when an input to `npm run js` is newer than <than>. That command
+#   exports Cotton recipes before Vite runs, so the scan covers island source,
+#   Cotton templates, and the icon modules the exporter reads.
+_frontend_inputs_newer() {
+  local wt_root="$1"
+  local than="$2"
+  local roots=()
+  if [ -d "${wt_root}/n26/frontend" ]; then
+    roots+=("${wt_root}/n26/frontend")
+  fi
+  if [ -d "${wt_root}/n26/core/templates/cotton" ]; then
+    roots+=("${wt_root}/n26/core/templates/cotton")
+  fi
+  if [ "${#roots[@]}" -gt 0 ] \
+    && [ -n "$(find "${roots[@]}" -type f \
+      ! -path '*/generated/*' \
+      -newer "$than" -print -quit 2>/dev/null)" ]; then
+    return 0
+  fi
+  local file
+  for file in \
+    "${wt_root}/n26/core/icons.py" \
+    "${wt_root}/n26/core/brand_icons.py"
+  do
+    if [ -f "$file" ] && [ "$file" -nt "$than" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# _frontend_repair_plan <worktree_root>
+#   Prints "install", "js", or "install js" when node_modules or the React
+#   manifest needs recovery. Prints nothing when both are current.
+_frontend_repair_plan() {
+  local wt_root="$1"
+  local manifest="${wt_root}/n26/core/static/n26/react/manifest.json"
+  local install=false
+  local js=false
+  if [ ! -d "${wt_root}/node_modules" ] \
+    || [ "${wt_root}/package-lock.json" -nt "${wt_root}/node_modules" ] \
+    || [ "${wt_root}/package.json" -nt "${wt_root}/node_modules" ]; then
+    install=true
+  fi
+  if [ ! -f "$manifest" ] \
+    || [ "${wt_root}/package-lock.json" -nt "$manifest" ] \
+    || [ "${wt_root}/package.json" -nt "$manifest" ] \
+    || [ "${wt_root}/vite.config.mts" -nt "$manifest" ]; then
+    js=true
+  elif _frontend_inputs_newer "$wt_root" "$manifest"; then
+    js=true
+  fi
+  if [ "$install" = true ] && [ "$js" = true ]; then
+    printf 'install js\n'
+  elif [ "$install" = true ]; then
+    printf 'install\n'
+  elif [ "$js" = true ]; then
+    printf 'js\n'
+  fi
+  return 0
+}
+
+# provision_worktree_frontend <worktree_root>
+#   After a rebase, node_modules and the gitignored React manifest can be
+#   older than package-lock.json, n26/frontend, Cotton templates, or icon
+#   sources. Codex commands go through .codex/run.sh rather than
+#   ./scripts/dev.sh, so this helper does the same recovery there: `npm ci`
+#   when the install is stale, then `npm run js` when the manifest is missing
+#   or stale. Both commands put the worktree venv first on PATH because
+#   `npm run js` starts with `python -m n26.frontend.tooling.export_cotton_recipes`.
+#
+#   The freshness check and the install/build share one lock, matching
+#   provision_worktree_venv, so two Codex commands cannot npm ci at once.
+#   Uses `npm ci --no-audit --no-fund`, never `npm audit fix`. A checkout
+#   without vite.config.mts is a no-op so pre-islands fixtures stay quiet.
+#   Returns 0 on success or skip; non-zero if npm/python/lockfile is missing
+#   when a build is required, or if ci/js fails.
+provision_worktree_frontend() {
+  local wt_root="$1"
+  if [ -z "$wt_root" ] || [ ! -d "$wt_root" ]; then
+    return 1
+  fi
+  if [ ! -f "${wt_root}/vite.config.mts" ]; then
+    return 0
+  fi
+
+  if [ -x "${wt_root}/.venv/bin/python" ]; then
+    PATH="${wt_root}/.venv/bin:${PATH}"
+    export PATH
+  fi
+
+  local plan
+  plan=$(_frontend_repair_plan "$wt_root")
+  if [ -z "$plan" ]; then
+    return 0
+  fi
+
+  local lock_dir="${wt_root}/.gyrinx-frontend-provision.lock"
+  local lock_pid attempts=0
+  while ! mkdir "$lock_dir" 2>/dev/null; do
+    lock_pid=""
+    if [ -f "$lock_dir/pid" ]; then
+      read -r lock_pid < "$lock_dir/pid" || lock_pid=""
+    fi
+    if [[ "$lock_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$lock_pid" 2>/dev/null; then
+      if rm "$lock_dir/pid" 2>/dev/null && rmdir "$lock_dir" 2>/dev/null; then
+        attempts=0
+        continue
+      fi
+    fi
+    attempts=$((attempts + 1))
+    if [ "$attempts" -ge 10 ] && [ ! -e "$lock_dir/pid" ] \
+      && rmdir "$lock_dir" 2>/dev/null; then
+      attempts=0
+      continue
+    fi
+    if [ "$attempts" -ge 1200 ]; then
+      echo "[gyrinx] Timed out waiting to provision frontend assets in ${wt_root}." >&2
+      return 1
+    fi
+    sleep 0.1
+  done
+  if ! printf '%s\n' "$$" > "$lock_dir/pid"; then
+    rmdir "$lock_dir" 2>/dev/null || true
+    echo "[gyrinx] Could not initialise the frontend provisioning lock for ${wt_root}." >&2
+    return 1
+  fi
+
+  local provision_status
+  if (
+    plan=$(_frontend_repair_plan "$wt_root")
+    if [ -z "$plan" ]; then
+      return 0
+    fi
+    if [ ! -f "${wt_root}/package-lock.json" ]; then
+      echo "[gyrinx] No package-lock.json at ${wt_root}; cannot install frontend deps." >&2
+      return 1
+    fi
+    if ! command -v npm >/dev/null 2>&1; then
+      echo "[gyrinx] npm is not on PATH; cannot rebuild React assets." >&2
+      echo "[gyrinx] Install Node, then from ${wt_root} run:" >&2
+      echo "[gyrinx]   npm ci --no-audit --no-fund" >&2
+      echo "[gyrinx]   PATH=\"${wt_root}/.venv/bin:\$PATH\" npm run js" >&2
+      return 1
+    fi
+    case " $plan " in
+      *" install "*)
+        echo "[gyrinx] Installing npm dependencies with npm ci (node_modules missing or out of date)..." >&2
+        if ! (cd "$wt_root" && npm ci --no-audit --no-fund); then
+          echo "[gyrinx] npm ci failed. Do not run npm audit fix unless the task is the audit itself." >&2
+          return 1
+        fi
+        ;;
+    esac
+    case " $plan " in
+      *" js "*)
+        if ! command -v python >/dev/null 2>&1; then
+          echo "[gyrinx] python is not on PATH; npm run js needs the worktree venv." >&2
+          echo "[gyrinx]   PATH=\"${wt_root}/.venv/bin:\$PATH\" npm run js" >&2
+          echo "[gyrinx] or: .codex/run.sh npm run js" >&2
+          return 1
+        fi
+        echo "[gyrinx] Building React islands (manifest missing or out of date)..." >&2
+        if ! (cd "$wt_root" && npm run js); then
+          echo "[gyrinx] npm run js failed. Rebuild with the worktree venv on PATH:" >&2
+          echo "[gyrinx]   PATH=\"${wt_root}/.venv/bin:\$PATH\" npm run js" >&2
+          echo "[gyrinx] or: .codex/run.sh npm run js" >&2
+          echo "[gyrinx] Do not run npm audit fix unless the task is the audit itself." >&2
+          return 1
+        fi
+        ;;
+    esac
+    return 0
+  ); then
+    provision_status=0
+  else
+    provision_status=$?
+  fi
+  rm -f "$lock_dir/pid"
+  if ! rmdir "$lock_dir" 2>/dev/null; then
+    echo "[gyrinx] Could not release the frontend provisioning lock for ${wt_root}." >&2
+    return 1
+  fi
+  return "$provision_status"
 }
