@@ -84,12 +84,10 @@ that reach every model: **Advancement**, **Standard fighter ranks**, and the
 table supplies the XP thresholds, and the action supplies the earned use.
 Add the **Promotion** rule too if the supplied promotions should apply.
 
-On the Spyrer progression rule, add bearer-scoped **Adds assignable** modifiers
-for **Suit Evolution** and **Suit Maintenance**. On the Hunt Master profile, add
-a bearer-scoped **Adds assignable** modifier for **Recruitment augmentation**.
-These links use the normal assignment and modifier pipeline, so removing a rule
-removes access while previously earned allowances remain in the fighter's
-history.
+For Spyrers, follow [An item's augmentation tiers](#an-items-augmentation-tiers)
+and [Suit Evolution and Suit Maintenance actions](#suit-evolution-and-suit-maintenance-actions)
+below. The action grants belong on the fighters, and each item's tiers belong
+on that item. The XP setup above does not create either link.
 
 If a profile should always carry these definitions without a computed rule,
 open its built-in set and add the same Action, RankTable, or Slot as a default
@@ -504,73 +502,211 @@ any time, but is not given a first one.
 
 ## An item's augmentation tiers
 
-> Draft, for review.
+Use this recipe to enter Spyrer augmentations manually. Start with the Jakara
+hunting rig, test both tiers, then repeat for each item. Use the **Modifier
+Objects** tab in the [N26 Pre-ingest workbook](https://docs.google.com/spreadsheets/d/19YIkTnsrgQ5E2NVa5dIU4Syk7VPykX9WZZkevzWZclk/edit?gid=1795933652#gid=1795933652)
+as a checklist and check its entries against the equipment's rules. Blank cells
+do not always mean a tier has no effect.
 
-The book prints augmentation tiers for each of a Spyrer's weapons and
-for the hunting rig. An item has one augmentation level. Suit Evolution
-raises it by one, a glitch can lower it by one, and each level carries
-the changes of every level below it. The level shows under the item on
-the model's card.
+**Do not launch Malcadon hunting rig augmentations yet.** The app cannot upgrade
+the tier after the player chooses Ballistic Skill or Weapon Skill. Leave this
+rig's augmentation slot unattached. Continue with the Malcadon weapons.
 
-1. Create a **slot type** named "Augmentation", plural "Augmentations",
-   with *allows repeats* off. One slot type serves every item.
-2. For each item, add a **pickable** per tier — "Tier 1", "Tier 2",
-   "Tier 3" — with the item's name as the qualifier, so each item has
-   tiers of its own. Players never see the qualifier.
-3. On each tier's page, attach the **modifiers** that apply at that
-   level. Tier 2 carries Tier 1's modifiers as well as its own, and
-   Tier 3 carries the modifiers of all three. A weapon's modifier
-   targets *weapons named* that weapon: set Lethality to 2, set Armour
-   Piercing to -2. A rig's modifier targets *the model*: improve
-   Strength by 1. Swapping a trait takes two modifiers: one that takes
-   the old trait away, one that gives the new. Where a later tier
-   changes what an earlier tier changed — a 6+ field save at Tier 1
-   and a 5+ field save at Tier 3 — the later tier carries the later
-   value only. Nothing from Tier 1 is in play once Tier 3 is picked.
-4. Add a **picklist** of that item's tiers, in order. Give each member
-   its numeric level: 1, 2, 3, and so on.
-5. Add a **tier ladder slot** on that picklist, labelled "Augmentation",
-   taking 0 to 1 picks and assigned to the bearer.
-6. Build the slot into the item. The card of a model carrying the item
-   then draws an "Augmentation" line under the item, holding the tier
-   picked or a dash.
+### Reuse the shared definitions
 
-Completing an augmentation replaces the tier held with the next numeric
-level. The content's numeric levels determine the change; its display
-position and name do not. Tiers carry no price. Their pickables carry
-any rating contribution from the resulting tier.
+Open **Foundations → Fighter actions and advancement table**. Create missing
+definitions there, then reuse the existing **Augmentation** slot type, **Suit
+Evolution**, **Suit Maintenance** and **Recruitment augmentation** actions.
+Do not create a second set. Foundations supplies the actions and their prices;
+you supply each item's tiers and grant the actions to the eligible fighters.
 
-A rig's tiers are not yet drawn under the rig: they show as a line of
-their own under Gear, because only a weapon draws its tiers under the
-item itself.
+An item's setup has three parts:
+
+| Part | What you enter | Where it belongs |
+| --- | --- | --- |
+| Pickable | One tier and all its effects | Augmentation slot type |
+| Picklist | That item's tiers, each with a numeric level | Augmentation slot type |
+| Slot | The item's current tier | Built into that weapon or rig |
+
+### Prepare a test fighter and gear
+
+Use a staff account. In **Content library → Wargear**, choose **New wargear**
+and name it **Jakara recipe test rig**. Leave **Staged** on and create it.
+For a weapon test, use **New weapon**, select the **Weapon** statline type,
+then **Add weapon profile**. Copy the real weapon's characteristics and traits.
+Keep both the weapon and its profile staged.
+
+In **Content library → Profile**, choose **New profile**. Name it **Augmentation
+recipe test hunter**, select **Fighter** and **Spyre Hunters**, and leave
+**Staged** on. After creating it, enter a statline and save. Under **Add a
+built-in**, select **subtype → Spyrer**, then **Add built-in**. Add the test rig
+the same way, using **wargear** instead of subtype.
+
+Attaching a modifier or built-in item to live content can affect existing
+models immediately. Staging the new tier does not prevent those changes.
+Use the test entries until the launch checklist below is complete.
+
+### Build the Jakara hunting rig tiers
+
+From **Content library → Slot type**, open **Augmentation**.
+
+1. Under **Add a pickable**, enter **Tier 1**. Expand **Qualifier and author
+   help**, set **Qualifier** to **Jakara hunting rig**, and set **Rating
+   contribution** to **0**. Click **Add pickable**, then open the new Tier 1.
+   The qualifier distinguishes this item's tiers in the library; players see
+   only the tier name.
+2. On Tier 1, add a **modifier**. Select **The model carrying it** and **Changes
+   a stat**, then **Configure new modifier**. Select **S (Strength)**,
+   **Improve**, and amount **1**. Name it **Jakara rig: Strength +1** and click
+   **Attach modifier**.
+3. Add **Tier 2** with the same qualifier and rating contribution. Attach the
+   Strength modifier from Tier 1 using **Attach an existing modifier → Attach**.
+   Add another modifier with **The model carrying it → Changes a stat**:
+   **A (Attacks) → Improve → 1**. Name it **Jakara rig: Attacks +1**.
+4. Back on Augmentation, add a **picklist** named **Jakara hunting rig tiers**.
+   Leave **Dice** blank. Add Tier 1 as a member with **Level 1** and Tier 2 with
+   **Level 2**. Leave the roll fields blank. Position only controls display
+   order; **Level** controls upgrading.
+5. Add a **slot** named **Jakara hunting rig augmentation**, using that picklist
+   and the Augmentation slot type. Set **Label** to **Augmentation**, **Mode** to
+   **Tier ladder**, **Min picks** to **0**, **Max picks** to **1**, and **Assigned
+   to** to **The bearer**. Leave **Hidden** off.
+6. Open your test rig. Under **Add a built-in**, select **Kind → slot**, choose
+   **Jakara hunting rig augmentation**, and click **Add built-in**. Leave
+   **Default pickable** blank. The slot belongs on the rig, not on the fighter
+   or gang.
+
+Only the current tier applies. Tier 2 therefore needs both Strength and Attacks;
+it does not inherit Tier 1's modifiers automatically. Keep the rating at 0
+unless the rules assign a rating increase to that tier.
+
+### Enter weapon changes and rule-based effects
+
+For each weapon, create its own tiers, picklist and slot using the steps above.
+Use the weapon's name as the qualifier and build the slot into the weapon,
+not its firing profile.
+
+- **Weapon stats:** select **The model's weapons → Changes a stat**, then
+  **Configure new modifier**. Click **Add a condition**, set **Kind** to
+  **is_one_of**, and choose the test weapon under **Weapons**. Select the stat
+  below. Use **Set to** for a printed final value, such as Lethality 2 or Armour
+  Piercing −2. Use **Improve** for a change
+  relative to the base value. This scope reaches every carried copy of that
+  named weapon; keep a printed paired weapon as one library weapon.
+- **Weapon traits:** select **The model's weapons** and add the same **is_one_of**
+  condition. To replace Rapid Fire (2) with
+  Rapid Fire (3), add **Takes something away** for the old trait and **Gives
+  something** for the new trait. Reuse the existing annotated traits, or create
+  the missing trait and its annotation first. Repeat both modifiers on later
+  tiers that retain the replacement.
+- **Invulnerable saves:** create or reuse a **special rule** named
+  **Invulnerable save**, with the save value as its **Annotation**, such as
+  **6+**. On the tier, use **The model carrying it → Gives something** and select
+  that special rule. Alternatively, enter **Invulnerable save (6+)** under
+  **New rule**; the form turns the brackets into an annotation. Do not change
+  the fighter's ordinary Save characteristic.
+  For Mirror shield, Tier 2 retains the 6+ rule alongside its range change;
+  Tier 3 grants only the 5+ version alongside that range change.
+- **Rigs with an existing save:** Orrus and Sovereign rigs already grant a save
+  before augmentation. If the existing save uses a special rule, each
+  upgraded tier also needs **Takes something away** for the base version.
+  Check that the card displays only the upgraded save.
+- **Conditional benefits:** represent Yeld's cover benefit with a named special
+  rule granted to the model by Tier 2, alongside Tier 1's Movement improvement.
+  The card records the rule; players apply its condition at the table. Do not
+  improve the model's ordinary Save unconditionally.
+
+Use names and annotations for special rules, not copied rules text. These rules
+appear on the model's card. They do not automate saving throws.
+
+When a later tier replaces an earlier effect, attach only the final version
+of that effect to the later tier. A tier must contain every effect that still
+applies, including benefits recorded as special rules.
 
 ## Suit Evolution and Suit Maintenance actions
 
-A Spyrer's suit keeps Kill Count and Glitch Count counters. Suit
-Evolution spends four Kill Count and offers two outcomes: raise one
-carried item's augmentation by one tier, or clear the fighter's glitches.
-Suit Maintenance pays 100 credits and clears the same glitches.
+The shared actions already contain their outcomes and prices. Suit Evolution
+spends **4 Kill Count** to augment an item or clear glitches. Suit Maintenance
+spends **100¢** to clear glitches. Recruitment augmentation uses an earned
+recruitment allowance. Granting an action does not spend these resources.
 
-1. Create the Kill Count and Glitch Count counters and build them into
-   each Spyrer entry, starting at 0.
-2. Create an **augment carried item** outcome naming the Augmentation
-   slot type.
-3. Create a **clear glitches** outcome. Its ordered changes set Glitch
-   Count to 0 and remove every pick of the Hunting Rig Glitches slot
-   type.
-4. Create the **Suit Evolution** action after a cycle. List augmentation
-   first and clearing glitches second. Add one use-price component:
-   four Kill Count paid by the fighter.
-5. Create the **Suit Maintenance** action after a cycle. List clearing
-   glitches as its only outcome. Add one use-price component: 100 credits
-   paid by the gang.
-6. Give both actions to Spyrers through the same built-in or modifier
-   provenance that identifies them. Usable-by lists describe who the
-   rule is for; they do not create access by themselves.
+### Give the actions to fighters
 
-The action checks the balance and result when the player confirms it.
-Starting or assigning the capability does not spend anything or apply an
-outcome.
+1. Open an eligible **fighter entry**, starting with your test entry. Add a
+   modifier with **The model carrying it → Gives something**. Click **Configure
+   new modifier**, set **Kind** to **action**, select **Suit Evolution**, then
+   **Attach modifier**.
+2. Add **Suit Maintenance** using **The model carrying it → Gives something**
+   again. Reuse these two modifiers on the eligible real Spyrer fighter entries
+   only when you are ready to launch.
+3. To test Hunt Master's free augmentation, also grant **Recruitment
+   augmentation** to your test entry. Use **The model carrying it → Gives
+   something** again. Attach it before hiring the test model.
+4. Check the fighter's **Kill Count** and **Glitch Count**. Reuse the counters
+   already built into the **Spyrer** subtype. If either is missing, ask the
+   maintainer to check that shared subtype before continuing. Do not add another
+   copy directly to each fighter.
+
+Attach these modifiers to **fighter entries** to limit action access to eligible
+fighters. Do not grant these actions or progression rules through the **gang
+type**. At launch, grant Recruitment augmentation only to **Spyre Hunt Master**.
+
+### Test one complete item before repeating
+
+Check that the tiers and their **picklist members** are live. If any are staged,
+use **Staged content** to put only those entries live. Staged tiers and members
+cannot be selected in an action flow, even by staff. Keep the test gear and
+fighter entries staged and the augmentation slot unattached to live gear.
+
+Ask the maintainer to confirm counter history is active before hiring the test
+models. If it is inactive, the paid flows are unavailable and hiring does not
+earn a recruitment use. This is a one-off maintenance task, not an authoring step.
+
+Create a **Spyre Hunters** test gang with enough starting credits for a hire
+and 100¢ maintenance. Click **Hire Fighters** and search for your test entry.
+An entry without a category appears under **Uncategorised**. Staff can hire
+staged profiles. The built-in test gear arrives with the model.
+
+1. Hire a fresh model from the test entry. Check that its
+   **Augmentation** appears under the rig on the card. Check both counters appear
+   once. Give the test model **8 Kill Count** and note its Strength and Attacks.
+2. On the model's edit page, start **Suit Evolution**, select **Hunting Rig
+   Augmentation**, then the rig's **Tier 1**. Review it. Cancel once and check
+   that neither the tier nor Kill Count changed.
+3. Start again and confirm Tier 1. Check **4 Kill Count** remains, Strength has
+   improved by 1, and Attacks is unchanged.
+4. Complete a second evolution for Tier 2. Check **0 Kill Count** remains,
+   Strength is still only 1 better than the starting value, and Attacks is now
+   1 better. The card should show only Tier 2 under the rig.
+5. For a weapon, repeat through every tier and inspect its firing profile and
+   traits. For a rule-based benefit, check the special rule and its annotation
+   on the card. Check both newly equipped and already-carried items.
+6. Separately check **Suit Maintenance** with a non-zero Glitch Count and enough
+   gang credits. Confirm that it clears the glitches and charges 100¢. Check a
+   newly hired Hunt Master has one recruitment augmentation use and spends it
+   only when confirming a result.
+
+If an action is missing, check its fighter-entry modifier and available balance
+or allowance. Setting **Usable by** alone does not grant access. If an item is
+missing from the selection, check its built-in slot,
+**Tier ladder** mode, numeric levels, live pickables and live members. A finished
+item at its last tier is not offered again.
+
+### Launch the checked content
+
+Reuse the tiers, picklist and slot you tested; do not create another set. For a
+weapon, change each modifier's **is_one_of** condition to name the real weapon
+instead of the test weapon. Where the library has separate versions, such as
+Jakara and Hunt Master weapons, include every intended version in the condition.
+
+With the content maintainer's approval, attach the tested slot to the real item
+and grant the actions to the real fighter entries as above. Keep the test gear
+and test fighter entries staged. These attachments change live content.
+
+Check a fresh hire and an existing model after the attachments. If an existing
+item has no augmentation line, ask a maintainer to check the built-in update;
+do not remove and rebuy the player's equipment. Leave Malcadon hunting rig's
+ladder unattached and list it as deferred in the launch notes.
 
 ## The Lasting Injury and Lasting Damage tables
 
