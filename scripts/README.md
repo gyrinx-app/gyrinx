@@ -88,6 +88,9 @@ the generated image out of git and check it for private data before uploading.
 - `test.sh`: Thin wrapper over `pytest`. All args are passed through. Parallel execution
   (`-n auto`) is already enabled via `pyproject.toml` addopts; use `-n 0` to force serial.
 - `check_migrations.sh`: Checks for migration conflicts.
+- `check_core_suite_bounds.py`: CI helper. Given a collected `pytest -m core` count,
+  refuses a value outside `CORE_SUITE_MIN`..`MAX` and warns when the count is
+  within 50 of the max (the next core test would fail the required job).
 - `fmt-check.sh` / `fmt.sh`: Run / apply formatting.
 - `manage.py`: Django management wrapper (also available as `manage` on `PATH` once the venv is
   active).

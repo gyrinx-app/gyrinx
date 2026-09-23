@@ -67,7 +67,11 @@ pytestmark = [pytest.mark.django_db, pytest.mark.core]
 Keep the set small — the job checks it stays between the bounds set in
 `test.yaml`, so it cannot quietly grow back into the full suite. A test that
 covers a critical flow belongs in it; a test that covers one page or one
-edge case does not.
+edge case does not. The collected count includes PR-touched tests, so a
+main suite sitting on `CORE_SUITE_MAX` fails the next pull request that
+adds a core test. `scripts/check_core_suite_bounds.py` warns when the
+count is within 50 of the cap; raise the bound (or unmark tests) before
+that happens.
 
 The pull request's own tests join the run through
 `scripts/changed_test_paths.py`: it lists the test files the change added or

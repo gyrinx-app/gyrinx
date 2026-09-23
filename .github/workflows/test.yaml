@@ -42,9 +42,11 @@ jobs:
       # The core suite must stay small to be worth having as the gate, and
       # must not silently select nothing if the marker expression breaks.
       # The count includes the tests a pull request touched, so leave room
-      # above the marked suite on main.
+      # above the marked suite on main. The bounds script warns when the
+      # count is within CORE_SUITE_HEADROOM of the max.
       CORE_SUITE_MIN: 300
       CORE_SUITE_MAX: 1400
+      CORE_SUITE_HEADROOM: 50
     steps:
       - uses: actions/checkout@v7
         with:
@@ -60,7 +62,7 @@ jobs:
         run: |
           source .venv/bin/activate
           # pytest exits 5 when the marker selects nothing; that case must
-          # reach the bounds message below. Any other failure is a collection
+          # reach the bounds script below. Any other failure is a collection
           # error and fails the step.
           status=0
           listing=$(pytest -m core --collect-only -q -n 0) || status=$?
@@ -69,11 +71,8 @@ jobs:
             exit "$status"
           fi
           count=$(grep -c '::' <<<"$listing" || true)
-          echo "core suite: $count tests (allowed $CORE_SUITE_MIN..$CORE_SUITE_MAX)"
-          if [ "$count" -lt "$CORE_SUITE_MIN" ] || [ "$count" -gt "$CORE_SUITE_MAX" ]; then
-            echo "::error::the core suite has $count tests; adjust the marks or the bounds in test.yaml"
-            exit 1
-          fi
+          python scripts/check_core_suite_bounds.py \
+            "$count" "$CORE_SUITE_MIN" "$CORE_SUITE_MAX" "$CORE_SUITE_HEADROOM"
 
       - uses: ./.github/actions/react-build
 
