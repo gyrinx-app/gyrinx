@@ -40,6 +40,16 @@ def widget_attr(field, name):
     return field.field.widget.attrs.get(name, "")
 
 
+@register.simple_tag
+def file_input_props(field):
+    """JSON-safe display data for the React-owned authoring file control."""
+    return {
+        "htmlName": field.html_name,
+        "id": field.auto_id,
+        "accept": str(field.field.widget.attrs.get("accept", "")),
+    }
+
+
 @register.filter
 def selected_values(field):
     """The bound value(s) as strings, so an option template can ask
