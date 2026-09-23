@@ -647,9 +647,9 @@ recruitment allowance. Granting an action does not spend these resources.
    maintainer to check that shared subtype before continuing. Do not add another
    copy directly to each fighter.
 
-These are modifiers on **fighter entries**, not built-in actions or progression
-rules on the **gang type**. A gang-only grant does not give its fighters action
-access. At launch, grant Recruitment augmentation only to **Spyre Hunt Master**.
+Attach these modifiers to **fighter entries** to limit action access to eligible
+fighters. Do not grant these actions or progression rules through the **gang
+type**. At launch, grant Recruitment augmentation only to **Spyre Hunt Master**.
 
 ### Test one complete item before repeating
 
