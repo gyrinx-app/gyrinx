@@ -7,7 +7,10 @@ everything else draws nothing, and that neither an upload nor a paste can make
 the server go and fetch something.
 """
 
+import json
+
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -250,9 +253,13 @@ class TestTheAuthoringPage:
     def test_the_create_page_offers_both_ways_in(self, client, author, default_pack):
         client.force_login(author)
         body = client.get("/n26/authoring/gang-type/new/").content.decode()
+        soup = BeautifulSoup(body, "html.parser")
+        host = soup.select_one("[data-react-module]")
+        file_input = json.loads(soup.find(id=host["data-react-props"]).string)
 
         assert 'name="icon_url"' in body
-        assert 'name="icon_url_upload"' in body
+        assert file_input["htmlName"] == "icon_url_upload"
+        assert file_input["accept"] == ".svg,image/svg+xml"
         assert 'enctype="multipart/form-data"' in body
 
     def test_uploading_through_the_page_stores_the_drawing(

@@ -9,6 +9,8 @@ blocking problem stops the write, and that the danger zone puts the
 library back to its foundations.
 """
 
+import json
+
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
@@ -98,8 +100,23 @@ class TestHoldingTheSheets:
 
     def test_a_sheets_page_takes_one_file(self, author, client, foundation):
         body = client.get(sheet_url("profiles")).content.decode()
+        soup = BeautifulSoup(body, "html.parser")
+        host = soup.select_one("[data-react-module]")
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+
         assert 'enctype="multipart/form-data"' in body
-        assert body.count('type="file"') == 1
+        assert "file-input-" in host["data-react-module"]
+        assert props == {
+            "htmlName": "file",
+            "id": "id_file",
+            "label": "The All Profiles sheet",
+            "helpText": (
+                "A CSV export. Uploading replaces whichever file this sheet is holding."
+            ),
+            "errors": [],
+            "required": True,
+            "accept": ".csv,text/csv",
+        }
         assert "All Profiles" in body
 
     def test_an_upload_is_held_and_said_so(self, author, client, foundation):
@@ -185,13 +202,18 @@ class TestHoldingTheSheets:
         self, author, client, foundation
     ):
         """Refused where the file was chosen, not previewed as nothing."""
-        body = client.post(
+        response = client.post(
             sheet_url("equipment"),
             {"file": SimpleUploadedFile("notes.png", b"\x89PNG\r\n\x1a\n\x00\x01")},
-        ).content.decode()
+        )
+        body = response.content.decode()
+        soup = BeautifulSoup(body, "html.parser")
+        host = soup.select_one("[data-react-module]")
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
 
         assert not UploadedSheet.objects.exists()
         assert "not text this can read" in body
+        assert any("not text this can read" in error for error in props["errors"])
 
     def test_a_sheet_with_no_lines_under_its_heading_is_refused(
         self, author, client, foundation

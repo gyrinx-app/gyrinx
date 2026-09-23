@@ -10,6 +10,7 @@ which choice values are selected.
 
 from django import template
 from django.forms import widgets
+from django.template.defaultfilters import capfirst
 
 register = template.Library()
 
@@ -38,6 +39,20 @@ def widget_attr(field, name):
     """A widget attribute by its real (often dash-keyed) name — the
     union markers live in ``data-union-*``, which dot lookup can't reach."""
     return field.field.widget.attrs.get(name, "")
+
+
+@register.simple_tag
+def file_input_props(field):
+    """JSON-safe display data for the React-owned authoring file control."""
+    return {
+        "htmlName": field.html_name,
+        "id": field.auto_id,
+        "label": capfirst(field.label),
+        "helpText": str(field.help_text),
+        "errors": [str(error) for error in field.errors],
+        "required": field.field.required,
+        "accept": str(field.field.widget.attrs.get("accept", "")),
+    }
 
 
 @register.filter
