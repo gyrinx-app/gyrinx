@@ -4,25 +4,35 @@ Add accessory, Sell and the rest. Expects `weapon` — an
 n26.render.WeaponLine — and reads `htmx` from the card's context, as the
 other kit menus on the card do.
 
-A name with nothing to click is the bare name, so a gang sheet and a
-print card keep the cell's own text baseline.
+The held tier follows the name. An empty tier is not shown here; Edit
+keeps its Choose tier control beside the name.
 
 The asterisk after a two-slot weapon's name is the book's own mark
 (WeaponLine.slot_mark), drawn wherever the name is — the menu's label
 included, so a screen reader hears the same name a sighted reader sees.
-The name of a pet the weapon brought follows it (WeaponLine.brought_mark),
-as it does on a gear line.
+The name of a pet the weapon brought follows the tier
+(WeaponLine.brought_mark), as it does on a gear line.
 {% endcomment %}
-{% if weapon.sell or weapon.more or weapon.accessorise %}
-    <span class="flex items-center gap-2">
-        <span class="min-w-0">{{ weapon.name }}{{ weapon.slot_mark }}{{ weapon.brought_mark }}</span>
+<span class="inline-flex flex-wrap items-center gap-1">
+    <span class="min-w-0">{{ weapon.name }}{{ weapon.slot_mark }}{{ weapon.tier_mark }}{{ weapon.brought_mark }}</span>
+    <c-n26.model-card.mode when="edit">
+        {% for choice in weapon.choices %}
+            {% if choice.is_tier_ladder and choice.href %}
+                <span class="inline-flex items-center gap-0">
+                    <c-ui.button href="{{ choice.href }}"
+                                 variant="ghost"
+                                 size="xs">{% if choice.is_resolved %}Change tier{% else %}Choose tier{% endif %}</c-ui.button>
+                    <c-n26.choice-dismiss :choice="choice" />
+                </span>
+            {% endif %}
+        {% endfor %}
+    </c-n26.model-card.mode>
+    {% if weapon.sell or weapon.more or weapon.accessorise %}
         <c-n26.owned-actions :sell="weapon.sell"
                              :more="weapon.more"
                              :add="weapon.accessorise"
                              :htmx="htmx"
                              layout="menu"
-                             label="{{ weapon.name }}{{ weapon.slot_mark }}{{ weapon.brought_mark }}" />
-    </span>
-{% else %}
-    {{ weapon.name }}{{ weapon.slot_mark }}{{ weapon.brought_mark }}
-{% endif %}
+                             label="{{ weapon.name }}{{ weapon.slot_mark }}{{ weapon.tier_mark }}{{ weapon.brought_mark }}" />
+    {% endif %}
+</span>

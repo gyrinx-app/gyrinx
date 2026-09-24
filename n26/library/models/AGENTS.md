@@ -14,7 +14,7 @@ author-facing documentation. Read `base.py` first, then `assignable.py`.
 - Help text lives on the model field. Specs reference it with
   `source=(Model, "field")`, and forms read it through the spec. Model docstrings
   appear on authoring pages, so write them as plain product copy.
-- Store names, annotations and numbers only. Never store copyrighted rules text.
+- Store names, annotations, numbers and short original display copy. Never store copyrighted rules text.
 - A `qualifier` distinguishes same-named content in authoring screens and must
   never reach a player.
 - Use database constraints for exactly-one invariants, `clean()` for cross-row

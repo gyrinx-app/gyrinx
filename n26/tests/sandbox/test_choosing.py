@@ -1000,7 +1000,12 @@ def model_choices(gang, crew, profiles):
     )
     weapon = create_weapon("Augmentable gun", profiles=[("", 0)])
     add_built_in(weapon, slot)
-    gear_pick = create_pickable("Gear tier 1", kind, rating_contribution=15)
+    gear_pick = create_pickable(
+        "Gear tier 1",
+        kind,
+        rating_contribution=15,
+        summary="Adds reinforced plating.",
+    )
     tier_rule = Rule.objects.create(name="Reinforced plating")
     modifier("Gear tier effect", targets_model(), adds(tier_rule), carried_by=gear_pick)
     gear_table = create_picklist("Gear tiers", kind)
@@ -1101,23 +1106,23 @@ def test_gang_sheet_choice_links_return_to_the_exact_sheet(
     client.force_login(owner)
     here = reverse("n26-gang", args=[gang.pk])
     page = BeautifulSoup(client.get(here).content, "html.parser")
-    assert "Gear tier: —" in page.get_text(" ", strip=True)
+    assert "Gear tier: —" not in page.get_text(" ", strip=True)
     prefix = reverse("n26-choose", args=[gang.pk, model_choices["Archetype"].key])
     link = page.find("a", href=lambda value: value and value.startswith(prefix))
     assert parse_qs(urlsplit(link["href"]).query)["return"] == [here]
 
 
-def test_picker_explains_an_options_effect_and_rating(gang, model_choices):
+def test_picker_uses_an_authored_summary_and_rating(gang, model_choices):
     option = next(
         option
         for group in offer_for(model_choices["Gear tier"]).groups
         for option in group.options
     )
     assert option.rating == 15
-    assert "Reinforced plating" in option.effect_summary
+    assert option.summary == "Adds reinforced plating."
 
 
-def test_picker_effect_help_has_fixed_query_growth(gang, model_choices):
+def test_picker_authored_summaries_have_fixed_query_growth(gang, model_choices):
     from django.db import connection
     from django.test.utils import CaptureQueriesContext
 

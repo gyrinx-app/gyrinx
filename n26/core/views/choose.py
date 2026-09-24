@@ -589,8 +589,6 @@ def choose(request, pk, slot):
         elif not roll.is_spent:
             offer = lift_landing(offer, landed, threshold=roll.threshold)
 
-    bearer = found.miniature.name if found.miniature is not None else gang.name
-    item = _item_behind(found)
     return render(
         request,
         "n26/choose.html",
@@ -602,7 +600,6 @@ def choose(request, pk, slot):
             # the page was opened on a roll, that roll in their place.
             "roll_table": roll_table if roll is None or roll.is_spent else None,
             "roll": roll,
-            "bearer": bearer,
             "back": back,
             # A choice worked at a pick at a time has no one act to end
             # it: every option carries its own, and a Save at the bottom
@@ -612,7 +609,7 @@ def choose(request, pk, slot):
             # component on the page with a slot of that name — the site
             # footer's columns have one — draws whatever the page happens
             # to have under it.
-            "pick_lead": f"{item}, for {bearer}." if item else f"For {bearer}.",
+            "pick_lead": found.slot.slot.introduction if found.slot.slot else "",
             "returning": returning,
         },
     )
@@ -724,27 +721,6 @@ def restore_offer(request, pk, slot):
     messages.success(request, f"Restored {label}.")
     fallback = with_query(reverse("n26-edit-gang", args=[gang.pk]), tab="dismissed")
     return _safe_redirect(request, request.POST.get("back"), fallback)
-
-
-def _item_behind(found):
-    """The piece of kit whose own choice this is — the launchers an
-    augmentation ladder is built into — or None for a choice the model
-    or the gang carries itself. Read off the slot's cause: a choice
-    built into an item is materialised beside the model and caused by
-    the item's assignment."""
-    from n26.library.models import Wargear, Weapon, WeaponAccessory
-
-    if found.slot.slot is None:
-        # An offer's cause is whatever brought the offerer, not an item
-        # the choice is about.
-        return None
-    cause = getattr(found.anchor, "caused_by", None)
-    if cause is None:
-        return None
-    thing = cause.assignable
-    if isinstance(thing, (Weapon, Wargear, WeaponAccessory)):
-        return str(thing)
-    return None
 
 
 class NotOnTheList(Exception):

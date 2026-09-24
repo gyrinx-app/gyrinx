@@ -31,7 +31,7 @@ Every group shares the same input name. That is what makes the browser keep a si
                                             label="{{ option.name }}"
                                             description="{{ option.remark }}"
                                             :checked="option.is_current">
-                        {% if option.effect_summary %}<span class="block">{{ option.effect_summary }}</span>{% endif %}
+                        {% if option.summary %}<span class="block">{{ option.summary }}</span>{% endif %}
                         {% if option.rating %}<span class="block text-muted">Rating {{ option.rating }}¢</span>{% endif %}
                     </c-n26.radio-cards.card>
                 {% endfor %}

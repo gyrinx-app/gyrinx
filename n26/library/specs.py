@@ -1286,6 +1286,7 @@ def _build_registry():
                     model=Category, source=(Pickable, "category"), optional=True
                 ),
                 "qualifier": Text(source=(Pickable, "qualifier")),
+                "summary": Text(source=(Pickable, "summary"), long=True),
                 "rating_contribution": Int(source=(Pickable, "rating_contribution")),
                 "library_author_help": Text(
                     source=(Pickable, "library_author_help"), long=True
@@ -1345,6 +1346,7 @@ def _build_registry():
                     within="picklists",
                 ),
                 "label": Text(source=(Slot, "label")),
+                "introduction": Text(source=(Slot, "introduction"), long=True),
                 "min_picks": Int(source=(Slot, "min_picks")),
                 "max_picks": Int(source=(Slot, "max_picks")),
                 "assigned_to": Choice(source=(Slot, "assigned_to")),

@@ -1,32 +1,42 @@
 {% comment %}
 What sits under a gear heading on a model card, drawn one of two ways.
 
-Takes `lines` and `has_actions`. Actions need one line per assignment so
-each menu stays beside the name of the thing it changes. Without them the compact
-comma-separated run stands, which is what the gang sheet and a print card
-draw. Used by the Gear row and by every category drawing a row of its own,
+Takes `lines`, `has_actions` and the card's `mode`. Edit actions need one line
+per assignment so each menu stays beside the name of the thing it changes.
+The gang sheet and print card keep the compact comma-separated run even when
+an item has a tier picker on Edit. Used by the Gear row and by every category drawing a row of its own,
 so the two cannot drift apart.
 {% endcomment %}
-{% if has_actions %}
+{% if has_actions and mode == "edit" %}
     <ul class="flex flex-col gap-1">
         {% for line in lines %}
             <li>
                 <div class="flex items-center gap-1">
                     <span class="min-w-0">{% include "n26/includes/assignable_name.html" %}</span>
+                    <c-n26.model-card.mode when="edit">
+                        {% for choice in line.choices %}
+                            {% if choice.is_tier_ladder and choice.href %}
+                                <span class="inline-flex items-center gap-0">
+                                    <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_resolved %}Change tier{% else %}Choose tier{% endif %}</c-ui.button>
+                                    <c-n26.choice-dismiss :choice="choice" />
+                                </span>
+                            {% endif %}
+                        {% endfor %}
+                    </c-n26.model-card.mode>
                     <c-n26.owned-actions :sell="line.sell"
                                          :more="line.more"
                                          :htmx="htmx"
                                          layout="menu"
                                          label="{{ line.name }}{{ line.brought_mark }}" />
                 </div>
-                {% for choice in line.choices %}
+                {% for choice in line.other_choices %}
                     <span class="block pl-2 text-sm">
                         {{ choice.kind_label }}: {{ choice.chosen|default:"—" }}
                         <span class="inline-flex items-center gap-0">
                             <c-n26.model-card.mode when="edit">
                                 {% if choice.href %}<c-ui.button href="{{ choice.href }}"
              variant="ghost"
-             size="xs">Choose tier</c-ui.button>{% endif %}
+             size="xs">Change</c-ui.button>{% endif %}
                             </c-n26.model-card.mode>
                             <c-n26.model-card.mode when="gang edit">
                                 <c-n26.choice-dismiss :choice="choice" />

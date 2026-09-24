@@ -102,7 +102,11 @@ class TestTheCardRows:
         link_slots(SimpleNamespace(pk="a-gang"), card)
         assert card.weapons[0].choices[0].href
         template = "".join(t.read_text() for t in CARD_TEMPLATES)
-        assert "weapon.choices" in template
+        name_template = (
+            Path(n26.core.__file__).parent / "templates/n26/includes/weapon_name.html"
+        ).read_text()
+        assert "weapon.other_choices" in template
+        assert "weapon.choices" in name_template
 
     def test_every_question_row_is_pointed_at_its_picker(self):
         """Drawn is not enough. A question carries its address and a view

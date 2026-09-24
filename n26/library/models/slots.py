@@ -128,6 +128,16 @@ class Pickable(Content, Assignable):
     # nothing would ever hand over items built into it.
     takes_built_ins = False
 
+    summary = models.TextField(
+        blank=True,
+        default="",
+        help_text=(
+            "Short explanation shown under this option on the choice page. "
+            "Write your own summary; do not copy rules text. Leave blank to show "
+            "no explanation."
+        ),
+    )
+
     slot_type = models.ForeignKey(
         SlotType,
         on_delete=models.PROTECT,
@@ -664,6 +674,14 @@ class Slot(Content, Assignable):
             "What the card calls this choice — the heading on its row, and "
             'what the Choose control asks for, e.g. "Lasting Injuries". '
             "Blank uses this slot's own name."
+        ),
+    )
+    introduction = models.TextField(
+        blank=True,
+        default="",
+        help_text=(
+            "Shown below the title on this choice page. Write your own "
+            "introduction; do not copy rules text. Leave blank to show none."
         ),
     )
     min_picks = models.PositiveIntegerField(

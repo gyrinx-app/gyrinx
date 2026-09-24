@@ -288,11 +288,11 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
                             </tr>
                         {% endif %}
 
-                        {% if weapon.choices %}
+                        {% if weapon.other_choices %}
                             <tr>
                                 <td colspan="99" class="px-4 pb-2 text-ink-900 dark:text-ink-100">
                                     <ul class="flex flex-col gap-1 pl-2">
-                                        {% for choice in weapon.choices %}
+                                        {% for choice in weapon.other_choices %}
                                             <li class="flex items-center gap-2">
                                                 <span class="min-w-0">{{ choice.kind_label }}: {% if choice.is_resolved %}{{ choice.chosen }}{% else %}&mdash;{% endif %}</span>
                                                 <div class="inline-flex items-center gap-0">

@@ -508,6 +508,12 @@ Objects** tab in the [N26 Pre-ingest workbook](https://docs.google.com/spreadshe
 as a checklist and check its entries against the equipment's rules. Blank cells
 do not always mean a tier has no effect.
 
+Write a short, original **Summary** for each tier and, if useful, an
+**Introduction** for its slot. These words appear on the player's choice page.
+The app does not write them from the modifiers. The modifiers still determine
+what the tier does; check that each summary matches them. Do not copy the
+book's rules text.
+
 **Do not launch Malcadon hunting rig augmentations yet.** The app cannot upgrade
 the tier after the player chooses Ballistic Skill or Weapon Skill. Leave this
 rig's augmentation slot unattached. Continue with the Malcadon weapons.
@@ -524,9 +530,9 @@ An item's setup has three parts:
 
 | Part | What you enter | Where it belongs |
 | --- | --- | --- |
-| Pickable | One tier and all its effects | Augmentation slot type |
+| Pickable | One tier, its summary and all its effects | Augmentation slot type |
 | Picklist | That item's tiers, each with a numeric level | Augmentation slot type |
-| Slot | The item's current tier | Built into that weapon or rig |
+| Slot | The item's current tier and optional introduction | Built into that weapon or rig |
 
 ### Prepare a test fighter and gear
 
@@ -552,14 +558,16 @@ From **Content library → Slot type**, open **Augmentation**.
 
 1. Under **Add a pickable**, enter **Tier 1**. Expand **Qualifier and author
    help**, set **Qualifier** to **Jakara hunting rig**, and set **Rating
-   contribution** to **0**. Click **Add pickable**, then open the new Tier 1.
+   contribution** to **0**. Set **Summary** to **Strength +1 while carrying the
+   rig.** Click **Add pickable**, then open the new Tier 1.
    The qualifier distinguishes this item's tiers in the library; players see
    only the tier name.
 2. On Tier 1, add a **modifier**. Select **The model carrying it** and **Changes
    a stat**, then **Configure new modifier**. Select **S (Strength)**,
    **Improve**, and amount **1**. Name it **Jakara rig: Strength +1** and click
    **Attach modifier**.
-3. Add **Tier 2** with the same qualifier and rating contribution. Attach the
+3. Add **Tier 2** with the same qualifier and rating contribution. Set its
+   **Summary** to **Strength +1 and Attacks +1 while carrying the rig.** Attach the
    Strength modifier from Tier 1 using **Attach an existing modifier → Attach**.
    Add another modifier with **The model carrying it → Changes a stat**:
    **A (Attacks) → Improve → 1**. Name it **Jakara rig: Attacks +1**.
@@ -570,7 +578,8 @@ From **Content library → Slot type**, open **Augmentation**.
 5. Add a **slot** named **Jakara hunting rig augmentation**, using that picklist
    and the Augmentation slot type. Set **Label** to **Augmentation**, **Mode** to
    **Tier ladder**, **Min picks** to **0**, **Max picks** to **1**, and **Assigned
-   to** to **The bearer**. Leave **Hidden** off.
+   to** to **The bearer**. Set **Introduction** to **Pick a tier for the Jakara
+   hunting rig.** Leave **Hidden** off.
 6. Open your test rig. Under **Add a built-in**, select **Kind → slot**, choose
    **Jakara hunting rig augmentation**, and click **Add built-in**. Leave
    **Default pickable** blank. The slot belongs on the rig, not on the fighter
@@ -583,6 +592,7 @@ unless the rules assign a rating increase to that tier.
 ### Enter weapon changes and rule-based effects
 
 For each weapon, create its own tiers, picklist and slot using the steps above.
+Write a summary for every tier and an optional introduction for the slot.
 Use the weapon's name as the qualifier and build the slot into the weapon,
 not its firing profile.
 
@@ -668,7 +678,8 @@ An entry without a category appears under **Uncategorised**. Staff can hire
 staged profiles. The built-in test gear arrives with the model.
 
 1. Hire a fresh model from the test entry. Check that its
-   **Augmentation** appears under the rig on the card. Check both counters appear
+   unselected tier does not add a line to the roster card. The model's edit
+   page should have **Choose tier** beside the rig. Check both counters appear
    once. Give the test model **8 Kill Count** and note its Strength and Attacks.
 2. On the model's edit page, start **Suit Evolution**, select **Hunting Rig
    Augmentation**, then the rig's **Tier 1**. Review it. Cancel once and check
@@ -677,7 +688,7 @@ staged profiles. The built-in test gear arrives with the model.
    improved by 1, and Attacks is unchanged.
 4. Complete a second evolution for Tier 2. Check **0 Kill Count** remains,
    Strength is still only 1 better than the starting value, and Attacks is now
-   1 better. The card should show only Tier 2 under the rig.
+   1 better. The card should show **Jakara hunting rig (Tier 2)** on one line.
 5. For a weapon, repeat through every tier and inspect its firing profile and
    traits. For a rule-based benefit, check the special rule and its annotation
    on the card. Check both newly equipped and already-carried items.
