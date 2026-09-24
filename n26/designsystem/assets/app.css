@@ -1523,6 +1523,23 @@
     margin-top: 0;
 }
 
+/* The roster grid stacks Actions and the stash in its first cell.
+ * auto-rows-min on that grid keeps every later row as tall as its own
+ * cards. These rules give only the first row the stacked cell's height,
+ * so the models beside it fill that row. Two columns from md, three
+ * from xl — the same counts as the grid classes on n26-roster-grid. */
+@media (min-width: 48rem) {
+    .n26-roster-grid > :nth-child(-n + 2) {
+        height: 100%;
+    }
+}
+
+@media (min-width: 80rem) {
+    .n26-roster-grid > :nth-child(-n + 3) {
+        height: 100%;
+    }
+}
+
 /* Buttons joined into one control — deliberately outside any @layer.
  *
  * Zeroing a c-ui.button's corners means beating the `rounded-button` utility it

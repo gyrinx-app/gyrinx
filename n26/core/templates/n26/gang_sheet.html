@@ -237,9 +237,9 @@ that said it twice would be spending the width the name needs.
             </c-slot>
         {% endif %}
         {% comment %}
-        The gang's own actions — what is open and the way to start one — as
-        the first square of the grid. The owner's alone: a reader who does
-        not own the gang gets no square at all.
+        The gang's own actions, stacked with the stash in the grid's first
+        cell. The owner's alone: a reader who does not own the gang gets
+        no square at all.
         {% endcomment %}
         {% if activities_square %}
             <c-slot name="activities_square">
@@ -250,9 +250,16 @@ that said it twice would be spending the width the name needs.
             <c-slot name="stash_actions">
                 <c-n26.action-link href="{% url 'n26-equip-gang' gang.pk %}">Equip</c-n26.action-link>
             </c-slot>
-            <c-slot name="stash_notice">
-                {% include "n26/includes/stash_trading_post.html" %}
-            </c-slot>
+            {% comment %}
+            An open visit is already in Actions when that square is drawn,
+            so the stash does not say it again. An owner without the square
+            still reads it here. Starting a visit stays on the stash.
+            {% endcomment %}
+            {% if not activities_square or not sheet.visiting_trading_post %}
+                <c-slot name="stash_notice">
+                    {% include "n26/includes/stash_trading_post.html" %}
+                </c-slot>
+            {% endif %}
         {% endif %}
         <c-slot name="stash_empty">
             Nothing in the stash yet.

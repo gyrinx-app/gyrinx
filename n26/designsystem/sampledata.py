@@ -17,7 +17,6 @@ from n26.core.activities import (
     FOUNDING_HELP,
     VISIT_HELP,
     ActivitiesSquare,
-    HistoryLine,
     VisitLine,
     open_card,
     steps_waiting,
@@ -2603,20 +2602,6 @@ def gang_sheet_context():
         marked=True,
     )
     a_visit = VisitLine(trade_points_left=3, href="#")
-    # Fixed times, counted back from when the page is drawn, so the
-    # relative times the square prints read as a story rather than as
-    # five entries of one date frozen at the moment this file was written.
-    now = timezone.now()
-    lately = tuple(
-        HistoryLine(when=now - timedelta(minutes=minutes), actor=actor, told=told)
-        for minutes, actor, told in (
-            (4, "You", "bought Lasgun for Yolanda"),
-            (11, "You", "hired Yolanda, a Ganger"),
-            (26, "You", "renamed Vespa to Vespa Kray"),
-            (140, "You", "started the Found and equip gang action"),
-            (141, "You", "created the gang, a House Escher gang"),
-        )
-    )
     post_battle_steps = steps_waiting(sheet, post_battle_at="#post-battle")
     recovery_sheet = replace(sheet, models=[model_card_in_recovery()])
     return {
@@ -2631,25 +2616,24 @@ def gang_sheet_context():
         # The Actions square's states. The start row is offered only
         # where no founding action is open, which is what the empty
         # start_founding says.
-        "sample_square_empty": ActivitiesSquare(
-            history=lately, start_founding="#", history_href="#"
-        ),
+        "sample_square_empty": ActivitiesSquare(start_founding="#", history_href="#"),
         "sample_square_founding": ActivitiesSquare(
-            founding=founding_open, history=lately, history_href="#"
+            founding=founding_open, history_href="#"
         ),
         "sample_square_visit": ActivitiesSquare(
-            visit=a_visit, history=lately, start_founding="#", history_href="#"
+            visit=a_visit, start_founding="#", history_href="#"
         ),
         "sample_square_both": ActivitiesSquare(
-            founding=founding_open, visit=a_visit, history=lately, history_href="#"
+            founding=founding_open, visit=a_visit, history_href="#"
         ),
-        # A gang nothing has been done to yet. The square says so rather
-        # than drawing a heading over nothing.
+        # The history link is drawn whether or not the gang has a story.
+        # The square does not list acts, so an empty story is not a
+        # different drawing.
         "sample_square_no_history": ActivitiesSquare(
             start_founding="#", history_href="#"
         ),
         "sample_square_post_battle": ActivitiesSquare(
-            history=lately, history_href="#", to_do=post_battle_steps
+            history_href="#", to_do=post_battle_steps
         ),
         "sample_square_post_battle_empty": ActivitiesSquare(
             history_href="#", to_do=post_battle_steps
@@ -2657,7 +2641,6 @@ def gang_sheet_context():
         "sample_square_all_actions": ActivitiesSquare(
             founding=founding_open,
             visit=a_visit,
-            history=lately,
             history_href="#",
             to_do=steps_waiting(
                 recovery_sheet,

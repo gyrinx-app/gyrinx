@@ -6,6 +6,7 @@ Stashed gear counts in wealth, not in the models' rating.
 regroup needs dictsort first. Without it, the same kind appearing twice becomes two groups.
 Named slots use .strip because a cotton slot of newlines is not empty.
 An empty stash still draws the card. A slot that comes and goes would shift every model after it in the grid.
+The gear list scrolls after max-h-80. Line menus use fixed placement so that box does not clip them.
 {% endcomment %}
 
 <c-vars :lines="None" :total="0" empty="" actions="" notice="" class="" />
@@ -30,7 +31,7 @@ An empty stash still draws the card. A slot that comes and goes would shift ever
         <div class="border-b border-box-border px-4 py-3">{{ notice }}</div>
     {% endif %}
     {% if lines %}
-        <dl class="flex flex-col gap-1 px-4 py-3">
+        <dl class="flex max-h-80 flex-col gap-1 overflow-y-auto overscroll-contain px-4 py-3 scrollbar-thin">
             {# dictsort first, or regroup splits the same kind into several groups. #}
             {% regroup lines|dictsort:"kind" by kind as kinds %}
             {% for kind in kinds %}

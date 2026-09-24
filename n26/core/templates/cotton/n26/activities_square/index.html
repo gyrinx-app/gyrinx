@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.activities-square> — What a gang has open, what is waiting, and its recent history.
+<c-n26.activities-square> — What a gang has open, and what is waiting.
 
 Say no action is open only when nothing is running and nothing is waiting.
 A reader with something waiting is not told there is nothing to do.
@@ -10,10 +10,9 @@ A step that acts on the click must post. Following a link must not change the ro
 Pass a square containing only the controls the owner may use.
 Post-battle is a next step, not an open activity or a separate component prop.
 Whoever draws this owns the gang. There is no reader-facing shape.
-Name models in the snapshot. Do not link them. The roster is the way through to a model.
+History is a link. The square does not list acts.
 {% endcomment %}
 
-{% load humanize %}
 <c-vars :square="None" class="" />
 
 <c-ui.card padding="none" class="{{ class }}" role="region" aria-label="Actions">
@@ -21,7 +20,12 @@ Name models in the snapshot. Do not link them. The roster is the way through to 
 
         {# Pull the header back. The kit header is px-6 while the body is px-4, so the title would start further in. #}
         <div class="-mx-2 flex items-center gap-3">
-            <span class="min-w-0 flex-1 text-sm font-semibold text-ink-900 dark:text-ink-100">Actions</span>
+            <c-n26.action-links class="min-w-0 flex-1 text-sm">
+                <span class="font-semibold text-ink-900 dark:text-ink-100">Actions</span>
+                {% if square.history_href %}
+                    <c-n26.action-link href="{{ square.history_href }}">History</c-n26.action-link>
+                {% endif %}
+            </c-n26.action-links>
         </div>
     </c-slot>
     <div class="flex flex-col gap-3 px-4 py-3">
@@ -72,29 +76,5 @@ Name models in the snapshot. Do not link them. The roster is the way through to 
                 </c-ui.button>
             </form>
         {% endif %}
-    </div>
-
-    <div class="flex flex-col gap-2 border-t border-box-border px-4 py-3">
-        <h3 class="text-xs font-semibold uppercase tracking-wide text-muted">Recent history</h3>
-        {% if square.history %}
-            <ol class="flex flex-col gap-1.5">
-                {% for line in square.history %}
-                    <li class="flex items-baseline justify-between gap-3 text-xs">
-                        <span class="min-w-0 flex-1 text-ink-700 dark:text-ink-300">
-                            {% if line.actor %}<span class="font-medium text-ink-900 dark:text-ink-100">{{ line.actor }}</span>{% endif %}
-                            {{ line.told }}
-                        </span>
-                        <time datetime="{{ line.when|date:'c' }}"
-                              title="{{ line.when }}"
-                              class="shrink-0 text-muted">{{ line.when|naturaltime }}</time>
-                    </li>
-                {% endfor %}
-            </ol>
-        {% else %}
-            <p class="text-xs text-muted">No history for this gang yet.</p>
-        {% endif %}
-        <div>
-            <c-n26.link href="{{ square.history_href }}" class="text-xs">Full history</c-n26.link>
-        </div>
     </div>
 </c-ui.card>

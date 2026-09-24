@@ -521,57 +521,54 @@ class TestTheSquareOnTheGangPage:
 
 
 class TestTheStoryUnderIt:
-    """The square prints the gang's last few acts under what is open.
+    """The square links to the gang's history and does not list acts.
 
-    What has been done is the other half of what is open, and the
-    sentences are the history page's own — neither describes an act the
-    other way. Anything more than the snapshot is a click away.
+    What has been done is on the history page. The square is for what
+    is open and what is waiting.
     """
 
     @pytest.fixture(autouse=True)
     def signed_in(self, client, tester):
         client.force_login(tester)
 
-    def test_the_latest_acts_are_printed(self, client, gang):
-        body = client.get(sheet(gang)).content.decode()
-        assert "started the Found and equip gang action" in body
-        assert "created the gang" in body
+    def panel(self, client, gang):
+        from bs4 import BeautifulSoup
 
-    def test_the_newest_act_is_at_the_top(self, client, gang, tester):
-        with operation(gang, actor=tester) as op:
-            op.close_activity(gang.open_activity(FOUNDING))
+        document = BeautifulSoup(client.get(sheet(gang)).content, "html.parser")
+        return document.select_one('[role="region"][aria-label="Actions"]')
 
-        body = client.get(sheet(gang)).content.decode()
-        square = body[: body.index("Nothing in the stash")]
-        assert square.index("completed the Found and equip gang action") < square.index(
-            "created the gang"
-        )
+    def test_the_sheet_does_not_list_acts(self, client, gang):
+        panel = self.panel(client, gang)
+        text = panel.get_text()
+        assert "Recent history" not in text
+        assert "started the Found and equip gang action" not in text
+        assert "created the gang" not in text
 
-    def test_no_more_than_a_handful_are_printed(
+    def test_hires_are_not_listed_on_the_square(
         self, client, gang, tester, make_profile, make_statline
     ):
-        """A snapshot, not the history page: the square would push the
-        roster off the screen if it grew with the gang."""
-        from n26.core.activities import SNAPSHOT
-
+        """A long story stays on the history page. Listing it here would
+        push the roster off the screen."""
         profile = make_profile("Ganger", price=10)
         make_statline(profile)
         for name in ("Ain", "Bex", "Cor", "Dax", "Eth", "Fen"):
             with operation(gang, actor=tester) as op:
                 op.hire(profile, name)
 
-        body = client.get(sheet(gang)).content.decode()
-        square = body[: body.index("Nothing in the stash")]
-        assert square.count("hired ") == SNAPSHOT
+        text = self.panel(client, gang).get_text()
+        assert "hired " not in text
 
     def test_the_way_through_to_the_whole_story_is_there(self, client, gang):
-        body = client.get(sheet(gang)).content.decode()
-        assert "Full history" in body
-        assert reverse("n26-gang-history", args=[gang.pk]) in body
+        link = self.panel(client, gang).find(
+            "a", href=reverse("n26-gang-history", args=[gang.pk])
+        )
+        assert link.get_text(strip=True) == "History"
 
-    def test_a_gang_nothing_has_been_done_to_says_so(self, client, tester, gang_type):
-        """A row written with no operation behind it: the square draws a
-        sentence rather than a heading over nothing."""
+    def test_a_gang_nothing_has_been_done_to_still_links(
+        self, client, tester, gang_type
+    ):
+        """A row written with no operation behind it still has the way
+        through. The history page is where an empty story is said."""
         bare = Gang.objects.create(
             name="The Rust Sermon",
             owner=tester,
@@ -580,14 +577,15 @@ class TestTheStoryUnderIt:
             credits=1000,
         )
 
-        body = client.get(sheet(bare)).content.decode()
-        assert "No history for this gang yet." in body
-        assert "Full history" in body
+        panel = self.panel(client, bare)
+        assert "No history for this gang yet." not in panel.get_text()
+        assert panel.find("a", href=reverse("n26-gang-history", args=[bare.pk]))
 
     def test_a_reader_who_does_not_own_it_gets_none_of_it(self, client, gang):
         client.force_login(User.objects.create_user("stranger"))
         body = client.get(sheet(gang)).content.decode()
-        assert "Full history" not in body
+        assert self.panel(client, gang) is None
+        assert reverse("n26-gang-history", args=[gang.pk]) not in body
         assert "started the Found and equip gang action" not in body
 
 
@@ -598,13 +596,13 @@ class TestWhatTheSquareCosts:
     nor a story that got longer may add one.
     """
 
-    def test_it_is_pinned_at_three_reads(self, gang, tester, django_assert_num_queries):
-        """Which actions the gang has open, the last stretch of its
-        events, and the records those events name.
+    def test_it_is_pinned_at_one_read(self, gang, django_assert_num_queries):
+        """Which actions the gang has open.
 
         The sheet is built first, from a row of its own, so its reads are
         not counted here — a gang holds what it read about its own open
         actions, and one already asked would hide a read this makes.
+        The history page is a link, so the square does not read the story.
         """
         from n26.core.activities import activities_square
         from n26.core.render import render_gang
@@ -612,22 +610,20 @@ class TestWhatTheSquareCosts:
         sheet_of = render_gang(Gang.objects.get(pk=gang.pk))
         fresh = Gang.objects.get(pk=gang.pk)
 
-        with django_assert_num_queries(3):
+        with django_assert_num_queries(1):
             activities_square(
                 fresh,
                 sheet_of,
                 founding_at=act_page(fresh),
                 visit_at="/visit",
                 history_at="/history",
-                viewer=tester,
             )
 
     def test_a_longer_story_costs_the_page_nothing_more(
         self, client, gang, tester, make_profile, make_statline
     ):
-        """The snapshot reads the last stretch of events rather than the
-        whole story, so a gang played for a season draws its square for
-        what a new one pays."""
+        """The square does not read the story, so a gang played for a
+        season draws its page for what a new one pays."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 

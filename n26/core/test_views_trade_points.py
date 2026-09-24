@@ -228,17 +228,14 @@ class TestTheActivitiesSquare:
         assert "Trading Post visit open" in body
         assert "Manage visit" in body
 
-    def test_the_stash_card_still_carries_it(self, client, tester, roster, gang):
-        """The stash card keeps its Trading Post line for every owner while
-        the square reaches a named few; an admitted owner reads it in both
-        places."""
+    def test_an_open_visit_is_said_once_in_actions(self, client, tester, roster, gang):
+        """Actions already says an open visit. The stash does not repeat it."""
         client.force_login(tester)
         start(client, gang, roster["Vex"])
 
         body = self.sheet(client, gang)
-        # The square's line comes first, then the stash card's own.
+        assert body.count("Trading Post visit open") == 1
         assert body.index("Trading Post visit open") < body.index(">Stash</span>")
-        assert body.count("Trading Post visit open") == 2
 
     def test_an_owner_the_flag_does_not_admit_gets_the_stash_line_and_no_square(
         self, client, player, roster, gang

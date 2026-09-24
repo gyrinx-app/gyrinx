@@ -8,13 +8,11 @@ trading post are the same shape on screen: a title, where the act stands,
 a sentence of help, and one button that moves it on.
 
 ``ActivitiesSquare`` gathers them into the one place a gang's page reports
-them: a square in the same grid as the stash and the models, so what is
-open is read beside what it is being spent on. It carries the gang's
-last few acts too — what has been done is the other half of what is
-open, and a reader deciding what to do next wants both in one place.
+them: stacked with the stash in the roster grid's first cell, so what is
+open is read beside what it is being spent on. The gang's story stays on
+the history page. The square links there and does not list acts.
 
-What the square costs is the gang's open actions and the last stretch
-of its story. Nothing here knows HTML.
+What the square costs is the gang's open actions. Nothing here knows HTML.
 """
 
 from dataclasses import dataclass
@@ -141,14 +139,11 @@ class ActivitiesSquare:
     ``start_founding`` is where the start form posts, and is empty while
     a founding action is open.
 
-    ``history`` is the gang's last few acts, newest first, and is empty
-    for a gang nothing has been done to yet. The square says so rather
-    than drawing a heading over nothing.
+    ``history_href`` opens the gang's history. The square does not list acts.
     """
 
     founding: ActivityCard | None = None
     visit: VisitLine | None = None
-    history: tuple = ()
     start_founding: str = ""
     history_href: str = ""
     #: Ransoms first, then Clean House, then optional post-battle recording.
@@ -222,9 +217,9 @@ def visit_card(receipt, at):
 
 
 def history_lines(gang, viewer=None, limit=SNAPSHOT):
-    """The gang's last few acts as the square prints them, newest first.
+    """The gang's last few acts, newest first, in the history page's words.
 
-    The sentences are built by the history's own builder, so the square
+    The sentences are built by the history's own builder, so a short list
     and the history page cannot describe one act two ways.
     """
     from n26.core import history
@@ -249,17 +244,13 @@ def activities_square(
     clean_house_at="",
     ransoms=(),
     post_battle_at="",
-    viewer=None,
 ):
-    """The gang page's Actions square: what is open, what has been done,
-    and what may start.
+    """The gang page's Actions square: what is open, and what may start.
 
     The visit is read off the sheet rather than the gang, because what an
     open one has left is a ledger query and the sheet has already asked
     it. The founding action costs nothing beyond that: the gang read
-    every action it has open in one go, and the sheet already asked. The
-    story is the one thing here that is nobody else's reading, and it is
-    bounded — the last stretch of events, whatever the gang's age.
+    every action it has open in one go, and the sheet already asked.
     """
     # Empty destinations withhold the corresponding controls and state.
     # Opening the panel for another feature must not open founding access.
@@ -270,7 +261,6 @@ def activities_square(
     return ActivitiesSquare(
         founding=founding,
         visit=visit,
-        history=history_lines(gang, viewer=viewer),
         start_founding="" if founding is not None else founding_at,
         history_href=history_at,
         to_do=steps_waiting(
