@@ -75,6 +75,15 @@ new platform dependency only by creating or extending an explicit seam.
 
 ## N26-wide design rules
 
+- Every user-facing subhead is human-authored copy: a content field written by
+  an author, or an explicit sentence written for interface context. Names may
+  supply context; generated modifier prose and assembled labels cannot serve
+  as the subhead. Omit it when no useful authored copy exists.
+- The gang roster is the model card's frontfat; the fighter Edit page is its
+  backfat. On frontfat, show an assignable row only when the model carries an
+  assignable in that row or has an offer for it. Always show the statline,
+  Skills and Gear. Assignment happens on backfat or a dedicated offer page;
+  frontfat presents the model's current facts and may point to an offer.
 - Inform rather than police. Restrictions usually become `Note` objects and
   shorter lists. Owners may act freely except that they cannot spend past the
   founding budget.
