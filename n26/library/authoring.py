@@ -1241,6 +1241,7 @@ def create_pickable(
     library_author_help="",
     category=None,
     rating_contribution=0,
+    summary="",
     **kwargs,
 ):
     """One pickable a choice offers; ``effects`` are (scope, effect) pairs.
@@ -1263,6 +1264,7 @@ def create_pickable(
         name=name,
         slot_type=slot_type,
         qualifier=qualifier,
+        summary=summary,
         library_author_help=library_author_help,
         category=category,
         rating_contribution=rating_contribution,
@@ -1379,6 +1381,7 @@ def create_slot(
     position=0,
     qualifier="",
     library_author_help="",
+    introduction="",
     **kwargs,
 ):
     """One named use of a slot type: the choice a card actually asks.
@@ -1400,6 +1403,7 @@ def create_slot(
         slot_type=slot_type,
         picklist=picklist,
         label=label,
+        introduction=introduction,
         min_picks=min_picks,
         max_picks=max_picks,
         assigned_to=assigned_to,

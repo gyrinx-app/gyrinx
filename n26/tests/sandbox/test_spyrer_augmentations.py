@@ -45,6 +45,7 @@ from n26.library.authoring import is_one_of, targets_weapons
 from n26.library.models import Stat, StatlineType, StatlineTypeStat
 from n26.tests.sandbox.actions import (
     add_built_in,
+    add_picklist_member,
     adds,
     attach,
     buy,
@@ -186,18 +187,24 @@ def bolt_launcher_tiers(
 
     tiers = {
         "Tier 1": create_pickable(
-            "Tier 1", augmentation, qualifier="Bolt launchers", effects=[lethal()]
+            "Tier 1",
+            augmentation,
+            qualifier="Bolt launchers",
+            summary="The launchers have Lethality 2.",
+            effects=[lethal()],
         ),
         "Tier 2": create_pickable(
             "Tier 2",
             augmentation,
             qualifier="Bolt launchers",
+            summary="The launchers have Lethality 2 and Armour Piercing −2.",
             effects=[lethal(), piercing()],
         ),
         "Tier 3": create_pickable(
             "Tier 3",
             augmentation,
             qualifier="Bolt launchers",
+            summary="The launchers have Rapid Fire (2), Lethality 2 and Armour Piercing −2.",
             effects=[
                 lethal(),
                 piercing(),
@@ -206,14 +213,16 @@ def bolt_launcher_tiers(
             ],
         ),
     }
-    table = create_picklist(
-        "Bolt launchers augmentations", augmentation, members=list(tiers.values())
-    )
+    table = create_picklist("Bolt launchers augmentations", augmentation)
+    for level, pick in enumerate(tiers.values(), start=1):
+        add_picklist_member(table, pick, level=level)
     slot = create_slot(
         "Bolt launchers augmentation",
         augmentation,
         table,
         label="Augmentation",
+        introduction="Pick a tier for the bolt launchers.",
+        mode="tier_ladder",
         min_picks=0,
         max_picks=1,
     )
@@ -243,23 +252,27 @@ def jakara_rig(augmentation, fighter_stats):
             "Tier 1",
             augmentation,
             qualifier="Jakara hunting rig",
+            summary="Strength +1 while carrying the rig.",
             effects=[strength()],
         ),
         "Tier 2": create_pickable(
             "Tier 2",
             augmentation,
             qualifier="Jakara hunting rig",
+            summary="Strength +1 and Attacks +1 while carrying the rig.",
             effects=[strength(), attacks()],
         ),
     }
-    table = create_picklist(
-        "Jakara hunting rig augmentations", augmentation, members=list(tiers.values())
-    )
+    table = create_picklist("Jakara hunting rig augmentations", augmentation)
+    for level, pick in enumerate(tiers.values(), start=1):
+        add_picklist_member(table, pick, level=level)
     slot = create_slot(
         "Jakara hunting rig augmentation",
         augmentation,
         table,
         label="Augmentation",
+        introduction="Pick a tier for the Jakara hunting rig.",
+        mode="tier_ladder",
         min_picks=0,
         max_picks=1,
     )
@@ -412,6 +425,7 @@ class TestClimbingTheLadder:
         assert stat_of(gun, "L") == "2"
         assert stat_of(gun, "AP") == "-2"
         assert [choice.chosen for choice in gun.choices] == ["Tier 2"]
+        assert gun.tier_mark == " (Tier 2)"
         assert not Assignment.objects.filter(
             pickable=bolt_launcher_tiers["Tier 1"], archived=False
         ).exists()
@@ -439,6 +453,10 @@ class TestClimbingTheLadder:
         drawn, _ = card_for(orrus)
         assert drawn.statline.get("S").value == "4"
         assert drawn.statline.get("A").value == "2"
+        assert (
+            next(line for line in drawn.equipment if line.name == rig.name).tier_mark
+            == " (Tier 2)"
+        )
         assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "1"
         assert_reconciled(gang)
 
@@ -706,11 +724,10 @@ class TestALaterTierWinsOverAnEarlierOne:
         assert_reconciled(gang)
 
 
-class TestThePickerNamesTheItem:
-    """Opened from the weapon's sub-row, the pick screen says which item
-    the level is on as well as whose card it is."""
+class TestAuthoredPickerCopy:
+    """The picker shows the slot's introduction and each tier's summary."""
 
-    def test_the_lead_names_the_launchers_and_the_bearer(
+    def test_the_lead_and_tier_summary_come_from_the_author(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
         ladder = ladder_of(orrus, "Bolt launchers")
@@ -719,8 +736,68 @@ class TestThePickerNamesTheItem:
 
         page = client.get(reverse("n26-choose", args=[gang.pk, key])).content.decode()
 
-        assert "Bolt launchers, for Orrus." in page
+        assert "Pick a tier for the bolt launchers." in page
+        assert "The launchers have Lethality 2." in page
+        assert "The carrier's" not in page
         assert 'aria-label="Add Tier 1"' in page or "Tier 1" in page
+
+    def test_an_empty_introduction_adds_no_generated_subhead(
+        self, client, owner, gang, orrus, bolt_launcher_tiers
+    ):
+        from n26.library.models import Slot
+
+        slot = Slot.objects.get(name="Bolt launchers augmentation")
+        slot.introduction = ""
+        slot.save(update_fields=["introduction"])
+        ladder = ladder_of(orrus, "Bolt launchers")
+        key = f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
+        client.force_login(owner)
+
+        page = client.get(reverse("n26-choose", args=[gang.pk, key]))
+
+        assert page.context["pick_lead"] == ""
+        assert "Bolt launchers, for Orrus." not in page.content.decode()
+
+    def test_the_unpicked_tier_does_not_add_a_line_to_the_roster(
+        self, client, owner, gang, orrus, bolt_launcher_tiers
+    ):
+        from bs4 import BeautifulSoup
+
+        client.force_login(owner)
+        page = BeautifulSoup(
+            client.get(reverse("n26-gang", args=[gang.pk])).content, "html.parser"
+        )
+        text = page.get_text(" ", strip=True)
+
+        assert "Bolt launchers" in text
+        assert "Augmentation: —" not in text
+
+    def test_chosen_tiers_sit_beside_both_kinds_of_equipment(
+        self, client, owner, gang, orrus, bolt_launcher_tiers, jakara_rig
+    ):
+        from bs4 import BeautifulSoup
+
+        climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 2"])
+        rig, tiers = jakara_rig
+        buy(orrus, thing=rig, paid=0)
+        worn = Assignment.objects.get(miniature=orrus, wargear=rig, archived=False)
+        set_level(choice_behind(orrus, worn), tiers["Tier 2"])
+        client.force_login(owner)
+
+        for url in (
+            reverse("n26-gang", args=[gang.pk]),
+            reverse("n26-edit-fighter", args=[orrus.pk]),
+            reverse("n26-print", args=[gang.pk]),
+        ):
+            page = BeautifulSoup(client.get(url).content, "html.parser")
+            text = page.get_text(" ", strip=True)
+            assert "Bolt launchers (Tier 2)" in text
+            assert "Jakara hunting rig (Tier 2)" in text
+            assert "Augmentation: Tier 2" not in text
+            assert "Jakara hunting rig augmentation: Tier 2" not in text
+        edit = client.get(reverse("n26-edit-fighter", args=[orrus.pk])).content.decode()
+        assert 'aria-label="More for Jakara hunting rig (Tier 2)"' in edit
+        assert_reconciled(gang)
 
 
 class TestThePickerReturnsWhereItWasOpened:
@@ -781,23 +858,25 @@ class TestThePickerReturnsWhereItWasOpened:
 
 
 class TestDismissingTheLadderFromTheSheet:
-    """Dismiss a weapon choice on its card; restore it from the Edit page."""
+    """Dismiss an empty tier from Edit; restore it there without adding a roster line."""
 
     def key(self, orrus):
         ladder = ladder_of(orrus, "Bolt launchers")
         return f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
 
-    def test_the_sheet_offers_the_x_and_the_edit_grid_offers_restore(
+    def test_edit_offers_the_x_and_the_edit_grid_offers_restore(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
         client.force_login(owner)
         sheet = reverse("n26-gang", args=[gang.pk])
+        edit = reverse("n26-edit-fighter", args=[orrus.pk])
         dismiss = reverse("n26-dismiss-offer", args=[gang.pk, self.key(orrus)])
         restore = reverse("n26-restore-offer", args=[gang.pk, self.key(orrus)])
 
         page = client.get(sheet).content.decode()
-        assert "Augmentation: &mdash;" in page
-        assert dismiss in page
+        assert "Augmentation: &mdash;" not in page
+        assert dismiss not in page
+        assert dismiss in client.get(edit).content.decode()
 
         reply = client.post(dismiss)
         assert reply.status_code == 302
@@ -808,10 +887,10 @@ class TestDismissingTheLadderFromTheSheet:
         page = client.get(f"{sheet}?dismissed=show").content.decode()
         assert "Augmentation:" not in page
         assert restore not in page
-        edit = reverse("n26-edit-fighter", args=[orrus.pk])
         assert restore in client.get(edit).content.decode()
         client.post(restore, {"back": edit})
-        assert "Augmentation: &mdash;" in client.get(sheet).content.decode()
+        assert dismiss in client.get(edit).content.decode()
+        assert "Augmentation: &mdash;" not in client.get(sheet).content.decode()
 
     def test_choosing_a_level_through_a_dismissed_ladder_takes_the_dismissal_off(
         self, client, owner, gang, orrus, bolt_launcher_tiers

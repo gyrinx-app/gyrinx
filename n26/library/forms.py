@@ -36,7 +36,6 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from n26.library import artwork
-from n26.library.models.base import Content
 from n26.library.specs import (
     Artwork,
     Bool,
@@ -107,7 +106,7 @@ class StagedForm(forms.Form):
         required=False,
         initial=True,
         label="Staged",
-        help_text=Content._meta.get_field("staged").help_text,
+        help_text="Players cannot add staged content to gangs until you put it live. Existing gangs keep what they already hold.",
     )
 
 

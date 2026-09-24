@@ -91,7 +91,7 @@ The slot type's name is the word the card and the history use. The slot's label 
 
 *A named special rule on a card; its text stays in the book.*
 
-Fields of its own: none — but its annotation is part of its identity, so variants of a rule share one printed name. We store the name, never the wording (copyright). A rule that also *does* something the app can work out carries ordinary modifiers.
+Fields of its own: none — but its annotation is part of its identity, so variants of a rule share one printed name. A rule that also *does* something the app can work out carries ordinary modifiers.
 
 Normally it arrives built into something (a profile's kit, a gang type) or given by a modifier. Reach: built into a profile, it reaches the model's card; given to the gang, every member's card. The card prints rules apart from skills, under their own heading.
 
@@ -177,7 +177,7 @@ A **Gives something** modifier can grant wargear as free kit. Each grant gives a
 
 *What a model has selected (skills) or manifests (powers), each with a home category.*
 
-Fields of their own: none. A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power is the same shape: its home is a category too, so it appears in the same fighter-sectioned views as the skill sets with no special casing (the book does the same: Wyrds treat the powers list as a Secondary Skill Set). A power's annotation carries what the book prints in brackets ("(Free)", "Continuous Effect"), never rules text.
+Fields of their own: none. A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power is the same shape: its home is a category too, so it appears in the same fighter-sectioned views as the skill sets with no special casing (the book does the same: Wyrds treat the powers list as a Secondary Skill Set). A power's annotation carries what the book prints in brackets ("(Free)", "Continuous Effect").
 
 Both print on the card under their own headings. They arrive built in, given by a modifier, or chosen through an offered choice, and reach whoever holds them.
 
@@ -244,11 +244,13 @@ A slot type puts a name on one or more slots, and groups pickables. It is not an
 
 *A value that goes into a slot.*
 
-Fields of its own: the **slot type** it belongs to, an optional **linked category**, and a **rating contribution** (credits the pick adds to the model's rating; 0 for most pickables, and nothing for a pick the gang holds) — plus the shared assignable set, so whatever the pickable means is carried as ordinary modifiers.
+Fields of its own: the **slot type** it belongs to, an optional **linked category**, an optional **summary** shown under its name on the choice page, and a **rating contribution** (credits the pick adds to the model's rating; 0 for most pickables, and nothing for a pick the gang holds) — plus the shared assignable set, so whatever the pickable means is carried as ordinary modifiers.
 
 One thing offered in a slot: a specific value, of a particular slot type, that carries behaviour as ordinary modifiers. It never draws a line of its own: it appears under its slot's choice line when chosen. Without its slot it shows nothing and does nothing, so it arrives chosen, given, or as a slot's starting value, never as a bare built-in. The authoring form does not accept one. Reach: whatever its own modifiers say, from wherever the pick landed.
 
 The linked category is used for categorisation decisions: a rule that places "the chosen set" reads the pick's linked category to find which category it means. This is how a Skill Tree pick stands for the set it names: picking the Agility tree files the Agility category under whichever tier the placing rule names. Most pickables link nothing.
+
+The summary explains the option to players but does not create its effects; modifiers do that. Leave it blank if there is no useful explanation.
 
 ### Picklist
 
@@ -268,7 +270,7 @@ A roll table is a picklist that names its dice and how a roll finds its entry �
 
 *A fully configured slot containing pickables: a picklist, a label, and how many picks.*
 
-Fields of its own: its **slot type** and **picklist**; the **label** shown on the card; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; a **mode**; and a position among the slots on one card. A tier ladder holds one pick and gives every picklist member a unique numeric level. Level 0 means that the slot has no pick.
+Fields of its own: its **slot type** and **picklist**; the **label** shown on the card; an optional **introduction** shown below the choice page title; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; a **mode**; and a position among the slots on one card. A tier ladder holds one pick and gives every picklist member a unique numeric level. Level 0 means that the slot has no pick.
 
 One specific, named use of a slot type. Assigning one to a model or gang — built into a profile, given by a modifier, or brought by an option when something is bought — makes the slot appear. The card draws the label with what the player has picked, or what is set by default, or a control to pick, on the holder's own card and nowhere else: a slot the gang holds appears once rather than on every fighter. Picking under the minimum adds a note on the card and blocks nothing (no page prints these notes yet), and the picker stops offering at the maximum. A slot of one pick is settled by picking, and picking again replaces the pick. A slot of several picks is filled a pick at a time, each option on the picker adding or removing its own. A slot of 0 picks shows no choice. **Hidden** makes the slot invisible while the pick still does everything it does: grouped hidden assignables, under one name.
 

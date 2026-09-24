@@ -150,6 +150,16 @@ def brought_mark(names):
     return f" ({', '.join(names)})" if names else ""
 
 
+def tier_mark(choices):
+    """The held tier beside its item, without naming an empty ladder."""
+    chosen = [
+        choice.chosen
+        for choice in choices
+        if choice.is_tier_ladder and choice.is_resolved
+    ]
+    return f" ({', '.join(chosen)})" if chosen else ""
+
+
 @dataclass(frozen=True)
 class AssignableLine(SlotMarked):
     """One assignable drawn on a card: its name, and where it came from.
@@ -179,7 +189,7 @@ class AssignableLine(SlotMarked):
     nothing; a pet its owner has not named yet, or one that has died,
     is left out of it: the line is what the model carries, and a dead
     pet is not that any more. A renderer writes the marks in one order
-    everywhere: the name, the slot mark, the pets, then the count.
+    everywhere: the name, the slot mark, the chosen tier, the pets, then the count.
     """
 
     name: str
@@ -214,6 +224,14 @@ class AssignableLine(SlotMarked):
     def brought_mark(self):
         """The pets' names in brackets, where this kit brought any."""
         return brought_mark(self.brought_in)
+
+    @property
+    def tier_mark(self):
+        return tier_mark(self.choices)
+
+    @property
+    def other_choices(self):
+        return [choice for choice in self.choices if not choice.is_tier_ladder]
 
 
 @dataclass
@@ -456,6 +474,14 @@ class WeaponLine(SlotMarked):
         return brought_mark(self.brought_in)
 
     @property
+    def tier_mark(self):
+        return tier_mark(self.choices)
+
+    @property
+    def other_choices(self):
+        return [choice for choice in self.choices if not choice.is_tier_ladder]
+
+    @property
     def total_brought_in(self):
         """Every model this weapon's line brought, its profiles' and its
         fittings' included — what goes where the weapon goes, as
@@ -660,7 +686,8 @@ class Choosable:
     #: throughout on a choice that holds one, where the whole list is
     #: settled in a single go.
     control: str = ""
-    effects: tuple[str, ...] = ()
+    #: Original author copy shown beneath this option, if the content has it.
+    summary: str = ""
     rating: int = 0
 
     @property
@@ -671,34 +698,17 @@ class Choosable:
             said.append(f"already chosen for {self.taken_for}")
         return " · ".join(said)
 
-    @property
-    def effect_summary(self):
-        return " ".join(self.effects)
-
 
 def describe_choosables(options):
-    """Add authored effects and rating with one batched modifier hydration."""
-    from n26.core.card import build_modifier_index
-    from n26.library.prose import sentence_for
-
-    things = [option.thing for option in options if option.thing is not None]
-    index = build_modifier_index(things)
-    described = []
-    for option in options:
-        effects = ()
-        if option.thing is not None:
-            effects = tuple(
-                sentence_for(modifier, thing=option.thing).text
-                for modifier, _ in index.for_thing(option.thing)
-            )
-        described.append(
-            replace(
-                option,
-                effects=effects,
-                rating=getattr(option.thing, "rating_contribution", 0),
-            )
+    """Add player-facing copy and rating from each offered thing."""
+    return [
+        replace(
+            option,
+            summary=getattr(option.thing, "summary", ""),
+            rating=getattr(option.thing, "rating_contribution", 0),
         )
-    return described
+        for option in options
+    ]
 
 
 @dataclass

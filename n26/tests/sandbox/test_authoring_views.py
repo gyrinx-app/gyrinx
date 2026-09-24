@@ -1219,6 +1219,23 @@ class TestASlotTypeIsSettledWhenAThingIsMade:
             body = client.get(f"/n26/authoring/{kind}/new/").content.decode()
             assert 'name="slot_type"' in body, kind
 
+    def test_pickable_help_explains_the_fields_without_lecturing_authors(
+        self, author, client, default_pack
+    ):
+        body = client.get("/n26/authoring/pickable/new/").content.decode()
+
+        assert "An option for a choice, such as an augmentation tier" in body
+        assert "Groups this option with the slots that can offer it." in body
+        assert "Shown under this option on the choice page." in body
+        assert "Distinguishes same-named options in the library." in body
+        assert "Players cannot add staged content to gangs" in body
+        assert "Write your own summary" not in body
+        assert "copy rules text" not in body
+
+        slot_body = client.get("/n26/authoring/slot/new/").content.decode()
+        assert "Shown above the options on the choice page." in slot_body
+        assert "copy rules text" not in slot_body
+
     def test_a_slot_type_posted_by_hand_does_not_land(
         self, author, client, legacy, affiliation
     ):
@@ -1259,6 +1276,7 @@ class TestASlotTypeIsSettledWhenAThingIsMade:
                 "edit-name": slot.name,
                 "edit-picklist": str(slot.picklist_id),
                 "edit-label": "Ancestry",
+                "edit-introduction": "Pick a legacy for this fighter.",
                 "edit-min_picks": "0",
                 "edit-max_picks": "2",
                 "edit-assigned_to": slot.assigned_to,
@@ -1268,6 +1286,27 @@ class TestASlotTypeIsSettledWhenAThingIsMade:
 
         slot.refresh_from_db()
         assert (slot.label, slot.min_picks, slot.max_picks) == ("Ancestry", 0, 2)
+        assert slot.introduction == "Pick a legacy for this fighter."
+
+    def test_an_author_can_revise_a_pickables_player_summary(
+        self, author, client, legacy
+    ):
+        from n26.library.models import Pickable
+
+        pick = Pickable.objects.get(name="Cawdor")
+        response = client.post(
+            f"/n26/authoring/pickable/{pick.pk}/",
+            {
+                "act": "edit",
+                "edit-name": pick.name,
+                "edit-summary": "A short explanation for this choice.",
+                "edit-rating_contribution": "0",
+            },
+        )
+
+        assert response.status_code == 302
+        pick.refresh_from_db()
+        assert pick.summary == "A short explanation for this choice."
 
 
 class TestASlotTypeReadsAsAKind:
@@ -1363,11 +1402,18 @@ class TestBuildingASlotTypeFromItsOwnPage:
 
         response = client.post(
             f"/n26/authoring/slot-type/{legacy.pk}/",
-            {"act": "pickable", "name": "Escher", "qualifier": ""},
+            {
+                "act": "pickable",
+                "name": "Escher",
+                "qualifier": "",
+                "summary": "A short explanation written by the author.",
+            },
         )
 
         assert response.status_code == 302
-        assert Pickable.objects.get(name="Escher").slot_type == legacy
+        made = Pickable.objects.get(name="Escher")
+        assert made.slot_type == legacy
+        assert made.summary == "A short explanation written by the author."
 
     def test_a_list_is_made_in_this_slot_type(self, author, client, legacy):
         from n26.library.models import Picklist
@@ -1391,6 +1437,7 @@ class TestBuildingASlotTypeFromItsOwnPage:
                 "name": "Second legacy",
                 "picklist": str(houses.pk),
                 "label": "Gang Legacy",
+                "introduction": "Pick this fighter's legacy.",
                 "min_picks": "1",
                 "max_picks": "1",
                 "assigned_to": "bearer",
@@ -1400,6 +1447,7 @@ class TestBuildingASlotTypeFromItsOwnPage:
 
         made = Slot.objects.get(name="Second legacy")
         assert (made.slot_type, made.picklist) == (legacy, houses)
+        assert made.introduction == "Pick this fighter's legacy."
 
     def test_the_choice_form_offers_this_slot_types_lists_and_no_others(
         self, author, client, legacy, affiliation

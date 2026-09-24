@@ -1000,7 +1000,12 @@ def model_choices(gang, crew, profiles):
     )
     weapon = create_weapon("Augmentable gun", profiles=[("", 0)])
     add_built_in(weapon, slot)
-    gear_pick = create_pickable("Gear tier 1", kind, rating_contribution=15)
+    gear_pick = create_pickable(
+        "Gear tier 1",
+        kind,
+        rating_contribution=15,
+        summary="Adds reinforced plating.",
+    )
     tier_rule = Rule.objects.create(name="Reinforced plating")
     modifier("Gear tier effect", targets_model(), adds(tier_rule), carried_by=gear_pick)
     gear_table = create_picklist("Gear tiers", kind)
@@ -1048,7 +1053,7 @@ def test_wargear_tier_stays_beneath_its_exact_carried_item(gang, crew, model_cho
     assert "Gear tier" not in [choice.kind_label for choice in card.row_questions]
 
 
-def test_flat_card_surfaces_keep_the_wargears_tier(gang, crew, model_choices):
+def test_printed_card_hides_an_unselected_wargear_tier(gang, crew, model_choices):
     from n26.core.capture import gang_state
     from n26.core.printing import detail_groups
     from n26.core.render_text import render_model_card
@@ -1056,7 +1061,8 @@ def test_flat_card_surfaces_keep_the_wargears_tier(gang, crew, model_choices):
     card = next(card for card in render_gang(gang).models if card.name == "Sorrow")
 
     printed = [(group.label, group.text) for group in detail_groups(card)]
-    assert ("Augmentable rig — Gear tier", "—") in printed
+    assert ("Gear", "Augmentable rig") in printed
+    assert not any("Gear tier" in label for label, _ in printed)
     assert "Augmentable rig — Gear tier: —" in "\n".join(render_model_card(card))
 
     captured = gang_state(gang)["models"][str(crew["leader"].pk)]
@@ -1064,31 +1070,66 @@ def test_flat_card_surfaces_keep_the_wargears_tier(gang, crew, model_choices):
 
 
 def test_an_ordinary_choice_from_wargear_stays_on_the_model_card(
-    gang, crew, model_choices
+    client, owner, gang, crew, model_choices
 ):
+    from bs4 import BeautifulSoup
+
     card = next(card for card in render_gang(gang).models if card.name == "Sorrow")
     rig = next(line for line in card.equipment if line.name == "Augmentable rig")
     assert [choice.kind_label for choice in rig.choices] == ["Gear tier"]
     role = next(choice for choice in card.choices if choice.kind_label == "Rig role")
     assert role.is_tier_ladder is False
 
+    client.force_login(owner)
+    roster = BeautifulSoup(
+        client.get(reverse("n26-gang", args=[gang.pk])).content, "html.parser"
+    )
+    assert "Rig role" in roster.get_text(" ", strip=True)
+
 
 def test_identical_wargear_copies_keep_their_own_tiers(gang, crew, model_choices):
     from n26.core.operations import operation
-    from n26.library.models import Wargear
+    from n26.library.authoring import add_picklist_member, create_pickable
+    from n26.library.models import Pickable, Picklist, SlotType, Wargear
+
+    second_tier = create_pickable(
+        "Gear tier 2", SlotType.objects.get(name="Augmentation")
+    )
+    add_picklist_member(Picklist.objects.get(name="Gear tiers"), second_tier, level=2)
+
+    tier = next(
+        choice
+        for choice in fighter_computed(crew["leader"]).choices
+        if choice.kind_label == "Gear tier"
+    )
+    choose(
+        tier.anchor.assignment,
+        Pickable.objects.get(name="Gear tier 1"),
+    )
 
     with operation(gang, actor=gang.owner) as op:
-        op.buy(
+        second_rig = op.buy(
             crew["leader"],
             thing=Wargear.objects.get(name="Augmentable rig"),
             paid=0,
         )
+    second_slot = next(
+        choice
+        for choice in fighter_computed(crew["leader"]).choices
+        if choice.kind_label == "Gear tier"
+        and choice.anchor.caused_by_key == second_rig.pk
+    )
+    choose(second_slot.anchor.assignment, second_tier)
     card = next(card for card in render_gang(gang).models if card.name == "Sorrow")
     rigs = [line for line in card.equipment if line.name == "Augmentable rig"]
     assert len(rigs) == 2
     assert all(
         [choice.kind_label for choice in rig.choices] == ["Gear tier"] for rig in rigs
     )
+    assert sorted(rig.tier_mark for rig in rigs) == [
+        " (Gear tier 1)",
+        " (Gear tier 2)",
+    ]
 
 
 def test_gang_sheet_choice_links_return_to_the_exact_sheet(
@@ -1101,23 +1142,23 @@ def test_gang_sheet_choice_links_return_to_the_exact_sheet(
     client.force_login(owner)
     here = reverse("n26-gang", args=[gang.pk])
     page = BeautifulSoup(client.get(here).content, "html.parser")
-    assert "Gear tier: —" in page.get_text(" ", strip=True)
+    assert "Gear tier: —" not in page.get_text(" ", strip=True)
     prefix = reverse("n26-choose", args=[gang.pk, model_choices["Archetype"].key])
     link = page.find("a", href=lambda value: value and value.startswith(prefix))
     assert parse_qs(urlsplit(link["href"]).query)["return"] == [here]
 
 
-def test_picker_explains_an_options_effect_and_rating(gang, model_choices):
+def test_picker_uses_an_authored_summary_and_rating(gang, model_choices):
     option = next(
         option
         for group in offer_for(model_choices["Gear tier"]).groups
         for option in group.options
     )
     assert option.rating == 15
-    assert "Reinforced plating" in option.effect_summary
+    assert option.summary == "Adds reinforced plating."
 
 
-def test_picker_effect_help_has_fixed_query_growth(gang, model_choices):
+def test_picker_authored_summaries_have_fixed_query_growth(gang, model_choices):
     from django.db import connection
     from django.test.utils import CaptureQueriesContext
 

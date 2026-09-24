@@ -85,6 +85,10 @@ normal starting state, not an error.
 you can name them later." "The gang's story. Shown on the lore page, never
 printed."
 
+**Copyright reminders are for agents, not authors.** Agents must not copy
+copyrighted rules text into the product or documentation. Human authors know
+this already; do not lecture them about it in forms or authoring guides.
+
 **No "please", no emoji.** Icons come from the icon system; emoji never appear
 in product strings. Em-dashes are house punctuation and are allowed — but not
 as a way to bolt on a dramatic aside.
