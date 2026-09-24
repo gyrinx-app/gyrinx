@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db.models import Count, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -149,13 +151,30 @@ def _record_table_context(request, everyone=False, per_page=None):
     not a page anybody should be sent.
     """
     from gyrinx.querysets import search_queryset
-    from n26.core.models import Gang
+    from n26.core.models import Gang, Miniature
 
     query = request.GET.get("q", "").strip()
     listed = Gang.objects.filter(archived=False)
     if not everyone:
         listed = listed.filter(owner=request.user)
-    listed = listed.select_related("gang_type", "stash", "owner").order_by("name")
+    # The gang page's roster count: models still in the gang and not
+    # dead, pets and vehicles included. A subquery rather than a join, so
+    # it runs per listed row and never aggregates over every gang.
+    living = (
+        Miniature.objects.filter(
+            membership__gang=OuterRef("pk"), membership__archived=False
+        )
+        .exclude(status=Status.DEAD)
+        .order_by()
+        .values("membership__gang")
+        .annotate(count=Count("pk"))
+        .values("count")
+    )
+    listed = (
+        listed.select_related("gang_type", "stash", "owner")
+        .annotate(model_count=Coalesce(Subquery(living), 0))
+        .order_by("name")
+    )
     found = search_queryset(listed, query, ["name", "gang_type__name"])
     total = None
     pages = None

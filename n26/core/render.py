@@ -1493,6 +1493,10 @@ class GangSheet:
     #: a surface asking "is that a nought or an absence" of a number is a
     #: surface that will one day get it wrong.
     visiting_trading_post: bool = False
+    #: How many living models are on the roster, which the gang lists
+    #: lead with. None on the gang page's own sheet, which shows the
+    #: roster summary instead.
+    model_count: int | None = None
     #: A gang founded without a budget never spends against one, so its
     #: credits figure counts nothing. Stated rather than inferred from a
     #: zero, which is also what a gang that has spent everything has.

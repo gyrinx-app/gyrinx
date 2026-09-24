@@ -11,6 +11,7 @@ Keep the type outside the name link so the accessible name stays the gang's name
 The colour mark sits inside the name link so the focus ring covers both and they cannot wrap apart.
 The actions cell spans both grid rows so the buttons sit against the name and the wealth strip together.
 Pass the owner's name as text. A user object will not draw as a link here.
+The sheet must carry model_count. The strip leads with it.
 {% endcomment %}
 
 <c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" print_href=""
@@ -42,7 +43,7 @@ Pass the owner's name as text. A user object will not draw as a link here.
         </p>
     </div>
 
-    <c-n26.wealth :sheet="sheet"
+    <c-n26.wealth :sheet="sheet" lead="models"
                   class="col-start-1 row-start-2 justify-self-start @2xl:col-start-2 @2xl:row-start-1" />
 
     {# This cell is relative so the buttons paint above the stretched link. #}
