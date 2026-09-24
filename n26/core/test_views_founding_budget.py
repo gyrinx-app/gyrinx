@@ -1,6 +1,6 @@
 """A budgeted model's equip screen: what it counts, and what it says.
 
-While the gang's Found and equip gang action is open and the model has an
+While the gang's Spend built-in Trade Points action is open and the model has an
 allowance of its own, its equip screen is a different screen: every list
 on it counts Trade Points, the purchases record the founding action
 rather than any visit the gang has open, and the rail carries the tally
@@ -114,8 +114,8 @@ def tester(db):
 
 @pytest.fixture
 def gang(venators, tester):
-    """A gang founded the way the create screen founds one, so its Found
-    and equip gang action is open."""
+    """A gang founded the way the create screen founds one, so its Spend
+    built-in Trade Points action is open."""
     gang = Gang.objects.create(
         name="The Long Hunt",
         owner=tester,
@@ -333,7 +333,7 @@ class TestWhatTheScreenSays:
     def test_starting_the_action_again_leaves_what_was_spent(
         self, client, gang, tester, leader, legacy_list
     ):
-        """Completing Found and equip gang and opening it again does not
+        """Completing Spend built-in Trade Points and opening it again does not
         hand the figure back: what this model already spent still sits
         on the tally."""
         client.post(

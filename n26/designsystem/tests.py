@@ -173,7 +173,7 @@ class TestTheActivitiesSquarePage:
         # From the markup the demos rendered, not their titles.
         assert "No action is open." in page
         assert "Trading Post visit open" in page
-        assert "Complete action" in page
+        assert "I'm done." in page or "I&#x27;m done." in page
 
     def test_post_battle_uses_the_shared_steps_with_and_without_other_actions(
         self, reader
@@ -760,11 +760,11 @@ class TestTheShellStillDraws:
         """Whether the square reads as one of the grid's squares depends on
         the stash and the cards beside it, which only the shell has."""
         page = reader.get("/n26/design/shell/gang/").content.decode()
-        assert "Found and equip gang" in page
-        assert "Complete action" in page
+        assert "Spend built-in Trade Points" in page
+        assert "I'm done." in page or "I&#x27;m done." in page
         # The stash card's own heading, not the wealth strip's figure of
         # the same name, which sits further up the page.
-        assert page.index("Found and equip gang") < page.index(">Stash</span>")
+        assert page.index("Spend built-in Trade Points") < page.index(">Stash</span>")
 
     def test_a_range_menu_with_two_thumbs_binds_both(self, reader):
         """The gallery's two-thumb range menu draws two real range inputs,
@@ -987,7 +987,10 @@ class TestTheModelCardsTooltips:
         assert 'role="tooltip"' in page
         assert "From Leader" in page
         assert "Rating, including weapons and wargear" in page
-        assert "has left to spend while the Found and equip gang action is open" in page
+        assert (
+            "has left to spend while the Spend built-in Trade Points action is open"
+            in page
+        )
 
     def test_both_kinds_of_open_choice_draw_their_way_in(self, reader):
         """The sample carries an open one-pick choice and a several-pick

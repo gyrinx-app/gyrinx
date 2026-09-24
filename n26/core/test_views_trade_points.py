@@ -252,7 +252,7 @@ class TestTheActivitiesSquare:
         assert body.count("Trading Post visit open") == 1
         assert body.index(">Stash</span>") < body.index("Trading Post visit open")
         assert "No action is open." not in body
-        assert "Found and equip gang" not in body
+        assert "Spend built-in Trade Points" not in body
         # The Trade Points page itself stays theirs.
         assert f'href="{page(gang)}"' in body
 

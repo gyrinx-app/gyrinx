@@ -12,8 +12,8 @@ Four claims, and each has a test below:
 * what a model may spend is content — a counter its gang type and its
   affiliation raise — so nothing in the code names a rank or a figure,
   and a model holding two ranks spends the better and not the sum;
-* what it has spent is what points back at any of the gang's Found and
-  equip gang actions, on that model alone;
+* what it has spent is what points back at any of the gang's Spend
+  built-in Trade Points actions, on that model alone;
 * a refund returns to the action the purchase counted against, whenever
   it is taken, and a sale returns nothing;
 * completing the action and starting it again remembers what was spent,
@@ -239,7 +239,7 @@ def budget(miniature):
 
 def buy_at_founding(miniature, line, **kwargs):
     """Buy the way a budgeted model's equip screen buys: against the
-    gang's open Found and equip gang action, whichever list the line
+    gang's open Spend built-in Trade Points action, whichever list the line
     came from."""
     return buy(
         miniature,
@@ -1263,7 +1263,7 @@ class TestTheFigureOnTheGangPage:
     #: What the hover says, per model. The whole of it, because a
     #: substring of it would pass on a page that had drawn half a
     #: sentence.
-    HOVER = "Founding Trade Points {} has left to spend while the Found and equip gang action is open."
+    HOVER = "Founding Trade Points {} has left to spend while the Spend built-in Trade Points action is open."
 
     def page(self, gang):
         from django.urls import reverse
@@ -1281,7 +1281,7 @@ class TestTheFigureOnTheGangPage:
         assert self.HOVER.format("Rasp") in self.body(client, gang)
 
     def test_the_figure_carries_the_founding_mark(self, client, gang, leader):
-        """The same mark the Found and equip gang action carries in the
+        """The same mark the Spend built-in Trade Points action carries in the
         Actions square and the allowance block carries on an equip
         screen, so one feature is learnt once. Its colour is stated in
         <c-n26.founding-mark> and nowhere else."""
