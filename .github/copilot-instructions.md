@@ -73,6 +73,12 @@ history); content models inherit `Content`. Never call `self.full_clean()` from
 no `TestCase` — and should use the fixtures in `gyrinx/conftest.py` rather than
 building users, houses, fighters or lists inline.
 
+**Python 3.14.** `except ValueError, TypeError:` without parentheses is valid
+PEP 758. `ruff format` (target `py314`) emits that form. Do not flag it as
+Python 2 syntax, an unused import, or a SyntaxError, and do not ask to add
+parentheses unless the clause binds with `as`: `except (ValueError, TypeError)
+as exc`. See `.github/instructions/python.instructions.md`.
+
 **Don't commit generated CSS.** `n23/core/static/core/css/` is built from SCSS.
 
 ## Long-term projects
