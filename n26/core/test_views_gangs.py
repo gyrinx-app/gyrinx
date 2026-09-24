@@ -5,6 +5,8 @@ tests are about the wiring — whose gangs reach it, whose do not, that
 the facets the filter needs come with them, and what ``?q=`` narrows.
 """
 
+import re
+
 import pytest
 from django.contrib.auth.models import User
 from django.db import connection
@@ -12,6 +14,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from n26.core.models import Gang
+from n26.core.status import Status
 from n26.library.models import GangType
 
 pytestmark = pytest.mark.django_db
@@ -433,9 +436,9 @@ def hire(tester, make_profile, make_statline):
 
 
 class TestTheModelCount:
-    """Each row leads its figures with how many models are in the gang,
-    where the gang page shows Trade Points. Trade Points only count while
-    a visit is open, so on a list they were a dash most of the time."""
+    """Each row leads its figures with how many living models are in the
+    gang, the same number the gang page's roster count shows. The gang
+    page leads with Trade Points instead."""
 
     def test_each_row_counts_the_models_on_the_roster(
         self, client, tester, make_gang, hire
@@ -452,14 +455,45 @@ class TestTheModelCount:
         counts = {gang.name: gang.model_count for gang in response.context["gangs"]}
         assert counts == {"The Ashen Choir": 2, "The Bad Girls": 0}
 
+    def test_a_dead_model_is_not_counted(self, client, tester, make_gang, hire):
+        """The gang page's roster count leaves the dead out, so the list
+        does too, or the two would disagree after a battle."""
+        from n26.core.operations import operation
+
+        choir = make_gang("The Ashen Choir")
+        hire(choir, "Vex")
+        fallen = hire(choir, "Karn")
+        with operation(choir, actor=tester) as op:
+            op.set_status(fallen, Status.DEAD)
+
+        client.force_login(tester)
+        response = client.get(reverse("n26-gangs"))
+
+        assert [gang.model_count for gang in response.context["gangs"]] == [1]
+
+    def test_a_search_keeps_the_count(self, client, tester, make_gang, hire):
+        hire(make_gang("The Ashen Choir"), "Vex")
+        make_gang("The Bad Girls")
+
+        client.force_login(tester)
+        response = client.get(reverse("n26-gangs"), {"q": "ashen"})
+
+        assert [gang.model_count for gang in response.context["gangs"]] == [1]
+
     @pytest.mark.parametrize("page", ["n26-gangs", "n26-dashboard"])
-    def test_the_count_replaces_trade_points(self, client, tester, make_gang, page):
-        make_gang("The Ashen Choir")
+    def test_the_count_replaces_trade_points(
+        self, client, tester, make_gang, hire, page
+    ):
+        choir = make_gang("The Ashen Choir")
+        for name in ("Vex", "Karn", "Sable"):
+            hire(choir, name)
 
         client.force_login(tester)
         body = client.get(reverse(page)).content.decode()
 
-        assert 'aria-label="Models in the gang"' in body
+        figure = body.split('aria-label="Models in the gang"', 1)[1]
+        value = figure.split("<dd", 1)[1].split("</dd>", 1)[0]
+        assert re.sub(r"<[^>]*>|\s", "", value.split(">", 1)[1]) == "3"
         assert "No Visit Trading Post action open" not in body
 
     def test_counting_costs_no_query_per_gang(self, client, tester, make_gang, hire):

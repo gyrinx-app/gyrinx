@@ -3048,7 +3048,9 @@ SAMPLE_GANG_ICON = (
 GANG_TYPE_ICONS = {"Goliath (HoC)": SAMPLE_GANG_ICON}
 
 
-def _gang_summary(name, gang_type, rating, credits, stash_rating, colour=""):
+def _gang_summary(
+    name, gang_type, rating, credits, stash_rating, colour="", model_count=0
+):
     return GangSheet(
         name=name,
         gang_type=gang_type,
@@ -3057,6 +3059,7 @@ def _gang_summary(name, gang_type, rating, credits, stash_rating, colour=""):
         stash_rating=stash_rating,
         wealth=rating + credits + stash_rating,
         colour=colour,
+        model_count=model_count,
     )
 
 
@@ -3065,13 +3068,24 @@ def _gang_summary(name, gang_type, rating, credits, stash_rating, colour=""):
 #: stash so a zero is drawn rather than hidden, and two with no colour, because a
 #: list where some rows carry a mark and some do not is the one that ships.
 GANGS = [
-    _gang_summary("The Ashen Choir", "Escher (HoB)", 360, 1037, 100, "violet"),
-    _gang_summary("Rust in Peace", "Goliath (HoC)", 1240, 85, 0, "amber"),
     _gang_summary(
-        "The Silent Ledger and the Long Count", "Delaque (HoS)", 980, 210, 45
+        "The Ashen Choir", "Escher (HoB)", 360, 1037, 100, "violet", model_count=4
     ),
-    _gang_summary("Sump City Rats", "Underhive Outcasts", 1475, 12, 260, "teal"),
-    _gang_summary("Cog and Coil", "Goliath (HoC)", 1105, 430, 75),
+    _gang_summary(
+        "Rust in Peace", "Goliath (HoC)", 1240, 85, 0, "amber", model_count=11
+    ),
+    _gang_summary(
+        "The Silent Ledger and the Long Count",
+        "Delaque (HoS)",
+        980,
+        210,
+        45,
+        model_count=9,
+    ),
+    _gang_summary(
+        "Sump City Rats", "Underhive Outcasts", 1475, 12, 260, "teal", model_count=15
+    ),
+    _gang_summary("Cog and Coil", "Goliath (HoC)", 1105, 430, 75, model_count=8),
 ]
 
 #: What changed, newest first. The summaries are long enough to be clamped, which

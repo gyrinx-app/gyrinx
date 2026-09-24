@@ -2090,8 +2090,8 @@ GROUPS: list[Group] = [
                 tag="c-n26.wealth",
                 template="n26/wealth/index.html",
                 summary=(
-                    "A gang's Trade Points, rating, credits, stash and wealth as a "
-                    "figure strip."
+                    "A gang's Trade Points or model count, then rating, credits, "
+                    "stash and wealth, as a figure strip."
                 ),
                 needs=(ALPINE, KIT_JS),
                 parts=(
@@ -2099,8 +2099,8 @@ GROUPS: list[Group] = [
                         "c-n26.wealth.figure",
                         "n26/wealth/figure.html",
                         (
-                            "A labelled figure in the strip: the short name over "
-                            "its value, or a dash when unset."
+                            "A labelled figure in the strip: the short name or an "
+                            "icon over its value, or a dash when unset."
                         ),
                     ),
                 ),
@@ -2112,7 +2112,10 @@ GROUPS: list[Group] = [
                     "are not money and not part of that sum. A zero is a real "
                     "figure and only an unset value draws a dash, which is how a "
                     "shut trading post and unlimited credits are shown. It is a "
-                    "definition list, and its short names carry real tooltips."
+                    "definition list, and its short names carry real tooltips. "
+                    'Pass lead="models" to put the number of living models first '
+                    "instead of Trade Points, as the gang lists do. The sheet must "
+                    "then carry model_count."
                 ),
             ),
             Component(

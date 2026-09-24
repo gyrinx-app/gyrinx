@@ -1,0 +1,5 @@
+{# title: Led by the model count #}
+{# note: The gang lists pass lead="models": the number of living models on the roster takes the first place, labelled with the users icon, and Trade Points are not shown. The count has no unit because it counts models, not credits. Hover or tap the icon for what it counts. #}
+{% with gang=dashboard_gangs.0 %}
+    <c-n26.wealth :sheet="gang.sheet" lead="models" />
+{% endwith %}
