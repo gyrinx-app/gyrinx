@@ -741,6 +741,23 @@ class TestAuthoredPickerCopy:
         assert "The carrier's" not in page
         assert 'aria-label="Add Tier 1"' in page or "Tier 1" in page
 
+    def test_an_empty_introduction_adds_no_generated_subhead(
+        self, client, owner, gang, orrus, bolt_launcher_tiers
+    ):
+        from n26.library.models import Slot
+
+        slot = Slot.objects.get(name="Bolt launchers augmentation")
+        slot.introduction = ""
+        slot.save(update_fields=["introduction"])
+        ladder = ladder_of(orrus, "Bolt launchers")
+        key = f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
+        client.force_login(owner)
+
+        page = client.get(reverse("n26-choose", args=[gang.pk, key]))
+
+        assert page.context["pick_lead"] == ""
+        assert "Bolt launchers, for Orrus." not in page.content.decode()
+
     def test_the_unpicked_tier_does_not_add_a_line_to_the_roster(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
@@ -770,6 +787,7 @@ class TestAuthoredPickerCopy:
         for url in (
             reverse("n26-gang", args=[gang.pk]),
             reverse("n26-edit-fighter", args=[orrus.pk]),
+            reverse("n26-print", args=[gang.pk]),
         ):
             page = BeautifulSoup(client.get(url).content, "html.parser")
             text = page.get_text(" ", strip=True)
@@ -777,6 +795,8 @@ class TestAuthoredPickerCopy:
             assert "Jakara hunting rig (Tier 2)" in text
             assert "Augmentation: Tier 2" not in text
             assert "Jakara hunting rig augmentation: Tier 2" not in text
+        edit = client.get(reverse("n26-edit-fighter", args=[orrus.pk])).content.decode()
+        assert 'aria-label="More for Jakara hunting rig (Tier 2)"' in edit
         assert_reconciled(gang)
 
 

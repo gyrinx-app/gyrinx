@@ -189,7 +189,7 @@ class AssignableLine(SlotMarked):
     nothing; a pet its owner has not named yet, or one that has died,
     is left out of it: the line is what the model carries, and a dead
     pet is not that any more. A renderer writes the marks in one order
-    everywhere: the name, the slot mark, the pets, then the count.
+    everywhere: the name, the slot mark, the chosen tier, the pets, then the count.
     """
 
     name: str

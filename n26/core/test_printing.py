@@ -10,7 +10,7 @@ in it.
 from dataclasses import dataclass
 
 from n26.core.printing import balance_columns, detail_groups, estimate_lines
-from n26.core.render import ChoiceLine, EffectLine, ModelCard, Statline
+from n26.core.render import AssignableLine, ChoiceLine, EffectLine, ModelCard, Statline
 
 
 @dataclass(frozen=True)
@@ -135,6 +135,46 @@ class TestDetailGroups:
         card = card_with(ChoiceLine(kind_label="Archetype", chosen=None))
         groups = detail_groups(card)
         assert [(group.label, group.text) for group in groups] == [("Archetype", "—")]
+
+    def test_an_item_tier_prints_beside_its_name_without_a_separate_group(self):
+        card = card_with()
+        card.equipment = [
+            AssignableLine(
+                name="Hunting rig",
+                choices=[
+                    ChoiceLine(
+                        kind_label="Augmentation",
+                        chosen="Tier 2",
+                        is_tier_ladder=True,
+                    ),
+                    ChoiceLine(kind_label="Colour", chosen=None),
+                ],
+            )
+        ]
+
+        assert [(group.label, group.text) for group in detail_groups(card)] == [
+            ("Gear", "Hunting rig (Tier 2)"),
+            ("Hunting rig — Colour", "—"),
+        ]
+
+    def test_an_empty_item_tier_adds_no_printed_group(self):
+        card = card_with()
+        card.equipment = [
+            AssignableLine(
+                name="Hunting rig",
+                choices=[
+                    ChoiceLine(
+                        kind_label="Augmentation",
+                        chosen=None,
+                        is_tier_ladder=True,
+                    )
+                ],
+            )
+        ]
+
+        assert [(group.label, group.text) for group in detail_groups(card)] == [
+            ("Gear", "Hunting rig")
+        ]
 
     def test_stored_effect_prose_is_not_printed(self):
         """Its result has a dedicated place on paper; the operation does not."""

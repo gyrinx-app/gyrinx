@@ -55,25 +55,27 @@ def _run(lines) -> str:
     """A run of names: one that brought a pet written with the pet's
     name, one standing for several written with its count — in that
     order, as the screen card writes them."""
-    return ", ".join(line.name + line.brought_mark + line.count_mark for line in lines)
+    return ", ".join(
+        line.name + line.tier_mark + line.brought_mark + line.count_mark
+        for line in lines
+    )
 
 
 def _item_choices(lines) -> list[DetailGroup]:
-    """A carried item's questions, labelled with the item that carries them."""
+    """A carried item's non-tier questions, labelled with the item that carries them."""
     return [
         DetailGroup(f"{line.name} — {choice.kind_label}", choice.chosen or "—")
         for line in lines
-        for choice in line.choices
+        for choice in line.other_choices
     ]
 
 
 def detail_groups(card) -> list[DetailGroup]:
     """A model card's loose assignables, as labelled runs.
 
-    Choices are folded in with their kind as the label, so an unresolved one
-    still occupies its row and prints as a blank to be filled in —
-    information, not an error, and on paper an empty slot is a useful thing
-    to see.
+    General choices are folded in with their kind as the label, so an unresolved
+    one still occupies its row and prints as a blank to be filled in.
+    An item's selected tier sits beside its name; an empty tier adds nothing.
 
     The lists a model buys from (``card.collections``) are deliberately
     absent. Which listings the app will offer them is an affordance of the
