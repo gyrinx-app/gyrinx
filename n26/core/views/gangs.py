@@ -15,7 +15,7 @@ from django.utils.safestring import mark_safe
 
 from n26.core.status import Status
 from n26.core.status import explains as status_explains
-from n26.core.views.changelog import changelog_entries
+from n26.core.views.changelog import CHANGELOG_TAG, changelog_entries
 from n26.core.views.permissions import (
     _any_gang_or_404,
     _own_gang_or_404,
@@ -95,6 +95,7 @@ def dashboard(request):
         {
             **_record_table_context(request),
             "changelog": changelog_entries()[:5],
+            "changelog_tag": CHANGELOG_TAG,
             "campaigns_open": campaigns_open,
             "campaigns": campaigns,
             "invitations": invitations,

@@ -76,6 +76,9 @@ urlpatterns = (
         path("500/", views.error_500, name="error_500"),
         path("admin/", admin.site.urls),
         path("tinymce/", include("tinymce.urls")),
+        # Ahead of the flatpage catch-all, which would otherwise serve the
+        # old static page at this address. The footer link is that address.
+        path("changelog/", include("n26.core.changelog_urls")),
     ]
     + _debug_urls
     + [

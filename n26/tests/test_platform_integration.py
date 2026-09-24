@@ -227,20 +227,25 @@ class TestTheChangelogLinks:
 
         body = client.get("/n26/").content.decode()
 
-        assert f"/n26/changelog/{entry.pk}/" in body
+        assert f"/changelog/{entry.pk}/?tag=N26" in body
 
     def test_the_heading_links_to_every_update(self, tester, client, default_pack):
         body = client.get("/n26/").content.decode()
 
-        assert 'href="/n26/changelog/"' in body
+        assert 'href="/changelog/?tag=N26"' in body
         assert "View all" in body
 
 
 class TestTheChangelogIndex:
-    """The public index lists every live entry about this edition."""
+    """The public index lists every live entry, whichever edition it is for.
+
+    A tag query narrows that list. The n26 home links here with the N26
+    tag already chosen, and the footer link does not, so it shows all of
+    them. The old flat page at this address is no longer what a reader gets.
+    """
 
     def test_anybody_may_read_it_without_an_account(self, client, default_pack):
-        assert client.get("/n26/changelog/").status_code == 200
+        assert client.get("/changelog/").status_code == 200
 
     def test_it_lists_every_entry_not_just_the_dashboards_five(
         self, client, default_pack
@@ -248,24 +253,95 @@ class TestTheChangelogIndex:
         for i in range(7):
             changelog_entry(f"Entry number {i}", CHANGELOG_TAG)
 
-        body = client.get("/n26/changelog/").content.decode()
+        body = client.get("/changelog/").content.decode()
 
         assert "Entry number 0" in body
         assert "Entry number 6" in body
 
-    def test_it_keeps_only_live_news_for_this_edition(self, client, default_pack):
+    def test_it_lists_every_editions_live_news(self, client, default_pack):
         changelog_entry("The N26 entry", CHANGELOG_TAG)
         changelog_entry("The old edition entry", "N23")
         changelog_entry("The untagged entry")
         archived = changelog_entry("The archived entry", CHANGELOG_TAG)
         archived.archive()
 
-        body = client.get("/n26/changelog/").content.decode()
+        body = client.get("/changelog/").content.decode()
+
+        assert "The N26 entry" in body
+        assert "The old edition entry" in body
+        assert "The untagged entry" in body
+        assert "The archived entry" not in body
+        assert "Changes on Gyrinx." in body
+
+    def test_a_tag_query_keeps_only_that_tag(self, client, default_pack):
+        changelog_entry("The N26 entry", CHANGELOG_TAG)
+        changelog_entry("The old edition entry", "N23")
+        changelog_entry("The untagged entry")
+
+        body = client.get("/changelog/?tag=N26").content.decode()
 
         assert "The N26 entry" in body
         assert "The old edition entry" not in body
         assert "The untagged entry" not in body
-        assert "The archived entry" not in body
+        assert "Changes tagged N26." in body
+        assert "Nothing tagged N26 yet." not in body
+
+    def test_a_tag_spelled_in_another_case_selects_the_stored_tag(
+        self, client, default_pack
+    ):
+        changelog_entry("Written in lower case", CHANGELOG_TAG)
+
+        body = client.get("/changelog/?tag=n26").content.decode()
+        filters = tag_filters(body)
+
+        assert "Written in lower case" in body
+        assert "Changes tagged N26." in body
+        assert 'aria-current="page"' in filters
+        assert "N26" in filters
+
+    def test_an_unknown_tag_lists_nothing_and_names_the_tag(self, client, default_pack):
+        changelog_entry("The N26 entry", CHANGELOG_TAG)
+
+        body = client.get("/changelog/?tag=Nope").content.decode()
+
+        assert "The N26 entry" not in body
+        assert "Nothing tagged Nope yet." in body
+        assert "Changes tagged Nope." in body
+
+    def test_tags_are_coloured_and_the_chosen_one_is_marked(self, client, default_pack):
+        changelog_entry("Both editions", "N26", "N23")
+
+        body = client.get("/changelog/?tag=N26").content.decode()
+        filters = tag_filters(body)
+
+        assert "bg-sky-600" in filters
+        assert "bg-amber-100" in filters
+        assert "bg-sky-100" in body
+        assert "bg-amber-100" in body
+
+    def test_the_footer_address_serves_entries_rather_than_the_flat_page(
+        self, tester, client, default_pack
+    ):
+        from django.contrib.flatpages.models import FlatPage
+        from django.contrib.sites.models import Site
+
+        page = FlatPage.objects.create(
+            url="/changelog/",
+            title="Changelog",
+            content="<p>STATIC CHANGELOG SENTINEL</p>",
+        )
+        page.sites.add(Site.objects.get_current())
+        changelog_entry("Vehicles came to the old edition", "N23")
+
+        body = client.get("/changelog/").content.decode()
+        home = client.get("/").content.decode()
+        n26_home = client.get("/n26/").content.decode()
+
+        assert "STATIC CHANGELOG SENTINEL" not in body
+        assert "Vehicles came to the old edition" in body
+        assert 'href="/changelog/"' in home
+        assert ">Changelog" in home
+        assert 'href="/changelog/"' in n26_home
 
     def test_it_deduplicates_two_spellings_and_orders_newest_first(
         self, client, default_pack
@@ -278,7 +354,7 @@ class TestTheChangelogIndex:
         )
         changelog_entry("The older entry", CHANGELOG_TAG, date="2026-08-01")
 
-        body = client.get("/n26/changelog/").content.decode()
+        body = client.get("/changelog/").content.decode()
         sidebar = body[body.index("<aside") : body.index("</aside>")]
         listing = body[body.index("<section", body.index("</aside>")) :]
 
@@ -293,17 +369,29 @@ class TestTheChangelogIndex:
     ):
         newest = changelog_entry("Newest in the menu", CHANGELOG_TAG, date="2026-08-19")
         oldest = changelog_entry("Oldest in the menu", CHANGELOG_TAG, date="2026-08-01")
-        changelog_entry("Not in the menu", "N23", date="2026-08-20")
+        other = changelog_entry("Also in the menu", "N23", date="2026-08-20")
 
-        body = client.get("/n26/changelog/").content.decode()
+        body = client.get("/changelog/").content.decode()
         sidebar = body[body.index("<aside") : body.index("</aside>")]
 
-        positions = in_order(sidebar, "Newest in the menu", "Oldest in the menu")
+        positions = in_order(
+            sidebar, "Also in the menu", "Newest in the menu", "Oldest in the menu"
+        )
         assert positions == sorted(positions)
-        assert f"/n26/changelog/{newest.pk}/" in sidebar
-        assert f"/n26/changelog/{oldest.pk}/" in sidebar
-        assert "Not in the menu" not in sidebar
+        assert f"/changelog/{newest.pk}/" in sidebar
+        assert f"/changelog/{oldest.pk}/" in sidebar
+        assert f"/changelog/{other.pk}/" in sidebar
         assert 'aria-current="page"' not in sidebar
+
+    def test_a_tag_query_drops_other_editions_from_the_menu(self, client, default_pack):
+        newest = changelog_entry("Newest in the menu", CHANGELOG_TAG, date="2026-08-19")
+        changelog_entry("Not in the menu", "N23", date="2026-08-20")
+
+        body = client.get("/changelog/?tag=N26").content.decode()
+        sidebar = body[body.index("<aside") : body.index("</aside>")]
+
+        assert f"/changelog/{newest.pk}/?tag=N26" in sidebar
+        assert "Not in the menu" not in sidebar
 
     def test_entries_are_rich_sanitised_previews_that_open_the_full_page(
         self, client, default_pack
@@ -314,11 +402,32 @@ class TestTheChangelogIndex:
             body='<script>alert("no")</script><ul><li><strong>Safe</strong></li></ul>',
         )
 
-        body = client.get("/n26/changelog/").content.decode()
+        body = client.get("/changelog/").content.decode()
 
         assert "alert" not in body
         assert "<ul><li><strong>Safe</strong></li></ul>" in body
-        assert f"/n26/changelog/{entry.pk}/" in body
+        assert f"/changelog/{entry.pk}/" in body
+
+    def test_the_index_costs_the_same_queries_however_many_entries_exist(
+        self, client, default_pack
+    ):
+        """Tags are loaded with the entries, not once per entry."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.get("/changelog/")
+
+        for i in range(2):
+            changelog_entry(f"Entry {i}", CHANGELOG_TAG if i % 2 else "N23")
+        with CaptureQueriesContext(connection) as with_two:
+            assert client.get("/changelog/").status_code == 200
+
+        for i in range(2, 10):
+            changelog_entry(f"Entry {i}", CHANGELOG_TAG if i % 2 else "N23")
+        with CaptureQueriesContext(connection) as with_ten:
+            assert client.get("/changelog/").status_code == 200
+
+        assert len(with_ten.captured_queries) == len(with_two.captured_queries)
 
 
 class TestOneChangelogEntry:
@@ -334,13 +443,14 @@ class TestOneChangelogEntry:
             ),
         )
 
-        response = client.get(f"/n26/changelog/{entry.pk}/")
+        response = client.get(f"/changelog/{entry.pk}/")
         body = response.content.decode()
 
         assert response.status_code == 200
         assert "<p>The opening.</p>" in body
         assert "<ul><li><strong>First point</strong></li>" in body
         assert "n26-clamp-2" not in body
+        assert "bg-sky-100" in body
 
     def test_the_full_body_is_sanitised(self, client, default_pack):
         entry = changelog_entry(
@@ -349,30 +459,42 @@ class TestOneChangelogEntry:
             body='<script>alert("no")</script><p><strong>Safe</strong></p>',
         )
 
-        body = client.get(f"/n26/changelog/{entry.pk}/").content.decode()
+        body = client.get(f"/changelog/{entry.pk}/").content.decode()
 
         assert "alert" not in body
         assert "<strong>Safe</strong>" in body
 
     @pytest.mark.parametrize("tags", [("N23",), ()])
-    def test_news_not_assigned_to_this_edition_is_not_reachable(
-        self, client, default_pack, tags
-    ):
-        entry = changelog_entry("Not for this edition", *tags)
+    def test_an_entry_for_any_edition_is_readable(self, client, default_pack, tags):
+        entry = changelog_entry("For whichever edition", *tags)
 
-        assert client.get(f"/n26/changelog/{entry.pk}/").status_code == 404
+        assert client.get(f"/changelog/{entry.pk}/").status_code == 200
 
     def test_an_archived_entry_is_not_reachable(self, client, default_pack):
         entry = changelog_entry("Archived news", CHANGELOG_TAG)
         entry.archive()
 
-        assert client.get(f"/n26/changelog/{entry.pk}/").status_code == 404
+        assert client.get(f"/changelog/{entry.pk}/").status_code == 404
 
     def test_an_unknown_or_malformed_id_is_a_404(self, client, default_pack):
         from uuid import uuid4
 
-        assert client.get(f"/n26/changelog/{uuid4()}/").status_code == 404
+        assert client.get(f"/changelog/{uuid4()}/").status_code == 404
+        assert client.get("/changelog/not-a-uuid/").status_code == 404
         assert client.get("/n26/changelog/not-a-uuid/").status_code == 404
+
+    def test_the_old_edition_address_opens_the_shared_page_on_n26(
+        self, client, default_pack
+    ):
+        entry = changelog_entry("Still linked from somewhere", CHANGELOG_TAG)
+
+        index = client.get("/n26/changelog/", follow=False)
+        detail = client.get(f"/n26/changelog/{entry.pk}/", follow=False)
+
+        assert index.status_code == 301
+        assert index["Location"] == "/changelog/?tag=N26"
+        assert detail.status_code == 301
+        assert detail["Location"] == f"/changelog/{entry.pk}/?tag=N26"
 
     def test_the_sidebar_lists_every_entry_newest_first_and_marks_this_one(
         self, client, default_pack
@@ -384,7 +506,7 @@ class TestOneChangelogEntry:
         changelog_entry("The oldest entry", CHANGELOG_TAG, date="2026-08-01")
         changelog_entry("The other edition", "N23", date="2026-08-20")
 
-        body = client.get(f"/n26/changelog/{current.pk}/").content.decode()
+        body = client.get(f"/changelog/{current.pk}/?tag=N26").content.decode()
         sidebar = body[body.index("<aside") : body.index("</aside>")]
 
         positions = in_order(
@@ -392,7 +514,7 @@ class TestOneChangelogEntry:
         )
         assert positions == sorted(positions)
         assert "The other edition" not in sidebar
-        current_url = f"/n26/changelog/{current.pk}/"
+        current_url = f"/changelog/{current.pk}/?tag=N26"
         anchor = re.search(
             rf'<a[^>]*href="{re.escape(current_url)}"[^>]*>',
             sidebar,
@@ -493,6 +615,12 @@ def count_badge(markup):
 def in_order(text, *fragments):
     """Where each fragment first appears, for asserting a running order."""
     return [text.index(fragment) for fragment in fragments]
+
+
+def tag_filters(body):
+    """The tag filter on a changelog page, and nothing past it."""
+    start = body.index('aria-label="Filter by tag"')
+    return body[start : body.index("</nav>", start)]
 
 
 class TestTheFooterHelpColumn:

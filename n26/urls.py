@@ -12,10 +12,13 @@ from n26.library import views as authoring_views
 
 urlpatterns = [
     path("", views.dashboard, name="n26-dashboard"),
-    path("changelog/", views.changelog, name="n26-changelog"),
+    # The shared changelog lives at /changelog/. These addresses remain
+    # because links to them are already out, and they open that page
+    # narrowed to this edition.
+    path("changelog/", views.n26_changelog, name="n26-changelog"),
     path(
         "changelog/<uuid:pk>/",
-        views.changelog_entry,
+        views.n26_changelog_entry,
         name="n26-changelog-entry",
     ),
     # Every campaign route is gated by the campaigns feature flag, so all
