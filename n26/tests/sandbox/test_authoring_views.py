@@ -2378,10 +2378,19 @@ def row_printing(body, words):
     return printing[0]
 
 
-def island_props(body):
+def island_props(body, module=None):
     """Decode the initial data the page's React island receives."""
     soup = BeautifulSoup(body, "html.parser")
-    host = soup.select_one("[data-react-module]")
+    hosts = soup.select("[data-react-module]")
+    host = next(
+        (
+            candidate
+            for candidate in hosts
+            if module is None or f"{module}-" in candidate["data-react-module"]
+        ),
+        None,
+    )
+    assert host is not None
     return json.loads(soup.find(id=host["data-react-props"]).string)
 
 
@@ -4485,7 +4494,8 @@ class TestTheModifierSection:
     ):
         body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
         assert "does nothing special until" in body
-        assert 'name="scope_kind"' in body  # step one is always offered
+        props = island_props(body, "modifier-kind-picker")
+        assert props["scope"]["name"] == "scope_kind"
 
     def test_a_foundation_kind_has_a_page_without_one(
         self, author, client, default_pack
@@ -4796,14 +4806,14 @@ class TestComposingOnItsOwnPage:
         self, author, client, default_pack
     ):
         body = client.get("/n26/authoring/modifiers/new/").content.decode()
+        props = island_props(body, "modifier-kind-picker")
 
-        assert 'name="scope_kind"' in body
-        assert 'name="effect_kind"' in body
+        assert props["scope"]["name"] == "scope_kind"
+        assert props["effect"]["name"] == "effect_kind"
 
     def test_the_two_steps_ride_the_url(self, author, client, default_pack):
         """Both kinds and the empty condition chips are in the query
-        string, so step two survives a refresh and needs no
-        JavaScript."""
+        string, so step two survives a refresh without client state."""
         body = client.get(
             "/n26/authoring/modifiers/new/"
             "?scope_kind=targets_weapons&effect_kind=ef_adds&chips=1"
@@ -4815,7 +4825,7 @@ class TestComposingOnItsOwnPage:
         # No reusable switch: there is nothing to attach to, so there
         # is no carrier whose name the modifier could take instead.
         assert 'name="make_reusable"' not in body
-        assert "data-react-module" not in body
+        assert "modifier-naming-" not in body
 
     def test_a_modifier_can_be_made_here_and_attaches_nowhere(
         self, author, client, default_pack
@@ -4975,23 +4985,17 @@ class TestTheButtonThatChangesTheModifierType:
     and its button is worded by the surface: a carrier's page is where a
     reader starts a modifier from nothing, so it invites — Configure new
     modifier — while the standalone page's header has already said what
-    is being made and the click re-shapes it: Change modifier type.
+    is being made and the click moves on to step two: Continue →.
 
     Clicked with the pair the page is already showing it fetches the
     same page again — and on a carrier's page it scrolls the reader back
     to the top to do it — so it is dead until one of the two kinds
-    moves. Dead is Alpine's doing, never the server's: served out of
-    service, a reader with no script would have no way past step one.
+    moves.
     """
 
     @staticmethod
-    def button(body):
-        """The submit at the foot of step one, as its whole tag."""
-        found = re.search(
-            r"<button[^>]*>\s*(?:Change modifier type|Configure new modifier)", body
-        )
-        assert found, "no change-the-kinds button on the page"
-        return found.group(0)
+    def props(body):
+        return island_props(body, "modifier-kind-picker")
 
     @pytest.fixture
     def carrier(self, author, default_pack):
@@ -5002,38 +5006,27 @@ class TestTheButtonThatChangesTheModifierType:
     def test_it_is_named_for_what_it_fetches(self, author, client, default_pack):
         body = client.get("/n26/authoring/modifiers/new/").content.decode()
 
-        assert "Change modifier type" in body
+        assert self.props(body)["submitLabel"] == "Continue →"
 
-    def test_it_is_clickable_for_a_reader_with_no_script(
-        self, author, client, default_pack
-    ):
-        """The whole of step one is this button. Rendered out of service
-        it could only be brought back by script, and the composer would
-        have no first step at all without one."""
-        tag = self.button(client.get("/n26/authoring/modifiers/new/").content.decode())
-
-        assert re.search(r"\sdisabled[\s>]", tag) is None
-
-    def test_it_is_wired_to_go_dead_while_the_pickers_name_what_is_drawn(
+    def test_it_receives_the_pair_the_page_is_drawn_from(
         self, author, client, default_pack
     ):
         body = client.get(
             "/n26/authoring/modifiers/new/?scope_kind=targets_model&effect_kind=ef_adds"
         ).content.decode()
 
-        assert "served: 'targets_model|ef_adds'" in body
-        assert ':disabled="!moved"' in self.button(body)
+        assert self.props(body)["served"] == {
+            "scope": "targets_model",
+            "effect": "ef_adds",
+        }
 
     def test_a_page_drawn_from_no_kinds_matches_nothing_the_pickers_hold(
         self, author, client, default_pack
     ):
-        """The pickers have no empty option, so they open on real kinds
-        the moment the page is reached with none named. A button dead on
-        that pair would leave a reader arriving fresh with no way past
-        step one."""
+        """The empty address is distinct from every pair the picker can submit."""
         body = client.get("/n26/authoring/modifiers/new/").content.decode()
 
-        assert "served: '|'" in body
+        assert self.props(body)["served"] == {"scope": "", "effect": ""}
 
     def test_a_kind_that_is_not_one_cannot_break_out_of_the_wiring(
         self, author, client, default_pack
@@ -5046,8 +5039,14 @@ class TestTheButtonThatChangesTheModifierType:
             "?scope_kind=%27%2Balert%281%29%2B%27&effect_kind=ef_adds"
         ).content.decode()
 
-        assert "'+alert(1)+'" not in body
-        assert "\\u0027" in body
+        assert self.props(body)["served"]["scope"] == "'+alert(1)+'"
+        soup = BeautifulSoup(body, "html.parser")
+        host = next(
+            tag
+            for tag in soup.select("[data-react-module]")
+            if "modifier-kind-picker-" in tag["data-react-module"]
+        )
+        assert soup.find(id=host["data-react-props"])["type"] == "application/json"
 
     def test_a_carriers_page_invites_rather_than_offers_a_change(self, carrier, client):
         """The composer is one include on two surfaces, and the button is
@@ -5057,9 +5056,7 @@ class TestTheButtonThatChangesTheModifierType:
         modifiers above it."""
         body = client.get(f"/n26/authoring/rule/{carrier.pk}/").content.decode()
 
-        assert "Configure new modifier" in self.button(body)
-        assert "Change modifier type" not in body
-        assert ':disabled="!moved"' in self.button(body)
+        assert self.props(body)["submitLabel"] == "Configure new modifier"
 
 
 class TestTheKindCards:
@@ -5079,37 +5076,29 @@ class TestTheKindCards:
 
     def test_each_kind_is_a_card_with_its_words(self, author, client, default_pack):
         body = client.get("/n26/authoring/modifiers/new/").content.decode()
+        props = island_props(body, "modifier-kind-picker")
+        scopes = props["scope"]["cards"]
+        effects = props["effect"]["cards"]
 
-        assert 'name="scope_kind"' in body
-        assert 'name="effect_kind"' in body
-        assert "The model carrying it" in body
-        assert "All models in the gang" in body
-        assert "The gang carrying it and all models" in body
-        assert "The gang carrying it" in body
+        assert props["scope"]["name"] == "scope_kind"
+        assert props["effect"]["name"] == "effect_kind"
+        assert {card["label"] for card in scopes} >= {
+            "The model carrying it",
+            "All models in the gang",
+            "The gang carrying it and all models",
+            "The gang carrying it",
+        }
         # The gang-and-all-models card is kept for existing content and
         # steered away from: it wears the pill and says to take care.
-        assert "Deprecated" in body
-        assert "in a different way per effect. Use with care." in body
-        # The apostrophe arrives HTML-escaped, so the title is matched
-        # around it.
-        assert "choice into a section" in body
-        assert "the player picks" in body  # the blurb
-        assert "pick Ferocity and Ferocity" in body  # the example
-
-    def test_a_kinds_name_and_sentence_wrap_rather_than_ellipse(
-        self, author, client, default_pack
-    ):
-        """“Puts a category into a…” is a name cut off exactly where it
-        was about to say something. The kind cards wrap both lines: the
-        ellipsis is for a picker of short names, not for sentences."""
-        body = client.get("/n26/authoring/modifiers/new/").content.decode()
-        for chunk in body.split("<fieldset")[1:]:
-            fieldset = chunk.split("</fieldset>")[0]
-            if 'name="scope_kind"' in fieldset or 'name="effect_kind"' in fieldset:
-                assert "truncate" not in fieldset
-                # wrap drops nowrap on the name plus its pill, so a long
-                # kind name and Deprecated stay inside the card.
-                assert "whitespace-nowrap" not in fieldset
+        deprecated = next(card for card in scopes if card["deprecated"])
+        assert "in a different way per effect. Use with care." in (
+            deprecated["description"] + deprecated["example"]
+        )
+        choice = next(
+            card for card in effects if "choice into a section" in card["label"]
+        )
+        assert "the player picks" in choice["description"]
+        assert "pick Ferocity and Ferocity" in choice["example"]
 
     def test_the_cards_still_answer_to_the_selects_field_names(
         self, author, client, default_pack
@@ -5121,10 +5110,15 @@ class TestTheKindCards:
             "?scope_kind=targets_model&effect_kind=ef_changes_stat"
         )
         assert page.status_code == 200
-        body = page.content.decode()
-        checked = re.findall(r"<input[^>]*checked[^>]*>", body)
-        assert any('value="targets_model"' in tag for tag in checked)
-        assert any('value="ef_changes_stat"' in tag for tag in checked)
+        props = island_props(page.content.decode(), "modifier-kind-picker")
+        assert (
+            next(card for card in props["scope"]["cards"] if card["checked"])["value"]
+            == "targets_model"
+        )
+        assert (
+            next(card for card in props["effect"]["cards"] if card["checked"])["value"]
+            == "ef_changes_stat"
+        )
 
     def test_a_carrier_that_is_never_fitted_greys_the_attached_scope(
         self, carrier, client
@@ -5134,9 +5128,14 @@ class TestTheKindCards:
         radio cannot be picked."""
         body = client.get(f"/n26/authoring/rule/{carrier.pk}/").content.decode()
 
-        assert "A special rule is never fitted to a weapon." in body
-        gate = re.search(r'<input[^>]*value="targets_attached_weapon"[^>]*>', body)
-        assert gate is not None and "disabled" in gate.group(0)
+        props = island_props(body, "modifier-kind-picker")
+        gate = next(
+            card
+            for card in props["scope"]["cards"]
+            if card["value"] == "targets_attached_weapon"
+        )
+        assert gate["disabled"] is True
+        assert gate["reason"] == "A special rule is never fitted to a weapon."
 
     def test_an_accessory_is_offered_the_attached_scope(self, author, client):
         from n26.library.authoring import create_weapon_accessory
@@ -5146,8 +5145,13 @@ class TestTheKindCards:
             f"/n26/authoring/weapon-accessory/{sight.pk}/"
         ).content.decode()
 
-        gate = re.search(r'<input[^>]*value="targets_attached_weapon"[^>]*>', body)
-        assert gate is not None and "disabled" not in gate.group(0)
+        props = island_props(body, "modifier-kind-picker")
+        gate = next(
+            card
+            for card in props["scope"]["cards"]
+            if card["value"] == "targets_attached_weapon"
+        )
+        assert gate["disabled"] is False
 
     def test_every_effect_card_says_what_it_can_apply_to(
         self, author, client, default_pack
@@ -5157,8 +5161,11 @@ class TestTheKindCards:
         from n26.library.forms import EFFECT_CAN_TARGET
 
         body = client.get("/n26/authoring/modifiers/new/").content.decode()
-        for kinds in EFFECT_CAN_TARGET.values():
-            assert f'data-accepts="{" ".join(kinds)}"' in body
+        props = island_props(body, "modifier-kind-picker")
+        accepts = {card["value"]: card["accepts"] for card in props["effect"]["cards"]}
+        assert accepts == {
+            name: list(kinds) for name, kinds in EFFECT_CAN_TARGET.items()
+        }
 
 
 class TestFindingAModifierAmongHundreds:
@@ -6661,7 +6668,7 @@ class TestComposingOnAPageOfItsOwn:
             "/n26/authoring/modifiers/new/?scope_kind=targets_model&effect_kind=ef_adds"
         ).content.decode()
 
-        props = island_props(with_carrier)
+        props = island_props(with_carrier, "modifier-naming")
         assert props["carrier"] == "Berserker"
         assert props["name"] == {
             "htmlName": "name",
@@ -6674,7 +6681,7 @@ class TestComposingOnAPageOfItsOwn:
         assert props["reusable"]["label"] == "Make reusable"
         assert props["reusable"]["value"] is False
         assert "Make reusable" not in alone
-        assert "data-react-module" not in alone
+        assert "modifier-naming-" not in alone
 
     def test_a_refused_name_returns_to_the_island_with_its_error(
         self, rule, client, default_pack
@@ -6701,7 +6708,7 @@ class TestComposingOnAPageOfItsOwn:
         )
 
         assert response.status_code == 200
-        props = island_props(response.content.decode())
+        props = island_props(response.content.decode(), "modifier-naming")
         assert props["name"]["value"] == "Already used"
         assert props["name"]["errors"] == [
             "A modifier with that name already exists in this pack."
@@ -6863,7 +6870,7 @@ class TestRemovingAConditionRemovesIt:
         assert not drawn_picked(body, leader.pk)
         # The panes and the name box are not chips, and must survive too.
         assert drawn_picked(body, mounted.pk)
-        assert island_props(body)["name"]["value"] == "Half typed"
+        assert island_props(body, "modifier-naming")["name"]["value"] == "Half typed"
 
     def test_the_removed_chip_stays_gone_when_the_page_is_reloaded(
         self, rule, client, default_pack
@@ -7099,7 +7106,7 @@ class TestRemovingAConditionRemovesIt:
         assert body.count('name="drop_condition"') == 1
         assert drawn_picked(body, champion.pk)
         assert not drawn_picked(body, leader.pk)
-        assert island_props(body)["name"]["value"] == "Half typed"
+        assert island_props(body, "modifier-naming")["name"]["value"] == "Half typed"
 
     def test_a_position_naming_no_chip_leaves_the_form_alone(
         self, rule, client, default_pack

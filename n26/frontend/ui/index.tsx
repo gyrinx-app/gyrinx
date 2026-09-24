@@ -1,4 +1,5 @@
 import {
+    type CSSProperties,
     createContext,
     createElement,
     useContext,
@@ -11,15 +12,20 @@ import cotton from "../generated/cotton.json";
 
 export function Button({
     variant = "default",
+    size = "default",
     className = "",
     type = "button",
     ...props
-}: ComponentProps<"button"> & { variant?: keyof typeof cotton.button }) {
+}: ComponentProps<"button"> & {
+    variant?: keyof typeof cotton.button;
+    size?: "default" | "sm";
+}) {
+    const recipe = size === "sm" ? cotton.buttonSmall : cotton.button;
     return (
         <button
             {...props}
             type={type}
-            className={`${cotton.button[variant]} ${className}`}
+            className={`${recipe[variant]} ${className}`}
         />
     );
 }
@@ -331,6 +337,100 @@ export function Callout({
     );
 }
 
+export function RadioCards({
+    legend,
+    min = "14rem",
+    children,
+}: {
+    legend: string;
+    min?: string;
+    children: ReactNode;
+}) {
+    const recipe = cotton.radioCards.group;
+    const style = {
+        "--radio-card-min": min,
+        gridTemplateColumns: recipe.gridTemplateColumns,
+    } as CSSProperties;
+    return (
+        <fieldset className={recipe.root}>
+            <legend className={recipe.legend}>{legend}</legend>
+            <div className={recipe.grid} style={style}>
+                {children}
+            </div>
+        </fieldset>
+    );
+}
+
+export function RadioCard({
+    name,
+    value,
+    label,
+    description = "",
+    example = "",
+    reason = "",
+    disabled = false,
+    checked,
+    onChange,
+    flair,
+    className = "",
+}: {
+    name: string;
+    value: string;
+    label: string;
+    description?: string;
+    example?: string;
+    reason?: string;
+    disabled?: boolean;
+    checked: boolean;
+    onChange: () => void;
+    flair?: ReactNode;
+    className?: string;
+}) {
+    const recipe = cotton.radioCards.card;
+    return (
+        <label
+            className={`${disabled ? recipe.disabled : recipe.enabled} ${className}`}
+        >
+            <input
+                type="radio"
+                name={name}
+                value={value}
+                disabled={disabled}
+                checked={checked}
+                onChange={onChange}
+                className={recipe.input}
+            />
+            <span className={recipe.content}>
+                <span className={recipe.label}>
+                    <span className={recipe.flairText}>
+                        {label}
+                        {flair && <span className={recipe.flair}>{flair}</span>}
+                    </span>
+                </span>
+                {disabled && reason ? (
+                    <span className={recipe.reason}>{reason}</span>
+                ) : (
+                    description && (
+                        <span className={recipe.description}>
+                            {description}
+                        </span>
+                    )
+                )}
+                {example && !disabled && (
+                    <span
+                        className={recipe.example}
+                        tabIndex={0}
+                        title={example}
+                    >
+                        <Icon name="info" className={recipe.exampleIcon} />
+                        <span className={recipe.exampleText}>{example}</span>
+                    </span>
+                )}
+            </span>
+        </label>
+    );
+}
+
 export function Table({
     children,
     className = "",
@@ -359,8 +459,18 @@ export function Link({
     );
 }
 
+export function Badge({
+    children,
+    className = "",
+}: {
+    children: ReactNode;
+    className?: string;
+}) {
+    return <span className={`${cotton.badge} ${className}`}>{children}</span>;
+}
+
 export function StagedBadge() {
-    return <span className={`ml-1 ${cotton.stagedBadge}`}>Staged</span>;
+    return <Badge className="ml-1">Staged</Badge>;
 }
 
 export function ActionBar({
@@ -378,10 +488,16 @@ export function ActionBar({
     );
 }
 
-function Icon({ name }: { name: keyof typeof cotton.icons }) {
+function Icon({
+    name,
+    className = "size-4",
+}: {
+    name: keyof typeof cotton.icons;
+    className?: string;
+}) {
     return (
         <svg
-            className="size-4"
+            className={className}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
