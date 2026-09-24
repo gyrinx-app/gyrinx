@@ -363,6 +363,7 @@ def print_gang(request, pk):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.card import build_gang_card
+    from n26.core.models import PrintConfig
     from n26.core.render import brought_in_by, stash_lines
 
     gang = _any_gang_or_404(request, pk)
@@ -414,6 +415,8 @@ def print_gang(request, pk):
             "include_stash": include_stash,
             "orientation": orientation,
             # Landscape fits a third card across at about portrait's width.
-            "grid_columns": 3 if orientation == "landscape" else 2,
+            "grid_columns": 3
+            if orientation == PrintConfig.Orientation.LANDSCAPE
+            else 2,
         },
     )

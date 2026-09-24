@@ -15,7 +15,7 @@ class PrintConfig(AppBase):
     CLASSIC = "classic"
     CARD_STYLE_CHOICES = [
         (WEB, "Web cards (standard)"),
-        (CLASSIC, "Classic cards (grimdark, 4 per A4 sheet)"),
+        (CLASSIC, "Classic cards (grimdark, fixed size)"),
     ]
 
     # Paper orientation choices
@@ -50,8 +50,8 @@ class PrintConfig(AppBase):
     )
 
     # Card style — the standard web cards, or the grimdark "classic mode" cards
-    # (fixed 100x110mm, 4 per A4). Classic renders fighter cards only, always on
-    # the base "blank" plate (no theme choice).
+    # (fixed 100x110mm, 4 per A4 portrait, 6 landscape). Classic renders
+    # fighter cards only, always on the base "blank" plate (no theme choice).
     card_style = models.CharField(
         max_length=20,
         choices=CARD_STYLE_CHOICES,

@@ -51,4 +51,34 @@ body {
     .print-sheet-web[data-orientation="landscape"] .grid > .print-col-in-group {
         grid-column: auto / span 6;
     }
+
+    // A group's cards join into one block when side by side and stand apart
+    // when stacked. The on-screen classes decide that from the screen width
+    // with !important, so these overrides need it too.
+    .print-sheet-web .print-col-group > .grid {
+        gap: 0.5rem !important;
+    }
+
+    .print-sheet-web .print-col-in-group {
+        border: var(--bs-card-border-width) solid var(--bs-card-border-color) !important;
+        border-radius: var(--bs-card-border-radius) !important;
+    }
+
+    .print-sheet-web[data-orientation="landscape"] .print-col-group > .grid {
+        gap: 0 !important;
+    }
+
+    .print-sheet-web[data-orientation="landscape"]
+        .print-col-in-group:not(:first-child) {
+        border-left: none !important;
+        border-top-left-radius: 0 !important;
+        border-bottom-left-radius: 0 !important;
+    }
+
+    .print-sheet-web[data-orientation="landscape"]
+        .print-col-in-group:not(:last-child) {
+        border-right: none !important;
+        border-top-right-radius: 0 !important;
+        border-bottom-right-radius: 0 !important;
+    }
 }

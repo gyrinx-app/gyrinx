@@ -35,6 +35,7 @@
             </div>
             <div>
                 <h2 class="h5 mb-3">Paper</h2>
+                {{ form.orientation.errors }}
                 <div class="vstack gap-2">
                     {% for choice in form.orientation %}
                         <div class="form-check">

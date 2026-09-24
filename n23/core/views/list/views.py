@@ -510,6 +510,23 @@ class ListNotesDetailView(generic.DetailView):
         )
 
 
+def _print_orientation(request, print_config=None):
+    """The paper orientation for a print: ``?orientation=`` if it names one,
+    else the config's, else portrait.
+
+    The parameter wins so a print with no saved config, such as a crew
+    print, can still be landscape.
+    """
+    from n23.core.models import PrintConfig
+
+    orientation = request.GET.get("orientation")
+    if orientation in (PrintConfig.PORTRAIT, PrintConfig.LANDSCAPE):
+        return orientation
+    if print_config:
+        return print_config.orientation
+    return PrintConfig.PORTRAIT
+
+
 class ListPrintView(generic.DetailView):
     """
     Display a printable view of a single :model:`core.List` object.
@@ -564,9 +581,7 @@ class ListPrintView(generic.DetailView):
         # Stashed for get_template_names(), which runs after this method.
         self.print_config = print_config
         context["print_config"] = print_config
-        context["print_orientation"] = (
-            print_config.orientation if print_config else PrintConfig.PORTRAIT
-        )
+        context["print_orientation"] = _print_orientation(self.request, print_config)
 
         # Card style: normally part of a saved PrintConfig, but a crew print has
         # no config, so ?style= picks it straight from the URL (the crew page's
@@ -840,6 +855,7 @@ class ListLoreNotesPrintView(generic.DetailView):
         list_obj = context["list"]
 
         self.use_classic = self.request.GET.get("style") == "classic"
+        context["print_orientation"] = _print_orientation(self.request)
 
         # Private notes are owner-only on screen, so they stay owner-only here.
         show_private = self.request.user == list_obj.owner_cached
