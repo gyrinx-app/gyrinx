@@ -5,9 +5,12 @@
 {% endblock head_title %}
 {% block stylesheet %}
     <link rel="stylesheet" href="{% static 'core/css/print.css' %}">
+    <style>@page { size: A4 {{ print_orientation }}; margin: 6mm; }</style>
 {% endblock stylesheet %}
 {% block content %}
-    <div id="content" class="p-2">
+    <div id="content"
+         class="p-2 print-sheet-web"
+         data-orientation="{{ print_orientation }}">
         <div class="col px-0 vstack gap-4">
             {% include "core/includes/list.html" with list=list print=True print_config=print_config %}
         </div>

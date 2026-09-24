@@ -1003,6 +1003,25 @@
         margin-right: 0;
     }
 
+    // Landscape: three across and two down, six to a sheet. Three 100mm cards
+    // and their gaps are 306mm, wider than the 291mm across landscape A4, and
+    // two 110mm rows are taller than its 204mm. So the sheet is laid out at
+    // 323mm (291 / 0.9) and zoomed to 90%. Zoom rather than trusting the
+    // browser to shrink an overflowing sheet: iOS sizes print from the phone
+    // screen, and the millimetre width is what holds the layout there.
+    .print-sheet--landscape {
+        zoom: 0.9;
+        width: calc(291mm / 0.9);
+    }
+
+    .print-sheet--landscape .classic-card:nth-child(2n) {
+        margin-right: 3mm;
+    }
+
+    .print-sheet--landscape .classic-card:nth-child(3n) {
+        margin-right: 0;
+    }
+
     // never carry the tuning grid into a real print
     .classic-card.show-grid::before {
         display: none !important;

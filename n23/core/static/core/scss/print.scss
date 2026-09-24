@@ -5,3 +5,50 @@ $font-size-base: 1rem;
 body {
     zoom: 50%;
 }
+
+// The web-card print sheet. Phones lay print out at their screen width, so
+// Bootstrap's breakpoints read a phone on paper and every card falls to one
+// full-width column. The sheet is pinned to the paper's width in millimetres
+// instead, and the print-* column classes set the card spans from the chosen
+// orientation, never from the screen.
+//
+// Widths are doubled because the body is zoomed to 50%: 396mm renders as the
+// 198mm across A4 portrait inside the 6mm @page margin, 570mm as landscape's
+// 285mm.
+@media print {
+    .print-sheet-web {
+        width: 396mm;
+    }
+
+    .print-sheet-web[data-orientation="landscape"] {
+        width: 570mm;
+    }
+
+    // Portrait: two cards across; a group of fighters takes one of the two
+    // columns and stacks its cards.
+    .print-sheet-web .grid > .print-col {
+        grid-column: auto / span 6;
+    }
+
+    .print-sheet-web .grid > .print-col-group {
+        grid-column: auto / span 6;
+    }
+
+    .print-sheet-web .grid > .print-col-in-group {
+        grid-column: auto / span 12;
+    }
+
+    // Landscape: three cards across; a group takes two of the three columns
+    // and sets its cards side by side, so every card stays the same width.
+    .print-sheet-web[data-orientation="landscape"] .grid > .print-col {
+        grid-column: auto / span 4;
+    }
+
+    .print-sheet-web[data-orientation="landscape"] .grid > .print-col-group {
+        grid-column: auto / span 8;
+    }
+
+    .print-sheet-web[data-orientation="landscape"] .grid > .print-col-in-group {
+        grid-column: auto / span 6;
+    }
+}

@@ -829,3 +829,78 @@ class TestWhatPaperLeavesOut:
         assert "Nyla" in body  # the card is on the paper
         assert "Buys from" not in body
         assert "Delaque Equipment List" not in body
+
+
+def _sheet(body):
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(body, "html.parser")
+    return soup.select_one(".n26-print-sheet"), soup.select_one(".n26-print-grid")
+
+
+class TestPaperOrientation:
+    """Which way round the paper goes is chosen before the print dialog.
+
+    Phones lay print out at their screen width and ignore the orientation
+    picked in the dialog, so the sheet is sized for the paper up front.
+    """
+
+    def test_a_plain_print_is_portrait_two_across(self, client, tester, gang, roster):
+        client.force_login(tester)
+        sheet, grid = _sheet(client.get(print_url(gang)).content)
+        assert sheet["data-orientation"] == "portrait"
+        assert grid["data-print-cols"] == "2"
+
+    def test_a_landscape_config_prints_three_across(self, client, tester, gang, roster):
+        config = PrintConfig.objects.create(
+            gang=gang, name="Wide", orientation=PrintConfig.Orientation.LANDSCAPE
+        )
+        config.miniatures.set(roster)
+        client.force_login(tester)
+
+        body = client.get(f"{print_url(gang)}?config={config.pk}").content.decode()
+
+        sheet, grid = _sheet(body)
+        assert sheet["data-orientation"] == "landscape"
+        assert grid["data-print-cols"] == "3"
+        assert "size: a4 landscape" in body
+
+    def test_the_setup_saves_and_shows_the_orientation(
+        self, client, tester, gang, roster
+    ):
+        from bs4 import BeautifulSoup
+
+        client.force_login(tester)
+        client.post(setup_url(gang), {"name": "Wide", "orientation": "landscape"})
+        config = PrintConfig.objects.get(gang=gang, name="Wide")
+        assert config.orientation == "landscape"
+
+        body = client.get(f"{setup_url(gang)}?config={config.pk}").content
+        soup = BeautifulSoup(body, "html.parser")
+        assert soup.select_one("input[name=orientation][value=landscape]").has_attr(
+            "checked"
+        )
+        assert not soup.select_one("input[name=orientation][value=portrait]").has_attr(
+            "checked"
+        )
+
+    def test_an_unknown_orientation_saves_as_portrait(
+        self, client, tester, gang, roster
+    ):
+        client.force_login(tester)
+        client.post(setup_url(gang), {"name": "Odd", "orientation": "sideways"})
+        config = PrintConfig.objects.get(gang=gang, name="Odd")
+        assert config.orientation == "portrait"
+
+    def test_a_pick_carries_the_orientation_in_the_address(
+        self, client, tester, gang, roster
+    ):
+        vex, _ = roster
+        client.force_login(tester)
+        body = client.get(
+            print_url(gang),
+            {"pick": "1", "fighters": [str(vex.pk)], "orientation": "landscape"},
+        ).content
+        sheet, grid = _sheet(body)
+        assert sheet["data-orientation"] == "landscape"
+        assert grid["data-print-cols"] == "3"

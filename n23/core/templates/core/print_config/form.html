@@ -33,6 +33,21 @@
                     option below applies to Web cards only.
                 </p>
             </div>
+            <div>
+                <h2 class="h5 mb-3">Paper</h2>
+                <div class="vstack gap-2">
+                    {% for choice in form.orientation %}
+                        <div class="form-check">
+                            {{ choice.tag }}
+                            <label class="form-check-label"
+                                   for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                        </div>
+                    {% endfor %}
+                </div>
+                <p class="text-secondary fs-7 mb-0 mt-2">
+                    Landscape fits three cards across. Pick the same orientation in your print dialog.
+                </p>
+            </div>
             <!-- Card Types Section -->
             <div>
                 <h2 class="h5 mb-3">Card Types</h2>

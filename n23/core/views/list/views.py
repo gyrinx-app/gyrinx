@@ -564,6 +564,9 @@ class ListPrintView(generic.DetailView):
         # Stashed for get_template_names(), which runs after this method.
         self.print_config = print_config
         context["print_config"] = print_config
+        context["print_orientation"] = (
+            print_config.orientation if print_config else PrintConfig.PORTRAIT
+        )
 
         # Card style: normally part of a saved PrintConfig, but a crew print has
         # no config, so ?style= picks it straight from the URL (the crew page's

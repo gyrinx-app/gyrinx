@@ -1502,6 +1502,7 @@ class Operation:
                 include_header=source_config.include_header,
                 include_stash=source_config.include_stash,
                 include_notes=source_config.include_notes,
+                orientation=source_config.orientation,
             )
             config.miniatures.set(
                 miniature_map[miniature.pk]

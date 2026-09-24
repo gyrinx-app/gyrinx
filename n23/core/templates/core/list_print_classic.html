@@ -8,5 +8,5 @@
 {% endblock stylesheet %}
 {% block content %}
     {% comment %} Classic cards always use the base "blank" plate {% endcomment %}
-    {% include "core/includes/classic_sheet.html" with cards=classic_cards theme="blank" auto_print=True %}
+    {% include "core/includes/classic_sheet.html" with cards=classic_cards theme="blank" auto_print=True orientation=print_orientation %}
 {% endblock content %}

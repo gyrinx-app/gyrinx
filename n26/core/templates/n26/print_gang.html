@@ -29,7 +29,7 @@
                 </c-ui.button>
             </nav>
         {% endif %}
-        <c-n26.print.sheet fit="1" scroll="1">
+        <c-n26.print.sheet fit="1" scroll="1" orientation="{{ orientation|default:'portrait' }}">
             {% if crew_sheet %}
                 <c-n26.print.card title="{{ gang.name }} crew"
                                   subtitle="{{ battle.title }} · {{ battle.date|date:'j F Y' }}">
@@ -104,12 +104,12 @@
                 </c-n26.print.card>
             {% endif %}
             {% comment %}
-            The fighters, two-up. The composition is the lab's cards specimen
+            The fighters, two-up on portrait and three-up on landscape. The composition is the lab's cards specimen
             (designsystem/print/_cards.html) over real rows — auto-height
             cards, because a home print wants no scissors: the next card
             starts where this one ends.
             {% endcomment %}
-            <c-n26.print.grid columns="2" gutter="4mm">
+            <c-n26.print.grid columns="{{ grid_columns|default:2 }}" gutter="4mm">
                 {% for row in rows %}
                     {% if row.card %}
                         {% comment %}

@@ -24,6 +24,10 @@ from n26.core.models.abstract import Base
 
 
 class PrintConfig(Base):
+    class Orientation(models.TextChoices):
+        PORTRAIT = "portrait", "Portrait"
+        LANDSCAPE = "landscape", "Landscape"
+
     gang = models.ForeignKey(
         "n26.Gang", on_delete=models.CASCADE, related_name="print_configs"
     )
@@ -48,6 +52,15 @@ class PrintConfig(Base):
             "Print the gang's notes, and on each model card its notes, "
             "picture, and space to write during a game."
         ),
+    )
+    #: Phones lay print out at their screen width and ignore the
+    #: orientation picked in the print dialog, so the sheet is sized for
+    #: this one before the dialog opens.
+    orientation = models.CharField(
+        max_length=20,
+        choices=Orientation,
+        default=Orientation.PORTRAIT,
+        help_text="Which way round the paper goes. Landscape prints three cards across.",
     )
     miniatures = models.ManyToManyField(
         "n26.Miniature",

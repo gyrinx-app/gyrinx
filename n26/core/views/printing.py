@@ -158,8 +158,18 @@ def _weapons_named(gang, values):
     )
 
 
+def _orientation(value):
+    """The paper orientation ``value`` names, portrait if it names none."""
+    from n26.core.models import PrintConfig
+
+    if value in PrintConfig.Orientation.values:
+        return value
+    return PrintConfig.Orientation.PORTRAIT
+
+
 def _what_to_print(request, gang, config):
-    """What the address asks for: which models, which weapons, which blocks.
+    """What the address asks for: which models, which weapons, which blocks,
+    and which way round the paper goes.
 
     Three answers, in the order the address settles them. A saved setup is
     the whole of what it says. A pick of its own is the setup screen
@@ -186,6 +196,7 @@ def _what_to_print(request, gang, config):
             config.include_header,
             config.include_stash,
             config.include_notes,
+            config.orientation,
         )
     if request.GET.get("pick"):
         return (
@@ -194,8 +205,9 @@ def _what_to_print(request, gang, config):
             bool(request.GET.get("include_header")),
             bool(request.GET.get("include_stash")),
             bool(request.GET.get("include_notes")),
+            _orientation(request.GET.get("orientation")),
         )
-    return None, None, True, True, True
+    return None, None, True, True, True, _orientation(None)
 
 
 @login_required
@@ -250,6 +262,7 @@ def print_setup(request, pk):
             config.include_header = bool(request.POST.get("include_header"))
             config.include_stash = bool(request.POST.get("include_stash"))
             config.include_notes = bool(request.POST.get("include_notes"))
+            config.orientation = _orientation(request.POST.get("orientation"))
             config.save()
             config.miniatures.set(miniatures)
             config.assignments.set(weapons)
@@ -309,6 +322,7 @@ def print_setup(request, pk):
             "include_header": loaded.include_header if loaded else True,
             "include_stash": loaded.include_stash if loaded else True,
             "include_notes": loaded.include_notes if loaded else True,
+            "orientation": _orientation(loaded.orientation if loaded else None),
             "ticked_models": ticked_models,
             "ticked_weapons": ticked_weapons,
             "slot_budget": WEAPON_SLOTS_PER_CARD,
@@ -353,9 +367,14 @@ def print_gang(request, pk):
 
     gang = _any_gang_or_404(request, pk)
     config = _config_for(request, gang)
-    wanted, weapon_ids, include_header, include_stash, include_notes = _what_to_print(
-        request, gang, config
-    )
+    (
+        wanted,
+        weapon_ids,
+        include_header,
+        include_stash,
+        include_notes,
+        orientation,
+    ) = _what_to_print(request, gang, config)
     # One derivation serves the whole page — the header's figures, the
     # stash block and every model's card all read this build.
     gang_card = build_gang_card(gang)
@@ -393,5 +412,8 @@ def print_gang(request, pk):
             "include_header": include_header,
             "include_notes": include_notes,
             "include_stash": include_stash,
+            "orientation": orientation,
+            # Landscape fits a third card across at about portrait's width.
+            "grid_columns": 3 if orientation == "landscape" else 2,
         },
     )

@@ -10,7 +10,7 @@ Params:
              decision, not this template's.
   classes -- grid column classes; defaults to the fighter card's print columns
 {% endcomment %}
-{% firstof classes 'g-col-12 g-col-sm-6 g-col-md-3 g-col-xl-2' as card_classes %}
+{% firstof classes 'g-col-12 g-col-sm-6 g-col-md-3 g-col-xl-2 print-col' as card_classes %}
 <div class="card {{ card_classes }} break-inside-avoid">
     <div class="card-header p-2">
         <h3 class="h5 mb-0">{{ entry.title }}</h3>
