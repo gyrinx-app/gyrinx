@@ -72,6 +72,35 @@ def places_switcher(context, here=""):
 
 
 @register.simple_tag
+def quick_switcher_props(switcher, align="start", min_width="16rem", hotkey=""):
+    """A ``Switcher`` as the quick-switcher island's props.
+
+    ``next`` is the offset the island asks the source for when the list
+    scrolls past what the page sent. The first page is ``SWITCHER_PAGE``
+    rows however many were rescued in front of it, so a switcher with
+    more always resumes there.
+    """
+    from n26.core.navigation import SWITCHER_PAGE
+
+    items = tuple(switcher.items)
+    return {
+        "label": switcher.label,
+        "href": switcher.href,
+        "heading": switcher.heading,
+        "menuLabel": switcher.menu_label,
+        "placeholder": switcher.placeholder,
+        "empty": switcher.empty,
+        "align": "end" if align == "end" else "start",
+        "minWidth": min_width,
+        "hotkey": hotkey,
+        "items": [{"label": item.label, "href": item.href} for item in items],
+        "current": next((item.href for item in items if item.current), ""),
+        "source": switcher.source,
+        "next": SWITCHER_PAGE if switcher.source and switcher.more else None,
+    }
+
+
+@register.simple_tag
 def model_screen_tabs(miniature, active):
     """The tabs of one model's own screens — Edit and Equip.
 

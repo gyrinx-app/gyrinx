@@ -254,7 +254,9 @@ class TestTheAuthoringPage:
         client.force_login(author)
         body = client.get("/n26/authoring/gang-type/new/").content.decode()
         soup = BeautifulSoup(body, "html.parser")
-        host = soup.select_one("[data-react-module]")
+        host = soup.select_one(
+            "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
+        )
         file_input = json.loads(soup.find(id=host["data-react-props"]).string)
 
         assert 'name="icon_url"' in body

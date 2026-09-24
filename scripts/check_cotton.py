@@ -34,14 +34,6 @@ IN_ATTRIBUTE_POSITION = "template tag in attribute position"
 # harmless) and delete.
 PRE_EXISTING = {
     (
-        "n26/core/templates/cotton/n26/quick_switcher/of.html",
-        '<c-n26.quick-switcher label="{{ switcher.label }}" href="{{ switcher.href }}" '
-        'icon="{{ switcher.icon }}" heading="{{ switcher.heading }}" '
-        'menu_label="{{ switcher.menu_label }}" placeholder="{{ switcher.placeholder }}" '
-        'empty="{{ switcher.empty }}" align="{{ align }}" min_width="{{ min_width }}" '
-        'hotkey="{{ hotkey }}" class="{{ class }}" {{ attrs }}>',
-    ): IN_ATTRIBUTE_POSITION,
-    (
         "n26/core/templates/cotton/n26/view/create_gang.html",
         '<c-n26.form-page action="{{ action }}" :form="form" {{ attrs }} '
         'title="{{ heading }}" lead="Required fields are marked with an asterisk (*)." '

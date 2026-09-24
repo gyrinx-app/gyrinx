@@ -87,10 +87,44 @@ def test_production_storage_preserves_vite_module_urls(tmp_path):
     for file in files:
         original = (tmp_path / "n26/react" / file).read_text()
         assert original == (react.BUILD / file).read_text()
-        assert (tmp_path / "n26/react" / f"{file}.gz").exists()
+        # WhiteNoise keeps no .gz of a file that compression barely shrinks,
+        # which a one-line island entry is.
+        if len(original) > 1024:
+            assert (tmp_path / "n26/react" / f"{file}.gz").exists()
     entry = manifest["islands/authoring-list/entry.tsx"]
     for dependency in entry["imports"]:
         assert (
             manifest[dependency]["file"].split("/")[-1]
             in (react.BUILD / entry["file"]).read_text()
         )
+
+
+@override_settings(STATIC_URL="static/")
+def test_a_host_draws_its_body_until_the_island_replaces_it(monkeypatch):
+    """The body is the page's own markup, escaped as it was rendered, and
+    is the whole of what a reader without JavaScript sees."""
+    monkeypatch.setattr(
+        react,
+        "_manifest",
+        lambda: {"islands/quick-switcher/entry.tsx": {"file": "assets/qs-1.js"}},
+    )
+    result = Template(
+        '{% load react %}{% react_host "quick-switcher" props class="min-w-0" %}'
+        "<a href='/here'>{{ name }}</a>{% endreact_host %}"
+    ).render(Context({"props": {"label": "Here"}, "name": "<b>Vex</b>"}))
+    soup = BeautifulSoup(result, "html.parser")
+    host = soup.select_one("[data-react-module]")
+    assert host["class"] == ["min-w-0"]
+    assert host.has_attr("x-ignore") and host.has_attr("hx-disable")
+    assert host.a.string == "<b>Vex</b>"
+    assert soup.find("b") is None
+    assert json.loads(soup.find(id=host["data-react-props"]).string) == {
+        "label": "Here"
+    }
+
+
+def test_a_host_takes_only_a_class():
+    from django.template import TemplateSyntaxError
+
+    with pytest.raises(TemplateSyntaxError, match="only class="):
+        Template('{% load react %}{% react_host "x" props id="y" %}{% endreact_host %}')

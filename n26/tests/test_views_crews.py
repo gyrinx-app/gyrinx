@@ -223,7 +223,9 @@ class TestCrewForms:
         client.post(address(table), fields(table))
         response = client.get(address(table))
         document = BeautifulSoup(response.content, "html.parser")
-        host = document.select_one("[data-react-module]")
+        host = document.select_one(
+            "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
+        )
         assert host is not None
         props = json.loads(document.find(id=host["data-react-props"]).string)
         assert props == response.context["crew_picker"]
@@ -267,7 +269,9 @@ class TestCrewForms:
         model.save(update_fields=["name"])
         response = client.get(address(table))
         document = BeautifulSoup(response.content, "html.parser")
-        host = document.select_one("[data-react-module]")
+        host = document.select_one(
+            "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
+        )
         props = json.loads(document.find(id=host["data-react-props"]).string)
         selected = next(item for item in props["models"] if item["id"] == str(model.pk))
         assert selected["name"] == model.name

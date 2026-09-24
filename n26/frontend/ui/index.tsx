@@ -565,3 +565,8 @@ export function SearchBar({
 }
 
 export { FilterMenu, type FilterOption } from "./FilterMenu";
+export {
+    QuickSwitcher,
+    type QuickSwitcherProps,
+    type SwitcherRow,
+} from "./QuickSwitcher";

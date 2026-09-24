@@ -9,17 +9,22 @@ A switcher is built as a plain structure here and drawn by
 ``<c-n26.quick-switcher.of>``; nothing in this module knows any HTML. Where
 the siblings come from differs per surface (your gangs, the kinds of content,
 the items of one kind), so each surface builds its own list and what they share
-is the shape, the cap, and one rule: the thing you are on is in the list
-whatever the cap dropped.
+is the shape, the page size, and one rule: the thing you are on is in the list
+from the moment it opens.
+
+A switcher is an index, not a shortcut: every sibling is reachable from it.
+The page sends the first ``SWITCHER_PAGE`` rows and the address of the rest
+(``Switcher.source``); the control fetches further pages as the list scrolls,
+and asks the server when the reader searches, because a name that was never
+sent cannot be matched in the browser.
 """
 
 from dataclasses import dataclass
 
-#: The most siblings a switcher lists, and the limit on the query that
-#: fetches them. A switcher is a shortcut rather than an index — the page
-#: that lists everything is one click away — so a reader with three hundred
-#: of something still pays for eleven rows and a panel that fits on screen.
-NAV_SIBLINGS = 10
+#: How many rows a switcher is sent at a time — with the page, and with each
+#: fetch as the list scrolls. Enough to fill the panel and then some, so a
+#: typical roster arrives whole and never fetches at all.
+SWITCHER_PAGE = 30
 
 
 @dataclass(frozen=True)
@@ -33,7 +38,6 @@ class SwitcherItem:
 
     label: str
     href: str
-    icon: str = ""
     current: bool = False
 
 
@@ -48,6 +52,11 @@ class Switcher:
     ``menu_label`` is the chevron's accessible name and must differ from
     every other switcher's on the page: two controls both called "Switch"
     tell a reader who cannot see where they sit nothing at all.
+
+    ``items`` is the first page. ``source`` is where the rest are read
+    from (``switcher_rows``), and ``more`` says whether there is a rest
+    at all. A switcher without a source holds its whole list in ``items``
+    and is searched in the browser.
     """
 
     heading: str
@@ -56,18 +65,21 @@ class Switcher:
     items: tuple[SwitcherItem, ...]
     label: str = ""
     href: str = ""
-    icon: str = ""
     empty: str = "No matches"
+    source: str = ""
+    more: bool = False
 
 
 def with_current(items, current):
-    """The destinations a switcher draws, with the current one guaranteed.
+    """The destinations a switcher draws first, with the current one in them.
 
-    A capped query answers "ten of them", not "ten of them including this
-    one": a gang named late in the alphabet falls off the end, and a
-    switcher that omits the page it is sitting on tells the reader they
-    are nowhere. Prepended rather than sorted in, because a row that was
-    fetched and a row that was rescued are not in one order anyway.
+    The first page answers "the first thirty", not "the first thirty
+    including this one": a gang named late in the alphabet is on a later
+    page, and a switcher that opens without the page it is sitting on
+    tells the reader they are nowhere. Prepended rather than sorted in,
+    because a row that was fetched and a row that was rescued are not in
+    one order anyway; the control drops the same row when its own page
+    arrives later.
     """
     items = tuple(items)
     if current is None:
@@ -75,6 +87,26 @@ def with_current(items, current):
     if any(item.href == current.href for item in items):
         return items
     return (current, *items)
+
+
+def first_page(rows):
+    """The first page of ``rows`` and whether there are more after it.
+
+    One more row than the page is read, so "is there a rest" costs
+    nothing beyond the page itself.
+    """
+    found = list(rows[: SWITCHER_PAGE + 1])
+    return found[:SWITCHER_PAGE], len(found) > SWITCHER_PAGE
+
+
+def source_url(source, **params):
+    """The address a switcher reads its further pages from."""
+    from urllib.parse import urlencode
+
+    from django.urls import reverse
+
+    url = reverse("n26-switcher-rows", args=[source])
+    return f"{url}?{urlencode(params)}" if params else url
 
 
 def places_switcher(request, here=""):
@@ -127,62 +159,99 @@ def places_switcher(request, here=""):
     )
 
 
-def owned_gangs(request):
-    """The signed-in reader's gangs, at most ``NAV_SIBLINGS`` of them.
-
-    Memoised on the request because two parts of the same page want it:
-    the drawer lists them, and the bar's switcher offers them on every
-    gang screen. Without the memo that is the same gangs fetched twice per
-    page. Anonymous readers get an empty list, which the drawer reads as
-    "no section at all".
-    """
+def gang_rows(user):
+    """Every live gang ``user`` owns, in the order a switcher lists them."""
     from n26.core.models import Gang
 
-    found = getattr(request, "_n26_owned_gangs", None)
-    if found is not None:
-        return found
-
-    user = getattr(request, "user", None)
     if user is None or not user.is_authenticated:
-        found = []
-    else:
-        found = list(
-            Gang.objects.filter(owner=user, archived=False)
-            .select_related("gang_type")
-            .order_by("name")[:NAV_SIBLINGS]
+        return Gang.objects.none()
+    return (
+        Gang.objects.filter(owner=user, archived=False)
+        .select_related("gang_type")
+        .order_by("name", "pk")
+    )
+
+
+def campaign_rows(user):
+    """Every live campaign ``user`` arbitrates or plays in, in list order.
+
+    Both halves, because the chevron beside a campaign's name is how
+    somebody gets to another one and a player has no other way through to
+    theirs.
+    """
+    from n26.core.models import Campaign
+
+    return (
+        Campaign.objects.involving(user).filter(archived=False).order_by("name", "pk")
+    )
+
+
+def fighter_rows(gang):
+    """The gang's fighters on the roster, in list order.
+
+    A fighter whose membership has been archived has left the roster and
+    is not offered.
+    """
+    from n26.core.models import Miniature
+
+    return Miniature.objects.filter(
+        membership__gang=gang, membership__archived=False
+    ).order_by("name", "pk")
+
+
+def _first_gangs(request):
+    """The reader's first page of gangs, memoised on the request.
+
+    Two parts of the same page want it: the drawer lists them, and the
+    bar's switcher offers them on every gang screen. Without the memo
+    that is the same gangs fetched twice per page.
+    """
+    found = getattr(request, "_n26_owned_gangs", None)
+    if found is None:
+        found = request._n26_owned_gangs = first_page(
+            gang_rows(getattr(request, "user", None))
         )
-    request._n26_owned_gangs = found
     return found
 
 
-def reader_campaigns(request):
-    """The signed-in reader's campaigns, at most ``NAV_SIBLINGS`` of them.
+def owned_gangs(request):
+    """The signed-in reader's gangs, for the drawer: the first page of them.
 
-    Both the ones they arbitrate and the ones they play in, because the
-    chevron beside a campaign's name is how somebody gets to another one
-    and a player has no other way through to theirs.
+    The drawer's Gangs place is the full list, a line above these.
+    Anonymous readers get an empty list, which the drawer reads as "no
+    section at all".
+    """
+    return _first_gangs(request)[0]
+
+
+def reader_campaigns(request):
+    """The reader's first page of campaigns, and whether there are more.
 
     Memoised on the request for the same reason a gang's list is: every
     screen belonging to one campaign offers the others in the bar, and a
     page drawing that twice would otherwise fetch them twice.
     """
-    from n26.core.models import Campaign
-
     found = getattr(request, "_n26_reader_campaigns", None)
-    if found is not None:
-        return found
-
-    user = getattr(request, "user", None)
-    if user is None or not user.is_authenticated:
-        found = []
-    else:
-        found = list(
-            Campaign.objects.involving(user)
-            .filter(archived=False)
-            .order_by("name", "pk")[:NAV_SIBLINGS]
+    if found is None:
+        found = request._n26_reader_campaigns = first_page(
+            campaign_rows(getattr(request, "user", None))
         )
-    request._n26_reader_campaigns = found
     return found
+
+
+def _signed_in(request):
+    user = getattr(request, "user", None)
+    return user is not None and user.is_authenticated
+
+
+def campaign_item(row, current=None):
+    from django.urls import reverse
+
+    return SwitcherItem(
+        label=row.name,
+        href=reverse("n26-campaign", args=[row.pk]),
+        current=current is not None and row.pk == current.pk,
+    )
 
 
 def campaign_switcher(
@@ -199,16 +268,8 @@ def campaign_switcher(
     the bar wants. ``menu_label`` is the chevron's accessible name, and a
     page drawing this twice must give the second one its own.
     """
-    from django.urls import reverse
-
-    def item(row):
-        return SwitcherItem(
-            label=row.name,
-            href=reverse("n26-campaign", args=[row.pk]),
-            current=row.pk == campaign.pk,
-        )
-
-    here = item(campaign)
+    rows, more = reader_campaigns(request)
+    here = campaign_item(campaign, campaign)
     return Switcher(
         label=campaign.name if named else "",
         href=here.href if named else "",
@@ -216,7 +277,19 @@ def campaign_switcher(
         menu_label=menu_label,
         placeholder="Search campaigns",
         empty="No campaigns match",
-        items=with_current([item(row) for row in reader_campaigns(request)], here),
+        items=with_current([campaign_item(row, campaign) for row in rows], here),
+        source=source_url("campaigns") if _signed_in(request) else "",
+        more=more,
+    )
+
+
+def gang_item(row, current=None):
+    from django.urls import reverse
+
+    return SwitcherItem(
+        label=row.name,
+        href=reverse("n26-gang", args=[row.pk]),
+        current=current is not None and row.pk == current.pk,
     )
 
 
@@ -236,17 +309,13 @@ def gang_switcher(request, gang, named=True, menu_label="Switch to another gang"
     this twice must give the second one its own: two controls announced
     identically tell a reader who cannot see where they sit nothing about
     either.
+
+    A gang sheet is readable by anyone, so the gang being looked at may
+    not be the reader's. It is still the row marked current; the rest are
+    the reader's own.
     """
-    from django.urls import reverse
-
-    def item(row):
-        return SwitcherItem(
-            label=row.name,
-            href=reverse("n26-gang", args=[row.pk]),
-            current=row.pk == gang.pk,
-        )
-
-    here = item(gang)
+    rows, more = _first_gangs(request)
+    here = gang_item(gang, gang)
     return Switcher(
         label=gang.name if named else "",
         href=here.href if named else "",
@@ -254,7 +323,9 @@ def gang_switcher(request, gang, named=True, menu_label="Switch to another gang"
         menu_label=menu_label,
         placeholder="Search gangs",
         empty="No gangs match",
-        items=with_current([item(row) for row in owned_gangs(request)], here),
+        items=with_current([gang_item(row, gang) for row in rows], here),
+        source=source_url("gangs") if _signed_in(request) else "",
+        more=more,
     )
 
 
@@ -320,6 +391,16 @@ def model_screen_tabs(miniature, active):
     return tabs
 
 
+def fighter_item(row, route, current=None):
+    from django.urls import reverse
+
+    return SwitcherItem(
+        label=row.name,
+        href=reverse(route, args=[row.pk]),
+        current=current is not None and row.pk == current.pk,
+    )
+
+
 def fighter_switcher(gang, miniature, route=FIGHTER_FALLBACK):
     """The gang's other fighters, from the screen of one of them.
 
@@ -335,35 +416,110 @@ def fighter_switcher(gang, miniature, route=FIGHTER_FALLBACK):
 
     Scoped to the gang by the query rather than by anything a caller
     passes — a switcher that could name someone else's fighter would be a
-    way of finding out that they exist. A fighter whose membership has
-    been archived has left the roster and is not offered.
+    way of finding out that they exist.
 
-    One capped query, the same shape the drawer's gang list uses: the cap
-    is on the query, so a gang of thirty costs this page what a gang of
-    three does. The fighter being looked at is put back if the cap
-    dropped it.
+    One query for the first page, whatever the size of the roster; the
+    rest are fetched by the control as the list scrolls.
     """
-    from django.urls import reverse
-
-    from n26.core.models import Miniature
-
     if route not in FIGHTER_SCREENS:
         route = FIGHTER_FALLBACK
 
-    def item(row):
-        return SwitcherItem(
-            label=row.name,
-            href=reverse(route, args=[row.pk]),
-            current=row.pk == miniature.pk,
-        )
-
-    rows = Miniature.objects.filter(
-        membership__gang=gang, membership__archived=False
-    ).order_by("name")[:NAV_SIBLINGS]
+    rows, more = first_page(fighter_rows(gang))
     return Switcher(
         heading="Fighters",
         menu_label=FIGHTER_SCREENS[route],
         placeholder="Search fighters",
         empty="No fighters match",
-        items=with_current([item(row) for row in rows], item(miniature)),
+        items=with_current(
+            [fighter_item(row, route, miniature) for row in rows],
+            fighter_item(miniature, route, miniature),
+        ),
+        source=source_url("fighters", gang=gang.pk, route=route),
+        more=more,
+    )
+
+
+def _gang_source(request, params):
+    return gang_rows(request.user), gang_item
+
+
+def _campaign_source(request, params):
+    from django.http import Http404
+
+    from n26.flags import CAMPAIGNS, enabled
+
+    if not enabled(CAMPAIGNS, request.user):
+        raise Http404("No such list")
+    return campaign_rows(request.user), campaign_item
+
+
+def _fighter_source(request, params):
+    from django.core.exceptions import ValidationError
+    from django.http import Http404
+
+    from n26.core.models import Gang
+
+    route = params.get("route", "")
+    if route not in FIGHTER_SCREENS:
+        route = FIGHTER_FALLBACK
+    try:
+        gang = Gang.objects.filter(
+            pk=params.get("gang", ""), owner=request.user, archived=False
+        ).first()
+    except ValidationError:
+        gang = None
+    if gang is None:
+        raise Http404("No such gang")
+    return fighter_rows(gang), lambda row: fighter_item(row, route)
+
+
+def _sources():
+    from n26.library.templatetags.authoring_nav import (
+        sibling_source,
+        weapon_profile_source,
+    )
+
+    return {
+        "gangs": _gang_source,
+        "campaigns": _campaign_source,
+        "fighters": _fighter_source,
+        "siblings": sibling_source,
+        "weapon-profiles": weapon_profile_source,
+    }
+
+
+def switcher_rows(request, source, params, query="", offset=0):
+    """One page of a switcher's list, for the control to add as it scrolls.
+
+    ``source`` names the list and ``params`` say which one of it — the
+    gang whose fighters, the kind whose rows. Each source checks that the
+    reader may read what it lists and raises ``Http404`` when they may
+    not, so an address copied out of somebody else's page reads nothing.
+
+    ``query`` narrows the list by name on the server, because the rows
+    the browser has not been sent are the ones a search is for. Rows
+    whose model has no ``name`` are matched on the label they are drawn
+    with instead.
+
+    Returns the page's items and the offset of the next page, or None
+    when this page is the last.
+    """
+    from django.http import Http404
+
+    found = _sources().get(source)
+    if found is None:
+        raise Http404("No such list")
+    rows, item = found(request, params)
+    query = query.strip()
+    if query:
+        if any(field.name == "name" for field in rows.model._meta.get_fields()):
+            rows = rows.filter(name__icontains=query)
+        else:
+            wanted = query.lower()
+            rows = [row for row in rows if wanted in item(row).label.lower()]
+    window = list(rows[offset : offset + SWITCHER_PAGE + 1])
+    more = len(window) > SWITCHER_PAGE
+    return (
+        [item(row) for row in window[:SWITCHER_PAGE]],
+        offset + SWITCHER_PAGE if more else None,
     )

@@ -335,6 +335,92 @@ def filter_menu_recipe():
     }
 
 
+def quick_switcher_recipe():
+    """Extract the static presentation of the navigation quick switcher.
+
+    Rendered with one current and one ordinary row, so the row states are
+    read from the real item template rather than restated here.
+    """
+    source = (
+        '<c-n26.quick-switcher label="Label" href="/" menu_label="Switch">'
+        '<c-n26.quick-switcher.item label="Here" href="/here" :current="True" />'
+        '<c-n26.quick-switcher.item label="There" href="/there" />'
+        "</c-n26.quick-switcher>"
+    )
+    rendered = Template(CottonCompiler().process(source)).render(Context())
+    elements = Elements(rendered.split("<noscript>")[0]).elements
+    expected = (
+        "div",
+        "div",
+        "a",
+        "span",
+        "span",
+        "div",
+        "div",
+        "button",
+        "span",
+        "svg",
+        "path",
+        "div",
+        "div",
+        "div",
+        "div",
+        "div",
+        "svg",
+        "path",
+        "circle",
+        "input",
+        "div",
+        "a",
+        "span",
+        "svg",
+        "path",
+        "a",
+        "span",
+        "p",
+    )
+    if tuple(tag for tag, _ in elements) != expected:
+        raise ValueError(f"Cotton quick-switcher structure changed: {elements}")
+
+    def at(index):
+        return " ".join(elements[index][1].get("class", "").split())
+
+    current_state = (
+        "bg-ink-100 font-medium text-ink-900 dark:bg-ink-800 dark:text-ink-100"
+    )
+    other_state = "text-ink-700 dark:text-ink-300"
+    if not at(21).endswith(current_state) or not at(25).endswith(other_state):
+        raise ValueError("Cotton quick-switcher row states changed")
+    highlight = re.fullmatch(
+        r"\{\s*'([^']+)'\s*:\s*active === id\s*\}", elements[25][1].get(":class", "")
+    )
+    if not highlight:
+        raise ValueError("Cotton quick-switcher highlight changed")
+    return {
+        "root": at(0),
+        "group": at(1),
+        "label": at(2),
+        "labelContent": at(3),
+        "labelText": at(4),
+        "chevron": at(7),
+        "chevronIcon": at(8),
+        "chevronSvg": at(9),
+        "panel": at(11),
+        "body": at(12),
+        "header": at(13),
+        "inputGroup": at(14),
+        "inputIcon": at(15),
+        "input": at(19),
+        "row": at(25).removesuffix(other_state).strip(),
+        "rowCurrent": current_state,
+        "rowOther": other_state,
+        "rowHighlight": highlight[1],
+        "rowLabel": at(22),
+        "rowCheck": at(23),
+        "empty": at(27),
+    }
+
+
 def recipes():
     from n26.core.icons import resolve
 
@@ -440,12 +526,13 @@ def recipes():
             )
         ),
         "filterMenu": filter_menu_recipe(),
+        "quickSwitcher": quick_switcher_recipe(),
         "icons": {
             name: [
                 {"tag": tag, "attrs": attrs}
                 for tag, attrs in Elements(str(resolve(name).body)).elements
             ]
-            for name in ("search", "x", "chevron-down", "info")
+            for name in ("search", "x", "chevron-down", "info", "check")
         },
     }
 

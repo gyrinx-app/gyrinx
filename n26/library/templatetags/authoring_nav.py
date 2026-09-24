@@ -85,86 +85,137 @@ def kinds_switcher(here="", menu_label="Switch kind", named=False):
     )
 
 
-@register.simple_tag
-def siblings_switcher(kind, thing):
-    """The other rows of one kind, from the page of one of them.
+def _in_stable_order(rows):
+    """``rows`` with the primary key as the last tie-breaker.
 
-    Capped, and the cap is on the query: a kind with three hundred rows
-    costs this page what a kind with three does. The row being looked at
-    is put back if the cap dropped it — a switcher that does not list the
-    page it is sitting on says the reader is nowhere.
-
-    The listing is the whole set and is a click away, which is what makes
-    a cap honest here rather than a hidden limit.
+    A switcher reads its list a page at a time by offset, so two rows the
+    listing order cannot tell apart must still come back in one order.
     """
-    from django.urls import reverse
+    order = list(rows.query.order_by) or list(rows.model._meta.ordering)
+    return rows.order_by(*order, "pk")
 
-    from n26.core.navigation import (
-        NAV_SIBLINGS,
-        Switcher,
-        SwitcherItem,
-        with_current,
-    )
-    from n26.library.views import _label_for, _model_for, _rows, _spec_for
+
+def _sibling_rows(kind):
+    from n26.library.views import _model_for, _rows, _spec_for
 
     model = _model_for(_spec_for(kind))
-    plural = str(model._meta.verbose_name_plural)
+    return model, _in_stable_order(_rows(model, kind))
+
+
+def _sibling_item(kind, current=None):
+    from django.urls import reverse
+
+    from n26.core.navigation import SwitcherItem
+    from n26.library.views import _label_for
 
     def item(row):
         return SwitcherItem(
             label=_label_for(row),
             href=reverse("authoring-detail", args=[kind, row.pk]),
-            current=row.pk == thing.pk,
+            current=current is not None and row.pk == current.pk,
         )
 
+    return item
+
+
+def _staff_or_404(request):
+    from django.http import Http404
+
+    if not request.user.is_staff:
+        raise Http404("No such list")
+
+
+def sibling_source(request, params):
+    """The rows of one kind, for the siblings switcher's further pages."""
+    _staff_or_404(request)
+    kind = params.get("kind", "")
+    _, rows = _sibling_rows(kind)
+    return rows, _sibling_item(kind)
+
+
+@register.simple_tag
+def siblings_switcher(kind, thing):
+    """The other rows of one kind, from the page of one of them.
+
+    The first page arrives with the page and the rest as the list
+    scrolls, so a kind with three hundred rows costs this page what a
+    kind with thirty does. The row being looked at is always in the
+    first page — a switcher that does not list the page it is sitting on
+    says the reader is nowhere.
+    """
+    from n26.core.navigation import Switcher, first_page, source_url, with_current
+
+    model, rows = _sibling_rows(kind)
+    plural = str(model._meta.verbose_name_plural)
+    item = _sibling_item(kind, thing)
+    found, more = first_page(rows)
     return Switcher(
         heading=plural.capitalize(),
         menu_label=f"Switch to another {model._meta.verbose_name}",
         placeholder=f"Search {plural}",
         empty=f"No {plural} match",
-        items=with_current(
-            [item(row) for row in _rows(model, kind)[:NAV_SIBLINGS]], item(thing)
-        ),
+        items=with_current([item(row) for row in found], item(thing)),
+        source=source_url("siblings", kind=kind),
+        more=more,
     )
+
+
+def _weapon_profile_item(current=None):
+    from django.urls import reverse
+
+    from n26.core.navigation import SwitcherItem
+    from n26.library.views import _label_for
+
+    def item(line):
+        return SwitcherItem(
+            label=_label_for(line),
+            href=reverse("authoring-weapon-profile", args=[line.pk]),
+            current=current is not None and line.pk == current.pk,
+        )
+
+    return item
+
+
+def _weapon_profile_rows(weapon_pk):
+    from n26.library.models import WeaponProfile
+
+    return WeaponProfile.objects.filter(weapon_id=weapon_pk).order_by("position", "pk")
+
+
+def weapon_profile_source(request, params):
+    """One weapon's profiles, for the profile switcher's further pages."""
+    from django.core.exceptions import ValidationError
+    from django.http import Http404
+
+    _staff_or_404(request)
+    rows = _weapon_profile_rows(params.get("weapon", ""))
+    try:
+        rows.exists()
+    except ValidationError:
+        raise Http404("No such weapon") from None
+    return rows, _weapon_profile_item()
 
 
 @register.simple_tag
 def weapon_profiles_switcher(profile):
     """The other profiles of one weapon, from the page of one of them.
 
-    The same shortcut the kind pages offer over their rows, over the set
-    that means something here: a gun's lines are read against each other
-    — the standard shot, then what each ammo type changes — and the
-    weapon's own page is the way back to all of them.
-
-    Ordered by position, which is the order the book's table prints, and
-    capped like every other switcher; the weapon's page lists them all.
+    The set that means something here: a gun's lines are read against
+    each other — the standard shot, then what each ammo type changes.
+    Ordered by position, which is the order the book's table prints.
     """
-    from django.urls import reverse
-
-    from n26.core.navigation import (
-        NAV_SIBLINGS,
-        Switcher,
-        SwitcherItem,
-        with_current,
-    )
+    from n26.core.navigation import Switcher, first_page, source_url, with_current
     from n26.library.models import WeaponProfile
-    from n26.library.views import _label_for
 
     plural = str(WeaponProfile._meta.verbose_name_plural)
-
-    def item(line):
-        return SwitcherItem(
-            label=_label_for(line),
-            href=reverse("authoring-weapon-profile", args=[line.pk]),
-            current=line.pk == profile.pk,
-        )
-
-    lines = profile.weapon.profiles.order_by("position")[:NAV_SIBLINGS]
+    item = _weapon_profile_item(profile)
+    found, more = first_page(_weapon_profile_rows(profile.weapon_id))
     return Switcher(
         heading=plural.capitalize(),
         menu_label=f"Switch to another {WeaponProfile._meta.verbose_name}",
         placeholder=f"Search {plural}",
         empty=f"No {plural} match",
-        items=with_current([item(line) for line in lines], item(profile)),
+        items=with_current([item(line) for line in found], item(profile)),
+        source=source_url("weapon-profiles", weapon=profile.weapon_id),
+        more=more,
     )
