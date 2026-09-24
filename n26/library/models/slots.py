@@ -101,20 +101,10 @@ class SlotType(Content):
 
 
 class Pickable(Content, Assignable):
-    """A value that goes into a Slot.
+    """An option for a choice, such as an augmentation tier or skill tree.
 
-    One thing offered in a slot: a specific value, of a particular slot
-    type, that carries behaviour as ordinary modifiers.
-
-    It never draws a row of its own: it appears under its slot's choice
-    row when chosen. **Without its slot it shows nothing and does
-    nothing**. So it arrives chosen, given, or as a slot's starting
-    value, and never as a bare built-in.
-
-    A pickable may also link a category. The link is consulted for
-    categorisation decisions — a rule that places "the chosen set" asks
-    the pick which category it means, which is how a Skill Tree pick
-    stands for the set it names. Most pickables link nothing.
+    Add it to a picklist, then use that picklist in a slot. Its modifiers
+    determine what the option does when chosen.
     """
 
     # Filed with the rest of the choice machinery, which is where an
@@ -128,13 +118,28 @@ class Pickable(Content, Assignable):
     # nothing would ever hand over items built into it.
     takes_built_ins = False
 
+    # Tailored author-only copy for options; the shared assignable wording
+    # describes catalogue items and is too broad for this form.
+    qualifier = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text=(
+            "Distinguishes same-named options in the library. Players do not see it."
+        ),
+    )
+    library_author_help = models.TextField(
+        blank=True,
+        default="",
+        help_text="Notes for authors using this option elsewhere. Players do not see them.",
+    )
+
     summary = models.TextField(
         blank=True,
         default="",
         help_text=(
-            "Short explanation shown under this option on the choice page. "
-            "Write your own summary; do not copy rules text. Leave blank to show "
-            "no explanation."
+            "Shown under this option on the choice page. Leave blank if its "
+            "name is enough."
         ),
     )
 
@@ -142,7 +147,7 @@ class Pickable(Content, Assignable):
         SlotType,
         on_delete=models.PROTECT,
         related_name="pickables",
-        help_text="The slot type this pickable belongs to.",
+        help_text="Groups this option with the slots that can offer it.",
     )
     # The inherited home-category column, re-presented: a pickable never
     # stands in a collection, so on this kind the field is the link a
@@ -155,10 +160,8 @@ class Pickable(Content, Assignable):
         related_name="%(class)ss",
         verbose_name="linked category",
         help_text=(
-            "Consulted for categorisation decisions: a rule that places "
-            '"the chosen set" reads this to learn which category the pick '
-            "means — a Skill Tree pick links the set it names. Leave blank "
-            "for pickables that work by their own modifiers."
+            "The category this option represents, if any. Used for choices "
+            "such as skill trees."
         ),
     )
     # Rating, never price: a pick is not bought, so nothing is refunded
@@ -166,10 +169,8 @@ class Pickable(Content, Assignable):
     rating_contribution = models.IntegerField(
         default=0,
         help_text=(
-            "Credits this pick adds to the model's rating. A pick the gang "
-            "holds adds nothing. A pick is never paid for, so this is a "
-            "rating, not a price. Leave at 0 unless the rules raise the "
-            "model's value, as a Spyrer's Power Boost does."
+            "Adds to a model's rating when that model holds this option. "
+            "Leave at 0 otherwise."
         ),
     )
 
@@ -680,8 +681,8 @@ class Slot(Content, Assignable):
         blank=True,
         default="",
         help_text=(
-            "Shown below the title on this choice page. Write your own "
-            "introduction; do not copy rules text. Leave blank to show none."
+            "Shown above the options on the choice page. Leave blank if the "
+            "title is enough."
         ),
     )
     min_picks = models.PositiveIntegerField(

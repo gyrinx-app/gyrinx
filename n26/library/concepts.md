@@ -250,7 +250,7 @@ One thing offered in a slot: a specific value, of a particular slot type, that c
 
 The linked category is used for categorisation decisions: a rule that places "the chosen set" reads the pick's linked category to find which category it means. This is how a Skill Tree pick stands for the set it names: picking the Agility tree files the Agility category under whichever tier the placing rule names. Most pickables link nothing.
 
-The summary is written by the author. It explains the option to players but does not create its effects; modifiers do that. Leave it blank if there is no useful explanation. Do not copy the book's rules text.
+The summary explains the option to players but does not create its effects; modifiers do that. Leave it blank if there is no useful explanation.
 
 ### Picklist
 

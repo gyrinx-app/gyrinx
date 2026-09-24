@@ -511,8 +511,7 @@ do not always mean a tier has no effect.
 Write a short, original **Summary** for each tier and, if useful, an
 **Introduction** for its slot. These words appear on the player's choice page.
 The app does not write them from the modifiers. The modifiers still determine
-what the tier does; check that each summary matches them. Do not copy the
-book's rules text.
+what the tier does; check that each summary matches them.
 
 **Do not launch Malcadon hunting rig augmentations yet.** The app cannot upgrade
 the tier after the player chooses Ballistic Skill or Weapon Skill. Leave this
@@ -626,8 +625,8 @@ not its firing profile.
   The card records the rule; players apply its condition at the table. Do not
   improve the model's ordinary Save unconditionally.
 
-Use names and annotations for special rules, not copied rules text. These rules
-appear on the model's card. They do not automate saving throws.
+Use names and annotations for special rules. These rules appear on the model's
+card. They do not automate saving throws.
 
 When a later tier replaces an earlier effect, attach only the final version
 of that effect to the later tier. A tier must contain every effect that still

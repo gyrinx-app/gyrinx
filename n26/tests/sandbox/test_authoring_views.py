@@ -1219,6 +1219,23 @@ class TestASlotTypeIsSettledWhenAThingIsMade:
             body = client.get(f"/n26/authoring/{kind}/new/").content.decode()
             assert 'name="slot_type"' in body, kind
 
+    def test_pickable_help_explains_the_fields_without_lecturing_authors(
+        self, author, client, default_pack
+    ):
+        body = client.get("/n26/authoring/pickable/new/").content.decode()
+
+        assert "An option for a choice, such as an augmentation tier" in body
+        assert "Groups this option with the slots that can offer it." in body
+        assert "Shown under this option on the choice page." in body
+        assert "Distinguishes same-named options in the library." in body
+        assert "Players cannot add staged content to gangs" in body
+        assert "Write your own summary" not in body
+        assert "copy rules text" not in body
+
+        slot_body = client.get("/n26/authoring/slot/new/").content.decode()
+        assert "Shown above the options on the choice page." in slot_body
+        assert "copy rules text" not in slot_body
+
     def test_a_slot_type_posted_by_hand_does_not_land(
         self, author, client, legacy, affiliation
     ):

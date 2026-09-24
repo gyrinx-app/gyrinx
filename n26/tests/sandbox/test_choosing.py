@@ -1053,7 +1053,7 @@ def test_wargear_tier_stays_beneath_its_exact_carried_item(gang, crew, model_cho
     assert "Gear tier" not in [choice.kind_label for choice in card.row_questions]
 
 
-def test_flat_card_surfaces_keep_the_wargears_tier(gang, crew, model_choices):
+def test_printed_card_hides_an_unselected_wargear_tier(gang, crew, model_choices):
     from n26.core.capture import gang_state
     from n26.core.printing import detail_groups
     from n26.core.render_text import render_model_card
@@ -1061,7 +1061,8 @@ def test_flat_card_surfaces_keep_the_wargears_tier(gang, crew, model_choices):
     card = next(card for card in render_gang(gang).models if card.name == "Sorrow")
 
     printed = [(group.label, group.text) for group in detail_groups(card)]
-    assert ("Augmentable rig — Gear tier", "—") in printed
+    assert ("Gear", "Augmentable rig") in printed
+    assert not any("Gear tier" in label for label, _ in printed)
     assert "Augmentable rig — Gear tier: —" in "\n".join(render_model_card(card))
 
     captured = gang_state(gang)["models"][str(crew["leader"].pk)]
