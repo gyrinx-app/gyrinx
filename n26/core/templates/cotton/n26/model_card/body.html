@@ -19,7 +19,7 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
                     xp="{{ card.xp }}" xp_target="{{ card.xp_target|default_if_none:'–' }}" />
 
     {# items-baseline: grid items stretch, so a button would lift its label off the value line. #}
-    <dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-5 gap-y-2 border-t border-box-border px-4 py-3 text-sm">
+    <dl class="grid grid-cols-[minmax(7rem,min(35%,12rem))_minmax(0,1fr)] items-baseline gap-x-5 gap-y-2 border-t border-box-border px-4 py-3 text-sm">
 
         {% for counter in card.counter_lines %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ counter.name }}</dt>
