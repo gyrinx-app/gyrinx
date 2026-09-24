@@ -2539,7 +2539,10 @@ GROUPS: list[Group] = [
                         "n26/quick_switcher/of.html",
                         (
                             "The whole control built from one Switcher structure, "
-                            "which is how the application draws every one of them."
+                            "which is how the application draws every one of them. "
+                            "Drawn as the quick-switcher React island: a Switcher "
+                            "with a source reads further pages as the list scrolls "
+                            "and searches on the server."
                         ),
                     ),
                 ),

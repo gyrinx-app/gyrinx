@@ -587,4 +587,6 @@ urlpatterns = [
         name="authoring-detail",
     ),
     path("preview/", views.preview_view, name="preview"),
+    # The rest of a switcher's list, a page at a time, and searches over it.
+    path("switcher/<slug:source>/", views.switcher_page, name="n26-switcher-rows"),
 ]

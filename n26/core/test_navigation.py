@@ -3,7 +3,8 @@
 They are drawn on every screen that belongs to one gang, so both of those are
 load-bearing — a list that included somebody else's gangs or somebody else's
 fighters would be a leak, and a query that grew with the roster would grow on
-every page.
+every page. The page carries the first page of each list; the rest is read
+from ``switcher_rows`` as the list scrolls, under the same rules.
 
 Which siblings a switcher offers depends on what the control sits beside. The
 bar names the gang and offers the reader's others; a heading naming a fighter
@@ -18,7 +19,7 @@ from django.urls import reverse
 
 from n26.core.models import Gang
 from n26.core.navigation import (
-    NAV_SIBLINGS,
+    SWITCHER_PAGE,
     campaign_switcher,
     fighter_switcher,
     gang_switcher,
@@ -99,10 +100,11 @@ class TestWhoseGangsAreListed:
         assert marked == ["The Ashen Choir"]
         assert switcher.label == "The Ashen Choir"
 
-    def test_the_gang_you_are_on_survives_the_cap(self, tester, make_gang):
-        """Named last in the alphabet, so a capped query drops it — and a
-        switcher that omits the page it is on says the reader is nowhere."""
-        for index in range(NAV_SIBLINGS + 2):
+    def test_the_gang_you_are_on_is_in_the_first_page(self, tester, make_gang):
+        """Named last in the alphabet, so it sits on a later page — and a
+        switcher that opens without the page it is on says the reader is
+        nowhere."""
+        for index in range(SWITCHER_PAGE + 2):
             make_gang(f"Gang {index:02d}")
         here = make_gang("Zzz, the last one")
         switcher = gang_switcher(request_for(tester), here)
@@ -130,7 +132,7 @@ class TestWhatItCosts:
         here = make_gang("The Ashen Choir")
         with django_assert_num_queries(1):
             gang_switcher(request_for(tester), here)
-        for index in range(NAV_SIBLINGS * 3):
+        for index in range(SWITCHER_PAGE + 5):
             make_gang(f"Gang {index:02d}")
         with django_assert_num_queries(1):
             gang_switcher(request_for(tester), here)
@@ -273,9 +275,9 @@ class TestWhichFightersAreListed:
         ]
         assert switcher.menu_label == "Equip another fighter"
 
-    def test_the_fighter_you_are_on_survives_the_cap(self, make_gang, hire):
+    def test_the_fighter_you_are_on_is_in_the_first_page(self, make_gang, hire):
         gang = make_gang("The Ashen Choir")
-        for index in range(NAV_SIBLINGS + 2):
+        for index in range(SWITCHER_PAGE + 2):
             hire(gang, f"Fighter {index:02d}")
         here = hire(gang, "Zzz, the last one")
         switcher = fighter_switcher(gang, here)
@@ -285,13 +287,14 @@ class TestWhichFightersAreListed:
     def test_the_query_does_not_grow_with_the_roster(
         self, make_gang, hire, django_assert_num_queries
     ):
-        """One capped query, on a screen a player opens for every fighter in
-        turn — so a big gang must cost it what a small one does."""
+        """One query for the first page, on a screen a player opens for
+        every fighter in turn — so a big gang must cost it what a small one
+        does."""
         gang = make_gang("The Ashen Choir")
         here = hire(gang, "Vex")
         with django_assert_num_queries(1):
             fighter_switcher(gang, here)
-        for index in range(NAV_SIBLINGS * 2):
+        for index in range(SWITCHER_PAGE + 5):
             hire(gang, f"Fighter {index:02d}")
         with django_assert_num_queries(1):
             fighter_switcher(gang, here)
@@ -310,6 +313,35 @@ class TestTheBar:
         # fetches when it opens.
         assert reverse("n26-gang", args=[other.pk]) in body
         assert 'aria-current="page"' in body
+
+    def test_the_bar_is_an_index_that_reads_the_rest_of_the_list(
+        self, client, tester, make_gang
+    ):
+        """The switcher mounts as an island holding the first page and the
+        address of the rest, so a reader with more gangs than fit is never
+        stuck with the ones the page happened to send."""
+        import json
+
+        from bs4 import BeautifulSoup
+
+        here = make_gang("The Ashen Choir")
+        for index in range(SWITCHER_PAGE + 1):
+            make_gang(f"Gang {index:02d}")
+        client.force_login(tester)
+        body = client.get(reverse("n26-gang", args=[here.pk])).content.decode()
+        soup = BeautifulSoup(body, "html.parser")
+        props = [
+            json.loads(soup.find(id=host["data-react-props"]).string)
+            for host in soup.select("[data-react-module]")
+        ]
+        bar = next(p for p in props if p["menuLabel"] == "Switch to another gang")
+        assert bar["source"] == reverse("n26-switcher-rows", args=["gangs"])
+        assert bar["next"] == SWITCHER_PAGE
+        assert bar["current"] == reverse("n26-gang", args=[here.pk])
+        assert bar["hotkey"] == "f"
+        # The first page, with the gang being looked at rescued in front.
+        assert len(bar["items"]) == SWITCHER_PAGE + 1
+        assert bar["items"][0]["href"] == bar["current"]
 
     def test_a_fighters_screen_names_the_gang(
         self, client, tester, make_gang, make_profile, make_statline
@@ -390,7 +422,7 @@ class TestTheHeading:
         from django.test.utils import CaptureQueriesContext
 
         here = make_gang("The Ashen Choir")
-        for index in range(NAV_SIBLINGS):
+        for index in range(5):
             make_gang(f"Gang {index:02d}")
         client.force_login(tester)
         with CaptureQueriesContext(connection) as captured:
@@ -398,7 +430,8 @@ class TestTheHeading:
         capped = [
             query
             for query in captured.captured_queries
-            if f"LIMIT {NAV_SIBLINGS}" in query["sql"] and "n26_gang" in query["sql"]
+            if f"LIMIT {SWITCHER_PAGE + 1}" in query["sql"]
+            and "n26_gang" in query["sql"]
         ]
         assert len(capped) == 1
 
@@ -436,7 +469,7 @@ class TestTheHeading:
 
         with CaptureQueriesContext(connection) as alone:
             assert client.get(url).status_code == 200
-        for index in range(NAV_SIBLINGS * 2):
+        for index in range(SWITCHER_PAGE + 5):
             hire(gang, f"Fighter {index:02d}")
         with CaptureQueriesContext(connection) as crowded:
             assert client.get(url).status_code == 200
@@ -529,10 +562,11 @@ class TestWhoseCampaignsAreListed:
         assert [item.label for item in switcher.items if item.current] == ["Ashfall"]
         assert switcher.label == "Ashfall"
 
-    def test_the_campaign_you_are_on_survives_the_cap(self, tester, make_campaign):
-        """Named last in the alphabet, so a capped query drops it — and a
-        switcher that omits the page it is on says the reader is nowhere."""
-        for index in range(NAV_SIBLINGS + 2):
+    def test_the_campaign_you_are_on_is_in_the_first_page(self, tester, make_campaign):
+        """Named last in the alphabet, so it sits on a later page — and a
+        switcher that opens without the page it is on says the reader is
+        nowhere."""
+        for index in range(SWITCHER_PAGE + 2):
             make_campaign(f"Campaign {index:02d}")
         here = make_campaign("Zzz, the last one")
         switcher = campaign_switcher(request_for(tester), here)
@@ -551,3 +585,180 @@ class TestWhoseCampaignsAreListed:
         with django_assert_num_queries(1):
             campaign_switcher(request, here)
             campaign_switcher(request, here)
+
+    def test_the_rest_of_the_list_needs_the_campaigns_feature(
+        self, client, tester, make_campaign
+    ):
+        from gyrinx.site.models import Availability, FeatureFlag
+        from n26.flags import CAMPAIGNS
+
+        make_campaign("Ashfall")
+        client.force_login(tester)
+        url = reverse("n26-switcher-rows", args=["campaigns"])
+        FeatureFlag.objects.update_or_create(
+            slug=CAMPAIGNS,
+            defaults={"name": "Campaigns", "availability": Availability.OFF},
+        )
+        assert client.get(url).status_code == 404
+        FeatureFlag.objects.filter(slug=CAMPAIGNS).update(
+            availability=Availability.EVERYONE
+        )
+        assert [item["label"] for item in client.get(url).json()["items"]] == [
+            "Ashfall"
+        ]
+
+
+class TestTheRestOfTheList:
+    """A switcher is an index: past the first page, the rows are read a page
+    at a time, and a search looks at all of them — under the same rules
+    about whose rows they are."""
+
+    def rows(self, client, source, **params):
+        response = client.get(reverse("n26-switcher-rows", args=[source]), params)
+        assert response.status_code == 200
+        return response.json()
+
+    def test_a_long_list_says_there_is_more(self, tester, make_gang):
+        for index in range(SWITCHER_PAGE + 1):
+            make_gang(f"Gang {index:02d}")
+        switcher = gang_switcher(request_for(tester), make_gang("Gang 00"))
+        assert switcher.more
+        assert len(switcher.items) == SWITCHER_PAGE
+        assert switcher.source == reverse("n26-switcher-rows", args=["gangs"])
+
+    def test_a_short_list_does_not(self, tester, make_gang):
+        switcher = gang_switcher(request_for(tester), make_gang("The Ashen Choir"))
+        assert not switcher.more
+
+    def test_the_next_page_follows_the_first(self, client, tester, make_gang):
+        for index in range(SWITCHER_PAGE + 3):
+            make_gang(f"Gang {index:02d}")
+        client.force_login(tester)
+        page = self.rows(client, "gangs", offset=SWITCHER_PAGE)
+        assert [item["label"] for item in page["items"]] == [
+            f"Gang {index:02d}" for index in range(SWITCHER_PAGE, SWITCHER_PAGE + 3)
+        ]
+        assert page["next"] is None
+        assert self.rows(client, "gangs")["next"] == SWITCHER_PAGE
+
+    def test_a_search_finds_a_row_the_page_was_never_sent(
+        self, client, tester, make_gang
+    ):
+        for index in range(SWITCHER_PAGE):
+            make_gang(f"Gang {index:02d}")
+        far = make_gang("Zzz, the last one")
+        client.force_login(tester)
+        page = self.rows(client, "gangs", q="the LAST")
+        assert page["items"] == [
+            {"label": "Zzz, the last one", "href": reverse("n26-gang", args=[far.pk])}
+        ]
+
+    def test_someone_elses_gangs_are_never_read(
+        self, client, tester, stranger, make_gang
+    ):
+        make_gang("Their Gang", owner=stranger)
+        client.force_login(tester)
+        assert self.rows(client, "gangs", q="their")["items"] == []
+
+    def test_a_visitor_is_sent_to_sign_in(self, client):
+        response = client.get(reverse("n26-switcher-rows", args=["gangs"]))
+        assert response.status_code == 302
+
+    def test_an_unknown_list_is_not_found(self, client, tester):
+        client.force_login(tester)
+        assert (
+            client.get(reverse("n26-switcher-rows", args=["nothing"])).status_code
+            == 404
+        )
+
+    def test_a_nonsense_offset_reads_from_the_start(self, client, tester, make_gang):
+        make_gang("The Ashen Choir")
+        client.force_login(tester)
+        assert len(self.rows(client, "gangs", offset="soon")["items"]) == 1
+
+    def test_fighters_lead_to_the_screen_they_were_listed_from(
+        self, client, tester, make_gang, hire
+    ):
+        gang = make_gang("The Ashen Choir")
+        vex = hire(gang, "Vex")
+        client.force_login(tester)
+        page = self.rows(client, "fighters", gang=gang.pk, route="n26-skills")
+        assert page["items"] == [
+            {"label": "Vex", "href": reverse("n26-skills", args=[vex.pk])}
+        ]
+        switcher = fighter_switcher(gang, vex, route="n26-skills")
+        assert switcher.source == (
+            reverse("n26-switcher-rows", args=["fighters"])
+            + f"?gang={gang.pk}&route=n26-skills"
+        )
+
+    def test_another_players_fighters_are_not_found(
+        self, client, tester, stranger, make_gang, hire
+    ):
+        theirs = make_gang("Their Gang", owner=stranger)
+        hire(theirs, "Vex")
+        client.force_login(tester)
+        url = reverse("n26-switcher-rows", args=["fighters"])
+        assert client.get(url, {"gang": theirs.pk}).status_code == 404
+        assert client.get(url, {"gang": "not-a-ulid"}).status_code == 404
+
+    def test_the_authoring_lists_are_for_staff(self, client, tester):
+        client.force_login(tester)
+        url = reverse("n26-switcher-rows", args=["siblings"])
+        assert client.get(url, {"kind": "weapon"}).status_code == 404
+
+    def test_an_author_finds_a_row_by_the_qualifier_its_label_shows(
+        self, client, author, default_pack
+    ):
+        from n26.library.authoring import create_rule
+
+        create_rule("Lead Ritual", qualifier="Cawdor")
+        create_rule("Lead Ritual", qualifier="Delaque")
+        client.force_login(author)
+        page = self.rows(client, "siblings", kind="rule", q="delaque")
+        assert [item["label"] for item in page["items"]] == ["Lead Ritual — Delaque"]
+
+    def test_an_unknown_kind_is_not_found(self, client, author):
+        client.force_login(author)
+        url = reverse("n26-switcher-rows", args=["siblings"])
+        assert client.get(url, {"kind": "nothing"}).status_code == 404
+
+    def test_a_weapons_profiles_are_read_by_staff_only(
+        self, client, author, tester, default_pack
+    ):
+        from n26.library.authoring import add_weapon_profile, create_weapon
+
+        weapon = create_weapon("Autogun")
+        add_weapon_profile(weapon, name="Warp round")
+        url = reverse("n26-switcher-rows", args=["weapon-profiles"])
+        client.force_login(tester)
+        assert client.get(url, {"weapon": weapon.pk}).status_code == 404
+        client.force_login(author)
+        assert client.get(url, {"weapon": "not-a-ulid"}).status_code == 404
+        page = self.rows(client, "weapon-profiles", weapon=weapon.pk, q="warp")
+        assert [item["label"] for item in page["items"]] == ["Warp round (Autogun)"]
+
+    def test_a_fighter_screen_with_no_address_of_its_own_leads_to_the_kit(
+        self, client, tester, make_gang, hire
+    ):
+        gang = make_gang("The Ashen Choir")
+        vex = hire(gang, "Vex")
+        client.force_login(tester)
+        page = self.rows(client, "fighters", gang=gang.pk, route="n26-choose")
+        assert page["items"][0]["href"] == reverse("n26-equip", args=[vex.pk])
+
+    def test_the_drawer_lists_the_first_few_gangs_only(self, tester, make_gang):
+        from n26.core.navigation import DRAWER_GANGS
+
+        for index in range(DRAWER_GANGS + 3):
+            make_gang(f"Gang {index:02d}")
+        assert len(owned_gangs(request_for(tester))) == DRAWER_GANGS
+
+    def test_an_author_reads_a_kinds_rows(self, client, author, default_pack):
+        from n26.library.views import _label_for, _model_for, _rows, _spec_for
+
+        client.force_login(author)
+        page = self.rows(client, "siblings", kind="weapon")
+        model = _model_for(_spec_for("weapon"))
+        expected = [_label_for(row) for row in _rows(model, "weapon")[:SWITCHER_PAGE]]
+        assert [item["label"] for item in page["items"]] == expected

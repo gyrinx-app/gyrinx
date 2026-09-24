@@ -675,7 +675,7 @@ class TestSwitchingBetweenKindsAndRows:
         # rule" rather than the slug in the URL.
         assert 'aria-label="Switch to another special rule"' in body
         assert f"/n26/authoring/rule/{other.pk}/" in body
-        assert "sump sense" in body  # what the panel's filter matches on
+        assert "Sump Sense" in body
 
     def test_the_row_being_looked_at_is_marked(self, author, client, default_pack):
         from n26.library.authoring import create_rule
@@ -2378,10 +2378,14 @@ def row_printing(body, words):
     return printing[0]
 
 
+# The bar's quick switcher is an island on every page; the page's own is any other.
+PAGE_ISLAND = "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
+
+
 def island_props(body, module=None):
     """Decode the initial data the page's React island receives."""
     soup = BeautifulSoup(body, "html.parser")
-    hosts = soup.select("[data-react-module]")
+    hosts = soup.select(PAGE_ISLAND)
     host = next(
         (
             candidate
@@ -4725,7 +4729,7 @@ class TestTheModifiersPage:
         body = client.get("/n26/authoring/modifiers/").content.decode()
 
         assert "None yet — the New modifier button makes the first one." in body
-        assert "data-react-module" not in body
+        assert not BeautifulSoup(body, "html.parser").select(PAGE_ISLAND)
 
     def test_it_offers_the_way_in_at_the_top(self, author, client, default_pack):
         """The composer used to sit under the listing, which with a pack
@@ -7521,9 +7525,7 @@ class TestAttachingAModifierToSeveral:
         self, author, client, gang_types
     ):
         body = client.get("/n26/authoring/gang-type/").content.decode()
-        props = json.loads(
-            BeautifulSoup(body, "html.parser").select_one('script[id$="-props"]').string
-        )
+        props = island_props(body)
         assert {row["pk"] for row in props["rows"]} == {
             str(row.pk) for row in gang_types
         }
@@ -7533,9 +7535,7 @@ class TestAttachingAModifierToSeveral:
         self, author, client, fighter_stats
     ):
         body = client.get("/n26/authoring/stat/").content.decode()
-        props = json.loads(
-            BeautifulSoup(body, "html.parser").select_one('script[id$="-props"]').string
-        )
+        props = island_props(body)
         assert props["bulkActionUrl"] is None
         assert client.get("/n26/authoring/stat/attach-modifier/").status_code == 404
 

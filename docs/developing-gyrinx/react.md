@@ -33,7 +33,7 @@ The migration's hard part is shared ownership, not installing React:
 | Question | Decision | Consequence |
 | --- | --- | --- |
 | Replace htmx with an API layer? | Gradually, within migrated interactions only. | Keep working htmx outside React; use native Django links/forms where sufficient. Add small JSON endpoints only when an interaction needs them. |
-| Load React everywhere? | Only when a rendered template includes an island. | Ordinary pages pay no React download or bootstrap cost. |
+| Load React everywhere? | Yes, in N26: the bar's quick switcher is an island, so every page with the bar loads React. Other islands still load only where a template includes them. | The shared React chunk (about 68 kB gzip) is cached as an immutable asset; each full navigation still parses and runs it. |
 | Minimise bootstrap cost? | One shared cached React chunk, small per-component entries, modulepreload, embedded initial props. | No initial data-fetch waterfall, duplicate runtime or framework/router dependency. |
 | Pass initial state? | A plain JSON-safe view model through `react_island` and Django `json_script`. | Safe escaping, no executable inline state, no ORM objects or hidden permission assumptions. |
 | Reuse the design system? | Generate presentation recipes from real rendered Cotton primitives at build time; implement their behaviour in typed React adapters. | The actual Cotton classes and app tokens stay authoritative. Only supported variants cross the bridge. |
@@ -42,7 +42,10 @@ The migration's hard part is shared ownership, not installing React:
 ### DOM and state ownership
 
 The template tag emits an empty host, an inert JSON script, modulepreloads and a
-small module loader. `x-ignore` and `hx-disable` prevent Alpine and htmx from
+small module loader. `{% react_host %}…{% endreact_host %}` is the same host with
+server-rendered markup inside it instead of a loading box, for a control that
+holds its place in a bar: the page shows that markup until React mounts and
+replaces it, and a reader without JavaScript sees only that markup. `x-ignore` and `hx-disable` prevent Alpine and htmx from
 processing the host's children. An entry exports `mount(element, props)` and
 returns a disposer. The loader mounts each host once, handles `htmx:load`, and
 unmounts before htmx removes it, including cancellation during an outstanding

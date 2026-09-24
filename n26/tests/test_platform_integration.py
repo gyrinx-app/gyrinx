@@ -898,14 +898,14 @@ class TestTheNavigation:
     def test_the_drawer_costs_an_authoring_page_no_extra_query(
         self, staff, client, default_pack, gang_type, make_profile
     ):
-        """The reader's gangs are one capped read for the whole page. The
+        """The reader's gangs are one first-page read for the whole page. The
         authoring pages draw the same drawer as everything else now, so the
         thing to check is that it is still one read and not one per
         section."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
-        from n26.core.navigation import NAV_SIBLINGS
+        from n26.core.navigation import SWITCHER_PAGE
         from n26.tests.sandbox.actions import found_gang
 
         found_gang("The Bad Girls", gang_type, owner=staff)
@@ -916,7 +916,8 @@ class TestTheNavigation:
         capped = [
             query
             for query in captured.captured_queries
-            if f"LIMIT {NAV_SIBLINGS}" in query["sql"] and "n26_gang" in query["sql"]
+            if f"LIMIT {SWITCHER_PAGE + 1}" in query["sql"]
+            and "n26_gang" in query["sql"]
         ]
         assert len(capped) == 1
 

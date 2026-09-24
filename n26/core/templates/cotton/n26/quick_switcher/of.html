@@ -1,29 +1,51 @@
 {% comment %}
-<c-n26.quick-switcher.of> — Draws a Switcher dataclass as a labelled quick switcher of navigable items.
+<c-n26.quick-switcher.of> — Draws a Switcher dataclass as the quick-switcher React island: a searchable, scrolling index of destinations.
 
 switcher must be a Switcher. Put the current page in items, or the control names somewhere else.
 menu_label must differ from every other switcher on the page. Two controls called Switch are indistinguishable.
 hotkey is a prop, not a field on Switcher. Which chord a control takes depends on where it was put.
+The body is what shows until the island mounts, and all that shows without JavaScript. Keep its trigger the same size as the island's, or the bar shifts when it mounts.
 {% endcomment %}
 
+{% load navigation react %}
 <c-vars :switcher="None" align="start" min_width="16rem" hotkey="" class="" />
+{% quick_switcher_props switcher align=align min_width=min_width hotkey=hotkey as props_ %}
 
-<c-n26.quick-switcher label="{{ switcher.label }}"
-                      href="{{ switcher.href }}"
-                      icon="{{ switcher.icon }}"
-                      heading="{{ switcher.heading }}"
-                      menu_label="{{ switcher.menu_label }}"
-                      placeholder="{{ switcher.placeholder }}"
-                      empty="{{ switcher.empty }}"
-                      align="{{ align }}"
-                      min_width="{{ min_width }}"
-                      hotkey="{{ hotkey }}"
-                      class="{{ class }}"
-                      {{ attrs }}>
-    {% for item in switcher.items %}
-        <c-n26.quick-switcher.item label="{{ item.label }}"
-                                   href="{{ item.href }}"
-                                   icon="{{ item.icon }}"
-                                   :current="item.current" />
-    {% endfor %}
-</c-n26.quick-switcher>
+<div {{ attrs }} class="inline-block min-w-0 max-w-full {{ class }}">
+    {% react_host "quick-switcher" props_ class="min-w-0 max-w-full" %}
+        <div data-quick-switcher class="inline-block min-w-0 max-w-full">
+            <c-n26.button-group class="min-w-0 max-w-full">
+                {% if switcher.label %}
+                    <c-ui.button variant="ghost" size="sm" class="min-w-0 overflow-hidden px-2!" href="{{ switcher.href }}">
+                        <span class="flex min-w-0 items-center gap-1.5">
+                            <span class="min-w-0 max-w-48 truncate">{{ switcher.label }}</span>
+                        </span>
+                    </c-ui.button>
+                {% endif %}
+                <c-ui.button variant="ghost"
+                             size="sm"
+                             class="shrink-0 px-1.5!"
+                             aria-label="{{ switcher.menu_label|default:switcher.heading }}"
+                             title="{{ switcher.menu_label|default:switcher.heading }}{% if hotkey %} (⌥⇧{{ hotkey|upper }}){% endif %}"
+                             aria-keyshortcuts="{% if hotkey %}Alt+Shift+{{ hotkey|upper }}{% endif %}"
+                             aria-haspopup="menu"
+                             aria-expanded="false">
+                    <span class="n26-icon-only">
+                        <c-n26.icon name="chevron-down" class="size-3 transition-transform" stroke_width="2.5" />
+                    </span>
+                </c-ui.button>
+            </c-n26.button-group>
+            <noscript>
+                <div class="mt-2 w-72 max-w-full overflow-hidden rounded-box border border-box-border">
+                    {% for item in switcher.items %}
+                        <a href="{{ item.href }}"
+                           {% if item.current %}aria-current="page"{% endif %}
+                           class="flex items-center gap-2.5 border-b border-box-border px-3 py-2 text-sm {% if item.current %}bg-ink-100 font-medium text-ink-900 dark:bg-ink-800 dark:text-ink-100{% else %}text-ink-700 dark:text-ink-300{% endif %}">
+                            <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+                        </a>
+                    {% endfor %}
+                </div>
+            </noscript>
+        </div>
+    {% endreact_host %}
+</div>

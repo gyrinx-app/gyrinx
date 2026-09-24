@@ -1325,9 +1325,8 @@ class TestWhatAParticipantSees:
 
         self.accept(client, theirs)
         response = client.get(f"/n26/campaigns/{theirs.pk}/")
-        assert [row.pk for row in reader_campaigns(response.wsgi_request)] == [
-            theirs.pk
-        ]
+        rows, _ = reader_campaigns(response.wsgi_request)
+        assert [row.pk for row in rows] == [theirs.pk]
 
     def test_they_read_the_log(self, client, theirs, arbitrator, open_to_everyone):
         """Everybody who can open the page can read what has happened."""

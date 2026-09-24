@@ -101,7 +101,9 @@ class TestHoldingTheSheets:
     def test_a_sheets_page_takes_one_file(self, author, client, foundation):
         body = client.get(sheet_url("profiles")).content.decode()
         soup = BeautifulSoup(body, "html.parser")
-        host = soup.select_one("[data-react-module]")
+        host = soup.select_one(
+            "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
+        )
         props = json.loads(soup.find(id=host["data-react-props"]).string)
 
         assert 'enctype="multipart/form-data"' in body
