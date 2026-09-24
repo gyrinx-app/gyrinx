@@ -31,7 +31,23 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
             </dd>
         {% endfor %}
 
-        <dt class="font-semibold text-ink-900 dark:text-ink-100">Skills</dt>
+        <dt class="font-semibold text-ink-900 dark:text-ink-100">
+            Skills
+            <c-n26.model-card.mode when="edit">
+                {% if card.skills_href %}
+                    <c-ui.button variant="ghost"
+                                 size="xs"
+                                 class="ms-1 -mt-0.5 px-1! align-middle"
+                                 href="{{ card.skills_href }}"
+                                 aria-label="Select a skill"
+                                 title="Select a skill">
+                        <span class="n26-icon-only">
+                            <c-n26.icon name="pencil" class="size-3.5 text-ink-500 dark:text-ink-400" />
+                        </span>
+                    </c-ui.button>
+                {% endif %}
+            </c-n26.model-card.mode>
+        </dt>
         <dd class="min-w-0 text-ink-900 dark:text-ink-100">
             <c-n26.assignable-lines :lines="card.skills" :ratings="False" />
 
@@ -53,7 +69,7 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
             </c-n26.model-card.mode>
 
             <c-n26.model-card.mode when="edit">
-                {% if card.skill_choices or card.skills_href %}
+                {% if card.skill_choices %}
                     <div class="mt-1 flex flex-wrap items-center gap-1">
                         {% for choice in card.skill_choices %}
                             <div class="inline-flex items-center gap-0">
@@ -67,21 +83,6 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
                                 <c-n26.choice-dismiss :choice="choice" />
                             </div>
                         {% endfor %}
-                        {% if card.skills_href %}
-                            <c-ui.tooltip size="sm">
-                                <c-ui.button size="xs"
-                                             variant="default"
-                                             :outlined="True"
-                                             class="py-0!"
-                                             href="{{ card.skills_href }}"
-                                             aria-label="Select a skill">
-                                    <span class="n26-icon-only">
-                                        <c-n26.icon name="pencil" class="size-3" />
-                                    </span>
-                                </c-ui.button>
-                                <c-slot name="content">Select a skill</c-slot>
-                            </c-ui.tooltip>
-                        {% endif %}
                     </div>
                 {% endif %}
             </c-n26.model-card.mode>
