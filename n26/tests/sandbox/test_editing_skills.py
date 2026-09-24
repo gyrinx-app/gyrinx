@@ -362,7 +362,9 @@ class TestWhatTheSquareShows:
         client.force_login(player)
         page = client.get(edit_url(yolanda)).content.decode()
 
-        start = page.index(">Skills<")
+        # The Skills label carries its edit control, so it is not a bare
+        # ">Skills<" run.
+        start = re.search(r">\s*Skills\s*<", page).start()
         row = page[start : page.index(">Gear<", start)]
         assert " ," not in row
         # Catfall (granted) sorts first: its comma is the trigger's own.
