@@ -194,28 +194,33 @@ class TestTheActivitiesSquarePage:
         combined, standalone, no_history = squares
         for square in squares:
             assert POST_BATTLE_HELP in square.get_text()
-            assert "Full history" in square.get_text()
+            history = [
+                link
+                for link in square.find_all("a")
+                if link.get_text(strip=True) == "History"
+            ]
+            assert len(history) == 1
+            assert "Recent history" not in square.get_text()
         assert "Current action" in combined.get_text()
         assert "Pay ransom" in combined.get_text()
         assert "Clean House" in combined.get_text()
         for square in (standalone, no_history):
             assert "Current action" not in square.get_text()
             assert square.find("form") is None
-        assert "Recent history" in standalone.get_text()
-        assert "No history for this gang yet." in no_history.get_text()
+        assert "No history for this gang yet." not in no_history.get_text()
 
-    def test_the_story_under_the_square_is_drawn(self, reader):
-        """The snapshot's own markup, and one of the sample sentences —
-        a demo that fell back to "No examples yet" would carry the
-        heading from no state at all."""
+    def test_history_is_a_link_and_acts_are_not_listed(self, reader):
+        """The header link, not a list of acts. A demo that fell back to
+        "No examples yet" would not draw the Actions region at all."""
         page = reader.get("/n26/design/c/activities-square/").content.decode()
-        assert "Recent history" in page
-        assert "Full history" in page
-        assert "hired Yolanda, a Ganger" in page
+        assert "Recent history" not in page
+        assert "History" in page
+        assert "hired Yolanda, a Ganger" not in page
 
-    def test_a_gang_with_no_story_says_so(self, reader):
+    def test_a_gang_with_no_story_still_links(self, reader):
         page = reader.get("/n26/design/c/activities-square/").content.decode()
-        assert "No history for this gang yet." in page
+        assert "No history for this gang yet." not in page
+        assert "History" in page
 
     def test_the_start_row_is_a_post_not_a_link(self, reader):
         """Starting an act must never be a link: a link is followed by

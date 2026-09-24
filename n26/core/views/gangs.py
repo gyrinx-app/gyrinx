@@ -397,7 +397,6 @@ def gang_sheet(request, pk):
                     post_battle_at=reverse("n26-gang-post-battle", args=[gang.pk])
                     if campaigns_open
                     else "",
-                    viewer=request.user,
                 )
                 if founding_seen or campaigns_open
                 else None

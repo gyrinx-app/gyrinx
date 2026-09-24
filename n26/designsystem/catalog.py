@@ -2058,16 +2058,15 @@ GROUPS: list[Group] = [
                     "starts a new one."
                 ),
                 notes=(
-                    "Draw it first in the gang sheet's grid for an owner with "
-                    "founding or campaigns access. Pass one square with only the "
-                    "controls the owner may use. Post-battle uses the same next-step "
-                    "layout as ransom and Clean House; recent history is shared. "
-                    "The nothing-open message shows "
-                    "only when nothing is running and nothing is waiting. The start "
-                    "control is a form, as is any waiting step that acts on the "
-                    "click, because following a link must not change the roster. "
-                    "The acts listed are built by n26.core.history, and their times "
-                    "are relative, so the template loads humanize."
+                    "Draw it stacked with the stash in the gang sheet's first grid "
+                    "cell, for an owner with founding or campaigns access. Pass one "
+                    "square with only the controls the owner may use. Post-battle "
+                    "uses the same next-step layout as ransom and Clean House. "
+                    "History is a link in the header; the square does not list acts. "
+                    "The nothing-open message shows only when nothing is running and "
+                    "nothing is waiting. The start control is a form, as is any "
+                    "waiting step that acts on the click, because following a link "
+                    "must not change the roster."
                 ),
             ),
             Component(
@@ -2304,7 +2303,9 @@ GROUPS: list[Group] = [
                     "with the contents would move every model after it around the "
                     "grid. :total is the stash rating and has to be passed, since a "
                     "stacked line shows the rating for one copy. Stashed gear "
-                    "counts in the gang's wealth, not in the models' rating."
+                    "counts in the gang's wealth, not in the models' rating. The "
+                    "gear list scrolls after a maximum height, and each line menu "
+                    "uses strategy=fixed so that box does not clip it."
                 ),
             ),
             Component(
@@ -2802,11 +2803,13 @@ GROUPS: list[Group] = [
                     "name and type, its wealth, its standing facts and its "
                     "controls. The model cards are a CSS grid to three columns, so "
                     "a wider screen draws more cards abreast rather than one wide "
-                    "column. Every slot is declared, and the header actions slot "
-                    "has to be filled, or Cotton draws the page's own Hire controls "
-                    "beside the title. Put the switcher in trailing, not leading: "
-                    "leading sits inside the h1 and is read as part of the page "
-                    "name. Pass activities_square only for the owner."
+                    "column. Actions and the stash share the first cell, stacked, "
+                    "and n26-roster-grid makes a model in that row fill the cell "
+                    "beside them. Every slot is declared, and the header actions "
+                    "slot has to be filled, or Cotton draws the page's own Hire "
+                    "controls beside the title. Put the switcher in trailing, not "
+                    "leading: leading sits inside the h1 and is read as part of "
+                    "the page name. Pass activities_square only for the owner."
                 ),
             ),
             Component(

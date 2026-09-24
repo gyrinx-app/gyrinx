@@ -4,7 +4,8 @@
 The stash is excluded from rating. Rating is what the models are worth; stashed gear counts in wealth instead.
 The share slot fills the header's breadcrumb_actions.
 Owner, owner_href, and owner_flair build the breadcrumb here.
-members is markup, drawn as a sibling of the stash in the grid.
+Actions and the stash share the grid's first cell, stacked.
+members is markup, drawn as the next cells, so a model can fill the row beside them.
 Declare the slots. An undeclared name resolves to the caller's variable of that name.
 Keep the header actions slot filled. Left empty, Cotton would draw this page's Hire controls beside the title.
 The switcher goes in trailing, not leading. Leading sits inside the h1 and is read as the page name.
@@ -88,14 +89,17 @@ Pass activities_square only for the owner.
         </div>
     </div>
 
-    {# auto-rows-min keeps a short card short. items-start would still stretch cards to the tallest. #}
-    <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {% if activities_square %}{{ activities_square }}{% endif %}
-        <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
-            {% if stash_actions %}<c-slot name="actions">{{ stash_actions }}</c-slot>{% endif %}
-            {% if stash_empty %}<c-slot name="empty">{{ stash_empty }}</c-slot>{% endif %}
-            {% if stash_notice %}<c-slot name="notice">{{ stash_notice }}</c-slot>{% endif %}
-        </c-n26.stash>
+    {# auto-rows-min keeps a later row as tall as its own cards. #}
+    {# n26-roster-grid stretches only the first row, beside this stacked cell. The counts match md:grid-cols-2 and xl:grid-cols-3. #}
+    <div class="n26-roster-grid grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div class="flex min-h-0 flex-col gap-4">
+            {% if activities_square %}{{ activities_square }}{% endif %}
+            <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
+                {% if stash_actions %}<c-slot name="actions">{{ stash_actions }}</c-slot>{% endif %}
+                {% if stash_empty %}<c-slot name="empty">{{ stash_empty }}</c-slot>{% endif %}
+                {% if stash_notice %}<c-slot name="notice">{{ stash_notice }}</c-slot>{% endif %}
+            </c-n26.stash>
+        </div>
         {{ members }}
     </div>
 </div>

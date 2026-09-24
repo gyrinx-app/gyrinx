@@ -2,6 +2,7 @@
 <c-n26.stash.group> — One kind of stashed gear, as a labelled list.
 
 The first line's menu is the switch for the whole group.
+strategy=fixed: the gear list scrolls, and an absolute menu is clipped by that box.
 A print-out and a reader who does not own the gang have empty menus on every line.
 Danger acts are collected after the others. A single loop would leave a destructive act in the middle of the menu.
 A zero rating is omitted. This drawing cannot tell a bundled figure from a gift, so it must not say free.
@@ -21,7 +22,7 @@ Capitalise the label here. Kinds arrive from verbose_name in lower case, written
                         <span class="min-w-0 flex-1">
                             {{ line.name }}{{ line.slot_mark }}{{ line.brought_mark }}{% if line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}
                         </span>
-                        <c-ui.dropdown align="end" min_width="10rem">
+                        <c-ui.dropdown align="end" min_width="10rem" strategy="fixed">
                             <c-slot name="trigger">
                                 <c-ui.button size="sm"
                                              class="px-1.5!"

@@ -358,10 +358,11 @@ class TestGangActions:
         if panel:
             founding_url = reverse("n26-gang-founding-action", args=[table.gang.pk])
             assert bool(panel.find("form", action=founding_url)) == founding_open
-            assert "Recent history" in panel.get_text()
-            assert panel.find(
+            assert "Recent history" not in panel.get_text()
+            history = panel.find(
                 "a", href=reverse("n26-gang-history", args=[table.gang.pk])
             )
+            assert history.get_text(strip=True) == "History"
             assert "Hire Fighters" not in panel.get_text()
             square = response.context["activities_square"]
             assert bool(square.founding) == founding_open
@@ -403,12 +404,12 @@ class TestGangActions:
         assert square.visit.href == reverse(
             "n26-gang-trade-points", args=[table.gang.pk]
         )
-        assert square.history
         panel = BeautifulSoup(response.content, "html.parser").select_one(
             '[role="region"][aria-label="Actions"]'
         )
         assert "Trading Post visit open" in panel.get_text()
-        assert "Recent history" in panel.get_text()
+        assert "Recent history" not in panel.get_text()
+        assert panel.find("a", href=reverse("n26-gang-history", args=[table.gang.pk]))
         assert panel.find("a", href=start_url(table, standalone=True))
 
     @pytest.mark.parametrize("founding_open", [False, True])
