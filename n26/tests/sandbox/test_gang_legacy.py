@@ -481,10 +481,14 @@ class TestChoosingAHouse:
         places = [body.index(f"library.pickable:{pickables[h].pk}") for h in HOUSES]
         assert places == sorted(places)
 
-    def test_the_picker_names_who_is_being_asked(self, client, gang, kaustos):
+    def test_the_picker_adds_no_lead_the_author_did_not_write(
+        self, client, gang, kaustos
+    ):
+        """The lead under the heading is the slot's authored introduction;
+        with none written, the page makes up no line of its own."""
         body = client.get(picker_url(gang, "Kaustos")).content.decode()
 
-        assert "For Kaustos." in body
+        assert "For Kaustos." not in body
 
     def test_one_click_settles_it(self, client, gang, kaustos, pickables):
         response = choose(client, gang, "Kaustos", pickables["Cawdor"])
