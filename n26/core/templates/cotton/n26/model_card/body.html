@@ -35,16 +35,18 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
             Skills
             <c-n26.model-card.mode when="edit">
                 {% if card.skills_href %}
-                    <c-ui.button variant="ghost"
-                                 size="xs"
-                                 class="ms-1 -mt-0.5 px-1! align-middle"
-                                 href="{{ card.skills_href }}"
-                                 aria-label="Select a skill"
-                                 title="Select a skill">
-                        <span class="n26-icon-only">
-                            <c-n26.icon name="pencil" class="size-3.5 text-ink-500 dark:text-ink-400" />
-                        </span>
-                    </c-ui.button>
+                    <c-ui.tooltip size="sm">
+                        <c-ui.button variant="ghost"
+                                     size="xs"
+                                     class="ms-1 -mt-0.5 px-1! align-middle"
+                                     href="{{ card.skills_href }}"
+                                     aria-label="Select a skill">
+                            <span class="n26-icon-only">
+                                <c-n26.icon name="pencil" class="size-3.5 text-ink-500 dark:text-ink-400" />
+                            </span>
+                        </c-ui.button>
+                        <c-slot name="content">Select a skill</c-slot>
+                    </c-ui.tooltip>
                 {% endif %}
             </c-n26.model-card.mode>
         </dt>

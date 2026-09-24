@@ -304,10 +304,12 @@ class TestChoosingAnAffiliation:
         ]
         assert places == sorted(places)
 
-    def test_the_picker_names_the_gang_as_the_one_choosing(self, reader, gang):
+    def test_the_picker_adds_no_lead_the_author_did_not_write(self, reader, gang):
+        """The lead under the heading is the slot's authored introduction;
+        with none written, the page makes up no line of its own."""
         body = reader.get(picker_url(gang, "Affiliation")).content.decode()
 
-        assert f"For {gang.name}." in body
+        assert f"For {gang.name}." not in body
 
     def test_one_click_settles_it_on_the_gang(self, reader, gang, affiliations):
         response = choose(reader, gang, "Affiliation", affiliations["Aranthian"])
