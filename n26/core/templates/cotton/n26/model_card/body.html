@@ -190,7 +190,8 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
                         </c-n26.statline.header>
                     </tr>
                 </thead>
-                <tbody>
+                {# A weapon with no profile draws only its name, with no bottom padding. The last row pads the card edge. #}
+                <tbody class="[&>tr:last-child>td]:pb-2">
                     {% for weapon in card.weapons %}
 
                         {% with own=weapon.own_line stats=weapon.own_stats %}
