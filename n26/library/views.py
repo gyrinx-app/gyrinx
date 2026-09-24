@@ -4530,7 +4530,7 @@ def modifier_create(request):
                 request,
                 attach_to=carrier,
                 bound_composer=bound,
-                switch_label="Change modifier type",
+                switch_label="Continue →",
             ),
         },
     )

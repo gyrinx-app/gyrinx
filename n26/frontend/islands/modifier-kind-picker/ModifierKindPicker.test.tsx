@@ -7,7 +7,7 @@ import {
 } from "./ModifierKindPicker";
 
 const props: ModifierKindPickerProps = {
-    submitLabel: "Change modifier type",
+    submitLabel: "Continue →",
     served: {
         scope: "targets_model",
         effect: "ef_adds",
@@ -86,7 +86,7 @@ describe("modifier kind picker", () => {
     it("keeps the existing GET field names and disables the served pair", async () => {
         const { user, data } = setup();
         const button = screen.getByRole<HTMLButtonElement>("button", {
-            name: "Change modifier type",
+            name: "Continue →",
         });
 
         expect(data().get("scope_kind")).toBe("targets_model");

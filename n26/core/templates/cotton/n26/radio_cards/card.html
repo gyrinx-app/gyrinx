@@ -46,9 +46,9 @@ has-[:checked] styles the card from the real input, so it is right with no scrip
 
         <span class="block {% if not wrap %}truncate{% endif %} text-base font-semibold text-ink-900 dark:text-ink-100"><c-n26.flair-link text="{{ label }}" tone="current" :wrap="wrap">{{ flair }}</c-n26.flair-link></span>
         {% if disabled and reason %}
-            <span class="block text-muted">{{ reason }}</span>
+            <span class="block text-sm text-muted">{{ reason }}</span>
         {% elif description %}
-            <span class="block {% if not wrap %}truncate{% endif %} text-muted">{{ description }}</span>
+            <span class="block {% if not wrap %}truncate{% endif %} text-sm text-muted">{{ description }}</span>
         {% endif %}
         {% if slot.strip %}
             <span class="mt-2 block border-t border-box-border pt-2 text-sm">{{ slot }}</span>

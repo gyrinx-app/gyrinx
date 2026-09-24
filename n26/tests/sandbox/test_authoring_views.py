@@ -4937,7 +4937,7 @@ class TestTheButtonThatChangesTheModifierType:
     and its button is worded by the surface: a carrier's page is where a
     reader starts a modifier from nothing, so it invites — Configure new
     modifier — while the standalone page's header has already said what
-    is being made and the click re-shapes it: Change modifier type.
+    is being made and the click moves on to step two: Continue →.
 
     Clicked with the pair the page is already showing it fetches the
     same page again — and on a carrier's page it scrolls the reader back
@@ -4958,7 +4958,7 @@ class TestTheButtonThatChangesTheModifierType:
     def test_it_is_named_for_what_it_fetches(self, author, client, default_pack):
         body = client.get("/n26/authoring/modifiers/new/").content.decode()
 
-        assert self.props(body)["submitLabel"] == "Change modifier type"
+        assert self.props(body)["submitLabel"] == "Continue →"
 
     def test_it_receives_the_pair_the_page_is_drawn_from(
         self, author, client, default_pack
