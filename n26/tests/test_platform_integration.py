@@ -517,6 +517,25 @@ class TestOneChangelogEntry:
         assert detail.status_code == 301
         assert detail["Location"] == f"/changelog/{entry.pk}/?tag=N26"
 
+    @pytest.mark.parametrize("tags", [("N23",), ()])
+    def test_the_old_detail_address_404s_for_an_entry_that_was_not_n26(
+        self, client, default_pack, tags
+    ):
+        entry = changelog_entry("Not this edition", *tags)
+
+        assert client.get(f"/n26/changelog/{entry.pk}/").status_code == 404
+
+    def test_the_old_detail_address_404s_for_an_archived_or_unknown_entry(
+        self, client, default_pack
+    ):
+        from uuid import uuid4
+
+        archived = changelog_entry("Gone from the old page", CHANGELOG_TAG)
+        archived.archive()
+
+        assert client.get(f"/n26/changelog/{archived.pk}/").status_code == 404
+        assert client.get(f"/n26/changelog/{uuid4()}/").status_code == 404
+
     def test_the_sidebar_lists_every_entry_newest_first_and_marks_this_one(
         self, client, default_pack
     ):

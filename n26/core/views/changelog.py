@@ -126,7 +126,8 @@ def n26_changelog(request):
 
 
 def n26_changelog_entry(request, pk):
-    """The old address of one entry, opened from this edition."""
+    """The old address of one N26 entry. Anything else is a 404."""
+    get_object_or_404(changelog_entries(), pk=pk)
     return redirect(changelog_href(CHANGELOG_TAG, pk), permanent=True)
 
 
