@@ -1,0 +1,10 @@
+{% comment %}
+<c-n26.pick-list.legend> — The heading of one group in a grouped pick list, with its caption after it.
+{% endcomment %}
+
+<c-vars name="" caption="" />
+
+<legend class="mb-1 block text-base font-semibold text-ink-900 dark:text-ink-100">
+    {{ name }}
+    {% if caption %}<span class="text-sm font-normal text-muted">{{ caption }}</span>{% endif %}
+</legend>

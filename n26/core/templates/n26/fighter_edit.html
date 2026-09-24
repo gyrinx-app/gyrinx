@@ -229,23 +229,9 @@ is named by the page's own heading directly below.
                                                  :addable="subtype_more"
                                                  name="subtypes"
                                                  add_label="Add a subtype"
-                                                 placeholder="Search subtypes">
-                                    <c-slot name="actions">
-                                        <div class="flex items-center justify-end gap-2">
-                                            {% if subtype_edits_dirty %}
-                                                <c-ui.button type="submit"
-                                                             form="reset-subtypes"
-                                                             variant="subtle"
-                                                             size="sm">
-                                                    Reset
-                                                </c-ui.button>
-                                            {% endif %}
-                                            <c-ui.button type="submit" variant="success" size="sm" ::disabled="!dirty">
-                                                Save subtypes
-                                            </c-ui.button>
-                                        </div>
-                                    </c-slot>
-                                </c-n26.pick-list>
+                                                 placeholder="Search subtypes"
+                                                 save="Save subtypes"
+                                                 reset_form="{% if subtype_edits_dirty %}reset-subtypes{% endif %}" />
                             </form>
                             {% if subtype_edits_dirty %}
                                 <form id="reset-subtypes" method="post" action="{{ edit_url }}">
@@ -266,23 +252,9 @@ is named by the page's own heading directly below.
                                                  :addable="rule_more"
                                                  name="rules"
                                                  add_label="Add a special rule"
-                                                 placeholder="Search special rules">
-                                    <c-slot name="actions">
-                                        <div class="flex items-center justify-end gap-2">
-                                            {% if rule_edits_dirty %}
-                                                <c-ui.button type="submit"
-                                                             form="reset-rules"
-                                                             variant="subtle"
-                                                             size="sm">
-                                                    Reset
-                                                </c-ui.button>
-                                            {% endif %}
-                                            <c-ui.button type="submit" variant="success" size="sm" ::disabled="!dirty">
-                                                Save rules
-                                            </c-ui.button>
-                                        </div>
-                                    </c-slot>
-                                </c-n26.pick-list>
+                                                 placeholder="Search special rules"
+                                                 save="Save rules"
+                                                 reset_form="{% if rule_edits_dirty %}reset-rules{% endif %}" />
                             </form>
                             {% if rule_edits_dirty %}
                                 <form id="reset-rules" method="post" action="{{ edit_url }}">

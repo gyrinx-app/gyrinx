@@ -4,12 +4,13 @@
 switcher must be a Switcher. Put the current page in items, or the control names somewhere else.
 menu_label must differ from every other switcher on the page. Two controls called Switch are indistinguishable.
 hotkey is a prop, not a field on Switcher. Which chord a control takes depends on where it was put.
+trigger_words draws words inside the chevron button, as a strip's "+3 more" does.
 The body is what shows until the island mounts, and all that shows without JavaScript. Keep its trigger the same size as the island's, or the bar shifts when it mounts.
 {% endcomment %}
 
 {% load navigation react %}
-<c-vars :switcher="None" align="start" min_width="16rem" hotkey="" class="" />
-{% quick_switcher_props switcher align=align min_width=min_width hotkey=hotkey as props_ %}
+<c-vars :switcher="None" align="start" min_width="16rem" hotkey="" trigger_words="" class="" />
+{% quick_switcher_props switcher align=align min_width=min_width hotkey=hotkey trigger_words=trigger_words as props_ %}
 
 <div {{ attrs }} class="inline-block min-w-0 max-w-full {{ class }}">
     {% react_host "quick-switcher" props_ class="min-w-0 max-w-full" %}
@@ -24,12 +25,13 @@ The body is what shows until the island mounts, and all that shows without JavaS
                 {% endif %}
                 <c-ui.button variant="ghost"
                              size="sm"
-                             class="shrink-0 px-1.5!"
+                             class="shrink-0 {% if trigger_words %}inline-flex items-center gap-1.5 px-2!{% else %}px-1.5!{% endif %}"
                              aria-label="{{ switcher.menu_label|default:switcher.heading }}"
                              title="{{ switcher.menu_label|default:switcher.heading }}{% if hotkey %} (⌥⇧{{ hotkey|upper }}){% endif %}"
                              aria-keyshortcuts="{% if hotkey %}Alt+Shift+{{ hotkey|upper }}{% endif %}"
                              aria-haspopup="menu"
                              aria-expanded="false">
+                    {% if trigger_words %}<span class="text-xs text-muted">{{ trigger_words }}</span>{% endif %}
                     <span class="n26-icon-only">
                         <c-n26.icon name="chevron-down" class="size-3 transition-transform" stroke_width="2.5" />
                     </span>
@@ -39,6 +41,7 @@ The body is what shows until the island mounts, and all that shows without JavaS
                 <div class="mt-2 w-72 max-w-full overflow-hidden rounded-box border border-box-border">
                     {% for item in switcher.items %}
                         <a href="{{ item.href }}"
+                           {% if item.title %}title="{{ item.title }}"{% endif %}
                            {% if item.current %}aria-current="page"{% endif %}
                            class="flex items-center gap-2.5 border-b border-box-border px-3 py-2 text-sm {% if item.current %}bg-ink-100 font-medium text-ink-900 dark:bg-ink-800 dark:text-ink-100{% else %}text-ink-700 dark:text-ink-300{% endif %}">
                             <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>

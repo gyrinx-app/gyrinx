@@ -396,10 +396,29 @@ def quick_switcher_recipe():
     )
     if not highlight:
         raise ValueError("Cotton quick-switcher highlight changed")
+    worded = Template(
+        CottonCompiler().process(
+            '<c-n26.quick-switcher menu_label="Add" trigger_words="Add a skill">'
+            '<c-n26.quick-switcher.choice label="Here" />'
+            "</c-n26.quick-switcher>"
+        )
+    ).render(Context())
+    parts = Elements(worded.split("<noscript>")[0]).elements
+    chevrons = [a for tag, a in parts if tag == "button" and a.get("aria-haspopup")]
+    choices = [a for tag, a in parts if tag == "button" and a.get("role") == "menuitem"]
+    words = [
+        a for tag, a in parts if tag == "span" and class_name(a) == "text-xs text-muted"
+    ]
+    if len(chevrons) != 1 or len(choices) != 1 or len(words) != 1:
+        raise ValueError("Cotton quick-switcher trigger words or choice changed")
+
     return {
         "root": at(0),
         "group": at(1),
         "label": at(2),
+        "chevronWords": class_name(chevrons[0]),
+        "triggerWords": class_name(words[0]),
+        "choice": class_name(choices[0]),
         "labelContent": at(3),
         "labelText": at(4),
         "chevron": at(7),
@@ -421,6 +440,41 @@ def quick_switcher_recipe():
     }
 
 
+def pick_list_recipe():
+    """Extract the pick list's boxes and group headings from their Cotton."""
+    from types import SimpleNamespace
+
+    def box(**fields):
+        defaults = {"detail": "", "granted_by": "", "fixed_because": ""}
+        option = SimpleNamespace(
+            key="k", name="Name", is_current=False, **(defaults | fields)
+        )
+        rendered = Template(
+            CottonCompiler().process('<c-n26.pick-list.box :option="option" />')
+        ).render(Context({"option": option}))
+        return Elements(rendered).elements
+
+    free = box(detail="Detail")
+    held = box(granted_by="Keen-eyed")
+    if [tag for tag, _ in free] != ["label", "input", "span", "span", "span"]:
+        raise ValueError(f"Cotton pick-list box structure changed: {free}")
+    if held[0][0] != "label" or "disabled" not in held[1][1]:
+        raise ValueError("Cotton pick-list box no longer disables a granted option")
+    legend, caption = classes(
+        '<c-n26.pick-list.legend name="Name" caption="Caption" />', "legend", "span"
+    )
+    return {
+        "box": class_name(free[0][1]),
+        "boxFixed": class_name(held[0][1]),
+        "checkbox": class_name(free[1][1]),
+        "text": class_name(free[2][1]),
+        "name": class_name(free[3][1]),
+        "remark": class_name(free[4][1]),
+        "legend": legend,
+        "caption": caption,
+    }
+
+
 def recipes():
     from n26.core.icons import resolve
 
@@ -433,7 +487,7 @@ def recipes():
         "input",
         "button",
     )
-    button_variants = ("default", "primary", "success", "danger", "ghost")
+    button_variants = ("default", "primary", "success", "danger", "ghost", "subtle")
     field = classes(
         '<c-ui.field label="Name" description_trailing="Help" for="recipe-field">Control</c-ui.field>',
         "div",
@@ -527,6 +581,7 @@ def recipes():
         ),
         "filterMenu": filter_menu_recipe(),
         "quickSwitcher": quick_switcher_recipe(),
+        "pickList": pick_list_recipe(),
         "icons": {
             name: [
                 {"tag": tag, "attrs": attrs}

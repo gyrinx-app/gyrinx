@@ -7,6 +7,8 @@ link, and a current tab that says which one it is to something reading the page
 aloud rather than only to an eye reading its colour.
 """
 
+import json
+
 from bs4 import BeautifulSoup
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
@@ -46,6 +48,13 @@ def render(source: str, **context) -> str:
     write the call site it is testing.
     """
     return Template(CottonCompiler().process(source)).render(Context(context))
+
+
+def overflow(html):
+    """The rows the narrow strip's switcher island is handed."""
+    soup = BeautifulSoup(html, "html.parser")
+    host = soup.select_one("[data-react-module*='/quick-switcher-']")
+    return json.loads(soup.find(id=host["data-react-props"]).string)["items"]
 
 
 class TestTheStrip:
@@ -101,11 +110,11 @@ class TestTheNarrowStrip:
 
     def test_the_other_tab_is_still_a_real_link_behind_the_switcher(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=THREE)
-        # The wide strip's copy, the switcher panel's, and the switcher's
-        # noscript strip: three real <a>s to the uncurrent tab, so the
-        # destination is reachable whichever strip shows and whether or not
-        # script ran.
-        assert html.count('href="?list=2"') == 3
+        # The wide strip's copy and the switcher's noscript strip: real <a>s
+        # to the uncurrent tab whichever strip shows and whether or not
+        # script ran. The switcher's panel draws the same row from its props.
+        assert html.count('href="?list=2"') == 2
+        assert {"label": "Trading Post", "href": "?list=2"} in overflow(html)
 
     def test_a_shortened_tab_keeps_its_tooltip_behind_the_switcher(self):
         flipped = [
@@ -116,9 +125,10 @@ class TestTheNarrowStrip:
         html = render(
             '<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=flipped
         )
-        # The full name rides into the menu: the wide strip's link, then the
-        # switcher's row drawn twice — its panel and its noscript strip.
-        assert html.count('title="Ash Waste Nomads Equipment List"') == 3
+        # The full name rides into the menu: the wide strip's link, the
+        # switcher's noscript row, and the row its panel draws from props.
+        assert html.count('title="Ash Waste Nomads Equipment List"') == 2
+        assert overflow(html)[0]["title"] == "Ash Waste Nomads Equipment List"
 
     def test_an_ampersand_in_a_name_survives_the_switcher_once_escaped(self):
         tabs = [

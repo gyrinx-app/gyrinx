@@ -41,6 +41,7 @@ class SwitcherItem:
     label: str
     href: str
     current: bool = False
+    title: str = ""
 
 
 @dataclass(frozen=True)

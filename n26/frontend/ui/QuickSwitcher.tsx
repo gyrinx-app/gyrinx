@@ -13,31 +13,47 @@ import cotton from "../generated/cotton.json";
 
 const recipe = cotton.quickSwitcher;
 
-/** One destination. The href is its identity. */
-export type SwitcherRow = { label: string; href: string };
+/**
+ * One row: a destination (`href`) or, when the switcher has `onChoose`, a
+ * choice reported by `value`. Whichever it carries is its identity.
+ */
+export type SwitcherRow = {
+    label: string;
+    href?: string;
+    value?: string;
+    title?: string;
+};
 
 export type QuickSwitcherProps = {
     /** The leading link's words; empty draws the chevron alone. */
-    label: string;
-    href: string;
+    label?: string;
+    href?: string;
     heading: string;
     /** The chevron's accessible name. Unique on the page. */
     menuLabel: string;
     placeholder: string;
-    empty: string;
-    align: "start" | "end";
-    minWidth: string;
+    empty?: string;
+    align?: "start" | "end";
+    minWidth?: string;
     /** One letter: Alt+Shift+that letter opens the panel. */
-    hotkey: string;
-    /** The first page, with the current destination in it. */
+    hotkey?: string;
+    /** Words drawn inside the chevron button, before the chevron. */
+    triggerWords?: string;
+    /** The first page, with the current row in it. */
     items: SwitcherRow[];
-    /** The href of the page being viewed, or empty. */
-    current: string;
+    /** The identity of the row being viewed or chosen, or empty. */
+    current?: string;
     /** Where further pages and searches are read; empty means `items` is the whole list. */
-    source: string;
+    source?: string;
     /** The offset of the next page, or null when `items` is all of it. */
-    next: number | null;
+    next?: number | null;
+    /** Makes every row a choice: called with its value, then the panel closes. */
+    onChoose?: (value: string) => void;
 };
+
+export function rowKey(row: SwitcherRow) {
+    return row.href ?? row.value ?? row.label;
+}
 
 type Listing = { rows: SwitcherRow[]; next: number | null };
 
@@ -84,8 +100,8 @@ function pageUrl(source: string, query: string, offset: number) {
 }
 
 function appendNew(rows: SwitcherRow[], more: SwitcherRow[]) {
-    const seen = new Set(rows.map((row) => row.href));
-    return [...rows, ...more.filter((row) => !seen.has(row.href))];
+    const seen = new Set(rows.map(rowKey));
+    return [...rows, ...more.filter((row) => !seen.has(rowKey(row)))];
 }
 
 /**
@@ -93,19 +109,21 @@ function appendNew(rows: SwitcherRow[], more: SwitcherRow[]) {
  * server as it scrolls. Without a source, it is a fixed list searched here.
  */
 export function QuickSwitcher({
-    label,
-    href,
+    label = "",
+    href = "",
     heading,
     menuLabel,
     placeholder,
-    empty,
-    align,
-    minWidth,
-    hotkey,
+    empty = "No matches",
+    align = "start",
+    minWidth = "16rem",
+    hotkey = "",
+    triggerWords = "",
     items,
-    current,
-    source,
-    next,
+    current = "",
+    source = "",
+    next = null,
+    onChoose,
 }: QuickSwitcherProps) {
     const panelId = useId();
     const listId = useId();
@@ -473,7 +491,9 @@ export function QuickSwitcher({
                 <button
                     ref={trigger}
                     type="button"
-                    className={recipe.chevron}
+                    className={
+                        triggerWords ? recipe.chevronWords : recipe.chevron
+                    }
                     aria-label={name}
                     title={
                         hotkey ? `${name} (⌥⇧${hotkey.toUpperCase()})` : name
@@ -486,6 +506,11 @@ export function QuickSwitcher({
                     aria-controls={open ? panelId : undefined}
                     onClick={() => (open ? close() : show())}
                 >
+                    {triggerWords && (
+                        <span className={recipe.triggerWords}>
+                            {triggerWords}
+                        </span>
+                    )}
                     <span className={recipe.chevronIcon}>
                         <SvgIcon
                             name="chevron-down"
@@ -542,18 +567,17 @@ export function QuickSwitcher({
                             aria-busy={loading || searching}
                         >
                             {rows.map((row, index) => {
-                                const here = row.href === current;
-                                return (
-                                    <a
-                                        key={row.href}
-                                        id={`${listId}-${index}`}
-                                        href={row.href}
-                                        role="menuitem"
-                                        aria-current={here ? "page" : undefined}
-                                        className={`${recipe.row} ${here ? recipe.rowCurrent : recipe.rowOther} ${active === index ? recipe.rowHighlight : ""}`}
-                                        onMouseEnter={() => setActive(index)}
-                                        onClick={close}
-                                    >
+                                const identity = rowKey(row);
+                                const here = !!current && identity === current;
+                                const shared = {
+                                    id: `${listId}-${index}`,
+                                    role: "menuitem",
+                                    title: row.title,
+                                    onMouseEnter: () => setActive(index),
+                                };
+                                const state = `${here ? recipe.rowCurrent : recipe.rowOther} ${active === index ? recipe.rowHighlight : ""}`;
+                                const content = (
+                                    <>
                                         <span className={recipe.rowLabel}>
                                             {row.label}
                                         </span>
@@ -564,6 +588,32 @@ export function QuickSwitcher({
                                                 className={recipe.rowCheck}
                                             />
                                         )}
+                                    </>
+                                );
+                                return onChoose ? (
+                                    <button
+                                        key={identity}
+                                        {...shared}
+                                        type="button"
+                                        aria-current={here ? "true" : undefined}
+                                        className={`${recipe.choice} ${state}`}
+                                        onClick={() => {
+                                            onChoose(row.value ?? row.label);
+                                            closeAndFocus();
+                                        }}
+                                    >
+                                        {content}
+                                    </button>
+                                ) : (
+                                    <a
+                                        key={identity}
+                                        {...shared}
+                                        href={row.href}
+                                        aria-current={here ? "page" : undefined}
+                                        className={`${recipe.row} ${state}`}
+                                        onClick={close}
+                                    >
+                                        {content}
                                     </a>
                                 );
                             })}

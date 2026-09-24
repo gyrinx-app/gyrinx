@@ -43,15 +43,8 @@ model to take from is not worth a heading over an empty box.
                              :grouped="True"
                              added_label="From other sets"
                              add_label="Add a skill"
-                             placeholder="Search skills and powers">
-                <c-slot name="actions">
-                    <div class="flex justify-end">
-                        <c-ui.button type="submit" variant="success" size="sm" ::disabled="!dirty">
-                            Save skills
-                        </c-ui.button>
-                    </div>
-                </c-slot>
-            </c-n26.pick-list>
+                             placeholder="Search skills and powers"
+                             save="Save skills" />
         </form>
     </div>
 {% endif %}
