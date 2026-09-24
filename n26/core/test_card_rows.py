@@ -15,6 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from django.apps import apps
+from django.template.loader import render_to_string
 
 import n26.core
 from n26.core.effects import ComputedCard
@@ -107,6 +108,42 @@ class TestTheCardRows:
         ).read_text()
         assert "weapon.other_choices" in template
         assert "weapon.choices" in name_template
+
+    def test_a_non_tier_gear_choice_stays_visible_on_the_roster(self):
+        from bs4 import BeautifulSoup
+
+        from n26.core.render import AssignableLine, ChoiceLine
+
+        line = AssignableLine(
+            name="Banner",
+            choices=[
+                ChoiceLine(
+                    kind_label="Legacy",
+                    chosen=None,
+                    href="/choose/",
+                    dismiss_href="/dismiss/",
+                    back="/gang/",
+                )
+            ],
+        )
+        roster = BeautifulSoup(
+            render_to_string(
+                "n26/includes/gear_lines.html",
+                {"lines": [line], "has_actions": True, "mode": "gang"},
+            ),
+            "html.parser",
+        )
+        assert "Banner — Legacy: —" in roster.get_text(" ", strip=True)
+        assert roster.find("form", action="/dismiss/")
+
+        edit = BeautifulSoup(
+            render_to_string(
+                "n26/includes/gear_lines.html",
+                {"lines": [line], "has_actions": True, "mode": "edit"},
+            ),
+            "html.parser",
+        )
+        assert edit.find("a", href="/choose/").get_text(" ", strip=True) == "Choose"
 
     def test_every_question_row_is_pointed_at_its_picker(self):
         """Drawn is not enough. A question carries its address and a view

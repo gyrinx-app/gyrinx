@@ -3,9 +3,8 @@ What sits under a gear heading on a model card, drawn one of two ways.
 
 Takes `lines`, `has_actions` and the card's `mode`. Edit actions need one line
 per assignment so each menu stays beside the name of the thing it changes.
-The gang sheet and print card keep the compact comma-separated run even when
-an item has a tier picker on Edit. Used by the Gear row and by every category drawing a row of its own,
-so the two cannot drift apart.
+The gang sheet and print card keep the compact run. Non-tier choices still
+appear beneath it; an empty tier does not. Used by Gear and named gear rows.
 {% endcomment %}
 {% if has_actions and mode == "edit" %}
     <ul class="flex flex-col gap-1">
@@ -34,9 +33,7 @@ so the two cannot drift apart.
                         {{ choice.kind_label }}: {{ choice.chosen|default:"—" }}
                         <span class="inline-flex items-center gap-0">
                             <c-n26.model-card.mode when="edit">
-                                {% if choice.href %}<c-ui.button href="{{ choice.href }}"
-             variant="ghost"
-             size="xs">Change</c-ui.button>{% endif %}
+                                {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_resolved %}Change{% else %}Choose{% endif %}</c-ui.button>{% endif %}
                             </c-n26.model-card.mode>
                             <c-n26.model-card.mode when="gang edit">
                                 <c-n26.choice-dismiss :choice="choice" />
@@ -49,4 +46,14 @@ so the two cannot drift apart.
     </ul>
 {% else %}
     <c-n26.assignable-lines :lines="lines" :ratings="False" />
+    {% for line in lines %}
+        {% for choice in line.other_choices %}
+            <span class="block pl-2 text-sm">
+                {{ line.name }} — {{ choice.kind_label }}: {{ choice.chosen|default:"—" }}
+                <c-n26.model-card.mode when="gang">
+                    <c-n26.choice-dismiss :choice="choice" />
+                </c-n26.model-card.mode>
+            </span>
+        {% endfor %}
+    {% endfor %}
 {% endif %}

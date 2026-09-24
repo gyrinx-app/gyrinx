@@ -1070,31 +1070,66 @@ def test_printed_card_hides_an_unselected_wargear_tier(gang, crew, model_choices
 
 
 def test_an_ordinary_choice_from_wargear_stays_on_the_model_card(
-    gang, crew, model_choices
+    client, owner, gang, crew, model_choices
 ):
+    from bs4 import BeautifulSoup
+
     card = next(card for card in render_gang(gang).models if card.name == "Sorrow")
     rig = next(line for line in card.equipment if line.name == "Augmentable rig")
     assert [choice.kind_label for choice in rig.choices] == ["Gear tier"]
     role = next(choice for choice in card.choices if choice.kind_label == "Rig role")
     assert role.is_tier_ladder is False
 
+    client.force_login(owner)
+    roster = BeautifulSoup(
+        client.get(reverse("n26-gang", args=[gang.pk])).content, "html.parser"
+    )
+    assert "Rig role" in roster.get_text(" ", strip=True)
+
 
 def test_identical_wargear_copies_keep_their_own_tiers(gang, crew, model_choices):
     from n26.core.operations import operation
-    from n26.library.models import Wargear
+    from n26.library.authoring import add_picklist_member, create_pickable
+    from n26.library.models import Pickable, Picklist, SlotType, Wargear
+
+    second_tier = create_pickable(
+        "Gear tier 2", SlotType.objects.get(name="Augmentation")
+    )
+    add_picklist_member(Picklist.objects.get(name="Gear tiers"), second_tier, level=2)
+
+    tier = next(
+        choice
+        for choice in fighter_computed(crew["leader"]).choices
+        if choice.kind_label == "Gear tier"
+    )
+    choose(
+        tier.anchor.assignment,
+        Pickable.objects.get(name="Gear tier 1"),
+    )
 
     with operation(gang, actor=gang.owner) as op:
-        op.buy(
+        second_rig = op.buy(
             crew["leader"],
             thing=Wargear.objects.get(name="Augmentable rig"),
             paid=0,
         )
+    second_slot = next(
+        choice
+        for choice in fighter_computed(crew["leader"]).choices
+        if choice.kind_label == "Gear tier"
+        and choice.anchor.caused_by_key == second_rig.pk
+    )
+    choose(second_slot.anchor.assignment, second_tier)
     card = next(card for card in render_gang(gang).models if card.name == "Sorrow")
     rigs = [line for line in card.equipment if line.name == "Augmentable rig"]
     assert len(rigs) == 2
     assert all(
         [choice.kind_label for choice in rig.choices] == ["Gear tier"] for rig in rigs
     )
+    assert sorted(rig.tier_mark for rig in rigs) == [
+        " (Gear tier 1)",
+        " (Gear tier 2)",
+    ]
 
 
 def test_gang_sheet_choice_links_return_to_the_exact_sheet(
