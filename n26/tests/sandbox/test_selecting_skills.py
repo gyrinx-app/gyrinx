@@ -269,10 +269,16 @@ class TestTheWordForIt:
     ):
         """The card's Skills row carries the way in, and it is drawn on the
         model's own page — so the word on it is read before the screen's."""
-        client.force_login(player)
-        body = client.get(edit_url(yolanda)).content.decode()
+        from bs4 import BeautifulSoup
 
-        assert 'aria-label="Select a skill"' in body
+        client.force_login(player)
+        page = BeautifulSoup(client.get(edit_url(yolanda)).content, "html.parser")
+        control = page.find("a", attrs={"aria-label": "Select a skill"})
+        rename = page.find("a", attrs={"aria-label": f"Rename {yolanda.name}"})
+
+        assert control["href"] == skills_url(yolanda)
+        assert control.find_parent("dt").get_text(" ", strip=True) == "Skills"
+        assert set(control["class"]) == set(rename["class"])
 
     def test_no_surface_says_learn(self, client, player, yolanda, library):
         """A discovering check rather than a list: every rendered word of

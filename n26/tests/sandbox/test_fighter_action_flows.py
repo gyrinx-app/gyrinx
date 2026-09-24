@@ -309,7 +309,9 @@ class TestSuitEvolutionForms:
         ]
         assert "Credits" not in drawn
 
-    def test_the_gear_menu_sits_with_the_name_above_its_tier(self, client, hunt):
+    def test_the_gear_menu_and_tier_controls_can_wrap_after_the_name(
+        self, client, hunt
+    ):
         from bs4 import BeautifulSoup
 
         client.force_login(hunt.owner)
@@ -318,11 +320,14 @@ class TestSuitEvolutionForms:
         menu = page.find(attrs={"aria-label": "More for Hunting rig"})
         gear_line = menu.find_parent("li")
         name_line = gear_line.find("div", recursive=False)
+        rows = gear_line.find_parent("dl")
 
+        assert "grid-cols-[minmax(7rem,min(35%,12rem))_minmax(0,1fr)]" in rows["class"]
         assert "Hunting rig" in name_line.get_text(" ", strip=True)
+        assert "flex-wrap" in name_line.get("class", [])
         assert menu in name_line.descendants
+        assert "Choose tier" in name_line.get_text(" ", strip=True)
         assert "Rig augmentation" not in name_line.get_text(" ", strip=True)
-        assert "Rig augmentation" in gear_line.get_text(" ", strip=True)
 
     def test_credit_prices_use_the_credit_unit(self, client, hunt):
         paid = a.create_action(

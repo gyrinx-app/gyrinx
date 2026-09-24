@@ -10,7 +10,7 @@ appear beneath it; an empty tier does not. Used by Gear and named gear rows.
     <ul class="flex flex-col gap-1">
         {% for line in lines %}
             <li>
-                <div class="flex items-center gap-1">
+                <div class="flex flex-wrap items-center gap-1">
                     <span class="min-w-0">{% include "n26/includes/assignable_name.html" %}</span>
                     <c-n26.model-card.mode when="edit">
                         {% for choice in line.choices %}
