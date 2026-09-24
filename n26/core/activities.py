@@ -23,14 +23,21 @@ from dataclasses import dataclass
 #: card has already named which action it is, so the button need not.
 COMPLETE = "Complete action"
 
+#: The founding card names the action in the title, so this button only
+#: says the owner is finished.
+FOUNDING_DONE = "I'm done."
+
 #: What the owner is waiting for before they complete the founding.
-FOUNDING_HELP = "Click when you have finished hiring and equipping the gang."
+FOUNDING_HELP = (
+    "Click when you have finished hiring and equipping your gang. "
+    "You can undo this if needed."
+)
 
 #: What being part-way through the founding lets an owner do, under the
 #: title. The help beside the button says when to finish; this says what
-#: finishing takes away, which is the half a reader needs before they do.
+#: the action lets them do while it is running.
 FOUNDING_ABOUT = (
-    "While this action is open, fighters with founding Trade Points can spend "
+    "While this action is running, fighters with founding Trade Points can spend "
     "them on their equipment lists and at the Trading Post."
 )
 
@@ -159,7 +166,9 @@ class ActivitiesSquare:
         return self.founding is not None or self.visit is not None
 
 
-def open_card(kind, at, *, help="", about="", facts=(), marked=False):
+def open_card(
+    kind, at, *, help="", about="", facts=(), marked=False, button_label=COMPLETE
+):
     """One open action's card. The name comes from the kind, so a screen
     cannot call an action something the ledger does not."""
     return ActivityCard(
@@ -168,12 +177,13 @@ def open_card(kind, at, *, help="", about="", facts=(), marked=False):
         help=help,
         about=about,
         facts=facts,
+        button_label=button_label,
         marked=marked,
     )
 
 
 def founding_card(gang, at):
-    """The gang's open Found and equip gang action, or None.
+    """The gang's open Spend built-in Trade Points action, or None.
 
     The gang reads all its open actions in one query and holds them, so
     a page drawing this beside the visit's figure pays for one.
@@ -183,7 +193,14 @@ def founding_card(gang, at):
     kind = Activity.Kind.FOUNDING
     if gang.open_activity(kind) is None:
         return None
-    return open_card(kind, at, help=FOUNDING_HELP, about=FOUNDING_ABOUT, marked=True)
+    return open_card(
+        kind,
+        at,
+        help=FOUNDING_HELP,
+        about=FOUNDING_ABOUT,
+        marked=True,
+        button_label=FOUNDING_DONE,
+    )
 
 
 def founding_blocks_visit(gang, seen):

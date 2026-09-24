@@ -1483,7 +1483,7 @@ class TestCloningAGang:
             "cloned the gang from The Ember Court"
         )
         assert "".join(span.text for span in clone_history[1].spans) == (
-            "started the Found and equip gang action"
+            "started the Spend built-in Trade Points action"
         )
         assert_reconciled(source)
         assert_reconciled(clone)

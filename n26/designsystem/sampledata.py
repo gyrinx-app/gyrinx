@@ -14,6 +14,7 @@ from django.utils.text import slugify
 from n26.core.action_flow import ActionPanel, ActionUseLink
 from n26.core.activities import (
     FOUNDING_ABOUT,
+    FOUNDING_DONE,
     FOUNDING_HELP,
     VISIT_HELP,
     ActivitiesSquare,
@@ -2601,6 +2602,7 @@ def gang_sheet_context():
         help=FOUNDING_HELP,
         about=FOUNDING_ABOUT,
         marked=True,
+        button_label=FOUNDING_DONE,
     )
     a_visit = VisitLine(trade_points_left=3, href="#")
     # Fixed times, counted back from when the page is drawn, so the
@@ -2613,7 +2615,7 @@ def gang_sheet_context():
             (4, "You", "bought Lasgun for Yolanda"),
             (11, "You", "hired Yolanda, a Ganger"),
             (26, "You", "renamed Vespa to Vespa Kray"),
-            (140, "You", "started the Found and equip gang action"),
+            (140, "You", "started the Spend built-in Trade Points action"),
             (141, "You", "created the gang, a House Escher gang"),
         )
     )

@@ -1,4 +1,4 @@
-"""The Found and equip gang action: opened at founding, closed by hand.
+"""The Spend built-in Trade Points action: opened at founding, closed by hand.
 
 An action is a thing a gang is part-way through, and this is the first of
 them. Founding opens one; the card on the gang page completes it; the same
@@ -110,7 +110,7 @@ class TestOneAtATime:
             with operation(gang, actor=tester) as op:
                 op.open_activity(FOUNDING)
 
-        assert "Found and equip gang" in str(refused.value)
+        assert "Spend built-in Trade Points" in str(refused.value)
 
     def test_the_refusal_leaves_nothing_behind(self, gang, tester):
         """It is raised inside the operation, so the event it would have
@@ -208,8 +208,8 @@ class TestTheHistoryReadsIt:
             op.close_activity(gang.open_activity(FOUNDING))
 
         lines = told(gang)
-        assert "started the Found and equip gang action" in lines
-        assert "completed the Found and equip gang action" in lines
+        assert "started the Spend built-in Trade Points action" in lines
+        assert "completed the Spend built-in Trade Points action" in lines
 
     def test_the_kind_it_holds_is_never_printed_as_a_note(self, gang):
         """The note is a record for the code — the sentence has already
@@ -271,9 +271,12 @@ class TestTheSquareOnTheGangPage:
 
     def test_an_open_activity_is_drawn_with_a_way_to_complete_it(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
-        assert "Found and equip gang" in body
-        assert "Complete action" in body
-        assert "Click when you have finished hiring and equipping the gang." in body
+        assert "Spend built-in Trade Points" in body
+        assert "I'm done." in body or "I&#x27;m done." in body
+        assert (
+            "Click when you have finished hiring and equipping your gang. "
+            "You can undo this if needed." in body
+        )
         assert f'action="{act_page(gang)}"' in body
 
     def test_the_action_is_marked(self, client, gang):
@@ -281,7 +284,7 @@ class TestTheSquareOnTheGangPage:
         model cards and the allowance block carry, so a reader meets one
         feature rather than three unrelated screens."""
         body = client.get(sheet(gang)).content.decode()
-        title = body.index("Found and equip gang")
+        title = body.index("Spend built-in Trade Points")
 
         assert MARK in body[body.rindex("<h3", 0, title) : title]
 
@@ -289,7 +292,7 @@ class TestTheSquareOnTheGangPage:
         body = client.get(sheet(gang)).content.decode()
 
         assert (
-            "While this action is open, fighters with founding Trade Points can "
+            "While this action is running, fighters with founding Trade Points can "
             "spend them on their equipment lists and at the Trading Post." in body
         )
 
@@ -329,7 +332,7 @@ class TestTheSquareOnTheGangPage:
         body = client.get(sheet(gang)).content.decode()
         assert "No action is open." in body
         assert "Equip the gang using founding Trade Points" in body
-        assert "Complete action" not in body
+        assert "I'm done." not in body and "I&#x27;m done." not in body
 
     def test_the_start_row_posts_rather_than_links(self, client, gang, tester):
         """A link is followed by anything that follows links, and a reload
@@ -386,14 +389,16 @@ class TestTheSquareOnTheGangPage:
 
     def test_the_square_leads_the_grid(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
-        assert body.index("Found and equip gang") < body.index("Nothing in the stash")
+        assert body.index("Spend built-in Trade Points") < body.index(
+            "Nothing in the stash"
+        )
 
     def test_a_reader_who_does_not_own_it_gets_no_square(self, client, gang):
         """The roster is theirs to read; the gang's actions are not."""
         client.force_login(User.objects.create_user("stranger"))
         body = client.get(sheet(gang)).content.decode()
-        assert "Found and equip gang" not in body
-        assert "Complete action" not in body
+        assert "Spend built-in Trade Points" not in body
+        assert "I'm done." not in body and "I&#x27;m done." not in body
 
     def test_the_flag_open_to_everyone_admits_no_reader_but_the_owner(
         self, client, gang
@@ -407,7 +412,7 @@ class TestTheSquareOnTheGangPage:
         )
         client.force_login(User.objects.create_user("stranger"))
         body = client.get(sheet(gang)).content.decode()
-        assert "Found and equip gang" not in body
+        assert "Spend built-in Trade Points" not in body
         assert 'value="start"' not in body
         assert "No action is open." not in body
 
@@ -420,7 +425,7 @@ class TestTheSquareOnTheGangPage:
         gang.save(update_fields=["owner"])
         client.force_login(plain)
         body = client.get(sheet(gang)).content.decode()
-        assert "Found and equip gang" not in body
+        assert "Spend built-in Trade Points" not in body
         assert "No action is open." not in body
         assert 'value="start"' not in body
         assert "Nothing in the stash" in body
@@ -534,7 +539,7 @@ class TestTheStoryUnderIt:
 
     def test_the_latest_acts_are_printed(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
-        assert "started the Found and equip gang action" in body
+        assert "started the Spend built-in Trade Points action" in body
         assert "created the gang" in body
 
     def test_the_newest_act_is_at_the_top(self, client, gang, tester):
@@ -543,9 +548,9 @@ class TestTheStoryUnderIt:
 
         body = client.get(sheet(gang)).content.decode()
         square = body[: body.index("Nothing in the stash")]
-        assert square.index("completed the Found and equip gang action") < square.index(
-            "created the gang"
-        )
+        assert square.index(
+            "completed the Spend built-in Trade Points action"
+        ) < square.index("created the gang")
 
     def test_no_more_than_a_handful_are_printed(
         self, client, gang, tester, make_profile, make_statline
@@ -588,7 +593,7 @@ class TestTheStoryUnderIt:
         client.force_login(User.objects.create_user("stranger"))
         body = client.get(sheet(gang)).content.decode()
         assert "Full history" not in body
-        assert "started the Found and equip gang action" not in body
+        assert "started the Spend built-in Trade Points action" not in body
 
 
 class TestWhatTheSquareCosts:
@@ -661,7 +666,7 @@ class TestTheActsBehindIt:
 
         assert gang.open_activity(FOUNDING) is None
         lines = [str(m) for m in answer.context["messages"]]
-        assert "Completed the Found and equip gang action." in lines
+        assert "Completed the Spend built-in Trade Points action." in lines
 
     def test_a_gang_past_its_budget_is_told_so_rather_than_broken(
         self, client, gang, tester, make_profile, make_statline
@@ -695,7 +700,7 @@ class TestTheActsBehindIt:
 
         assert gang.open_activity(FOUNDING) is not None
         lines = [str(m) for m in answer.context["messages"]]
-        assert "Started the Found and equip gang action." in lines
+        assert "Started the Spend built-in Trade Points action." in lines
 
     def test_starting_one_while_one_is_open_is_told_no(self, client, gang):
         """The card offers the other control, so this is a stale page

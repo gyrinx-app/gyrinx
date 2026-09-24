@@ -168,7 +168,7 @@ def trade_points_refund_of(assignment):
     """The Trade Points refunding this would give back.
 
     The other half of :func:`refund_of`, over the same assignments. A
-    purchase made while the gang's Found and equip gang activity was open
+    purchase made while the gang's Spend built-in Trade Points activity was open
     came off the buyer's founding allowance, and undoing it puts them
     back.
 

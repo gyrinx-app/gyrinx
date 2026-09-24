@@ -26,7 +26,7 @@ from n26.core.models.abstract import Base
 
 class Activity(Base):
     class Kind(models.TextChoices):
-        FOUNDING = "founding", "Found and equip gang"
+        FOUNDING = "founding", "Spend built-in Trade Points"
         TRADING_POST_VISIT = "trading_post_visit", "Visit Trading Post"
 
     gang = models.ForeignKey(

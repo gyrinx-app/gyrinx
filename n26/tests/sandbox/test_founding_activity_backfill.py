@@ -1,7 +1,7 @@
 """The founding-action backfill: every existing gang gets the act it
 was founded without.
 
-Founding a gang opens a Found and equip gang action, but gangs founded
+Founding a gang opens a Spend built-in Trade Points action, but gangs founded
 before that existed have none — nothing on their page says the act is
 still to be completed. The backfill walks the estate on the batched
 runner and opens one for each, through the same operation a founding
@@ -147,7 +147,7 @@ class TestOpeningTheAction:
         run(record)
 
         told = " ".join(line.search for line in build(gang))
-        assert "started the found and equip gang action" in told
+        assert "started the spend built-in trade points action" in told
 
     def test_the_history_line_carries_no_subject(self, old_gang, record):
         """With no actor the page draws the sentence alone, as it does
@@ -161,7 +161,7 @@ class TestOpeningTheAction:
         started = [
             line
             for line in build(gang)
-            if "started the Found and equip gang action"
+            if "started the Spend built-in Trade Points action"
             in "".join(span.text for span in line.spans)
         ]
         assert len(started) == 1
@@ -212,7 +212,7 @@ class TestOpeningTheAction:
         def open_activity(self, kind, trade_points=None):
             if self.gang.pk == slipped_in.pk:
                 raise Refusal(
-                    "Complete the open Found and equip gang action before "
+                    "Complete the open Spend built-in Trade Points action before "
                     "starting another."
                 )
             return really_open(self, kind, trade_points)

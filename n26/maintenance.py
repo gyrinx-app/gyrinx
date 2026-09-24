@@ -219,7 +219,7 @@ class Operation(models.TextChoices):
     )
     OPEN_FOUNDING_ACTIONS = (
         "n26_open_founding_actions",
-        "n26: the Found and equip gang action is opened on gangs that never had one",
+        "n26: the Spend built-in Trade Points action is opened on gangs that never had one",
     )
     DELETE_LEGACY_AFFILIATION_ASSIGNMENTS = (
         "n26_delete_legacy_affiliation_assignments",
@@ -1685,7 +1685,7 @@ def gangs_without_a_founding_action():
 
 @task
 def open_founding_actions(backfill_id, **said_by_whoever_enqueued_it):
-    """Open a Found and equip gang action on every unarchived gang that
+    """Open a Spend built-in Trade Points action on every unarchived gang that
     has never had one, a gang at a time.
 
     A gang founded before the action existed has none, so nothing on
@@ -1760,8 +1760,8 @@ def _preview_words(eligible, walked):
     return [
         f"{eligible} of {walked} unarchived gang"
         f"{'' if walked == 1 else 's'} "
-        f"{'has' if eligible == 1 else 'have'} never had a Found and "
-        "equip gang action.",
+        f"{'has' if eligible == 1 else 'have'} never had a Spend built-in "
+        "Trade Points action.",
         "Every unarchived gang is walked, so this run's total counts "
         "gangs walked, not gangs changed.",
     ]
@@ -1786,7 +1786,7 @@ def open_founding_actions_view(request):
             messages.info(
                 request,
                 "There is nothing to open — every unarchived gang already "
-                "has the Found and equip gang action.",
+                "has the Spend built-in Trade Points action.",
             )
             return HttpResponseRedirect(address)
         walked = Gang.objects.filter(archived=False).count()
@@ -1820,7 +1820,7 @@ register_operation(
         name=Operation.OPEN_FOUNDING_ACTIONS.label,
         added=date(2026, 9, 4),
         description=(
-            "Open the Found and equip gang action on every unarchived "
+            "Open the Spend built-in Trade Points action on every unarchived "
             "gang that has never had one. A gang founded before the "
             "action existed has none, so its page has nothing for the "
             "owner to complete. Each of those gangs gets the action a "
