@@ -8,7 +8,10 @@ own answer back. An added thing has teeth: rules that match on the
 subtype reach the model exactly as if the content had granted it.
 """
 
+import json
+
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 
 from n26.core.card import build_card, build_modifier_index
@@ -356,7 +359,15 @@ class TestTheEditPage:
         assert f'value="library.subtype:{mounted.pk}"' in body
         assert f'value="library.rule:{gaunt.pk}"' in body
         # The panel's own row reports that same key rather than the words.
-        assert f"isPicked('library.subtype:{mounted.pk}')" in body
+        soup = BeautifulSoup(body, "html.parser")
+        offered = [
+            option["key"]
+            for host in soup.select("[data-react-module*='/pick-list-']")
+            for option in json.loads(soup.find(id=host["data-react-props"]).string)[
+                "addable"
+            ]
+        ]
+        assert f"library.subtype:{mounted.pk}" in offered
 
     def test_ticking_a_subtype_from_the_list_adds_it(self, client, yolanda):
         mounted = create_subtype("Mounted")

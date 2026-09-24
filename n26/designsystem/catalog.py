@@ -1798,14 +1798,14 @@ GROUPS: list[Group] = [
                 notes=(
                     "Use it for a library too long to scan, such as every subtype "
                     "or every special rule. What is held is ticked boxes, and "
-                    "add_label opens the rest as a c-n26.quick-switcher panel. That "
-                    "panel only ticks boxes already on the page and adds no input "
-                    "of its own, so no value can arrive that nobody chose. Pass "
-                    "commit controls in the actions slot, which renders inside this "
-                    'Alpine scope, so a Save button can bind ::disabled="!dirty". A '
-                    "disabled box submits nothing, so whatever applies the "
-                    "difference must not read that silence as a clearing. :grouped "
-                    "draws each group under its own name."
+                    "add_label opens the rest as a quick-switcher panel. Drawn as "
+                    "the pick-list React island. The panel only ticks boxes and adds "
+                    "no input of its own, so no value can arrive that nobody chose. "
+                    "save names the submit button, disabled until a box changes; "
+                    "reset_form names the form a Reset button submits. A disabled "
+                    "box submits nothing, so whatever applies the difference must "
+                    "not read that silence as a clearing. :grouped draws each group "
+                    "under its own name."
                 ),
                 parts=(
                     Part(
@@ -1813,7 +1813,7 @@ GROUPS: list[Group] = [
                         "n26/pick_list/box.html",
                         (
                             "A tickable option, the same line whether held or "
-                            "offered, bound to the list's picked state."
+                            "offered. The page draws it until the island mounts."
                         ),
                     ),
                 ),

@@ -72,7 +72,9 @@ def places_switcher(context, here=""):
 
 
 @register.simple_tag
-def quick_switcher_props(switcher, align="start", min_width="16rem", hotkey=""):
+def quick_switcher_props(
+    switcher, align="start", min_width="16rem", hotkey="", trigger_words=""
+):
     """A ``Switcher`` as the quick-switcher island's props.
 
     ``next`` is the offset the island asks the source for when the list
@@ -93,11 +95,50 @@ def quick_switcher_props(switcher, align="start", min_width="16rem", hotkey=""):
         "align": "end" if align == "end" else "start",
         "minWidth": min_width,
         "hotkey": hotkey,
-        "items": [{"label": item.label, "href": item.href} for item in items],
+        "triggerWords": trigger_words,
+        "items": [
+            {"label": item.label, "href": item.href}
+            | ({"title": item.title} if item.title else {})
+            for item in items
+        ],
         "current": next((item.href for item in items if item.current), ""),
         "source": switcher.source,
         "next": SWITCHER_PAGE if switcher.source and switcher.more else None,
     }
+
+
+@register.simple_tag
+def tab_overflow_switcher(tabs, label):
+    """The tabs a narrow strip has no room for, as a switcher of links.
+
+    Every tab but the current one, which the strip draws beside it. A tab
+    is a dict or an object with ``label``, ``href``, ``current`` and an
+    optional ``title``; a title that only repeats the label is dropped.
+    """
+    from n26.core.navigation import Switcher, SwitcherItem
+
+    def read(tab, key):
+        return tab.get(key, "") if isinstance(tab, dict) else getattr(tab, key, "")
+
+    items = []
+    for tab in tabs:
+        if read(tab, "current"):
+            continue
+        title = read(tab, "title") or ""
+        items.append(
+            SwitcherItem(
+                label=str(read(tab, "label")),
+                href=str(read(tab, "href")),
+                title=title if title != read(tab, "label") else "",
+            )
+        )
+    return Switcher(
+        heading=label,
+        menu_label="Other tabs",
+        placeholder="Search tabs",
+        empty="No tabs match",
+        items=tuple(items),
+    )
 
 
 @register.simple_tag

@@ -6,13 +6,6 @@
                      :addable="pick_list_addable"
                      name="skills"
                      add_label="Add a skill"
-                     placeholder="Search skills">
-        <c-slot name="actions">
-            <div class="flex items-center justify-end gap-2">
-                <c-ui.button type="submit" variant="success" size="sm" ::disabled="!dirty">
-                    Save skills
-                </c-ui.button>
-            </div>
-        </c-slot>
-    </c-n26.pick-list>
+                     placeholder="Search skills"
+                     save="Save skills" />
 </form>

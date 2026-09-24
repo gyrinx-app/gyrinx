@@ -564,6 +564,81 @@ export function SearchBar({
     );
 }
 
+export type PickOption = {
+    key: string;
+    name: string;
+    detail: string;
+    grantedBy: string;
+    fixedBecause: string;
+    picked: boolean;
+};
+
+/**
+ * One tickable option. A grant or a priced hold is drawn fixed and disabled,
+ * so it posts nothing an owner could take back.
+ */
+export function PickBox({
+    option,
+    name,
+    checked,
+    onChange,
+}: {
+    option: PickOption;
+    name: string;
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+}) {
+    const recipe = cotton.pickList;
+    const fixed = !!(option.grantedBy || option.fixedBecause);
+    const remark = option.grantedBy
+        ? `From ${option.grantedBy}`
+        : option.fixedBecause || option.detail;
+    return (
+        <label
+            className={fixed ? recipe.boxFixed : recipe.box}
+            title={
+                option.grantedBy
+                    ? `From ${option.grantedBy}`
+                    : option.fixedBecause || undefined
+            }
+        >
+            <input
+                type="checkbox"
+                name={name}
+                value={option.key}
+                checked={checked}
+                disabled={fixed}
+                onChange={(event) => onChange(event.target.checked)}
+                className={recipe.checkbox}
+            />
+            <span className={recipe.text}>
+                <span className={recipe.name}>{option.name}</span>
+                {remark && <span className={recipe.remark}>{remark}</span>}
+            </span>
+        </label>
+    );
+}
+
+export function PickLegend({
+    name,
+    caption,
+}: {
+    name: string;
+    caption: string;
+}) {
+    return (
+        <legend className={cotton.pickList.legend}>
+            {name}
+            {caption && (
+                <>
+                    {" "}
+                    <span className={cotton.pickList.caption}>{caption}</span>
+                </>
+            )}
+        </legend>
+    );
+}
+
 export { FilterMenu, type FilterOption } from "./FilterMenu";
 export {
     QuickSwitcher,

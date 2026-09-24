@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.pick-list.box> — One tickable option in a pick list, fixed when a grant or a purchase holds it.
 
-Must sit inside pick-list. The checkbox binds to that scope's picked list.
+The markup the pick-list island draws before it mounts and without JavaScript. The island reads its classes from here.
 granted_by disables the input: a grant has no assignment a tick could remove.
 fixed_because disables it too: a priced hold must be sold from the equip screen.
 text-muted sets colour only. Each muted line must set its own size, or it inherits and can outgrow the name.
@@ -15,7 +15,6 @@ text-muted sets colour only. Each muted line must set its own size, or it inheri
     <input type="checkbox"
            name="{{ name }}"
            value="{{ option.key }}"
-           x-model="picked"
            {% if option.is_current %}checked{% endif %}
            {# Disabled inputs are omitted from a submit. A grant or a priced hold must not be posted as a tick the owner could take back. #}
            {% if option.granted_by or option.fixed_because %}disabled{% endif %}

@@ -13,6 +13,7 @@ htmx cancels an anchor's own navigation whatever key is held, so modified clicks
 The spinner lives in a template. It is cloned only while waiting, and removed whole on restore.
 {% endcomment %}
 
+{% load navigation %}
 <c-vars :tabs="[]" label="" speculate="" eagerness="moderate" busy="" :htmx="False" class="" />
 
 <nav {{ attrs }}
@@ -84,27 +85,10 @@ The spinner lives in a template. It is cloned only while waiting, and removed wh
             {% endfor %}
             {% if tabs|length > 2 %}
                 <span class="flex shrink-0 items-center border-b-2 border-box-border">
-                    <c-n26.quick-switcher heading="{{ label }}"
-                                          menu_label="Other tabs"
-                                          placeholder="Search tabs"
-                                          align="end">
-                        <c-slot name="trigger_words">
-                            <span>+{{ tabs|length|add:"-1" }} more</span>
-                        </c-slot>
-
-                        {# Bind label and href. A written attribute is escaped twice and the destination breaks. #}
-                        {% for tab in tabs %}
-                            {% if not tab.current %}
-                                {% if tab.title and tab.title != tab.label %}
-                                    <c-n26.quick-switcher.item :label="tab.label"
-                                                               :href="tab.href"
-                                                               :title="tab.title" />
-                                {% else %}
-                                    <c-n26.quick-switcher.item :label="tab.label" :href="tab.href" />
-                                {% endif %}
-                            {% endif %}
-                        {% endfor %}
-                    </c-n26.quick-switcher>
+                    {% tab_overflow_switcher tabs label as overflow_ %}
+                    <c-n26.quick-switcher.of :switcher="overflow_"
+                                             align="end"
+                                             trigger_words="+{{ tabs|length|add:'-1' }} more" />
                 </span>
             {% endif %}
         </c-slot>
