@@ -4112,7 +4112,56 @@ def _carried_state(request):
     return carried
 
 
-def _composer_state(request, attach_to=None, bound_composer=None):
+def _modifier_kind_picker_props(scope_kind, effect_kind, *, attach_to, submit_label):
+    """The URL-driven modifier kinds and their existing GET field contract."""
+    from n26.library.forms import (
+        ModifierComposerForm,
+        effect_kind_cards,
+        scope_kind_cards,
+    )
+
+    scope = scope_kind_cards(picked=scope_kind, carrier=attach_to)
+    effect = effect_kind_cards(picked=effect_kind)
+    return {
+        "submitLabel": submit_label,
+        "served": {"scope": scope_kind, "effect": effect_kind},
+        "scope": {
+            "name": "scope_kind",
+            "legend": str(ModifierComposerForm.base_fields["scope_kind"].label),
+            "cards": [
+                {
+                    "value": card["value"],
+                    "label": card["label"],
+                    "description": card["blurb"],
+                    "example": card["example"],
+                    "produces": card["produces"],
+                    "checked": card["checked"],
+                    "disabled": card["disabled"],
+                    "reason": card["reason"],
+                    "deprecated": card["deprecated"],
+                }
+                for card in scope
+            ],
+        },
+        "effect": {
+            "name": "effect_kind",
+            "legend": str(ModifierComposerForm.base_fields["effect_kind"].label),
+            "cards": [
+                {
+                    "value": card["value"],
+                    "label": card["label"],
+                    "description": card["blurb"],
+                    "example": card["example"],
+                    "accepts": card["accepts"].split(),
+                    "checked": card["checked"],
+                }
+                for card in effect
+            ],
+        },
+    }
+
+
+def _composer_state(request, attach_to=None, bound_composer=None, *, switch_label):
     """The composer as the URL describes it: closed, open at the named
     kinds, filled in from a form the address carries, or bound with
     errors after a refused submit. Shared by the carrier pages and the
@@ -4137,23 +4186,18 @@ def _composer_state(request, attach_to=None, bound_composer=None):
         else:
             composer = ModifierComposerForm.carried(carried, attach_to=attach_to)
 
-    from n26.library.forms import effect_kind_cards, scope_kind_cards
-
     return {
-        "kind_picker": ModifierComposerForm(
-            initial={"scope_kind": scope_kind, "effect_kind": effect_kind}
-        ),
         "composer": composer,
         "composer_scope": scope_kind,
         "composer_effect": effect_kind,
         "composer_chips": chips,
         "modifier_naming": _modifier_naming_props(composer),
-        # The two kind pickers as cards: each carries its own blurb and
-        # example, what it produces or applies to (the client-side gate),
-        # and — where the composer hangs on a carrier — whether it can
-        # ever speak for it.
-        "scope_cards": scope_kind_cards(picked=scope_kind, carrier=attach_to),
-        "effect_cards": effect_kind_cards(picked=effect_kind),
+        "modifier_kind_picker": _modifier_kind_picker_props(
+            scope_kind,
+            effect_kind,
+            attach_to=attach_to,
+            submit_label=switch_label,
+        ),
         "add_condition_href": _one_more_chip(request, chips, scope_kind, effect_kind),
     }
 
@@ -4281,7 +4325,12 @@ def _modifier_section(request, thing, bound_composer=None):
         "with_modifiers": True,
         "modifier_rows": rows,
         "attachable_modifiers": attachable,
-        **_composer_state(request, attach_to=thing, bound_composer=bound_composer),
+        **_composer_state(
+            request,
+            attach_to=thing,
+            bound_composer=bound_composer,
+            switch_label="Configure new modifier",
+        ),
     }
 
 
@@ -4477,7 +4526,12 @@ def modifier_create(request):
             "composer_cancel_url": (
                 landing.url if landing is not None else reverse("authoring-modifiers")
             ),
-            **_composer_state(request, attach_to=carrier, bound_composer=bound),
+            **_composer_state(
+                request,
+                attach_to=carrier,
+                bound_composer=bound,
+                switch_label="Change modifier type",
+            ),
         },
     )
 

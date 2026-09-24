@@ -159,6 +159,73 @@ def callout_recipe():
     return {"root": root, "content": content, "body": body}
 
 
+def radio_cards_recipe():
+    """Extract the wrapping group and the card states used by the composer."""
+    fieldset, legend, grid = attributes(
+        '<c-n26.radio-cards label="Kind" min="var(--radio-card-min)" />',
+        "fieldset",
+        "legend",
+        "div",
+    )
+    style = grid.get("style", "").strip()
+    match = re.fullmatch(r"grid-template-columns:\s*([^;]+);?", style)
+    if not match or "var(--radio-card-min)" not in match[1]:
+        raise ValueError(f"Radio-card grid style changed: {style}")
+
+    enabled = attributes(
+        '<c-n26.radio-cards.card name="kind" value="one" label="One" '
+        'description="Description" example="Example" :wrap="True">'
+        '<c-slot name="flair"><c-ui.badge color="amber" size="sm">'
+        "Deprecated</c-ui.badge></c-slot></c-n26.radio-cards.card>",
+        "label",
+        "input",
+        "span",
+        "span",
+        "span",
+        "span",
+        "span",
+        "span",
+        "span",
+        "svg",
+        "span",
+    )
+    disabled = attributes(
+        '<c-n26.radio-cards.card name="kind" value="one" label="One" '
+        'reason="Reason" :wrap="True" :disabled="True" />',
+        "label",
+        "input",
+        "span",
+        "span",
+        "span",
+        "span",
+    )
+    if enabled[1].get("type") != "radio" or "disabled" not in disabled[1]:
+        raise ValueError("Radio-card controls changed")
+
+    return {
+        "group": {
+            "root": class_name(fieldset),
+            "legend": class_name(legend),
+            "grid": class_name(grid),
+            "gridTemplateColumns": match[1],
+        },
+        "card": {
+            "enabled": class_name(enabled[0]),
+            "disabled": class_name(disabled[0]),
+            "input": class_name(enabled[1]),
+            "content": class_name(enabled[2]),
+            "label": class_name(enabled[3]),
+            "flairText": class_name(enabled[4]),
+            "flair": class_name(enabled[5]),
+            "description": class_name(enabled[7]),
+            "reason": class_name(disabled[5]),
+            "example": class_name(enabled[8]),
+            "exampleIcon": class_name(enabled[9]),
+            "exampleText": class_name(enabled[10]),
+        },
+    }
+
+
 def filter_menu_recipe():
     """Extract the static presentation of the composed filter menu.
 
@@ -321,6 +388,13 @@ def recipes():
             )[0]
             for variant in button_variants
         },
+        "buttonSmall": {
+            variant: classes(
+                f'<c-ui.button variant="{variant}" size="sm">Save</c-ui.button>',
+                "button",
+            )[0]
+            for variant in button_variants
+        },
         "buttonLink": {
             variant: classes(
                 f'<c-ui.button href="/" variant="{variant}">Cancel</c-ui.button>',
@@ -330,6 +404,7 @@ def recipes():
         },
         "checkboxCard": checkbox_card_recipe(),
         "callout": callout_recipe(),
+        "radioCards": radio_cards_recipe(),
         "input": input_recipe(),
         "nativeSelect": native_select_recipe(),
         "field": {
@@ -349,7 +424,7 @@ def recipes():
         "formActions": classes("<c-n26.form-actions />", "div")[0],
         "table": classes("<c-ui.table />", "div", "table"),
         "link": classes('<c-n26.link href="/">Name</c-n26.link>', "a", "span"),
-        "stagedBadge": classes(
+        "badge": classes(
             '<c-ui.badge color="amber" size="sm">Staged</c-ui.badge>', "span"
         )[0],
         "actionBar": classes(
@@ -370,7 +445,7 @@ def recipes():
                 {"tag": tag, "attrs": attrs}
                 for tag, attrs in Elements(str(resolve(name).body)).elements
             ]
-            for name in ("search", "x", "chevron-down")
+            for name in ("search", "x", "chevron-down", "info")
         },
     }
 
