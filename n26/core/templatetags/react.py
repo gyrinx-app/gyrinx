@@ -69,7 +69,7 @@ def _entry(name):
     return asset_url(manifest[entry]["file"]), preloads
 
 
-def _host(name, props, *, css, content, after=""):
+def _host(name, props, *, css, content, after="", fallback=False):
     module, preloads = _entry(name)
     identifier = f"react-{uuid4().hex}"
     loader = format_html(
@@ -77,12 +77,14 @@ def _host(name, props, *, css, content, after=""):
         urljoin("/", static("n26/react-islands.js")),
     )
     return format_html(
-        '{}<div id="{}" data-react-module="{}" data-react-props="{}" x-ignore hx-disable class="{}">'
+        '{}<div id="{}" data-react-module="{}" data-react-props="{}"{} x-ignore hx-disable class="{}">'
         "{}</div>{}{}{}",
         preloads,
         identifier,
         module,
         f"{identifier}-props",
+        # The body is a working control; a failed load leaves it standing.
+        format_html(" {}", "data-react-fallback") if fallback else "",
         css,
         content,
         json_script(props, f"{identifier}-props"),
@@ -120,6 +122,7 @@ class ReactHostNode(template.Node):
             css=self.css.resolve(context) if self.css else "",
             # Template output is already safe; format_html keeps it as it is.
             content=self.nodelist.render(context),
+            fallback=True,
         )
 
 

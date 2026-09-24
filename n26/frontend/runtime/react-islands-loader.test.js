@@ -76,6 +76,19 @@ describe("island lifecycle", () => {
         );
     });
 
+    it("leaves a server-drawn control standing when its import fails", async () => {
+        const element = host();
+        element.setAttribute("data-react-fallback", "");
+        const drawn = document.createElement("a");
+        drawn.href = "/gangs/";
+        element.append(drawn);
+        const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+        mountWithin(element, () => Promise.reject(new Error("chunk removed")));
+        await vi.waitFor(() => expect(logged).toHaveBeenCalled());
+        expect(element.querySelector('[role="alert"]')).toBeNull();
+        expect(element.contains(drawn)).toBe(true);
+    });
+
     it("mounts a host delivered by htmx and unmounts it before removal", async () => {
         const element = host();
         element.dataset.reactModule =

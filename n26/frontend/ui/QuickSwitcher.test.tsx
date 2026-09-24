@@ -200,6 +200,68 @@ describe("quick switcher", () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
+    it("keeps the row being viewed in a server search the source cannot answer", async () => {
+        // A gang sheet anyone can read: the source lists only the reader's own.
+        respond({ "ashen@0": { items: [], next: null } });
+        vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+            1000,
+        );
+        vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(
+            300,
+        );
+        const user = userEvent.setup();
+        render(
+            <QuickSwitcher {...base} source="/n26/switcher/gangs/" next={2} />,
+        );
+        await user.click(
+            screen.getByRole("button", { name: "Switch to another gang" }),
+        );
+        await user.keyboard("ashen");
+        await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+        expect(menuRows()).toEqual(["The Ashen Choir"]);
+    });
+
+    it("drops the highlight when a new search answer arrives", async () => {
+        respond({
+            "p@0": {
+                items: [
+                    { label: "Pale Riders", href: "/gangs/pale/" },
+                    { label: "Pit of Teeth", href: "/gangs/pit/" },
+                ],
+                next: null,
+            },
+        });
+        vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+            1000,
+        );
+        vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(
+            300,
+        );
+        Element.prototype.scrollIntoView = vi.fn();
+        const user = userEvent.setup();
+        render(
+            <QuickSwitcher {...base} source="/n26/switcher/gangs/" next={2} />,
+        );
+        await user.click(
+            screen.getByRole("button", { name: "Switch to another gang" }),
+        );
+        await user.keyboard("p{ArrowDown}");
+        const box = screen.getByRole("searchbox");
+        expect(box.getAttribute("aria-activedescendant")).not.toBeNull();
+        await waitFor(() => expect(menuRows()).toHaveLength(2));
+        expect(box.getAttribute("aria-activedescendant")).toBeNull();
+    });
+
+    it("follows new items when its list has no source", async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(<QuickSwitcher {...base} />);
+        rerender(<QuickSwitcher {...base} items={base.items.slice(1)} />);
+        await user.click(
+            screen.getByRole("button", { name: "Switch to another gang" }),
+        );
+        expect(menuRows()).toEqual(["Pit of Teeth"]);
+    });
+
     it("offers a retry when a page does not load", async () => {
         const fetchMock = respond({});
         const user = userEvent.setup();

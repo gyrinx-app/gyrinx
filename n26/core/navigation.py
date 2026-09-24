@@ -12,8 +12,7 @@ the items of one kind), so each surface builds its own list and what they share
 is the shape, the page size, and one rule: the thing you are on is in the list
 from the moment it opens.
 
-A switcher is an index, not a shortcut: every sibling is reachable from it.
-The page sends the first ``SWITCHER_PAGE`` rows and the address of the rest
+Every sibling is reachable from a switcher. The page sends the first ``SWITCHER_PAGE`` rows and the address of the rest
 (``Switcher.source``); the control fetches further pages as the list scrolls,
 and asks the server when the reader searches, because a name that was never
 sent cannot be matched in the browser.
@@ -21,10 +20,13 @@ sent cannot be matched in the browser.
 
 from dataclasses import dataclass
 
-#: How many rows a switcher is sent at a time — with the page, and with each
-#: fetch as the list scrolls. Enough to fill the panel and then some, so a
-#: typical roster arrives whole and never fetches at all.
+#: How many rows a switcher is sent at a time: with the page, and with each
+#: fetch as the list scrolls.
 SWITCHER_PAGE = 30
+
+#: How many of the reader's gangs the drawer lists. The drawer is not
+#: paged; its Gangs place is the full list.
+DRAWER_GANGS = 10
 
 
 @dataclass(frozen=True)
@@ -73,7 +75,7 @@ class Switcher:
 def with_current(items, current):
     """The destinations a switcher draws first, with the current one in them.
 
-    The first page answers "the first thirty", not "the first thirty
+    The first page answers "the first page", not "the first page
     including this one": a gang named late in the alphabet is on a later
     page, and a switcher that opens without the page it is sitting on
     tells the reader they are nowhere. Prepended rather than sorted in,
@@ -215,13 +217,13 @@ def _first_gangs(request):
 
 
 def owned_gangs(request):
-    """The signed-in reader's gangs, for the drawer: the first page of them.
+    """The signed-in reader's gangs, for the drawer: the first few of them.
 
-    The drawer's Gangs place is the full list, a line above these.
-    Anonymous readers get an empty list, which the drawer reads as "no
-    section at all".
+    Read from the switcher's page, so the drawer and the bar share one
+    query. Anonymous readers get an empty list, which the drawer reads as
+    "no section at all".
     """
-    return _first_gangs(request)[0]
+    return _first_gangs(request)[0][:DRAWER_GANGS]
 
 
 def reader_campaigns(request):
@@ -439,8 +441,12 @@ def fighter_switcher(gang, miniature, route=FIGHTER_FALLBACK):
     )
 
 
+def by_name(rows, query):
+    return rows.filter(name__icontains=query)
+
+
 def _gang_source(request, params):
-    return gang_rows(request.user), gang_item
+    return gang_rows(request.user), gang_item, by_name
 
 
 def _campaign_source(request, params):
@@ -450,7 +456,7 @@ def _campaign_source(request, params):
 
     if not enabled(CAMPAIGNS, request.user):
         raise Http404("No such list")
-    return campaign_rows(request.user), campaign_item
+    return campaign_rows(request.user), campaign_item, by_name
 
 
 def _fighter_source(request, params):
@@ -470,7 +476,7 @@ def _fighter_source(request, params):
         gang = None
     if gang is None:
         raise Http404("No such gang")
-    return fighter_rows(gang), lambda row: fighter_item(row, route)
+    return fighter_rows(gang), lambda row: fighter_item(row, route), by_name
 
 
 def _sources():
@@ -496,10 +502,10 @@ def switcher_rows(request, source, params, query="", offset=0):
     reader may read what it lists and raises ``Http404`` when they may
     not, so an address copied out of somebody else's page reads nothing.
 
-    ``query`` narrows the list by name on the server, because the rows
-    the browser has not been sent are the ones a search is for. Rows
-    whose model has no ``name`` are matched on the label they are drawn
-    with instead.
+    ``query`` narrows the list on the server, because the rows the
+    browser has not been sent are the ones a search is for. Each source
+    says how its rows are searched; one that gives no search is matched
+    on the label each row is drawn with.
 
     Returns the page's items and the offset of the next page, or None
     when this page is the last.
@@ -509,11 +515,11 @@ def switcher_rows(request, source, params, query="", offset=0):
     found = _sources().get(source)
     if found is None:
         raise Http404("No such list")
-    rows, item = found(request, params)
+    rows, item, search = found(request, params)
     query = query.strip()
     if query:
-        if any(field.name == "name" for field in rows.model._meta.get_fields()):
-            rows = rows.filter(name__icontains=query)
+        if search is not None:
+            rows = search(rows, query)
         else:
             wanted = query.lower()
             rows = [row for row in rows if wanted in item(row).label.lower()]

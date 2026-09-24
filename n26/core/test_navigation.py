@@ -707,6 +707,53 @@ class TestTheRestOfTheList:
         url = reverse("n26-switcher-rows", args=["siblings"])
         assert client.get(url, {"kind": "weapon"}).status_code == 404
 
+    def test_an_author_finds_a_row_by_the_qualifier_its_label_shows(
+        self, client, author, default_pack
+    ):
+        from n26.library.authoring import create_rule
+
+        create_rule("Lead Ritual", qualifier="Cawdor")
+        create_rule("Lead Ritual", qualifier="Delaque")
+        client.force_login(author)
+        page = self.rows(client, "siblings", kind="rule", q="delaque")
+        assert [item["label"] for item in page["items"]] == ["Lead Ritual — Delaque"]
+
+    def test_an_unknown_kind_is_not_found(self, client, author):
+        client.force_login(author)
+        url = reverse("n26-switcher-rows", args=["siblings"])
+        assert client.get(url, {"kind": "nothing"}).status_code == 404
+
+    def test_a_weapons_profiles_are_read_by_staff_only(
+        self, client, author, tester, default_pack
+    ):
+        from n26.library.authoring import add_weapon_profile, create_weapon
+
+        weapon = create_weapon("Autogun")
+        add_weapon_profile(weapon, name="Warp round")
+        url = reverse("n26-switcher-rows", args=["weapon-profiles"])
+        client.force_login(tester)
+        assert client.get(url, {"weapon": weapon.pk}).status_code == 404
+        client.force_login(author)
+        assert client.get(url, {"weapon": "not-a-ulid"}).status_code == 404
+        page = self.rows(client, "weapon-profiles", weapon=weapon.pk, q="warp")
+        assert [item["label"] for item in page["items"]] == ["Warp round (Autogun)"]
+
+    def test_a_fighter_screen_with_no_address_of_its_own_leads_to_the_kit(
+        self, client, tester, make_gang, hire
+    ):
+        gang = make_gang("The Ashen Choir")
+        vex = hire(gang, "Vex")
+        client.force_login(tester)
+        page = self.rows(client, "fighters", gang=gang.pk, route="n26-choose")
+        assert page["items"][0]["href"] == reverse("n26-equip", args=[vex.pk])
+
+    def test_the_drawer_lists_the_first_few_gangs_only(self, tester, make_gang):
+        from n26.core.navigation import DRAWER_GANGS
+
+        for index in range(DRAWER_GANGS + 3):
+            make_gang(f"Gang {index:02d}")
+        assert len(owned_gangs(request_for(tester))) == DRAWER_GANGS
+
     def test_an_author_reads_a_kinds_rows(self, client, author, default_pack):
         from n26.library.views import _label_for, _model_for, _rows, _spec_for
 

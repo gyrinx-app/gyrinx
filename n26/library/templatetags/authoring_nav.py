@@ -125,12 +125,34 @@ def _staff_or_404(request):
         raise Http404("No such list")
 
 
+def _label_search(model):
+    """How a kind's rows are searched on the server: the stored words its
+    label is made of, where it has them.
+
+    None for a kind with no name, whose label is matched row by row.
+    """
+    from django.db.models import Q
+
+    fields = {field.name for field in model._meta.get_fields()}
+    words = [name for name in ("name", "qualifier", "annotation") if name in fields]
+    if "name" not in words:
+        return None
+
+    def search(rows, query):
+        match = Q()
+        for name in words:
+            match |= Q((f"{name}__icontains", query))
+        return rows.filter(match)
+
+    return search
+
+
 def sibling_source(request, params):
     """The rows of one kind, for the siblings switcher's further pages."""
     _staff_or_404(request)
     kind = params.get("kind", "")
-    _, rows = _sibling_rows(kind)
-    return rows, _sibling_item(kind)
+    model, rows = _sibling_rows(kind)
+    return rows, _sibling_item(kind), _label_search(model)
 
 
 @register.simple_tag
@@ -187,13 +209,20 @@ def weapon_profile_source(request, params):
     from django.core.exceptions import ValidationError
     from django.http import Http404
 
+    from n26.library.models import Weapon, WeaponProfile
+
     _staff_or_404(request)
-    rows = _weapon_profile_rows(params.get("weapon", ""))
     try:
-        rows.exists()
+        weapon = Weapon.objects.filter(pk=params.get("weapon", "")).first()
     except ValidationError:
-        raise Http404("No such weapon") from None
-    return rows, _weapon_profile_item()
+        weapon = None
+    if weapon is None:
+        raise Http404("No such weapon")
+    return (
+        _weapon_profile_rows(weapon.pk),
+        _weapon_profile_item(),
+        _label_search(WeaponProfile),
+    )
 
 
 @register.simple_tag

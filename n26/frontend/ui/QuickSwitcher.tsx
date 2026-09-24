@@ -140,11 +140,21 @@ export function QuickSwitcher({
         row.label.toLowerCase().includes(wanted);
     // Until the server answers a new search, what is already loaded is
     // narrowed here so the list responds to every keystroke.
-    const rows = whole
-        ? base.rows.filter(matches)
+    const found = whole
+        ? (source ? base.rows : items).filter(matches)
         : searching
           ? listing.rows.filter(matches)
           : listing.rows;
+    // The row being viewed may not be one the source lists (a gang sheet
+    // anyone can read), so a server search would drop it.
+    const pinned = items.find((row) => !!current && row.href === current);
+    const rows =
+        pinned &&
+        wanted &&
+        matches(pinned) &&
+        !found.some((row) => row.href === pinned.href)
+            ? [pinned, ...found]
+            : found;
     const name = menuLabel || heading;
 
     const fetchPage = useCallback(
@@ -164,6 +174,7 @@ export function QuickSwitcher({
                     return response.json() as Promise<Page>;
                 })
                 .then((page) => {
+                    if (controller.signal.aborted) return;
                     const known =
                         offset === 0
                             ? { rows: [], next: null }
@@ -180,6 +191,9 @@ export function QuickSwitcher({
                     setListing(updated);
                     setShownQuery(forQuery);
                     setLoading(false);
+                    // A new answer can put other rows where the highlight
+                    // was; Enter must not follow one nobody chose.
+                    if (offset === 0) setActive(-1);
                 })
                 .catch((error: unknown) => {
                     if (controller.signal.aborted) return;
@@ -255,8 +269,11 @@ export function QuickSwitcher({
             )
                 return;
             event.preventDefault();
+            if (event.repeat) return;
             if (isOpen.current) {
                 setOpen(false);
+                if (root.current?.contains(document.activeElement))
+                    trigger.current?.focus();
             } else {
                 setQuery("");
                 setActive(-1);

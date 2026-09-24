@@ -19,6 +19,10 @@ export function mountWithin(scope, loadModule = (url) => import(url)) {
             })
             .catch((error) => {
                 if (!host.isConnected || islands.get(host) !== pending) return;
+                if (host.hasAttribute("data-react-fallback")) {
+                    console.error("React island failed to load", error);
+                    return;
+                }
                 host.replaceChildren();
                 const message = document.createElement("p");
                 message.setAttribute("role", "alert");
