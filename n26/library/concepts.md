@@ -91,7 +91,7 @@ The slot type's name is the word the card and the history use. The slot's label 
 
 *A named special rule on a card; its text stays in the book.*
 
-Fields of its own: none — but its annotation is part of its identity, so variants of a rule share one printed name. We store the name, never the wording (copyright). A rule that also *does* something the app can work out carries ordinary modifiers.
+Fields of its own: none — but its annotation is part of its identity, so variants of a rule share one printed name. A rule that also *does* something the app can work out carries ordinary modifiers.
 
 Normally it arrives built into something (a profile's kit, a gang type) or given by a modifier. Reach: built into a profile, it reaches the model's card; given to the gang, every member's card. The card prints rules apart from skills, under their own heading.
 
@@ -177,7 +177,7 @@ A **Gives something** modifier can grant wargear as free kit. Each grant gives a
 
 *What a model has selected (skills) or manifests (powers), each with a home category.*
 
-Fields of their own: none. A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power is the same shape: its home is a category too, so it appears in the same fighter-sectioned views as the skill sets with no special casing (the book does the same: Wyrds treat the powers list as a Secondary Skill Set). A power's annotation carries what the book prints in brackets ("(Free)", "Continuous Effect"), never rules text.
+Fields of their own: none. A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power is the same shape: its home is a category too, so it appears in the same fighter-sectioned views as the skill sets with no special casing (the book does the same: Wyrds treat the powers list as a Secondary Skill Set). A power's annotation carries what the book prints in brackets ("(Free)", "Continuous Effect").
 
 Both print on the card under their own headings. They arrive built in, given by a modifier, or chosen through an offered choice, and reach whoever holds them.
 

@@ -508,7 +508,7 @@ Objects** tab in the [N26 Pre-ingest workbook](https://docs.google.com/spreadshe
 as a checklist and check its entries against the equipment's rules. Blank cells
 do not always mean a tier has no effect.
 
-Write a short, original **Summary** for each tier and, if useful, an
+Write a short **Summary** for each tier and, if useful, an
 **Introduction** for its slot. These words appear on the player's choice page.
 The app does not write them from the modifiers. The modifiers still determine
 what the tier does; check that each summary matches them.
