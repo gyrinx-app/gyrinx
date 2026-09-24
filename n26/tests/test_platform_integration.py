@@ -308,6 +308,27 @@ class TestTheChangelogIndex:
         assert "Nothing tagged Nope yet." in body
         assert "Changes tagged Nope." in body
 
+    def test_a_query_longer_than_a_tag_name_does_not_select_that_prefix(
+        self, client, default_pack
+    ):
+        name = "N" * 100
+        changelog_entry("The full-length tag", name)
+
+        body = client.get(f"/changelog/?tag={name}x").content.decode()
+
+        assert "The full-length tag" not in body
+        assert "Nothing matches that tag." in body
+        assert f"Changes tagged {name}" not in body
+
+    def test_two_spellings_of_a_tag_are_one_chip(self, client, default_pack):
+        changelog_entry("One spelling", "N26")
+        changelog_entry("The other spelling", "n26")
+
+        filters = tag_filters(client.get("/changelog/").content.decode())
+
+        assert filters.count("tag=N26") == 1
+        assert "tag=n26" not in filters
+
     def test_tags_are_coloured_and_the_chosen_one_is_marked(self, client, default_pack):
         changelog_entry("Both editions", "N26", "N23")
 
@@ -316,8 +337,8 @@ class TestTheChangelogIndex:
 
         assert "bg-sky-600" in filters
         assert "bg-amber-100" in filters
-        assert "bg-sky-100" in body
-        assert "bg-amber-100" in body
+        assert "bg-sky-600" in body
+        assert "bg-amber-600" in body
 
     def test_the_footer_address_serves_entries_rather_than_the_flat_page(
         self, tester, client, default_pack
@@ -450,7 +471,7 @@ class TestOneChangelogEntry:
         assert "<p>The opening.</p>" in body
         assert "<ul><li><strong>First point</strong></li>" in body
         assert "n26-clamp-2" not in body
-        assert "bg-sky-100" in body
+        assert "bg-sky-600" in body
 
     def test_the_full_body_is_sanitised(self, client, default_pack):
         entry = changelog_entry(

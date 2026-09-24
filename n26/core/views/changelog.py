@@ -19,7 +19,9 @@ from django.urls import reverse
 #: The dashboard, and the link from the n26 home, ask for this tag.
 CHANGELOG_TAG = "N26"
 
-#: The two editions have fixed colours so a reader can learn them.
+#: Colour names from ``c-ui.badge``. The component owns the fills, so a
+#: tag follows the design system in both modes. Amber is the site accent;
+#: sky is the other named hue that stays distinct from it.
 #: Any other tag takes a stable colour from the palette below.
 EDITION_COLOURS = {
     "n23": "amber",
@@ -37,8 +39,13 @@ OTHER_COLOURS = (
 )
 
 
+#: ``ChangelogEntryTag.name`` cannot be longer than this. A longer query
+#: is not a tag, and must not be cut down to one that is.
+TAG_NAME_MAX = 100
+
+
 def tag_colour(name):
-    """The badge colour for a tag name. The same name always gets the same colour."""
+    """A ``c-ui.badge`` colour name. The same tag always gets the same one."""
     key = name.casefold()
     if key in EDITION_COLOURS:
         return EDITION_COLOURS[key]
@@ -155,11 +162,15 @@ def _requested_tag(request):
 
     Prefer the stored spelling when a tag of that name exists, so the
     chips, the lead and the links all agree on one writing of it.
+
+    A query longer than a tag name is returned whole. Cutting it to the
+    field length would select a real tag that happens to be that prefix.
     """
-    # Tag names are at most 100 characters. A longer query is not a tag.
-    raw = request.GET.get("tag", "").strip()[:100]
+    raw = request.GET.get("tag", "").strip()
     if not raw:
         return None
+    if len(raw) > TAG_NAME_MAX:
+        return raw
     from gyrinx.site.models import ChangelogEntryTag
 
     stored = (
@@ -172,15 +183,21 @@ def _requested_tag(request):
 
 
 def _filter_tags(active):
-    """One chip per tag that a live entry actually wears."""
+    """One chip per tag that a live entry actually wears.
+
+    ``N26`` and ``n26`` are one filter, because matching ignores case.
+    The chip keeps the spelling that sorts first within that case.
+    """
     from gyrinx.site.models import ChangelogEntryTag
 
     names = (
         ChangelogEntryTag.objects.filter(entries__archived=False)
-        .order_by("name")
         .values_list("name", flat=True)
         .distinct()
     )
+    chosen = {}
+    for name in sorted(names, key=lambda item: (item.casefold(), item)):
+        chosen.setdefault(name.casefold(), name)
     active_key = active.casefold() if active else None
     return [
         {
@@ -189,7 +206,7 @@ def _filter_tags(active):
             "href": changelog_href(name),
             "current": active_key is not None and name.casefold() == active_key,
         }
-        for name in names
+        for name in chosen.values()
     ]
 
 
@@ -222,12 +239,16 @@ def _tag_query(tag):
 
 
 def _lead(tag):
-    if tag:
-        return f"Changes tagged {tag}."
-    return "Changes on Gyrinx."
+    if not tag:
+        return "Changes on Gyrinx."
+    if len(tag) > TAG_NAME_MAX:
+        return "No changes match that tag."
+    return f"Changes tagged {tag}."
 
 
 def _empty(tag):
-    if tag:
-        return f"Nothing tagged {tag} yet."
-    return "Nothing yet."
+    if not tag:
+        return "Nothing yet."
+    if len(tag) > TAG_NAME_MAX:
+        return "Nothing matches that tag."
+    return f"Nothing tagged {tag} yet."
