@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.wealth> — Trade Points, then rating, credits, stash and wealth for a gang.
+<c-n26.wealth> — Trade Points or the model count, then rating, credits, stash and wealth for a gang.
 
 Trade Points are not money and sit outside the sum. They carry no credits sign.
 Rating is what the models are worth. Stashed gear counts in wealth instead.
@@ -7,19 +7,29 @@ Wealth is rating plus credits plus stash rating, in that order.
 A zero is a real figure. Only the unset message draws a dash, and it ignores the value.
 A shut trading post and unlimited credits pass unset so they draw a dash. A remaining zero does not.
 Pass the whole sheet, not loose integers. Two figures in the same units are easy to swap and hard to notice.
+lead="models" puts the model count first instead of Trade Points. The sheet must carry model_count.
+Gang lists use it. The gang page keeps Trade Points, because its roster count already sits beside the strip.
 {% endcomment %}
 
-<c-vars :sheet="None" trade_points_href="" class="" />
+<c-vars :sheet="None" lead="trade_points" trade_points_href="" class="" />
 
 <div class="overflow-x-auto {{ class }}">
     <dl class="flex w-max items-stretch">
-        <c-n26.wealth.figure short="TP"
-                             full="Trade Points"
-                             unit=""
-                             :value="sheet.trade_points_left"
-                             unset="{% if not sheet.visiting_trading_post %}No Visit Trading Post action open{% endif %}"
-                             href="{{ trade_points_href }}"
-                             class="border-r border-box-border" />
+        {% if lead == "models" %}
+            <c-n26.wealth.figure icon="users"
+                                 full="Models in the gang"
+                                 unit=""
+                                 :value="sheet.model_count"
+                                 class="border-r border-box-border" />
+        {% else %}
+            <c-n26.wealth.figure short="TP"
+                                 full="Trade Points"
+                                 unit=""
+                                 :value="sheet.trade_points_left"
+                                 unset="{% if not sheet.visiting_trading_post %}No Visit Trading Post action open{% endif %}"
+                                 href="{{ trade_points_href }}"
+                                 class="border-r border-box-border" />
+        {% endif %}
         <c-n26.wealth.figure short="R" full="Rating" :value="sheet.rating" />
         <c-n26.wealth.figure short="Cr"
                              full="Credits"

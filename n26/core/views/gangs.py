@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -155,7 +156,18 @@ def _record_table_context(request, everyone=False, per_page=None):
     listed = Gang.objects.filter(archived=False)
     if not everyone:
         listed = listed.filter(owner=request.user)
-    listed = listed.select_related("gang_type", "stash", "owner").order_by("name")
+    listed = (
+        listed.select_related("gang_type", "stash", "owner")
+        # What the gang page's roster count reads: models whose
+        # membership is not archived, pets and vehicles included.
+        .annotate(
+            model_count=Count(
+                "hosted_assignments__member",
+                filter=Q(hosted_assignments__archived=False),
+            )
+        )
+        .order_by("name")
+    )
     found = search_queryset(listed, query, ["name", "gang_type__name"])
     total = None
     pages = None

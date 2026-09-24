@@ -7,6 +7,8 @@ the facets the filter needs come with them, and what ``?q=`` narrows.
 
 import pytest
 from django.contrib.auth.models import User
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from n26.core.models import Gang
@@ -413,3 +415,63 @@ def test_the_count_says_how_many_are_on_the_page_without_script(
     body = client.get(reverse("n26-gangs")).content.decode()
 
     assert 'x-text="shown">2</span>' in body
+
+
+@pytest.fixture
+def hire(tester, make_profile, make_statline):
+    """Put a model on a gang's roster, by name, for free."""
+    from n26.core.operations import operation
+
+    profile = make_profile("Ganger", price=0)
+    make_statline(profile)
+
+    def _hire(gang, name):
+        with operation(gang, actor=tester) as op:
+            return op.hire(profile, name)
+
+    return _hire
+
+
+class TestTheModelCount:
+    """Each row leads its figures with how many models are in the gang,
+    where the gang page shows Trade Points. Trade Points only count while
+    a visit is open, so on a list they were a dash most of the time."""
+
+    def test_each_row_counts_the_models_on_the_roster(
+        self, client, tester, make_gang, hire
+    ):
+        choir = make_gang("The Ashen Choir")
+        hire(choir, "Vex")
+        hire(choir, "Karn")
+        hire(choir, "Sable").membership.archive()
+        make_gang("The Bad Girls")
+
+        client.force_login(tester)
+        response = client.get(reverse("n26-gangs"))
+
+        counts = {gang.name: gang.model_count for gang in response.context["gangs"]}
+        assert counts == {"The Ashen Choir": 2, "The Bad Girls": 0}
+
+    @pytest.mark.parametrize("page", ["n26-gangs", "n26-dashboard"])
+    def test_the_count_replaces_trade_points(self, client, tester, make_gang, page):
+        make_gang("The Ashen Choir")
+
+        client.force_login(tester)
+        body = client.get(reverse(page)).content.decode()
+
+        assert 'aria-label="Models in the gang"' in body
+        assert "No Visit Trading Post action open" not in body
+
+    def test_counting_costs_no_query_per_gang(self, client, tester, make_gang, hire):
+        hire(make_gang("The Ashen Choir"), "Vex")
+        client.force_login(tester)
+        client.get(reverse("n26-gangs"))
+        with CaptureQueriesContext(connection) as one:
+            client.get(reverse("n26-gangs"))
+
+        for name in ("The Bad Girls", "Cold Iron"):
+            hire(make_gang(name), "Karn")
+        with CaptureQueriesContext(connection) as three:
+            client.get(reverse("n26-gangs"))
+
+        assert len(three) == len(one)
