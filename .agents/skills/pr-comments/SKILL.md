@@ -52,6 +52,9 @@ Each connection includes `totalCount`. If `totalCount` exceeds the number of ret
 - If the user asks about a specific reviewer, filter to that reviewer's comments.
 - If asked for a summary, be brief — skip resolved threads and minor nits.
 - If asked to help address a comment, read the relevant source file and suggest a fix.
+- Decline Copilot findings that call PEP 758 `except E1, E2:` (no `as`) invalid
+  Python 3, Python 2 syntax, or an unused import. Parentheses are required only
+  when binding: `except (E1, E2) as exc`. See `.github/instructions/python.instructions.md`.
 - If the data contains an ERROR, report it clearly and suggest how to fix it
   (e.g. provide a PR number, check `gh auth status`).
 

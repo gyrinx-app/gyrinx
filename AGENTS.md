@@ -133,6 +133,10 @@ checks or pre-commit hooks.
   filter.
 - The task system may deliver a background task more than once. Any task that
   changes data must handle duplicate and concurrent runs safely.
+- Python 3.14: `except E1, E2:` without parentheses is valid PEP 758. `ruff
+  format` emits that form. Do not add parentheses unless the clause binds with
+  `as` (`except (E1, E2) as exc`). Decline Copilot findings that call the no-`as`
+  form a SyntaxError or unused import.
 
 ## Migrations and production data
 

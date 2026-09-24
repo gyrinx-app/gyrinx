@@ -98,7 +98,9 @@ new platform dependency only by creating or extending an explicit seam.
   focus, open controls and unsaved drafts. Django owns validation, permissions
   and domain operations.
 - A `success` button submits a form. A `primary` button opens or starts one.
-- Use Python 3.14. Some N26 syntax does not parse on older versions.
+- Use Python 3.14. Some N26 syntax does not parse on older versions. PEP 758
+  `except E1, E2:` without parentheses is valid; keep parentheses only when
+  binding with `as`.
 
 ## Comments
 
