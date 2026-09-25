@@ -485,7 +485,7 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
         # The allowance belongs to the model, while each collection
         # determines whether a purchase spends it. Equipment lists use
         # credits; the Trading Post charges Trade Points. A model with no
-        # allowance keeps the same query path as before budgets existed.
+        # allowance needs no counter or spend query.
         budget = budget_for(gang, miniature, computed) if budgets else None
         collections = buyable_lists(
             access.collection
