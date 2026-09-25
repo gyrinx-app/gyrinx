@@ -2538,8 +2538,10 @@ def build_model_card(
     a card whose kit brings something looks its own up in one query,
     and every other card looks up nothing.
 
-    ``rank_summaries`` comes from one batch read when drawing a roster; a
-    standalone card can derive it from its already-built card.
+    ``rank_summaries`` comes from one batch read when drawing a roster. When
+    omitted, a standalone card reads its effective tables and thresholds in
+    two library queries if it has ranks. Pass ``()`` when rank display is
+    intentionally excluded, such as an effect-only comparison.
     """
     if card is None:
         card = build_card(miniature, with_statlines=True, assignment_set=assignment_set)
@@ -2588,12 +2590,12 @@ def build_model_card(
             {miniature.pk: computed} if computed is not None else {},
         )[miniature.pk]
     rendered.rank_summaries = tuple(rank_summaries)
-    # The statline's XP target is the next authored threshold when an
-    # effective XP table exists. Without one, retain the model's old XP
-    # display exactly as before.
+    # An effective XP table owns the target, including when its counter is
+    # untracked and there is no target yet. Without an unambiguous table,
+    # retain the model's stored target.
     for rank in rendered.rank_summaries:
-        if rank.is_xp and rank.value is not None:
-            rendered.xp_target = rank.next_threshold
+        if rank.is_xp:
+            rendered.xp_target = rank.next_threshold if rank.value is not None else None
             break
     return rendered
 

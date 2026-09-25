@@ -13,7 +13,7 @@ from django.urls import reverse
 
 from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
-from n26.core.models import ActionAllowance
+from n26.core.models import ActionAllowance, CounterValue
 from n26.core.operations import operation
 from n26.core.progression import progression_for
 from n26.core.render import build_model_card, render_gang
@@ -158,6 +158,8 @@ class TestRankedCardSurfaces:
 
     def test_competing_xp_tables_do_not_choose_a_rank_target(self, fighter_with_ranks):
         setup = fighter_with_ranks
+        setup.fighter.xp_target = 99
+        setup.fighter.save(update_fields=["xp_target"])
         other = a.create_rank_table("Other prospect ranks", setup.counter.counter)
         a.add_rank_threshold(other, 5, title="Other rank")
         with operation(setup.gang, actor=setup.owner) as op:
@@ -166,7 +168,26 @@ class TestRankedCardSurfaces:
         rendered = build_model_card(setup.fighter)
 
         assert rendered.rank_summaries == ()
-        assert rendered.xp_target == setup.fighter.xp_target
+        assert rendered.xp_target == 99
+        assert rendered.xp_display == "0/99"
+
+    def test_untracked_xp_table_clears_a_legacy_target(self, fighter_with_ranks):
+        setup = fighter_with_ranks
+        untracked = hire(setup.gang, setup.profile, "Untracked", paid=100)
+        untracked.xp_target = 99
+        untracked.save(update_fields=["xp_target"])
+        assert build_model_card(untracked).xp_target == 99
+
+        with operation(setup.gang, actor=setup.owner) as op:
+            op.assign(setup.table, miniature=untracked)
+            counter = op.assign(setup.counter.counter, miniature=untracked)
+        assert not CounterValue.objects.filter(assignment=counter).exists()
+
+        rendered = build_model_card(untracked)
+
+        assert rendered.rank_summaries[0].value is None
+        assert rendered.rank_summaries[0].current_title == ""
+        assert rendered.xp_target is None
         assert rendered.xp_display == "0/–"
 
     def test_rank_target_keeps_effective_xp_from_a_modifier(self, fighter_with_ranks):
