@@ -17,6 +17,7 @@ from n26.core.card import assemble, build_card, build_modifier_index, carriers
 from n26.core.effects import compute
 from n26.core.fields import to_ulid
 from n26.core.models import Assignment, AssignmentSet, DismissedOffer, Miniature
+from n26.core.progression import progression_summaries_for_cards
 from n26.core.render import ModelCard, brought_in_by, build_model_card, hide_dismissed
 from n26.core.views.permissions import _own_miniature_or_404
 from n26.flags import CAMPAIGNS, requires_flag
@@ -81,6 +82,11 @@ def _previews(miniature, assignment_sets):
     if not cards:
         cards = [base]
     index = build_modifier_index(carriers(base.gang_card, *cards))
+    computed = [compute(card, index) for card in cards]
+    ranks = progression_summaries_for_cards(
+        (position, miniature, card, effects)
+        for position, (card, effects) in enumerate(zip(cards, computed, strict=True))
+    )
     brought = brought_in_by(
         Miniature.objects.filter(
             membership__caused_by__miniature_root=miniature,
@@ -89,9 +95,15 @@ def _previews(miniature, assignment_sets):
     )
     dismissed = DismissedOffer.keys_for(miniature.gang)
     previews = []
-    for named, card in zip(assignment_sets or [None], cards, strict=True):
+    for position, (named, card, effects) in enumerate(
+        zip(assignment_sets or [None], cards, computed, strict=True)
+    ):
         drawn = build_model_card(
-            miniature, card=card, computed=compute(card, index), brought_in=brought
+            miniature,
+            card=card,
+            computed=effects,
+            brought_in=brought,
+            rank_summaries=ranks[position],
         )
         hide_dismissed(dismissed, drawn)
         # Previews have no edit controls or duplicate model/tab anchors.

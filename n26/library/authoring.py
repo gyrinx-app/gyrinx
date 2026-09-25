@@ -922,9 +922,10 @@ def create_rank_table(
     name,
     counter,
     thresholds=(),
-    initial_title="",
     qualifier="",
     library_author_help="",
+    *,
+    initial_title="",
     **kwargs,
 ):
     """A counter schedule a fighter may hold; thresholds are positive values."""

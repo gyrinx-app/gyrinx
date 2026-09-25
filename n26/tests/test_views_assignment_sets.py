@@ -9,9 +9,13 @@ from django.test.utils import CaptureQueriesContext
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.assignment_sets import equipment_for, save_model_card
 from n26.core.models import Assignment, AssignmentSet, LedgerEvent
+from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
+    add_rank_threshold,
+    create_counter,
+    create_rank_table,
     create_skill,
     create_subtype,
     create_wargear,
@@ -395,6 +399,13 @@ class TestModelCardQueryGrowth:
     """More named cards reuse the hydrated equipment and modifier index."""
 
     def test_more_cards_do_not_add_queries(self, client, model, named, kit, flag):
+        xp = create_counter("XP")
+        ranks = create_rank_table("Fighter ranks", xp, initial_title="Rookie")
+        add_rank_threshold(ranks, 4, title="Rookie")
+        with operation(model.gang, actor=model.gang.owner) as op:
+            op.assign(ranks, miniature=model)
+            counter = op.assign(xp, miniature=model)
+            op.open_counter(counter, 0)
         # Hold content shape constant: the Cutter's modifier needs hydration
         # that a shotgun-only card does not. Only the number of cards grows.
         save_model_card(

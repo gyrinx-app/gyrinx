@@ -20,6 +20,7 @@ from n26.core.models import AssignmentSet, BattleCrew, CrewMember, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
+from n26.library import authoring as a
 from n26.library.authoring import modifier
 from n26.tests.sandbox.actions import (
     assign,
@@ -484,6 +485,14 @@ class TestCrewQueryGrowth:
         assert len(assignment_reads(many)) == len(assignment_reads(one))
 
     def test_more_cards_do_not_add_a_query_per_model(self, table):
+        xp = a.create_counter("XP")
+        ranks = a.create_rank_table("Crew ranks", xp, initial_title="Rookie")
+        a.add_rank_threshold(ranks, 4, title="Rookie")
+        with operation(table.gang, actor=table.owner) as op:
+            for miniature in table.models:
+                op.assign(ranks, miniature=miniature)
+                counter = op.assign(xp, miniature=miniature)
+                op.open_counter(counter, 0)
         crew = save(table, [select(table.models[0], card=table.ranged.pk)])
         with CaptureQueriesContext(connection) as one:
             build_crew_sheet(crew)

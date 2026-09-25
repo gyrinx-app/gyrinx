@@ -156,6 +156,19 @@ class TestRankActionHistory:
 class TestRankedCardSurfaces:
     """The card and live updates agree with the effective rank table."""
 
+    def test_competing_xp_tables_do_not_choose_a_rank_target(self, fighter_with_ranks):
+        setup = fighter_with_ranks
+        other = a.create_rank_table("Other prospect ranks", setup.counter.counter)
+        a.add_rank_threshold(other, 5, title="Other rank")
+        with operation(setup.gang, actor=setup.owner) as op:
+            op.assign(other, miniature=setup.fighter)
+
+        rendered = build_model_card(setup.fighter)
+
+        assert rendered.rank_summaries == ()
+        assert rendered.xp_target == setup.fighter.xp_target
+        assert rendered.xp_display == "0/–"
+
     def test_rank_target_keeps_effective_xp_from_a_modifier(self, fighter_with_ranks):
         setup = fighter_with_ranks
         a.add_rank_threshold(setup.table, 73, title="Gang Exemplar")

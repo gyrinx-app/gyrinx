@@ -91,9 +91,20 @@ def _thresholds_for(table_ids):
 
 def _summaries_for(card, accesses, tables, thresholds):
     values = _written_counters(card) if card is not None else {}
+    by_counter = {}
+    for access in accesses:
+        counter_id = tables[access.rank_table.pk].counter_id
+        by_counter.setdefault(counter_id, []).append(access)
+    # A counter with competing tables has no one next rank. Action grants
+    # refuse that content; read-only cards leave its standing unlabelled.
+    ambiguous = {
+        counter_id for counter_id, found in by_counter.items() if len(found) > 1
+    }
     summaries = []
     for access in accesses:
         table = tables[access.rank_table.pk]
+        if table.counter_id in ambiguous:
+            continue
         value = values.get(table.counter_id)
         current_title = table.initial_title if value is not None else ""
         following = None
@@ -123,27 +134,25 @@ def _summaries_for(card, accesses, tables, thresholds):
     return tuple(sorted(summaries, key=lambda row: row.table_name))
 
 
-def progression_summaries(cards, fighters, computed):
-    """Build all roster standings with a fixed number of library queries.
+def progression_summaries_for_cards(entries):
+    """Read standings for keyed fighter cards with two library queries.
 
-    ``cards`` and ``computed`` are the maps from a gang-card build. When
-    effects have not been computed, pass an empty map: stored tables still
-    appear, but no per-fighter compute or query is hidden in this reader.
+    Keys may name different selections of the same fighter's card. The
+    caller supplies each card and its computed effects; this reader neither
+    rebuilds a card nor computes modifiers inside the loop.
     """
+    entries = tuple(entries)
     accesses = {}
     table_ids = set()
-    for fighter in fighters:
-        card = cards.get(fighter.pk)
+    for key, fighter, card, computed in entries:
         if card is None:
-            accesses[fighter.pk] = ()
+            accesses[key] = ()
             continue
-        found = rank_tables_for(
-            fighter, card=card, computed=computed.get(fighter.pk) or _NO_EFFECTS
-        )
-        accesses[fighter.pk] = found
+        found = rank_tables_for(fighter, card=card, computed=computed or _NO_EFFECTS)
+        accesses[key] = found
         table_ids.update(row.rank_table.pk for row in found)
     if not table_ids:
-        return {fighter.pk: () for fighter in fighters}
+        return {key: () for key, _fighter, _card, _computed in entries}
 
     tables = {
         row.pk: row
@@ -151,11 +160,21 @@ def progression_summaries(cards, fighters, computed):
     }
     thresholds = _thresholds_for(table_ids)
     return {
-        fighter.pk: _summaries_for(
-            cards.get(fighter.pk), accesses[fighter.pk], tables, thresholds
-        )
-        for fighter in fighters
+        key: _summaries_for(card, accesses[key], tables, thresholds)
+        for key, _fighter, card, _computed in entries
     }
+
+
+def progression_summaries(cards, fighters, computed):
+    """Build roster standings from preloaded card maps, without model queries.
+
+    When effects have not been computed, pass an empty map: stored tables
+    still appear, but no per-fighter compute or query is hidden here.
+    """
+    return progression_summaries_for_cards(
+        (fighter.pk, fighter, cards.get(fighter.pk), computed.get(fighter.pk))
+        for fighter in fighters
+    )
 
 
 def _result_for(record):

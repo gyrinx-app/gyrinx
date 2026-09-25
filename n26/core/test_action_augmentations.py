@@ -20,13 +20,16 @@ from n26.library.authoring import (
     add_action_price_component,
     add_built_in,
     add_picklist_member,
+    add_rank_threshold,
     create_action,
+    create_counter,
     create_gang_type,
     create_outcome,
     create_pack,
     create_pickable,
     create_picklist,
     create_profile,
+    create_rank_table,
     create_rule,
     create_skill,
     create_slot,
@@ -145,6 +148,13 @@ def test_preview_lists_each_repeated_wargear_assignment_separately(
 
 
 def test_preview_query_count_is_flat_as_items_grow(action_record, augmentation):
+    xp = create_counter("XP")
+    ranks = create_rank_table("Fighter ranks", xp, initial_title="Rookie")
+    add_rank_threshold(ranks, 4, title="Rookie")
+    with operation(action_record.gang, actor=action_record.gang.owner) as op:
+        op.assign(ranks, miniature=action_record.fighter)
+        counter = op.assign(xp, miniature=action_record.fighter)
+        op.open_counter(counter, 0)
     items = []
     for number in range(1):
         rig = create_wargear(f"Rig {number}", price=0)

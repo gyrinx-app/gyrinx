@@ -113,6 +113,44 @@ class TestRosterRankSummaries:
 
         assert len(one) == len(many) == 2
 
+    def test_competing_tables_leave_only_unambiguous_rank_summaries(self, default_pack):
+        xp, first = _ladder()
+        second = authoring.create_rank_table("Other XP ranks", xp)
+        authoring.add_rank_threshold(second, 5, title="Other rank")
+        renown = authoring.create_counter("Renown")
+        renown_table = authoring.create_rank_table(
+            "Renown ranks", renown, initial_title="Known"
+        )
+        authoring.add_rank_threshold(renown_table, 3, title="Famous")
+        card = _Card(
+            [
+                _node("first", first, SimpleNamespace(rank_table_id=first.pk)),
+                _node("second", second, SimpleNamespace(rank_table_id=second.pk)),
+                _node(
+                    "renown-table",
+                    renown_table,
+                    SimpleNamespace(rank_table_id=renown_table.pk),
+                ),
+                _node(
+                    "xp", xp, SimpleNamespace(counter_value=SimpleNamespace(value=4))
+                ),
+                _node(
+                    "renown",
+                    renown,
+                    SimpleNamespace(counter_value=SimpleNamespace(value=0)),
+                ),
+            ]
+        )
+        fighter = SimpleNamespace(pk=1)
+
+        (summary,) = progression_summaries({fighter.pk: card}, [fighter], {})[
+            fighter.pk
+        ]
+
+        assert summary.table_id == renown_table.pk
+        assert summary.current_title == "Known"
+        assert summary.next_threshold == 3
+
 
 class TestCompletedRankResults:
     """A discarded random roll is not the result of a later chosen advance."""

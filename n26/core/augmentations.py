@@ -199,7 +199,15 @@ def _render(card, index=None):
     if index is None:
         index = build_modifier_index(carriers(card))
     computed = compute(card, index)
-    return build_model_card(card.miniature, card=card, computed=computed, brought_in={})
+    # These cards compare gameplay effects, not rank display. Including rank
+    # standings would change candidate fingerprints and query per preview.
+    return build_model_card(
+        card.miniature,
+        card=card,
+        computed=computed,
+        brought_in={},
+        rank_summaries=(),
+    )
 
 
 _IGNORED_CHOICE = object()
