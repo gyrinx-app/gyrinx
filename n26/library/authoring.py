@@ -919,14 +919,21 @@ def create_affiliation(
 @guarded_write
 @transaction.atomic
 def create_rank_table(
-    name, counter, thresholds=(), qualifier="", library_author_help="", **kwargs
+    name,
+    counter,
+    thresholds=(),
+    initial_title="",
+    qualifier="",
+    library_author_help="",
+    **kwargs,
 ):
-    """An XP schedule a fighter may hold; thresholds are positive XP values."""
+    """A counter schedule a fighter may hold; thresholds are positive values."""
     from n26.library.models import RankTable
 
     table = RankTable.objects.create(
         name=name,
         counter=counter,
+        initial_title=initial_title,
         qualifier=qualifier,
         library_author_help=library_author_help,
         **kwargs,
@@ -937,11 +944,13 @@ def create_rank_table(
 
 
 @guarded_write
-def add_rank_threshold(rank_table, threshold, **kwargs):
-    """Add one XP threshold to a rank table."""
+def add_rank_threshold(rank_table, threshold, title="", **kwargs):
+    """Add one titled counter threshold to a rank table."""
     from n26.library.models import RankThreshold
 
-    member = RankThreshold(rank_table=rank_table, threshold=threshold, **kwargs)
+    member = RankThreshold(
+        rank_table=rank_table, threshold=threshold, title=title, **kwargs
+    )
     member.full_clean()
     member.save()
     return member

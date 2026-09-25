@@ -1106,6 +1106,7 @@ def _build_registry():
             {
                 "name": Text(source=(RankTable, "name")),
                 "counter": One(model=Counter, source=(RankTable, "counter")),
+                "initial_title": Text(source=(RankTable, "initial_title")),
                 "qualifier": Text(source=(RankTable, "qualifier")),
                 "library_author_help": Text(
                     source=(RankTable, "library_author_help"), long=True
@@ -1160,7 +1161,10 @@ def _build_registry():
         ),
         Spec(
             authoring.add_rank_threshold,
-            {"threshold": Int(source=(RankThreshold, "threshold"))},
+            {
+                "threshold": Int(source=(RankThreshold, "threshold")),
+                "title": Text(source=(RankThreshold, "title")),
+            },
             model=RankThreshold,
         ),
         Spec(

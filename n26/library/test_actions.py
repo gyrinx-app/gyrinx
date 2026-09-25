@@ -143,9 +143,15 @@ def test_price_components_are_positive_and_typed():
 
 def test_rank_thresholds_are_positive_unique_and_ordered():
     table = authoring.create_rank_table(
-        "Standard ranks", Counter.objects.create(name="XP"), thresholds=[60, 6, 31]
+        "Standard ranks",
+        Counter.objects.create(name="XP"),
+        thresholds=[60, 6, 31],
+        initial_title="Rookie",
     )
+    assert table.initial_title == "Rookie"
     assert list(table.thresholds.values_list("threshold", flat=True)) == [6, 31, 60]
+    rank = authoring.add_rank_threshold(table, 75, title="Gang Hero")
+    assert rank.title == "Gang Hero"
     with pytest.raises(ValidationError):
         authoring.add_rank_threshold(table, 31)
     with pytest.raises(ValidationError):

@@ -20,3 +20,9 @@ this lands on whichever of them the act came from.
 {% if update_action_panels %}
     {% include "n26/includes/action_panels.html" with oob=True %}
 {% endif %}
+{% if update_progression_status %}
+    {% include "n26/includes/progression_status.html" with oob=True %}
+{% endif %}
+{% if update_progression_history %}
+    {% include "n26/includes/progression_history.html" with oob=True %}
+{% endif %}

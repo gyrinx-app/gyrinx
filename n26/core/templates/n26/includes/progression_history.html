@@ -1,0 +1,34 @@
+{% comment %}
+Every rank action the fighter earned, from the allowance's original table.
+Completed rows name the selected result, not a database ID; available and
+started uses remain visible without presenting them as completed advances.
+{% endcomment %}
+<div id="n26-progression-history"
+     {% if not progression.history %}class="hidden"{% endif %}
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+    {% if progression.history %}
+        <c-ui.card>
+            <c-slot name="header">
+                <span class="font-semibold">Rank history</span>
+            </c-slot>
+            <ol class="divide-y divide-box-border text-sm">
+                {% for rank in progression.history %}
+                    <li class="py-3 first:pt-0 last:pb-0">
+                        {% ifchanged rank.table_id %}<p class="mb-1 text-xs text-muted">{{ rank.table_name }}</p>{% endifchanged %}
+                        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                            <p class="font-medium text-ink-900 dark:text-ink-100">
+                                {{ rank.threshold }} {{ rank.counter_name }}
+                                {% if rank.title %}· {{ rank.title }}{% endif %}
+                            </p>
+                            <span class="text-muted">{{ rank.state|capfirst }}</span>
+                        </div>
+                        <p class="text-muted">{{ rank.action_name }}{% if rank.result %} · {{ rank.result }}{% endif %}</p>
+                        {% if rank.record_id and rank.state == "completed" %}
+                            <c-n26.link href="{% url 'n26-action-flow' miniature.pk rank.record_id 'done' %}">View receipt</c-n26.link>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ol>
+        </c-ui.card>
+    {% endif %}
+</div>
