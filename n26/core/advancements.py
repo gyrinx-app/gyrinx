@@ -170,7 +170,9 @@ def _fighter_state(record, additions=()):
     ]
     profile.children.extend(nodes)
     computed = compute(card, build_modifier_index([*carriers(card), *additions]))
-    rendered = build_model_card(record.fighter, card=card, computed=computed)
+    rendered = build_model_card(
+        record.fighter, card=card, computed=computed, rank_summaries=()
+    )
     stored_skills = {
         str(node.assignable.pk)
         for node in card.all_nodes()
@@ -222,7 +224,9 @@ def _stat_gainable(fighter, pickable, *, evaluation=None):
     if evaluation is None:
         card = build_card(fighter, with_statlines=True)
         index = build_modifier_index([*carriers(card), pickable])
-        before = build_model_card(fighter, card=card, computed=compute(card, index))
+        before = build_model_card(
+            fighter, card=card, computed=compute(card, index), rank_summaries=()
+        )
     else:
         card, index, before = evaluation
     node = Node(
@@ -239,6 +243,7 @@ def _stat_gainable(fighter, pickable, *, evaluation=None):
             fighter,
             card=card,
             computed=compute(card, index),
+            rank_summaries=(),
         )
     finally:
         profile.children.remove(node)
@@ -531,7 +536,9 @@ def advancement_options(record, configured):
     evaluation = (
         card,
         index,
-        build_model_card(record.fighter, card=card, computed=computed),
+        build_model_card(
+            record.fighter, card=card, computed=computed, rank_summaries=()
+        ),
     )
     owned = {
         node.assignable.pk

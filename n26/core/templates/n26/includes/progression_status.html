@@ -1,0 +1,48 @@
+{% comment %}
+Current standing in each effective, authored rank table. The view supplies
+FighterProgression; a missing counter is left unranked until tracking starts.
+The stable wrapper also lets a counter update replace this panel out of band.
+{% endcomment %}
+<div id="n26-progression-status"
+     {% if not progression.summaries %}class="hidden"{% endif %}
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+    {% if progression.summaries %}
+        <c-ui.card padding="sm">
+            <c-slot name="header">
+                <span class="font-semibold">Progression</span>
+            </c-slot>
+            <div class="divide-y divide-box-border">
+                {% for rank in progression.summaries %}
+                    <section class="py-3 first:pt-0 last:pb-0">
+                        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                            <div>
+                                {% if rank.current_title %}
+                                    <p class="font-semibold text-ink-900 dark:text-ink-100">{{ rank.current_title }}</p>
+                                    <p class="text-sm text-muted">{{ rank.table_name }}</p>
+                                {% else %}
+                                    <p class="font-semibold text-ink-900 dark:text-ink-100">{{ rank.table_name }}</p>
+                                {% endif %}
+                            </div>
+                            {% if rank.value is not None %}
+                                <p class="text-sm tabular-nums">{{ rank.value }} {{ rank.counter_name }}</p>
+                            {% endif %}
+                        </div>
+                        {% if rank.value is None %}
+                            <p class="mt-2 text-sm text-muted">{{ rank.counter_name }} is not being tracked yet.</p>
+                        {% elif rank.next_threshold is not None %}
+                            <p class="mt-2 text-sm text-muted">
+                                Next rank at {{ rank.next_threshold }} {{ rank.counter_name }}
+                                ({{ rank.remaining }} to go).
+                            </p>
+                            {% if rank.next_title and rank.next_title != rank.current_title %}
+                                <p class="text-xs text-muted">Next title: {{ rank.next_title }}.</p>
+                            {% endif %}
+                        {% else %}
+                            <p class="mt-2 text-sm text-muted">Highest rank reached.</p>
+                        {% endif %}
+                    </section>
+                {% endfor %}
+            </div>
+        </c-ui.card>
+    {% endif %}
+</div>

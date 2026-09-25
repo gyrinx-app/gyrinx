@@ -23,6 +23,7 @@ from n26.core.fields import to_ulid
 from n26.core.models import Assignment, AssignmentSet, Battle, Campaign, Gang, Miniature
 from n26.core.models.crew import BattleCrew, CrewMember
 from n26.core.operations import Refusal
+from n26.core.progression import progression_summaries
 from n26.core.render import ModelCard, brought_in_by, build_model_card
 from n26.core.status import Status
 from n26.write_pause import guarded_write
@@ -349,6 +350,12 @@ def build_crew_sheet(crew):
     index = build_modifier_index(carriers(gang_card, *gang_card.members.values()))
     compute_gang(gang_card, index)
     minis = [member.miniature for member in members if member.miniature]
+    computed = {
+        miniature.pk: compute(gang_card.members[miniature.pk], index)
+        for miniature in minis
+        if miniature.pk in gang_card.members
+    }
+    ranks = progression_summaries(gang_card.members, minis, computed)
     brought = brought_in_by(minis)
     sheet = CrewSheet(
         crew=crew,
@@ -365,7 +372,11 @@ def build_crew_sheet(crew):
         raw = gang_card.members.get(member.miniature_id)
         card = (
             build_model_card(
-                miniature, card=raw, computed=compute(raw, index), brought_in=brought
+                miniature,
+                card=raw,
+                computed=computed[miniature.pk],
+                brought_in=brought,
+                rank_summaries=ranks[miniature.pk],
             )
             if miniature and raw
             else None

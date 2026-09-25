@@ -253,11 +253,24 @@ class TestThePrintPage:
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
-        from n26.library.authoring import create_weapon
+        from n26.library.authoring import (
+            add_rank_threshold,
+            create_counter,
+            create_rank_table,
+            create_weapon,
+        )
 
         client.force_login(tester)
         profile = make_profile("Reinforcement", price=40)
         axe = create_weapon("Axe", price=10)
+        xp = create_counter("XP")
+        ranks = create_rank_table("Fighter ranks", xp, initial_title="Rookie")
+        add_rank_threshold(ranks, 4, title="Rookie")
+        with operation(gang, actor=tester) as op:
+            for miniature in roster:
+                op.assign(ranks, miniature=miniature)
+                counter = op.assign(xp, miniature=miniature)
+                op.open_counter(counter, 0)
 
         def measure():
             with CaptureQueriesContext(connection) as captured:
@@ -272,6 +285,9 @@ class TestThePrintPage:
             with operation(gang, actor=tester) as op:
                 hired = op.hire(profile, f"More {index}")
                 op.give_weapon(hired, axe, paid=10)
+                op.assign(ranks, miniature=hired)
+                counter = op.assign(xp, miniature=hired)
+                op.open_counter(counter, 0)
         assert measure() == few
 
     def test_the_page_fetches_the_gangs_rows_once(self, client, tester, gang, roster):

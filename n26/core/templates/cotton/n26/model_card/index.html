@@ -62,6 +62,25 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                     <div class="text-sm text-muted">{{ card.profile_name }}</div>
                 {% endif %}
 
+                {% if card.rank_summaries %}
+                    <div class="mt-1 space-y-0.5 text-xs text-muted">
+                        {% for rank in card.rank_summaries %}
+                            {% if rank.value is not None %}
+                                <p>
+                                    {% if rank.current_title %}
+                                        <span class="font-medium text-ink-900 dark:text-ink-100">{{ rank.current_title }}</span>
+                                    {% else %}
+                                        <span>{{ rank.table_name }}</span>
+                                    {% endif %}
+                                    {% if rank.next_threshold is not None %}
+                                        <span aria-hidden="true">·</span> Next rank at {{ rank.next_threshold }} {{ rank.counter_name }}
+                                    {% endif %}
+                                </p>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
                 {% if card.owner_line and not owner_href %}
                     <div class="text-sm text-muted">{{ card.owner_line }}</div>
                 {% endif %}

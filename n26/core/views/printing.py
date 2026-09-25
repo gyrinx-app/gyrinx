@@ -66,6 +66,7 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None, brought_in=None):
     from n26.core.effects import compute
     from n26.core.models import Assignment, DismissedOffer
     from n26.core.printing import detail_columns
+    from n26.core.progression import progression_summaries
     from n26.core.render import build_model_card, hide_dismissed
 
     selection = None
@@ -79,24 +80,30 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None, brought_in=None):
     # and one modifier index is shared by every card: a card build pays for its
     # queries mostly in planning, so a print that built each model's card
     # alone would cost seconds on a full roster.
-    cards = gang_card.members_under(selection)
+    cards = dict(gang_card.members_under(selection))
+    for miniature in miniatures:
+        if miniature.pk not in cards:
+            # A model with no fetched assignments still needs a card.
+            cards[miniature.pk] = build_card(
+                miniature, with_statlines=True, assignment_set=selection
+            )
     index = build_modifier_index(carriers(gang_card, *cards.values()))
+    computed = {
+        miniature.pk: compute(cards[miniature.pk], index) for miniature in miniatures
+    }
+    ranks = progression_summaries(cards, miniatures, computed)
     # What the owner has dismissed stays off the paper too: one query
     # for the whole print.
     dismissed = DismissedOffer.keys_for(gang)
 
     rows = []
     for miniature in miniatures:
-        card = cards.get(miniature.pk)
-        if card is None:
-            # A roster model with no assignments of its own still gets a
-            # card — built alone, which is the rare path, not the norm.
-            card = build_card(miniature, with_statlines=True, assignment_set=selection)
         model_card = build_model_card(
             miniature,
-            card=card,
-            computed=compute(card, index),
+            card=cards[miniature.pk],
+            computed=computed[miniature.pk],
             brought_in=brought_in,
+            rank_summaries=ranks[miniature.pk],
         )
         hide_dismissed(dismissed, model_card)
         rows.append(

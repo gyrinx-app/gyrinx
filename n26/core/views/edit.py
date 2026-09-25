@@ -272,7 +272,16 @@ def _apply_edits(op, miniature, own, computed, field, ticked, *, include_staged=
 
 
 def link_model_card(
-    gang, miniature, own, computed, host, *, back, among=None, dismissal_at=None
+    gang,
+    miniature,
+    own,
+    computed,
+    host,
+    *,
+    back,
+    among=None,
+    dismissal_at=None,
+    rank_summaries=None,
 ):
     """The model's card with every control addressed — the card each of
     the model's own screens draws above its tabs.
@@ -303,7 +312,11 @@ def link_model_card(
     # the kit acts off each line, and a menu names one assignment, so a
     # line standing for two of a thing would have nowhere to send them.
     card = build_model_card(
-        miniature, card=own, computed=computed, collapse_repeats=False
+        miniature,
+        card=own,
+        computed=computed,
+        collapse_repeats=False,
+        rank_summaries=rank_summaries,
     )
     dismissal_at = back if dismissal_at is None else dismissal_at
     settle_dismissed(
@@ -451,6 +464,7 @@ def render_card_update(request, miniature, at):
     from n26.core.card import build_card, build_modifier_index, carriers
     from n26.core.effects import compute
     from n26.core.owned import EquipHost
+    from n26.core.progression import progression_for
     from n26.core.views.htmx import with_toasts
 
     gang = miniature.membership.gang
@@ -463,11 +477,21 @@ def render_card_update(request, miniature, at):
     # anywhere else. Neither address is the one the request sent.
     back, host_at = card_screen(miniature, at)
     host = EquipHost.fighter(gang, own, miniature, host_at)
-    card = link_model_card(gang, miniature, own, computed, host, back=back)
-    link_model_cards(gang, [card], request.user)
-
     on_edit = back.split("?")[0] == reverse("n26-edit-fighter", args=[miniature.pk])
     on_equip = back.split("?")[0] == reverse("n26-equip", args=[miniature.pk])
+    progression = (
+        progression_for(miniature, card=own, computed=computed) if on_edit else None
+    )
+    card = link_model_card(
+        gang,
+        miniature,
+        own,
+        computed,
+        host,
+        back=back,
+        rank_summaries=progression.summaries if progression is not None else None,
+    )
+    link_model_cards(gang, [card], request.user)
 
     response = render(
         request,
@@ -475,12 +499,15 @@ def render_card_update(request, miniature, at):
         {
             "card": card,
             "miniature": miniature,
+            "progression": progression,
             **(
                 action_panel_context(miniature, own, computed)
                 if on_edit or on_equip
                 else {}
             ),
             "update_action_panels": on_edit or on_equip,
+            "update_progression_status": on_edit,
+            "update_progression_history": on_edit,
             "update_dismissed_choices": on_edit,
             "status_href": (
                 status_href(gang, miniature, back="edit")
@@ -763,6 +790,9 @@ def edit_fighter(request, pk):
     own = build_card(miniature, with_statlines=True, with_options=True)
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
+    from n26.core.progression import progression_for
+
+    progression = progression_for(miniature, card=own, computed=computed)
 
     from n26.core.counter_tracking import is_active as counter_tracking_is_active
 
@@ -851,7 +881,14 @@ def edit_fighter(request, pk):
     # the roster tally below. The card's own build carries the gang's
     # assignments already, so what the gang grants still reaches it.
     card = link_model_card(
-        gang, miniature, own, computed, host, back=request.get_full_path(), among=sets
+        gang,
+        miniature,
+        own,
+        computed,
+        host,
+        back=request.get_full_path(),
+        among=sets,
+        rank_summaries=progression.summaries,
     )
     link_model_cards(gang, [card], request.user)
 
@@ -875,6 +912,7 @@ def edit_fighter(request, pk):
             "miniature": miniature,
             "gang": gang,
             "card": card,
+            "progression": progression,
             **panels,
             "missing_progression_counters": missing_progression_counters(
                 miniature, card=own, computed=computed

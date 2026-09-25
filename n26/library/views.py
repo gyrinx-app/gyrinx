@@ -500,7 +500,9 @@ def _describe_action_outcome(member):
 
 
 def _describe_rank_threshold(member):
-    return str(member.threshold), [str(member.rank_table.counter)]
+    return str(member.threshold), [
+        note for note in (member.title, str(member.rank_table.counter)) if note
+    ]
 
 
 def _describe_action_price(component):

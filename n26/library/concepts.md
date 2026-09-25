@@ -308,7 +308,7 @@ An action lists one or more **outcomes** in order. Each outcome owns one typed o
 
 An optional **allowance rule** says when one use is earned. Recruitment grants one use when recruitment completes. A rank rule grants uses when an increase to its counter crosses thresholds in the fighter's effective rank table. An action with an allowance has no use price.
 
-A **rank table** is an assignable progression schedule for one counter. Its positive thresholds are unique and ordered by their numeric value. Profiles may bring actions and rank tables as built-ins, and modifiers may give or take them away like other assignables.
+A **rank table** is an assignable progression schedule for one counter. It may name an initial title, shown before the first threshold. Its positive thresholds are unique and ordered by their numeric value; each may name the title shown from that value until the next threshold. Profiles may bring actions and rank tables as built-ins, and modifiers may give or take them away like other assignables.
 
 ---
 

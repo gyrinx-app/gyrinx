@@ -1518,7 +1518,10 @@ class TestShowingDismissedOffers:
             assert "contents" in box["class"]
             assert "grid" in box.parent["class"]
             assert "self-start" in box.find(recursive=False)["class"]
-            assert "Lore" in box.find_previous_sibling().get_text()
+            previous_card = box.find_previous_sibling(
+                lambda tag: tag.get_text(strip=True)
+            )
+            assert "Lore" in previous_card.get_text()
             assert box.find_parent(attrs={"role": "menu"}) is None
             assert box.find_parent(id="n26-model-card-host") is None
             assert "Dismissed choices" in box.get_text()

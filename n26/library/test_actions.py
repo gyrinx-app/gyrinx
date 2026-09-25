@@ -4,6 +4,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.urls import reverse
 
 from n26.core.access import actions_for, rank_table_for, rank_tables_for
 from n26.core.operations import Refusal
@@ -143,9 +144,15 @@ def test_price_components_are_positive_and_typed():
 
 def test_rank_thresholds_are_positive_unique_and_ordered():
     table = authoring.create_rank_table(
-        "Standard ranks", Counter.objects.create(name="XP"), thresholds=[60, 6, 31]
+        "Standard ranks",
+        Counter.objects.create(name="XP"),
+        thresholds=[60, 6, 31],
+        initial_title="Rookie",
     )
+    assert table.initial_title == "Rookie"
     assert list(table.thresholds.values_list("threshold", flat=True)) == [6, 31, 60]
+    rank = authoring.add_rank_threshold(table, 75, title="Gang Hero")
+    assert rank.title == "Gang Hero"
     with pytest.raises(ValidationError):
         authoring.add_rank_threshold(table, 31)
     with pytest.raises(ValidationError):
@@ -157,6 +164,39 @@ def test_rank_table_creation_rolls_back_every_threshold_on_a_refusal():
     with pytest.raises(ValidationError):
         authoring.create_rank_table("Broken ranks", xp, thresholds=[4, 0, 7])
     assert not RankTable.objects.filter(name="Broken ranks").exists()
+
+
+def test_rank_table_authoring_preserves_positional_qualifier_and_help():
+    table = authoring.create_rank_table(
+        "Standard ranks",
+        authoring.create_counter("XP"),
+        [4, 7],
+        "Campaign ranks",
+        "Use for campaign fighters.",
+        initial_title="Rookie",
+    )
+
+    assert table.qualifier == "Campaign ranks"
+    assert table.library_author_help == "Use for campaign fighters."
+    assert table.initial_title == "Rookie"
+    assert list(table.thresholds.values_list("threshold", flat=True)) == [4, 7]
+
+
+@pytest.mark.parametrize("title", ["", "Gang Member"])
+def test_rank_threshold_authoring_notes_omit_blank_titles(admin_client, title):
+    table = authoring.create_rank_table(
+        "Standard ranks", authoring.create_counter("XP")
+    )
+    authoring.add_rank_threshold(table, 4, title=title)
+
+    response = admin_client.get(
+        reverse("authoring-detail", kwargs={"kind": "rank-table", "pk": table.pk})
+    )
+
+    assert response.status_code == 200
+    notes = response.context["part_sections"][0]["parts"][0]["notes"]
+    assert notes == ([title, "XP"] if title else ["XP"])
+    assert "> · XP</td>" not in response.content.decode()
 
 
 def test_a_tier_ladder_requires_one_pick_and_numeric_levels():

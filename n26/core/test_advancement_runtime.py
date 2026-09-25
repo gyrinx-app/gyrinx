@@ -5,6 +5,7 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
 from n26.core.advancements import (
+    _fighter_state,
     _stat_gainable,
     advancement_options,
     recorded_skill,
@@ -1001,10 +1002,37 @@ def test_advancement_roll_fingerprints_modifier_condition_rows(fighter):
         advancement_options(record, configured)
 
 
+def test_advancement_previews_do_not_query_rank_display(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    result = _ensure_stat_result("Strength", Stat.objects.get(short_name="M"))
+    with operation(fighter.gang) as op:
+        op.assign(allowance.rank_table, miniature=fighter)
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=10)
+
+    with CaptureQueriesContext(connection) as queries:
+        _fighter_state(record)
+        _stat_gainable(fighter, result)
+        advancement_options(record, configured)
+
+    assert not [
+        query["sql"]
+        for query in queries
+        if 'FROM "library_rankthreshold"' in query["sql"]
+        or (
+            'FROM "library_ranktable"' in query["sql"]
+            and 'JOIN "library_counter"' in query["sql"]
+        )
+    ]
+
+
 def test_advancement_option_queries_are_flat_for_18_or_36_results(fighter):
     action, outcome, allowance = _advancement(fighter)
     configured = outcome.resolve_advancement
+    movement = Stat.objects.get(short_name="M")
     with operation(fighter.gang) as op:
+        op.assign(allowance.rank_table, miniature=fighter)
         record = op.start_action(fighter, action, uuid4(), allowance)
         op.record_action_roll(record, configured, uuid4(), rolled=7)
     advancement_options(record, configured)
@@ -1017,6 +1045,12 @@ def test_advancement_option_queries_are_flat_for_18_or_36_results(fighter):
             name=f"Extra result {position}",
             qualifier="Query growth",
             slot_type=configured.slot.slot_type,
+        )
+        modifier(
+            f"Extra result {position} improves movement",
+            targets_model(),
+            changes_stat(movement, "improve", 1),
+            carried_by=pick,
         )
         PicklistMember.objects.create(
             picklist=table,

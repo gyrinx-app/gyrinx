@@ -28,6 +28,7 @@ from n26.core.models.dismissed_offer import GANG_SLOT_HOST as _GANG_SLOT_HOST
 from n26.core.models.dismissed_offer import slot_key as _address
 from n26.core.models.ledger import Reason
 from n26.core.owned import thing_key
+from n26.core.progression import RankSummary, progression_summaries
 from n26.core.status import Status
 from n26.core.status import label_for as status_label
 from n26.library.models import (
@@ -1129,6 +1130,9 @@ class ModelCard:
     #: Effective actions from the card; a view fills names only for usable ones.
     action_ids: tuple[str, ...] = ()
     action_names: tuple[str, ...] = ()
+    #: Authored standing in each effective rank table. A roster supplies these
+    #: in one batch; a standalone card derives its own without writing history.
+    rank_summaries: tuple[RankSummary, ...] = ()
     #: Kept outside question_lists so only the Edit page can restore them;
     #: they never draw among the card's choices, including on print.
     dismissed_choices: list[ChoiceLine] = field(default_factory=list)
@@ -2510,6 +2514,7 @@ def build_model_card(
     budget=None,
     collapse_repeats=True,
     brought_in=None,
+    rank_summaries=None,
 ):
     """Everything needed to draw one model's card.
 
@@ -2532,6 +2537,11 @@ def build_model_card(
     holding the roster so a sheet's cards pay nothing for it. Left out,
     a card whose kit brings something looks its own up in one query,
     and every other card looks up nothing.
+
+    ``rank_summaries`` comes from one batch read when drawing a roster. When
+    omitted, a standalone card reads its effective tables and thresholds in
+    two library queries if it has ranks. Pass ``()`` when rank display is
+    intentionally excluded, such as an effect-only comparison.
     """
     if card is None:
         card = build_card(miniature, with_statlines=True, assignment_set=assignment_set)
@@ -2573,6 +2583,20 @@ def build_model_card(
             str(access.action.pk)
             for access in actions_for(miniature, card=card, computed=computed)
         )
+    if rank_summaries is None:
+        rank_summaries = progression_summaries(
+            {miniature.pk: card},
+            (miniature,),
+            {miniature.pk: computed} if computed is not None else {},
+        )[miniature.pk]
+    rendered.rank_summaries = tuple(rank_summaries)
+    # An effective XP table owns the target, including when its counter is
+    # untracked and there is no target yet. Without an unambiguous table,
+    # retain the model's stored target.
+    for rank in rendered.rank_summaries:
+        if rank.is_xp:
+            rendered.xp_target = rank.next_threshold if rank.value is not None else None
+            break
     return rendered
 
 
@@ -3735,6 +3759,9 @@ def render_gang(
     # fighter — and nothing at all for a gang whose books grant none, or
     # for a reader the figure is not for.
     budgets = budgets_by_model(gang, computed) if with_effects and for_owner else {}
+    # One threshold read for the roster. Each model card receives its prepared
+    # tuple and asks no SQL of its own.
+    ranks = progression_summaries(cards, models, computed)
     gang_rows, gang_rules = _gang_rows(
         gang_card,
         gang_computed,
@@ -3774,6 +3801,7 @@ def render_gang(
                 computed=computed.get(model.pk),
                 budget=budgets.get(str(model.pk)),
                 brought_in=brought,
+                rank_summaries=ranks.get(model.pk, ()),
             )
             for model in models
             if model.status != Status.DEAD
@@ -3784,6 +3812,7 @@ def render_gang(
                 card=cards.get(model.pk),
                 computed=computed.get(model.pk),
                 brought_in=brought,
+                rank_summaries=ranks.get(model.pk, ()),
             )
             for model in models
             if model.status == Status.DEAD

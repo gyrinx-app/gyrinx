@@ -24,6 +24,7 @@ from n26.library.specs import specs
 from n26.library.standard_content import (
     FIGHTER_ADVANCEMENTS,
     FIGHTER_RANK_THRESHOLDS,
+    FIGHTER_RANKS,
     STANDARD_CONTENT,
 )
 from n26.tests.sandbox.actions import (
@@ -52,10 +53,8 @@ def test_fighter_action_content_is_complete_and_idempotent():
         )
     ) == list(FIGHTER_ADVANCEMENTS)
     ranks = RankTable.objects.get(name="Standard fighter ranks")
-    assert (
-        tuple(ranks.thresholds.values_list("threshold", flat=True))
-        == FIGHTER_RANK_THRESHOLDS
-    )
+    assert ranks.initial_title == "Rookie"
+    assert tuple(ranks.thresholds.values_list("threshold", "title")) == FIGHTER_RANKS
     actions = {
         action.name: action
         for action in Action.objects.prefetch_related("use_price", "outcomes")
@@ -152,6 +151,26 @@ def test_reseeding_does_not_modify_unchanged_actions():
     content.create()
 
     assert dict(Action.objects.values_list("pk", "modified")) == before
+
+
+def test_reseeding_repairs_authored_rank_titles():
+    content = STANDARD_CONTENT["fighter-actions"]
+    content.create()
+    ranks = RankTable.objects.get(name="Standard fighter ranks")
+    ranks.initial_title = ""
+    ranks.save(update_fields=["initial_title"])
+    member = ranks.thresholds.get(threshold=37)
+    member.title = ""
+    member.save(update_fields=["title"])
+    assert content.status() != "complete"
+
+    content.create()
+
+    ranks.refresh_from_db()
+    member.refresh_from_db()
+    assert ranks.initial_title == "Rookie"
+    assert member.title == "Gang Exemplar"
+    assert content.status() == "complete"
 
 
 def test_lowercase_standard_action_is_reused_without_duplication(default_pack):

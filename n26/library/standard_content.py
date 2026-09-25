@@ -1646,28 +1646,29 @@ def _check_lasting_effect_tables():
     return present, len(names) + members + len(names)
 
 
-FIGHTER_RANK_THRESHOLDS = (
-    4,
-    7,
-    10,
-    13,
-    19,
-    25,
-    31,
-    37,
-    49,
-    61,
-    73,
-    85,
-    97,
-    109,
-    121,
-    133,
-    157,
-    181,
-    205,
-    229,
+FIGHTER_RANKS = (
+    (4, "Rookie"),
+    (7, "Rookie"),
+    (10, "Rookie"),
+    (13, "Gang Member"),
+    (19, "Gang Member"),
+    (25, "Gang Member"),
+    (31, "Gang Member"),
+    (37, "Gang Exemplar"),
+    (49, "Gang Exemplar"),
+    (61, "Gang Exemplar"),
+    (73, "Gang Exemplar"),
+    (85, "Gang Hero"),
+    (97, "Gang Hero"),
+    (109, "Gang Hero"),
+    (121, "Gang Hero"),
+    (133, "Gang Legend"),
+    (157, "Gang Legend"),
+    (181, "Gang Legend"),
+    (205, "Gang Legend"),
+    (229, "Legend of the Underhive"),
 )
+FIGHTER_RANK_THRESHOLDS = tuple(threshold for threshold, _ in FIGHTER_RANKS)
 FIGHTER_ADVANCEMENTS = (
     ("Leadership", 2, 5),
     ("Intelligence", 2, 5),
@@ -2001,10 +2002,15 @@ def _create_fighter_actions():
         hidden=True,
         assigned_to=Slot.WillBeAssignedTo.BEARER,
     )
-    ranks = named(RankTable, "Standard fighter ranks", counter=xp)
-    repair(ranks, counter=xp)
-    for threshold in FIGHTER_RANK_THRESHOLDS:
-        RankThreshold.objects.get_or_create(rank_table=ranks, threshold=threshold)
+    ranks = named(
+        RankTable, "Standard fighter ranks", counter=xp, initial_title="Rookie"
+    )
+    repair(ranks, counter=xp, initial_title="Rookie")
+    for threshold, title in FIGHTER_RANKS:
+        rank, _ = RankThreshold.objects.get_or_create(
+            rank_table=ranks, threshold=threshold, defaults={"title": title}
+        )
+        repair(rank, title=title)
     augment_type = named(SlotType, "Augmentation")
     glitch_type = named(
         SlotType,
@@ -2332,6 +2338,7 @@ def _check_fighter_actions():
         or ranks.counter.name.casefold() != XP_COUNTER.casefold()
         or ranks.counter.pack_id != pack.pk
         or ranks.counter.qualifier != ""
+        or ranks.initial_title != "Rookie"
         or actions["Advancement"].rank_allowance_rule.counter_id != ranks.counter_id
         or advance_outcome is None
         or advance_outcome.resolve_advancement_id is None
@@ -2351,10 +2358,7 @@ def _check_fighter_actions():
     )
     if len(members) != len(FIGHTER_ADVANCEMENTS):
         return incomplete()
-    if (
-        tuple(ranks.thresholds.values_list("threshold", flat=True))
-        != FIGHTER_RANK_THRESHOLDS
-    ):
+    if tuple(ranks.thresholds.values_list("threshold", "title")) != FIGHTER_RANKS:
         return incomplete()
     expected_pickables = {
         pickable.name.casefold(): pickable.pk

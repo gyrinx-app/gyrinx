@@ -18,6 +18,11 @@ class RankTable(Content, Assignable):
     """A counter progression schedule assigned to a fighter."""
 
     family = Family.MODEL
+    initial_title = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Title shown before the first rank threshold, if any.",
+    )
     counter = models.ForeignKey(
         "library.Counter", on_delete=models.PROTECT, related_name="rank_tables"
     )
@@ -48,6 +53,11 @@ class RankThreshold(Content):
     )
     threshold = models.PositiveIntegerField(
         help_text="Counter value at which this action use is earned."
+    )
+    title = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Title shown from this threshold until the next one, if any.",
     )
 
     class Meta:
