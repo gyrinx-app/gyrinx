@@ -4,10 +4,15 @@ from types import SimpleNamespace
 
 import pytest
 from django.db import connection
+from django.template.loader import render_to_string
 from django.test.utils import CaptureQueriesContext
 
 from n26.core.models import ActionRecord
-from n26.core.progression import _result_for, progression_summaries
+from n26.core.progression import (
+    FighterProgression,
+    _result_for,
+    progression_summaries,
+)
 from n26.library import authoring
 
 pytestmark = [pytest.mark.django_db, pytest.mark.core]
@@ -64,6 +69,39 @@ def _ladder():
 
 class TestRosterRankSummaries:
     """One batch read describes every effective schedule without model queries."""
+
+    def test_stored_counter_without_a_value_stays_untracked(self, default_pack):
+        xp, table = _ladder()
+        fighters = [SimpleNamespace(pk=1), SimpleNamespace(pk=2)]
+        rank_node = _node("rank", table, SimpleNamespace(rank_table_id=table.pk))
+        stored = _node("counter", xp, SimpleNamespace(counter_value=None))
+        preview = _node("counter", xp, None)
+        stored.opens_at = preview.opens_at = 13
+        cards = {
+            fighters[0].pk: _Card([rank_node, stored]),
+            fighters[1].pk: _Card([rank_node, preview]),
+        }
+
+        summaries = progression_summaries(cards, fighters, {})
+        (untracked,) = summaries[fighters[0].pk]
+        (opening,) = summaries[fighters[1].pk]
+
+        assert (untracked.value, untracked.current_title, untracked.remaining) == (
+            None,
+            "",
+            None,
+        )
+        assert (opening.value, opening.current_title, opening.next_threshold) == (
+            13,
+            "Gang Member",
+            37,
+        )
+        status = render_to_string(
+            "n26/includes/progression_status.html",
+            {"progression": FighterProgression((untracked,), ())},
+        )
+        assert "XP is not being tracked yet." in status
+        assert "Next rank at" not in status
 
     def test_titles_and_next_threshold_follow_the_written_counter(self, default_pack):
         xp, table = _ladder()

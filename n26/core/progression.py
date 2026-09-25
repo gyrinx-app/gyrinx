@@ -69,12 +69,11 @@ def _written_counters(card):
             or not isinstance(node.assignable, Counter)
         ):
             continue
-        held = (
-            getattr(node.assignment, "counter_value", None)
-            if node.assignment is not None
-            else None
-        )
-        value = held.value if held is not None else node.opens_at
+        if node.assignment is None:
+            value = node.opens_at
+        else:
+            held = getattr(node.assignment, "counter_value", None)
+            value = held.value if held is not None else None
         values.setdefault(node.assignable.pk, value)
     return values
 
