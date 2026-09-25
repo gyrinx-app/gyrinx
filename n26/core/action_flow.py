@@ -1,6 +1,6 @@
 """Read-only presentation values for a model's action flows.
 
-Access, earned uses and previous uses are read together for the Edit page.
+Access, earned uses and previous uses are read together for the model's pages.
 No allowance is granted and no draft is opened while rendering a page.
 """
 
@@ -98,6 +98,116 @@ def payment_tallies(quote):
     )
 
 
+def _action_quote(action, *, balances, credits, gang_id):
+    """Quote a displayed action from preloaded balances, without writes."""
+    lines = []
+    for component in action.use_price.all():
+        if component.resource == component.Resource.CREDITS:
+            balance = Balance(Resource.CREDITS, str(gang_id))
+            held = credits
+            name = "Credits"
+        else:
+            matches = balances.get((component.payer, component.counter_id), ())
+            if len(matches) != 1:
+                return None, f"This model needs one {component.counter} counter."
+            assignment = matches[0]
+            balance = Balance(Resource.COUNTER, str(gang_id), str(assignment.pk))
+            held = assignment.counter_value.value
+            name = str(component.counter)
+        lines.append(
+            QuotedLine(balance, component.amount, held, component.position, name)
+        )
+    quote = Quote.coalesce(lines)
+    problem = ""
+    if not quote.affordable:
+        shortfalls = [
+            f"{line.amount - line.available} more {line.name}"
+            for line in quote.lines
+            if line.available is not None and line.amount > line.available
+        ]
+        problem = f"This flow needs {' and '.join(shortfalls)}."
+    return quote, problem
+
+
+def available_action_names(gang, cards, *, counter_tracking_active=True):
+    """Available or resumable actions for a whole roster, using bounded reads."""
+    fighter_ids = [card.id for card in cards if card.id]
+    if not fighter_ids:
+        return {}
+    drafts = defaultdict(set)
+    for fighter_id, action_id in ActionRecord.objects.filter(
+        fighter_id__in=fighter_ids, state=ActionRecord.State.STARTED
+    ).values_list("fighter_id", "action_id"):
+        drafts[str(fighter_id)].add(str(action_id))
+    allowances = defaultdict(set)
+    if counter_tracking_active:
+        for fighter_id, action_id in (
+            ActionAllowance.objects.filter(fighter_id__in=fighter_ids)
+            .exclude(
+                records__state__in=(
+                    ActionRecord.State.STARTED,
+                    ActionRecord.State.COMPLETED,
+                )
+            )
+            .values_list("fighter_id", "action_id")
+        ):
+            allowances[str(fighter_id)].add(str(action_id))
+    action_ids = {
+        action_id
+        for card in cards
+        for action_id in (
+            (*card.action_ids, *allowances[card.id], *drafts[card.id])
+            if counter_tracking_active
+            else drafts[card.id]
+        )
+    }
+    if not action_ids:
+        return {}
+    actions = {
+        str(action.pk): action
+        for action in Action.objects.filter(pk__in=action_ids)
+        .prefetch_related("use_price__counter")
+        .order_by("name", "pk")
+    }
+    by_holder = defaultdict(lambda: defaultdict(list))
+    if counter_tracking_active:
+        for assignment in Assignment.objects.filter(
+            gang_root=gang, counter__isnull=False, archived=False, removes=False
+        ).select_related("counter_value", "counter"):
+            if not hasattr(assignment, "counter_value"):
+                continue
+            if assignment.miniature_root_id:
+                holder = str(assignment.miniature_root_id)
+                payer = "fighter"
+            elif assignment.gang_id == gang.pk:
+                holder, payer = "gang", "gang"
+            else:
+                continue
+            by_holder[holder][(payer, assignment.counter_id)].append(assignment)
+        credits = gang.recompute_credits()
+    names = {}
+    for card in cards:
+        available = set(drafts[card.id])
+        if counter_tracking_active:
+            balances = {**by_holder["gang"], **by_holder[card.id]}
+            for action_id in set(card.action_ids) | allowances[card.id]:
+                action = actions[action_id]
+                if (
+                    action.recruitment_allowance_rule_id
+                    or action.rank_allowance_rule_id
+                ) and action_id not in allowances[card.id]:
+                    continue
+                quote, problem = _action_quote(
+                    action, balances=balances, credits=credits, gang_id=gang.pk
+                )
+                if not problem:
+                    available.add(action_id)
+        names[card.id] = tuple(
+            str(action) for key, action in actions.items() if key in available
+        )
+    return names
+
+
 def action_panels(fighter, *, card, computed, counter_tracking_active=True):
     """The effective actions and retained earned uses, with bounded reads."""
     access = actions_for(fighter, card=card, computed=computed)
@@ -168,36 +278,11 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
             allowance_id=str(granted[0].pk) if granted else "",
             available_uses=len(granted) if action.allowance_rule else None,
         )
-        lines = []
-        for component in action.use_price.all():
-            if component.resource == component.Resource.CREDITS:
-                balance = Balance(Resource.CREDITS, str(fighter.gang.pk))
-                held = credits
-                name = "Credits"
-            else:
-                matches = balances[(component.payer, component.counter_id)]
-                if len(matches) != 1:
-                    panel.problem = f"This model needs one {component.counter} counter."
-                    break
-                assignment = matches[0]
-                balance = Balance(
-                    Resource.COUNTER, str(fighter.gang.pk), str(assignment.pk)
-                )
-                held = assignment.counter_value.value
-                name = str(component.counter)
-            lines.append(
-                QuotedLine(balance, component.amount, held, component.position, name)
-            )
-        if not panel.problem:
-            quote = Quote.coalesce(lines)
+        quote, panel.problem = _action_quote(
+            action, balances=balances, credits=credits, gang_id=fighter.gang.pk
+        )
+        if quote is not None:
             panel.prices = payment_figures(quote)
-            if not quote.affordable:
-                shortfalls = [
-                    f"{line.amount - line.available} more {line.name}"
-                    for line in quote.lines
-                    if line.available is not None and line.amount > line.available
-                ]
-                panel.problem = f"This flow needs {' and '.join(shortfalls)}."
         if action.pk not in effective_ids and not granted:
             panel.problem = "This model cannot start another flow."
         elif not counter_tracking_active and not panel.problem:
@@ -205,7 +290,9 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
         for record in by_action[action.pk]:
             if record.state == ActionRecord.State.STARTED:
                 panel.drafts.append(
-                    ActionUseLink(str(record.pk), f"Resume {action} flow")
+                    ActionUseLink(
+                        str(record.pk), f"Resume {action} flow", when=record.created
+                    )
                 )
             elif (
                 record.state == ActionRecord.State.COMPLETED

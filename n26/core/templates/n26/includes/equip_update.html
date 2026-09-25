@@ -38,6 +38,7 @@ listing now says. The gang's own screen draws no card and delivers none.
 {% endcomment %}
 {% if card %}
     {% include "n26/includes/model_card_host.html" with redrawn=True htmx=True %}
+    {% include "n26/includes/action_panels.html" with oob=True %}
 {% endif %}
 {% comment %}
 The money, and not the model count beside it. An act on kit never changes

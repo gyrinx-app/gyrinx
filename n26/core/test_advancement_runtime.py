@@ -14,6 +14,7 @@ from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
 from n26.core.models import (
     ActionAllowance,
+    ActionRecord,
     AdvancementSelection,
     Gang,
     LedgerEvent,
@@ -269,7 +270,15 @@ def test_advancement_roll_does_not_reuse_another_drafts_slot(fighter):
     with operation(fighter.gang) as op:
         first = op.start_action(fighter, action, uuid4(), first_allowance)
         first_selection = op.record_action_roll(first, configured, uuid4(), rolled=7)
-        second = op.start_action(fighter, action, uuid4(), second_allowance)
+        # Independent drafts retain their own recorded roll and slot.
+        second = ActionRecord.objects.create(
+            gang=fighter.gang,
+            fighter=fighter,
+            action=action,
+            allowance=second_allowance,
+            source_assignment=first.source_assignment,
+            request_key=uuid4(),
+        )
         second_selection = op.record_action_roll(second, configured, uuid4(), rolled=7)
 
     assert first_selection.slot_assignment_id != second_selection.slot_assignment_id
@@ -1027,7 +1036,14 @@ def test_advancement_option_queries_are_flat_for_18_or_36_results(fighter):
         rank_table=allowance.rank_table,
     )
     with operation(fighter.gang) as op:
-        second = op.start_action(fighter, action, uuid4(), second_allowance)
+        second = ActionRecord.objects.create(
+            gang=fighter.gang,
+            fighter=fighter,
+            action=action,
+            allowance=second_allowance,
+            source_assignment=record.source_assignment,
+            request_key=uuid4(),
+        )
         op.record_action_roll(second, configured, uuid4(), rolled=10)
     advancement_options(second, configured)
     with CaptureQueriesContext(connection) as thirty_six:

@@ -1,6 +1,7 @@
 """Owner-scoped forms for starting and completing fighter actions."""
 
 from dataclasses import replace
+from urllib.parse import urlencode
 from uuid import uuid4
 
 from django.contrib import messages
@@ -21,7 +22,7 @@ from n26.core.action_forms import (
     StartActionForm,
 )
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
-from n26.core.action_records import quote_for
+from n26.core.action_records import active_action_record, quote_for
 from n26.core.counter_tracking import is_active as counter_tracking_is_active
 from n26.core.flow import FlowStep
 from n26.core.models import ActionAllowance, ActionRecord
@@ -44,7 +45,7 @@ def flow_url(fighter, record, step):
 def link_action_panels(fighter, panels):
     """Attach navigation to the read-only values used below the model card."""
     for panel in panels:
-        if not panel.problem and panel.available_uses != 0:
+        if not panel.problem and panel.available_uses != 0 and not panel.drafts:
             panel.start_href = reverse(
                 "n26-action-start", args=[fighter.pk, panel.action_id]
             )
@@ -95,7 +96,7 @@ def _description(outcome):
         return "Raise the level of one carried item by one tier."
     if isinstance(configured, ApplyChanges):
         return ""
-    return "Resolve one earned advancement."
+    return "Gain an advancement."
 
 
 def _steps(record=None, *, action=None, stage="start", correction=False):
@@ -108,14 +109,14 @@ def _steps(record=None, *, action=None, stage="start", correction=False):
         from n26.core.promotions import replaces_roll
 
         promotion = record is not None and replaces_roll(record, configured)
-        stages = [] if correction else [("start", "Outcome")]
+        stages = [] if correction else [("start", "Choice")]
         if not correction and not promotion:
             stages.append(("roll", "Roll"))
         stages += [("advancement", "Promotion" if promotion else "Advancement")]
         target = record.review.get("target", {}) if record else {}
         skill = getattr(record, "skill_selection", None)
         if stage in {"start", "roll", "advancement"} and not promotion:
-            stages.append(("skill", "Skill (if needed)"))
+            stages.append(("skill", "Skill"))
         elif (
             stage == "skill"
             or (stage == "review" and isinstance(target, dict) and target.get("skill"))
@@ -141,7 +142,7 @@ def _steps(record=None, *, action=None, stage="start", correction=False):
         else ([("choose", "Selection")] if configured is None else [])
     )
     stages = (
-        [("correct", "Choose tier")] if correction else [("start", "Outcome"), *middle]
+        [("correct", "Choose tier")] if correction else [("start", "Choice"), *middle]
     )
     stages += [("review", "Review"), ("done", "Completed")]
     current = next((index for index, (key, _) in enumerate(stages) if key == stage), 0)
@@ -222,10 +223,27 @@ def _page(
     if stage == "done":
         done_href = back
         back_href = context.get("correct_href", "")
-        back_label = "Correct result" if back_href else ""
+        back_label = "Change result" if back_href else ""
     elif stage == "cancel":
         back_href = flow_url(fighter, record, "resume")
         back_label = "Save and return later"
+    elif stage == "skill":
+        back_href = flow_url(fighter, record, "correct" if correction else "choose")
+        back_label = "← Back"
+    elif stage == "review" and context.get("change_href"):
+        target = record.review.get("target", {})
+        if isinstance(target, dict) and target.get("skill"):
+            back_href = flow_url(fighter, record, "skill")
+            if correction:
+                back_href += "?" + urlencode(
+                    {"pick": record.review["terms"]["pickable_id"]}
+                )
+        else:
+            back_href = context["change_href"]
+        back_label = "← Back"
+    elif stage == "advancement" and not correction and context.get("roll_value"):
+        back_href = flow_url(fighter, record, "roll")
+        back_label = "← Back"
     elif outcome_href:
         back_href = outcome_href
         back_label = "← Back"
@@ -344,7 +362,6 @@ def _review_choice(record):
             "description": ". ".join(
                 text.rstrip(". ")
                 for text in [
-                    target.get("effect"),
                     target.get("skill"),
                     target.get("promotion_result"),
                     equipment_note,
@@ -380,6 +397,9 @@ def action_start(request, pk, action_id):
         )
         if existing:
             return redirect(flow_url(fighter, existing, "resume"))
+    existing = active_action_record(fighter, action)
+    if existing:
+        return redirect(flow_url(fighter, existing, "resume"))
     allowances = list(
         ActionAllowance.objects.filter(fighter=fighter, action=action)
         .exclude(
@@ -447,6 +467,11 @@ def action_start(request, pk, action_id):
                 )
                 if record.state != ActionRecord.State.STARTED:
                     return redirect(flow_url(fighter, record, "done"))
+                if (
+                    record.outcome_id is not None
+                    or record.request_key != form.cleaned_data["request_key"]
+                ):
+                    return redirect(flow_url(fighter, record, "resume"))
                 record = op.save_action_choices(record, outcome=outcome, terms={})
                 if isinstance(outcome.operation, ApplyChanges):
                     record = op.review_action(
@@ -539,7 +564,7 @@ def action_flow(request, pk, record_id, step):
         return _choose_outcome(request, fighter, record)
     if step == "review":
         return _review(request, fighter, record, correction=correction)
-    if step not in {"choose", "correct", "skill"}:
+    if step not in {"choose", "correct", "skill", "roll"}:
         raise Http404("No such flow step")
     if correction and step not in {"correct", "skill"}:
         return redirect(flow_url(fighter, record, "done"))
@@ -718,6 +743,7 @@ def _review(request, fighter, record, *, correction):
         payment_tallies=() if correction else _review_payments(record),
         outcome_description=_description(record.outcome),
         review_choice=_review_choice(record),
+        show_outcome=not isinstance(record.outcome.operation, ResolveAdvancement),
         change_preview=record.review.get("target", [])
         if isinstance(record.outcome.operation, ApplyChanges)
         else [],

@@ -221,6 +221,22 @@ class TestGrantProvenance:
         assert provenance.source_kind == expected_kind
         assert provenance.computed is True
 
+    @pytest.mark.parametrize(
+        "chosen, expected",
+        [
+            (False, "From Van Saar (gang type)"),
+            (True, "Chosen from Van Saar (gang type)"),
+        ],
+    )
+    def test_the_tooltip_distinguishes_a_choice_from_an_automatic_grant(
+        self, chosen, expected
+    ):
+        provenance = Provenance(
+            source="Van Saar", source_kind="gang type", reason="granted", chosen=chosen
+        )
+        assert provenance.description == expected
+        assert provenance.annotated
+
 
 def line(name, key="library.wargear:1", reason="bought", rating=0, id=""):
     return AssignableLine(

@@ -977,9 +977,14 @@ class TestWhatAModifierContributes:
 
         page = client.get(reverse("n26-edit-fighter", args=[vex.pk])).content.decode()
 
-        # The reading is on the page, and so is the way to add to it.
+        from bs4 import BeautifulSoup
+
+        # Both controls keep their places, but only addition can change zero.
         assert "Add one to Kill Count" in page
-        assert "Take one off Kill Count" not in page
+        button = BeautifulSoup(page, "html.parser").find(
+            "button", attrs={"aria-label": "Take one off Kill Count"}
+        )
+        assert button.has_attr("disabled")
         # Nothing written down behind the reading: the 4 is all contributed.
         assert getattr(counted, "counter_value", None) is None
 

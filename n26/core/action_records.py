@@ -381,6 +381,27 @@ def _target_snapshot(record, configured, terms, *, quote=None):
     raise LibraryError(f"{type(configured).__name__} is not handled yet.")
 
 
+def active_action_record(fighter, action):
+    """Resume the oldest current-source draft without changing older duplicates."""
+    return (
+        ActionRecord.objects.filter(
+            gang=fighter.gang,
+            fighter=fighter,
+            action=action,
+            state=ActionRecord.State.STARTED,
+        )
+        .filter(
+            Q(allowance__source_id=fighter.membership_id)
+            | Q(
+                allowance__isnull=True,
+                source_assignment=_source_assignment(fighter, action),
+            )
+        )
+        .order_by("created", "pk")
+        .first()
+    )
+
+
 def start_action(op, fighter, action, request_key, allowance=None):
     fighter = Miniature.objects.select_related("membership").get(pk=fighter.pk)
     _refuse_unless_owned(op, fighter)
@@ -408,6 +429,10 @@ def start_action(op, fighter, action, request_key, allowance=None):
             or allowance.source_kind != source_kind
         ):
             raise Refusal("That allowance belongs to another action use.")
+    existing = active_action_record(fighter, action)
+    if existing is not None:
+        return existing
+    if allowance is not None:
         if allowance.records.filter(
             state__in=[ActionRecord.State.STARTED, ActionRecord.State.COMPLETED]
         ).exists():

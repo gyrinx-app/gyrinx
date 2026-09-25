@@ -1143,12 +1143,13 @@ def _card_context(request, screen, host, founding_seen, *, at):
     say different things about what the model holds. ``at`` is this
     screen's address, which the choice and counter controls return to.
     """
-    from n26.core.views.edit import link_model_card
+    from n26.core.views.edit import action_panel_context, link_model_card
 
     if screen.miniature is None:
         return {}
     gang, miniature = screen.gang, screen.miniature
     return {
+        **action_panel_context(miniature, screen.card, screen.computed),
         "card": link_model_card(
             gang, miniature, screen.card, screen.computed, host, back=at
         ),

@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.assignable-lines> — A comma-separated list of assignable names, with ratings and provenance.
 
-Computed and stored grants show their source in a tooltip.
+Computed grants and stored choices show their source in a tooltip.
 The dotted underline is the same mark a modified characteristic gets in the statline cells.
 Rating zero draws as nothing.
 An empty list draws a dash so the slot still has a value.
@@ -13,4 +13,4 @@ A plain name's comma uses a normal space so a long run can wrap between names.
 Keep the marks in this order: slot, tier, brought, then count. Every card writes them that way.
 {% endcomment %}
 
-<c-vars :lines="None" :ratings="True" />{% spaceless %}{% if lines %}{% for line in lines %}{% if line.provenance.annotated %}<c-ui.tooltip size="sm"><span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}{{ line.slot_mark }}{{ line.tier_mark }}{{ line.brought_mark }}{{ line.count_mark }}<span class="sr-only"> ({% if line.provenance.source %}from {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}{% else %}granted{% endif %})</span></span>{% if ratings and line.rating %}<span>&nbsp;<span class="tabular-nums">{{ line.rating }}¢</span></span>{% endif %}{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}<c-slot name="content">{% if line.provenance.source %}From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}{% else %}Granted, not printed{% endif %}</c-slot></c-ui.tooltip>{% else %}<span>{{ line.name }}{{ line.slot_mark }}{{ line.tier_mark }}{{ line.brought_mark }}{{ line.count_mark }}</span>{% if ratings and line.rating %}<span>&nbsp;<span class="tabular-nums">{{ line.rating }}¢</span></span>{% endif %}{% if not forloop.last %}<span>, </span>{% endif %}{% endif %}{% endfor %}{% else %}&mdash;{% endif %}{% endspaceless %}
+<c-vars :lines="None" :ratings="True" />{% spaceless %}{% if lines %}{% for line in lines %}{% if line.provenance.annotated %}<c-ui.tooltip size="sm"><span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}{{ line.slot_mark }}{{ line.tier_mark }}{{ line.brought_mark }}{{ line.count_mark }}<span class="sr-only"> ({{ line.provenance.description }})</span></span>{% if ratings and line.rating %}<span>&nbsp;<span class="tabular-nums">{{ line.rating }}¢</span></span>{% endif %}{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}<c-slot name="content">{{ line.provenance.description }}</c-slot></c-ui.tooltip>{% else %}<span>{{ line.name }}{{ line.slot_mark }}{{ line.tier_mark }}{{ line.brought_mark }}{{ line.count_mark }}</span>{% if ratings and line.rating %}<span>&nbsp;<span class="tabular-nums">{{ line.rating }}¢</span></span>{% endif %}{% if not forloop.last %}<span>, </span>{% endif %}{% endif %}{% endfor %}{% else %}&mdash;{% endif %}{% endspaceless %}

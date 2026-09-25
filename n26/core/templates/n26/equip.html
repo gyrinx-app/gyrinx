@@ -104,6 +104,9 @@ breadcrumb above it has the gang as well, so nothing is lost.
         <c-slot name="card">
             {% include "n26/includes/model_card_host.html" with htmx=True %}
         </c-slot>
+        <c-slot name="card_companion">
+            {% include "n26/includes/action_panels.html" %}
+        </c-slot>
     </c-n26.model-header>
     {% comment %}
     Where the Mark as… and Pay ransom questions land when asked from the

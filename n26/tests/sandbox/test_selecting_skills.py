@@ -730,6 +730,27 @@ class TestTheSkillsRow:
         assert row.chosen_for_offer_id is None
         assert row.caused_by_id is None
 
+    @pytest.mark.parametrize("legacy", [False, True])
+    def test_an_offered_skill_is_labelled_as_chosen_not_automatically_granted(
+        self, leader_yolanda, library, legacy
+    ):
+        anchor = leader_yolanda.assignments.get(subtype__name="Leader")
+        catfall = library["skills"]["Catfall"]
+        choose(anchor, catfall)
+        assignment = leader_yolanda.assignments.get(skill=catfall, archived=False)
+        if legacy:
+            # Older assignments kept their cause but did not identify the offer.
+            assignment.chosen_for_offer = None
+            assignment.save(update_fields=["chosen_for_offer"])
+
+        card = card_for(leader_yolanda)
+        skill = next(line for line in card.skills if line.name == "Catfall")
+        assert skill.provenance.chosen
+        assert skill.provenance.description == "Chosen from Leader (subtype)"
+        assert skill.provenance.annotated
+        assignment.refresh_from_db()
+        assert assignment.caused_by_id == anchor.pk
+
     def test_a_card_says_which_collections_its_grid_reaches(
         self, yolanda, catalogue, gang, gridless
     ):

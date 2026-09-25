@@ -8,6 +8,7 @@ from django.shortcuts import redirect
 from n26.core.action_forms import (
     ActionRollForm,
     AdvancementForm,
+    AdvancementRollForm,
     EmptyActionForm,
     SkillRollForm,
     SkillSelectionForm,
@@ -29,6 +30,20 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
     selection = getattr(record, "advancement_selection", None)
     promotion = promotion_for(record, configured)
     replacement = replaces_roll(record, configured)
+    if step == "roll" and selection and selection.roll_event_id:
+        if request.method == "POST":
+            return redirect(flow_url(fighter, record, "choose"))
+        return _page(
+            request,
+            fighter,
+            record.action,
+            record=record,
+            stage="roll",
+            form=EmptyActionForm(),
+            recorded_roll=selection.roll_event.roll,
+            submit_label="Continue",
+            submit_variant="primary",
+        )
     if (
         replacement
         and request.method == "POST"
@@ -54,12 +69,17 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
     if not replacement and (selection is None or selection.roll_event_id is None):
         if correction:
             raise Refusal("This advancement has no recorded roll to correct.")
-        form = ActionRollForm(request.POST or None, initial={"request_key": uuid4()})
+        form = AdvancementRollForm(
+            request.POST or None, initial={"request_key": uuid4(), "roll_mode": "roll"}
+        )
         if request.method == "POST" and form.is_valid():
             try:
                 with operation(fighter.gang, actor=request.user) as op:
                     op.record_action_roll(
-                        record, configured, form.cleaned_data["request_key"]
+                        record,
+                        configured,
+                        form.cleaned_data["request_key"],
+                        rolled=form.cleaned_data["rolled"],
                     )
                 return redirect(flow_url(fighter, record, "choose"))
             except Refusal as refusal:
@@ -71,13 +91,34 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
             record=record,
             stage="roll",
             form=form,
-            submit_label="Roll 2D6",
+            roll_modes=[
+                {
+                    "value": value,
+                    "label": label,
+                    "checked": (form["roll_mode"].value() or "roll") == value,
+                }
+                for value, label in form.fields["roll_mode"].choices
+            ],
+            submit_label="Continue",
             submit_variant="primary",
         )
 
     options = tuple(
         option for option in advancement_options(record, configured) if option.gainable
     )
+    threshold_roll = (
+        not replacement and configured.slot.picklist.roll_selects == "threshold"
+    )
+    if threshold_roll:
+        options = tuple(
+            sorted(options, key=lambda option: option.roll_minimum or 0, reverse=True)
+        )
+    roll_explanation = ""
+    if not replacement and options:
+        if not any(option.landed for option in options):
+            roll_explanation = "None of the rolled results can change this model. Choose another available advancement."
+        elif threshold_roll:
+            roll_explanation = "Choose any result at or below your roll."
     if step == "skill":
         pick_id = (
             request.GET.get("pick") if correction else record.terms.get("pickable_id")
@@ -142,6 +183,8 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
         advancement_title="Choose a promotion"
         if replacement
         else "Choose an advancement",
+        roll_explanation=roll_explanation,
+        threshold_roll=threshold_roll,
         promotion_description=(
             "Choose one result instead of rolling this advancement."
             if replacement
