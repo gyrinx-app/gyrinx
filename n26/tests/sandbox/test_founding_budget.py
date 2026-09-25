@@ -1233,7 +1233,7 @@ class TestTheFigureOnTheGangPage:
     #: What the hover says, per model. The whole of it, because a
     #: substring of it would pass on a page that had drawn half a
     #: sentence.
-    HOVER = "Founding Trade Points {} has left to spend at the Trading Post while the Found and equip gang action is open."
+    HOVER = "{} can spend these founding Trade Points at the Trading Post while the Found and equip gang action is open."
 
     def page(self, gang):
         from django.urls import reverse
