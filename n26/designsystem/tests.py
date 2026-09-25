@@ -605,6 +605,10 @@ class TestTheFilterSelectsPage:
         assert "A list worth searching" in page
         assert "Too short to be worth it" in page
         assert "Several at once" in page
+        assert (
+            len(re.findall(r'data-react-module="[^"]*/filter-select-[^"]+\.js"', page))
+            == 2
+        )
 
     def test_the_demos_draw_a_real_select_carrying_real_option_values(self, reader):
         """The whole point of the component: what a browser with no script
