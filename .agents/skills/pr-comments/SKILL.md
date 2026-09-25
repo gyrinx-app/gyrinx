@@ -27,7 +27,12 @@ Adapt your presentation based on context.
 1. **Overview** — PR title, state, author, base/head branches, review decision, draft status,
    size (+additions/−deletions, N files).
 2. **Reviews** — Each reviewer's latest state (APPROVED, CHANGES_REQUESTED, COMMENTED, PENDING).
-   Include the review body if non-empty.
+   Include the review body if non-empty. Also report `reviewsInProgress`: GitHub
+   drops Copilot from `reviewRequests` while a lite review is running, so empty
+   `reviewRequests` and `reviews` does not mean no review is in progress. A
+   `ReviewRequestedEvent` for `copilot-pull-request-reviewer` with no later
+   review from that bot is the in-progress signal (see #2641). Do not start a
+   new Copilot review or treat the PR as unreviewed until that entry clears.
 3. **Inline review threads** — Group by file path. For each thread show:
    - File path and line number(s) as `path:line`
    - Status: Resolved, Unresolved, or Outdated
@@ -37,13 +42,18 @@ Adapt your presentation based on context.
 5. **Action items** — Summarise what must happen before the PR can merge:
    - Unresolved review threads (file:line + one-line summary of the ask)
    - Reviewers who requested changes
+   - Reviewers in `reviewsInProgress` (including Copilot lite)
    - Any other blockers visible in the data
 
 ### Truncation
 
-The query fetches up to 100 review threads, 50 reviews, 100 comments, and 100 files.
+The query fetches up to 100 review threads, 50 reviews, 20 reviewRequests,
+50 review-request timeline items, 100 comments, and 100 files.
 Each connection includes `totalCount`. If `totalCount` exceeds the number of returned
-`nodes`, warn the user that some data was not fetched.
+`nodes`, warn the user that some data was not fetched. GitHub's
+`timelineItems.totalCount` counts the whole timeline, not just review-request
+events, so do not treat that mismatch as truncation. `reviewsInProgress` is
+derived from those fields after the query returns.
 
 ### Contextual adaptation
 
