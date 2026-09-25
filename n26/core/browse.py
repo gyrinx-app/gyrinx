@@ -50,12 +50,6 @@ EQUIPMENT_LIST = Terms()
 #: the listing. What makes buying "at a trading post" is the terms you
 #: buy on, not the collection you buy from.
 TRADING_POST = Terms(charges_trade_points=True, shows_exclusive=False)
-#: Founding a gang, for a model with an allowance of its own: every line
-#: counts Trade Points, whichever list it came from, because the books
-#: give such a model one combined figure to spend across all of them.
-#: Exclusive items stay on the listing — an equipment list is exactly
-#: where they may be bought — and count nothing, having no figure.
-FOUNDING = Terms(charges_trade_points=True, shows_exclusive=True)
 
 
 def prints_trade_points(terms, in_trade_points):

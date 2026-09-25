@@ -29,7 +29,7 @@ FOUNDING_HELP = "Click when you have finished hiring and equipping the gang."
 #: finishing takes away, which is the half a reader needs before they do.
 FOUNDING_ABOUT = (
     "While this action is open, fighters with founding Trade Points can spend "
-    "them on their equipment lists and at the Trading Post."
+    "them at the Trading Post."
 )
 
 #: The same, for a trip to the trading post — where the book also has

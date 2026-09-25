@@ -1,11 +1,9 @@
 """Founding budgets: the Trade Points a model is given as it joins.
 
-Some gang books hand a model a single allowance to spend as it is added
-to the roster — a Venator Hunt Leader has 5 across the list its Gang
-Legacy grants and the Trading Post together, an Outcast Champion 3, and
-a Clanless gang's Leaders and Champions 1 more on top. The books call it
-a combined figure, and combined is the whole of it: an equipment list
-counts Trade Points here where nowhere else does.
+Some gang books give a model an allowance to spend at the Trading Post
+while it joins the roster — a Venator Hunt Leader has 5, an Outcast
+Champion has 3, and a Clanless gang's Leaders and Champions get 1 more.
+Equipment list purchases leave the allowance alone.
 
 Four claims, and each has a test below:
 
@@ -24,7 +22,7 @@ Four claims, and each has a test below:
 import pytest
 from django.contrib.auth.models import User
 
-from n26.core.browse import FOUNDING, browse
+from n26.core.browse import browse
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.founding import budget_for, budget_granted
@@ -238,9 +236,7 @@ def budget(miniature):
 
 
 def buy_at_founding(miniature, line, **kwargs):
-    """Buy the way a budgeted model's equip screen buys: against the
-    gang's open Found and equip gang action, whichever list the line
-    came from."""
+    """Buy from the Trading Post against the model's founding allowance."""
     return buy(
         miniature,
         line,
@@ -350,39 +346,41 @@ def hire_with_escher(ranks, make_profile, make_statline):
 
 
 class TestWhatCountsAgainstIt:
-    """Every list counts here, which is the whole of "combined": the
-    terms a budgeted model's screen browses on charge Trade Points
-    wherever the line came from."""
+    """Equipment lists use credits; Trading Post purchases spend TP."""
 
-    def test_an_equipment_list_line_counts_its_trade_points(self, legacy_list):
-        assert all(
-            line.charges_trade_points
-            for line in browse(legacy_list, FOUNDING).all_lines()
-        )
+    def test_an_equipment_list_line_does_not_charge_or_print_tp(self, legacy_list):
+        line = line_for(browse(legacy_list), "Flak plate")
 
-    def test_and_prints_them_where_it_never_would_otherwise(self, legacy_list):
-        """A list an author wrote out prices in credits and leaves the TP
-        figure off. A reader deciding against an allowance is asking for
-        it, so the browse that counts them prints them."""
-        plain = line_for(browse(legacy_list), "Flak plate")
-        founding = line_for(browse(legacy_list, FOUNDING), "Flak plate")
+        assert line.charges_trade_points is False
+        assert line.shows_trade_points is False
 
-        assert plain.shows_trade_points is False
-        assert founding.shows_trade_points is True
+    def test_a_trading_post_line_charges_and_prints_tp(self, post):
+        line = line_for(browse(post), "Flak plate")
 
-    def test_an_exclusive_line_stays_on_the_listing(self, legacy_list):
+        assert line.charges_trade_points is True
+        assert line.shows_trade_points is True
+
+    def test_an_exclusive_line_stays_on_the_equipment_list(self, legacy_list):
         """An equipment list is exactly where an Exclusive item may be
         bought, so it is offered — and it carries no Trade Point figure,
         so it counts nothing."""
-        line = line_for(browse(legacy_list, FOUNDING), "Hunt banner")
+        line = line_for(browse(legacy_list), "Hunt banner")
 
         assert line.is_exclusive is True
         assert line.trade_points is None
 
-    def test_a_purchase_takes_it_off_the_model(self, gang, leader, legacy_list):
-        bought = buy_at_founding(
-            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
-        )
+    def test_an_equipment_list_purchase_leaves_the_allowance(
+        self, gang, leader, legacy_list
+    ):
+        bought = buy(leader, line_for(browse(legacy_list), "Flak plate"))
+
+        assert bought.ledger_entry.trade_points == 0
+        assert bought.ledger_entry.activity is None
+        assert budget(leader).remaining == 5
+        assert_reconciled(gang)
+
+    def test_a_purchase_takes_it_off_the_model(self, gang, leader, post):
+        bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
         assert bought.ledger_entry.trade_points == 3
         assert bought.ledger_entry.activity == gang.open_activity(FOUNDING_KIND)
@@ -390,35 +388,33 @@ class TestWhatCountsAgainstIt:
         assert_reconciled(gang)
 
     def test_another_models_spending_is_not_this_ones(
-        self, gang, leader, hire_into, legacy_list
+        self, gang, leader, hire_into, post
     ):
         """The allowance belongs to the model, so what one has spent says
         nothing about what another may."""
         kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
-        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+        buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
         assert budget(leader).spent == 3
         assert budget(kel).spent == 0
         assert budget(kel).remaining == 4
 
-    def test_a_weapons_paid_rounds_count_with_it(self, gang, leader, legacy_list):
+    def test_a_weapons_paid_rounds_count_with_it(self, gang, leader, post):
         """A round hangs off the gun and not off the model, and it is
         still part of what the model spent."""
-        mesh = line_for(browse(legacy_list, FOUNDING), "Mesh armour")
-        plate = line_for(browse(legacy_list, FOUNDING), "Flak plate")
+        mesh = line_for(browse(post), "Mesh armour")
+        plate = line_for(browse(post), "Flak plate")
         buy_at_founding(leader, mesh)
         buy_at_founding(leader, plate)
 
         assert budget(leader).spent == 4
         assert budget(leader).remaining == 1
 
-    def test_spending_past_it_is_allowed(self, gang, leader, legacy_list):
+    def test_spending_past_it_is_allowed(self, gang, leader, post):
         """Trade Points inform; only credits are refused. Going past the
         allowance leaves it below zero."""
         for _ in range(2):
-            buy_at_founding(
-                leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
-            )
+            buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
         assert budget(leader).remaining == -1
         assert_reconciled(gang)
@@ -430,10 +426,8 @@ class TestMovingWhatWasBought:
     Trade Points back.
     """
 
-    def test_stashing_it_does_not_hand_the_points_back(self, gang, leader, legacy_list):
-        bought = buy_at_founding(
-            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
-        )
+    def test_stashing_it_does_not_hand_the_points_back(self, gang, leader, post):
+        bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
         move(bought, gang.stash)
 
@@ -441,12 +435,10 @@ class TestMovingWhatWasBought:
         assert budget(leader).remaining == 2
 
     def test_handing_it_to_somebody_else_does_not_either(
-        self, gang, leader, hire_into, legacy_list
+        self, gang, leader, hire_into, post
     ):
         kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
-        bought = buy_at_founding(
-            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
-        )
+        bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
         move(bought, kel)
 
@@ -455,14 +447,12 @@ class TestMovingWhatWasBought:
         assert budget(kel).remaining == 4
 
     def test_and_refunding_it_there_returns_them_to_whoever_spent_them(
-        self, gang, leader, hire_into, legacy_list
+        self, gang, leader, hire_into, post
     ):
         """Otherwise the model it was handed to goes below zero for points
         it never spent, and the one who bought it never gets them back."""
         kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
-        bought = buy_at_founding(
-            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
-        )
+        bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
         move(bought, kel)
 
         refund(bought)
@@ -473,10 +463,8 @@ class TestMovingWhatWasBought:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
-    def test_the_tally_a_screen_draws_does_not_move(self, gang, leader, legacy_list):
-        bought = buy_at_founding(
-            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
-        )
+    def test_the_tally_a_screen_draws_does_not_move(self, gang, leader, post):
+        bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
         before = budget(leader).facts
 
         move(bought, gang.stash)
@@ -487,10 +475,8 @@ class TestMovingWhatWasBought:
 class TestGivingSomethingBack:
     """A refund follows the purchase; a sale returns nothing."""
 
-    def test_a_refund_returns_to_the_founding_action(self, gang, leader, legacy_list):
-        bought = buy_at_founding(
-            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
-        )
+    def test_a_refund_returns_to_the_founding_action(self, gang, leader, post):
+        bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
         refund(bought)
 
@@ -500,7 +486,7 @@ class TestGivingSomethingBack:
         assert_reconciled(gang)
 
     def test_a_purchase_that_paid_only_trade_points_is_refunded_all_the_same(
-        self, gang, leader, legacy_list
+        self, gang, leader, post
     ):
         """What decides between a refund and a plain removal is whether
         anything was handed over, and Trade Points are something. A gang
@@ -509,9 +495,7 @@ class TestGivingSomethingBack:
         allowance spent for good."""
         from n26.core.models import LedgerEvent
 
-        bought = buy_at_founding(
-            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"), paid=0
-        )
+        bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"), paid=0)
         assert bought.ledger_entry.paid == 0
 
         refund(bought)
@@ -526,12 +510,10 @@ class TestGivingSomethingBack:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
-    def test_a_sale_returns_no_trade_points(self, gang, leader, legacy_list):
+    def test_a_sale_returns_no_trade_points(self, gang, leader, post):
         """Selling is not undoing: the credits come back at half, and the
         Trade Points stay spent."""
-        bought = buy_at_founding(
-            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
-        )
+        bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
         sell(bought)
 
@@ -540,14 +522,12 @@ class TestGivingSomethingBack:
         assert_reconciled(gang)
 
     def test_a_refund_after_the_action_closed_returns_to_the_allowance(
-        self, gang, leader, legacy_list
+        self, gang, leader, post
     ):
         """The refund lands on the action the purchase counted against,
         which is complete. Starting again still sees those points as
         returned, because spend is counted across every founding action."""
-        bought = buy_at_founding(
-            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
-        )
+        bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
         complete_action(gang, FOUNDING_KIND)
 
         refund(bought)
@@ -578,8 +558,8 @@ class TestFinishingAndStartingAgain:
 
         assert reading(leader) == 5
 
-    def test_starting_again_remembers_what_was_spent(self, gang, leader, legacy_list):
-        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+    def test_starting_again_remembers_what_was_spent(self, gang, leader, post):
+        buy_at_founding(leader, line_for(browse(post), "Flak plate"))
         complete_action(gang, FOUNDING_KIND)
 
         start_action(gang, FOUNDING_KIND)
@@ -587,14 +567,12 @@ class TestFinishingAndStartingAgain:
         assert budget(leader).spent == 3
         assert budget(leader).remaining == 2
 
-    def test_a_later_purchase_adds_to_what_was_already_spent(
-        self, gang, leader, legacy_list
-    ):
-        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+    def test_a_later_purchase_adds_to_what_was_already_spent(self, gang, leader, post):
+        buy_at_founding(leader, line_for(browse(post), "Flak plate"))
         complete_action(gang, FOUNDING_KIND)
         start_action(gang, FOUNDING_KIND)
 
-        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Mesh armour"))
+        buy_at_founding(leader, line_for(browse(post), "Mesh armour"))
 
         assert budget(leader).spent == 4
         assert budget(leader).remaining == 1
@@ -602,9 +580,9 @@ class TestFinishingAndStartingAgain:
         assert_reconciled(gang)
 
     def test_somebody_hired_after_the_founding_closed_starts_at_nothing_spent(
-        self, gang, leader, hire_into, legacy_list
+        self, gang, leader, hire_into, post
     ):
-        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+        buy_at_founding(leader, line_for(browse(post), "Flak plate"))
         complete_action(gang, FOUNDING_KIND)
         kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
 
@@ -614,10 +592,8 @@ class TestFinishingAndStartingAgain:
         assert budget(kel).spent == 0
         assert budget(kel).remaining == 4
 
-    def test_the_earlier_actions_purchases_stay_on_it(self, gang, leader, legacy_list):
-        first = buy_at_founding(
-            leader, line_for(browse(legacy_list, FOUNDING), "Flak plate")
-        )
+    def test_the_earlier_actions_purchases_stay_on_it(self, gang, leader, post):
+        first = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
         complete_action(gang, FOUNDING_KIND)
         start_action(gang, FOUNDING_KIND)
 
@@ -629,9 +605,7 @@ class TestTwoAllowancesAtOnce:
     doing it. The model's own points go first, and the gang's visit is
     left alone."""
 
-    def test_a_founding_purchase_is_not_the_visits(
-        self, gang, leader, post, legacy_list
-    ):
+    def test_a_founding_purchase_is_not_the_visits(self, gang, leader, post):
         visit_trading_post(gang, brought=6)
 
         buy_at_founding(leader, line_for(browse(post), "Mesh armour"))
@@ -1111,10 +1085,10 @@ class TestTheRosterReadInOneGo:
         assert card.trade_points_left is None
 
     def test_what_one_has_spent_is_not_charged_to_another(
-        self, gang, hire_into, leader, kit, legacy_list
+        self, gang, hire_into, leader, kit, post
     ):
         champion = hire_into(gang, ("Venators", "Hunt Champion"), "Kade")
-        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+        buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
         assert card_for(gang, "Rasp").trade_points_left == 2
         assert card_for(gang, champion.name).trade_points_left == 4
@@ -1127,24 +1101,20 @@ class TestTheRosterReadInOneGo:
         assert card.trade_points_left is None
 
     def test_starting_again_leaves_what_was_spent_on_the_card(
-        self, gang, leader, player, legacy_list
+        self, gang, leader, player, post
     ):
-        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+        buy_at_founding(leader, line_for(browse(post), "Flak plate"))
         complete_action(gang, FOUNDING_KIND, actor=player)
         start_action(gang, FOUNDING_KIND, actor=player)
 
         assert card_for(gang, "Rasp").trade_points_left == 2
 
-    def test_spending_past_it_reads_below_nothing(
-        self, gang, hire_into, kit, legacy_list
-    ):
+    def test_spending_past_it_reads_below_nothing(self, gang, hire_into, kit, post):
         """Trade Points inform and only credits are refused, so a model
         the owner meant to overspend reports what it is over by."""
         hunter = hire_into(gang, ("Venators", "Hunter"), "Sull")
         for _ in range(2):
-            buy_at_founding(
-                hunter, line_for(browse(legacy_list, FOUNDING), "Flak plate")
-            )
+            buy_at_founding(hunter, line_for(browse(post), "Flak plate"))
 
         assert card_for(gang, "Sull").trade_points_left == -3
 
@@ -1263,7 +1233,7 @@ class TestTheFigureOnTheGangPage:
     #: What the hover says, per model. The whole of it, because a
     #: substring of it would pass on a page that had drawn half a
     #: sentence.
-    HOVER = "Founding Trade Points {} has left to spend while the Found and equip gang action is open."
+    HOVER = "Founding Trade Points {} has left to spend at the Trading Post while the Found and equip gang action is open."
 
     def page(self, gang):
         from django.urls import reverse
@@ -1292,8 +1262,8 @@ class TestTheFigureOnTheGangPage:
             "text-violet-600" in body[body.rindex("<span class=", 0, figure) : figure]
         )
 
-    def test_spending_moves_it(self, client, gang, leader, kit, legacy_list):
-        buy_at_founding(leader, line_for(browse(legacy_list, FOUNDING), "Flak plate"))
+    def test_spending_moves_it(self, client, gang, leader, kit, post):
+        buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
         assert ">2 TP<span" in self.body(client, gang)
 

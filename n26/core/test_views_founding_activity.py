@@ -290,7 +290,7 @@ class TestTheSquareOnTheGangPage:
 
         assert (
             "While this action is open, fighters with founding Trade Points can "
-            "spend them on their equipment lists and at the Trading Post." in body
+            "spend them at the Trading Post." in body
         )
 
     def test_the_start_button_names_what_it_lets_you_do(self, client, gang, tester):

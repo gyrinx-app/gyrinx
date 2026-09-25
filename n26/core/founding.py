@@ -1,12 +1,8 @@
 """Founding budgets — what one model may spend while the gang is new.
 
-Some gangs let a model buy across every list it can reach on a single
-allowance of Trade Points, but only as it joins: a Venator Hunt Leader
-has 5 to spend over the list its Gang Legacy grants and the Trading Post
-together, an Outcast Champion 3 over the affiliation's list, the Outcast
-list and the post. The books call it a combined figure, and combined is
-the whole of it — an equipment list counts Trade Points here where
-nowhere else does.
+Some gangs give a model Trade Points to spend at the Trading Post while
+it joins: a Venator Hunt Leader has 5, and an Outcast Champion has 3.
+Equipment list purchases use credits and leave this allowance alone.
 
 The allowance belongs to the model, not to the gang, and it stands while
 the gang's Found and equip gang activity is open. So it is kept the way

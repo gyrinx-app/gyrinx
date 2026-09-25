@@ -422,9 +422,8 @@ class Screen:
     #: is held.
     view: object | None
     #: The model's founding allowance, where the gang is being founded
-    #: and this model has one. It decides three things at once: that
-    #: every line on the screen counts Trade Points, what a purchase
-    #: records them against, and the figures a question is asked with.
+    #: and this model has one. Trading Post purchases count against its
+    #: activity; overspend questions use its figures.
     #: ``None`` on the gang's own screen and for a model with none.
     budget: object | None = None
 
@@ -455,8 +454,6 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
     """
     from n26.core.access import collections_for, gang_collections
     from n26.core.browse import (
-        EQUIPMENT_LIST,
-        FOUNDING,
         all_gear,
         browse,
         priced_from,
@@ -485,14 +482,11 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
         card = build_card(miniature, with_statlines=True, with_options=True)
         index = build_modifier_index(carriers(card))
         computed = compute(card, index)
-        # A model with an allowance of its own buys every list on the
-        # screen against it, which the books call a combined figure — so
-        # the terms are the founding ones and not each collection's. A
-        # model without one is read exactly as it was before allowances
-        # existed, down to the queries — as is every model for a reader
-        # the feature does not reach (``budgets`` False).
+        # The allowance belongs to the model, while each collection
+        # determines whether a purchase spends it. Equipment lists use
+        # credits; the Trading Post charges Trade Points. A model with no
+        # allowance keeps the same query path as before budgets existed.
         budget = budget_for(gang, miniature, computed) if budgets else None
-        terms = FOUNDING if budget is not None else None
         collections = buyable_lists(
             access.collection
             for access in collections_for(miniature, card=card, computed=computed)
@@ -506,19 +500,18 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
             view = priced_from(
                 all_gear(
                     ALL_LABEL,
-                    terms or EQUIPMENT_LIST,
                     for_use_notes=True,
                     include_staged=include_staged,
                 ),
                 [
-                    browse(collection, terms, include_staged=include_staged)
+                    browse(collection, include_staged=include_staged)
                     for collection in collections
                 ],
             )
         else:
             chosen = chosen_from(collections)
             view = (
-                browse(chosen, terms, include_staged=include_staged)
+                browse(chosen, include_staged=include_staged)
                 if chosen is not None
                 else None
             )
@@ -1111,9 +1104,8 @@ def equip(request, pk):
             # a script the click opens the panel that is already on the
             # page and never rebuilds the catalogue.
             "accessorise": accessorise_dialogs(request, host),
-            # What this model may still spend while the gang is being
-            # founded, drawn beside the rail. Every line on the page
-            # counts against it.
+            # What this model may still spend at the Trading Post while
+            # the gang is being founded, drawn beside the rail.
             "founding_budget": screen.budget,
             "visit_beside_founding": visit_beside_founding,
             "visit_trade_points_left": (
