@@ -2382,20 +2382,17 @@ def row_printing(body, words):
 PAGE_ISLAND = "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
 
 
-def island_props(body, module=None):
+def island_props(body, module=None, name=None):
     """Decode the initial data the page's React island receives."""
     soup = BeautifulSoup(body, "html.parser")
     hosts = soup.select(PAGE_ISLAND)
-    host = next(
-        (
-            candidate
-            for candidate in hosts
-            if module is None or f"{module}-" in candidate["data-react-module"]
-        ),
-        None,
-    )
-    assert host is not None
-    return json.loads(soup.find(id=host["data-react-props"]).string)
+    for host in hosts:
+        if module is not None and f"{module}-" not in host["data-react-module"]:
+            continue
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+        if name is None or props.get("name") == name:
+            return props
+    raise AssertionError(f"No {module or 'page'} island for {name or 'this page'}")
 
 
 def island_rows(body):
@@ -7192,6 +7189,26 @@ class TestThePickersStillPostWhatTheySay:
         assert 'data-union-kind="thing"' in body
         assert 'data-union-of="thing"' in body
         assert 'data-union-member="skill"' in body
+
+    def test_a_long_picker_gives_react_the_native_select_contract(
+        self, rule, client, default_pack
+    ):
+        from n26.library.authoring import create_skill
+
+        skills = [create_skill(f"Filter skill {index:02}") for index in range(16)]
+        body = client.get(
+            f"/n26/authoring/rule/{rule.pk}/"
+            "?scope_kind=targets_model&effect_kind=ef_adds"
+        ).content.decode()
+
+        props = island_props(body, "filter-select", name="what-thing_skill")
+        assert props["attrs"] == {
+            "data-union-of": "thing",
+            "data-union-member": "skill",
+        }
+        assert {option["value"] for option in props["options"]} >= {
+            str(skill.pk) for skill in skills
+        }
 
     def test_picking_through_the_composer_writes_that_row(
         self, rule, client, default_pack
