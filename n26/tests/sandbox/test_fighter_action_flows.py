@@ -797,6 +797,53 @@ class TestSuitEvolutionForms:
             "Review the change before continuing."
         ) in response.content.decode()
 
+    def test_recent_history_shows_only_the_confirmed_augmentation_item(
+        self, client, hunt
+    ):
+        spare = a.create_wargear("Spare rig", price=0)
+        a.add_built_in(spare, hunt.item.caused.get(slot__isnull=False).slot)
+        spare_item = buy(hunt.fighter, thing=spare, paid=0)
+        record, _, _ = start(client, hunt, hunt.upgrade)
+        choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
+        review_url = client.post(
+            choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
+        ).url
+        reviewed = client.get(review_url)
+        assert (
+            client.post(
+                review_url, {"review": reviewed.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+
+        def history_detail():
+            page = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+            panel = next(
+                panel
+                for panel in page.context["action_history_panels"]
+                if panel.action_id == str(hunt.action.pk)
+            )
+            return panel.completed[0].detail
+
+        assert history_detail().startswith("Hunting rig: Tier 1. ")
+        correction_url = client.post(
+            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "correct"]),
+            {"selection": f"{spare_item.pk}|{hunt.tiers[0].pk}"},
+        ).url
+        correction = client.get(correction_url)
+        assert history_detail() == "Hunting rig: Tier 1"
+
+        assert (
+            client.post(
+                correction_url,
+                {"review": correction.context["form"]["review"].value()},
+            ).status_code
+            == 302
+        )
+        assert history_detail() == "Spare rig: Tier 1"
+        hunt.gang.refresh_from_db()
+        assert_reconciled(hunt.gang)
+
     def test_another_owner_cannot_open_or_complete_the_flow(self, client, hunt):
         record, _, _ = start(client, hunt, hunt.clear)
         stranger = User.objects.create_user("other-flow-player")

@@ -236,7 +236,14 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
             )
         )
         .filter(action_position__lte=3)
-        .select_related("outcome")
+        .select_related(
+            "outcome",
+            "slot_selection__item_assignment__weapon",
+            "slot_selection__item_assignment__wargear",
+            "slot_selection__intended_pick",
+            "advancement_selection__intended_pick",
+            "skill_selection__selected_skill",
+        )
         .order_by("-created", "-pk")
     )
     records = [*drafts, *completed]
@@ -311,7 +318,38 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
 
 
 def _completed_detail(record):
-    """Describe a completed choice from its immutable review snapshot."""
+    """Describe the applied selection, never an unconfirmed correction."""
+    augmentation = getattr(record, "slot_selection", None)
+    if (
+        augmentation is not None
+        and augmentation.item_assignment_id
+        and augmentation.intended_pick_id
+    ):
+        detail = (
+            f"{augmentation.item_assignment.assignable}: {augmentation.intended_pick}"
+        )
+        # The first completed review can retain useful effect text. A correction
+        # replaces that review before it changes the applied selection.
+        if not record.review.get("correction"):
+            target = record.review.get("target", {})
+            selected = target.get("selection", {}) if isinstance(target, dict) else {}
+            if selected.get("item_assignment_id") == str(
+                augmentation.item_assignment_id
+            ) and selected.get("candidate_pick_id") == str(
+                augmentation.intended_pick_id
+            ):
+                effect = selected.get("effect", "")
+                if effect:
+                    return f"{detail}. {effect[:1].upper()}{effect[1:]}"
+        return detail
+    advancement = getattr(record, "advancement_selection", None)
+    if advancement is not None and advancement.intended_pick_id:
+        skill = getattr(record, "skill_selection", None)
+        if skill is not None and skill.skill_assignment_id and skill.selected_skill_id:
+            return f"{advancement.intended_pick}: {skill.selected_skill}"
+        return str(advancement.intended_pick)
+    if record.review.get("correction"):
+        return ""
     target = record.review.get("target", {})
     if not isinstance(target, dict):
         return ""

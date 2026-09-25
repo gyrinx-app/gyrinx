@@ -378,6 +378,62 @@ class TestSelectingSkills:
 class TestCompletingAndCorrecting:
     """Confirmation settles once; correction changes the pick around that receipt."""
 
+    def test_recent_history_shows_only_the_confirmed_skill_selection(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        review_url = client.post(
+            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        ).url
+        reviewed = client.get(review_url)
+        assert (
+            client.post(
+                review_url, {"review": reviewed.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+
+        def history_detail():
+            page = client.get(
+                reverse("n26-edit-fighter", args=[advancement.fighter.pk])
+            )
+            panel = next(
+                panel
+                for panel in page.context["action_history_panels"]
+                if panel.action_id == str(advancement.action.pk)
+            )
+            return panel.completed[0].detail
+
+        assert history_detail() == "Select Primary skill: Dodge"
+        corrected_skill = _choose_result(
+            client,
+            advancement,
+            record,
+            advancement.results["secondary"],
+            stage="correct",
+        )
+        correction_url = client.post(
+            corrected_skill, {"skill_id": str(advancement.skills["secondary"].pk)}
+        ).url
+        correction = client.get(correction_url)
+        assert history_detail() == "Select Primary skill: Dodge"
+
+        assert (
+            client.post(
+                correction_url,
+                {"review": correction.context["form"]["review"].value()},
+            ).status_code
+            == 302
+        )
+        assert history_detail() == "Select Secondary skill: Bull Charge"
+        advancement.gang.refresh_from_db()
+        assert_reconciled(advancement.gang)
+
     def test_completion_and_correction_keep_one_use_and_one_roll(
         self, client, monkeypatch, advancement
     ):
