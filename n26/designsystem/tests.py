@@ -891,7 +891,7 @@ class TestTheModelEditPage:
     def test_action_panels_share_the_card_row_above_the_tabs(self, reader):
         page = reader.get("/n26/design/view/view-model-edit/").content.decode()
         card = page.index('id="n26-model-card-host"')
-        actions = page.index('<span class="font-semibold">Actions</span>', card)
+        actions = page.index('id="n26-action-panels"', card)
         evolution = page.index("Suit Evolution", card)
         advancement = page.index("Advancement", evolution)
         notes = page.index('<span class="font-semibold">Notes</span>', advancement)
@@ -902,10 +902,14 @@ class TestTheModelEditPage:
         assert "lg:grid-cols-2" in page[card - 500 : actions]
         assert "Kill Count" in page[evolution:advancement]
         assert "After payment" not in page[evolution:advancement]
-        assert 'aria-label="Start Suit Evolution flow"' in page[evolution:advancement]
+        assert '<span class="font-semibold">Actions</span>' not in page[actions:tabs]
+        assert (
+            'aria-label="Start Suit Evolution flow"' not in page[evolution:advancement]
+        )
         assert "Resume Suit Evolution flow" in page[evolution:advancement]
         assert "1 use available" in page[advancement:notes]
-        assert "Resume Advancement flow" in page[advancement:notes]
+        assert 'aria-label="Start Advancement flow"' in page[advancement:notes]
+        assert "Resume Advancement flow" not in page[advancement:notes]
         assert "Hunting Rig Augmentation" not in page[actions:tabs]
         assert "Hunting Rig Augmentation" in page[history:]
         assert "Hunting rig: Tier 1. Improve S by 1" in page[history:]

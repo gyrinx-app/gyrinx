@@ -413,11 +413,28 @@ class TestCompletingAndCorrecting:
                 "n26-action-flow", args=[advancement.fighter.pk, record.pk, "skill"]
             )
         )
+        skill_page = client.get(corrected_skill)
+        choices = client.get(skill_page.context["back_href"])
+        assert choices.context["form"]["pickable_id"].value() == str(
+            advancement.results["secondary"].pk
+        )
+        record.refresh_from_db()
+        assert record.terms["pickable_id"] == str(advancement.results["primary"].pk)
         reviewed = client.post(
             corrected_skill,
             {"skill_id": str(advancement.skills["secondary"].pk)},
         )
         correction_page = client.get(reviewed.url)
+        skill_page = client.get(correction_page.context["back_href"])
+        assert skill_page.context["form"]["skill_id"].value() == str(
+            advancement.skills["secondary"].pk
+        )
+        choices = client.get(skill_page.context["back_href"])
+        assert choices.context["form"]["pickable_id"].value() == str(
+            advancement.results["secondary"].pk
+        )
+        record.refresh_from_db()
+        assert record.terms["skill_id"] == str(advancement.skills["primary"].pk)
         corrected = client.post(
             reviewed.url,
             {"review": correction_page.context["form"]["review"].value()},

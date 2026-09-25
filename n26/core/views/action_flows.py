@@ -229,6 +229,8 @@ def _page(
         back_label = "Save and return later"
     elif stage == "skill":
         back_href = flow_url(fighter, record, "correct" if correction else "choose")
+        if correction:
+            back_href += "?" + urlencode({"pick": context["selected_pick"]})
         back_label = "← Back"
     elif stage == "review" and context.get("change_href"):
         target = record.review.get("target", {})

@@ -398,6 +398,14 @@ class TestSuitEvolutionForms:
             ).count()
             == 1
         )
+        roster = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
+        assert roster.status_code == 200
+        model = next(
+            card
+            for card in roster.context["sheet"].models
+            if card.id == str(hunt.fighter.pk)
+        )
+        assert "Advancement" in model.action_names
 
     def test_available_flows_are_linked_from_the_owners_roster_only(self, client, hunt):
         from bs4 import BeautifulSoup

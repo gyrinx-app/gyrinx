@@ -860,7 +860,6 @@ def context():
                 name="Suit Evolution",
                 timing="post-battle action",
                 prices=(PaymentFigures("Kill Count", "8", "4", "4"),),
-                start_href="#start-suit-evolution",
                 drafts=[
                     ActionUseLink(
                         "suit-evolution-draft",
@@ -885,13 +884,6 @@ def context():
                 allowance_id="advancement-allowance",
                 available_uses=1,
                 start_href="#start-advancement",
-                drafts=[
-                    ActionUseLink(
-                        "advancement-draft",
-                        "Resume Advancement flow",
-                        "#resume-advancement",
-                    )
-                ],
             ),
         ),
         "houses": HOUSES,

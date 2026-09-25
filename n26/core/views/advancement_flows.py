@@ -133,10 +133,15 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
             request, fighter, record, configured, chosen, groups, correction=correction
         )
 
+    previous = record.review.get("terms", record.terms) if correction else record.terms
     form = AdvancementForm(
         request.POST or None,
         options=options,
-        initial={"pickable_id": record.terms.get("pickable_id")},
+        initial={
+            "pickable_id": request.GET.get("pick", previous.get("pickable_id"))
+            if correction
+            else previous.get("pickable_id")
+        },
     )
     if request.method == "POST" and form.is_valid():
         chosen = next(
@@ -235,10 +240,13 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         form = EmptyActionForm(request.POST or None)
         submit_label = "Review" if resolved else ""
     else:
+        previous = (
+            record.review.get("terms", record.terms) if correction else record.terms
+        )
         form = SkillSelectionForm(
             request.POST or None,
             groups=groups,
-            initial={"skill_id": record.terms.get("skill_id")},
+            initial={"skill_id": previous.get("skill_id")},
         )
         submit_label = "Review"
     if request.method == "POST" and form.is_valid():
@@ -274,6 +282,7 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         stage="skill",
         correction=correction,
         form=form,
+        selected_pick=chosen.id,
         skill_random=random,
         skill_resolved=resolved,
         skill_selected=str(selected) if resolved else "",
