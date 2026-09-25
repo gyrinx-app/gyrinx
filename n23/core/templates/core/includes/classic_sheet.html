@@ -1,6 +1,6 @@
 {% comment %}
-Classic-mode print sheet (#1726). Tiles ClassicCard objects onto A4 (4 per page)
-and progressively shrinks overflowing text so long content fits the fixed-size
+Classic-mode print sheet (#1726). Tiles ClassicCard objects onto A4 (4 per
+portrait page, 6 per landscape) and progressively shrinks overflowing text so long content fits the fixed-size
 cards instead of clipping. Shared by the Print Lab and the real list-print flow.
 
 Params:
@@ -10,8 +10,13 @@ Params:
   paged      -- if truthy, show the A4 page preview (2 across)
   show_grid  -- if truthy, overlay a mm alignment grid (lab tuning aid)
   auto_print -- if truthy, open the browser print dialog once fitting is done
+  orientation -- "landscape" prints six cards to a sheet at 90%; anything else
+                 keeps the stylesheet's A4 portrait
 {% endcomment %}
-<div class="print-sheet{% if paged %} print-sheet--paged{% endif %}">
+{% if orientation == "landscape" %}
+    <style>@page { size: A4 landscape; }</style>
+{% endif %}
+<div class="print-sheet{% if paged %} print-sheet--paged{% endif %}{% if orientation == "landscape" %} print-sheet--landscape{% endif %}">
     {% for card in cards %}
         {% if card.kind == "gang" or card.kind == "lore" %}
             {% include "core/includes/classic_card_text.html" with card=card theme=theme show_grid=show_grid %}

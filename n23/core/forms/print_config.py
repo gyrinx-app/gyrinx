@@ -12,6 +12,7 @@ class PrintConfigForm(forms.ModelForm):
         fields = [
             "name",
             "card_style",
+            "orientation",
             "include_assets",
             "include_attributes",
             "include_stash",
@@ -27,6 +28,7 @@ class PrintConfigForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "card_style": forms.RadioSelect(attrs={"class": "form-check-input"}),
+            "orientation": forms.RadioSelect(attrs={"class": "form-check-input"}),
             "include_assets": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "include_attributes": forms.CheckboxInput(
                 attrs={"class": "form-check-input"}
@@ -61,6 +63,7 @@ class PrintConfigForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.list_obj = kwargs.pop("list_obj", None)
         super().__init__(*args, **kwargs)
+        self.fields["orientation"].required = False
 
         if self.list_obj:
             # Filter fighters to only show those belonging to this list
@@ -72,6 +75,9 @@ class PrintConfigForm(forms.ModelForm):
             self.fields["included_fighters"].label_from_instance = lambda obj: (
                 f"{obj.name} ({obj.get_injury_state_display()})"
             )
+
+    def clean_orientation(self):
+        return self.cleaned_data.get("orientation") or PrintConfig.PORTRAIT
 
     def clean(self):
         """Validate fighter selection and clear included_fighters for non-specific modes."""

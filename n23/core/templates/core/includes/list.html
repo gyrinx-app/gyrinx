@@ -321,7 +321,7 @@
             {% endif %}
         {% endif %}
         {% if print %}
-            {% firstof 'g-col-12 g-col-sm-6 g-col-md-6 g-col-xl-4' as inner_grid_layout_classes %}
+            {% firstof 'g-col-12 g-col-sm-6 g-col-md-6 g-col-xl-4 print-col-group' as inner_grid_layout_classes %}
         {% else %}
             {% firstof 'g-col-12 g-col-xl-8' as inner_grid_layout_classes %}
         {% endif %}
@@ -337,11 +337,11 @@
                                         {% comment %} Stash fighter in group? Nope {% endcomment %}
                                     {% else %}
                                         {% if forloop.first %}
-                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 border-end-md-0 rounded-end-md-0" %}
+                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 print-col-in-group border-end-md-0 rounded-end-md-0" %}
                                         {% elif forloop.last %}
-                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 border-start-md-0 rounded-start-md-0" %}
+                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 print-col-in-group border-start-md-0 rounded-start-md-0" %}
                                         {% else %}
-                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 border-start-md-0 rounded-start-md-0 border-end-md-0 rounded-end-md-0" %}
+                                            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=print classes="g-col-12 g-col-md-6 print-col-in-group border-start-md-0 rounded-start-md-0 border-end-md-0 rounded-end-md-0" %}
                                         {% endif %}
                                     {% endif %}
                                 {% endfor %}

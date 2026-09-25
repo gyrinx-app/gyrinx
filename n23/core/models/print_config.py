@@ -15,7 +15,15 @@ class PrintConfig(AppBase):
     CLASSIC = "classic"
     CARD_STYLE_CHOICES = [
         (WEB, "Web cards (standard)"),
-        (CLASSIC, "Classic cards (grimdark, 4 per A4 sheet)"),
+        (CLASSIC, "Classic cards (grimdark, fixed size)"),
+    ]
+
+    # Paper orientation choices
+    PORTRAIT = "portrait"
+    LANDSCAPE = "landscape"
+    ORIENTATION_CHOICES = [
+        (PORTRAIT, "Portrait"),
+        (LANDSCAPE, "Landscape"),
     ]
 
     # Fighter selection mode choices
@@ -42,13 +50,23 @@ class PrintConfig(AppBase):
     )
 
     # Card style — the standard web cards, or the grimdark "classic mode" cards
-    # (fixed 100x110mm, 4 per A4). Classic renders fighter cards only, always on
-    # the base "blank" plate (no theme choice).
+    # (fixed 100x110mm, 4 per A4 portrait, 6 landscape). Classic renders
+    # fighter cards only, always on the base "blank" plate (no theme choice).
     card_style = models.CharField(
         max_length=20,
         choices=CARD_STYLE_CHOICES,
         default=WEB,
         help_text="Which card style to print.",
+    )
+
+    # Paper orientation. Phones lay print out at their screen width and
+    # ignore the orientation picked in the print dialog, so the sheet is
+    # sized for this orientation before the dialog opens.
+    orientation = models.CharField(
+        max_length=20,
+        choices=ORIENTATION_CHOICES,
+        default=PORTRAIT,
+        help_text="Which way round the paper goes.",
     )
 
     # Card type toggles
@@ -135,6 +153,8 @@ class PrintConfig(AppBase):
         included = []
         if self.card_style == self.CLASSIC:
             included.append("Classic style")
+        if self.orientation == self.LANDSCAPE:
+            included.append("Landscape")
         if self.include_assets:
             included.append("Assets")
         if self.include_attributes:

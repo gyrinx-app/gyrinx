@@ -1539,6 +1539,7 @@ class TestCloningAGang:
             include_header=False,
             include_stash=False,
             include_notes=False,
+            orientation=PrintConfig.Orientation.LANDSCAPE,
         )
         source_config.miniatures.set([fighter])
         source_config.assignments.set([source_weapon])
@@ -1606,6 +1607,7 @@ class TestCloningAGang:
         assert cloned_config.include_header is False
         assert cloned_config.include_stash is False
         assert cloned_config.include_notes is False
+        assert cloned_config.orientation == PrintConfig.Orientation.LANDSCAPE
         assert set(cloned_config.miniatures.values_list("pk", flat=True)) == {
             cloned_fighter.pk
         }

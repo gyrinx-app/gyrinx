@@ -88,6 +88,7 @@ that said it twice would be spending the width the name needs.
                                     {% if not config.include_header %}· no header{% endif %}
                                     {% if not config.include_stash %}· no stash{% endif %}
                                     {% if not config.include_notes %}· no notes, pictures, or space to write{% endif %}
+                                    {% if config.orientation == "landscape" %}· landscape{% endif %}
                                 </p>
                             </div>
                             <div class="flex shrink-0 items-center gap-2">
@@ -151,6 +152,26 @@ that said it twice would be spending the width the name needs.
                     <span class="text-sm text-ink-900 dark:text-ink-100">Include notes, pictures, and space to write</span>
                 </label>
             </div>
+            <fieldset class="flex flex-col gap-1">
+                <legend class="text-sm font-medium text-ink-900 dark:text-ink-100">Paper</legend>
+                <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
+                    <input type="radio"
+                           name="orientation"
+                           value="portrait"
+                           {% if orientation != "landscape" %}checked{% endif %}
+                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                    <span class="text-sm text-ink-900 dark:text-ink-100">Portrait, two cards across</span>
+                </label>
+                <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
+                    <input type="radio"
+                           name="orientation"
+                           value="landscape"
+                           {% if orientation == "landscape" %}checked{% endif %}
+                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                    <span class="text-sm text-ink-900 dark:text-ink-100">Landscape, three cards across</span>
+                </label>
+                <p class="text-sm text-muted">Pick the same orientation in your print dialog.</p>
+            </fieldset>
         </c-n26.form-section>
         <c-n26.form-section title="Models"
                             description="Tick who gets a card, and which of their weapons show on it.">
