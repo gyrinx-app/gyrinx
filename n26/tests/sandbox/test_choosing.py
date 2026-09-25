@@ -21,7 +21,12 @@ from n26.core.card import build_card, build_gang_card, build_modifier_index
 from n26.core.effects import compute, compute_gang
 from n26.core.models import Assignment, DismissedOffer
 from n26.core.reconcile import assert_reconciled
-from n26.core.render import NONE_KEY, build_choice_offer, render_gang
+from n26.core.render import (
+    NONE_KEY,
+    _provenance_within,
+    build_choice_offer,
+    render_gang,
+)
 from n26.library.models import Affiliation, Skill
 from n26.tests.sandbox.actions import (
     add_entry,
@@ -849,6 +854,14 @@ class TestOneLineAskingTwice:
         # Either question would take it: both offers match on kind alone.
         assert settled["Primary role"].chosen_name == "Marksman"
         assert settled["Secondary role"].chosen_name is None
+
+        computed = fighter_computed(vex)
+        provenance = _provenance_within(computed.card, computed=computed)(
+            settled["Primary role"].picks[0]
+        )
+        assert provenance.chosen
+        assert provenance.description == "Chosen from Twice Asked (subtype)"
+        assert provenance.annotated
 
     def test_an_unnamed_pick_leaves_the_other_question_answerable(
         self, gang, twice_asked, skills

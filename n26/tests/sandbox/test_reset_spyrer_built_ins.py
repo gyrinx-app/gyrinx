@@ -154,8 +154,13 @@ def test_the_inspected_later_manual_tallies_keep_their_deltas(setup, monkeypatch
 
 
 def test_reset_refuses_an_additional_action_use(setup):
+    another = hire(setup.gang, setup.profile, "Second Hunter")
     with operation(setup.gang, actor=setup.gang.owner) as op:
-        op.start_action(setup.fighter, setup.action, uuid4())
+        extra = op.start_action(another, setup.action, uuid4())
+    assert str(extra.pk) not in reset.USES
+    assert extra.source_assignment_id in Assignment.objects.filter(
+        materialised_from_id__in=reset.MEMBERS
+    ).values_list("pk", flat=True)
     assert not reset.find().ok
     with pytest.raises(reset.Refused, match="changed since"):
         reset.apply_one(setup.gang.pk)

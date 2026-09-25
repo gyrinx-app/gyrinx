@@ -2695,7 +2695,9 @@ class TestTheLibraryTabsQueryBudget:
         # what prices the library's lines. A fixed number per list,
         # never one per item. One more reads the gang's dismissed offers,
         # and one reads the n26 write-pause state for the page notice.
-        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 66
+        # Action controls read tracking state, earned uses, drafts and history
+        # once for this model, independent of the number of library rows.
+        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 70
 
     def test_it_costs_the_same_however_much_it_holds(
         self, client, tester, fighter, house_list, stocked
