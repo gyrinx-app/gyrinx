@@ -3176,11 +3176,12 @@ def _provenance_within(card, *, nodes_by_key=None, computed=None):
     """
     if nodes_by_key is None:
         nodes_by_key = {node.key: node for node in card.all_nodes()}
-    # The effect reader resolves choices without an offer ID, including choices
-    # whose offer has been replaced by an author.
+    # Offers can resolve answers without an offer ID. Slot choices also include
+    # automatic defaults, so their presence is not evidence of a player choice.
     chosen_keys = {
         pick.key
         for choice in (computed.choices if computed else [])
+        if choice.offer is not None
         for pick in choice.picks
     }
 

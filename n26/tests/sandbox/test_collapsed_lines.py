@@ -426,7 +426,7 @@ class TestABoughtAndAGrantedSkill:
         assert "(x2)" not in body
         assert body.count("Nerves of Steel") >= 2
         assert (
-            'Nerves of Steel<span class="sr-only"> (from Rebreather kit (wargear))</span>'
+            'Nerves of Steel<span class="sr-only"> (From Rebreather kit (wargear))</span>'
             in body
         )
 

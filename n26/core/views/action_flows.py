@@ -513,6 +513,14 @@ def action_flow(request, pk, record_id, step):
     if record.state == ActionRecord.State.CANCELLED:
         messages.info(request, "This flow was cancelled.")
         return redirect("n26-edit-fighter", pk=fighter.pk)
+    if not record.outcome_id and step in {
+        "resume",
+        "choose",
+        "correct",
+        "skill",
+        "roll",
+    }:
+        return redirect(flow_url(fighter, record, "outcome"))
     if step == "resume":
         next_step = (
             "done"
@@ -571,6 +579,8 @@ def action_flow(request, pk, record_id, step):
     if correction and step not in {"correct", "skill"}:
         return redirect(flow_url(fighter, record, "done"))
     configured = record.outcome.operation if record.outcome_id else None
+    if step == "roll" and not isinstance(configured, ResolveAdvancement):
+        return redirect(flow_url(fighter, record, "choose"))
     if isinstance(configured, AugmentCarriedItem):
         try:
             return _choose_augmentation(

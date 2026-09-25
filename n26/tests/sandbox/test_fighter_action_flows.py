@@ -9,7 +9,7 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from n26.core.models import ActionRecord, Assignment
+from n26.core.models import ActionRecord, Assignment, LedgerEvent
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
@@ -867,3 +867,59 @@ class TestSuitEvolutionForms:
             miniature_root=hunt.fighter, pickable__in=hunt.tiers
         ).exists()
         assert ActionRecord.objects.filter(fighter=hunt.fighter).count() == 1
+
+    @pytest.mark.parametrize(
+        ("step", "method"), [("resume", "get"), ("roll", "get"), ("roll", "post")]
+    )
+    def test_an_outcome_less_draft_returns_to_selecting_its_result(
+        self, client, hunt, step, method
+    ):
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            record = op.start_action(hunt.fighter, hunt.action, uuid4())
+        client.force_login(hunt.owner)
+        url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, step])
+        outcome_url = reverse(
+            "n26-action-flow", args=[hunt.fighter.pk, record.pk, "outcome"]
+        )
+
+        response = getattr(client, method)(url, follow=True)
+
+        assert response.status_code == 200
+        assert response.redirect_chain == [(outcome_url, 302)]
+        assert response.context["stage"] == "start"
+        record.refresh_from_db()
+        assert record.outcome_id is None
+        assert record.payment_id is None
+        assert not record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED).exists()
+        replay = client.post(
+            reverse("n26-action-start", args=[hunt.fighter.pk, hunt.action.pk]),
+            {"request_key": str(record.request_key)},
+            follow=True,
+        )
+        assert replay.status_code == 200
+        assert replay.context["stage"] == "start"
+        chosen = client.post(outcome_url, {"outcome": str(hunt.upgrade.pk)})
+        assert chosen.status_code == 302
+        record.refresh_from_db()
+        assert record.outcome_id == hunt.upgrade.pk
+        assert ActionRecord.objects.filter(fighter=hunt.fighter).count() == 1
+
+    @pytest.mark.parametrize("outcome_name", ["upgrade", "clear"])
+    @pytest.mark.parametrize("method", ["get", "post"])
+    def test_the_roll_route_keeps_non_advancement_flows_in_their_own_forms(
+        self, client, hunt, outcome_name, method
+    ):
+        record, _, _ = start(client, hunt, getattr(hunt, outcome_name))
+        url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "roll"])
+
+        response = getattr(client, method)(url, follow=True)
+
+        assert response.status_code == 200
+        assert response.redirect_chain[0] == (
+            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"]),
+            302,
+        )
+        assert response.context["stage"] == (
+            "choose" if outcome_name == "upgrade" else "review"
+        )
+        assert not record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED).exists()

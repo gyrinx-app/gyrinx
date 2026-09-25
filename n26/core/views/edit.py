@@ -422,12 +422,14 @@ def _dismissal_hidden(miniature, card):
     return [card] if miniature.status == Status.DEAD else []
 
 
-def action_panel_context(miniature, own, computed):
+def action_panel_context(miniature, own, computed, *, counter_tracking_active=None):
     """The same available flows on Edit, Equip and their partial updates."""
     from n26.core.action_flow import action_panels
     from n26.core.counter_tracking import is_active as counter_tracking_is_active
     from n26.core.views.action_flows import link_action_panels, split_action_panels
 
+    if counter_tracking_active is None:
+        counter_tracking_active = counter_tracking_is_active()
     flows, history = split_action_panels(
         link_action_panels(
             miniature,
@@ -435,7 +437,7 @@ def action_panel_context(miniature, own, computed):
                 miniature,
                 card=own,
                 computed=computed,
-                counter_tracking_active=counter_tracking_is_active(),
+                counter_tracking_active=counter_tracking_active,
             ),
         )
     )
@@ -792,7 +794,12 @@ def edit_fighter(request, pk):
 
     progression = progression_for(miniature, card=own, computed=computed)
 
-    panels = action_panel_context(miniature, own, computed)
+    from n26.core.counter_tracking import is_active as counter_tracking_is_active
+
+    counter_tracking_active = counter_tracking_is_active()
+    panels = action_panel_context(
+        miniature, own, computed, counter_tracking_active=counter_tracking_active
+    )
 
     # The same acts the equip listing offers, pointed at this page so
     # the confirmations open over it. A gang sheet and a print sheet
@@ -897,7 +904,6 @@ def edit_fighter(request, pk):
     members = roster(gang)
     may_mark = may_mark_status(gang, request.user)
     from n26.core.allowances import missing_progression_counters
-    from n26.core.counter_tracking import is_active as counter_tracking_is_active
 
     return render(
         request,
@@ -911,7 +917,7 @@ def edit_fighter(request, pk):
             "missing_progression_counters": missing_progression_counters(
                 miniature, card=own, computed=computed
             )
-            if counter_tracking_is_active()
+            if counter_tracking_active
             else [],
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
