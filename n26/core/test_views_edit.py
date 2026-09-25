@@ -742,7 +742,8 @@ class TestTheQueryBudget:
         # state for the page notice.
         # One reads whether counter tracking is active. Earned action uses,
         # active drafts and completed history are three bounded reads.
-        assert self.measure(client, edit_url(vex)) == 50
+        # Rank history reads the fighter's earned rank allowances once.
+        assert self.measure(client, edit_url(vex)) == 51
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline
