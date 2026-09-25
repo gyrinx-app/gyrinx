@@ -4,7 +4,7 @@ from django import forms
 
 
 class ActionOutcomeForm(forms.Form):
-    outcome = forms.ChoiceField(label="Choose an outcome")
+    outcome = forms.ChoiceField(label="Choose a result")
 
     def __init__(self, *args, outcomes, **kwargs):
         super().__init__(*args, **kwargs)
@@ -56,6 +56,26 @@ class ActionRollForm(forms.Form):
             "required": "Reload this page before rolling.",
         },
     )
+
+
+class AdvancementRollForm(ActionRollForm):
+    roll_mode = forms.ChoiceField(
+        label="How would you like to roll?",
+        choices=[("roll", "Roll in Gyrinx"), ("record", "Record my roll")],
+        required=False,
+    )
+    rolled = forms.IntegerField(
+        label="Your 2D6 total", min_value=2, max_value=12, required=False
+    )
+
+    def clean(self):
+        data = super().clean()
+        if data.get("roll_mode") == "record" and data.get("rolled") is None:
+            if "rolled" not in self.errors:
+                self.add_error("rolled", "Enter the total of your two dice.")
+        elif data.get("roll_mode") != "record" and data.get("rolled") is not None:
+            self.add_error("roll_mode", "Select Record my roll to use this total.")
+        return data
 
 
 class AdvancementForm(forms.Form):

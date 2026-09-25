@@ -186,7 +186,7 @@ class TestAnEarnedAdvancementStartsAndResumes:
         assert response.status_code == 302
         assert record.state == ActionRecord.State.STARTED
 
-    def test_an_earned_use_reserved_in_another_tab_has_a_visible_explanation(
+    def test_an_earned_use_reserved_in_another_tab_resumes_the_same_flow(
         self, client, advancement
     ):
         record = _start(client, advancement)
@@ -200,12 +200,98 @@ class TestAnEarnedAdvancementStartsAndResumes:
                 "allowance": str(advancement.allowance.pk),
             },
         )
-        assert response.status_code == 200
-        assert "That earned use is no longer available." in response.content.decode()
+        assert response.status_code == 302
+        assert response.url == reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
+        )
         assert (
             ActionRecord.objects.filter(fighter=advancement.fighter).get().pk
             == record.pk
         )
+
+    def test_a_recorded_roll_is_durable_and_the_highest_available_results_come_first(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch)
+        record = _start(client, advancement)
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
+        )
+        page = client.get(url)
+        payload = {
+            "request_key": page.context["form"]["request_key"].value(),
+            "roll_mode": "record",
+            "rolled": "4",
+        }
+        response = client.post(url, payload)
+        assert response.status_code == 302
+        page = client.get(response.url)
+        assert page.context["roll_value"] == 4
+        assert [
+            item["option"].name for item in page.context["advancement_options"]
+        ] == ["Select any skill", "Select Secondary skill", "Select Primary skill"]
+        html = page.content.decode()
+        assert "Choose any result at or below your roll." in html
+        assert "It asks" not in html
+        assert "Roll 4+" in html
+        back = client.get(page.context["back_href"])
+        assert back.context["recorded_roll"] == 4
+        client.post(page.context["back_href"], {**payload, "rolled": "12"})
+        record.refresh_from_db()
+        assert record.advancement_selection.roll_event.roll == 4
+        assert (
+            LedgerEvent.objects.filter(
+                action_record=record, kind=LedgerEvent.Kind.ROLLED
+            ).count()
+            == 1
+        )
+
+    @pytest.mark.parametrize("rolled", ["", "1", "13", "not a number"])
+    def test_invalid_recorded_totals_do_not_generate_a_roll(
+        self, client, monkeypatch, advancement, rolled
+    ):
+        _load_rolls(monkeypatch)
+        record = _start(client, advancement)
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
+        )
+        page = client.get(url)
+        response = client.post(
+            url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "roll_mode": "record",
+                "rolled": rolled,
+            },
+        )
+        assert response.status_code == 200
+        assert "rolled" in response.context["form"].errors
+        assert not LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).exists()
+
+    def test_an_entered_total_is_not_silently_replaced_by_a_generated_roll(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch)
+        record = _start(client, advancement)
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
+        )
+        page = client.get(url)
+        response = client.post(
+            url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "roll_mode": "roll",
+                "rolled": "8",
+            },
+        )
+        assert response.status_code == 200
+        assert "roll_mode" in response.context["form"].errors
+        assert not LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).exists()
 
 
 class TestSelectingSkills:
@@ -227,9 +313,17 @@ class TestSelectingSkills:
         skill = advancement.skills[skill_key]
         page = client.get(skill_url)
         assert str(skill) in page.content.decode()
+        assert page.context["back_href"] == reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
+        )
+        assert client.get(page.context["back_href"]).context["roll_value"] == 12
         response = client.post(skill_url, {"skill_id": str(skill.pk)})
         assert response.status_code == 302
         assert ActionRecord.objects.get(pk=record.pk).terms["skill_id"] == str(skill.pk)
+        review = client.get(response.url)
+        assert review.context["back_href"] == skill_url
+        assert review.context["show_outcome"] is False
+        assert review.context["review_choice"]["description"] == str(skill)
 
     def test_random_skill_rerolls_an_unavailable_result_and_keeps_the_success(
         self, client, monkeypatch, advancement
@@ -284,6 +378,62 @@ class TestSelectingSkills:
 class TestCompletingAndCorrecting:
     """Confirmation settles once; correction changes the pick around that receipt."""
 
+    def test_recent_history_shows_only_the_confirmed_skill_selection(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        review_url = client.post(
+            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        ).url
+        reviewed = client.get(review_url)
+        assert (
+            client.post(
+                review_url, {"review": reviewed.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+
+        def history_detail():
+            page = client.get(
+                reverse("n26-edit-fighter", args=[advancement.fighter.pk])
+            )
+            panel = next(
+                panel
+                for panel in page.context["action_history_panels"]
+                if panel.action_id == str(advancement.action.pk)
+            )
+            return panel.completed[0].detail
+
+        assert history_detail() == "Select Primary skill: Dodge"
+        corrected_skill = _choose_result(
+            client,
+            advancement,
+            record,
+            advancement.results["secondary"],
+            stage="correct",
+        )
+        correction_url = client.post(
+            corrected_skill, {"skill_id": str(advancement.skills["secondary"].pk)}
+        ).url
+        correction = client.get(correction_url)
+        assert history_detail() == "Select Primary skill: Dodge"
+
+        assert (
+            client.post(
+                correction_url,
+                {"review": correction.context["form"]["review"].value()},
+            ).status_code
+            == 302
+        )
+        assert history_detail() == "Select Secondary skill: Bull Charge"
+        advancement.gang.refresh_from_db()
+        assert_reconciled(advancement.gang)
+
     def test_completion_and_correction_keep_one_use_and_one_roll(
         self, client, monkeypatch, advancement
     ):
@@ -319,11 +469,28 @@ class TestCompletingAndCorrecting:
                 "n26-action-flow", args=[advancement.fighter.pk, record.pk, "skill"]
             )
         )
+        skill_page = client.get(corrected_skill)
+        choices = client.get(skill_page.context["back_href"])
+        assert choices.context["form"]["pickable_id"].value() == str(
+            advancement.results["secondary"].pk
+        )
+        record.refresh_from_db()
+        assert record.terms["pickable_id"] == str(advancement.results["primary"].pk)
         reviewed = client.post(
             corrected_skill,
             {"skill_id": str(advancement.skills["secondary"].pk)},
         )
         correction_page = client.get(reviewed.url)
+        skill_page = client.get(correction_page.context["back_href"])
+        assert skill_page.context["form"]["skill_id"].value() == str(
+            advancement.skills["secondary"].pk
+        )
+        choices = client.get(skill_page.context["back_href"])
+        assert choices.context["form"]["pickable_id"].value() == str(
+            advancement.results["secondary"].pk
+        )
+        record.refresh_from_db()
+        assert record.terms["skill_id"] == str(advancement.skills["primary"].pk)
         corrected = client.post(
             reviewed.url,
             {"review": correction_page.context["form"]["review"].value()},

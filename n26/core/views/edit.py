@@ -409,6 +409,28 @@ def _dismissal_hidden(miniature, card):
     return [card] if miniature.status == Status.DEAD else []
 
 
+def action_panel_context(miniature, own, computed, *, counter_tracking_active=None):
+    """The same available flows on Edit, Equip and their partial updates."""
+    from n26.core.action_flow import action_panels
+    from n26.core.counter_tracking import is_active as counter_tracking_is_active
+    from n26.core.views.action_flows import link_action_panels, split_action_panels
+
+    if counter_tracking_active is None:
+        counter_tracking_active = counter_tracking_is_active()
+    flows, history = split_action_panels(
+        link_action_panels(
+            miniature,
+            action_panels(
+                miniature,
+                card=own,
+                computed=computed,
+                counter_tracking_active=counter_tracking_active,
+            ),
+        )
+    )
+    return {"action_panels": flows, "action_history_panels": history}
+
+
 def render_card_update(request, miniature, at):
     """The partial update for an act on one model's card.
 
@@ -445,23 +467,7 @@ def render_card_update(request, miniature, at):
     link_model_cards(gang, [card], request.user)
 
     on_edit = back.split("?")[0] == reverse("n26-edit-fighter", args=[miniature.pk])
-    flows = []
-    if on_edit:
-        from n26.core.action_flow import action_panels
-        from n26.core.counter_tracking import is_active as counter_tracking_is_active
-        from n26.core.views.action_flows import link_action_panels, split_action_panels
-
-        flows, _history = split_action_panels(
-            link_action_panels(
-                miniature,
-                action_panels(
-                    miniature,
-                    card=own,
-                    computed=computed,
-                    counter_tracking_active=counter_tracking_is_active(),
-                ),
-            ),
-        )
+    on_equip = back.split("?")[0] == reverse("n26-equip", args=[miniature.pk])
 
     response = render(
         request,
@@ -469,7 +475,12 @@ def render_card_update(request, miniature, at):
         {
             "card": card,
             "miniature": miniature,
-            "action_panels": flows,
+            **(
+                action_panel_context(miniature, own, computed)
+                if on_edit or on_equip
+                else {}
+            ),
+            "update_action_panels": on_edit or on_equip,
             "update_dismissed_choices": on_edit,
             "status_href": (
                 status_href(gang, miniature, back="edit")
@@ -753,21 +764,11 @@ def edit_fighter(request, pk):
     index = build_modifier_index(carriers(own))
     computed = compute(own, index)
 
-    from n26.core.action_flow import action_panels
     from n26.core.counter_tracking import is_active as counter_tracking_is_active
-    from n26.core.views.action_flows import link_action_panels, split_action_panels
 
-    tracking_active = counter_tracking_is_active()
-    flows, action_history = split_action_panels(
-        link_action_panels(
-            miniature,
-            action_panels(
-                miniature,
-                card=own,
-                computed=computed,
-                counter_tracking_active=tracking_active,
-            ),
-        ),
+    counter_tracking_active = counter_tracking_is_active()
+    panels = action_panel_context(
+        miniature, own, computed, counter_tracking_active=counter_tracking_active
     )
 
     # The same acts the equip listing offers, pointed at this page so
@@ -874,12 +875,11 @@ def edit_fighter(request, pk):
             "miniature": miniature,
             "gang": gang,
             "card": card,
-            "action_panels": flows,
-            "action_history_panels": action_history,
+            **panels,
             "missing_progression_counters": missing_progression_counters(
                 miniature, card=own, computed=computed
             )
-            if tracking_active
+            if counter_tracking_active
             else [],
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),

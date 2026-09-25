@@ -116,11 +116,21 @@ class Provenance:
     reason: str | None = None
     #: True when it is re-derived on read and written nowhere.
     computed: bool = False
+    #: A recorded choice, rather than an automatic grant from its source.
+    chosen: bool = False
 
     @property
     def annotated(self):
         """Show the source of both computed and stored grants."""
         return self.computed or (self.reason == Reason.GRANTED and bool(self.source))
+
+    @property
+    def description(self):
+        if not self.source:
+            return "Granted, not printed"
+        prefix = "Chosen from" if self.chosen else "From"
+        kind = f" ({self.source_kind})" if self.source_kind else ""
+        return f"{prefix} {self.source}{kind}"
 
 
 class SlotMarked:
@@ -1116,6 +1126,9 @@ class ModelCard:
     skills_href: str = ""
     #: Owner-only equipment-card management. Empty on previews and prints.
     model_cards_href: str = ""
+    #: Effective actions from the card; a view fills names only for usable ones.
+    action_ids: tuple[str, ...] = ()
+    action_names: tuple[str, ...] = ()
     #: Kept outside question_lists so only the Edit page can restore them;
     #: they never draw among the card's choices, including on print.
     dismissed_choices: list[ChoiceLine] = field(default_factory=list)
@@ -2530,7 +2543,7 @@ def build_model_card(
     # says where the collar is instead.
     cause = miniature.membership.caused_by if miniature.membership else None
     owner = cause.miniature_root if cause is not None else None
-    return card_to_model_card(
+    rendered = card_to_model_card(
         card,
         computed=computed,
         collapse_repeats=collapse_repeats,
@@ -2553,6 +2566,14 @@ def build_model_card(
         founding_budget=budget is not None,
         status=miniature.status,
     )
+    if computed is not None:
+        from n26.core.access import actions_for
+
+        rendered.action_ids = tuple(
+            str(access.action.pk)
+            for access in actions_for(miniature, card=card, computed=computed)
+        )
+    return rendered
 
 
 def card_to_model_card(
@@ -2690,7 +2711,9 @@ def card_to_model_card(
         if key is not None
     }
 
-    provenance_of = _provenance_within(card, nodes_by_key=nodes_by_key)
+    provenance_of = _provenance_within(
+        card, nodes_by_key=nodes_by_key, computed=computed
+    )
 
     def trait_lines(child, weapon_state):
         if weapon_state is None:
@@ -3122,7 +3145,7 @@ def _weapon_changes(weapon_state):
     return changes_for
 
 
-def _provenance_within(card, *, nodes_by_key=None):
+def _provenance_within(card, *, nodes_by_key=None, computed=None):
     """A ``provenance_of`` resolving causes among one card's own nodes.
 
     The keys it resolved from ride along as ``standing_here``: every
@@ -3131,6 +3154,14 @@ def _provenance_within(card, *, nodes_by_key=None):
     """
     if nodes_by_key is None:
         nodes_by_key = {node.key: node for node in card.all_nodes()}
+    # Offers can resolve answers without an offer ID. Slot choices also include
+    # automatic defaults, so their presence is not evidence of a player choice.
+    chosen_keys = {
+        pick.key
+        for choice in (computed.choices if computed else [])
+        if choice.offer is not None
+        for pick in choice.picks
+    }
 
     def provenance_of(node):
         cause = nodes_by_key.get(node.caused_by_key)
@@ -3151,6 +3182,8 @@ def _provenance_within(card, *, nodes_by_key=None):
             else source_kind,
             reason=node.reason,
             computed=node.computed,
+            chosen=not node.computed
+            and (node.chosen_for_offer_id is not None or node.key in chosen_keys),
         )
 
     provenance_of.standing_here = nodes_by_key.keys()
@@ -3188,7 +3221,7 @@ def _gang_rows(
         if gang_computed
         else set()
     )
-    provenance_of = _provenance_within(gang_card)
+    provenance_of = _provenance_within(gang_card, computed=gang_computed)
     asked_here = provenance_of.standing_here
     rows = []
     rules = []

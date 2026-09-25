@@ -115,29 +115,27 @@ is named by the page's own heading directly below.
         Save is a success button because it ends the form; the outlined
         controls on the card beside it all start one.
         {% endcomment %}
-        {% if action_panels or missing_progression_counters %}
-            <c-slot name="flows">
-                {% include "n26/includes/action_panels.html" %}
-                {% if missing_progression_counters %}
-                    <c-ui.card padding="sm">
-                        <c-slot name="header">
-                            Track progression
-                        </c-slot>
-                        <p class="text-sm text-muted mb-3">Start a missing counter at 0, then record earned increases.</p>
-                        {% for counter in missing_progression_counters %}
-                            <form method="post">
-                                {% csrf_token %}
-                                <input type="hidden" name="act" value="track-progression">
-                                <input type="hidden" name="counter" value="{{ counter.pk }}">
-                                <c-ui.button type="submit" variant="success" size="sm">
-                                    Track {{ counter }}
-                                </c-ui.button>
-                            </form>
-                        {% endfor %}
-                    </c-ui.card>
-                {% endif %}
-            </c-slot>
-        {% endif %}
+        <c-slot name="flows">
+            {% include "n26/includes/action_panels.html" %}
+            {% if missing_progression_counters %}
+                <c-ui.card padding="sm">
+                    <c-slot name="header">
+                        Track progression
+                    </c-slot>
+                    <p class="text-sm text-muted mb-3">Start a missing counter at 0, then record earned increases.</p>
+                    {% for counter in missing_progression_counters %}
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="act" value="track-progression">
+                            <input type="hidden" name="counter" value="{{ counter.pk }}">
+                            <c-ui.button type="submit" variant="success" size="sm">
+                                Track {{ counter }}
+                            </c-ui.button>
+                        </form>
+                    {% endfor %}
+                </c-ui.card>
+            {% endif %}
+        </c-slot>
         <c-slot name="action_history">
             {% include "n26/includes/action_history.html" %}
         </c-slot>

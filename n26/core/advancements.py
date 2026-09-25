@@ -35,6 +35,8 @@ class AdvancementOption:
     needs_skill: bool
     skill_mode: str
     effect: str = ""
+    roll_minimum: int | None = None
+    landed: bool = True
 
 
 def _validate_draft(op, record, configured):
@@ -585,6 +587,8 @@ def advancement_options(record, configured):
             offers[member.pk] is not None,
             offers[member.pk].mode if offers[member.pk] else "",
             _effect_text(member.pickable, index),
+            member.roll_low,
+            member in landed,
         )
         for member in offered
     )

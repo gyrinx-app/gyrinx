@@ -20,7 +20,12 @@ from n26.core.effects import compute, compute_gang
 from n26.core.models import Assignment
 from n26.core.operations import Refusal
 from n26.core.reconcile import assert_reconciled
-from n26.core.render import build_choice_offer, build_model_card, render_gang
+from n26.core.render import (
+    _provenance_within,
+    build_choice_offer,
+    build_model_card,
+    render_gang,
+)
 from n26.library.authoring import targets_model as targets_model_with
 from n26.library.models import Pickable, Slot
 from n26.tests.sandbox.actions import (
@@ -251,6 +256,36 @@ class TestASlotWithADefault:
         (settled,) = choices_of(grendel)
 
         assert settled.chosen_name == "Ironhead Squats"
+        assert_reconciled(gang)
+
+    def test_an_automatic_default_is_not_labelled_as_a_player_choice(
+        self, gang, squats_hunter
+    ):
+        grendel = hire(gang, squats_hunter, "Grendel", paid=100)
+        card, computed = card_of(grendel)
+        (settled,) = computed.choices
+
+        provenance = _provenance_within(card, computed=computed)(settled.picks[0])
+
+        assert settled.offer is None
+        assert not provenance.chosen
+        assert provenance.description == "From Gang Legacy"
+        assert_reconciled(gang)
+
+    def test_rechoosing_a_slot_keeps_its_normal_choice_line(
+        self, gang, squats_hunter, houses
+    ):
+        grendel = hire(gang, squats_hunter, "Grendel", paid=100)
+        (settled,) = choices_of(grendel)
+        remove(settled.picks[0].assignment)
+        choose(settled.anchor.assignment, houses["Escher"])
+
+        (line,) = drawn_card(grendel).choices
+
+        assert line.kind_label == "Gang Legacy"
+        assert line.chosen == "Escher"
+        assert line.provenance.source == "Gang Legacy"
+        assert not line.provenance.chosen
         assert_reconciled(gang)
 
     def test_the_pick_answers_the_slots_own_assignment(self, gang, squats_hunter):

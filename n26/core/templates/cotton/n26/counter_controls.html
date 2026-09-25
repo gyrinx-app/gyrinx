@@ -1,8 +1,8 @@
 {% comment %}
 <c-n26.counter-controls> — Plus and minus that post a change of one on a counter line.
 
-counter is an n26.core.render.CounterLine. Minus draws only when tallied is
-truthy, because contributions cannot be tallied away.
+counter is an n26.core.render.CounterLine. Minus stays disabled at zero because
+contributions cannot be tallied away. Both positions remain fixed as it changes.
 
 Each direction is its own form. htmx does not read a form's submitter, so two
 buttons in one form would post the same hidden change.
@@ -16,7 +16,6 @@ Set htmx only on a screen that holds the model card host. Anywhere else the act 
 <c-vars :counter="None" :htmx="False" />
 
 <span class="ms-1 inline-flex items-center gap-1 align-middle">
-    {% if counter.tallied %}
         <form method="post"
               action="{{ counter.href }}"
               {# Swap none and queue on body: the card updates out of band, and rapid clicks must not race. #}
@@ -25,15 +24,20 @@ Set htmx only on a screen that holds the model card host. Anywhere else the act 
             {% csrf_token %}
             <input type="hidden" name="back" value="{{ counter.back }}">
             <input type="hidden" name="change" value="-1">
-            <c-ui.button type="submit"
+            {% if counter.tallied %}
+                <c-ui.button type="submit"
                          size="xs"
                          variant="default"
                          class="py-0!"
                          aria-label="Take one off {{ counter.name }}">
-                <span aria-hidden="true">&minus;</span>
-            </c-ui.button>
+                    <span aria-hidden="true">&minus;</span>
+                </c-ui.button>
+            {% else %}
+                <c-ui.button disabled size="xs" variant="default" class="py-0!" aria-label="Take one off {{ counter.name }}">
+                    <span aria-hidden="true">&minus;</span>
+                </c-ui.button>
+            {% endif %}
         </form>
-    {% endif %}
     <form method="post"
           action="{{ counter.href }}"
           {% if htmx %}hx-post="{{ counter.href }}" hx-swap="none" hx-sync="body:queue all"{% endif %}

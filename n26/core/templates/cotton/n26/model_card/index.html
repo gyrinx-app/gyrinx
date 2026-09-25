@@ -148,6 +148,15 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                 {% endif %}
             </div>
         </div>
+        {% if mode == 'gang' and card.action_names %}
+            <div class="mt-2 flex flex-wrap gap-2">
+                {% for name in card.action_names %}
+                    <c-ui.button href="{% url 'n26-edit-fighter' card.id %}#n26-action-panels" variant="primary" size="xs">
+                        {{ name }} <span aria-hidden="true">→</span>
+                    </c-ui.button>
+                {% endfor %}
+            </div>
+        {% endif %}
     </div>
 
     {% if card.id and tabs %}

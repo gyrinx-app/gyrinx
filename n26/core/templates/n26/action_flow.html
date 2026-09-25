@@ -62,7 +62,7 @@ would invent a new client/server contract inside this feature.
         {% endif %}
         {% if tracking_unavailable %}
         {% elif stage == "start" %}
-            <c-n26.radio-cards label="Choose an outcome"
+            <c-n26.radio-cards label="Choose a result"
                                :form="form"
                                name="outcome"
                                min="min(100%, 18rem)">
@@ -97,19 +97,48 @@ would invent a new client/server contract inside this feature.
                 {% endfor %}
             </c-n26.form-section>
         {% elif stage == "roll" %}
-            <p>Roll 2D6 to see the available advancement results.</p>
+            {% if recorded_roll %}
+                <c-n26.form-section title="Recorded roll">
+                    <p class="text-lg font-semibold">2D6: {{ recorded_roll }}</p>
+                    <p class="text-muted">Continue to choose an advancement using this roll.</p>
+                </c-n26.form-section>
+            {% else %}
+                <c-n26.radio-cards label="Roll 2D6" :form="form" name="roll_mode" min="min(100%, 18rem)">
+                    {% for mode in roll_modes %}
+                        <c-n26.radio-cards.card name="roll_mode"
+                                                value="{{ mode.value }}"
+                                                label="{{ mode.label }}"
+                                                :checked="mode.checked" />
+                    {% endfor %}
+                </c-n26.radio-cards>
+                <c-ui.field label="Your 2D6 total"
+                            description="If you rolled your own dice, enter their total."
+                            :form="form"
+                            name="rolled"
+                            error="rolled"
+                            for="advancement-roll">
+                    <c-ui.input id="advancement-roll"
+                                name="rolled"
+                                type="number"
+                                min="2"
+                                max="12"
+                                inputmode="numeric"
+                                value="{{ form.rolled.value|default_if_none:'' }}" />
+                </c-ui.field>
+            {% endif %}
         {% elif stage == "advancement" %}
             <c-n26.form-section title="{{ advancement_title }}"
                                 description="{{ promotion_description }}">
                 {% if roll_value %}<p class="text-lg font-semibold">2D6: {{ roll_value }}</p>{% endif %}
+                {% if roll_explanation %}<p class="text-muted">{{ roll_explanation }}</p>{% endif %}
                 <c-n26.radio-cards :form="form" name="pickable_id" min="min(100%, 18rem)">
                     {% for choice in advancement_options %}
                         <c-n26.radio-cards.card name="pickable_id"
                                                 value="{{ choice.option.id }}"
                                                 label="{{ choice.option.name }}"
-                                                description="{{ choice.option.effect|capfirst }}"
                                                 :checked="choice.checked"
                                                 :wrap="True">
+                            {% if threshold_roll %}<span class="block text-muted">Roll {{ choice.option.roll_minimum }}+</span>{% endif %}
                             <span class="block text-muted">Rating +{{ choice.option.rating }}¢</span>
                         </c-n26.radio-cards.card>
                     {% empty %}
@@ -132,11 +161,13 @@ would invent a new client/server contract inside this feature.
         {% elif stage == "review" %}
             <c-n26.form-section title="Review">
                 <div class="divide-y divide-box-border rounded-box border border-box-border">
-                    <div class="space-y-1 p-4">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-muted">Outcome</p>
-                        <h3 class="text-base font-semibold text-ink-900 dark:text-ink-100">{{ record.outcome }}</h3>
-                        {% if outcome_description %}<p class="text-sm text-muted">{{ outcome_description }}</p>{% endif %}
-                    </div>
+                    {% if show_outcome %}
+                        <div class="space-y-1 p-4">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Choice</p>
+                            <h3 class="text-base font-semibold text-ink-900 dark:text-ink-100">{{ record.outcome }}</h3>
+                            {% if outcome_description %}<p class="text-sm text-muted">{{ outcome_description }}</p>{% endif %}
+                        </div>
+                    {% endif %}
                     {% if review_choice %}
                         <div class="p-4">
                             <div class="flex flex-wrap items-start justify-between gap-3">
@@ -175,7 +206,6 @@ would invent a new client/server contract inside this feature.
                     <div class="space-y-5">
                         {% for payment in payment_tallies %}<c-n26.tally :facts="payment.facts" class="max-w-sm" />{% endfor %}
                     </div>
-                    <p class="mt-3 text-sm text-muted">Confirming pays this price. Changing the result later does not return the payment.</p>
                 </c-n26.form-section>
             {% endif %}
         {% elif stage == "done" %}
@@ -186,7 +216,7 @@ would invent a new client/server contract inside this feature.
                                     class="mt-0.5 size-5 shrink-0 text-green-600 dark:text-green-400"
                                     label="Completed" />
                         <div class="min-w-0 space-y-1">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Outcome</p>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Choice</p>
                             <h3 class="font-semibold text-ink-900 dark:text-ink-100">{{ record.outcome }}</h3>
                             {% if selection_summary %}<p>{{ selection_summary }}</p>{% endif %}
                         </div>
@@ -203,7 +233,7 @@ would invent a new client/server contract inside this feature.
             <c-n26.form-section title="Cancel flow">
                 <div class="rounded-box border border-red-500/40 bg-red-500/5 p-4">
                     <p class="font-semibold text-ink-900 dark:text-ink-100">Cancel this unfinished flow?</p>
-                    <p class="mt-1 text-sm text-muted">The saved outcome and selection will be discarded.</p>
+                    <p class="mt-1 text-sm text-muted">Your saved choices will be discarded.</p>
                 </div>
             </c-n26.form-section>
         {% endif %}

@@ -95,6 +95,50 @@ def start_and_review(user, gang, fighter, action, outcome):
     return reviewed
 
 
+def test_new_start_requests_resume_the_same_draft_without_resetting_it(
+    user, gang, fighter
+):
+    action, outcome, _, _ = configured_action(user, gang, fighter)
+    first = start_and_review(user, gang, fighter, action, outcome)
+    with operation(gang, actor=user) as op:
+        resumed = op.start_action(fighter, action, uuid.uuid4())
+    assert resumed.pk == first.pk
+    assert resumed.review == first.review
+    assert resumed.terms == first.terms
+    assert ActionRecord.objects.filter(fighter=fighter).count() == 1
+    assert (
+        LedgerEvent.objects.filter(
+            action_record=first, kind=LedgerEvent.Kind.ACTION_USE_STARTED
+        ).count()
+        == 1
+    )
+
+
+def test_existing_duplicate_drafts_remain_and_the_oldest_is_resumed(
+    user, gang, fighter
+):
+    action, outcome, source, _ = configured_action(user, gang, fighter)
+    first = start_and_review(user, gang, fighter, action, outcome)
+    other = ActionRecord.objects.create(
+        gang=gang,
+        fighter=fighter,
+        action=action,
+        source_assignment=source,
+        request_key=uuid.uuid4(),
+    )
+    with operation(gang, actor=user) as op:
+        resumed = op.start_action(fighter, action, uuid.uuid4())
+        replayed = op.start_action(fighter, action, other.request_key)
+    assert resumed.pk == first.pk
+    assert replayed.pk == other.pk
+    assert (
+        ActionRecord.objects.filter(
+            fighter=fighter, state=ActionRecord.State.STARTED
+        ).count()
+        == 2
+    )
+
+
 def test_mixed_repeated_price_is_paid_atomically(user, gang, fighter):
     action, outcome, _, held = configured_action(user, gang, fighter)
     record = start_and_review(user, gang, fighter, action, outcome)

@@ -9,7 +9,7 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from n26.core.models import ActionRecord, Assignment
+from n26.core.models import ActionRecord, Assignment, LedgerEvent
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
@@ -122,9 +122,12 @@ class TestSuitEvolutionForms:
         )
         assert not ActionRecord.objects.filter(fighter=hunt.fighter).exists()
 
-    def test_more_action_panels_do_not_add_queries_per_action(self, client, hunt):
+    @pytest.mark.parametrize("screen", ["n26-edit-fighter", "n26-equip"])
+    def test_more_action_panels_do_not_add_queries_per_action(
+        self, client, hunt, screen
+    ):
         client.force_login(hunt.owner)
-        url = reverse("n26-edit-fighter", args=[hunt.fighter.pk])
+        url = reverse(screen, args=[hunt.fighter.pk])
 
         def measure():
             client.get(url)
@@ -242,25 +245,25 @@ class TestSuitEvolutionForms:
         assert available == []
         assert history == []
 
-    def test_the_edit_page_places_action_panels_beside_the_model_card_above_tabs(
-        self, client, hunt
+    @pytest.mark.parametrize("screen", ["n26-edit-fighter", "n26-equip"])
+    def test_model_pages_place_action_panels_beside_the_card_above_tabs(
+        self, client, hunt, screen
     ):
         from bs4 import BeautifulSoup
 
         client.force_login(hunt.owner)
-        response = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        response = client.get(reverse(screen, args=[hunt.fighter.pk]))
         assert response.status_code == 200
         html = response.content.decode()
         page = BeautifulSoup(html, "html.parser")
         actions = page.find(id="n26-action-panels")
         card = page.find(id="n26-model-card-host")
         title = actions.find("h3", string="Suit Evolution")
-        header = title.find_parent("div")
         start_button = actions.find(
             "a", attrs={"aria-label": "Start Suit Evolution flow"}
         )
 
-        assert actions.find("span", string="Actions")
+        assert not actions.find("span", string="Actions")
         shared_row = next(
             parent
             for parent in actions.parents
@@ -272,23 +275,198 @@ class TestSuitEvolutionForms:
         tabs_row = shared_row.find_next_sibling("div")
         assert tabs_row.find("nav", attrs={"aria-label": "This model's screens"})
         assert title.find_parent("section") in actions.descendants
-        assert "After a cycle" in header.get_text(" ", strip=True)
+        assert "After a cycle" in title.find_parent("section").get_text(" ", strip=True)
         assert start_button.get_text(" ", strip=True) == "Start →"
-        assert "bg-transparent" in start_button.get("class", [])
-        assert "text-accent-text!" in start_button.get("class", [])
+        assert "bg-accent" in start_button.get("class", [])
         assert "Recent results" not in actions.get_text(" ", strip=True)
-        figures = title.find_parent("section").find("dl")
-        values = figures.find_all("dd")
-        assert [value.get_text(" ", strip=True) for value in values] == [
-            "6 Kill Count",
-            "4 Kill Count",
-        ]
-        assert all(
-            "text-muted" in value.find("span", string="Kill Count").get("class", [])
-            for value in values
-        )
-        assert html.index("Available") < html.index("Price")
+        assert "Price 4 Kill Count" in actions.get_text(" ", strip=True)
+        assert "Available" not in actions.get_text(" ", strip=True)
         assert "After payment" not in html
+
+    def test_existing_duplicate_drafts_remain_resumable_without_another_start(
+        self, client, hunt
+    ):
+        from bs4 import BeautifulSoup
+
+        records = [
+            ActionRecord.objects.create(
+                gang=hunt.gang,
+                fighter=hunt.fighter,
+                action=hunt.action,
+                request_key=uuid4(),
+            )
+            for _ in range(2)
+        ]
+        client.force_login(hunt.owner)
+        response = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        actions = BeautifulSoup(response.content, "html.parser").find(
+            id="n26-action-panels"
+        )
+
+        assert not actions.find("a", attrs={"aria-label": "Start Suit Evolution flow"})
+        for record in records:
+            assert actions.find(
+                "a",
+                href=reverse(
+                    "n26-action-flow", args=[hunt.fighter.pk, record.pk, "resume"]
+                ),
+            )
+        assert len(actions.find_all("time")) == 2
+
+    @pytest.mark.parametrize("screen", ["n26-edit-fighter", "n26-equip"])
+    def test_counter_updates_refresh_available_flows_on_both_model_pages(
+        self, client, hunt, screen
+    ):
+        from bs4 import BeautifulSoup
+
+        client.force_login(hunt.owner)
+        back = reverse(screen, args=[hunt.fighter.pk])
+        response = client.post(
+            reverse("n26-tally", args=[hunt.kills.pk]),
+            {"change": "-3", "back": back},
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code == 200
+        actions = BeautifulSoup(response.content, "html.parser").find(
+            id="n26-action-panels"
+        )
+        assert actions["hx-swap-oob"] == "outerHTML"
+        assert "Start Suit Evolution flow" not in str(actions)
+
+    @pytest.mark.parametrize("screen", ["n26-edit-fighter", "n26-equip"])
+    def test_the_first_earned_advancement_populates_an_initially_empty_panel(
+        self, client, hunt, screen
+    ):
+        from bs4 import BeautifulSoup
+
+        from n26.core.models import ActionAllowance
+
+        xp = a.create_counter("XP")
+        ranks = a.create_rank_table("Hunter ranks", xp, thresholds=[4])
+        kind = a.create_slot_type("Advancement")
+        result = a.create_pickable("Increase Strength", kind)
+        results = a.create_picklist("Hunter advancements", kind)
+        a.add_picklist_member(results, result)
+        slot = a.create_slot("Hunter advancement", kind, results)
+        outcome = a.create_outcome("Advancement", a.resolve_advancement(slot))
+        advancement = a.create_action(
+            "Advancement",
+            "post_cycle",
+            outcomes=[outcome],
+            allowance_rule=a.rank_allowance_rule(xp),
+        )
+        maintenance = a.create_action(
+            "Maintenance",
+            "post_cycle",
+            outcomes=[hunt.clear],
+            use_price=[{"resource": "credits", "payer": "gang", "amount": 2000}],
+        )
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            op.tally(hunt.kills, -6)
+            op.assign(maintenance, miniature=hunt.fighter)
+            op.assign(advancement, miniature=hunt.fighter)
+            op.assign(ranks, miniature=hunt.fighter)
+            counted = op.assign(xp, miniature=hunt.fighter)
+            op.open_counter(counted, 0)
+            op.tally(counted, 3)
+
+        client.force_login(hunt.owner)
+        back = reverse(screen, args=[hunt.fighter.pk])
+        page = client.get(back)
+        assert page.context["action_panels"] == []
+        host = BeautifulSoup(page.content, "html.parser").find(id="n26-action-panels")
+        assert host is not None
+        assert not host.find("a")
+        assert not ActionAllowance.objects.filter(fighter=hunt.fighter).exists()
+
+        update = client.post(
+            reverse("n26-tally", args=[counted.pk]),
+            {"change": "1", "back": back},
+            HTTP_HX_REQUEST="true",
+        )
+        assert update.status_code == 200
+        actions = BeautifulSoup(update.content, "html.parser").find(
+            id="n26-action-panels"
+        )
+        assert actions["hx-swap-oob"] == "outerHTML"
+        assert actions.find("a", attrs={"aria-label": "Start Advancement flow"})
+        assert "1 use available" in actions.get_text(" ", strip=True)
+        assert not actions.find("a", attrs={"aria-label": "Start Maintenance flow"})
+        assert (
+            ActionAllowance.objects.filter(
+                fighter=hunt.fighter, action=advancement, threshold=4
+            ).count()
+            == 1
+        )
+        roster = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
+        assert roster.status_code == 200
+        model = next(
+            card
+            for card in roster.context["sheet"].models
+            if card.id == str(hunt.fighter.pk)
+        )
+        assert "Advancement" in model.action_names
+
+    def test_available_flows_are_linked_from_the_owners_roster_only(self, client, hunt):
+        from bs4 import BeautifulSoup
+
+        url = reverse("n26-gang", args=[hunt.gang.pk])
+        client.force_login(hunt.owner)
+        response = client.get(url)
+        model = next(
+            model
+            for model in response.context["sheet"].models
+            if model.id == str(hunt.fighter.pk)
+        )
+        assert model.action_names == ("Suit Evolution",)
+        card = BeautifulSoup(response.content, "html.parser").find(
+            id=f"model-{hunt.fighter.pk}"
+        )
+        assert card.find(
+            "a",
+            href=f"{reverse('n26-edit-fighter', args=[hunt.fighter.pk])}#n26-action-panels",
+        )
+
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            op.tally(hunt.kills, -3)
+        assert client.get(url).context["sheet"].models[0].action_names == ()
+
+        client.logout()
+        assert client.get(url).context["sheet"].models[0].action_names == ()
+
+    def test_a_started_flow_stays_on_the_roster_when_tracking_is_paused(
+        self, client, hunt, counter_tracking
+    ):
+        start(client, hunt, hunt.clear)
+        counter_tracking.delete()
+        response = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
+        assert response.context["sheet"].models[0].action_names == ("Suit Evolution",)
+
+    def test_roster_action_availability_has_no_per_model_query_growth(
+        self, client, hunt
+    ):
+        client.force_login(hunt.owner)
+        url = reverse("n26-gang", args=[hunt.gang.pk])
+
+        def measure():
+            client.get(url)
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(url)
+            assert response.status_code == 200
+            assert all(
+                model.action_names == ("Suit Evolution",)
+                for model in response.context["sheet"].models
+            )
+            return len(queries)
+
+        one = measure()
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            for number in range(3):
+                model = op.hire(hunt.fighter.membership.profile, f"Hunter {number}")
+                op.assign(hunt.action, miniature=model)
+                kills = op.assign(hunt.kills.counter, miniature=model)
+                op.tally(kills, 6)
+        assert measure() == one
 
     def test_credit_payment_figures_use_the_currency_symbol_without_a_unit(self):
         from bs4 import BeautifulSoup
@@ -394,7 +572,7 @@ class TestSuitEvolutionForms:
         )
         cancel_page = client.get(cancel_url).content.decode()
         assert "Save and return later" in cancel_page
-        assert "The saved outcome and selection will be discarded." in cancel_page
+        assert "Your saved choices will be discarded." in cancel_page
         cancelled = client.post(cancel_url)
         assert cancelled.status_code == 302
         record.refresh_from_db()
@@ -467,10 +645,10 @@ class TestSuitEvolutionForms:
         receipt_html = receipt.content.decode()
         assert "6 → 2" in receipt_html
         assert "+20¢" in receipt_html
-        assert "Correct result" in receipt_html
+        assert "Change result" in receipt_html
         completed = BeautifulSoup(receipt_html, "html.parser")
         correct_result = completed.find(
-            "a", string=lambda value: value and value.strip() == "Correct result"
+            "a", string=lambda value: value and value.strip() == "Change result"
         )
         done = completed.find(
             "a", string=lambda value: value and value.strip() == "Done"
@@ -619,6 +797,53 @@ class TestSuitEvolutionForms:
             "Review the change before continuing."
         ) in response.content.decode()
 
+    def test_recent_history_shows_only_the_confirmed_augmentation_item(
+        self, client, hunt
+    ):
+        spare = a.create_wargear("Spare rig", price=0)
+        a.add_built_in(spare, hunt.item.caused.get(slot__isnull=False).slot)
+        spare_item = buy(hunt.fighter, thing=spare, paid=0)
+        record, _, _ = start(client, hunt, hunt.upgrade)
+        choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
+        review_url = client.post(
+            choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
+        ).url
+        reviewed = client.get(review_url)
+        assert (
+            client.post(
+                review_url, {"review": reviewed.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+
+        def history_detail():
+            page = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+            panel = next(
+                panel
+                for panel in page.context["action_history_panels"]
+                if panel.action_id == str(hunt.action.pk)
+            )
+            return panel.completed[0].detail
+
+        assert history_detail().startswith("Hunting rig: Tier 1. ")
+        correction_url = client.post(
+            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "correct"]),
+            {"selection": f"{spare_item.pk}|{hunt.tiers[0].pk}"},
+        ).url
+        correction = client.get(correction_url)
+        assert history_detail() == "Hunting rig: Tier 1"
+
+        assert (
+            client.post(
+                correction_url,
+                {"review": correction.context["form"]["review"].value()},
+            ).status_code
+            == 302
+        )
+        assert history_detail() == "Spare rig: Tier 1"
+        hunt.gang.refresh_from_db()
+        assert_reconciled(hunt.gang)
+
     def test_another_owner_cannot_open_or_complete_the_flow(self, client, hunt):
         record, _, _ = start(client, hunt, hunt.clear)
         stranger = User.objects.create_user("other-flow-player")
@@ -642,3 +867,59 @@ class TestSuitEvolutionForms:
             miniature_root=hunt.fighter, pickable__in=hunt.tiers
         ).exists()
         assert ActionRecord.objects.filter(fighter=hunt.fighter).count() == 1
+
+    @pytest.mark.parametrize(
+        ("step", "method"), [("resume", "get"), ("roll", "get"), ("roll", "post")]
+    )
+    def test_an_outcome_less_draft_returns_to_selecting_its_result(
+        self, client, hunt, step, method
+    ):
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            record = op.start_action(hunt.fighter, hunt.action, uuid4())
+        client.force_login(hunt.owner)
+        url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, step])
+        outcome_url = reverse(
+            "n26-action-flow", args=[hunt.fighter.pk, record.pk, "outcome"]
+        )
+
+        response = getattr(client, method)(url, follow=True)
+
+        assert response.status_code == 200
+        assert response.redirect_chain == [(outcome_url, 302)]
+        assert response.context["stage"] == "start"
+        record.refresh_from_db()
+        assert record.outcome_id is None
+        assert record.payment_id is None
+        assert not record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED).exists()
+        replay = client.post(
+            reverse("n26-action-start", args=[hunt.fighter.pk, hunt.action.pk]),
+            {"request_key": str(record.request_key)},
+            follow=True,
+        )
+        assert replay.status_code == 200
+        assert replay.context["stage"] == "start"
+        chosen = client.post(outcome_url, {"outcome": str(hunt.upgrade.pk)})
+        assert chosen.status_code == 302
+        record.refresh_from_db()
+        assert record.outcome_id == hunt.upgrade.pk
+        assert ActionRecord.objects.filter(fighter=hunt.fighter).count() == 1
+
+    @pytest.mark.parametrize("outcome_name", ["upgrade", "clear"])
+    @pytest.mark.parametrize("method", ["get", "post"])
+    def test_the_roll_route_keeps_non_advancement_flows_in_their_own_forms(
+        self, client, hunt, outcome_name, method
+    ):
+        record, _, _ = start(client, hunt, getattr(hunt, outcome_name))
+        url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "roll"])
+
+        response = getattr(client, method)(url, follow=True)
+
+        assert response.status_code == 200
+        assert response.redirect_chain[0] == (
+            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"]),
+            302,
+        )
+        assert response.context["stage"] == (
+            "choose" if outcome_name == "upgrade" else "review"
+        )
+        assert not record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED).exists()
