@@ -407,16 +407,14 @@ class TestSuitEvolutionForms:
         )
         assert "Advancement" in model.action_names
 
-    def test_only_waiting_actions_are_marked_on_the_owners_roster(self, client, hunt):
+    def test_a_counter_priced_action_is_marked_once_it_is_affordable(
+        self, client, hunt
+    ):
+        """Suit Evolution needs 4 Kill Count; the model has 6, so it is marked."""
         from bs4 import BeautifulSoup
 
         url = reverse("n26-gang", args=[hunt.gang.pk])
         client.force_login(hunt.owner)
-        model = client.get(url).context["sheet"].models[0]
-        # Affordable is not waiting: a priced action stays on Edit.
-        assert model.action_names == ()
-
-        start(client, hunt, hunt.clear)
         response = client.get(url)
         model = response.context["sheet"].models[0]
         assert model.action_names == ("Suit Evolution",)
@@ -431,8 +429,34 @@ class TestSuitEvolutionForms:
         assert mark["aria-label"] == "Actions waiting: Suit Evolution"
         assert "var(--color-blue-500)" in mark.find("span")["style"]
 
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            op.tally(hunt.kills, -3)
+        assert client.get(url).context["sheet"].models[0].action_names == ()
+
         client.logout()
         assert client.get(url).context["sheet"].models[0].action_names == ()
+
+    def test_a_credits_only_action_is_never_marked(self, client, hunt):
+        """Maintenance is always there to buy, so it stays on Edit alone."""
+        from bs4 import BeautifulSoup
+
+        maintenance = a.create_action(
+            "Suit Maintenance",
+            "post_cycle",
+            outcomes=[hunt.clear],
+            use_price=[{"resource": "credits", "payer": "gang", "amount": 10}],
+        )
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            op.assign(maintenance, miniature=hunt.fighter)
+            op.tally(hunt.kills, -3)
+        client.force_login(hunt.owner)
+
+        roster = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
+        assert roster.context["sheet"].models[0].action_names == ()
+        page = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        panels = BeautifulSoup(page.content, "html.parser").find(id="n26-action-panels")
+        assert panels.find("a", attrs={"aria-label": "Start Suit Maintenance flow"})
+        assert panels.find("svg", attrs={"aria-label": "Waiting"}) is None
 
     def test_the_mark_takes_the_gang_colour(self, client, hunt):
         hunt.gang.colour = "red"
@@ -456,16 +480,6 @@ class TestSuitEvolutionForms:
 
         assert mark is not None
         assert "var(--color-red-500)" in mark.parent["style"]
-
-    def test_edit_does_not_mark_a_panel_that_is_only_affordable(self, client, hunt):
-        from bs4 import BeautifulSoup
-
-        client.force_login(hunt.owner)
-        page = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
-        panels = BeautifulSoup(page.content, "html.parser").find(id="n26-action-panels")
-
-        assert panels.find("a", attrs={"aria-label": "Start Suit Evolution flow"})
-        assert panels.find("svg", attrs={"aria-label": "Waiting"}) is None
 
     def test_the_mark_draws_only_a_palette_colour(self, client, hunt):
         hunt.gang.colour = "red; background-image: url(https://example.com/x)"

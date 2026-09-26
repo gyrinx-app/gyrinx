@@ -1129,6 +1129,8 @@ class ModelCard:
     model_cards_href: str = ""
     #: Actions the roster flags: an earned use or an unfinished draft. The
     #: gang view fills these for the owner only.
+    #: Effective actions on the card, so a roster can check their prices.
+    action_ids: tuple[str, ...] = ()
     action_names: tuple[str, ...] = ()
     action_colour: str = ""
     #: Authored standing in each effective rank table. A roster supplies these
@@ -2579,6 +2581,13 @@ def build_model_card(
         founding_budget=budget is not None,
         status=miniature.status,
     )
+    if computed is not None:
+        from n26.core.access import actions_for
+
+        rendered.action_ids = tuple(
+            str(access.action.pk)
+            for access in actions_for(miniature, card=card, computed=computed)
+        )
     if rank_summaries is None:
         rank_summaries = progression_summaries(
             {miniature.pk: card},
