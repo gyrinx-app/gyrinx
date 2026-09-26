@@ -154,13 +154,13 @@ def grant_action(request, pk):
     )
     rows = [
         {
-            "pk": row.pk,
+            "pk": str(row.pk),
             "name": row.name,
             "gang": row.gang_type.name,
             "granted": bool(
                 row.built_ins
                 and any(
-                    member.action_id == action.pk
+                    not member.archived and member.action_id == action.pk
                     for member in row.built_ins.members.all()
                 )
             ),
@@ -186,6 +186,8 @@ def grant_action(request, pk):
             source = source.filter(profile_type__name="Fighter").select_related(
                 "gang_type", "profile_type"
             )
+        elif kind == "type":
+            source = source.filter(name="Fighter")
         limit_options.extend(
             {
                 "value": f"{kind}:{row.pk}",
@@ -202,6 +204,7 @@ def grant_action(request, pk):
             "action": action,
             "is_archived": action.archived or action.pack.archived,
             "rows": rows,
+            "grant_rows": {"rows": rows},
             "error": error,
             "current_limit": limits[0]
             if len(limits) == 1

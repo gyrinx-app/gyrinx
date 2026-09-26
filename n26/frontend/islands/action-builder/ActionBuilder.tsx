@@ -92,12 +92,93 @@ function defaultDraft(props: ActionBuilderProps): Draft {
     };
 }
 
+function record(value: unknown): Record<string, unknown> | null {
+    return value !== null && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null;
+}
+
+function string(value: unknown, fallback = ""): string {
+    return typeof value === "string" ? value : fallback;
+}
+
+function readPrice(value: unknown): Price | null {
+    const price = record(value);
+    if (!price) return null;
+    return {
+        resource: price.resource === "counter" ? "counter" : "credits",
+        payer: price.payer === "fighter" ? "fighter" : "gang",
+        counter: string(price.counter),
+        amount: string(price.amount),
+    };
+}
+
+function readChange(value: unknown): Change | null {
+    const change = record(value);
+    if (!change) return null;
+    return {
+        kind: change.kind === "picks" ? "picks" : "counter",
+        counter: string(change.counter),
+        mode:
+            change.mode === "add" || change.mode === "subtract"
+                ? change.mode
+                : "set",
+        amount: string(change.amount),
+        slotType: string(change.slotType),
+    };
+}
+
+function readOutcome(value: unknown): Outcome | null {
+    const outcome = record(value);
+    if (!outcome) return null;
+    return {
+        existing: string(outcome.existing),
+        name: string(outcome.name),
+        operation:
+            outcome.operation === "advancement" ||
+            outcome.operation === "changes"
+                ? outcome.operation
+                : "augment",
+        slotType: string(outcome.slotType),
+        slot: string(outcome.slot),
+        changes: Array.isArray(outcome.changes)
+            ? outcome.changes
+                  .map(readChange)
+                  .filter((change) => change !== null)
+            : [],
+    };
+}
+
 function readDraft(props: ActionBuilderProps): Draft {
-    if (!props.draft) return defaultDraft(props);
+    const defaults = defaultDraft(props);
+    if (!props.draft) return defaults;
     try {
-        return { ...defaultDraft(props), ...JSON.parse(props.draft) };
+        const draft = record(JSON.parse(props.draft));
+        if (!draft) return defaults;
+        return {
+            name: string(draft.name),
+            timing:
+                draft.timing === "recruitment" ? "recruitment" : "post_cycle",
+            acquisitionPrice: string(draft.acquisitionPrice, "0"),
+            useMode:
+                draft.useMode === "recruitment" ||
+                draft.useMode === "rank" ||
+                draft.useMode === "free"
+                    ? draft.useMode
+                    : "paid",
+            prices: Array.isArray(draft.prices)
+                ? draft.prices.map(readPrice).filter((price) => price !== null)
+                : defaults.prices,
+            rankCounter: string(draft.rankCounter, defaults.rankCounter),
+            rankTable: string(draft.rankTable),
+            outcomes: Array.isArray(draft.outcomes)
+                ? draft.outcomes
+                      .map(readOutcome)
+                      .filter((outcome) => outcome !== null)
+                : [],
+        };
     } catch {
-        return defaultDraft(props);
+        return defaults;
     }
 }
 

@@ -5,6 +5,8 @@ import json
 import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from n26.library.action_builder import (
@@ -18,6 +20,7 @@ from n26.library.models import (
     DefaultAssignmentSet,
     Outcome,
     Picklist,
+    ProfileType,
     Slot,
     SlotType,
     Subtype,
@@ -93,6 +96,20 @@ class TestCreatingAnAction:
                     ],
                 )
             )
+        assert not Action.objects.exists()
+        assert not Outcome.objects.exists()
+
+    def test_long_names_return_validation_errors(self, default_pack):
+        tier = SlotType.objects.create(name="Augmentation")
+        outcome = {
+            "name": "Upgrade rig",
+            "operation": "augment",
+            "slotType": str(tier.pk),
+        }
+        with pytest.raises(ValidationError, match="Action names cannot exceed"):
+            create_from_draft(draft(name="A" * 201, outcomes=[outcome]))
+        with pytest.raises(ValidationError, match="Outcome names cannot exceed"):
+            create_from_draft(draft(outcomes=[{**outcome, "name": "O" * 201}]))
         assert not Action.objects.exists()
         assert not Outcome.objects.exists()
 
@@ -213,13 +230,31 @@ class TestGrantingAnAction:
         first = make_profile("Hunter one")
         second = make_profile("Hunter two")
 
-        assert grant_to_profiles(action, [str(first.pk), str(second.pk)]) == 2
+        with CaptureQueriesContext(connection) as queries:
+            assert grant_to_profiles(action, [str(first.pk), str(second.pk)]) == 2
+        assert any("FOR UPDATE" in query["sql"] for query in queries)
 
         first.refresh_from_db()
         second.refresh_from_db()
         assert first.built_ins_id != second.built_ins_id
         assert first.built_ins.members.filter(action=action).count() == 1
         assert second.built_ins.members.filter(action=action).count() == 1
+
+    def test_archived_membership_does_not_block_a_new_grant(
+        self, default_pack, make_profile
+    ):
+        action = Action.objects.create(name="Trial", timing="post_cycle")
+        profile = make_profile("Hunter")
+        grant_to_profiles(action, [str(profile.pk)])
+        profile.refresh_from_db()
+        member = profile.built_ins.members.get(action=action)
+        member.archived = True
+        member.save(update_fields=["archived"])
+
+        assert grant_to_profiles(action, [str(profile.pk)]) == 1
+        assert (
+            profile.built_ins.members.filter(action=action, archived=False).count() == 1
+        )
 
     def test_shared_built_ins_cannot_grant_an_unselected_entry(
         self, default_pack, make_profile
@@ -277,6 +312,17 @@ class TestUseLimits:
             ValidationError, match="cannot change this action's use limit"
         ):
             set_use_limit(action, "any")
+
+    def test_vehicle_profile_type_cannot_limit_a_fighter_action(
+        self, default_pack, person_type
+    ):
+        action = Action.objects.create(name="Trial", timing="post_cycle")
+        vehicle = ProfileType.objects.create(
+            name="Vehicle", statline_type=person_type.statline_type
+        )
+        with pytest.raises(ValidationError, match="Fighter profile type"):
+            set_use_limit(action, f"type:{vehicle.pk}")
+        assert not action.usable_by_profile_types.exists()
 
 
 class TestAuthoringPages:
@@ -338,6 +384,21 @@ class TestAuthoringPages:
         second.refresh_from_db()
         assert first.built_ins.members.filter(action=action).exists()
         assert second.built_ins.members.filter(action=action).exists()
+
+    def test_archived_grant_is_available_to_select_again(
+        self, admin_client, default_pack, make_profile
+    ):
+        action = Action.objects.create(name="Trial", timing="post_cycle")
+        profile = make_profile("Hunter")
+        grant_to_profiles(action, [str(profile.pk)])
+        profile.refresh_from_db()
+        member = profile.built_ins.members.get(action=action)
+        member.archived = True
+        member.save(update_fields=["archived"])
+
+        page = admin_client.get(reverse("authoring-action-grant", args=[action.pk]))
+        assert page.status_code == 200
+        assert page.context["rows"][0]["granted"] is False
 
     def test_owned_actions_do_not_offer_system_fighter_entries(
         self, admin_client, default_pack, make_profile

@@ -8,6 +8,7 @@ from django.db import transaction
 from n26.library import authoring
 from n26.library.forms import cross_pack_refusal
 from n26.library.models import (
+    Action,
     Counter,
     Outcome,
     Profile,
@@ -51,6 +52,8 @@ def _outcome(spec):
     name = str(spec.get("name", "")).strip()
     if not name:
         raise ValidationError("Name every outcome.")
+    if len(name) > Outcome._meta.get_field("name").max_length:
+        raise ValidationError("Outcome names cannot exceed 200 characters.")
     kind = spec.get("operation")
     if kind == "augment":
         operation = authoring.augment_carried_item(
@@ -110,6 +113,8 @@ def create_from_draft(raw):
     name = str(draft.get("name", "")).strip()
     if not name:
         raise ValidationError("Name the action.")
+    if len(name) > Action._meta.get_field("name").max_length:
+        raise ValidationError("Action names cannot exceed 200 characters.")
     timing = draft.get("timing")
     if timing not in ("recruitment", "post_cycle"):
         raise ValidationError("Choose when the action starts.")
@@ -194,6 +199,8 @@ def grant_to_profiles(action, profile_ids):
         .filter(pk__in=ids)
         .select_related("pack", "profile_type", "built_ins")
         .prefetch_related("built_ins__members")
+        .order_by("pk")
+        .select_for_update(of=("self",))
     )
     if len(profiles) != len(ids) or any(
         p.profile_type.name != "Fighter" for p in profiles
@@ -222,7 +229,8 @@ def grant_to_profiles(action, profile_ids):
         for profile in profiles
         if not profile.built_ins
         or not any(
-            member.action_id == action.pk for member in profile.built_ins.members.all()
+            not member.archived and member.action_id == action.pk
+            for member in profile.built_ins.members.all()
         )
     ]
     written_sets = set()
@@ -265,6 +273,8 @@ def set_use_limit(action, value):
         raise ValidationError(refusal)
     if kind == "entry" and row.profile_type.name != "Fighter":
         raise ValidationError("Choose a fighter entry.")
+    if kind == "type" and row.name != "Fighter":
+        raise ValidationError("Choose the Fighter profile type.")
     authoring.set_usable_by(
         action,
         usable_by_profile_types=[row] if kind == "type" else [],
