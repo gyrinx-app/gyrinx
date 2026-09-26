@@ -192,7 +192,8 @@ def grant_to_profiles(action, profile_ids):
         Profile.objects.outside_campaign_packs()
         .unarchived()
         .filter(pk__in=ids)
-        .select_related("pack", "profile_type")
+        .select_related("pack", "profile_type", "built_ins")
+        .prefetch_related("built_ins__members")
     )
     if len(profiles) != len(ids) or any(
         p.profile_type.name != "Fighter" for p in profiles
@@ -220,14 +221,18 @@ def grant_to_profiles(action, profile_ids):
         profile
         for profile in profiles
         if not profile.built_ins
-        or not profile.built_ins.members.filter(action=action).exists()
+        or not any(
+            member.action_id == action.pk for member in profile.built_ins.members.all()
+        )
     ]
     written_sets = set()
     for profile in missing:
-        if profile.built_ins_id in written_sets:
+        original_set_id = profile.built_ins_id
+        if original_set_id is not None and original_set_id in written_sets:
             continue
         authoring.add_built_in(profile, action, pack=profile.pack)
-        written_sets.add(profile.built_ins_id)
+        if original_set_id is not None:
+            written_sets.add(original_set_id)
     return len(missing)
 
 

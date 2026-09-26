@@ -206,6 +206,21 @@ class TestGrantingAnAction:
         assert profile.built_ins.members.filter(action=action).count() == 1
         assert profile.built_ins.pack_id == profile.pack_id
 
+    def test_bulk_grant_creates_a_set_for_each_entry_without_built_ins(
+        self, default_pack, make_profile
+    ):
+        action = Action.objects.create(name="Trial", timing="post_cycle")
+        first = make_profile("Hunter one")
+        second = make_profile("Hunter two")
+
+        assert grant_to_profiles(action, [str(first.pk), str(second.pk)]) == 2
+
+        first.refresh_from_db()
+        second.refresh_from_db()
+        assert first.built_ins_id != second.built_ins_id
+        assert first.built_ins.members.filter(action=action).count() == 1
+        assert second.built_ins.members.filter(action=action).count() == 1
+
     def test_shared_built_ins_cannot_grant_an_unselected_entry(
         self, default_pack, make_profile
     ):
