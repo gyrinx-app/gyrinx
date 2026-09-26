@@ -428,10 +428,21 @@ class TestSuitEvolutionForms:
         )
         assert mark["aria-label"] == "Actions waiting: Suit Evolution"
         assert "var(--color-blue-500)" in mark.find("span")["style"]
+        edit = reverse("n26-edit-fighter", args=[hunt.fighter.pk])
+
+        def edit_mark():
+            page = client.get(edit)
+            panels = BeautifulSoup(page.content, "html.parser").find(
+                id="n26-action-panels"
+            )
+            return panels.find("svg", attrs={"aria-label": "Waiting"})
+
+        assert edit_mark() is not None
 
         with operation(hunt.gang, actor=hunt.owner) as op:
             op.tally(hunt.kills, -3)
         assert client.get(url).context["sheet"].models[0].action_names == ()
+        assert edit_mark() is None
 
         client.logout()
         assert client.get(url).context["sheet"].models[0].action_names == ()
