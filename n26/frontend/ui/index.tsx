@@ -488,7 +488,7 @@ export function ActionBar({
     );
 }
 
-function Icon({
+export function Icon({
     name,
     className = "size-4",
 }: {
