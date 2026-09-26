@@ -444,6 +444,29 @@ class TestSuitEvolutionForms:
         assert edit.context["action_colour"] == "red"
         assert [panel.flagged for panel in edit.context["action_panels"]] == [True]
 
+    def test_edit_marks_the_waiting_panel_in_the_gang_colour(self, client, hunt):
+        from bs4 import BeautifulSoup
+
+        hunt.gang.colour = "red"
+        hunt.gang.save(update_fields=["colour"])
+        start(client, hunt, hunt.clear)
+        page = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        panels = BeautifulSoup(page.content, "html.parser").find(id="n26-action-panels")
+        mark = panels.find("svg", attrs={"aria-label": "Waiting"})
+
+        assert mark is not None
+        assert "var(--color-red-500)" in mark.parent["style"]
+
+    def test_edit_does_not_mark_a_panel_that_is_only_affordable(self, client, hunt):
+        from bs4 import BeautifulSoup
+
+        client.force_login(hunt.owner)
+        page = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        panels = BeautifulSoup(page.content, "html.parser").find(id="n26-action-panels")
+
+        assert panels.find("a", attrs={"aria-label": "Start Suit Evolution flow"})
+        assert panels.find("svg", attrs={"aria-label": "Waiting"}) is None
+
     def test_the_mark_draws_only_a_palette_colour(self, client, hunt):
         hunt.gang.colour = "red; background-image: url(https://example.com/x)"
         hunt.gang.save(update_fields=["colour"])
