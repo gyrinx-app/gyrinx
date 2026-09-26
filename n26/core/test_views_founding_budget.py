@@ -1,10 +1,9 @@
 """A budgeted model's equip screen: what it counts, and what it says.
 
 While the gang's Found and equip gang action is open and the model has an
-allowance of its own, its equip screen is a different screen: every list
-on it counts Trade Points, the purchases record the founding action
-rather than any visit the gang has open, and the rail carries the tally
-the decision is made against.
+allowance of its own, Trading Post purchases spend it and record the
+founding action rather than any visit the gang has open. Equipment list
+purchases use credits, and the rail carries the model's TP tally.
 
 A model with no allowance, and any model once the action is complete,
 gets exactly the screen it got before allowances existed — down to the
@@ -88,6 +87,8 @@ def library(ranks, make_profile, make_statline):
     venators = GangType.objects.create(name="Venators")
     for name, rank in GANG_LIST:
         author(venators, GANG_LIST_SECTION, name, rank)
+    outcasts = GangType.objects.create(name="Outcast")
+    author(outcasts, GANG_LIST_SECTION, "Leader", "Leader")
     allies = GangType.objects.create(name="Allies")
     for name, rank in ALLIES:
         author(allies, "Allies", name, rank)
@@ -101,6 +102,13 @@ def venators(library):
     from n26.library.models import GangType
 
     return GangType.objects.get(name="Venators")
+
+
+@pytest.fixture
+def outcasts(library):
+    from n26.library.models import GangType
+
+    return GangType.objects.get(name="Outcast")
 
 
 @pytest.fixture
@@ -126,6 +134,26 @@ def gang(venators, tester):
     with operation(gang, actor=tester) as op:
         op.found(venators)
     return gang
+
+
+@pytest.fixture
+def outcast_gang(outcasts, tester):
+    gang = Gang.objects.create(
+        name="The Unhoused",
+        owner=tester,
+        gang_type=outcasts,
+        starting_credits=1000,
+        credits=1000,
+    )
+    with operation(gang, actor=tester) as op:
+        op.found(outcasts)
+    return gang
+
+
+@pytest.fixture
+def outcast_leader(outcast_gang, tester, library):
+    with operation(outcast_gang, actor=tester) as op:
+        return op.hire(library["Leader"], "Sura")
 
 
 @pytest.fixture
@@ -168,6 +196,19 @@ def legacy_list(gang, tester):
 
 
 @pytest.fixture
+def outcast_list(outcast_gang, tester, legacy_list):
+    from n26.library.models import Wargear
+
+    collection = create_collection(
+        "Outcast Equipment List",
+        entries=list(Wargear.objects.all()),
+    )
+    with operation(outcast_gang, actor=tester) as op:
+        op.assign(collection, gang=outcast_gang)
+    return collection
+
+
+@pytest.fixture
 def post(legacy_list):
     from n26.library.models import Wargear
 
@@ -194,14 +235,13 @@ def bought(gang, name):
 
 
 class TestWhatTheListCounts:
-    """An equipment list counts Trade Points for a budgeted model and for
-    nobody else, which is what the books mean by a combined figure."""
+    """A model's founding allowance pays for Trading Post purchases."""
 
     @pytest.fixture(autouse=True)
     def signed_in(self, client, tester):
         client.force_login(tester)
 
-    def test_a_budgeted_model_spends_them_on_a_list_line(
+    def test_a_budgeted_model_spends_none_on_an_equipment_list_line(
         self, client, gang, leader, legacy_list
     ):
         client.post(
@@ -209,8 +249,44 @@ class TestWhatTheListCounts:
         )
 
         entry = bought(gang, "Flak plate").ledger_entry
+        assert entry.trade_points == 0
+        assert entry.activity is None
+
+    def test_a_budgeted_model_spends_them_on_a_post_line(
+        self, client, gang, leader, post
+    ):
+        client.post(equip_url(leader, post), {"thing": key_of(wargear("Flak plate"))})
+
+        entry = bought(gang, "Flak plate").ledger_entry
         assert entry.trade_points == 3
         assert entry.activity == gang.open_activity(FOUNDING)
+
+    def test_an_outcast_list_purchase_leaves_the_allowance_for_the_post(
+        self, client, outcast_gang, outcast_leader, outcast_list, post
+    ):
+        client.post(
+            equip_url(outcast_leader, outcast_list),
+            {"thing": key_of(wargear("Flak plate"))},
+        )
+        client.post(
+            equip_url(outcast_leader, post),
+            {"thing": key_of(wargear("Mesh armour"))},
+        )
+
+        entries = {
+            row.wargear.name: row.ledger_entry
+            for row in Assignment.objects.filter(
+                gang_root=outcast_gang, wargear__isnull=False
+            )
+        }
+        assert (entries["Flak plate"].trade_points, entries["Flak plate"].activity) == (
+            0,
+            None,
+        )
+        assert entries["Mesh armour"].trade_points == 1
+        assert entries["Mesh armour"].activity == outcast_gang.open_activity(FOUNDING)
+        budget = client.get(equip_url(outcast_leader, post)).context["founding_budget"]
+        assert (budget.granted, budget.spent, budget.remaining) == (4, 1, 3)
 
     def test_a_model_with_no_allowance_spends_none_on_the_same_line(
         self, client, gang, ganger, legacy_list
@@ -251,11 +327,10 @@ class TestWhatTheListCounts:
 
         assert bought(gang, "Hunt banner").ledger_entry.trade_points == 0
 
-    def test_the_line_prints_the_figure_it_counts(
+    def test_the_equipment_list_hides_the_tp_figure_for_both_models(
         self, client, leader, ganger, legacy_list
     ):
-        """A hand-written list leaves the TP figure off, because nobody
-        reading it is asking. A reader spending an allowance is."""
+        """The list uses credits even when the model has a TP allowance."""
         budgeted = client.get(equip_url(leader, legacy_list))
         plain = client.get(equip_url(ganger, legacy_list))
 
@@ -266,8 +341,45 @@ class TestWhatTheListCounts:
                 if row.name == "Flak plate"
             ]
 
-        assert figures(budgeted) == [3]
+        assert figures(budgeted) == [None]
         assert figures(plain) == [None]
+
+    def test_unrestricted_uses_list_terms_before_the_post(
+        self, client, gang, leader, legacy_list, post
+    ):
+        url = f"{reverse('n26-equip', args=[leader.pk])}?list=all"
+        response = client.get(url)
+        line = next(
+            row
+            for row in response.context["catalogue"].all_rows()
+            if row.name == "Flak plate"
+        )
+        assert line.trade_points is None
+
+        client.post(url, {"thing": key_of(wargear("Flak plate"))})
+
+        entry = bought(gang, "Flak plate").ledger_entry
+        assert entry.trade_points == 0
+        assert entry.activity is None
+
+    def test_unrestricted_uses_post_terms_for_an_off_list_item(
+        self, client, gang, leader, post
+    ):
+        post_only = create_wargear("Post only gear", price=20, trade_point_price=2)
+        url = f"{reverse('n26-equip', args=[leader.pk])}?list=all"
+        response = client.get(url)
+        line = next(
+            row
+            for row in response.context["catalogue"].all_rows()
+            if row.name == "Post only gear"
+        )
+        assert line.trade_points == 2
+
+        client.post(url, {"thing": key_of(post_only)})
+
+        entry = bought(gang, "Post only gear").ledger_entry
+        assert entry.trade_points == 2
+        assert entry.activity == gang.open_activity(FOUNDING)
 
 
 class TestWhichActionAPurchaseCountsAgainst:
@@ -304,6 +416,22 @@ class TestWhichActionAPurchaseCountsAgainst:
         gang.refresh_from_db()
         assert gang.trade_points_left == 5
 
+    def test_an_equipment_list_purchase_spends_neither_allowance(
+        self, client, gang, tester, leader, legacy_list
+    ):
+        with operation(gang, actor=tester) as op:
+            op.visit_trading_post(brought=6)
+
+        client.post(
+            equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
+        )
+
+        entry = bought(gang, "Flak plate").ledger_entry
+        assert entry.trade_points == 0
+        assert entry.activity is None
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 6
+
 
 class TestWhatTheScreenSays:
     """The tally the decision is made against, where the note about the
@@ -319,26 +447,25 @@ class TestWhatTheScreenSays:
 
         assert response.context["founding_budget"].granted == 5
         assert "Founding Trade Points" in body
+        assert "Equipment list purchases do not spend Trade Points." in " ".join(
+            body.split()
+        )
         for label in ("Available", "Spent", "Remaining"):
             assert label in body
 
-    def test_it_moves_as_the_model_spends(self, client, leader, legacy_list):
-        client.post(
-            equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
-        )
+    def test_it_moves_as_the_model_spends(self, client, leader, legacy_list, post):
+        client.post(equip_url(leader, post), {"thing": key_of(wargear("Flak plate"))})
 
         budget = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
         assert (budget.granted, budget.spent, budget.remaining) == (5, 3, 2)
 
     def test_starting_the_action_again_leaves_what_was_spent(
-        self, client, gang, tester, leader, legacy_list
+        self, client, gang, tester, leader, legacy_list, post
     ):
         """Completing Found and equip gang and opening it again does not
         hand the figure back: what this model already spent still sits
         on the tally."""
-        client.post(
-            equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
-        )
+        client.post(equip_url(leader, post), {"thing": key_of(wargear("Flak plate"))})
         with operation(gang, actor=tester) as op:
             op.close_activity(gang.open_activity(FOUNDING))
         with operation(gang, actor=tester) as op:
@@ -612,18 +739,16 @@ class TestGoingPastIt:
         client.force_login(tester)
 
     @pytest.fixture
-    def spent_four(self, client, leader, legacy_list):
+    def spent_four(self, client, leader, post):
         """Four of the five gone: a plate and a mesh."""
         for name in ("Flak plate", "Mesh armour"):
-            client.post(
-                equip_url(leader, legacy_list), {"thing": key_of(wargear(name))}
-            )
+            client.post(equip_url(leader, post), {"thing": key_of(wargear(name))})
 
     def test_the_click_is_answered_with_a_question(
-        self, client, gang, leader, legacy_list, spent_four
+        self, client, gang, leader, post, spent_four
     ):
         response = client.post(
-            equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
+            equip_url(leader, post), {"thing": key_of(wargear("Flak plate"))}
         )
         body = response.content.decode()
 
@@ -639,11 +764,9 @@ class TestGoingPastIt:
             == 1
         )
 
-    def test_the_arithmetic_is_the_models_own(
-        self, client, leader, legacy_list, spent_four
-    ):
+    def test_the_arithmetic_is_the_models_own(self, client, leader, post, spent_four):
         body = client.post(
-            equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
+            equip_url(leader, post), {"thing": key_of(wargear("Flak plate"))}
         ).content.decode()
 
         for label in (
@@ -657,10 +780,10 @@ class TestGoingPastIt:
         assert "-2" in body
 
     def test_confirming_buys_it_against_the_founding_action(
-        self, client, gang, leader, legacy_list, spent_four
+        self, client, gang, leader, post, spent_four
     ):
         response = client.post(
-            equip_url(leader, legacy_list),
+            equip_url(leader, post),
             {"thing": key_of(wargear("Flak plate")), "confirmed": "1"},
         )
 
@@ -735,12 +858,12 @@ class TestTheQueryBudget:
         assert len(self.reads_spend(asked)) == 1
 
     def test_and_asks_no_more_however_much_has_been_spent(
-        self, client, tester, leader, legacy_list
+        self, client, tester, leader, legacy_list, post
     ):
         client.force_login(tester)
         url = equip_url(leader, legacy_list)
         for name in ("Flak plate", "Mesh armour"):
-            client.post(url, {"thing": key_of(wargear(name))})
+            client.post(equip_url(leader, post), {"thing": key_of(wargear(name))})
 
         asked = self.asked(client, url)
 
@@ -807,12 +930,10 @@ class TestAGangFoundedWithNoBudget:
         client.force_login(tester)
 
     @pytest.fixture
-    def plate(self, client, gang, leader, legacy_list):
+    def plate(self, client, gang, leader, post):
         """Flak plate, off the leader's founding allowance: 3 Trade
         Points, and credits this gang does not count."""
-        client.post(
-            equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
-        )
+        client.post(equip_url(leader, post), {"thing": key_of(wargear("Flak plate"))})
         return bought(gang, "Flak plate")
 
     @pytest.fixture
@@ -825,9 +946,9 @@ class TestAGangFoundedWithNoBudget:
         return bought(gang, "Hunt banner")
 
     def test_the_equip_page_offers_a_refund_for_the_copy(
-        self, client, leader, legacy_list, plate
+        self, client, leader, post, plate
     ):
-        response = client.get(equip_url(leader, legacy_list))
+        response = client.get(equip_url(leader, post))
 
         assert "Refund" in acts_on(response, plate)
 
@@ -841,9 +962,9 @@ class TestAGangFoundedWithNoBudget:
         assert "Delete" in acts
 
     def test_the_dialog_for_the_copy_is_a_refund_and_not_a_removal(
-        self, client, leader, legacy_list, plate
+        self, client, leader, post, plate
     ):
-        response = client.get(f"{equip_url(leader, legacy_list)}&refund={plate.pk}")
+        response = client.get(f"{equip_url(leader, post)}&refund={plate.pk}")
 
         dialog = response.context["dialog"]
         assert dialog["kind"] == "refund"
@@ -867,12 +988,12 @@ class TestAGangFoundedWithNoBudget:
         assert dialog["remove_note"] == "Nothing comes back."
 
     def test_the_removal_panel_points_at_the_trade_points_and_not_at_credits(
-        self, client, leader, legacy_list, plate
+        self, client, leader, post, plate
     ):
         """The reader is deciding between Delete and Refund. Telling them
         to recover the amount paid would name money this gang has none
         of, so the sentence names what Refund would actually give."""
-        response = client.get(f"{equip_url(leader, legacy_list)}&remove={plate.pk}")
+        response = client.get(f"{equip_url(leader, post)}&remove={plate.pk}")
 
         note = response.context["dialog"]["remove_note"]
         assert note == (
@@ -882,27 +1003,27 @@ class TestAGangFoundedWithNoBudget:
         assert "¢" not in note
 
     def test_refunding_the_copy_returns_the_trade_points(
-        self, client, leader, legacy_list, plate
+        self, client, leader, post, plate
     ):
-        before = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
+        before = client.get(equip_url(leader, post)).context["founding_budget"]
         assert (before.spent, before.remaining) == (3, 2)
 
         response = client.post(reverse("n26-refund", args=[plate.pk]))
 
-        after = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
+        after = client.get(equip_url(leader, post)).context["founding_budget"]
         assert (after.spent, after.remaining) == (0, 5)
         assert [str(message) for message in get_messages(response.wsgi_request)] == [
             "Refunded Flak plate — 3 Trade Points back."
         ]
 
     def test_removing_the_copy_leaves_the_trade_points_spent(
-        self, client, leader, legacy_list, plate
+        self, client, leader, post, plate
     ):
         """Removal keeps its meaning: the thing goes and nothing comes
         back."""
         client.post(reverse("n26-remove", args=[plate.pk]))
 
-        after = client.get(equip_url(leader, legacy_list)).context["founding_budget"]
+        after = client.get(equip_url(leader, post)).context["founding_budget"]
         assert (after.spent, after.remaining) == (3, 2)
 
     def test_the_edit_menu_offers_a_refund_of_the_model(self, client, leader, plate):

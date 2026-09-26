@@ -3,12 +3,11 @@ What this model may still spend while the gang is being founded, as the tally
 every other Trade Point figure is drawn by.
 
 Under the rail, in the place the "Not tracking TP" note takes when there is no
-allowance: it is a fact about buying on this page rather than about anything on
-the list. The two are never drawn together — a model with an allowance has
-somewhere for its Trade Points to go. An open Trading Post visit is drawn under
-this one instead (n26/includes/visit_open.html), because the gang's visit and
-this model's allowance are two separate pots and a reader spending one wants to
-know which.
+allowance: it is a fact about this model's Trading Post purchases. The two are
+never drawn together — a model with an allowance has somewhere for its Trade
+Points to go. An open Trading Post visit is drawn under this one instead
+(n26/includes/visit_open.html), because the gang's visit and this model's
+allowance are two separate pots.
 
 The heading carries the founding mark, the same one the Found and equip gang
 action and the model cards carry.
@@ -27,9 +26,9 @@ the page by id so the figures move without a reload.
         Founding Trade Points
     </p>
     <p class="mt-0.5 text-xs text-muted">
-        {{ miniature.name }} can spend these Trade Points while the Found and equip gang
-        action is open. Every purchase on this page counts against them, including
-        purchases from the equipment lists.
+        {{ miniature.name }} can spend these Trade Points at the Trading Post while
+        the Found and equip gang action is open. Equipment list purchases do not
+        spend Trade Points.
     </p>
     <c-n26.tally :facts="founding_budget.facts" class="mt-2 text-sm" />
 </div>
