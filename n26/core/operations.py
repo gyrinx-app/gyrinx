@@ -750,6 +750,22 @@ class Operation:
             None, LedgerEvent.Kind.INCOME, credits_delta=-amount, note=note[:255]
         )
 
+    def adjust_credits(self, amount, note=""):
+        """Add credits (positive) or remove them (negative) by hand.
+
+        ``settle`` refuses a removal that would leave a gang with a budget
+        below zero. A gang with unlimited credits records it and counts
+        nothing.
+        """
+        if not amount:
+            raise Refusal("Enter a number of credits.")
+        return self.event(
+            None,
+            LedgerEvent.Kind.CREDITS_ADJUSTED,
+            credits_delta=-amount,
+            note=note.strip()[:255],
+        )
+
     def clean_house(self):
         """The end of the cycle: every model In Recovery is Active again.
 

@@ -275,6 +275,12 @@ def _fill_addresses(sheet, campaign, *, yours):
     here = reverse("n26-campaign", args=[campaign.pk])
     for line in sheet.gangs:
         line.href = reverse("n26-gang", args=[line.gang_id])
+        # The arbitrator of a campaign still being played may change any
+        # gang's credits here, and an owner their own.
+        if not line.credits_unlimited and (
+            line.yours or (yours and not campaign.archived)
+        ):
+            line.credits_href = reverse("n26-gang-credits", args=[line.gang_id])
         # The arbitrator may move a campaign counter on any gang in the
         # campaign, and a gang's owner their own — the same act the gang
         # sheet offers, posted from here and landing back here.

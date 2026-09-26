@@ -112,6 +112,52 @@ def trade_points_href(gang, user):
     return reverse("n26-gang-trade-points", args=[gang.pk])
 
 
+def credits_campaign(gang, user):
+    """The open campaign through which ``user`` may add or remove the
+    gang's credits, or None.
+
+    The owner always may, so the campaign is only looked up for someone
+    else: the arbitrator of the campaign the gang is playing.
+    """
+    from n26.core.battle_permissions import may_record_gang
+    from n26.core.models import CampaignMembership
+    from n26.flags import CAMPAIGNS, enabled
+
+    if user is None or not user.is_authenticated or gang.owner_id == user.pk:
+        return None
+    membership = (
+        CampaignMembership.objects.filter(
+            gang=gang, left__isnull=True, campaign__owner=user
+        )
+        .select_related("campaign")
+        .first()
+    )
+    if membership is None or not enabled(CAMPAIGNS, user):
+        return None
+    campaign = membership.campaign
+    if not may_record_gang(
+        gang=gang, actor=user, campaign=campaign, active_gang_ids={gang.pk}
+    ):
+        return None
+    return campaign
+
+
+def credits_href(gang, user):
+    """Where the Credits figure leads, or nowhere.
+
+    A gang with unlimited credits has no figure to change, so it gets no
+    link. The arbitrator's check is a query, so only the owner's pages
+    call this; the campaign page links its own gangs table.
+    """
+    from django.urls import reverse
+
+    if gang.credits_unlimited:
+        return ""
+    if user is None or not user.is_authenticated or gang.owner_id != user.pk:
+        return ""
+    return reverse("n26-gang-credits", args=[gang.pk])
+
+
 def link_campaign(block, user):
     """Point a gang sheet's campaign block at the campaign's own pages,
     or at nothing for a reader who cannot open them.

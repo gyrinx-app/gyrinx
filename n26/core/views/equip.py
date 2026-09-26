@@ -36,6 +36,7 @@ from n26.core.views.htmx import is_htmx, no_update, with_toasts
 from n26.core.views.permissions import (
     _own_gang_or_404,
     _own_miniature_or_404,
+    credits_href,
     may_see_founding,
     status_href,
     trade_points_href,
@@ -662,6 +663,7 @@ def render_update(
             # is drawn with what that one had: without this the Trade
             # Points figure comes back as a number that leads nowhere.
             "trade_points_href": trade_points_href(gang, request.user),
+            "credits_href": credits_href(gang, request.user),
             "held_label": host.held_label,
             "miniature": miniature,
             # The allowance the purchase came off, redrawn: what it has
@@ -1081,6 +1083,7 @@ def equip(request, pk):
             ),
             "summary": summarise_roster(roster),
             "trade_points_href": tp_href,
+            "credits_href": credits_href(gang, request.user),
             "collections": collections,
             "collection_tabs": tabs,
             "everything": everything,
@@ -1416,6 +1419,7 @@ def equip_gang(request, pk):
             "accessorise": accessorise_dialogs(request, host),
             "summary": summarise_roster(gang_roster(gang)),
             "trade_points_href": trade_points_href(gang, request.user),
+            "credits_href": credits_href(gang, request.user),
             # As on a model's own screen: asked only where the note
             # offering a visit is drawn.
             "founding_blocks_visit": (

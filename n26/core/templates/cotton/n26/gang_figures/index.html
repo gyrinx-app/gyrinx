@@ -5,9 +5,9 @@ Keep the count outside the wealth wrapper. A purchase replaces the money figures
 Pass gang as any object with the wealth field names. A Gang and a GangSheet both work.
 {% endcomment %}
 
-<c-vars :gang="None" :summary="None" trade_points_href="" class="" />
+<c-vars :gang="None" :summary="None" trade_points_href="" credits_href="" class="" />
 
 <div {{ attrs }} class="flex items-center gap-3 {{ class }}">
     <c-n26.roster-summary :summary="summary" />
-    <c-n26.gang-figures.wealth :sheet="gang" trade_points_href="{{ trade_points_href }}" />
+    <c-n26.gang-figures.wealth :sheet="gang" trade_points_href="{{ trade_points_href }}" credits_href="{{ credits_href }}" />
 </div>

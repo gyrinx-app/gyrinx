@@ -47,6 +47,7 @@ MONEY = {
     Kind.AMENDED,
     Kind.TRANSFERRED,
     Kind.INCOME,
+    Kind.CREDITS_ADJUSTED,
 }
 
 #: The kinds that are a campaign's asset coming to the gang or leaving
@@ -828,6 +829,10 @@ def _tell(e, row, alive):
             )
             because = (Span(f" — {e.note}"),) if e.note else ()
             return (Span(wording), *because), "money"
+        case Kind.CREDITS_ADJUSTED:
+            verb = "added" if e.credits_delta < 0 else "removed"
+            because = (Span(f" — {e.note}"),) if e.note else ()
+            return (Span(f"{verb} {abs(e.credits_delta)}¢"), *because), "money"
         case Kind.POST_BATTLE:
             revision = e.post_battle_revision
             href = (
@@ -1087,6 +1092,7 @@ _NOTE_IS_MACHINERY = {
     Kind.STATUS_SET,
     Kind.TRANSFERRED,
     Kind.INCOME,
+    Kind.CREDITS_ADJUSTED,
     Kind.POST_BATTLE,
     Kind.TRADE_POINTS_SET,
     Kind.VISITED_TRADING_POST,

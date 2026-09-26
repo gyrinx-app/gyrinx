@@ -577,7 +577,9 @@ class TestCampaignDashboardLayout:
             "Wealth",
         ]
         cells = re.findall(r"<td\b[^>]*>(.*?)</td>", table, re.S)
-        assert [cell.strip() for cell in cells[1:4]] == ["125¢", "800¢", "1000¢"]
+        # The arbitrator's Credits figure links to Manage credits.
+        texts = [re.sub(r"<[^>]+>", "", cell).strip() for cell in cells[1:4]]
+        assert texts == ["125¢", "800¢", "1000¢"]
         assert_reconciled(gang)
 
     def test_gang_name_precedes_its_log_action(

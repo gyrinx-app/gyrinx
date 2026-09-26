@@ -37,6 +37,7 @@ that said it twice would be spending the width the name needs.
     {% badge_for gang.owner as owner_badge %}
     <c-n26.view.gang-sheet :sheet="sheet"
                            trade_points_href="{{ trade_points_href }}"
+                           credits_href="{{ credits_href }}"
                            owner="{{ gang.owner.username }}"
                            owner_href="{% url 'n26-dashboard' %}"
                            owner_flair_label="{{ owner_badge.description }}"
@@ -152,6 +153,11 @@ that said it twice would be spending the width the name needs.
                 of their own, reached from the same group as the other
                 whole-gang detours.
                     {% endcomment %}
+                    {% if credits_href %}
+                        <c-ui.button size="sm" variant="default" href="{{ credits_href }}">
+                            Manage credits
+                        </c-ui.button>
+                    {% endif %}
                     <c-ui.button size="sm" variant="default" href="{% url 'n26-edit-gang' gang.pk %}">
                         Edit
                     </c-ui.button>

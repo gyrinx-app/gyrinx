@@ -5,12 +5,12 @@ id="n26-gang-wealth" is the out-of-band swap target after an equip act. Changing
 Do not pass id or class. They are not declared, so they land in attrs first.
 The browser then drops the swap hook and the border.
 This wrapper is only the money figures. The roster count sits beside it and must not share this id.
-An update must pass trade_points_href too, or the figure it delivers loses its link.
+An update must pass trade_points_href and credits_href too, or the figures it delivers lose their links.
 Do not add padding here. Each figure already carries its own.
 {% endcomment %}
 
-<c-vars :sheet="None" trade_points_href="" />
+<c-vars :sheet="None" trade_points_href="" credits_href="" />
 
 <div {{ attrs }} id="n26-gang-wealth" class="border-l border-box-border">
-    <c-n26.wealth :sheet="sheet" trade_points_href="{{ trade_points_href }}" />
+    <c-n26.wealth :sheet="sheet" trade_points_href="{{ trade_points_href }}" credits_href="{{ credits_href }}" />
 </div>

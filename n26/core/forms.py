@@ -201,6 +201,31 @@ class HireFighterForm(forms.Form):
 NOTES_EDITOR_HEIGHT = 160
 
 
+class CreditsForm(forms.Form):
+    """Credits added to a gang or removed from it by hand."""
+
+    ADD = "add"
+    REMOVE = "remove"
+
+    direction = forms.ChoiceField(
+        choices=[(ADD, "Add credits"), (REMOVE, "Remove credits")],
+        initial=ADD,
+        label="Add or remove",
+    )
+    amount = forms.IntegerField(min_value=1, label="Credits")
+    note = forms.CharField(
+        max_length=255,
+        required=False,
+        label="Note",
+        help_text="Optional. Shown in the gang's history.",
+    )
+
+    def signed_amount(self):
+        """The change to the gang's credits: positive adds, negative removes."""
+        amount = self.cleaned_data["amount"]
+        return -amount if self.cleaned_data["direction"] == self.REMOVE else amount
+
+
 class FighterNotesForm(forms.Form):
     """The edit page's notes box.
 
