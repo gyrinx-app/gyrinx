@@ -194,6 +194,12 @@
      * square the border alone is a thin argument for where a card ends, and the
      * faintest elevation separates it from the page without reading as depth. */
     --shadow-box: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+
+    /* Native scrollbars, form controls and text selection follow this, not the
+     * `dark` class. The class re-themes tokens; without a matching scheme the
+     * browser chrome stays light on a dark page. Light is named here so a
+     * forced-light visit on a dark OS does not inherit the OS scheme. */
+    color-scheme: light;
 }
 
 .dark {
@@ -207,6 +213,7 @@
      * fill rather than darker, because the page under them is dark. */
     --color-accent-text: var(--color-amber-300);
     --color-bg: var(--color-gray-950);
+    color-scheme: dark;
 }
 
 @layer base {
