@@ -47,6 +47,7 @@ from n26.tests.sandbox.actions import (
     offers_choice,
     op_adds_model,
     op_changes_counter,
+    open_founding,
     refund,
     remove,
     tally,
@@ -108,6 +109,8 @@ def test_cloned_purchases_do_not_count_against_the_source_action_or_buyer(
     fighter = hire_with_option(gang, ganger_profile, "Broker", actor=owner)
     if kind == Activity.Kind.TRADING_POST_VISIT:
         visit_trading_post(gang, brought=4, actor=owner)
+    else:
+        open_founding(gang, actor=owner)
     source_action = gang.open_activity(kind)
     sight = create_wargear("Rare sight", price=20, trade_point_price=2)
     purchase = buy(
@@ -124,10 +127,8 @@ def test_cloned_purchases_do_not_count_against_the_source_action_or_buyer(
     if whole_gang:
         destination = clone_gang(gang, name="Echo", owner=owner, actor=owner)
         clone = Miniature.objects.get(membership__gang=destination, name="Broker")
-        assert (
-            destination.open_activity(Activity.Kind.FOUNDING).pk
-            not in source_action_ids
-        )
+        # A clone starts with no action open, like any new gang.
+        assert destination.open_activity(Activity.Kind.FOUNDING) is None
         assert destination.open_activity(Activity.Kind.TRADING_POST_VISIT) is None
     else:
         destination = gang
@@ -1446,11 +1447,8 @@ class TestCloningAGang:
         assert clone.starting_credits == source_credits + copied_spend
         assert clone.starting_credits != source_starting_credits
         assert clone.visiting_trading_post is False
-        founding = clone.open_activity(Activity.Kind.FOUNDING)
-        assert founding is not None
-        assert founding.trade_points is None
-        assert founding.pk != source.open_activity(Activity.Kind.FOUNDING).pk
-        assert Activity.objects.filter(gang=clone).count() == 1
+        # Like any new gang, a clone starts with no action open.
+        assert not Activity.objects.filter(gang=clone).exists()
         assert clone.trade_points_left is None
         assert not CampaignMembership.objects.filter(gang=clone).exists()
 
@@ -1478,12 +1476,9 @@ class TestCloningAGang:
             == source_assignment_ids
         )
         clone_history = build(clone, viewer=owner)
-        assert len(clone_history) == 2
+        assert len(clone_history) == 1
         assert "".join(span.text for span in clone_history[0].spans) == (
             "cloned the gang from The Ember Court"
-        )
-        assert "".join(span.text for span in clone_history[1].spans) == (
-            "started the Found and equip gang action"
         )
         assert_reconciled(source)
         assert_reconciled(clone)

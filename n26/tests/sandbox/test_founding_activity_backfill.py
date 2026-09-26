@@ -1,7 +1,7 @@
 """The founding-action backfill: every existing gang gets the act it
 was founded without.
 
-Founding a gang opens a Found and equip gang action, but gangs founded
+Founding a gang once opened a Spend built-in TP action, but gangs founded
 before that existed have none — nothing on their page says the act is
 still to be completed. The backfill walks the estate on the batched
 runner and opens one for each, through the same operation a founding
@@ -26,7 +26,7 @@ from n26.maintenance import (
     gangs_without_a_founding_action,
     open_founding_actions,
 )
-from n26.tests.sandbox.actions import found_gang
+from n26.tests.sandbox.actions import found_gang, open_founding
 
 pytestmark = pytest.mark.django_db
 
@@ -85,8 +85,10 @@ class TestWhichGangsQualify:
 
         assert list(gangs_without_a_founding_action()) == [gang]
 
-    def test_a_gang_founded_since_does_not(self, gang_type, player, default_pack):
-        found_gang("Founded Today", gang_type, owner=player, budget=1000)
+    def test_a_gang_that_started_the_action_does_not(
+        self, gang_type, player, default_pack
+    ):
+        open_founding(found_gang("Founded Today", gang_type, owner=player, budget=1000))
 
         assert not gangs_without_a_founding_action().exists()
 
@@ -147,7 +149,7 @@ class TestOpeningTheAction:
         run(record)
 
         told = " ".join(line.search for line in build(gang))
-        assert "started the found and equip gang action" in told
+        assert "started the spend built-in tp action" in told
 
     def test_the_history_line_carries_no_subject(self, old_gang, record):
         """With no actor the page draws the sentence alone, as it does
@@ -161,7 +163,7 @@ class TestOpeningTheAction:
         started = [
             line
             for line in build(gang)
-            if "started the Found and equip gang action"
+            if "started the Spend built-in TP action"
             in "".join(span.text for span in line.spans)
         ]
         assert len(started) == 1
@@ -212,7 +214,7 @@ class TestOpeningTheAction:
         def open_activity(self, kind, trade_points=None):
             if self.gang.pk == slipped_in.pk:
                 raise Refusal(
-                    "Complete the open Found and equip gang action before "
+                    "Complete the open Spend built-in TP action before "
                     "starting another."
                 )
             return really_open(self, kind, trade_points)
@@ -255,7 +257,7 @@ class TestTheRecord:
         self, old_gang, gang_type, player, default_pack, record
     ):
         old_gang("Qualifies")
-        found_gang("Founded Today", gang_type, owner=player, budget=1000)
+        open_founding(found_gang("Founded Today", gang_type, owner=player, budget=1000))
 
         run(record)
 
@@ -265,7 +267,7 @@ class TestTheRecord:
     def test_a_run_over_nothing_still_ends_done(
         self, gang_type, player, default_pack, record
     ):
-        found_gang("Founded Today", gang_type, owner=player, budget=1000)
+        open_founding(found_gang("Founded Today", gang_type, owner=player, budget=1000))
 
         run(record)
 
@@ -323,7 +325,7 @@ class TestTheEstate:
         self, old_gang, gang_type, player, default_pack, record
     ):
         old_gang("Qualifies")
-        found_gang("Founded Today", gang_type, owner=player, budget=1000)
+        open_founding(found_gang("Founded Today", gang_type, owner=player, budget=1000))
         archived = old_gang("Gone")
         archived.archive()
 

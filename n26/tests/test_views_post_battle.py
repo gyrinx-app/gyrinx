@@ -46,6 +46,7 @@ from n26.tests.sandbox.actions import (
     hire,
     join_campaign,
     op_changes_counter,
+    open_founding,
 )
 
 pytestmark = pytest.mark.django_db
@@ -65,7 +66,7 @@ def table(
     owner = User.objects.create_user("report-owner")
     arbitrator = User.objects.create_user("report-arbitrator")
     campaign = found_campaign("Dust Falls", campaign_type, owner=arbitrator)
-    gang = found_gang("Ashen Choir", gang_type, owner=owner, budget=1000)
+    gang = open_founding(found_gang("Ashen Choir", gang_type, owner=owner, budget=1000))
     join_campaign(gang, campaign)
     xp = create_counter("XP")
     kind = create_slot_type("Lasting injury", is_lasting_effect=True)

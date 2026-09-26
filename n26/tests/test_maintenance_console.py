@@ -1109,9 +1109,9 @@ class TestTheFoundingActionBackfill:
     def test_its_page_says_when_there_is_nothing_to_open(
         self, client, superuser, owner, default_pack, gang_type
     ):
-        from n26.tests.sandbox.actions import found_gang
+        from n26.tests.sandbox.actions import found_gang, open_founding
 
-        found_gang("Founded Today", gang_type, owner=owner, budget=1000)
+        open_founding(found_gang("Founded Today", gang_type, owner=owner, budget=1000))
         client.force_login(superuser)
 
         response = client.get(reverse("admin:maintenance_n26_open_founding_actions"))
@@ -1131,7 +1131,7 @@ class TestTheFoundingActionBackfill:
         run = Backfill.objects.get(operation=Operation.OPEN_FOUNDING_ACTIONS)
         assert run.status == Backfill.Status.DONE
         assert run.summary["preview"] == [
-            "1 of 1 unarchived gang has never had a Found and equip gang action.",
+            "1 of 1 unarchived gang has never had a Spend built-in TP action.",
             "Every unarchived gang is walked, so this run's total counts "
             "gangs walked, not gangs changed.",
         ]
@@ -1154,17 +1154,17 @@ class TestTheFoundingActionBackfill:
         ).content.decode()
 
         assert "gang walked" in page or "gangs walked" in page
-        assert "Gangs given a Found and equip gang action" in page
+        assert "Gangs given a Spend built-in TP action" in page
         assert "Gangs skipped: they already had one, open or completed" in page
-        assert "never had a Found and equip gang action." in page
+        assert "never had a Spend built-in TP action." in page
         assert "{'opened'" not in page
 
     def test_applying_with_nothing_to_open_records_no_run(
         self, client, superuser, owner, default_pack, gang_type
     ):
-        from n26.tests.sandbox.actions import found_gang
+        from n26.tests.sandbox.actions import found_gang, open_founding
 
-        found_gang("Founded Today", gang_type, owner=owner, budget=1000)
+        open_founding(found_gang("Founded Today", gang_type, owner=owner, budget=1000))
         client.force_login(superuser)
 
         response = client.post(reverse("admin:maintenance_n26_open_founding_actions"))

@@ -765,11 +765,11 @@ class TestTheShellStillDraws:
         """Whether the square reads as one of the grid's squares depends on
         the stash and the cards beside it, which only the shell has."""
         page = reader.get("/n26/design/shell/gang/").content.decode()
-        assert "Found and equip gang" in page
+        assert "Spend built-in TP" in page
         assert "Complete action" in page
         # The stash card's own heading, not the wealth strip's figure of
         # the same name, which sits further up the page.
-        assert page.index("Found and equip gang") < page.index(">Stash</span>")
+        assert page.index("Spend built-in TP") < page.index(">Stash</span>")
 
     def test_a_range_menu_with_two_thumbs_binds_both(self, reader):
         """The gallery's two-thumb range menu draws two real range inputs,
@@ -998,7 +998,7 @@ class TestTheModelCardsTooltips:
         assert "Rating, including weapons and wargear" in page
         assert (
             "can spend these founding Trade Points at the Trading Post while the "
-            "Found and equip gang action is open" in page
+            "Spend built-in TP action is open" in page
         )
 
     def test_both_kinds_of_open_choice_draw_their_way_in(self, reader):

@@ -168,7 +168,7 @@ def trade_points_refund_of(assignment):
     """The Trade Points refunding this would give back.
 
     The other half of :func:`refund_of`, over the same assignments. A
-    purchase made while the gang's Found and equip gang activity was open
+    purchase made while the gang's Spend built-in TP activity was open
     came off the buyer's founding allowance, and undoing it puts them
     back.
 
@@ -1672,18 +1672,14 @@ class Operation:
         caused by it and its gang-wide modifiers have a carrier that
         every member's card can find.
         """
-        from n26.core.models import Activity, Stash
+        from n26.core.models import Stash
 
         founding = self.assign(gang_type, gang=self.gang, paid=0, **kwargs)
         self.gang.founding = founding
         self.gang.save(update_fields=["founding", "modified"])
         Stash.objects.get_or_create(gang=self.gang)
-        # Founding and equipping the gang is an act the owner performs over
-        # many clicks, so it opens here and the owner closes it when they
-        # are done. A gang founded again — its type corrected where the
-        # founding assignment had gone — keeps the activity it already has.
-        if self.gang.open_activity(Activity.Kind.FOUNDING) is None:
-            self.open_activity(Activity.Kind.FOUNDING)
+        # Spend built-in TP is not opened here. Most gangs never use it, so
+        # the owner starts it from the Actions square when they want it.
         self._record_options(founding, taken)
         self.reconcile_defaults(founding, gang=self.gang)
         return founding
@@ -3166,7 +3162,7 @@ def clone_gang(source, *, name, owner, actor=None):
     open Visit Trading Post activity.
     """
     from n26.core.cloning import clone_event_note, plan_gang_clone
-    from n26.core.models import Activity, Gang, Stash
+    from n26.core.models import Gang, Stash
     from n26.write_pause import write_guard
 
     with transaction.atomic(), write_guard():
@@ -3199,7 +3195,6 @@ def clone_gang(source, *, name, owner, actor=None):
             clone.founding = result.assignments.get(source.founding_id)
             clone.save(update_fields=["founding", "modified"])
             op.event(None, LedgerEvent.Kind.CLONED, note=clone_event_note(source.name))
-            op.open_activity(Activity.Kind.FOUNDING)
         return clone
 
 

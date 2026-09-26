@@ -5,11 +5,11 @@ it joins: a Venator Hunt Leader has 5, and an Outcast Champion has 3.
 Equipment list purchases use credits and leave this allowance alone.
 
 The allowance belongs to the model, not to the gang, and it stands while
-the gang's Found and equip gang activity is open. So it is kept the way
+the gang's Spend built-in TP activity is open. So it is kept the way
 everything else in this edition is kept: what a model may spend is a
 counter reading off its computed card, which content raises and no
 column stores, and what it has spent is the ledger's answer — every
-purchase that recorded a Found and equip gang activity of this gang, on
+purchase that recorded a Spend built-in TP activity of this gang, on
 that model. A refund returns to the same activity because its event sits
 on the assignment the purchase made; a sale returns nothing, as it
 never returns Trade Points.
@@ -80,7 +80,7 @@ class FoundingBudget:
     what its card says, what it has spent is what the ledger says, and
     neither is a second copy of anything.
 
-    ``activity`` is the gang's open Found and equip gang activity — the row
+    ``activity`` is the gang's open Spend built-in TP activity — the row
     a purchase on this screen records. What has gone is every founding
     activity's spend, not only this one's.
     """
