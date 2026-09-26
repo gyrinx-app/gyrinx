@@ -7,7 +7,7 @@ Pass FlowStep values with at most one current step. A page outside the steps,
 such as a cancel page, passes none.
 Up to four steps lie in a row from the md breakpoint. More than four always stack,
 because the row sits in a page column and long labels would run into each other.
-A skipped step keeps its place and number, drawn muted and struck through, so the
+A skipped step keeps its place and number, with a dashed ring and struck through, so the
 steps after it do not renumber.
 Links may return to previous forms; the server decides which steps are available.
 {% endcomment %}
@@ -16,11 +16,11 @@ Links may return to previous forms; the server decides which steps are available
     <ol class="flex flex-col gap-3 {% if steps|length <= 4 %}md:flex-row md:gap-4{% endif %}">
         {% for step in steps %}
             <li class="flex min-w-0 items-center gap-3 {% if steps|length <= 4 %}md:flex-1{% endif %}"{% if step.current %} aria-current="step"{% endif %}>
-                <span class="flex size-7 shrink-0 items-center justify-center rounded-full border text-sm font-semibold {% if step.current %}border-accent bg-accent text-white{% elif step.complete %}border-accent text-accent{% elif step.skipped %}border-dashed border-box-border text-muted opacity-50{% else %}border-box-border text-muted{% endif %}">
+                <span class="flex size-7 shrink-0 items-center justify-center rounded-full border text-sm font-semibold {% if step.current %}border-accent bg-accent text-white{% elif step.complete %}border-accent text-accent{% elif step.skipped %}border-dashed border-box-border text-muted{% else %}border-box-border text-muted{% endif %}">
                     {% if step.complete %}<c-n26.icon name="check" class="size-4" label="Completed" />{% else %}{{ forloop.counter }}{% endif %}
                 </span>
                 {% if step.skipped %}
-                    <span class="min-w-0 text-sm text-muted line-through opacity-50">{{ step.label }}<span class="sr-only"> (skipped)</span></span>
+                    <span class="min-w-0 text-sm text-muted line-through">{{ step.label }}<span class="sr-only"> (skipped)</span></span>
                 {% elif step.href %}
                     <a href="{{ step.href }}" class="min-w-0 text-sm underline underline-offset-2 {% if step.current %}font-semibold text-ink-900 dark:text-ink-100{% else %}text-muted{% endif %}">{{ step.label }}</a>
                 {% else %}
