@@ -89,15 +89,17 @@ The entry also creates the advancement table's 18 results, its skill choices and
 20 rank thresholds. It does not guess which profiles or rules should grant them.
 Author those links with existing built-ins or modifiers:
 
-1. Give the progression rule the Advancement action, Standard fighter ranks and
+1. Give eligible fighters the Advancement action, Standard fighter ranks and
    the hidden Advancement slot.
 2. Give the Spyrer rule Suit Evolution and Suit Maintenance.
 3. Give the Hunt Master profile Recruitment augmentation.
-4. Mark each item's augmentation slot as `tier_ladder`, with `max_picks=1`.
+4. Give eligible fighters the hidden Promotion marker for the supplied
+   promotions. It does not draw a special-rule line.
+5. Mark each item's augmentation slot as `tier_ladder`, with `max_picks=1`.
    Set its picklist members' numeric levels to 1, 2 and 3. Level 0 means the
    item's empty slot; it is not a picklist member. Each tier contains its complete
    effects because choosing it replaces the previous tier.
-5. After counter activation has completed, writes have been resumed and those
+6. After counter activation has completed, writes have been resumed and those
    links are ready, use the existing-fighter allowance maintenance operation
    once. It assumes none of the eligible advancements have been used.
 

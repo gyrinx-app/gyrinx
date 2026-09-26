@@ -5445,7 +5445,7 @@ def foundations(request):
     from django.core import signing
 
     from n26.library.fighter_action_setup import (
-        PROGRESSION_RULE,
+        PROMOTION_MARKER,
         ProgressionSetupConflict,
         attach_fighter_progression,
         prepare_fighter_progression,
@@ -5531,7 +5531,7 @@ def foundations(request):
                 "total": total,
             }
         )
-    from n26.library.models import ProfileType, Rule
+    from n26.library.models import Hidden, ProfileType
 
     return render(
         request,
@@ -5546,8 +5546,8 @@ def foundations(request):
             "progression_excluded": sum(bool(row.excluded) for row in rollout_plan),
             "progression_review": request.GET.get("progression") == "live",
             "progression_token": rollout_token,
-            "progression_rule": Rule.objects.in_default_pack()
-            .filter(name=PROGRESSION_RULE, qualifier="")
+            "progression_ready": Hidden.objects.in_default_pack()
+            .filter(name=PROMOTION_MARKER, qualifier="")
             .first(),
             "profile_types": ProfileType.objects.select_related("statline_type"),
             "kinds": [

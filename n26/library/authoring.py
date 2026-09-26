@@ -1123,6 +1123,7 @@ def add_advancement_promotion(
     replaces_advancement=True,
     optional_profiles=(),
     requires_rule=None,
+    requires_hidden=None,
     stash_weapons_for=(),
     keep_weapon_trait=None,
     **kwargs,
@@ -1140,6 +1141,7 @@ def add_advancement_promotion(
         slot=slot,
         replaces_advancement=replaces_advancement,
         requires_rule=requires_rule,
+        requires_hidden=requires_hidden,
         keep_weapon_trait=keep_weapon_trait,
         **kwargs,
     )

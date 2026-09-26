@@ -46,6 +46,18 @@ def promotion_for(record, configured):
         and not node.broadcast
         and node.assignable._meta.label_lower == "library.rule"
     )
+    present_hidden = {
+        contribution.thing.pk
+        for contribution in computed.acquired
+        if contribution.thing._meta.label_lower == "library.hidden"
+    }
+    present_hidden.update(
+        node.assignable.pk
+        for node in card.all_nodes()
+        if not node.suppressed
+        and not node.broadcast
+        and node.assignable._meta.label_lower == "library.hidden"
+    )
     return next(
         (
             rule
@@ -53,6 +65,10 @@ def promotion_for(record, configured):
             if rule.from_subtype_id in subtypes
             and (
                 rule.requires_rule_id is None or rule.requires_rule_id in present_rules
+            )
+            and (
+                rule.requires_hidden_id is None
+                or rule.requires_hidden_id in present_hidden
             )
         ),
         None,

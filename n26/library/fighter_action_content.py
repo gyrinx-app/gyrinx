@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 class BindingRecipe:
     key: str
     kind: str
-    preview_rule: str
     scope_label: str
     filters: dict = field(default_factory=dict)
     exclusions: tuple = ()
@@ -23,7 +22,6 @@ BINDINGS = (
     BindingRecipe(
         key="profiles",
         kind="profile",
-        preview_rule="Fighter progression",
         scope_label="Models using this profile",
         exclusions=(
             ({"category__section__name__iexact": "Allies"}, "Alliance delegation"),
@@ -36,7 +34,6 @@ BINDINGS = (
     BindingRecipe(
         key="outcast-leaders",
         kind="gang-type",
-        preview_rule="Outcast leader progression",
         scope_label="Leaders in this gang",
         filters={"name__iexact": "Outcast"},
         subtypes=("Leader",),
