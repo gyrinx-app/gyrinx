@@ -74,10 +74,18 @@ def filter_select_props(markup, min_options=15, placeholder="", empty=""):
 
     attributes = parser.select
     multiple = "multiple" in attributes
+    # The select is hidden once React draws the trigger. What a script or a
+    # form reads stays on the select; what a screen reader reads moves to the
+    # trigger, which is the control a person reaches.
     passthrough = {
         name: value or ""
         for name, value in attributes.items()
-        if name.startswith("data-")
+        if name.startswith("data-") or name == "form"
+    }
+    aria = {
+        name: value or ""
+        for name, value in attributes.items()
+        if name.startswith("aria-")
     }
     return {
         "name": attributes.get("name", ""),
@@ -86,6 +94,7 @@ def filter_select_props(markup, min_options=15, placeholder="", empty=""):
         "required": "required" in attributes,
         "disabled": "disabled" in attributes,
         "attrs": passthrough,
+        "aria": aria,
         "options": _selected_like_a_browser(parser.options, multiple),
         "placeholder": str(placeholder),
         "empty": str(empty),

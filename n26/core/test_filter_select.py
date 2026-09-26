@@ -20,7 +20,8 @@ def test_short_selects_stay_native_and_the_threshold_counts_options():
 def test_select_props_preserve_the_post_contract_and_plain_option_text():
     markup = """
         <select name="what-thing_skill" id="id_what-thing_skill" required
-                data-union-of="thing" data-union-member="skill rule">
+                data-union-of="thing" data-union-member="skill rule"
+                form="elsewhere" aria-describedby="help" autocomplete="off">
             <option value="" disabled selected>Choose &amp; filter</option>
             <option value="one">  One
                 name </option>
@@ -39,7 +40,9 @@ def test_select_props_preserve_the_post_contract_and_plain_option_text():
         "attrs": {
             "data-union-of": "thing",
             "data-union-member": "skill rule",
+            "form": "elsewhere",
         },
+        "aria": {"aria-describedby": "help"},
         "options": [
             {
                 "value": "",

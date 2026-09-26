@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FormEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -26,6 +26,7 @@ const props: FilterSelectProps = {
         "data-union-of": "thing",
         "data-union-member": "skill",
     },
+    aria: { "aria-describedby": "thing-help" },
     options,
     placeholder: "Type to filter",
     empty: "No matches",
@@ -58,19 +59,23 @@ describe("FilterSelect", () => {
     it("keeps the native select's form and union contracts", async () => {
         const { form, select, trigger, user } = setup();
         const changed = vi.fn();
+        const input = vi.fn();
         select.addEventListener("change", changed);
+        select.addEventListener("input", input);
 
         expect(trigger.id).toBe("id_thing");
         expect(select.id).toBe("");
         expect(select.required).toBe(true);
         expect(select.dataset.unionOf).toBe("thing");
         expect(select.dataset.unionMember).toBe("skill");
+        expect(trigger.getAttribute("aria-describedby")).toBe("thing-help");
 
         await user.click(trigger);
         await user.click(screen.getByRole("option", { name: "Beta" }));
 
         expect(new FormData(form).get("thing")).toBe("beta");
         expect(changed).toHaveBeenCalledOnce();
+        expect(input).toHaveBeenCalledOnce();
         expect(trigger.textContent).toContain("Beta");
         expect(screen.queryByRole("listbox")).toBeNull();
     });
@@ -149,7 +154,37 @@ describe("FilterSelect", () => {
         await user.click(trigger);
         expect(screen.getByRole("listbox")).toBeTruthy();
 
-        fireEvent.click(document.body);
+        fireEvent.pointerDown(document.body);
         expect(screen.queryByRole("listbox")).toBeNull();
+    });
+
+    it("closes when focus leaves the picker", async () => {
+        const { trigger, user } = setup();
+        const after = document.createElement("button");
+        document.body.append(after);
+        await user.click(trigger);
+        expect(screen.getByRole("listbox")).toBeTruthy();
+
+        act(() => after.focus());
+        expect(screen.queryByRole("listbox")).toBeNull();
+        after.remove();
+    });
+
+    it("keeps a form attribute on the select that posts", () => {
+        const { select } = setup({
+            attrs: { ...props.attrs, form: "elsewhere" },
+        });
+
+        expect(select.getAttribute("form")).toBe("elsewhere");
+    });
+
+    it("opens the list when the form refuses an empty required pick", () => {
+        const { select, trigger } = setup();
+
+        act(() => {
+            select.checkValidity();
+        });
+        expect(screen.getByRole("listbox")).toBeTruthy();
+        expect(document.activeElement).toBe(trigger);
     });
 });

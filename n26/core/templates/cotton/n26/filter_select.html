@@ -10,7 +10,7 @@ Put a select in the default slot. The server leaves it alone below min_options.
 The native select remains the unscripted fallback and the form's POST contract.
 React owns the trigger and panel once the option threshold is reached.
 Disabled options are omitted from the list, so arrow keys never land on them.
-Only name, id, required, disabled, multiple and data-* attributes carry over.
+Only name, id, required, disabled, multiple, form and data-* attributes stay on the select. aria-* attributes move to the trigger. Anything else is dropped.
 The slot must hold a select. Anything else and this component does nothing, with no error.
 Do not replace this with the kit combobox. Without script that control submits nothing, and its options carry labels where a primary key belongs.
 {% endcomment %}

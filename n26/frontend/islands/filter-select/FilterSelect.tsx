@@ -22,6 +22,7 @@ export type FilterSelectProps = {
     required: boolean;
     disabled: boolean;
     attrs: Record<string, string>;
+    aria: Record<string, string>;
     options: SelectOption[];
     placeholder: string;
     empty: string;
@@ -34,6 +35,7 @@ export function FilterSelect({
     required,
     disabled,
     attrs,
+    aria,
     options,
     placeholder,
     empty,
@@ -69,7 +71,9 @@ export function FilterSelect({
         if (!open) return;
         const frame = requestAnimationFrame(() => search.current?.focus());
 
-        function dismiss(event: MouseEvent) {
+        // Focus leaving closes the panel too, so tabbing out of the filter
+        // box needs no key handling of its own.
+        function dismiss(event: Event) {
             if (!root.current?.contains(event.target as Node)) close(false);
         }
 
@@ -77,11 +81,13 @@ export function FilterSelect({
             if (event.key === "Escape") close(true);
         }
 
-        document.addEventListener("click", dismiss);
+        document.addEventListener("pointerdown", dismiss);
+        document.addEventListener("focusin", dismiss);
         document.addEventListener("keydown", escape);
         return () => {
             cancelAnimationFrame(frame);
-            document.removeEventListener("click", dismiss);
+            document.removeEventListener("pointerdown", dismiss);
+            document.removeEventListener("focusin", dismiss);
             document.removeEventListener("keydown", escape);
         };
     }, [open]);
@@ -131,6 +137,9 @@ export function FilterSelect({
         }
         syncSelect(next);
         setSelected(next);
+        // A native select fires both when a person changes it. The click on
+        // the panel never reached the select, so a listener would miss it.
+        select.current?.dispatchEvent(new Event("input", { bubbles: true }));
         select.current?.dispatchEvent(new Event("change", { bubbles: true }));
         if (!multiple) close(true);
     }
@@ -165,8 +174,6 @@ export function FilterSelect({
             } else {
                 close(true);
             }
-        } else if (event.key === "Tab") {
-            close(false);
         }
     }
 
@@ -182,6 +189,12 @@ export function FilterSelect({
                 disabled={disabled}
                 aria-hidden="true"
                 tabIndex={-1}
+                // A hidden required select cannot take focus, so the browser
+                // blocks the submit without saying why. Open the list instead.
+                onInvalid={() => {
+                    trigger.current?.focus();
+                    show();
+                }}
             >
                 {options.map((option, index) => (
                     <option
@@ -194,6 +207,7 @@ export function FilterSelect({
                 ))}
             </select>
             <button
+                {...aria}
                 ref={trigger}
                 id={id || generatedId}
                 type="button"
