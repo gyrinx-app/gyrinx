@@ -108,4 +108,43 @@ describe("action builder", () => {
         ).toEqual(["Second tier", "First tier"]);
         expect(draft.useMode).toBe("free");
     });
+
+    it("blocks incomplete counter and picks changes on review", async () => {
+        const user = userEvent.setup();
+        render(
+            <ActionBuilder
+                {...props}
+                draft={JSON.stringify({
+                    name: "Repair",
+                    useMode: "free",
+                    outcomes: [
+                        {
+                            name: "Clear effects",
+                            operation: "changes",
+                            changes: [
+                                { kind: "counter", counter: "", amount: "" },
+                                { kind: "picks", slotType: "" },
+                            ],
+                        },
+                    ],
+                })}
+            />,
+        );
+        await user.click(screen.getByRole("button", { name: "4. Review" }));
+        expect(
+            (
+                screen.getByRole("button", {
+                    name: "Create action",
+                }) as HTMLButtonElement
+            ).disabled,
+        ).toBe(true);
+        expect(
+            screen.getByText(
+                "Set the counter and amount for change 1 in outcome 1.",
+            ),
+        ).toBeTruthy();
+        expect(
+            screen.getByText("Choose a slot type for change 2 in outcome 1."),
+        ).toBeTruthy();
+    });
 });

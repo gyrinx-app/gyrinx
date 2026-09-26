@@ -196,6 +196,17 @@ def grant_action(request, pk):
             for row in source
             if not cross_pack_refusal(action.pack, row)
         )
+    current_limit = limits[0] if len(limits) == 1 else "any" if not limits else "custom"
+    current_limit_unavailable = current_limit not in ("any", "custom") and all(
+        option["value"] != current_limit for option in limit_options
+    )
+    if current_limit_unavailable:
+        limit_options.append(
+            {
+                "value": current_limit,
+                "label": "Current archived or unavailable limit — choose another",
+            }
+        )
     return render(
         request,
         "authoring/action_grant.html",
@@ -206,11 +217,8 @@ def grant_action(request, pk):
             "rows": rows,
             "grant_rows": {"rows": rows},
             "error": error,
-            "current_limit": limits[0]
-            if len(limits) == 1
-            else "any"
-            if not limits
-            else "custom",
+            "current_limit": current_limit,
+            "current_limit_unavailable": current_limit_unavailable,
             "limit_options": limit_options,
         },
     )

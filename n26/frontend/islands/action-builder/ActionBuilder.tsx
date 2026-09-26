@@ -232,6 +232,23 @@ function issues(draft: Draft): string[] {
             found.push(`Choose an advancement slot for outcome ${index + 1}.`);
         if (outcome.operation === "changes" && !outcome.changes.length)
             found.push(`Add a change to outcome ${index + 1}.`);
+        if (outcome.operation === "changes")
+            outcome.changes.forEach((change, at) => {
+                if (
+                    change.kind === "counter" &&
+                    (!change.counter ||
+                        !change.amount ||
+                        !Number.isInteger(Number(change.amount)) ||
+                        Number(change.amount) < 0)
+                )
+                    found.push(
+                        `Set the counter and amount for change ${at + 1} in outcome ${index + 1}.`,
+                    );
+                if (change.kind === "picks" && !change.slotType)
+                    found.push(
+                        `Choose a slot type for change ${at + 1} in outcome ${index + 1}.`,
+                    );
+            });
     });
     if (
         draft.useMode === "paid" &&

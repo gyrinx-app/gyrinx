@@ -55,6 +55,11 @@
                              variant="ghost"
                              class="mt-3">Edit limits →</c-ui.button>
             {% else %}
+                {% if current_limit_unavailable %}
+                    <c-ui.alert variant="warning" class="mt-3">
+                        The current use limit is archived or unavailable. Choose another before saving.
+                    </c-ui.alert>
+                {% endif %}
                 <form method="post" class="mt-4 flex flex-wrap items-end gap-3">
                     {% csrf_token %}
                     <input type="hidden" name="act" value="use_limit">

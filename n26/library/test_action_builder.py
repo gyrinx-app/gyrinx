@@ -437,6 +437,26 @@ class TestAuthoringPages:
         assert response.status_code == 302
         assert not action.usable_by_subtypes.exists()
 
+    def test_archived_current_limit_stays_selected_until_replaced(
+        self, admin_client, default_pack
+    ):
+        action = Action.objects.create(name="Trial", timing="post_cycle")
+        subtype = Subtype.objects.create(name="Old subtype", archived=True)
+        action.usable_by_subtypes.add(subtype)
+        url = reverse("authoring-action-grant", args=[action.pk])
+
+        page = admin_client.get(url)
+        assert page.status_code == 200
+        assert page.context["current_limit_unavailable"] is True
+        assert page.context["current_limit"] == f"subtype:{subtype.pk}"
+        assert b"Current archived or unavailable limit" in page.content
+
+        response = admin_client.post(
+            url, {"act": "use_limit", "use_limit": f"subtype:{subtype.pk}"}
+        )
+        assert response.status_code == 200
+        assert list(action.usable_by_subtypes.all()) == [subtype]
+
     def test_archived_actions_show_no_grant_or_use_limit_controls(
         self, admin_client, default_pack
     ):
