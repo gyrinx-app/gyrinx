@@ -19,6 +19,7 @@ from n26.core.views.changelog import changelog_entries
 from n26.core.views.permissions import (
     _any_gang_or_404,
     _own_gang_or_404,
+    credits_href,
     link_campaign,
     link_model_cards,
     may_mark_status,
@@ -396,6 +397,7 @@ def gang_sheet(request, pk):
             "sheet": sheet,
             "yours": yours,
             "trade_points_href": trade_points_href(gang, request.user),
+            "credits_href": credits_href(gang, request.user),
             # Whether the stash card's way into a visit is shut for now.
             # Free where the square below was drawn: that read which
             # actions the gang has open, and the gang holds the reading.
@@ -1182,6 +1184,7 @@ def _written_page(request, pk, *, field, template):
             "yours": yours,
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
+            "credits_href": credits_href(gang, request.user),
         },
     )
 

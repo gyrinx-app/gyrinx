@@ -37,6 +37,7 @@ that said it twice would be spending the width the name needs.
     {% badge_for gang.owner as owner_badge %}
     <c-n26.view.gang-sheet :sheet="sheet"
                            trade_points_href="{{ trade_points_href }}"
+                           credits_href="{{ credits_href }}"
                            owner="{{ gang.owner.username }}"
                            owner_href="{% url 'n26-dashboard' %}"
                            owner_flair_label="{{ owner_badge.description }}"
@@ -250,6 +251,13 @@ that said it twice would be spending the width the name needs.
             <c-slot name="stash_actions">
                 <c-n26.action-link href="{% url 'n26-equip-gang' gang.pk %}">Equip</c-n26.action-link>
             </c-slot>
+            {% if credits_href %}
+                <c-slot name="stash_controls">
+                    <c-n26.action-link href="{{ credits_href }}">
+                        Manage credits
+                    </c-n26.action-link>
+                </c-slot>
+            {% endif %}
             {% comment %}
             An open visit is already in Actions when that square is drawn,
             so the stash does not say it again. An owner without the square

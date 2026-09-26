@@ -40,7 +40,8 @@ underlying spec.
   `AssignmentSet` and `PrintConfig` remain plain saves.
 - The ledger is append-only. Folding an entry's events must reproduce the entry,
   as checked by `reconcile.check_entry`. Journal-only events have no entry or
-  delta. `Kind.TRANSFERRED` is the one standalone event that moves money.
+  delta. `Kind.TRANSFERRED`, `Kind.INCOME` and `Kind.CREDITS_ADJUSTED` move
+  money without an entry.
 
 ## Player-data models
 

@@ -253,6 +253,10 @@ class LedgerEvent(Base):
         GAINED = "gained", "Gained"
         LOST = "lost", "Lost"
         INCOME = "income", "Income"
+        # Credits added or removed by hand, for whatever the app does not
+        # record itself. Its own kind so the history does not call it
+        # income; negative is credits in, positive is credits out.
+        CREDITS_ADJUSTED = "credits_adjusted", "Credits adjusted"
         POST_BATTLE = "post_battle", "Post-battle results"
 
     assignment = models.ForeignKey(

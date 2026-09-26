@@ -501,7 +501,7 @@ class TestCloningAMiniature:
         assert clone_act.credits == -copied_credits
         assert clone_act.rating == copied_rating
         assert clone_act.trade_points == 0
-        assert clone_act.category == "money"
+        assert clone_act.category == "credits"
 
         cloned_sight = Assignment.objects.get(
             miniature_root=clone,

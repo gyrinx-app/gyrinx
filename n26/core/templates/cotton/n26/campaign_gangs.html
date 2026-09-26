@@ -6,6 +6,7 @@ A missing counter is None. Draw it as a dash, not a blank.
 Unlimited credits also draw as a dash.
 Every empty value is a dash, never a blank. A blank cell looks like a failed number.
 Name whose gang it is under the type. A campaign table holds several people's gangs.
+Credits link to Manage credits only where the line has credits_href. The view fills it as it does counter hrefs.
 Counter controls appear only where the line has an href. The view fills that for the arbitrator, and for a gang's owner on their own.
 The kit table wrapper scrolls sideways. Do not add a wrap, or a wide campaign will widen the page.
 Over budget is amber, not orange. Orange is what a waiting invitation wears on the same page.
@@ -61,7 +62,13 @@ Starting rolls fetch with hx-swap none so a dialog opens.
                 </td>
                 <td class="text-right tabular-nums whitespace-nowrap">{{ gang.rating }}¢</td>
                 <td class="text-right tabular-nums whitespace-nowrap">
-                    {% if gang.credits_unlimited %}<span class="text-muted">&mdash;</span>{% else %}{{ gang.credits }}¢{% endif %}
+                    {% if gang.credits_unlimited %}
+                        <span class="text-muted">&mdash;</span>
+                    {% elif gang.credits_href %}
+                        <c-n26.link href="{{ gang.credits_href }}">{{ gang.credits }}¢</c-n26.link>
+                    {% else %}
+                        {{ gang.credits }}¢
+                    {% endif %}
                 </td>
                 <td class="text-right tabular-nums whitespace-nowrap">{{ gang.wealth }}¢</td>
                 {% for line in gang.counters %}

@@ -15,6 +15,7 @@ Pass activities_square only for the owner.
 <c-vars
     :sheet="None"
     trade_points_href=""
+    credits_href=""
     owner=""
     owner_href=""
     owner_flair_label=""
@@ -31,6 +32,7 @@ Pass activities_square only for the owner.
     members=""
     stash_empty=""
     stash_actions=""
+    stash_controls=""
     stash_notice=""
     class=""
 />
@@ -70,7 +72,8 @@ Pass activities_square only for the owner.
         <c-slot name="actions">
             <c-n26.gang-figures :gang="sheet"
                                 :summary="sheet.summary"
-                                trade_points_href="{{ trade_points_href }}" />
+                                trade_points_href="{{ trade_points_href }}"
+                                credits_href="{{ credits_href }}" />
         </c-slot>
     </c-n26.page-header>
 
@@ -96,6 +99,7 @@ Pass activities_square only for the owner.
             {% if activities_square %}{{ activities_square }}{% endif %}
             <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
                 {% if stash_actions %}<c-slot name="actions">{{ stash_actions }}</c-slot>{% endif %}
+                {% if stash_controls %}<c-slot name="controls">{{ stash_controls }}</c-slot>{% endif %}
                 {% if stash_empty %}<c-slot name="empty">{{ stash_empty }}</c-slot>{% endif %}
                 {% if stash_notice %}<c-slot name="notice">{{ stash_notice }}</c-slot>{% endif %}
             </c-n26.stash>

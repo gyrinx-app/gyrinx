@@ -37,9 +37,9 @@ from n26.core.operations import CLEAN_HOUSE
 
 Kind = LedgerEvent.Kind
 
-#: The kinds that concern money. "Amended" is here because re-choosing
+#: The kinds that concern credits. "Amended" is here because re-choosing
 #: how a thing is built can change what it charges.
-MONEY = {
+CREDITS = {
     Kind.PURCHASED,
     Kind.REFUNDED,
     Kind.SOLD,
@@ -47,6 +47,7 @@ MONEY = {
     Kind.AMENDED,
     Kind.TRANSFERRED,
     Kind.INCOME,
+    Kind.CREDITS_ADJUSTED,
 }
 
 #: The kinds that are a campaign's asset coming to the gang or leaving
@@ -417,7 +418,7 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
                 act.credits = -credits
                 act.rating = rating
                 if act.credits:
-                    act.category = "money"
+                    act.category = "credits"
             acts.append(act)
             if e.kind == Kind.JOINED_CAMPAIGN:
                 local[_THE_JOINING] = act
@@ -717,8 +718,8 @@ def _tell(e, row, alive):
         row.subtype_id is not None or row.rule_id is not None
     )
     category = (
-        "money"
-        if e.kind in MONEY or e.credits_delta
+        "credits"
+        if e.kind in CREDITS or e.credits_delta
         else "model"
         if e.kind in PERSONAL or identity or e.kind == Kind.TALLIED
         else "kit"
@@ -731,7 +732,7 @@ def _tell(e, row, alive):
         case Kind.ACTION_USE_STARTED:
             return _tell_action_use(e, "started", alive), "model"
         case Kind.ACTION_USE_PAID:
-            return _tell_action_use(e, "paid to use", alive), "money"
+            return _tell_action_use(e, "paid to use", alive), "credits"
         case Kind.ACTION_USE_COMPLETED:
             return _tell_action_use(e, "completed", alive, result=True), "model"
         case Kind.ACTION_USE_CANCELLED:
@@ -740,7 +741,7 @@ def _tell(e, row, alive):
             return _tell_action_use(e, "corrected", alive, result=True), "model"
         case Kind.PURCHASED:
             if row is not None and row.profile_id is not None:
-                return (Span("hired "), at, Span(f", a {_name(row)}")), "money"
+                return (Span("hired "), at, Span(f", a {_name(row)}")), "credits"
             if identity:
                 return (
                     Span("bought the "),
@@ -748,8 +749,8 @@ def _tell(e, row, alive):
                     Span(" "),
                     thing,
                     *_for(model, at),
-                ), "money"
-            return (Span("bought "), thing, *_for(model, at)), "money"
+                ), "credits"
+            return (Span("bought "), thing, *_for(model, at)), "credits"
         case Kind.ADDED:
             if row is not None and row.gang_type_id is not None:
                 return (Span("created the gang, a "), thing, Span(" gang")), "gang"
@@ -791,13 +792,13 @@ def _tell(e, row, alive):
         case Kind.REMOVED:
             return (Span("removed "), thing, *_for(model, at, "from")), category
         case Kind.REFUNDED:
-            return (Span("returned "), thing, Span(" for a refund")), "money"
+            return (Span("returned "), thing, Span(" for a refund")), "credits"
         case Kind.SOLD:
-            return (Span("sold "), thing), "money"
+            return (Span("sold "), thing), "credits"
         case Kind.REPRICED:
-            return (Span("the price of "), thing, Span(" changed")), "money"
+            return (Span("the price of "), thing, Span(" changed")), "credits"
         case Kind.AMENDED:
-            return (Span("changed "), thing), "money"
+            return (Span("changed "), thing), "credits"
         case Kind.MOVED:
             return (Span("moved "), thing), "kit"
         case Kind.TALLIED:
@@ -817,8 +818,8 @@ def _tell(e, row, alive):
             figure = f"{abs(e.credits_delta)}¢"
             because = (Span(f" — {e.note}"),) if e.note else ()
             if e.credits_delta > 0:
-                return (Span(f"paid {figure} to {other}"), *because), "money"
-            return (Span(f"received {figure} from {other}"), *because), "money"
+                return (Span(f"paid {figure} to {other}"), *because), "credits"
+            return (Span(f"received {figure} from {other}"), *because), "credits"
         case Kind.INCOME:
             amount = -e.credits_delta
             wording = (
@@ -827,7 +828,11 @@ def _tell(e, row, alive):
                 else f"corrected income by {amount}¢"
             )
             because = (Span(f" — {e.note}"),) if e.note else ()
-            return (Span(wording), *because), "money"
+            return (Span(wording), *because), "credits"
+        case Kind.CREDITS_ADJUSTED:
+            verb = "added" if e.credits_delta < 0 else "removed"
+            because = (Span(f" — {e.note}"),) if e.note else ()
+            return (Span(f"{verb} {abs(e.credits_delta)}¢"), *because), "credits"
         case Kind.POST_BATTLE:
             revision = e.post_battle_revision
             href = (
@@ -870,26 +875,26 @@ def _tell(e, row, alive):
         case Kind.BUDGET_SET:
             _, _, now = e.note.rpartition(" → ")
             if now == NO_CEILING:
-                return (Span("lifted the budget — the gang spends freely"),), "money"
+                return (Span("lifted the budget — the gang spends freely"),), "credits"
             if now:
-                return (Span(f"set the budget to {now}"),), "money"
-            return (Span("changed the budget"),), "money"
+                return (Span(f"set the budget to {now}"),), "credits"
+            return (Span("changed the budget"),), "credits"
         # A trip to the trading post wrote these before it was an action
         # of its own. Nothing writes them now; the sentences stay so that
         # a gang's older history still reads. Finishing says "completed",
         # the word an action's own ending uses, so a gang that visited
         # either side of the change reads as one story.
         case Kind.TRADE_POINTS_SET if e.note == "closed":
-            return (Span("completed the Visit Trading Post action"),), "money"
+            return (Span("completed the Visit Trading Post action"),), "credits"
         case Kind.TRADE_POINTS_SET:
             brought = e.note
             if brought == "1":
-                return (Span("visited the Trading Post with 1 Trade Point"),), "money"
+                return (Span("visited the Trading Post with 1 Trade Point"),), "credits"
             if brought:
                 return (
                     Span(f"visited the Trading Post with {brought} Trade Points"),
-                ), "money"
-            return (Span("visited the Trading Post"),), "money"
+                ), "credits"
+            return (Span("visited the Trading Post"),), "credits"
         case Kind.ACTION_OPENED:
             named, brought = read_note(e.note)
             if not named:
@@ -919,7 +924,7 @@ def _tell(e, row, alive):
                 Span("sent "),
                 at,
                 Span(f"{went_as} to the trading post"),
-            ), "money"
+            ), "credits"
         case Kind.NOTED:
             # About no model, so about the gang — as a rename is.
             if model is None:
@@ -1087,6 +1092,7 @@ _NOTE_IS_MACHINERY = {
     Kind.STATUS_SET,
     Kind.TRANSFERRED,
     Kind.INCOME,
+    Kind.CREDITS_ADJUSTED,
     Kind.POST_BATTLE,
     Kind.TRADE_POINTS_SET,
     Kind.VISITED_TRADING_POST,

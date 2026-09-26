@@ -11,7 +11,7 @@ lead="models" puts the model count first instead of Trade Points. The sheet must
 Gang lists use it. The gang page shows Trade Points, because its roster count sits beside the strip.
 {% endcomment %}
 
-<c-vars :sheet="None" lead="trade_points" trade_points_href="" class="" />
+<c-vars :sheet="None" lead="trade_points" trade_points_href="" credits_href="" class="" />
 
 <div class="overflow-x-auto {{ class }}">
     <dl class="flex w-max items-stretch">
@@ -34,7 +34,8 @@ Gang lists use it. The gang page shows Trade Points, because its roster count si
         <c-n26.wealth.figure short="Cr"
                              full="Credits"
                              :value="sheet.credits"
-                             unset="{% if sheet.credits_unlimited %}Unlimited credits{% endif %}" />
+                             unset="{% if sheet.credits_unlimited %}Unlimited credits{% endif %}"
+                             href="{{ credits_href }}" />
         <c-n26.wealth.figure short="St" full="Stash" :value="sheet.stash_rating" />
         <c-n26.wealth.figure short="W" full="Wealth" :value="sheet.wealth" />
     </dl>

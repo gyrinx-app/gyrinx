@@ -223,7 +223,7 @@ class TestATransfer:
             for a in history.build(gang)
             if "paid 30¢" in "".join(s.text for s in a.spans)
         )
-        assert act.credits == -30 and act.category == "money"
+        assert act.credits == -30 and act.category == "credits"
 
 
 class TestTheRansom:

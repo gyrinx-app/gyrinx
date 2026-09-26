@@ -10,6 +10,7 @@ from django.urls import reverse
 
 from n26.core.views.permissions import (
     _own_miniature_or_404,
+    credits_href,
     link_model_cards,
     may_mark_status,
     status_href,
@@ -921,6 +922,7 @@ def edit_fighter(request, pk):
             else [],
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
+            "credits_href": credits_href(gang, request.user),
             # One reading of the flag, passed to both: the badge leads to
             # whichever question the status wants, the menu item always to
             # Mark as….

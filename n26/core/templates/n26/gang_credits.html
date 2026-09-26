@@ -1,0 +1,83 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Adding credits to a gang, or removing them, by hand. Reached by the gang's
+owner from the gang page and by the campaign's arbitrator from the gangs
+table; the view decides where Cancel and a save return to.
+{% endcomment %}
+{% block head_title %}Manage credits — {{ gang.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="gangs" %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-gang-credits' gang.pk %}"
+                     title="Manage credits"
+                     lead="{{ gang.name }} has {{ gang.credits }}¢."
+                     :form="form"
+                     submit_label="Save"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="gang.owner" tone="current" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Manage credits
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% if history_href %}
+            <c-slot name="header_actions">
+                <c-ui.button size="sm" variant="default" href="{{ history_href }}">
+                    Credit history
+                </c-ui.button>
+            </c-slot>
+        {% endif %}
+        {% csrf_token %}
+        <c-n26.form-section title="The change">
+            <c-n26.radio-cards label="Add or remove *" :form="form" name="direction" min="12rem">
+                {% for choice in directions %}
+                    <c-n26.radio-cards.card name="direction"
+                                            value="{{ choice.value }}"
+                                            label="{{ choice.label }}"
+                                            description="{{ choice.description }}"
+                                            :wrap="True"
+                                            :checked="choice.checked" />
+                {% endfor %}
+            </c-n26.radio-cards>
+            <c-ui.field label="Credits *"
+                        error="x"
+                        :form="form"
+                        name="amount"
+                        for="credits-amount">
+                <c-ui.input id="credits-amount"
+                            name="amount"
+                            type="number"
+                            min="1"
+                            inputmode="numeric"
+                            value="{{ form.amount.value|default_if_none:'' }}">
+                    <c-slot name="right_addon">
+                        <span class="text-sm text-muted">¢</span>
+                    </c-slot>
+                </c-ui.input>
+            </c-ui.field>
+            <c-ui.field label="Note"
+                        description="{{ form.note.help_text }}"
+                        error="x"
+                        :form="form"
+                        name="note"
+                        for="credits-note">
+                <c-ui.input id="credits-note"
+                            name="note"
+                            maxlength="255"
+                            autocomplete="off"
+                            value="{{ form.note.value|default:'' }}" />
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

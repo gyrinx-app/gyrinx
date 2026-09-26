@@ -1603,6 +1603,8 @@ class CampaignGangLine:
     starting_rolls: list[StartingRoll] = field(default_factory=list)
     #: The gang's own page. Filled by whoever knows the URL space.
     href: str = ""
+    #: Where the reader adds or removes this gang's credits, or empty.
+    credits_href: str = ""
     #: Whether the reader owns this gang — what decides which of the
     #: table's controls are theirs.
     yours: bool = False

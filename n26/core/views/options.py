@@ -9,6 +9,7 @@ from django.utils.text import slugify
 
 from n26.core.views.permissions import (
     _own_miniature_or_404,
+    credits_href,
     may_mark_status,
     status_href,
     trade_points_href,
@@ -157,6 +158,7 @@ def fighter_options(request, pk):
             "role": (profile.category.name if profile and profile.category else ""),
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
+            "credits_href": credits_href(gang, request.user),
             "card": card,
             # The badge leads to the status question, and the act lands on
             # the model's own page — a named place the sheet knows.
