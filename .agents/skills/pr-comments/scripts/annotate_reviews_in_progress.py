@@ -5,7 +5,11 @@ GitHub drops Copilot from ``reviewRequests`` while a lite review is running.
 ``gh pr view --json reviewRequests,reviews`` is then empty even though the
 timeline shows a ``ReviewRequestedEvent`` for ``copilot-pull-request-reviewer``
 and the sidebar says "Reviewing at lite effort". The in-progress signal is
-that event with no later review from the same login. See #2641.
+that event with no later review from the same login.
+
+A team request is fulfilled when a member reviews, which leaves no removal
+event and no review by the team, so teams count only while they are still in
+``reviewRequests``.
 """
 
 from __future__ import annotations
@@ -27,7 +31,10 @@ def reviews_in_progress(pr: dict[str, Any]) -> list[dict[str, Any]]:
     for event in pr.get("timelineItems", {}).get("nodes") or []:
         if not event:
             continue
-        login = reviewer_login(event.get("requestedReviewer"))
+        reviewer = event.get("requestedReviewer") or {}
+        if reviewer.get("__typename") == "Team":
+            continue
+        login = reviewer_login(reviewer)
         if not login:
             continue
         created = event.get("createdAt") or ""
@@ -88,11 +95,27 @@ def reviews_in_progress(pr: dict[str, Any]) -> list[dict[str, Any]]:
     return in_progress
 
 
+def _truncated(connection: dict[str, Any] | None, count_field: str) -> bool:
+    if not connection:
+        return False
+    count = connection.get(count_field)
+    return count is not None and count > len(connection.get("nodes") or [])
+
+
+def reviews_in_progress_truncated(pr: dict[str, Any]) -> bool:
+    return (
+        _truncated(pr.get("reviews"), "totalCount")
+        or _truncated(pr.get("reviewRequests"), "totalCount")
+        or _truncated(pr.get("timelineItems"), "filteredCount")
+    )
+
+
 def annotate(pr: Any) -> Any:
     if not isinstance(pr, dict):
         return pr
     annotated = dict(pr)
     annotated["reviewsInProgress"] = reviews_in_progress(pr)
+    annotated["reviewsInProgressTruncated"] = reviews_in_progress_truncated(pr)
     return annotated
 
 

@@ -1,7 +1,7 @@
 """Copilot lite reviews are invisible on reviewRequests while they run.
 
-On #2641, `reviewRequests` and `reviews` were empty while the GitHub timeline
-showed Copilot reviewing at lite effort. The in-progress signal is a
+`reviewRequests` and `reviews` can both be empty while the GitHub timeline
+shows Copilot reviewing at lite effort. The in-progress signal is a
 ReviewRequestedEvent for copilot-pull-request-reviewer with no later review
 from that bot. These tests pin that derived field so agents do not treat an
 empty GraphQL review list as "no active review".
@@ -151,4 +151,35 @@ def test_skill_tells_agents_empty_reviews_are_not_no_copilot_review():
     text = SKILL.read_text()
     assert "reviewsInProgress" in text
     assert "copilot-pull-request-reviewer" in text
-    assert "#2641" in text
+    assert "reviewsInProgressTruncated" in text
+
+
+def test_fulfilled_team_request_is_not_in_progress():
+    annotate = _annotate()
+    team = {"__typename": "Team", "name": "core", "combinedSlug": "org/core"}
+    pr = _pr(
+        events=(
+            {
+                "__typename": "ReviewRequestedEvent",
+                "createdAt": "2026-09-23T21:37:29Z",
+                "requestedReviewer": team,
+            },
+        ),
+    )
+    assert annotate.reviews_in_progress(pr) == []
+    pr["reviewRequests"]["nodes"].append({"requestedReviewer": team})
+    assert [r["login"] for r in annotate.reviews_in_progress(pr)] == ["org/core"]
+
+
+def test_truncated_reviews_or_events_are_flagged():
+    annotate = _annotate()
+    pr = _pr(events=(_bot_request("2026-09-23T21:37:29Z"),))
+    assert annotate.annotate(pr)["reviewsInProgressTruncated"] is False
+    pr["timelineItems"]["totalCount"] = 80
+    pr["timelineItems"]["filteredCount"] = 1
+    assert annotate.annotate(pr)["reviewsInProgressTruncated"] is False
+    pr["timelineItems"]["filteredCount"] = 51
+    assert annotate.annotate(pr)["reviewsInProgressTruncated"] is True
+    pr["timelineItems"]["filteredCount"] = 1
+    pr["reviews"]["totalCount"] = 51
+    assert annotate.annotate(pr)["reviewsInProgressTruncated"] is True

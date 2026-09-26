@@ -31,8 +31,10 @@ Adapt your presentation based on context.
    drops Copilot from `reviewRequests` while a lite review is running, so empty
    `reviewRequests` and `reviews` does not mean no review is in progress. A
    `ReviewRequestedEvent` for `copilot-pull-request-reviewer` with no later
-   review from that bot is the in-progress signal (see #2641). Do not start a
-   new Copilot review or treat the PR as unreviewed until that entry clears.
+   review from that bot is the in-progress signal. Do not start a new Copilot
+   review or treat the PR as unreviewed until that entry clears. If
+   `reviewsInProgressTruncated` is true, some reviews or request events were not
+   fetched, so say `reviewsInProgress` may be wrong.
 3. **Inline review threads** — Group by file path. For each thread show:
    - File path and line number(s) as `path:line`
    - Status: Resolved, Unresolved, or Outdated
@@ -47,13 +49,13 @@ Adapt your presentation based on context.
 
 ### Truncation
 
-The query fetches up to 100 review threads, 50 reviews, 20 reviewRequests,
-50 review-request timeline items, 100 comments, and 100 files.
+The query fetches up to 100 review threads, the newest 50 reviews, 20 reviewRequests,
+the newest 50 review-request timeline items, 100 comments, and 100 files.
 Each connection includes `totalCount`. If `totalCount` exceeds the number of returned
-`nodes`, warn the user that some data was not fetched. GitHub's
-`timelineItems.totalCount` counts the whole timeline, not just review-request
-events, so do not treat that mismatch as truncation. `reviewsInProgress` is
-derived from those fields after the query returns.
+`nodes`, warn the user that some data was not fetched. For `timelineItems`, compare
+`filteredCount` instead: `totalCount` counts the whole timeline, not just
+review-request events. `reviewsInProgress` is derived from those fields after the
+query returns.
 
 ### Contextual adaptation
 

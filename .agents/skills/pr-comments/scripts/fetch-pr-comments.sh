@@ -84,13 +84,14 @@ else
 fi
 
 # --- Fetch everything in one GraphQL call ---
-# The query uses fixed limits (100 threads, 50 reviews, 100 comments, 100 files,
-# 20 reviewRequests, 50 review-request timeline items).
+# The query uses fixed limits (100 threads, the newest 50 reviews, 100 comments,
+# 100 files, 20 reviewRequests, the newest 50 review-request timeline items).
 # totalCount is included on each connection so consumers can detect truncation.
+# For timelineItems, compare filteredCount instead: totalCount ignores itemTypes.
 #
 # Copilot lite reviews are absent from reviewRequests while they run. The
 # in-progress signal is a ReviewRequestedEvent for copilot-pull-request-reviewer
-# with no later review from that bot. See #2641 and annotate_reviews_in_progress.py.
+# with no later review from that bot; annotate_reviews_in_progress.py derives it.
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 gh api graphql \
@@ -139,7 +140,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
                     }
                 }
             }
-            reviews(first: 50) {
+            reviews(last: 50) {
                 totalCount
                 nodes {
                     author { login }
@@ -163,6 +164,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
             }
             timelineItems(last: 50, itemTypes: [REVIEW_REQUESTED_EVENT, REVIEW_REQUEST_REMOVED_EVENT]) {
                 totalCount
+                filteredCount
                 nodes {
                     __typename
                     ... on ReviewRequestedEvent {
