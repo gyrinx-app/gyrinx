@@ -1635,16 +1635,15 @@ GROUPS: list[Group] = [
                     "A native select upgraded to a searchable list once it has "
                     "enough options."
                 ),
-                needs=(ALPINE,),
                 notes=(
                     "Put a real <select> in the default slot: that select is what "
-                    "posts, untouched, and the panel sets selectedIndex on it, so "
-                    "with scripting off the plain select still works. It hides the "
-                    "select only once it counts min_options or more, so short lists "
-                    "are left alone. The slot must hold a select; anything else and "
-                    "this does nothing, with no error. c-ui.combobox cannot serve "
-                    "here, because its name is an Alpine binding and its options "
-                    "are a <template>, so unscripted it posts nothing."
+                    "posts, so with scripting off the plain select still works. "
+                    "React replaces it only once it counts min_options or more, "
+                    "so short lists are left alone. The slot must hold a select; "
+                    "anything else and this does nothing, with no error. "
+                    "c-ui.combobox cannot serve here, because its name is an Alpine "
+                    "binding and its options are a <template>, so unscripted it "
+                    "posts nothing."
                 ),
             ),
             Component(
