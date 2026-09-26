@@ -512,6 +512,33 @@ class TestFoundationSetup:
 class TestHiddenProgressionMigration:
     """Existing Foundation content keeps its gates and grants after conversion."""
 
+    def test_conversion_uses_the_configured_default_pack(self, default_pack):
+        from importlib import import_module
+
+        from django.apps import apps
+        from django.db import connection
+        from django.test import override_settings
+
+        from n26.library.models.pack import ContentPack
+
+        with override_settings(DEFAULT_CONTENT_PACK_SLUG="alternate"):
+            pack = ContentPack.objects.create(name="Alternate", slug="alternate")
+            rule = a.create_rule("Promotion", pack=pack, staged=True)
+            migration = import_module(
+                "n26.library.migrations.0118_hidden_promotion_gate"
+            )
+            schema_editor = SimpleNamespace(connection=connection)
+
+            migration.move_internal_rules(apps, schema_editor)
+            assert Hidden.objects.get(pack=pack, name="Promotion").staged
+            rule.refresh_from_db()
+            assert rule.archived
+
+            migration.restore_internal_rules(apps, schema_editor)
+            assert not Hidden.objects.filter(pack=pack, name="Promotion").exists()
+            rule.refresh_from_db()
+            assert not rule.archived
+
     def test_rule_carriers_become_hidden_without_losing_their_links(self, default_pack):
         from importlib import import_module
 
