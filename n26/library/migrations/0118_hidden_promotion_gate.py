@@ -81,6 +81,62 @@ def move_internal_rules(apps, schema_editor):
             rule.save(update_fields=["archived", "archived_at"])
 
 
+def restore_internal_rules(apps, schema_editor):
+    """Restore the old carriers when rolling back the promotion gate."""
+    using = schema_editor.connection.alias
+    Rule = apps.get_model("library", "Rule")
+    Hidden = apps.get_model("library", "Hidden")
+    AddsAssignable = apps.get_model("library", "AddsAssignable")
+    RemovesAssignable = apps.get_model("library", "RemovesAssignable")
+    DefaultAssignment = apps.get_model("library", "DefaultAssignment")
+    AdvancementPromotion = apps.get_model("library", "AdvancementPromotion")
+    Assignment = apps.get_model("n26", "Assignment")
+
+    for name in INTERNAL_RULE_NAMES:
+        rule = (
+            Rule.objects.using(using)
+            .filter(pack__slug="n26", name__iexact=name, qualifier="", annotation="")
+            .first()
+        )
+        hidden = (
+            Hidden.objects.using(using)
+            .filter(pack__slug="n26", name__iexact=name, qualifier="", annotation="")
+            .first()
+        )
+        if hidden is None:
+            continue
+        if rule is None:
+            raise RuntimeError(
+                f"Cannot restore {name}: no original special rule remains."
+            )
+        if Assignment.objects.using(using).filter(hidden_id=hidden.pk).exists():
+            raise RuntimeError(
+                f"Cannot restore {name}: a fighter or gang holds the hidden assignable."
+            )
+        if hidden.built_ins_id:
+            raise RuntimeError(
+                f"Cannot restore {name}: the hidden assignable has built-ins."
+            )
+
+        AddsAssignable.objects.using(using).filter(hidden_id=hidden.pk).update(
+            hidden=None, rule=rule
+        )
+        RemovesAssignable.objects.using(using).filter(hidden_id=hidden.pk).update(
+            hidden=None, rule=rule
+        )
+        DefaultAssignment.objects.using(using).filter(hidden_id=hidden.pk).update(
+            hidden=None, rule=rule
+        )
+        AdvancementPromotion.objects.using(using).filter(
+            requires_hidden_id=hidden.pk
+        ).update(requires_hidden=None, requires_rule=rule)
+        rule.modifiers.add(*hidden.modifiers.all())
+        rule.archived = hidden.archived
+        rule.archived_at = hidden.archived_at
+        rule.save(update_fields=["archived", "archived_at"])
+        hidden.delete()
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("library", "0117_rank_titles"),
@@ -99,7 +155,7 @@ class Migration(migrations.Migration):
                 to="library.hidden",
             ),
         ),
-        migrations.RunPython(move_internal_rules),
+        migrations.RunPython(move_internal_rules, restore_internal_rules),
         migrations.AddConstraint(
             model_name="advancementpromotion",
             constraint=models.CheckConstraint(

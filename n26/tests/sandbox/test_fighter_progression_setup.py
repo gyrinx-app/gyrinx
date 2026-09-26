@@ -556,6 +556,25 @@ class TestHiddenProgressionMigration:
             == 2
         )
 
+        migration.restore_internal_rules(apps, SimpleNamespace(connection=connection))
+        modifier.refresh_from_db()
+        assert modifier.adds_assignable.rule == rule
+        assert modifier.adds_assignable.hidden_id is None
+        assert not Hidden.objects.filter(
+            name__in=["Fighter progression", "Promotion"]
+        ).exists()
+        assert (
+            list(
+                AdvancementPromotion.objects.values_list(
+                    "requires_rule_id", "requires_hidden_id"
+                )
+            )
+            == [(rule.pk, None)] * 2
+        )
+        assert not Rule.objects.filter(
+            name__in=["Fighter progression", "Promotion"], archived=True
+        ).exists()
+
 
 class TestPromotionAuthoring:
     def test_an_author_can_add_and_edit_a_promotion(self, client, progression):
