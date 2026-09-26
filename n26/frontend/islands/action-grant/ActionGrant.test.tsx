@@ -55,4 +55,22 @@ describe("action grant selector", () => {
         );
         expect(screen.getByText("No fighter entries match that.")).toBeTruthy();
     });
+
+    it("does not submit the grant form when Enter is pressed in search", () => {
+        render(
+            <form>
+                <ActionGrant rows={rows} />
+            </form>,
+        );
+        const search = screen.getByRole("searchbox", {
+            name: "Find fighter entries",
+        });
+        const enter = new KeyboardEvent("keydown", {
+            key: "Enter",
+            bubbles: true,
+            cancelable: true,
+        });
+        search.dispatchEvent(enter);
+        expect(enter.defaultPrevented).toBe(true);
+    });
 });

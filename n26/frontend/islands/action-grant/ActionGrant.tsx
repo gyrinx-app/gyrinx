@@ -32,6 +32,9 @@ export function ActionGrant({ rows }: ActionGrantProps) {
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter") event.preventDefault();
+                }}
                 placeholder="Search by entry or gang type"
                 className="mt-2"
             />

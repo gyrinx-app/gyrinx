@@ -10,6 +10,8 @@ from n26.library.forms import cross_pack_refusal
 from n26.library.models import (
     Action,
     Counter,
+    DefaultAssignment,
+    DefaultAssignmentSet,
     Outcome,
     Profile,
     ProfileType,
@@ -193,6 +195,11 @@ def create_from_draft(raw):
 @transaction.atomic
 def grant_to_profiles(action, profile_ids):
     """Grant a live action to selected fighter entries, skipping existing grants."""
+    action = (
+        Action.objects.select_related("pack")
+        .select_for_update(of=("self", "pack"))
+        .get(pk=action.pk)
+    )
     if action.staged:
         raise ValidationError(
             "Put the action live before granting it to fighter entries."
@@ -207,7 +214,6 @@ def grant_to_profiles(action, profile_ids):
         .unarchived()
         .filter(pk__in=ids)
         .select_related("pack", "profile_type", "built_ins")
-        .prefetch_related("built_ins__members")
         .order_by("pk")
         .select_for_update(of=("self",))
     )
@@ -222,6 +228,11 @@ def grant_to_profiles(action, profile_ids):
     selected = {profile.pk for profile in profiles}
     shared_sets = {profile.built_ins_id for profile in profiles if profile.built_ins_id}
     if shared_sets:
+        list(
+            DefaultAssignmentSet.objects.filter(pk__in=shared_sets)
+            .order_by("pk")
+            .select_for_update()
+        )
         for model in carrying_models():
             if not hasattr(model, "built_ins"):
                 continue
@@ -233,14 +244,15 @@ def grant_to_profiles(action, profile_ids):
                     "A selected fighter entry shares its built-ins with other content. "
                     "Select every entry sharing that set, or give it separate built-ins first."
                 )
+    already_granted_sets = set(
+        DefaultAssignment.objects.filter(
+            default_set_id__in=shared_sets, action=action, archived=False
+        ).values_list("default_set_id", flat=True)
+    )
     missing = [
         profile
         for profile in profiles
-        if not profile.built_ins
-        or not any(
-            not member.archived and member.action_id == action.pk
-            for member in profile.built_ins.members.all()
-        )
+        if profile.built_ins_id not in already_granted_sets
     ]
     written_sets = set()
     for profile in missing:
@@ -258,7 +270,7 @@ def set_use_limit(action, value):
     """Narrow who may use a granted action; this never grants the action."""
     action = (
         Action.objects.select_related("pack")
-        .select_for_update(of=("self",))
+        .select_for_update(of=("self", "pack"))
         .get(pk=action.pk)
     )
     if action.archived or action.pack.archived:

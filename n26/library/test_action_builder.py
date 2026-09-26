@@ -269,6 +269,20 @@ class TestGrantingAnAction:
             grant_to_profiles(action, [str(profile.pk)])
         assert profile.built_ins_id is None
 
+    def test_grant_rechecks_the_action_after_it_is_staged(
+        self, default_pack, make_profile
+    ):
+        action = Action.objects.create(name="Trial", timing="post_cycle")
+        stale = Action.objects.get(pk=action.pk)
+        profile = make_profile("Hunter")
+        action.staged = True
+        action.save(update_fields=["staged"])
+
+        with pytest.raises(ValidationError, match="Put the action live"):
+            grant_to_profiles(stale, [str(profile.pk)])
+        profile.refresh_from_db()
+        assert profile.built_ins_id is None
+
     def test_granting_twice_does_not_duplicate_a_built_in(
         self, default_pack, make_profile
     ):
@@ -325,7 +339,13 @@ class TestGrantingAnAction:
             grant_to_profiles(action, [str(first.pk)])
         assert not shared.members.filter(action=action).exists()
 
-        assert grant_to_profiles(action, [str(first.pk), str(second.pk)]) == 2
+        with CaptureQueriesContext(connection) as queries:
+            assert grant_to_profiles(action, [str(first.pk), str(second.pk)]) == 2
+        assert any(
+            'FROM "library_defaultassignmentset"' in query["sql"]
+            and "FOR UPDATE" in query["sql"]
+            for query in queries
+        )
         assert shared.members.filter(action=action).count() == 1
 
     def test_an_owned_action_cannot_be_granted_to_a_system_fighter_entry(
@@ -359,6 +379,15 @@ class TestUseLimits:
         ):
             set_use_limit(action, "any")
         assert list(action.usable_by_subtypes.all()) == [subtype]
+
+    def test_limit_change_rechecks_a_stale_action(self, default_pack):
+        action = Action.objects.create(name="Trial", timing="post_cycle")
+        stale = Action.objects.get(pk=action.pk)
+        action.archived = True
+        action.save(update_fields=["archived"])
+
+        with pytest.raises(ValidationError, match="cannot change this action"):
+            set_use_limit(stale, "any")
 
     def test_an_action_in_an_archived_pack_keeps_its_limit(self, default_pack):
         action = Action.objects.create(name="Trial", timing="post_cycle")
