@@ -100,24 +100,34 @@ def _description(outcome):
 
 
 def _steps(record=None, *, action=None, stage="start", correction=False):
+    """The flow's full list of steps, in a fixed order for its kind of outcome.
+
+    A step this run will not take is marked skipped rather than dropped, so
+    the numbers do not shift part-way through. A stage the list does not
+    name, such as a cancel or unavailable page, marks no step current.
+    """
     configured = record.outcome.operation if record and record.outcome_id else None
     if record is None and action:
         outcomes = _outcomes(action)
         if len(outcomes) == 1:
             configured = outcomes[0].operation
+    skipped = set()
     if isinstance(configured, ResolveAdvancement):
         from n26.core.promotions import replaces_roll
 
         promotion = record is not None and replaces_roll(record, configured)
-        stages = [] if correction else [("start", "Choice")]
-        if not correction and not promotion:
-            stages.append(("roll", "Roll"))
-        stages += [("advancement", "Promotion" if promotion else "Advancement")]
+        stages = [] if correction else [("start", "Choice"), ("roll", "Roll")]
+        stages += [
+            ("advancement", "Promotion" if promotion else "Advancement"),
+            ("skill", "Skill"),
+            ("review", "Review"),
+            ("done", "Completed"),
+        ]
+        if promotion:
+            skipped.add("roll")
         target = record.review.get("target", {}) if record else {}
         skill = getattr(record, "skill_selection", None)
-        if stage in {"start", "roll", "advancement"} and not promotion:
-            stages.append(("skill", "Skill"))
-        elif (
+        takes_a_skill = (
             stage == "skill"
             or (stage == "review" and isinstance(target, dict) and target.get("skill"))
             or (
@@ -126,29 +136,31 @@ def _steps(record=None, *, action=None, stage="start", correction=False):
                 and skill.skill_assignment_id
                 and not skill.skill_assignment.archived
             )
-        ):
-            stages.append(("skill", "Skill"))
-        stages += [("review", "Review"), ("done", "Completed")]
-        current = next(
-            (index for index, (key, _) in enumerate(stages) if key == stage), 0
         )
-        return [
-            FlowStep(label, current=index == current, complete=index < current)
-            for index, (_, label) in enumerate(stages)
-        ]
-    middle = (
-        [("choose", "Item and tier")]
-        if isinstance(configured, AugmentCarriedItem)
-        else ([("choose", "Selection")] if configured is None else [])
-    )
-    stages = (
-        [("correct", "Choose tier")] if correction else [("start", "Choice"), *middle]
-    )
-    stages += [("review", "Review"), ("done", "Completed")]
-    current = next((index for index, (key, _) in enumerate(stages) if key == stage), 0)
+        if stage in {"review", "done"} and not takes_a_skill:
+            skipped.add("skill")
+    else:
+        middle = (
+            [("choose", "Item and tier")]
+            if isinstance(configured, AugmentCarriedItem)
+            else ([("choose", "Selection")] if configured is None else [])
+        )
+        stages = (
+            [("correct", "Choose tier")]
+            if correction
+            else [("start", "Choice"), *middle]
+        )
+        stages += [("review", "Review"), ("done", "Completed")]
+    keys = [key for key, _ in stages]
+    current = keys.index(stage) if stage in keys else None
     return [
-        FlowStep(label, current=index == current, complete=index < current)
-        for index, (_, label) in enumerate(stages)
+        FlowStep(
+            label,
+            current=index == current,
+            complete=current is not None and index < current and key not in skipped,
+            skipped=key in skipped,
+        )
+        for index, (key, label) in enumerate(stages)
     ]
 
 

@@ -841,16 +841,26 @@ def roster_summary():
 def context():
     return {
         "augmentation_flow_steps": (
-            FlowStep("Choose improvement", complete=True),
-            FlowStep("Choose item", complete=True),
-            FlowStep("Review and pay", current=True),
-            FlowStep("Complete"),
+            FlowStep("Choice", complete=True),
+            FlowStep("Item and tier", complete=True),
+            FlowStep("Review", current=True),
+            FlowStep("Completed"),
         ),
         "advancement_flow_steps": (
+            FlowStep("Choice", complete=True),
             FlowStep("Roll", complete=True),
-            FlowStep("Choose advancement", current=True),
+            FlowStep("Advancement", current=True),
+            FlowStep("Skill"),
             FlowStep("Review"),
-            FlowStep("Complete"),
+            FlowStep("Completed"),
+        ),
+        "skipped_flow_steps": (
+            FlowStep("Choice", complete=True),
+            FlowStep("Roll", skipped=True),
+            FlowStep("Promotion", complete=True),
+            FlowStep("Skill", skipped=True),
+            FlowStep("Review", current=True),
+            FlowStep("Completed"),
         ),
         "counter_payment_figures": PaymentFigures("Kill Count", "8", "4", "4"),
         "credit_payment_figures": PaymentFigures("", "430¢", "100¢", "330¢"),

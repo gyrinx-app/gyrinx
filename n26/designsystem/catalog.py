@@ -1550,7 +1550,10 @@ GROUPS: list[Group] = [
                 slug="flow-progress",
                 tag="c-n26.flow-progress",
                 template="n26/flow_progress.html",
-                summary="The ordered steps above a form, horizontal on wide screens.",
+                summary=(
+                    "The ordered steps above a form: a row on wide screens for up "
+                    "to four steps, stacked for more."
+                ),
             ),
             Component(
                 slug="payment-figures",
