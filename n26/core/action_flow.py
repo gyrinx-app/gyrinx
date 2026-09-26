@@ -17,7 +17,7 @@ from n26.core.colours import palette_colour
 from n26.core.confirm import Fact
 from n26.core.flow import PaymentFigures
 from n26.core.models import ActionAllowance, ActionRecord, Assignment
-from n26.library.models import Action
+from n26.library.models import Action, ActionPriceComponent
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,8 @@ class ActionPanel:
     available_uses: int | None = None
     problem: str = ""
     start_href: str = ""
-    #: Carries the roster's action mark: an earned use or an unfinished draft.
+    #: Carries the roster's action mark: an earned use, an unfinished draft, or
+    #: an affordable counter price.
     flagged: bool = False
     drafts: list[ActionUseLink] = field(default_factory=list)
     completed: list[ActionUseLink] = field(default_factory=list)
@@ -140,9 +141,10 @@ def action_colour(gang):
 def available_action_names(gang, cards, *, counter_tracking_active=True):
     """The actions a roster flags for each model, using bounded reads.
 
-    Only the unusual ones: an earned use waiting to be spent, or a draft
-    waiting to be finished. An action anyone can buy whenever they can
-    afford it stays on the Edit page and is never flagged.
+    Only the unusual ones: an earned use waiting to be spent, a draft
+    waiting to be finished, or an action priced in a counter the model has
+    now built up enough of. An action priced only in credits is always
+    there to buy, so it stays on the Edit page and is never flagged.
     """
     fighter_ids = [card.id for card in cards if card.id]
     if not fighter_ids:
@@ -164,6 +166,7 @@ def available_action_names(gang, cards, *, counter_tracking_active=True):
             .values_list("fighter_id", "action_id")
         ):
             flagged[str(fighter_id)].add(str(action_id))
+        _flag_affordable_counter_prices(gang, cards, flagged)
     action_ids = {action_id for ids in flagged.values() for action_id in ids}
     if not action_ids:
         return {}
@@ -175,6 +178,63 @@ def available_action_names(gang, cards, *, counter_tracking_active=True):
         card.id: tuple(name for key, name in actions if key in flagged[card.id])
         for card in cards
     }
+
+
+def _counter_priced(action):
+    return any(
+        component.resource == component.Resource.COUNTER
+        for component in action.use_price.all()
+    )
+
+
+def _flag_affordable_counter_prices(gang, cards, flagged):
+    """Flag each card's counter-priced actions it can now afford."""
+    candidate_ids = {action_id for card in cards for action_id in card.action_ids}
+    if not candidate_ids:
+        return
+    priced = {
+        str(action.pk): action
+        for action in Action.objects.filter(
+            pk__in=candidate_ids,
+            use_price__resource=ActionPriceComponent.Resource.COUNTER,
+        )
+        .distinct()
+        .prefetch_related("use_price__counter")
+    }
+    if not priced:
+        return
+    by_holder = defaultdict(lambda: defaultdict(list))
+    for assignment in Assignment.objects.filter(
+        gang_root=gang, counter__isnull=False, archived=False, removes=False
+    ).select_related("counter_value", "counter"):
+        if not hasattr(assignment, "counter_value"):
+            continue
+        if assignment.miniature_root_id:
+            holder, payer = str(assignment.miniature_root_id), "fighter"
+        elif assignment.gang_id == gang.pk:
+            holder, payer = "gang", "gang"
+        else:
+            continue
+        by_holder[holder][(payer, assignment.counter_id)].append(assignment)
+    credits = (
+        gang.recompute_credits()
+        if any(
+            component.resource == component.Resource.CREDITS
+            for action in priced.values()
+            for component in action.use_price.all()
+        )
+        else None
+    )
+    for card in cards:
+        balances = {**by_holder.get("gang", {}), **by_holder.get(card.id, {})}
+        for action_id in card.action_ids:
+            if action_id not in priced or action_id in flagged[card.id]:
+                continue
+            _, problem = _action_quote(
+                priced[action_id], balances=balances, credits=credits, gang_id=gang.pk
+            )
+            if not problem:
+                flagged[card.id].add(action_id)
 
 
 def action_panels(fighter, *, card, computed, counter_tracking_active=True):
@@ -283,7 +343,15 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                     )
                 )
         panel.flagged = bool(panel.drafts) or (
-            bool(granted) and counter_tracking_active
+            counter_tracking_active
+            and (
+                bool(granted)
+                or (
+                    action.pk in effective_ids
+                    and not panel.problem
+                    and _counter_priced(action)
+                )
+            )
         )
         panels.append(panel)
     return panels
