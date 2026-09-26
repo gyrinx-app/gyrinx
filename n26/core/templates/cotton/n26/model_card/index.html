@@ -42,7 +42,7 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                     {% if owner_href and card.owned_by %}
                         <c-ui.tooltip size="sm">
                             <c-ui.button size="xs"
-                                         variant="ghost"
+                                         variant="ghost" :compact="True"
                                          href="{{ owner_href }}"
                                          aria-label="Owned by {{ card.owned_by }}">
                                 {# Height is 1lh so an icon-only button matches a labelled sibling. #}
@@ -100,9 +100,9 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                         {% elif status_href %}
                             {# djlint:off #}
                             {% if status_hx %}
-                                <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" class="!text-muted !font-normal">Active</c-ui.button>
+                                <c-ui.button size="xs" variant="ghost" :compact="True" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" class="!text-muted !font-normal">Active</c-ui.button>
                             {% else %}
-                                <c-ui.button size="xs" variant="ghost" href="{{ status_href }}" class="!text-muted !font-normal">Active</c-ui.button>
+                                <c-ui.button size="xs" variant="ghost" :compact="True" href="{{ status_href }}" class="!text-muted !font-normal">Active</c-ui.button>
                             {% endif %}
                             {# djlint:on #}
                         {% endif %}
@@ -129,12 +129,12 @@ status_hx needs the host in n26/includes/status_dialogs.html.
 
                 {% if actions or card.image_url or card.model_cards_href %}
 
-                    <div class="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-end gap-2">
+                    <div class="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-end">
                         {% if card.image_url %}
                             <c-ui.dropdown align="end">
                                 <c-slot name="trigger">
                                     <c-ui.button size="xs"
-                                                 variant="ghost"
+                                                 variant="ghost" :compact="True"
                                                  aria-label="Show a picture of {{ card.name }}"
                                                  title="Picture">
                                         <span class="n26-icon-only">
@@ -152,7 +152,7 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                         {% if card.model_cards_href %}
                             <c-ui.tooltip size="sm">
                                 <c-ui.button size="xs"
-                                             variant="ghost"
+                                             variant="ghost" :compact="True"
                                              href="{{ card.model_cards_href }}"
                                              aria-label="Model cards">
                                     <span class="n26-icon-only">
@@ -165,7 +165,7 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                         {% if mode == 'gang' and card.action_names %}
                             <c-ui.tooltip size="sm">
                                 <c-ui.button size="xs"
-                                             variant="ghost"
+                                             variant="ghost" :compact="True"
                                              href="{% url 'n26-edit-fighter' card.id %}#actions"
                                              aria-label="Actions waiting: {{ card.action_names|join:', ' }}">
                                     <span class="n26-icon-only"
