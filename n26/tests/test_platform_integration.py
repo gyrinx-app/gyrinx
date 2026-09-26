@@ -172,7 +172,7 @@ class TestTheChangelogPanel:
         failed to load."""
         changelog_entry("Not for this edition", "N23")
         body = client.get("/n26/").content.decode()
-        assert "Updates" in body
+        assert "Latest updates" in body
         assert "Nothing new yet." in body
 
     def test_the_body_is_sanitised(self, tester, client, default_pack):
