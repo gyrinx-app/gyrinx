@@ -2003,6 +2003,10 @@ def _selected(rows, pks):
 @staff_member_required
 def create(request, kind):
     """The form that makes one more of a leaf kind, on its own page."""
+    if kind == "action":
+        from n26.library.action_builder_views import new_action
+
+        return new_action(request)
     if kind in RETIRED_KINDS or kind in NESTED_KINDS:
         raise Http404(f"No authoring page for {kind!r}")
     spec = _spec_for(kind)

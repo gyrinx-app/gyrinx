@@ -1,0 +1,25 @@
+{% extends "authoring/base.html" %}
+{% load react %}
+{% block head_title %}New action{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="New action"
+                       lead="An action takes a fighter through a sequence of steps. A fighter gets access when their fighter entry or a modifier grants it.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' 'action' %}">Actions</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    New
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    <p class="mt-4 text-sm text-muted">
+        Building an advancement action? <c-n26.link href="{% url 'authoring-recipes' %}#create-an-advancement-action">Set up the rank table and outcome first</c-n26.link>.
+    </p>
+    {% if error %}<p role="alert" class="mt-6 text-red-700 dark:text-red-300">{{ error }}</p>{% endif %}
+    <form method="post" class="mt-6">
+        {% csrf_token %}
+        {% react_island "action-builder" builder %}
+    </form>
+{% endblock content %}

@@ -13,6 +13,23 @@
             <c-n26.link href="{% url 'authoring-docs' %}">Documentation</c-n26.link>.
         </p>
     </c-n26.prose>
+    <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <c-ui.card class="p-5">
+            <h2 class="text-lg font-semibold">Actions</h2>
+            <p class="mt-2 text-sm text-muted">Build a fighter action and its outcomes, then choose which fighter entries receive it.</p>
+            <div class="mt-4 flex flex-wrap gap-2">
+                <c-ui.button href="{% url 'authoring-leaf' 'action' %}" variant="primary">Open actions</c-ui.button>
+                <c-ui.button href="{% url 'authoring-create' 'action' %}" variant="ghost">New action</c-ui.button>
+            </div>
+        </c-ui.card>
+        <c-ui.card class="p-5">
+            <h2 class="text-lg font-semibold">Foundations</h2>
+            <p class="mt-2 text-sm text-muted">Inspect the shared definitions used by fighter progression and other content.</p>
+            <div class="mt-4">
+                <c-ui.button href="{% url 'authoring-foundations' %}" variant="default">Open Foundations</c-ui.button>
+            </div>
+        </c-ui.card>
+    </div>
     {% comment %}
     What is staged is the one figure on this page that changes what an
     author does next, so it is a card of its own rather than a line in the
