@@ -26,7 +26,12 @@ def _choice(model, pk, label):
         return (
             model.objects.outside_campaign_packs()
             .unarchived()
-            .get(pk=pk, pack__owner__isnull=True)
+            .get(
+                pk=pk,
+                staged=False,
+                pack__archived=False,
+                pack__owner__isnull=True,
+            )
         )
     except model.DoesNotExist, ValueError, TypeError, ValidationError:
         raise ValidationError(f"Choose a valid {label}.") from None
@@ -251,6 +256,11 @@ def grant_to_profiles(action, profile_ids):
 @transaction.atomic
 def set_use_limit(action, value):
     """Narrow who may use a granted action; this never grants the action."""
+    action = (
+        Action.objects.select_related("pack")
+        .select_for_update(of=("self",))
+        .get(pk=action.pk)
+    )
     if action.archived or action.pack.archived:
         raise ValidationError(
             "You cannot change this action's use limit. The action or its pack is archived."

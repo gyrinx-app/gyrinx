@@ -217,6 +217,39 @@ class TestCreatingAnAction:
             )
         assert not Action.objects.exists()
 
+    def test_staged_content_cannot_enter_a_live_action(self, default_pack):
+        from n26.library import authoring
+
+        staged_tier = SlotType.objects.create(name="Unpublished tier", staged=True)
+        with pytest.raises(ValidationError, match="valid tier slot type"):
+            create_from_draft(
+                draft(
+                    outcomes=[
+                        {
+                            "name": "Upgrade rig",
+                            "operation": "augment",
+                            "slotType": str(staged_tier.pk),
+                        }
+                    ]
+                )
+            )
+
+        live_tier = SlotType.objects.create(name="Published tier")
+        staged_outcome = authoring.create_outcome(
+            "Unpublished result", authoring.augment_carried_item(live_tier)
+        )
+        staged_outcome.staged = True
+        staged_outcome.save(update_fields=["staged"])
+        with pytest.raises(ValidationError, match="valid outcome"):
+            create_from_draft(
+                draft(
+                    useMode="free",
+                    prices=[],
+                    outcomes=[{"existing": str(staged_outcome.pk)}],
+                )
+            )
+        assert not Action.objects.exists()
+
     def test_malformed_nested_drafts_are_refused_in_words(self, default_pack):
         with pytest.raises(ValidationError, match="valid price part"):
             create_from_draft(
@@ -348,6 +381,12 @@ class TestUseLimits:
             set_use_limit(action, f"type:{vehicle.pk}")
         assert not action.usable_by_profile_types.exists()
 
+    def test_limit_changes_lock_the_action(self, default_pack):
+        action = Action.objects.create(name="Trial", timing="post_cycle")
+        with CaptureQueriesContext(connection) as queries:
+            set_use_limit(action, "any")
+        assert any("FOR UPDATE" in query["sql"] for query in queries)
+
 
 class TestAuthoringPages:
     """Staff can reach the builder and the next grant step."""
@@ -370,6 +409,14 @@ class TestAuthoringPages:
         page = admin_client.get(reverse("authoring-create", args=["action"]))
         assert b"Upgrade rig" in page.content
         assert b"Advance a carried item in Rig augmentation" in page.content
+
+    def test_builder_options_hide_staged_content(self, admin_client, default_pack):
+        SlotType.objects.create(name="Unpublished tier", staged=True)
+        Counter.objects.create(name="Unpublished counter", staged=True)
+        page = admin_client.get(reverse("authoring-create", args=["action"]))
+        assert page.status_code == 200
+        assert b"Unpublished tier" not in page.content
+        assert b"Unpublished counter" not in page.content
 
     def test_creating_redirects_to_grant(self, admin_client, default_pack):
         tier = SlotType.objects.create(name="Augmentation")

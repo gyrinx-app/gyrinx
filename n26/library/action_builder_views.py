@@ -30,7 +30,7 @@ def _options(model):
         {"value": str(row.pk), "label": str(row)}
         for row in model.objects.outside_campaign_packs()
         .unarchived()
-        .filter(pack__owner__isnull=True)
+        .filter(staged=False, pack__archived=False, pack__owner__isnull=True)
     ]
 
 
@@ -87,7 +87,9 @@ def new_action(request):
                     }
                     for row in RankTable.objects.outside_campaign_packs()
                     .unarchived()
-                    .filter(pack__owner__isnull=True)
+                    .filter(
+                        staged=False, pack__archived=False, pack__owner__isnull=True
+                    )
                     .select_related("counter")
                 ],
                 "slotTypes": _options(SlotType),
@@ -100,7 +102,9 @@ def new_action(request):
                     }
                     for row in Outcome.objects.outside_campaign_packs()
                     .unarchived()
-                    .filter(pack__owner__isnull=True)
+                    .filter(
+                        staged=False, pack__archived=False, pack__owner__isnull=True
+                    )
                     .select_related(
                         "augment_carried_item__slot_type",
                         "resolve_advancement__slot",
