@@ -1379,7 +1379,7 @@ class TestFoundingAGang:
                 "name": "The Bad Girls",
                 "gang_type": str(gang_type.pk),
                 "starting_credits": "1000",
-                "colour": "#b91c1c",
+                "colour": "red",
             },
         )
         assert response.status_code == 302
@@ -1391,7 +1391,7 @@ class TestFoundingAGang:
         assert gang.gang_type == gang_type
         assert gang.starting_credits == 1000
         assert gang.credits == 1000
-        assert gang.colour == "#b91c1c"
+        assert gang.colour == "red"
         # Founding is real: the gang-hosted assignment naming its type.
         assert gang.founding is not None
         assert gang.founding.assignable == gang_type

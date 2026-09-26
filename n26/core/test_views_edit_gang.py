@@ -84,6 +84,19 @@ class TestThePage:
 
 
 class TestRenaming:
+    def test_a_colour_outside_the_palette_is_refused(self, client, tester, gang):
+        """The picker offers only the palette, so only a hand-made request
+        can send anything else. It is not saved."""
+        client.force_login(tester)
+        response = client.post(
+            edit_url(gang),
+            {"name": gang.name, "colour": "red; background-image: url(x)"},
+        )
+        assert response.status_code == 200
+        assert "colour" in response.context["form"].errors
+        gang.refresh_from_db()
+        assert gang.colour == ""
+
     def test_name_and_colour_save(self, client, tester, gang):
         client.force_login(tester)
         response = client.post(

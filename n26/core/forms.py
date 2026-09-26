@@ -8,9 +8,16 @@ gang types are the library's own.
 
 from django import forms
 
+from n26.core.colours import GANG_COLOURS
 from n26.core.widgets import RichText
 from n26.library.income import INCOME_HELP
 from n26.library.models import AssetType, CampaignType, GangType
+
+
+def validate_gang_colour(value):
+    """Refuse a colour the colour picker does not offer."""
+    if value and value not in GANG_COLOURS:
+        raise forms.ValidationError("Choose one of the colours shown.")
 
 
 class CreateGangForm(forms.Form):
@@ -66,6 +73,7 @@ class CreateGangForm(forms.Form):
         max_length=50,
         label="Colour",
         help_text="Shown next to the gang's name wherever it is listed.",
+        validators=[validate_gang_colour],
     )
 
     def __init__(self, *args, include_staged=False, **kwargs):
@@ -158,8 +166,10 @@ class EditGangForm(forms.Form):
     )
     colour = forms.CharField(
         required=False,
+        max_length=50,
         label="Colour",
         help_text="Shown next to the gang's name wherever it is listed.",
+        validators=[validate_gang_colour],
     )
 
     def clean_starting_credits(self):

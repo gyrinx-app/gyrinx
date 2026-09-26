@@ -182,6 +182,19 @@ def test_a_gangs_colour_is_a_mark_before_its_name(client, tester, make_gang):
     assert 'aria-hidden="true"' in link
 
 
+def test_a_stored_colour_outside_the_palette_is_never_drawn(client, tester, make_gang):
+    """A colour saved before the forms checked it can still hold any
+    text. It lands in an inline style, so it is drawn as nothing."""
+    make_gang(
+        "The Ashen Choir", colour="red; background-image: url(https://example.com/x)"
+    )
+
+    client.force_login(tester)
+    body = client.get(reverse("n26-gangs")).content.decode()
+    assert "example.com" not in body
+    assert "background: transparent" in row_link(body)
+
+
 def test_a_gang_with_no_colour_gets_no_mark(client, tester, make_gang):
     """Nothing drawn and no space held. Most gangs have no colour, so a
     placeholder would be an empty gutter down the length of the list —

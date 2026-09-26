@@ -129,6 +129,24 @@ class TestPickingATypeFromTheGrid:
         assert response.status_code == 200
         assert not Gang.objects.filter(name="Nowhere Gang").exists()
 
+    def test_a_colour_outside_the_palette_is_refused(self, client, tester, drawn):
+        """The picker offers only the palette, so only a hand-made request
+        can send anything else. It founds no gang."""
+        client.force_login(tester)
+        response = client.post(
+            reverse("n26-create-gang"),
+            {
+                "name": "Poisoned Paint",
+                "gang_type": str(drawn.pk),
+                "starting_credits": "",
+                "colour": "red; background-image: url(x)",
+            },
+        )
+
+        assert response.status_code == 200
+        assert "colour" in response.context["form"].errors
+        assert not Gang.objects.filter(name="Poisoned Paint").exists()
+
     def test_a_failed_submit_comes_back_with_the_pick_still_made(
         self, client, tester, drawn, undrawn
     ):
