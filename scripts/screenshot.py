@@ -11,7 +11,13 @@ Usage:
 Examples:
     .codex/run.sh python scripts/screenshot.py core:campaign --before --args <campaign_id>
     .codex/run.sh python scripts/screenshot.py core:list --after --args <list_id>
+    .codex/run.sh python scripts/screenshot.py authoring-create --args pickable --after
     .codex/run.sh python scripts/screenshot.py core:campaign --viewports desktop,mobile --args <id>
+
+    N26 is included without a Django URL namespace, so ``authoring-create``
+    reverses and ``n26:authoring-create`` does not. A leading ``n26:`` is
+    stripped and retried. Keep real namespaces such as ``core:`` and
+    ``designsystem:``.
 """
 
 import argparse
@@ -35,7 +41,7 @@ django.setup()
 
 from asgiref.sync import sync_to_async  # noqa: E402
 from django.test import Client  # noqa: E402
-from django.urls import reverse  # noqa: E402
+from django.urls import NoReverseMatch, reverse  # noqa: E402
 
 from gyrinx.debug_login import (  # noqa: E402
     ensure_debug_agent_user,
@@ -57,6 +63,39 @@ VIEWPORTS = {
     "tablet": {"width": 768, "height": 1024},
     "mobile": {"width": 375, "height": 812},
 }
+
+# N26 is mounted with include("n26.urls") and no app_name, unlike N23's
+# core: namespace. A leading n26: is therefore a spurious namespace.
+N26_URL_PREFIX = "n26:"
+
+
+def n26_fallback_url_name(url_name):
+    """Return the un-namespaced N26 name, or None if *url_name* is not one."""
+    if url_name.startswith(N26_URL_PREFIX) and url_name != N26_URL_PREFIX:
+        return url_name.removeprefix(N26_URL_PREFIX)
+    return None
+
+
+def resolve_url_path(url_name, url_args=None):
+    """Reverse *url_name*, stripping a spurious ``n26:`` namespace.
+
+    Returns ``(path, resolved_name)``. Raises ``NoReverseMatch`` if neither
+    the given name nor the N26 fallback exists.
+    """
+    args = tuple(url_args or [])
+    try:
+        return reverse(url_name, args=args), url_name
+    except NoReverseMatch as original:
+        fallback = n26_fallback_url_name(url_name)
+        if fallback is None:
+            raise
+        try:
+            return reverse(fallback, args=args), fallback
+        except NoReverseMatch as fallback_error:
+            raise NoReverseMatch(
+                f"{original} N26 has no URL namespace; "
+                f"also tried '{fallback}': {fallback_error}"
+            ) from None
 
 
 def get_server_port():
@@ -171,10 +210,16 @@ class ScreenshotCapture:
         @sync_to_async
         def get_url_path():
             try:
-                return reverse(url_name, args=url_args or [])
+                path, resolved = resolve_url_path(url_name, url_args)
             except Exception as e:
                 print(f"Error: Failed to reverse URL '{url_name}': {e}")
                 return None
+            if resolved != url_name:
+                print(
+                    "Note: N26 URL names are not namespaced; "
+                    f"using '{resolved}' instead of '{url_name}'."
+                )
+            return path
 
         url_path = await get_url_path()
         if url_path is None:
@@ -357,7 +402,12 @@ def main():
         description="Automated UI screenshot capture using Playwright"
     )
     parser.add_argument(
-        "url_name", nargs="?", help="Django URL name (e.g., 'core:campaign')"
+        "url_name",
+        nargs="?",
+        help=(
+            "Django URL name (e.g. 'core:campaign' or 'authoring-create'). "
+            "A leading n26: is ignored because N26 has no URL namespace."
+        ),
     )
     parser.add_argument("--args", nargs="*", help="Arguments for the URL", default=[])
     parser.add_argument(

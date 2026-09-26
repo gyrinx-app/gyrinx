@@ -153,6 +153,9 @@ minted local staff session:
 ```bash
 .codex/run.sh python scripts/screenshot.py core:campaign \
   --args <campaign-id> --after --output-dir screenshots/<task>
+# N26 has no URL namespace: authoring-create, not n26:authoring-create
+.codex/run.sh python scripts/screenshot.py authoring-create \
+  --args pickable --after --output-dir screenshots/<task>
 ```
 
 Keep captures under the gitignored `screenshots/` directory until the

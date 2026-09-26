@@ -5,8 +5,45 @@ import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import override_settings
+from django.urls import NoReverseMatch, reverse
 
 from scripts import screenshot
+
+
+def test_resolve_url_path_accepts_spurious_n26_namespace():
+    path, resolved = screenshot.resolve_url_path("n26:authoring-create", ["pickable"])
+    expected = reverse("authoring-create", args=["pickable"])
+
+    assert resolved == "authoring-create"
+    assert path == expected
+    assert path.endswith("/authoring/pickable/new/")
+
+
+def test_resolve_url_path_keeps_real_namespaces():
+    campaign_id = "00000000-0000-0000-0000-000000000000"
+    campaign_path, campaign_name = screenshot.resolve_url_path(
+        "core:campaign", [campaign_id]
+    )
+    gallery_path, gallery_name = screenshot.resolve_url_path("designsystem:index")
+
+    assert campaign_name == "core:campaign"
+    assert campaign_path == reverse("core:campaign", args=[campaign_id])
+    assert gallery_name == "designsystem:index"
+    assert gallery_path == reverse("designsystem:index")
+
+
+def test_resolve_url_path_unknown_n26_name_tries_bare_name():
+    with pytest.raises(
+        NoReverseMatch, match=r"no URL namespace; also tried 'not-a-real-view'"
+    ):
+        screenshot.resolve_url_path("n26:not-a-real-view")
+
+
+def test_resolve_url_path_strips_n26_from_nested_designsystem_name():
+    path, resolved = screenshot.resolve_url_path("n26:designsystem:index")
+
+    assert resolved == "designsystem:index"
+    assert path == reverse("designsystem:index")
 
 
 def test_server_url_uses_worktree_port(monkeypatch):

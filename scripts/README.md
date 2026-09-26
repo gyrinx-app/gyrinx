@@ -17,6 +17,7 @@ Automated UI screenshot utility using Playwright for capturing views without man
 # Capture before/after screenshots for UI changes
 .codex/run.sh python scripts/screenshot.py core:campaign --before --args <campaign_id>
 .codex/run.sh python scripts/screenshot.py core:campaign --after --args <campaign_id>
+.codex/run.sh python scripts/screenshot.py authoring-create --args pickable --after
 
 # Multiple viewports
 .codex/run.sh python scripts/screenshot.py core:list --viewports desktop,mobile --args <list_id>
@@ -30,7 +31,7 @@ Automated UI screenshot utility using Playwright for capturing views without man
 
 **Options:**
 
-- `url_name`: Django URL name (e.g., 'core:campaign', 'core:list')
+- `url_name`: Django URL name (e.g. `core:campaign`, `authoring-create`). N26 has no URL namespace, so use the bare name; a leading `n26:` is stripped.
 - `--args`: Arguments for the URL (e.g., IDs)
 - `--before`: Label screenshot as 'before'
 - `--after`: Label screenshot as 'after'
