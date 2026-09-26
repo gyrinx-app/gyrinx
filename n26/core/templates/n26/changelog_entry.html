@@ -10,7 +10,7 @@
             <c-n26.page-header title="{{ entry.title }}">
                 <c-slot name="breadcrumb">
                     <c-ui.breadcrumbs>
-                        <c-ui.breadcrumbs.item href="{% url 'n26-changelog' %}">Changelog</c-ui.breadcrumbs.item>
+                        <c-ui.breadcrumbs.item href="{% url 'changelog' %}{{ tag_query }}">Changelog</c-ui.breadcrumbs.item>
                         <c-ui.breadcrumbs.item :current="True">
                             {{ entry.title }}
                         </c-ui.breadcrumbs.item>
@@ -20,6 +20,10 @@
                     <time datetime="{{ entry.date|date:'Y-m-d' }}">{{ entry.date|date:"j F Y" }}</time>
                 </c-slot>
             </c-n26.page-header>
+            {% if entry.tag_badges %}
+                <div class="mt-3 flex flex-wrap gap-1.5">{% include "n26/_changelog_tags.html" %}</div>
+            {% endif %}
+            {% include "n26/_changelog_filters.html" %}
             <c-n26.rich-text :value="entry.body" class="mt-6" />
         </article>
     </div>

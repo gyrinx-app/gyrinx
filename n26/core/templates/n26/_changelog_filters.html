@@ -1,0 +1,26 @@
+<nav aria-label="Filter by tag" class="mt-6 flex flex-wrap gap-2">
+    {% if active_tag %}
+        <c-ui.badge href="{% url 'changelog' %}" color="ink" size="sm">All</c-ui.badge>
+    {% else %}
+        <c-ui.badge href="{% url 'changelog' %}"
+                    color="ink"
+                    size="sm"
+                    variant="solid"
+                    aria-current="page">All</c-ui.badge>
+    {% endif %}
+    {% for tag in filter_tags %}
+        {% if tag.current %}
+            <c-ui.badge href="{{ tag.href }}"
+                        color="{{ tag.color }}"
+                        size="sm"
+                        variant="solid"
+                        aria-current="page">
+                {{ tag.name }}
+            </c-ui.badge>
+        {% else %}
+            <c-ui.badge href="{{ tag.href }}" color="{{ tag.color }}" size="sm">
+                {{ tag.name }}
+            </c-ui.badge>
+        {% endif %}
+    {% endfor %}
+</nav>

@@ -1,13 +1,14 @@
 {% comment %}
-<c-n26.changelog.entry> — one changelog line: title, date, and a two-line body preview.
+<c-n26.changelog.entry> — one changelog line: title, date, optional tags, and a two-line body preview.
 
 The title is a link only when href is set. An empty href draws a span, not a dead link.
+Put tag badges in the tags slot. An empty slot draws nothing, so a list that has no tags stays a title and a date.
 n26-clamp-2 in app.css cuts the rich text at two lines and zeroes inner block margins.
 Do not stretch a link over the whole entry. Links in the body must stay independent destinations.
 rich-text sanitises the body here, so call sites do not each have to.
 {% endcomment %}
 
-<c-vars title="" date="" href="" body="" class="" />
+<c-vars title="" date="" href="" body="" tags="" class="" />
 
 <div class="px-1 py-3 {{ class }}">
     <div class="flex items-baseline justify-between gap-3">
@@ -16,5 +17,8 @@ rich-text sanitises the body here, so call sites do not each have to.
         </h3>
         {% if date %}<span class="shrink-0 text-sm tabular-nums text-muted">{{ date }}</span>{% endif %}
     </div>
+    {% if tags.strip %}
+        <div class="mt-1.5 flex flex-wrap gap-1.5">{{ tags }}</div>
+    {% endif %}
     <c-n26.rich-text :value="body" class="n26-clamp-2 mt-0.5 text-sm text-muted" />
 </div>

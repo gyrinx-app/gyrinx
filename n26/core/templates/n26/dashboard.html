@@ -97,11 +97,12 @@ places — the same pattern a gang's screens use for their siblings.
             </c-slot>
         {% endif %}
         <c-slot name="changelog">
-            <c-n26.changelog href="{% url 'n26-changelog' %}" empty="Nothing new yet.">
+            <c-n26.changelog href="{% url 'changelog' %}?tag={{ changelog_tag|urlencode }}"
+                             empty="Nothing new yet.">
                 {% for entry in changelog %}
                     <c-n26.changelog.entry title="{{ entry.title }}"
                                            date="{{ entry.date|date:'j M' }}"
-                                           href="{% url 'n26-changelog-entry' entry.pk %}"
+                                           href="{% url 'changelog-entry' entry.pk %}?tag={{ changelog_tag|urlencode }}"
                                            :body="entry.body" />
                 {% endfor %}
             </c-n26.changelog>

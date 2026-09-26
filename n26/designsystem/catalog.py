@@ -1998,7 +1998,7 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.changelog.entry",
                         "n26/changelog/entry.html",
-                        "An entry: a title, a two-line body preview and a date.",
+                        "An entry: a title, a two-line body preview, a date, and optional tags.",
                     ),
                 ),
                 notes=(
