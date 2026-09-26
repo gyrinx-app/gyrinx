@@ -47,11 +47,13 @@ def gang_credits(request, pk):
     form = CreditsForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         amount = form.signed_amount()
-        had = gang.credits
         try:
             with operation(gang, actor=request.user) as op:
                 op.adjust_credits(amount, form.cleaned_data["note"])
-        except NotEnoughCredits:
+        except NotEnoughCredits as short:
+            # What the gang held under the operation's lock, not the
+            # figure read before it.
+            had = -amount - short.shortfall
             form.add_error(
                 "amount", f"You cannot remove more than {gang.name} has ({had}¢)."
             )
@@ -65,7 +67,9 @@ def gang_credits(request, pk):
                 messages.success(request, f"Removed {-amount}¢ from {gang.name}.")
             return redirect(back)
 
-    direction = form["direction"].value() or CreditsForm.ADD
+    direction = form["direction"].value()
+    if direction not in {CreditsForm.ADD, CreditsForm.REMOVE}:
+        direction = CreditsForm.ADD
     return render(
         request,
         "n26/gang_credits.html",

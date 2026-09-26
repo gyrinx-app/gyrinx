@@ -55,6 +55,9 @@ def told(gang, viewer):
 
 
 class TestTheOwner:
+    """The gang's owner adds and removes credits, and the gang never
+    goes below zero."""
+
     def test_adding_credits_raises_the_balance_and_says_so(self, client, table):
         client.force_login(table.owner)
         response = client.post(
@@ -119,14 +122,26 @@ class TestTheOwner:
         client.post(url(table.gang), {"direction": "remove", "amount": "100"})
 
         assert fresh(table.gang).credits == 0
+        assert_reconciled(fresh(table.gang))
 
-    @pytest.mark.parametrize("amount", ["0", "-5", ""])
+    @pytest.mark.parametrize("amount", ["0", "-5", "", "3000000000"])
     def test_an_amount_below_one_is_a_form_error(self, client, table, amount):
         client.force_login(table.owner)
         response = client.post(url(table.gang), {"direction": "add", "amount": amount})
 
         assert response.status_code == 200
         assert "amount" in response.context["form"].errors
+        assert fresh(table.gang).credits == 100
+
+    def test_an_unknown_direction_is_an_error_and_add_stays_selected(
+        self, client, table
+    ):
+        client.force_login(table.owner)
+        response = client.post(url(table.gang), {"direction": "foo", "amount": "5"})
+
+        assert "direction" in response.context["form"].errors
+        checked = [d["value"] for d in response.context["directions"] if d["checked"]]
+        assert checked == ["add"]
         assert fresh(table.gang).credits == 100
 
     def test_the_page_shows_the_balance_and_both_choices(self, client, table):
@@ -157,6 +172,9 @@ class TestTheOwner:
 
 
 class TestUnlimitedCredits:
+    """A gang with unlimited credits has no figure to change, so it gets
+    no page and no way in."""
+
     @pytest.fixture
     def gang(self, default_pack, gang_type, owner):
         return found_gang("No Ceiling", gang_type, owner=owner)
@@ -180,6 +198,9 @@ class TestUnlimitedCredits:
 
 
 class TestTheArbitrator:
+    """The arbitrator of the campaign a gang is playing may change its
+    credits while the gang is in a campaign still being played."""
+
     def test_may_add_credits_and_returns_to_the_campaign(self, client, table, feature):
         client.force_login(table.arbitrator)
         response = client.post(url(table.gang), {"direction": "add", "amount": "10"})
@@ -191,6 +212,7 @@ class TestTheArbitrator:
         assert fresh(table.gang).credits == 110
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.CREDITS_ADJUSTED)
         assert event.actor == table.arbitrator
+        assert_reconciled(fresh(table.gang))
 
     def test_needs_the_campaigns_flag(self, client, table):
         client.force_login(table.arbitrator)
@@ -204,6 +226,20 @@ class TestTheArbitrator:
 
         assert client.get(url(table.gang)).status_code == 404
 
+    def test_loses_the_page_once_the_campaign_is_archived(self, client, table, feature):
+        table.campaign.archived = True
+        table.campaign.save(update_fields=["archived"])
+        client.force_login(table.arbitrator)
+
+        assert client.get(url(table.gang)).status_code == 404
+        assert (
+            client.post(
+                url(table.gang), {"direction": "add", "amount": "5"}
+            ).status_code
+            == 404
+        )
+        assert fresh(table.gang).credits == 100
+
     def test_the_campaign_table_links_each_gangs_credits(self, client, table, feature):
         client.force_login(table.arbitrator)
         response = client.get(reverse("n26-campaign", args=[table.campaign.pk]))
@@ -215,6 +251,8 @@ class TestTheArbitrator:
 
 
 class TestEveryoneElse:
+    """Nobody else reaches the page or sees a way in."""
+
     def test_a_stranger_gets_404(self, client, table, feature):
         client.force_login(User.objects.create_user("stranger"))
 

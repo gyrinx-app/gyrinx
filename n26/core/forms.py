@@ -212,7 +212,9 @@ class CreditsForm(forms.Form):
         initial=ADD,
         label="Add or remove",
     )
-    amount = forms.IntegerField(min_value=1, label="Credits")
+    #: Far above any gang's credits, and far below what the ledger's
+    #: integer column holds.
+    amount = forms.IntegerField(min_value=1, max_value=1_000_000, label="Credits")
     note = forms.CharField(
         max_length=255,
         required=False,

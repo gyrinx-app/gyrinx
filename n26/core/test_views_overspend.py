@@ -297,14 +297,15 @@ class TestTheQuestionOnAScreenThatUpdatesInPlace:
     def test_the_money_it_delivers_keeps_its_way_to_the_action(
         self, client, gang, fighter, post, buying
     ):
-        """The update redraws the wealth strip, so the Trade Points figure
-        it delivers must still lead to the Visit Trading Post action —
-        otherwise a purchase silently costs the reader the link."""
+        """The update redraws the wealth strip, so the Trade Points and
+        Credits figures it delivers must still lead to their pages —
+        otherwise a purchase silently costs the reader the links."""
         body = client.post(
             equip_url(fighter, post), {**buying, "confirmed": "1"}, **self.HX
         ).content.decode()
 
         assert reverse("n26-gang-trade-points", args=[gang.pk]) in body
+        assert reverse("n26-gang-credits", args=[gang.pk]) in body
 
 
 class TestALineOnAPostWithNoTradePointPrice:
