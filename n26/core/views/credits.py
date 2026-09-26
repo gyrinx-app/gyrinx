@@ -49,6 +49,10 @@ def gang_credits(request, pk):
         amount = form.signed_amount()
         try:
             with operation(gang, actor=request.user) as op:
+                # Asked again under the gang's lock: the gang may have been
+                # archived or left the campaign since the check above.
+                if not _still_allowed(gang, request.user, yours):
+                    raise Refusal("You can no longer change this gang's credits.")
                 op.adjust_credits(amount, form.cleaned_data["note"])
         except NotEnoughCredits as short:
             # What the gang held under the operation's lock, not the
@@ -57,8 +61,10 @@ def gang_credits(request, pk):
             form.add_error(
                 "amount", f"You cannot remove more than {gang.name} has ({had}¢)."
             )
+            gang.refresh_from_db(fields=["credits"])
         except Refusal as refusal:
-            form.add_error("amount", str(refusal))
+            form.add_error(None, str(refusal))
+            gang.refresh_from_db(fields=["credits"])
         else:
             record(request, N26Noun.GANG, EventVerb.UPDATE, gang, credits=amount)
             if amount > 0:
@@ -94,3 +100,12 @@ def gang_credits(request, pk):
             ),
         },
     )
+
+
+def _still_allowed(gang, user, yours):
+    """Whether ``user`` may still change the gang's credits, read after the
+    operation has taken the gang's lock."""
+    gang.refresh_from_db(fields=["archived"])
+    if gang.archived:
+        return False
+    return yours or credits_campaign(gang, user) is not None

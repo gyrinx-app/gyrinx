@@ -240,6 +240,32 @@ class TestTheArbitrator:
         )
         assert fresh(table.gang).credits == 100
 
+    def test_is_refused_if_the_gang_leaves_while_the_change_waits(
+        self, client, table, feature, monkeypatch
+    ):
+        """The page opened while the gang was in the campaign; by the time
+        the change holds the gang's lock, it has left."""
+        from n26.core.views import credits
+
+        def leave_first(gang, user, yours):
+            with operation(table.gang, actor=table.owner) as op:
+                op.leave_campaign()
+            return real(gang, user, yours)
+
+        real = credits._still_allowed
+        monkeypatch.setattr(credits, "_still_allowed", leave_first)
+        client.force_login(table.arbitrator)
+        response = client.post(url(table.gang), {"direction": "add", "amount": "5"})
+
+        assert response.status_code == 200
+        assert response.context["form"].non_field_errors() == [
+            "You can no longer change this gang's credits."
+        ]
+        assert not LedgerEvent.objects.filter(
+            kind=LedgerEvent.Kind.CREDITS_ADJUSTED
+        ).exists()
+        assert fresh(table.gang).credits == 100
+
     def test_the_campaign_table_links_each_gangs_credits(self, client, table, feature):
         client.force_login(table.arbitrator)
         response = client.get(reverse("n26-campaign", args=[table.campaign.pk]))
