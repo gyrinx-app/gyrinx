@@ -673,6 +673,11 @@
         scroll-margin-top: 5rem;
     }
 
+    /* The roster's action mark scrolls Edit to these on narrow screens. */
+    #n26-action-panels {
+        scroll-margin-top: 5rem;
+    }
+
     .rich-text blockquote {
         border-left: 2px solid var(--color-accent);
         padding-left: 1em;

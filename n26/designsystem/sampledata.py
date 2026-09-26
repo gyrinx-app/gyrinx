@@ -860,6 +860,7 @@ def context():
                 name="Suit Evolution",
                 timing="post-battle action",
                 prices=(PaymentFigures("Kill Count", "8", "4", "4"),),
+                flagged=True,
                 drafts=[
                     ActionUseLink(
                         "suit-evolution-draft",
@@ -884,6 +885,7 @@ def context():
                 allowance_id="advancement-allowance",
                 available_uses=1,
                 start_href="#start-advancement",
+                flagged=True,
             ),
         ),
         "houses": HOUSES,
@@ -2361,6 +2363,16 @@ def model_card_founding():
     model has left of the Trade Points its books give it to spend as it
     joins, ahead of its rating."""
     return model_card_as("founding", founding_budget=True, trade_points_left=3)
+
+
+def model_card_actions_waiting():
+    """The sample card on its owner's roster with actions waiting: an
+    earned use and an unfinished draft, marked in the gang's colour."""
+    return model_card_as(
+        "actions-waiting",
+        action_names=("Advancement", "Suit Evolution"),
+        action_colour="violet",
+    )
 
 
 def model_card_written():

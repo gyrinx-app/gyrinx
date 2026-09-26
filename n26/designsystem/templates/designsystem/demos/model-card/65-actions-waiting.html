@@ -1,0 +1,15 @@
+{# title: Actions waiting #}
+{# note: On the owner's roster, a model with an earned use to spend or an unfinished flow to resume gets one mark beside Equip and Edit, in the gang's colour or blue without one. Its tooltip names the actions, and it opens Edit, where the same mark sits beside each of them. Actions the gang can simply afford are not marked. #}
+{# layout: full #}
+<div class="max-w-2xl">
+    <c-n26.model-card :card="model_card_actions_waiting">
+        <c-slot name="actions">
+            <c-ui.button size="xs" variant="ghost" :compact="True" href="#">
+                Equip
+            </c-ui.button>
+            <c-ui.button size="xs" variant="ghost" :compact="True" href="#">
+                Edit
+            </c-ui.button>
+        </c-slot>
+    </c-n26.model-card>
+</div>

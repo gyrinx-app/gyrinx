@@ -346,14 +346,16 @@ def gang_sheet(request, pk):
         hide_only=(sheet, *sheet.models, *sheet.dead),
     )
     if yours:
-        from n26.core.action_flow import available_action_names
+        from n26.core.action_flow import action_colour, available_action_names
         from n26.core.counter_tracking import is_active as counter_tracking_is_active
 
         action_names = available_action_names(
             gang, sheet.models, counter_tracking_active=counter_tracking_is_active()
         )
+        colour = action_colour(gang)
         for model in sheet.models:
             model.action_names = action_names.get(model.id, ())
+            model.action_colour = colour
         link_slots(
             gang,
             sheet,

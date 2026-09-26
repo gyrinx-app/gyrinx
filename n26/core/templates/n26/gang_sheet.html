@@ -277,11 +277,15 @@ that said it twice would be spending the width the name needs.
                 <c-n26.model-card :card="member" mode="{{ card_mode }}" notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}" lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}" status_href="{% if may_mark %}{% if member.status == 'ransomed' %}?ransom={{ member.id }}{% else %}?status={{ member.id }}{% endif %}{% endif %}" :status_hx="True" owner_href="{{ member.owner_href }}">
                     {% if yours %}
                         <c-slot name="actions">
-                            <c-ui.button size="xs" variant="ghost" href="{% url 'n26-equip' member.id %}">
+                            <c-ui.button size="xs"
+                                         variant="ghost"
+                                         :compact="True"
+                                         href="{% url 'n26-equip' member.id %}">
                                 Equip
                             </c-ui.button>
                             <c-ui.button size="xs"
                                          variant="ghost"
+                                         :compact="True"
                                          href="{% url 'n26-edit-fighter' member.id %}">
                                 Edit
                             </c-ui.button>
@@ -309,6 +313,7 @@ that said it twice would be spending the width the name needs.
                             <c-slot name="actions">
                                 <c-ui.button size="xs"
                                              variant="ghost"
+                                             :compact="True"
                                              href="{% url 'n26-edit-fighter' member.id %}">
                                     Edit
                                 </c-ui.button>

@@ -7,6 +7,7 @@ app.css gives solid buttons their inset shadow by matching background classes.
 Add a new solid fill to that list too, or the button renders flatter than the others.
 href draws an anchor, which cannot submit a form. To submit, omit href and pass type=submit.
 text and text-danger drop horizontal padding so they sit in a sentence like a link.
+compact narrows the horizontal padding at any size, for a row of controls that sit edge to edge.
 The link form has no disabled styles. An href control stays clickable.
 {% endcomment %}
 
@@ -42,7 +43,16 @@ The link form has no disabled styles. An href control stays clickable.
         'xl': 'text-lg py-3 px-5',
         '2xl': 'text-xl py-3.5 px-6'
     }"
+    :compact_classes="{
+        'xs': '!px-1.5',
+        'sm': '!px-2',
+        'md': '!px-2.5',
+        'lg': '!px-2.5',
+        'xl': '!px-3',
+        '2xl': '!px-4'
+    }"
     :outlined="False"
+    :compact="False"
     class
 />
 
@@ -54,7 +64,7 @@ The link form has no disabled styles. An href control stays clickable.
     {% if outlined %}{{ outlined_variants|get_item:variant }}{% else %}{{ variants|get_item:variant }}{% endif %}
     inline-block no-underline cursor-pointer whitespace-nowrap rounded-button
     {{ size_classes|get_item:size }}
-    {% if variant == 'text' or variant == 'text-danger' %}!px-0{% endif %}
+    {% if variant == 'text' or variant == 'text-danger' %}!px-0{% elif compact %}{{ compact_classes|get_item:size }}{% endif %}
     font-medium transition text-center
     focus-ring
     active:opacity-100
@@ -67,7 +77,7 @@ The link form has no disabled styles. An href control stays clickable.
     {% if outlined %}{{ outlined_variants|get_item:variant }}{% else %}{{ variants|get_item:variant }}{% endif %}
     cursor-pointer whitespace-nowrap rounded-button
     {{ size_classes|get_item:size }}
-    {% if variant == 'text' or variant == 'text-danger' %}!px-0{% endif %}
+    {% if variant == 'text' or variant == 'text-danger' %}!px-0{% elif compact %}{{ compact_classes|get_item:size }}{% endif %}
     font-medium transition text-center
     focus-ring
     active:opacity-100

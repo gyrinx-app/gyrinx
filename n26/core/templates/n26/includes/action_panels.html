@@ -1,4 +1,4 @@
-{% load humanize %}
+{% load humanize theme %}
 <div id="n26-action-panels" {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
     {% if action_panels %}
         <c-ui.card padding="sm">
@@ -7,7 +7,18 @@
                     <section class="space-y-3 py-4 first:pt-0 last:pb-0"
                              aria-labelledby="n26-action-{{ panel.action_id }}-title">
                         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <h3 id="n26-action-{{ panel.action_id }}-title" class="font-semibold">{{ panel.name }}</h3>
+                            <div class="flex items-center gap-1.5">
+                                {% if panel.flagged %}
+                                    <span style="color: {{ action_colour|css_color }}">
+                                        <c-n26.icon name="circle-fading-arrow-up"
+                                                    class="size-4"
+                                                    stroke_width="2"
+                                                    label="Waiting" />
+                                    </span>
+                                {% endif %}
+                                <h3 id="n26-action-{{ panel.action_id }}-title"
+                                    class="font-semibold">{{ panel.name }}</h3>
+                            </div>
                             {% if panel.start_href %}
                                 <c-ui.button href="{{ panel.start_href }}"
                                              variant="primary"

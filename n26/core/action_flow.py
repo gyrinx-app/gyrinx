@@ -13,6 +13,7 @@ from django.db.models.functions import RowNumber
 
 from n26.core.access import actions_for
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
+from n26.core.colours import palette_colour
 from n26.core.confirm import Fact
 from n26.core.flow import PaymentFigures
 from n26.core.models import ActionAllowance, ActionRecord, Assignment
@@ -38,6 +39,8 @@ class ActionPanel:
     available_uses: int | None = None
     problem: str = ""
     start_href: str = ""
+    #: Carries the roster's action mark: an earned use or an unfinished draft.
+    flagged: bool = False
     drafts: list[ActionUseLink] = field(default_factory=list)
     completed: list[ActionUseLink] = field(default_factory=list)
 
@@ -129,17 +132,26 @@ def _action_quote(action, *, balances, credits, gang_id):
     return quote, problem
 
 
+def action_colour(gang):
+    """The colour of the action mark: the gang's own, or blue without one."""
+    return palette_colour(gang.colour) or "blue"
+
+
 def available_action_names(gang, cards, *, counter_tracking_active=True):
-    """Available or resumable actions for a whole roster, using bounded reads."""
+    """The actions a roster flags for each model, using bounded reads.
+
+    Only the unusual ones: an earned use waiting to be spent, or a draft
+    waiting to be finished. An action anyone can buy whenever they can
+    afford it stays on the Edit page and is never flagged.
+    """
     fighter_ids = [card.id for card in cards if card.id]
     if not fighter_ids:
         return {}
-    drafts = defaultdict(set)
+    flagged = defaultdict(set)
     for fighter_id, action_id in ActionRecord.objects.filter(
         fighter_id__in=fighter_ids, state=ActionRecord.State.STARTED
     ).values_list("fighter_id", "action_id"):
-        drafts[str(fighter_id)].add(str(action_id))
-    allowances = defaultdict(set)
+        flagged[str(fighter_id)].add(str(action_id))
     if counter_tracking_active:
         for fighter_id, action_id in (
             ActionAllowance.objects.filter(fighter_id__in=fighter_ids)
@@ -151,61 +163,18 @@ def available_action_names(gang, cards, *, counter_tracking_active=True):
             )
             .values_list("fighter_id", "action_id")
         ):
-            allowances[str(fighter_id)].add(str(action_id))
-    action_ids = {
-        action_id
-        for card in cards
-        for action_id in (
-            (*card.action_ids, *allowances[card.id], *drafts[card.id])
-            if counter_tracking_active
-            else drafts[card.id]
-        )
-    }
+            flagged[str(fighter_id)].add(str(action_id))
+    action_ids = {action_id for ids in flagged.values() for action_id in ids}
     if not action_ids:
         return {}
-    actions = {
-        str(action.pk): action
-        for action in Action.objects.filter(pk__in=action_ids)
-        .prefetch_related("use_price__counter")
-        .order_by("name", "pk")
+    actions = [
+        (str(action.pk), str(action))
+        for action in Action.objects.filter(pk__in=action_ids).order_by("name", "pk")
+    ]
+    return {
+        card.id: tuple(name for key, name in actions if key in flagged[card.id])
+        for card in cards
     }
-    by_holder = defaultdict(lambda: defaultdict(list))
-    if counter_tracking_active:
-        for assignment in Assignment.objects.filter(
-            gang_root=gang, counter__isnull=False, archived=False, removes=False
-        ).select_related("counter_value", "counter"):
-            if not hasattr(assignment, "counter_value"):
-                continue
-            if assignment.miniature_root_id:
-                holder = str(assignment.miniature_root_id)
-                payer = "fighter"
-            elif assignment.gang_id == gang.pk:
-                holder, payer = "gang", "gang"
-            else:
-                continue
-            by_holder[holder][(payer, assignment.counter_id)].append(assignment)
-        credits = gang.recompute_credits()
-    names = {}
-    for card in cards:
-        available = set(drafts[card.id])
-        if counter_tracking_active:
-            balances = {**by_holder["gang"], **by_holder[card.id]}
-            for action_id in set(card.action_ids) | allowances[card.id]:
-                action = actions[action_id]
-                if (
-                    action.recruitment_allowance_rule_id
-                    or action.rank_allowance_rule_id
-                ) and action_id not in allowances[card.id]:
-                    continue
-                quote, problem = _action_quote(
-                    action, balances=balances, credits=credits, gang_id=gang.pk
-                )
-                if not problem:
-                    available.add(action_id)
-        names[card.id] = tuple(
-            str(action) for key, action in actions.items() if key in available
-        )
-    return names
 
 
 def action_panels(fighter, *, card, computed, counter_tracking_active=True):
@@ -313,6 +282,9 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                         when=record.created,
                     )
                 )
+        panel.flagged = bool(panel.drafts) or (
+            bool(granted) and counter_tracking_active
+        )
         panels.append(panel)
     return panels
 

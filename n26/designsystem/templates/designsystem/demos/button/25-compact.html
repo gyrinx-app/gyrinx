@@ -1,0 +1,20 @@
+{# title: Compact #}
+{# note: :compact narrows the horizontal padding at any size, so a row of ghost controls can sit edge to edge with no gap, as on the model card's header. The padding shrinks rather than going, so each control still has a hover area wider than its words. #}
+<div class="flex flex-col gap-4">
+    <div class="flex items-center">
+        <c-ui.button size="xs" variant="ghost" :compact="True" href="#">
+            Equip
+        </c-ui.button>
+        <c-ui.button size="xs" variant="ghost" :compact="True" href="#">
+            Edit
+        </c-ui.button>
+    </div>
+    <div class="flex items-center gap-2">
+        <c-ui.button size="xs" variant="ghost" href="#">
+            Equip
+        </c-ui.button>
+        <c-ui.button size="xs" variant="ghost" href="#">
+            Edit
+        </c-ui.button>
+    </div>
+</div>
