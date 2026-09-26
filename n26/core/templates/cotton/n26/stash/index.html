@@ -8,6 +8,7 @@ Named slots use .strip because a cotton slot of newlines is not empty.
 controls draws in the header, left of the total, with a mid-dot between them.
 Put text links (c-n26.action-link) in controls, never buttons.
 A button is taller than the header line, so it pushes the header open and breaks the baseline.
+On a narrow card the controls and total drop to a second row. The Stash group never wraps inside itself.
 An empty stash still draws the card. A slot that comes and goes would shift every model after it in the grid.
 The gear list scrolls after max-h-80. Line menus use fixed placement so that box does not clip them.
 {% endcomment %}
@@ -18,8 +19,9 @@ The gear list scrolls after max-h-80. Line menus use fixed placement so that box
     <c-slot name="header">
 
         {# -mx-2: the kit header hardcodes px-6, and the rows below are px-4. #}
-        <div class="-mx-2 flex items-baseline gap-3">
-            <div class="min-w-0 flex-1">
+        {# The two groups wrap as whole rows: neither shrinks, so neither breaks apart inside. #}
+        <div class="-mx-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <div class="flex-[1_0_auto]">
                 <c-n26.action-links class="text-sm">
                     <span class="font-semibold text-ink-900 dark:text-ink-100">Stash</span>
                     {% if actions.strip %}
