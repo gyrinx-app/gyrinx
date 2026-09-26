@@ -51,7 +51,12 @@ from n26.core.views.campaigns import (
     transfer_asset,
     unassign_asset,
 )
-from n26.core.views.changelog import changelog, changelog_entry
+from n26.core.views.changelog import (
+    changelog,
+    changelog_entry,
+    n26_changelog,
+    n26_changelog_entry,
+)
 from n26.core.views.choose import choose, dismiss_offer, restore_offer
 from n26.core.views.cloning import clone_fighter, clone_gang
 from n26.core.views.crews import crew_sheet, edit_crew
@@ -119,6 +124,8 @@ __all__ = [
     "campaigns",
     "changelog",
     "changelog_entry",
+    "n26_changelog",
+    "n26_changelog_entry",
     "choose",
     "gang_next",
     "dismiss_offer",
