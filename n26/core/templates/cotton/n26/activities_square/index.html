@@ -6,6 +6,7 @@ A reader with something waiting is not told there is nothing to do.
 An open founding is drawn unboxed, as the current action.
 The start control posts only while founding is not already open.
 A waiting step is a form when it has post, and a link otherwise.
+Every step and the start control share one row: help text, then a short button.
 A step that acts on the click must post. Following a link must not change the roster.
 Pass a square containing only the controls the owner may use.
 Post-battle is a next step, not an open activity or a separate component prop.
@@ -65,16 +66,19 @@ History is a link. The square does not list acts.
         {% endfor %}
 
         {% if square.start_founding %}
-            <form method="post" action="{{ square.start_founding }}">
-                {% csrf_token %}
-                <input type="hidden" name="act" value="start">
-                <c-ui.button type="submit" size="xs" variant="default">
-                    <span class="flex items-center gap-1.5">
-                        <c-n26.founding-mark class="size-4" />
-                        Equip the gang using founding Trade Points
-                    </span>
-                </c-ui.button>
-            </form>
+            <div class="flex flex-wrap items-center justify-between gap-2 {% if square.anything_open or square.to_do %}border-t border-box-border pt-3{% endif %}">
+                <span class="text-xs text-ink-700 dark:text-ink-300">Equip the gang using founding Trade Points.</span>
+                <form method="post" action="{{ square.start_founding }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="start">
+                    <c-ui.button type="submit" size="xs" variant="default">
+                        <span class="flex items-center gap-1.5">
+                            <c-n26.founding-mark class="size-4" />
+                            Spend built-in TP
+                        </span>
+                    </c-ui.button>
+                </form>
+            </div>
         {% endif %}
     </div>
 </c-ui.card>

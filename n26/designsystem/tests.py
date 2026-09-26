@@ -226,7 +226,7 @@ class TestTheActivitiesSquarePage:
         """Starting an act must never be a link: a link is followed by
         anything that follows links."""
         page = reader.get("/n26/design/c/activities-square/").content.decode()
-        start = page.index("Equip the gang using founding Trade Points")
+        start = page.index("Spend built-in TP")
         form = page.rindex("<form", 0, start)
         assert 'method="post"' in page[form:start]
 
