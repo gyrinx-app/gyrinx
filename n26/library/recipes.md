@@ -3,17 +3,16 @@
 ## Stage and launch fighter progression
 
 Open **Foundations → Fighter progression** and choose **Prepare for testing**.
-This creates the standard advancement definitions and two staged preview rules:
+This creates the standard advancement definitions and a hidden **Promotion**
+marker. Choose **Apply to staged content** to give staged fighter entries their
+advancement access. If the Outcast gang type is staged, its eligible Leaders
+also get the exception. This setup does not change XP or grant past advancements.
 
-- **Fighter progression** grants progression to eligible models in a test gang.
-- **Outcast leader progression** also covers an elevated Leader whose source
-  profile would normally be excluded from XP.
-
-Assign the first rule to a test gang. For an Outcast test, assign both. The rules
-grant action access; they do not change XP or grant past advancements. Open a test
-model's edit page. If it has no XP counter, choose **Track XP** to open one at 0.
-Then increase its XP through a rank threshold. Starting XP is not earned XP and
-grants no free advancement.
+Hire a model from a staged test entry. If it has no XP counter, choose **Track
+XP** on its edit page to open one at 0. Then increase its XP through a rank
+threshold. Starting XP is not earned XP and grants no free advancement. The
+advancement access and promotion marker do not add special-rule lines to the
+fighter's card.
 
 The supplied content includes these promotions:
 
@@ -32,10 +31,9 @@ is part of one earned use, not a second use. A completed result can be corrected
 until a later advancement depends on it. Correction does not move equipment back
 from the stash.
 
-For profile-level testing, choose **Apply to staged content**. This attaches
-progression only to staged profiles and gang types. To launch, choose **Review
-live rollout**, check the named targets and exclusions, then **Apply content
-setup**. The confirmation expires after 30 minutes or when the target list changes.
+To launch, choose **Review live rollout**, check the named targets and
+exclusions, then **Apply content setup**. The confirmation expires after 30
+minutes or when the target list changes.
 Existing models gain access through their profiles; future hires receive an XP
 counter where one was missing. Existing starting XP values are preserved.
 
@@ -62,12 +60,13 @@ The results are ordinary pickables. Their modifiers add and remove subtypes,
 grant skills or offer a skill selection. Set the rating contribution on each
 pickable. Use **Optional profiles** for profiles that may decline a replacement
 promotion. For equipment changes, set both **Stash weapons for** and **Keep weapon
-trait**. **Requires rule** limits a promotion to models carrying that rule.
+trait**. **Requires hidden assignable** limits a promotion without adding a line
+to the fighter's card.
 
-The supplied promotions require the **Promotion** rule, granted by the setup.
+The supplied promotions require the hidden **Promotion** marker, granted by the setup.
 This keeps preparation from changing models with manually authored advancement
-access. Prepare for testing restores the supplied promotion definitions and
-preview rules. It also repairs shared content, including the starting-skill
+access. Prepare for testing restores the supplied promotion definitions. It
+also repairs shared content, including the starting-skill
 offer; those repairs affect models already using that content. Use separate
 definitions for house rules you want to preserve.
 
@@ -78,11 +77,11 @@ creates the reusable actions, outcomes, advancement slot and table, and the
 standard XP rank table. It does not guess which house rules or profiles use
 them.
 
-For a custom campaign-wide progression rule, add three **Adds assignable** modifiers
+For custom campaign-wide progression, add three **Adds assignable** modifiers
 that reach every model: **Advancement**, **Standard fighter ranks**, and the
 **Advancement** slot. The slot supplies the recorded 2D6 question, the rank
 table supplies the XP thresholds, and the action supplies the earned use.
-Add the **Promotion** rule too if the supplied promotions should apply.
+Add the hidden **Promotion** marker too if the supplied promotions should apply.
 
 For Spyrers, follow [An item's augmentation tiers](#an-items-augmentation-tiers)
 and [Suit Evolution and Suit Maintenance actions](#suit-evolution-and-suit-maintenance-actions)

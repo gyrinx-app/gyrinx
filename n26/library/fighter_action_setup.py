@@ -12,13 +12,13 @@ from n26.library.models import (
     AdvancementPromotion,
     Counter,
     GangType,
+    Hidden,
     Modifier,
     Pickable,
     Picklist,
     Profile,
     RankTable,
     ResolveAdvancement,
-    Rule,
     Skill,
     Slot,
     SlotType,
@@ -28,8 +28,7 @@ from n26.library.models import (
 from n26.library.models.pack import get_default_pack
 from n26.write_pause import guarded_write
 
-PROGRESSION_RULE = "Fighter progression"
-PROMOTION_RULE = "Promotion"
+PROMOTION_MARKER = "Promotion"
 TARGET_KINDS = {"profile": Profile, "gang-type": GangType}
 
 
@@ -71,7 +70,7 @@ def progression_plan():
             "adds_assignable__action",
             "adds_assignable__rank_table",
             "adds_assignable__slot",
-            "adds_assignable__rule",
+            "adds_assignable__hidden",
         )
         .prefetch_related(*paths)
     )
@@ -155,7 +154,7 @@ def _named(model, name, **defaults):
         and (row.archived or row.staged != defaults["staged"])
     ):
         raise ProgressionSetupConflict(
-            f'Rule "{name}" must be staged and unarchived before preparing fighter progression.'
+            f'{model._meta.verbose_name.capitalize()} "{name}" must be staged and unarchived before preparing fighter progression.'
         )
     return row or model.objects.create(name=name, pack=get_default_pack(), **defaults)
 
@@ -350,7 +349,7 @@ def prepare_fighter_progression():
 
     if STANDARD_CONTENT["fighter-actions"].status() != "complete":
         STANDARD_CONTENT["fighter-actions"].create()
-    promotion_rule = _named(Rule, PROMOTION_RULE, staged=True)
+    promotion_marker = _named(Hidden, PROMOTION_MARKER, staged=True)
     configured = ResolveAdvancement.objects.get(
         outcome__name="Advancement", pack=get_default_pack()
     )
@@ -363,42 +362,25 @@ def prepare_fighter_progression():
             defaults={
                 "slot": slot,
                 "replaces_advancement": recipe.replaces_advancement,
-                "requires_rule": promotion_rule,
+                "requires_hidden": promotion_marker,
             },
         )
         _repair(
             promotion,
             slot=slot,
             replaces_advancement=recipe.replaces_advancement,
-            requires_rule=promotion_rule,
+            requires_rule=None,
+            requires_hidden=promotion_marker,
             keep_weapon_trait=_named(Trait, recipe.keep_weapon_trait)
             if recipe.keep_weapon_trait
             else None,
         )
         promotion.optional_profiles.set(_matching_profiles(recipe.optional_profiles))
         promotion.stash_weapons_for.set(_matching_profiles(recipe.stash_weapons_for))
-    plan = progression_plan()
     for recipe in BINDINGS:
-        rule = _named(Rule, recipe.preview_rule, staged=True)
-        eligible = [
-            row.target for row in plan if row.recipe == recipe and not row.excluded
-        ]
-        subtypes = [_named(Subtype, name) for name in recipe.subtypes] or None
-        for label, thing in progression_definitions():
-            name = f"{recipe.preview_rule} preview: {label}"
-            if not eligible:
-                rule.modifiers.remove(*rule.modifiers.filter(name=name))
-                continue
-            rule.modifiers.add(
-                _give_modifier(
-                    name,
-                    thing,
-                    every=True,
-                    profiles=eligible if recipe.kind == "profile" else None,
-                    subtypes=subtypes,
-                )
-            )
-    return Rule.objects.in_default_pack().get(name=PROGRESSION_RULE, qualifier="")
+        for name in recipe.subtypes:
+            _named(Subtype, name)
+    return promotion_marker
 
 
 def progression_definitions():
@@ -419,7 +401,7 @@ def progression_definitions():
         ),
         (
             "Promotion",
-            Rule.objects.in_default_pack().get(name=PROMOTION_RULE, qualifier=""),
+            Hidden.objects.in_default_pack().get(name=PROMOTION_MARKER, qualifier=""),
         ),
     )
 

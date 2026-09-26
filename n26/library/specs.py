@@ -1202,6 +1202,9 @@ def _build_registry():
                 "requires_rule": One(
                     model=Rule, source=(AdvancementPromotion, "requires_rule")
                 ),
+                "requires_hidden": One(
+                    model=Hidden, source=(AdvancementPromotion, "requires_hidden")
+                ),
                 "stash_weapons_for": Many(
                     model=Profile,
                     source=(AdvancementPromotion, "stash_weapons_for"),

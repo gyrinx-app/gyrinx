@@ -11,6 +11,7 @@ from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
 from n26.core.models import ActionAllowance, ActionRecord, Assignment, LedgerEvent
 from n26.core.operations import Refusal, operation
+from n26.core.render import build_model_card
 from n26.library import authoring as a
 from n26.library.fighter_action_setup import (
     ProgressionSetupConflict,
@@ -23,8 +24,10 @@ from n26.library.models import (
     AdvancementPromotion,
     Counter,
     Dice,
+    Hidden,
     Modifier,
     Pickable,
+    Rule,
     Subtype,
     Trait,
 )
@@ -178,15 +181,14 @@ class TestFoundationSetup:
             Action.objects.count(),
         )
 
-    @pytest.mark.parametrize(
-        "name", ["Fighter progression", "Outcast leader progression", "Promotion"]
-    )
     @pytest.mark.parametrize("state", ["live", "archived"])
-    def test_preparation_preserves_incompatible_rule_states(
-        self, default_pack, name, state
+    def test_preparation_preserves_incompatible_marker_states(
+        self, default_pack, state
     ):
-        rule = a.create_rule(name, staged=state != "live", archived=state == "archived")
-        before = rule.staged, rule.archived, rule.modified
+        marker = a.create_hidden(
+            "Promotion", staged=state != "live", archived=state == "archived"
+        )
+        before = marker.staged, marker.archived, marker.modified
         counts = (
             Modifier.objects.count(),
             Pickable.objects.count(),
@@ -196,8 +198,8 @@ class TestFoundationSetup:
             ProgressionSetupConflict, match="must be staged and unarchived"
         ):
             prepare_fighter_progression()
-        rule.refresh_from_db()
-        assert (rule.staged, rule.archived, rule.modified) == before
+        marker.refresh_from_db()
+        assert (marker.staged, marker.archived, marker.modified) == before
         assert counts == (
             Modifier.objects.count(),
             Pickable.objects.count(),
@@ -213,10 +215,27 @@ class TestFoundationSetup:
         counts = Modifier.objects.count(), Pickable.objects.count()
         assert prepare_fighter_progression() == rule
         assert counts == (Modifier.objects.count(), Pickable.objects.count())
+        assert Hidden.objects.get(name="Promotion") == rule
+        assert not Rule.objects.filter(
+            name__in=["Fighter progression", "Outcast leader progression", "Promotion"]
+        ).exists()
         assert not profile.modifiers.exists()
         assert attach_fighter_progression() == 0
         profile.refresh_from_db()
         assert profile.built_ins_id is None
+
+    def test_progression_access_has_no_internal_special_rule_lines(self, progression):
+        from n26.core.access import actions_for
+
+        computed = _computed(progression.fighter)
+        card = build_model_card(
+            progression.fighter, card=computed.card, computed=computed
+        )
+        assert not card.rules
+        assert progression.action in {
+            access.action for access in actions_for(progression.fighter)
+        }
+        assert AdvancementPromotion.objects.get(threshold=13).requires_hidden_id
 
     def test_live_setup_preserves_starting_xp_and_excludes_hired_guns_and_delegations(
         self, default_pack, make_profile
@@ -490,6 +509,100 @@ class TestFoundationSetup:
         assert queries() <= small
 
 
+class TestHiddenProgressionMigration:
+    """Existing Foundation content keeps its gates and grants after conversion."""
+
+    def test_conversion_uses_the_configured_default_pack(self, default_pack):
+        from importlib import import_module
+
+        from django.apps import apps
+        from django.db import connection
+        from django.test import override_settings
+
+        from n26.library.models.pack import ContentPack
+
+        with override_settings(DEFAULT_CONTENT_PACK_SLUG="alternate"):
+            pack = ContentPack.objects.create(name="Alternate", slug="alternate")
+            rule = a.create_rule("Promotion", pack=pack, staged=True)
+            migration = import_module(
+                "n26.library.migrations.0118_hidden_promotion_gate"
+            )
+            schema_editor = SimpleNamespace(connection=connection)
+
+            migration.move_internal_rules(apps, schema_editor)
+            assert Hidden.objects.get(pack=pack, name="Promotion").staged
+            rule.refresh_from_db()
+            assert rule.archived
+
+            migration.restore_internal_rules(apps, schema_editor)
+            assert not Hidden.objects.filter(pack=pack, name="Promotion").exists()
+            rule.refresh_from_db()
+            assert not rule.archived
+
+    def test_rule_carriers_become_hidden_without_losing_their_links(self, default_pack):
+        from importlib import import_module
+
+        from django.apps import apps
+        from django.db import connection
+
+        marker = prepare_fighter_progression()
+        rule = a.create_rule("Promotion", staged=True)
+        AdvancementPromotion.objects.filter(requires_hidden=marker).update(
+            requires_hidden=None, requires_rule=rule
+        )
+        marker.delete()
+        preview = a.create_rule("Fighter progression", staged=True)
+        modifier = a.modifier(
+            "Fighter progression preview: Promotion",
+            a.targets_every_model(),
+            a.ef_adds(rule),
+            attach_to=preview,
+        )
+
+        migration = import_module("n26.library.migrations.0118_hidden_promotion_gate")
+        migration.move_internal_rules(apps, SimpleNamespace(connection=connection))
+
+        hidden_marker = Hidden.objects.get(name="Promotion")
+        hidden_preview = Hidden.objects.get(name="Fighter progression")
+        assert hidden_preview.modifiers.filter(pk=modifier.pk).exists()
+        modifier.refresh_from_db()
+        assert modifier.adds_assignable.hidden == hidden_marker
+        assert modifier.adds_assignable.rule_id is None
+        assert (
+            list(
+                AdvancementPromotion.objects.values_list(
+                    "requires_hidden_id", "requires_rule_id"
+                )
+            )
+            == [(hidden_marker.pk, None)] * 2
+        )
+        assert (
+            Rule.objects.filter(
+                name__in=["Fighter progression", "Promotion"], archived=True
+            ).count()
+            == 2
+        )
+
+        migration.restore_internal_rules(apps, SimpleNamespace(connection=connection))
+        modifier.refresh_from_db()
+        assert modifier.adds_assignable.rule == rule
+        assert modifier.adds_assignable.hidden_id is None
+        assert not Hidden.objects.filter(
+            name__in=["Fighter progression", "Promotion"]
+        ).exists()
+        assert (
+            list(
+                AdvancementPromotion.objects.values_list(
+                    "requires_rule_id", "requires_hidden_id"
+                )
+            )
+            == [(rule.pk, None)] * 2
+        )
+        assert not Rule.objects.filter(
+            name__in=["Fighter progression", "Promotion"], archived=True
+        ).exists()
+
+
 class TestPromotionAuthoring:
     def test_an_author_can_add_and_edit_a_promotion(self, client, progression):
         progression.owner.is_staff = True
@@ -507,7 +620,7 @@ class TestPromotionAuthoring:
             "slot": str(original.slot_id),
             "replaces_advancement": "on",
             "optional_profiles": [str(progression.profile.pk)],
-            "requires_rule": str(original.requires_rule_id),
+            "requires_hidden": str(original.requires_hidden_id),
             "stash_weapons_for": [str(progression.profile.pk)],
             "keep_weapon_trait": str(original.keep_weapon_trait_id),
         }
@@ -630,10 +743,10 @@ class TestPromotions:
         record, url = _start(client, progression, _earned(progression, 13))
         assert client.get(url).context["stage"] == "advancement"
 
-    def test_a_gang_only_rule_does_not_satisfy_a_model_gate(self, progression):
+    def test_a_gang_only_marker_does_not_satisfy_a_model_gate(self, progression):
         from n26.core.promotions import promotion_for
 
-        gate = AdvancementPromotion.objects.get(threshold=13).requires_rule
+        gate = AdvancementPromotion.objects.get(threshold=13).requires_hidden
         progression.profile.modifiers.remove(
             progression.profile.modifiers.get(name="Fighter progression: Promotion")
         )
@@ -652,6 +765,29 @@ class TestPromotions:
             attach_to=gate,
         )
         assert promotion_for(record, progression.outcome.operation) is not None
+
+    def test_an_authored_special_rule_can_still_gate_a_promotion(self, progression):
+        from n26.core.promotions import promotion_for
+
+        promotion = AdvancementPromotion.objects.get(threshold=13)
+        printed_rule = a.create_rule("House promotion")
+        promotion.requires_hidden = None
+        promotion.requires_rule = printed_rule
+        promotion.full_clean()
+        promotion.save(update_fields=["requires_hidden", "requires_rule"])
+        allowance = _earned(progression, 13)
+        with operation(progression.gang, actor=progression.owner) as op:
+            record = op.start_action(
+                progression.fighter, progression.action, uuid4(), allowance=allowance
+            )
+        assert promotion_for(record, progression.outcome.operation) is None
+        a.modifier(
+            "Give House promotion",
+            a.targets_model(),
+            a.ef_adds(printed_rule),
+            attach_to=progression.profile,
+        )
+        assert promotion_for(record, progression.outcome.operation) == promotion
 
     @pytest.mark.parametrize("decline", [False, True])
     def test_leaving_a_prepared_promotion_removes_its_unpicked_slot(

@@ -349,6 +349,14 @@ class AdvancementPromotion(Content):
         related_name="advancement_promotions",
         help_text="Apply this promotion only to models that have this rule.",
     )
+    requires_hidden = models.ForeignKey(
+        "library.Hidden",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="advancement_promotions",
+        help_text="Apply this promotion only to models carrying this hidden assignable.",
+    )
     stash_weapons_for = models.ManyToManyField(
         "library.Profile",
         blank=True,
@@ -375,6 +383,11 @@ class AdvancementPromotion(Content):
                 fields=["advancement", "from_subtype", "threshold"],
                 name="advancement_promotion_once",
             ),
+            models.CheckConstraint(
+                condition=models.Q(requires_rule__isnull=True)
+                | models.Q(requires_hidden__isnull=True),
+                name="advancement_promotion_one_gate",
+            ),
         ]
 
     def __str__(self):
@@ -382,6 +395,10 @@ class AdvancementPromotion(Content):
 
     def clean(self):
         super().clean()
+        if self.requires_rule_id and self.requires_hidden_id:
+            raise ValidationError(
+                "Choose either a special rule or a hidden assignable for this promotion."
+            )
         if (
             self.slot_id
             and not self.replaces_advancement
