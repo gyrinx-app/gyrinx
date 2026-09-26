@@ -147,4 +147,34 @@ describe("action builder", () => {
             screen.getByText("Choose a slot type for change 2 in outcome 1."),
         ).toBeTruthy();
     });
+
+    it("prevents form submission until a valid review step", async () => {
+        const user = userEvent.setup();
+        const { container } = render(
+            <form>
+                <ActionBuilder
+                    {...props}
+                    draft={JSON.stringify({
+                        name: "Repair",
+                        useMode: "free",
+                        outcomes: [
+                            {
+                                name: "Advance rig",
+                                operation: "augment",
+                                slotType: "tier",
+                            },
+                        ],
+                    })}
+                />
+            </form>,
+        );
+        const form = container.querySelector("form")!;
+        const submit = () =>
+            form.dispatchEvent(
+                new Event("submit", { bubbles: true, cancelable: true }),
+            );
+        expect(submit()).toBe(false);
+        await user.click(screen.getByRole("button", { name: "4. Review" }));
+        expect(submit()).toBe(true);
+    });
 });

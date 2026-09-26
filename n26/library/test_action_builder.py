@@ -113,6 +113,30 @@ class TestCreatingAnAction:
         assert not Action.objects.exists()
         assert not Outcome.objects.exists()
 
+    def test_malformed_names_and_numeric_values_are_rejected(self, default_pack):
+        tier = SlotType.objects.create(name="Augmentation")
+        outcome = {
+            "name": "Upgrade rig",
+            "operation": "augment",
+            "slotType": str(tier.pk),
+        }
+        with pytest.raises(ValidationError, match="Name the action"):
+            create_from_draft(draft(name=None, outcomes=[outcome]))
+        with pytest.raises(ValidationError, match="Name every outcome"):
+            create_from_draft(draft(outcomes=[{**outcome, "name": {"wrong": 1}}]))
+        for amount in (True, 1.9):
+            with pytest.raises(ValidationError, match="Enter a number for price"):
+                create_from_draft(
+                    draft(
+                        prices=[
+                            {"resource": "credits", "payer": "gang", "amount": amount}
+                        ],
+                        outcomes=[outcome],
+                    )
+                )
+        assert not Action.objects.exists()
+        assert not Outcome.objects.exists()
+
     def test_a_rank_allowance_uses_a_table_with_the_same_counter(self, default_pack):
         from n26.library import authoring
 

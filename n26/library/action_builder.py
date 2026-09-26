@@ -33,6 +33,8 @@ def _choice(model, pk, label):
 
 
 def _integer(value, label, *, minimum=0):
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        raise ValidationError(f"Enter a number for {label}.")
     try:
         number = int(value)
     except TypeError, ValueError:
@@ -49,7 +51,8 @@ def _outcome(spec):
         raise ValidationError("Choose a valid outcome.")
     if spec.get("existing"):
         return _choice(Outcome, spec.get("existing"), "outcome")
-    name = str(spec.get("name", "")).strip()
+    raw_name = spec.get("name")
+    name = raw_name.strip() if isinstance(raw_name, str) else ""
     if not name:
         raise ValidationError("Name every outcome.")
     if len(name) > Outcome._meta.get_field("name").max_length:
@@ -110,7 +113,8 @@ def create_from_draft(raw):
         raise ValidationError(
             "The action draft could not be read. Reload and try again."
         )
-    name = str(draft.get("name", "")).strip()
+    raw_name = draft.get("name")
+    name = raw_name.strip() if isinstance(raw_name, str) else ""
     if not name:
         raise ValidationError("Name the action.")
     if len(name) > Action._meta.get_field("name").max_length:

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, ButtonLink, Input, NativeSelect } from "../../ui";
 
 type Option = { value: string; label: string };
@@ -267,6 +267,7 @@ function issues(draft: Draft): string[] {
 }
 
 export function ActionBuilder(props: ActionBuilderProps) {
+    const root = useRef<HTMLDivElement>(null);
     const [draft, setDraft] = useState<Draft>(() => readDraft(props));
     const [step, setStep] = useState(0);
     const [notice, setNotice] = useState("");
@@ -287,6 +288,16 @@ export function ActionBuilder(props: ActionBuilderProps) {
         });
     const price = priceText(draft, props);
     const problems = issues(draft);
+    const canSubmit = step === 3 && problems.length === 0;
+    useEffect(() => {
+        const form = root.current?.closest("form");
+        if (!form) return;
+        const refuseEarlySubmit = (event: SubmitEvent) => {
+            if (!canSubmit) event.preventDefault();
+        };
+        form.addEventListener("submit", refuseEarlySubmit);
+        return () => form.removeEventListener("submit", refuseEarlySubmit);
+    }, [canSubmit]);
     const next = () => {
         if (step === 0 && !draft.name.trim()) {
             setNotice("Name the action before continuing.");
@@ -296,7 +307,10 @@ export function ActionBuilder(props: ActionBuilderProps) {
         setStep(Math.min(step + 1, 3));
     };
     return (
-        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div
+            ref={root}
+            className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]"
+        >
             <div className="min-w-0">
                 <nav
                     aria-label="Action setup steps"
