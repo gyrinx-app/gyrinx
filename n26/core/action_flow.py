@@ -13,6 +13,7 @@ from django.db.models.functions import RowNumber
 
 from n26.core.access import actions_for
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
+from n26.core.colours import palette_colour
 from n26.core.confirm import Fact
 from n26.core.flow import PaymentFigures
 from n26.core.models import ActionAllowance, ActionRecord, Assignment
@@ -133,7 +134,7 @@ def _action_quote(action, *, balances, credits, gang_id):
 
 def action_colour(gang):
     """The colour of the action mark: the gang's own, or blue without one."""
-    return gang.colour or "blue"
+    return palette_colour(gang.colour) or "blue"
 
 
 def available_action_names(gang, cards, *, counter_tracking_active=True):

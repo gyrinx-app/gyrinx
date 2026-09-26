@@ -444,6 +444,15 @@ class TestSuitEvolutionForms:
         assert edit.context["action_colour"] == "red"
         assert [panel.flagged for panel in edit.context["action_panels"]] == [True]
 
+    def test_the_mark_draws_only_a_palette_colour(self, client, hunt):
+        hunt.gang.colour = "red; background-image: url(https://example.com/x)"
+        hunt.gang.save(update_fields=["colour"])
+        start(client, hunt, hunt.clear)
+        response = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
+        assert response.context["sheet"].models[0].action_colour == "blue"
+        edit = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        assert edit.context["action_colour"] == "blue"
+
     def test_a_started_flow_stays_on_the_roster_when_tracking_is_paused(
         self, client, hunt, counter_tracking
     ):
