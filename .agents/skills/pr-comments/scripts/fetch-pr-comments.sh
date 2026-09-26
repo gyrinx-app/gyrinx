@@ -84,9 +84,17 @@ else
 fi
 
 # --- Fetch everything in one GraphQL call ---
-# The query uses fixed limits (100 threads, 50 reviews, 100 comments, 100 files).
+# The query uses fixed limits (100 threads, the newest 50 reviews, 100 comments,
+# 100 files, 20 reviewRequests, the newest 50 review-request timeline items).
 # totalCount is included on each connection so consumers can detect truncation.
-exec gh api graphql \
+# For timelineItems, compare filteredCount instead: totalCount ignores itemTypes.
+#
+# Copilot lite reviews are absent from reviewRequests while they run. The
+# in-progress signal is a ReviewRequestedEvent for copilot-pull-request-reviewer
+# with no later review from that bot; annotate_reviews_in_progress.py derives it.
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+
+gh api graphql \
     -f owner="$OWNER" \
     -f repo="$REPO" \
     -F number="$PR_NUM" \
@@ -132,7 +140,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
                     }
                 }
             }
-            reviews(first: 50) {
+            reviews(last: 50) {
                 totalCount
                 nodes {
                     author { login }
@@ -140,6 +148,46 @@ query($owner: String!, $repo: String!, $number: Int!) {
                     body
                     submittedAt
                     url
+                }
+            }
+            reviewRequests(first: 20) {
+                totalCount
+                nodes {
+                    requestedReviewer {
+                        __typename
+                        ... on User { login }
+                        ... on Bot { login }
+                        ... on Mannequin { login }
+                        ... on Team { name combinedSlug }
+                    }
+                }
+            }
+            timelineItems(last: 50, itemTypes: [REVIEW_REQUESTED_EVENT, REVIEW_REQUEST_REMOVED_EVENT]) {
+                totalCount
+                filteredCount
+                nodes {
+                    __typename
+                    ... on ReviewRequestedEvent {
+                        createdAt
+                        actor { login }
+                        requestedReviewer {
+                            __typename
+                            ... on User { login }
+                            ... on Bot { login }
+                            ... on Mannequin { login }
+                            ... on Team { name combinedSlug }
+                        }
+                    }
+                    ... on ReviewRequestRemovedEvent {
+                        createdAt
+                        requestedReviewer {
+                            __typename
+                            ... on User { login }
+                            ... on Bot { login }
+                            ... on Mannequin { login }
+                            ... on Team { name combinedSlug }
+                        }
+                    }
                 }
             }
             comments(first: 100) {
@@ -162,4 +210,4 @@ query($owner: String!, $repo: String!, $number: Int!) {
         }
     }
 }
-'
+' | python3 "$SCRIPT_DIR/annotate_reviews_in_progress.py"
