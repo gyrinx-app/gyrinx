@@ -1,4 +1,4 @@
-"""The Found and equip gang action: opened at founding, closed by hand.
+"""The Spend built-in TP action: opened at founding, closed by hand.
 
 An action is a thing a gang is part-way through, and this is the first of
 them. Founding opens one; the card on the gang page completes it; the same
@@ -52,6 +52,7 @@ def gang(tester, gang_type):
     )
     with operation(gang, actor=tester) as op:
         op.found(gang_type)
+        op.open_activity(Activity.Kind.FOUNDING)
     gang.refresh_from_db()
     return gang
 
@@ -71,12 +72,26 @@ def told(gang, viewer=None):
     ]
 
 
-class TestFoundingOpensOne:
-    """Founding and equipping a gang is performed over many clicks, so the
-    act that founds it opens the action the owner closes when they are
-    done."""
+class TestStartingTheAction:
+    """Most gangs never spend built-in Trade Points, so founding a gang
+    opens nothing. The owner starts the action from the Actions square and
+    closes it when they are done."""
 
-    def test_founding_a_gang_opens_the_action(self, gang):
+    def test_founding_a_gang_opens_nothing(self, tester, gang_type):
+        fresh = Gang.objects.create(
+            name="The Quiet Ones",
+            owner=tester,
+            gang_type=gang_type,
+            starting_credits=1000,
+            credits=1000,
+        )
+        with operation(fresh, actor=tester) as op:
+            op.found(gang_type)
+
+        assert fresh.open_activity(FOUNDING) is None
+        assert not Activity.objects.filter(gang=fresh).exists()
+
+    def test_starting_it_opens_the_action(self, gang):
         open_now = gang.open_activity(FOUNDING)
         assert open_now is not None
         assert open_now.kind == FOUNDING
@@ -110,7 +125,7 @@ class TestOneAtATime:
             with operation(gang, actor=tester) as op:
                 op.open_activity(FOUNDING)
 
-        assert "Found and equip gang" in str(refused.value)
+        assert "Spend built-in TP" in str(refused.value)
 
     def test_the_refusal_leaves_nothing_behind(self, gang, tester):
         """It is raised inside the operation, so the event it would have
@@ -178,6 +193,7 @@ class TestClosingAndStartingAgain:
         )
         with operation(theirs, actor=tester) as op:
             op.found(gang_type)
+            op.open_activity(FOUNDING)
         open_now = theirs.open_activity(FOUNDING)
         before = LedgerEvent.objects.filter(gang=theirs).count()
 
@@ -208,8 +224,8 @@ class TestTheHistoryReadsIt:
             op.close_activity(gang.open_activity(FOUNDING))
 
         lines = told(gang)
-        assert "started the Found and equip gang action" in lines
-        assert "completed the Found and equip gang action" in lines
+        assert "started the Spend built-in TP action" in lines
+        assert "completed the Spend built-in TP action" in lines
 
     def test_the_kind_it_holds_is_never_printed_as_a_note(self, gang):
         """The note is a record for the code — the sentence has already
@@ -271,7 +287,7 @@ class TestTheSquareOnTheGangPage:
 
     def test_an_open_activity_is_drawn_with_a_way_to_complete_it(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
-        assert "Found and equip gang" in body
+        assert "Spend built-in TP" in body
         assert "Complete action" in body
         assert "Click when you have finished hiring and equipping the gang." in body
         assert f'action="{act_page(gang)}"' in body
@@ -281,7 +297,7 @@ class TestTheSquareOnTheGangPage:
         model cards and the allowance block carry, so a reader meets one
         feature rather than three unrelated screens."""
         body = client.get(sheet(gang)).content.decode()
-        title = body.index("Found and equip gang")
+        title = body.index("Spend built-in TP")
 
         assert MARK in body[body.rindex("<h3", 0, title) : title]
 
@@ -387,13 +403,13 @@ class TestTheSquareOnTheGangPage:
 
     def test_the_square_leads_the_grid(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
-        assert body.index("Found and equip gang") < body.index("Nothing in the stash")
+        assert body.index("Spend built-in TP") < body.index("Nothing in the stash")
 
     def test_a_reader_who_does_not_own_it_gets_no_square(self, client, gang):
         """The roster is theirs to read; the gang's actions are not."""
         client.force_login(User.objects.create_user("stranger"))
         body = client.get(sheet(gang)).content.decode()
-        assert "Found and equip gang" not in body
+        assert "Spend built-in TP" not in body
         assert "Complete action" not in body
 
     def test_the_flag_open_to_everyone_admits_no_reader_but_the_owner(
@@ -408,7 +424,7 @@ class TestTheSquareOnTheGangPage:
         )
         client.force_login(User.objects.create_user("stranger"))
         body = client.get(sheet(gang)).content.decode()
-        assert "Found and equip gang" not in body
+        assert "Spend built-in TP" not in body
         assert 'value="start"' not in body
         assert "No action is open." not in body
 
@@ -421,7 +437,7 @@ class TestTheSquareOnTheGangPage:
         gang.save(update_fields=["owner"])
         client.force_login(plain)
         body = client.get(sheet(gang)).content.decode()
-        assert "Found and equip gang" not in body
+        assert "Spend built-in TP" not in body
         assert "No action is open." not in body
         assert 'value="start"' not in body
         assert "Nothing in the stash" in body
@@ -542,7 +558,7 @@ class TestTheStoryUnderIt:
         panel = self.panel(client, gang)
         text = panel.get_text()
         assert "Recent history" not in text
-        assert "started the Found and equip gang action" not in text
+        assert "started the Spend built-in TP action" not in text
         assert "created the gang" not in text
 
     def test_hires_are_not_listed_on_the_square(
@@ -587,7 +603,7 @@ class TestTheStoryUnderIt:
         body = client.get(sheet(gang)).content.decode()
         assert self.panel(client, gang) is None
         assert reverse("n26-gang-history", args=[gang.pk]) not in body
-        assert "started the Found and equip gang action" not in body
+        assert "started the Spend built-in TP action" not in body
 
 
 class TestWhatTheSquareCosts:
@@ -658,7 +674,7 @@ class TestTheActsBehindIt:
 
         assert gang.open_activity(FOUNDING) is None
         lines = [str(m) for m in answer.context["messages"]]
-        assert "Completed the Found and equip gang action." in lines
+        assert "Completed the Spend built-in TP action." in lines
 
     def test_a_gang_past_its_budget_is_told_so_rather_than_broken(
         self, client, gang, tester, make_profile, make_statline
@@ -692,7 +708,7 @@ class TestTheActsBehindIt:
 
         assert gang.open_activity(FOUNDING) is not None
         lines = [str(m) for m in answer.context["messages"]]
-        assert "Started the Found and equip gang action." in lines
+        assert "Started the Spend built-in TP action." in lines
 
     def test_starting_one_while_one_is_open_is_told_no(self, client, gang):
         """The card offers the other control, so this is a stale page

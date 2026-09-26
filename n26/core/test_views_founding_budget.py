@@ -1,6 +1,6 @@
 """A budgeted model's equip screen: what it counts, and what it says.
 
-While the gang's Found and equip gang action is open and the model has an
+While the gang's Spend built-in TP action is open and the model has an
 allowance of its own, Trading Post purchases spend it and record the
 founding action rather than any visit the gang has open. Equipment list
 purchases use credits, and the rail carries the model's TP tally.
@@ -122,8 +122,8 @@ def tester(db):
 
 @pytest.fixture
 def gang(venators, tester):
-    """A gang founded the way the create screen founds one, so its Found
-    and equip gang action is open."""
+    """A gang founded the way the create screen founds one, with its Spend
+    built-in TP action started."""
     gang = Gang.objects.create(
         name="The Long Hunt",
         owner=tester,
@@ -133,6 +133,7 @@ def gang(venators, tester):
     )
     with operation(gang, actor=tester) as op:
         op.found(venators)
+        op.open_activity(Activity.Kind.FOUNDING)
     return gang
 
 
@@ -147,6 +148,7 @@ def outcast_gang(outcasts, tester):
     )
     with operation(gang, actor=tester) as op:
         op.found(outcasts)
+        op.open_activity(Activity.Kind.FOUNDING)
     return gang
 
 
@@ -462,7 +464,7 @@ class TestWhatTheScreenSays:
     def test_starting_the_action_again_leaves_what_was_spent(
         self, client, gang, tester, leader, legacy_list, post
     ):
-        """Completing Found and equip gang and opening it again does not
+        """Completing Spend built-in TP and opening it again does not
         hand the figure back: what this model already spent still sits
         on the tally."""
         client.post(equip_url(leader, post), {"thing": key_of(wargear("Flak plate"))})
@@ -923,6 +925,7 @@ class TestAGangFoundedWithNoBudget:
         )
         with operation(gang, actor=tester) as op:
             op.found(venators)
+            op.open_activity(Activity.Kind.FOUNDING)
         return gang
 
     @pytest.fixture(autouse=True)

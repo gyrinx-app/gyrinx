@@ -42,6 +42,7 @@ from n26.tests.sandbox.actions import (
     found_gang,
     hire_with_option,
     leave_trading_post,
+    open_founding,
     refund,
     remove,
     visit_trading_post,
@@ -57,7 +58,9 @@ def player():
 
 @pytest.fixture
 def gang(gang_type, player):
-    return found_gang("The Bad Girls", gang_type, owner=player, budget=1000)
+    return open_founding(
+        found_gang("The Bad Girls", gang_type, owner=player, budget=1000)
+    )
 
 
 @pytest.fixture
@@ -884,7 +887,7 @@ class TestWhatTheHistorySays:
         with operation(gang, actor=player) as op:
             op.close_activity(gang.open_activity(Activity.Kind.FOUNDING))
 
-        assert self.sentences(gang)[-1] == "completed the Found and equip gang action"
+        assert self.sentences(gang)[-1] == "completed the Spend built-in TP action"
 
 
 class TestWhatAPurchaseCountsAgainst:

@@ -218,6 +218,17 @@ def join_campaign(gang, campaign, actor=None):
         return op.join_campaign(campaign)
 
 
+def open_founding(gang, actor=None):
+    """Start the gang's Spend built-in TP action, as its owner does from the
+    Actions square. A new gang does not have it open."""
+    from n26.core.models import Activity
+    from n26.core.operations import operation
+
+    with operation(gang, actor=actor or gang.owner) as op:
+        op.open_activity(Activity.Kind.FOUNDING)
+    return gang
+
+
 def hire(gang, profile, model_name, paid=0, actor=None, **kwargs):
     from n26.core.operations import operation
 

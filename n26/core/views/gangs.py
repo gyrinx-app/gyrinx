@@ -1629,7 +1629,7 @@ def gang_trade_points(request, pk):
 
 @login_required
 def gang_founding_action(request, pk):
-    """Start or complete the Found and equip gang action.
+    """Start or complete the Spend built-in TP action.
 
     The card lives on the gang page; this is only the act behind it, so
     a GET here is somebody following a link and lands back on the page

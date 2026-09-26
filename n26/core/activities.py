@@ -168,7 +168,7 @@ def open_card(kind, at, *, help="", about="", facts=(), marked=False):
 
 
 def founding_card(gang, at):
-    """The gang's open Found and equip gang action, or None.
+    """The gang's open Spend built-in TP action, or None.
 
     The gang reads all its open actions in one query and holds them, so
     a page drawing this beside the visit's figure pays for one.

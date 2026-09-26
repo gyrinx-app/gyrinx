@@ -45,6 +45,7 @@ from n26.tests.sandbox.actions import (
     found_gang,
     hire_with_option,
     move,
+    open_founding,
     refund,
     sell,
     start_action,
@@ -170,7 +171,9 @@ def outcast(library):
 
 @pytest.fixture
 def gang(venators, player):
-    return found_gang("The Long Hunt", venators, owner=player, budget=1000)
+    return open_founding(
+        found_gang("The Long Hunt", venators, owner=player, budget=1000)
+    )
 
 
 @pytest.fixture
@@ -265,7 +268,9 @@ class TestWhatTheBooksGrant:
     def test_an_outcast_hive_scum_may_spend_nothing(self, outcast, player, hire_into):
         """The Outcast book gives its Leaders and Champions a figure and
         nobody else one."""
-        gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        gang = open_founding(
+            found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        )
 
         assert reading(hire_into(gang, ("Outcast", "Hive Scum"), "Nix")) == 0
 
@@ -276,7 +281,9 @@ class TestWhatTheBooksGrant:
         allied entry ranked Champion is nobody's Champion but their own.
         The figure names the gang's own entries, so hiring one in changes
         nothing about what it may spend."""
-        gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        gang = open_founding(
+            found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        )
 
         hired = hire_into(gang, ("Allies", "Bone Scrivener"), "Aster")
 
@@ -298,7 +305,9 @@ class TestWhatTheBooksGrant:
 
         clanless = Affiliation.objects.create(name="Clanless")
         STANDARD_CONTENT["founding-budgets"].create()
-        gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        gang = open_founding(
+            found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        )
         assign(clanless, gang=gang)
 
         assert reading(hire_into(gang, ("Outcast", "Leader"), "Sura")) == 5
@@ -314,7 +323,9 @@ class TestWhatTheBooksGrant:
         slot_type = create_slot_type("Affiliation", "Affiliations")
         clanless = create_pickable("Clanless", slot_type)
         STANDARD_CONTENT["founding-budgets"].create()
-        gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        gang = open_founding(
+            found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        )
         hold_as_affiliation(gang, clanless, slot_type)
 
         assert reading(hire_into(gang, ("Outcast", "Leader"), "Sura")) == 5
@@ -325,7 +336,9 @@ class TestWhatTheBooksGrant:
         self, gang_type, player, library, hire_with_escher
     ):
         """Escher hands nobody an allowance, so its Leader has none."""
-        escher = found_gang("The Wire", gang_type, owner=player, budget=1000)
+        escher = open_founding(
+            found_gang("The Wire", gang_type, owner=player, budget=1000)
+        )
 
         assert reading(hire_with_escher(escher, "Yolanda")) == 0
 
@@ -1016,7 +1029,9 @@ class TestTheSeed:
             contributes_to_counter__counter=founding_budget_counter()
         ).exists()
 
-        gang = found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        gang = open_founding(
+            found_gang("The Unhoused", outcast, owner=player, budget=1000)
+        )
         hold_as_affiliation(gang, clanless, slot_type)
         assert reading(hire_into(gang, ("Outcast", "Leader"), "Sura")) == 5
 
@@ -1233,7 +1248,7 @@ class TestTheFigureOnTheGangPage:
     #: What the hover says, per model. The whole of it, because a
     #: substring of it would pass on a page that had drawn half a
     #: sentence.
-    HOVER = "{} can spend these founding Trade Points at the Trading Post while the Found and equip gang action is open."
+    HOVER = "{} can spend these founding Trade Points at the Trading Post while the Spend built-in TP action is open."
 
     def page(self, gang):
         from django.urls import reverse
@@ -1251,7 +1266,7 @@ class TestTheFigureOnTheGangPage:
         assert self.HOVER.format("Rasp") in self.body(client, gang)
 
     def test_the_figure_carries_the_founding_mark(self, client, gang, leader):
-        """The same mark the Found and equip gang action carries in the
+        """The same mark the Spend built-in TP action carries in the
         Actions square and the allowance block carries on an equip
         screen, so one feature is learnt once. Its colour is stated in
         <c-n26.founding-mark> and nowhere else."""

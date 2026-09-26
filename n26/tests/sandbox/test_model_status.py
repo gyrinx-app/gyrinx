@@ -34,6 +34,7 @@ from n26.tests.sandbox.actions import (
     hire,
     is_profile_type,
     modifier,
+    open_founding,
     targets_every_model,
 )
 
@@ -72,7 +73,9 @@ def gang(gang_type, owner, fighter_type, vehicle_type, tables):
         ef_adds(tables["damage_slot"]),
         carried_by=gang_type,
     )
-    return found_gang("The Scar Crossing", gang_type, owner=owner, budget=1000)
+    return open_founding(
+        found_gang("The Scar Crossing", gang_type, owner=owner, budget=1000)
+    )
 
 
 @pytest.fixture
