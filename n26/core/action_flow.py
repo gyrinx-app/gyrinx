@@ -39,7 +39,8 @@ class ActionPanel:
     available_uses: int | None = None
     problem: str = ""
     start_href: str = ""
-    #: Carries the roster's action mark: an earned use or an unfinished draft.
+    #: Carries the roster's action mark: an earned use, an unfinished draft, or
+    #: an affordable counter price.
     flagged: bool = False
     drafts: list[ActionUseLink] = field(default_factory=list)
     completed: list[ActionUseLink] = field(default_factory=list)
@@ -215,9 +216,17 @@ def _flag_affordable_counter_prices(gang, cards, flagged):
         else:
             continue
         by_holder[holder][(payer, assignment.counter_id)].append(assignment)
-    credits = gang.recompute_credits()
+    credits = (
+        gang.recompute_credits()
+        if any(
+            component.resource == component.Resource.CREDITS
+            for action in priced.values()
+            for component in action.use_price.all()
+        )
+        else None
+    )
     for card in cards:
-        balances = {**by_holder["gang"], **by_holder[card.id]}
+        balances = {**by_holder.get("gang", {}), **by_holder.get(card.id, {})}
         for action_id in card.action_ids:
             if action_id not in priced or action_id in flagged[card.id]:
                 continue

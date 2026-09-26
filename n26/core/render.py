@@ -1127,10 +1127,10 @@ class ModelCard:
     skills_href: str = ""
     #: Owner-only equipment-card management. Empty on previews and prints.
     model_cards_href: str = ""
-    #: Actions the roster flags: an earned use or an unfinished draft. The
-    #: gang view fills these for the owner only.
     #: Effective actions on the card, so a roster can check their prices.
     action_ids: tuple[str, ...] = ()
+    #: Actions the roster flags: an earned use, an unfinished draft, or an
+    #: affordable counter price. The gang view fills these for the owner only.
     action_names: tuple[str, ...] = ()
     action_colour: str = ""
     #: Authored standing in each effective rank table. A roster supplies these
