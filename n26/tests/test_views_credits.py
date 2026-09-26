@@ -50,7 +50,7 @@ def told(gang, viewer):
     return [
         "".join(span.text for span in act.spans)
         for act in history.build(gang, viewer=viewer)
-        if act.category == "money"
+        if act.category == "credits"
     ]
 
 
@@ -142,7 +142,7 @@ class TestTheOwner:
             ("remove", False),
         ]
         history_link = reverse("n26-gang-history", args=[table.gang.pk])
-        assert page.select_one(f'a[href="{history_link}?kind=money"]') is not None
+        assert page.select_one(f'a[href="{history_link}?kind=credits"]') is not None
 
     def test_the_gang_page_offers_manage_credits(self, client, table):
         client.force_login(table.owner)

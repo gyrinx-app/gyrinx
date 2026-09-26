@@ -31,7 +31,7 @@ PER_PAGE = 50
 #: The filter's buckets, in the order the select offers them. The words
 #: are the reader's: which button they clicked, not how it was stored.
 KINDS = {
-    "money": "Money",
+    "credits": "Credits",
     "kit": "Equipment",
     "model": "Models",
     "gang": "The gang",

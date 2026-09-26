@@ -84,7 +84,7 @@ def gang_credits(request, pk):
             ],
             # The history page is the owner's alone.
             "history_href": (
-                reverse("n26-gang-history", args=[gang.pk]) + "?kind=money"
+                reverse("n26-gang-history", args=[gang.pk]) + "?kind=credits"
                 if yours
                 else ""
             ),

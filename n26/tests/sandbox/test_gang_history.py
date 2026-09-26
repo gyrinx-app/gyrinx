@@ -296,7 +296,7 @@ class TestTheGangsOwnFacts:
             op.set_budget(1500)
         act = act_saying(gang, "set the budget to 1500¢")
         assert act.note == "1000¢ → 1500¢"
-        assert act.category == "money"
+        assert act.category == "credits"
 
     def test_lifting_the_budget_says_the_gang_spends_freely(self, gang):
         with edit(gang) as op:
@@ -504,9 +504,9 @@ class TestThePageIsTheOwners:
             op.rename(vex, "Vex the Bold")
         client.force_login(gang.owner)
         at = reverse("n26-gang-history", args=[gang.pk])
-        money = client.get(at, {"kind": "money"}).content.decode()
-        assert "hired" in money
-        assert "renamed" not in money
+        credits = client.get(at, {"kind": "credits"}).content.decode()
+        assert "hired" in credits
+        assert "renamed" not in credits
         searched = client.get(at, {"q": "renamed"}).content.decode()
         assert "renamed" in searched
         assert "hired" not in searched

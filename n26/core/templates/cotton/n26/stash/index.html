@@ -5,11 +5,12 @@ total is the stash rating. Do not sum the visible figures: a stacked line shows 
 Stashed gear counts in wealth, not in the models' rating.
 regroup needs dictsort first. Without it, the same kind appearing twice becomes two groups.
 Named slots use .strip because a cotton slot of newlines is not empty.
+controls draws in the header, just left of the total.
 An empty stash still draws the card. A slot that comes and goes would shift every model after it in the grid.
 The gear list scrolls after max-h-80. Line menus use fixed placement so that box does not clip them.
 {% endcomment %}
 
-<c-vars :lines="None" :total="0" empty="" actions="" notice="" class="" />
+<c-vars :lines="None" :total="0" empty="" actions="" controls="" notice="" class="" />
 
 <c-ui.card padding="none" class="{{ class }}">
     <c-slot name="header">
@@ -24,6 +25,9 @@ The gear list scrolls after max-h-80. Line menus use fixed placement so that box
                     {% endif %}
                 </c-n26.action-links>
             </div>
+            {% if controls.strip %}
+                <div class="shrink-0 self-center">{{ controls }}</div>
+            {% endif %}
             <span class="shrink-0 text-sm tabular-nums text-muted">{{ total }}¢</span>
         </div>
     </c-slot>

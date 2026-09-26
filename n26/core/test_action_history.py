@@ -61,7 +61,7 @@ def test_action_lifecycle_history_names_the_action_and_fighter(user, gang, fight
     ]
     assert [(sentence(act), act.category, act.note) for act in acts] == [
         ("started Maintain suit for Kara", "model", ""),
-        ("paid to use Maintain suit for Kara", "money", ""),
+        ("paid to use Maintain suit for Kara", "credits", ""),
         ("completed Maintain suit for Kara — Clear glitches", "model", ""),
     ]
 
