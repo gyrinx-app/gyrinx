@@ -222,6 +222,10 @@ function outcomeDetail(outcome: Outcome, props: ActionBuilderProps): string {
 function issues(draft: Draft): string[] {
     const found: string[] = [];
     if (!draft.name.trim()) found.push("Name the action.");
+    if (draft.useMode === "recruitment" && draft.timing !== "recruitment")
+        found.push("Recruitment uses need recruitment timing.");
+    if (draft.useMode === "rank" && draft.timing !== "post_cycle")
+        found.push("Rank uses need after-cycle timing.");
     if (!draft.outcomes.length) found.push("Add at least one outcome.");
     draft.outcomes.forEach((outcome, index) => {
         if (outcome.existing) return;
@@ -1262,8 +1266,8 @@ export function ActionBuilder(props: ActionBuilderProps) {
                                 </div>
                             ) : (
                                 <p className="text-sm">
-                                    Ready to create. You can grant this action
-                                    to fighter entries next.
+                                    Create this action, then grant it to fighter
+                                    entries.
                                 </p>
                             )}
                             <input

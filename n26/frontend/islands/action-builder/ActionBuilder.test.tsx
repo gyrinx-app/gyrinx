@@ -177,4 +177,44 @@ describe("action builder", () => {
         await user.click(screen.getByRole("button", { name: "4. Review" }));
         expect(submit()).toBe(true);
     });
+
+    it("blocks a rank allowance when timing changes back to recruitment", async () => {
+        const user = userEvent.setup();
+        render(
+            <ActionBuilder
+                {...props}
+                draft={JSON.stringify({
+                    name: "Advancement",
+                    outcomes: [
+                        {
+                            name: "Advance fighter",
+                            operation: "advancement",
+                            slot: "slot",
+                        },
+                    ],
+                })}
+            />,
+        );
+        await user.click(screen.getByRole("button", { name: "2. Uses" }));
+        await user.click(
+            screen.getByRole("radio", { name: /Earn uses from a rank table/ }),
+        );
+        await user.selectOptions(
+            screen.getByRole("combobox", { name: "Rank table" }),
+            "ranks",
+        );
+        await user.click(screen.getByRole("button", { name: "1. Action" }));
+        await user.click(screen.getByRole("radio", { name: /At recruitment/ }));
+        await user.click(screen.getByRole("button", { name: "4. Review" }));
+        expect(
+            (
+                screen.getByRole("button", {
+                    name: "Create action",
+                }) as HTMLButtonElement
+            ).disabled,
+        ).toBe(true);
+        expect(
+            screen.getByText("Rank uses need after-cycle timing."),
+        ).toBeTruthy();
+    });
 });
