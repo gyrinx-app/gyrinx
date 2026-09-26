@@ -33,6 +33,18 @@ Browser tooling may save a capture directly. For a named Django URL, the helper 
   --output-dir screenshots/<task>
 ```
 
+N26 is included without a Django URL namespace. Use the bare name
+(`authoring-create`), not `n26:authoring-create`. The helper strips a leading
+`n26:` if you pass one. Keep real namespaces such as `core:` and
+`designsystem:`.
+
+```bash
+.codex/run.sh python scripts/screenshot.py authoring-create \
+  --args pickable \
+  --after \
+  --output-dir screenshots/<task>
+```
+
 The helper uses the worktree's `DJANGO_PORT` and mints a local staff session for
 `agent` by default. `screenshots/` is gitignored: it is staging, not the durable
 home of the review evidence.
