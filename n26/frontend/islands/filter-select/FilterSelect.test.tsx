@@ -170,6 +170,17 @@ describe("FilterSelect", () => {
         after.remove();
     });
 
+    it("closes on Tab and hands focus back to the trigger", async () => {
+        const { trigger, user } = setup();
+        await user.click(trigger);
+        const search = screen.getByRole("combobox");
+        await waitFor(() => expect(document.activeElement).toBe(search));
+
+        fireEvent.keyDown(search, { key: "Tab" });
+        expect(screen.queryByRole("listbox")).toBeNull();
+        expect(document.activeElement).toBe(trigger);
+    });
+
     it("keeps a form attribute on the select that posts", () => {
         const { select } = setup({
             attrs: { ...props.attrs, form: "elsewhere" },

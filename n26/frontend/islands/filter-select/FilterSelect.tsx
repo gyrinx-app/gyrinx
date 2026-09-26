@@ -71,8 +71,6 @@ export function FilterSelect({
         if (!open) return;
         const frame = requestAnimationFrame(() => search.current?.focus());
 
-        // Focus leaving closes the panel too, so tabbing out of the filter
-        // box needs no key handling of its own.
         function dismiss(event: Event) {
             if (!root.current?.contains(event.target as Node)) close(false);
         }
@@ -174,6 +172,10 @@ export function FilterSelect({
             } else {
                 close(true);
             }
+        } else if (event.key === "Tab") {
+            // Focus the trigger first so Tab and Shift+Tab move on from it.
+            // Otherwise the browser gives focus to the scrolling list.
+            close(true);
         }
     }
 
