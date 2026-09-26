@@ -8,6 +8,7 @@ here assumes where that is.
 from django.urls import include, path
 
 from n26.core import views
+from n26.library import action_builder_views
 from n26.library import views as authoring_views
 
 urlpatterns = [
@@ -368,6 +369,11 @@ urlpatterns = [
     ),
     path("design/", include("n26.designsystem.urls")),
     path("authoring/", authoring_views.index, name="authoring-index"),
+    path(
+        "authoring/action/<str:pk>/grant/",
+        action_builder_views.grant_action,
+        name="authoring-action-grant",
+    ),
     # Before the kind routes: "docs" and "recipes" would read as kind slugs.
     path(
         "authoring/docs/",

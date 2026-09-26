@@ -85,6 +85,12 @@ thing twice, a line apart.
             </c-ui.breadcrumbs>
         </c-slot>
     </c-n26.page-header>
+    {% if kind == "action" %}
+        <div class="mt-4">
+            <c-ui.button href="{% url 'authoring-action-grant' thing.pk %}"
+                         variant="ghost">Grant to fighter entries →</c-ui.button>
+        </div>
+    {% endif %}
     {% comment %}
     Two columns on a wide screen: the forms, and beside them the about
     column — what this thing does and how anyone comes to have it, in

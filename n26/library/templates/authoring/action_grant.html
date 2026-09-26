@@ -1,0 +1,93 @@
+{% extends "authoring/base.html" %}
+{% load react %}
+{% block head_title %}Grant {{ action.name }}{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="Grant {{ action.name }}"
+                       lead="Choose which fighter entries receive this action. You can select several entries at once.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' 'action' %}">Actions</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-detail' 'action' action.pk %}">{{ action.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Grant
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% if error %}<p role="alert" class="mt-5 text-red-700 dark:text-red-300">{{ error }}</p>{% endif %}
+    {% if is_archived %}
+        <c-ui.alert variant="warning" class="mt-6 max-w-2xl">
+            You cannot grant or change this action. The action or its pack is archived.
+        </c-ui.alert>
+    {% elif action.staged %}
+        <div class="mt-6 rounded-box border border-box-border p-5 max-w-2xl">
+            <h2 class="font-semibold">This action is staged</h2>
+            <p class="mt-2 text-sm text-muted">Put it live before granting it to fighter entries. A built-in grant takes effect for newly hired fighters immediately.</p>
+            <c-ui.button href="{% url 'authoring-detail' 'action' action.pk %}"
+                         variant="primary"
+                         class="mt-4">Review action and put live</c-ui.button>
+        </div>
+    {% else %}
+        <form method="post" class="mt-6 max-w-3xl" data-grant-form>
+            {% csrf_token %}
+            {% if rows %}
+                {% react_island "action-grant" grant_rows %}
+            {% else %}
+                <p class="rounded-box border border-box-border p-4 text-muted">No fighter entries yet.</p>
+            {% endif %}
+            <div class="mt-5 flex flex-wrap gap-3">
+                <c-ui.button type="submit" variant="success">
+                    Grant selected entries
+                </c-ui.button>
+                <c-ui.button href="{% url 'authoring-detail' 'action' action.pk %}"
+                             variant="ghost">Done for now</c-ui.button>
+            </div>
+        </form>
+    {% endif %}
+    {% if not is_archived %}
+        <div class="mt-8 max-w-2xl rounded-box border border-box-border p-5">
+            <h2 class="font-semibold">Limit who can use it</h2>
+            <p class="mt-2 text-sm text-muted">A fighter needs a grant to get this action. This optional limit narrows which granted fighters can use it.</p>
+            {% if current_limit == "custom" %}
+                <p class="mt-3 text-sm">Several limits are configured. Edit them on the action page.</p>
+                <c-ui.button href="{% url 'authoring-detail' 'action' action.pk %}"
+                             variant="ghost"
+                             class="mt-3">Edit limits →</c-ui.button>
+            {% else %}
+                {% if current_limit_unavailable %}
+                    <c-ui.alert variant="warning" class="mt-3">
+                        The current use limit is archived or unavailable. Choose another before saving.
+                    </c-ui.alert>
+                {% endif %}
+                <form method="post" class="mt-4 flex flex-wrap items-end gap-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="use_limit">
+                    <div class="min-w-64 flex-1">
+                        <label for="use-limit" class="block text-sm font-semibold">Use limit</label>
+                        <select id="use-limit"
+                                name="use_limit"
+                                class="mt-2 w-full rounded border border-box-border bg-transparent p-2">
+                            <option value="any" {% if current_limit == "any" %}selected{% endif %}>Any fighter</option>
+                            {% for option in limit_options %}
+                                <option value="{{ option.value }}"
+                                        {% if option.value == current_limit %}selected{% endif %}>{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <c-ui.button type="submit" variant="success">
+                        Save use limit
+                    </c-ui.button>
+                </form>
+                <p class="mt-2 text-xs text-muted">Leave this as “Any fighter” when the grants alone determine access.</p>
+            {% endif %}
+        </div>
+        <div class="mt-8 max-w-2xl border-t border-box-border pt-6">
+            <h2 class="font-semibold">Grant through a modifier</h2>
+            <p class="mt-2 text-sm text-muted">For a conditional grant, create a modifier with an “adds an action” effect, then attach it to the carrier that gives it. A modifier has one effect, so an existing modifier cannot simply be linked to this action.</p>
+            <c-ui.button href="{% url 'authoring-modifier-create' %}"
+                         variant="ghost"
+                         class="mt-3">Create granting modifier →</c-ui.button>
+        </div>
+    {% endif %}
+{% endblock content %}

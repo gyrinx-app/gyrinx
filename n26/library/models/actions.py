@@ -106,7 +106,11 @@ class RankAllowanceRule(Content):
 
 
 class Action(Content, Assignable, UsableBy):
-    """A capability a fighter may use at recruitment or after a cycle."""
+    """A flow that takes a fighter through a sequence of steps.
+
+    A fighter gets access when their fighter entry or a modifier grants the
+    action. Timing, use price and allowances define when they can start it.
+    """
 
     family = Family.MODEL
 

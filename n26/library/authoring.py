@@ -975,7 +975,7 @@ def create_action(
     library_author_help="",
     **kwargs,
 ):
-    """A fighter capability with ordered outcomes and a price for each use."""
+    """A fighter action with ordered outcomes and a price for each use."""
     from n26.library.models import (
         Action,
         ActionOutcome,

@@ -99,6 +99,34 @@ Secondary results point at those exact Skills & Powers sections. Random results
 record a D6 roll; select results let the player pick. The any-skill result
 leaves the section blank deliberately.
 
+## Create an advancement action
+
+Open **Foundations**. Under **Standard content**, create **Fighter actions and
+advancement table** if it is missing. This supplies **Standard fighter ranks**
+for XP, the **Advancement** slot and its results, and an **Advancement** action.
+Use that action for the standard fighter progression setup; do not create a
+second one with the same name.
+
+To try a different action with the same advancement results:
+
+1. Open **Actions → New action**. Give it a distinct name and choose **After a
+   cycle**.
+2. Under **Uses**, choose **Earn uses from a rank table**. Select **XP** and
+   **Standard fighter ranks**. The action tracks XP; each fighter uses the rank
+   table it holds. Selecting the table here does not give it to a fighter.
+3. Under **Outcomes**, choose **Use existing outcome → Advancement**. To make a
+   separate outcome instead, choose **Create outcome → Resolve advancement**
+   and select the **Advancement** slot. The slot already contains the roll table
+   and results; this form does not edit those results.
+4. Review and create the action. On the next page, grant it to a test fighter
+   entry. That entry also needs **Standard fighter ranks** and the
+   **Advancement** slot, granted as built-ins or through modifiers. Creating
+   the action alone gives no fighter access or earned uses.
+
+To test an earned use, hire a fighter from that entry and increase its XP across
+a rank threshold. The first standard threshold is 4 XP. Starting XP is not
+earned XP and does not grant a use.
+
 How to build specific rulebook setups out of the library's pieces. Each
 recipe is a set of steps to follow in the authoring pages — the things to
 create, and how to join them. A recipe is added once the way to author
