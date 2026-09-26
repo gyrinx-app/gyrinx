@@ -1,5 +1,7 @@
 """Template helpers for resolving theme values."""
 
+import re
+
 from django import template
 
 register = template.Library()
@@ -20,6 +22,15 @@ SINGULAR = {
     "black",
 }
 
+# What css_color lets into a style attribute. A colour can be stored text a
+# player typed, so anything that could carry a second declaration or load a
+# URL is refused rather than passed through.
+TOKEN = re.compile(r"[a-z][a-z0-9-]*")
+LITERAL = re.compile(
+    r"#[0-9a-fA-F]{3,8}"
+    r"|(?:rgb|rgba|hsl|hsla|oklch|oklab|var)\([-\w\s.,%/]*\)"
+)
+
 
 @register.filter
 def css_color(value, shade="500"):
@@ -37,15 +48,18 @@ def css_color(value, shade="500"):
     than a fixed value is the point: a swatch set to `accent` follows a theme
     change, where a hex is frozen deliberately because a person chose it.
 
-    Names are not validated. An unknown one yields a var() that resolves to
-    nothing, which shows up as a transparent swatch rather than an exception —
-    the right failure for a decorative mark.
+    An unknown name yields a var() that resolves to nothing, which shows up as
+    a transparent swatch rather than an exception — the right failure for a
+    decorative mark. A value that is neither a plain name nor one of those
+    literal forms is transparent too, and never reaches the page.
     """
     if not value:
         return "transparent"
-    value = str(value)
+    value = str(value).strip()
     if "#" in value or "(" in value:
-        return value
+        return value if LITERAL.fullmatch(value) else "transparent"
+    if not TOKEN.fullmatch(value):
+        return "transparent"
     if value in SINGULAR:
         return f"var(--color-{value})"
     return f"var(--color-{value}-{shade})"
