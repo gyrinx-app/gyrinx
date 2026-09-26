@@ -300,9 +300,10 @@ class TestTheSquareOnTheGangPage:
             op.close_activity(gang.open_activity(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
-        label = body.index("Equip the gang using founding Trade Points")
+        label = body.index("Spend built-in TP")
 
         assert MARK in body[body.rindex("<button", 0, label) : label]
+        assert body.index("Equip the gang using founding Trade Points.") < label
 
     def test_the_open_activity_is_badged_as_the_current_one(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
@@ -338,7 +339,7 @@ class TestTheSquareOnTheGangPage:
             op.close_activity(gang.open_activity(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
-        start = body.index("Equip the gang using founding Trade Points")
+        start = body.index("Spend built-in TP")
         form = body.rindex("<form", 0, start)
         assert 'method="post"' in body[form:start]
         assert f'action="{act_page(gang)}"' in body[form:start]
