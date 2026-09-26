@@ -425,7 +425,7 @@ def _dismissal_hidden(miniature, card):
 
 def action_panel_context(miniature, own, computed, *, counter_tracking_active=None):
     """The same available flows on Edit, Equip and their partial updates."""
-    from n26.core.action_flow import action_panels
+    from n26.core.action_flow import action_colour, action_panels
     from n26.core.counter_tracking import is_active as counter_tracking_is_active
     from n26.core.views.action_flows import link_action_panels, split_action_panels
 
@@ -442,7 +442,11 @@ def action_panel_context(miniature, own, computed, *, counter_tracking_active=No
             ),
         )
     )
-    return {"action_panels": flows, "action_history_panels": history}
+    return {
+        "action_panels": flows,
+        "action_history_panels": history,
+        "action_colour": action_colour(miniature.gang),
+    }
 
 
 def render_card_update(request, miniature, at):

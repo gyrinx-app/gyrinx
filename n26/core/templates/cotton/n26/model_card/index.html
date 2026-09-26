@@ -12,7 +12,7 @@ An empty href draws nothing. A print sheet or hire preview that passes none cann
 status_hx needs the host in n26/includes/status_dialogs.html.
 {% endcomment %}
 
-{% load richtext %}
+{% load richtext theme %}
 <c-vars
     :card="None"
     mode="gang"
@@ -162,20 +162,25 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                                 <c-slot name="content">Model cards</c-slot>
                             </c-ui.tooltip>
                         {% endif %}
+                        {% if mode == 'gang' and card.action_names %}
+                            <c-ui.tooltip size="sm">
+                                <c-ui.button size="xs"
+                                             variant="ghost"
+                                             href="{% url 'n26-edit-fighter' card.id %}#actions"
+                                             aria-label="Actions waiting: {{ card.action_names|join:', ' }}">
+                                    <span class="n26-icon-only"
+                                          style="color: {{ card.action_colour|css_color }}">
+                                        <c-n26.icon name="circle-fading-arrow-up" class="size-4" stroke_width="2" />
+                                    </span>
+                                </c-ui.button>
+                                <c-slot name="content">Actions waiting: {{ card.action_names|join:", " }}</c-slot>
+                            </c-ui.tooltip>
+                        {% endif %}
                         {{ actions }}
                     </div>
                 {% endif %}
             </div>
         </div>
-        {% if mode == 'gang' and card.action_names %}
-            <div class="mt-2 flex flex-wrap gap-2">
-                {% for name in card.action_names %}
-                    <c-ui.button href="{% url 'n26-edit-fighter' card.id %}#n26-action-panels" variant="primary" size="xs">
-                        {{ name }} <span aria-hidden="true">→</span>
-                    </c-ui.button>
-                {% endfor %}
-            </div>
-        {% endif %}
     </div>
 
     {% if card.id and tabs %}

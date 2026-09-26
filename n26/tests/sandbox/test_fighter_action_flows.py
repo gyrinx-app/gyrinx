@@ -407,32 +407,42 @@ class TestSuitEvolutionForms:
         )
         assert "Advancement" in model.action_names
 
-    def test_available_flows_are_linked_from_the_owners_roster_only(self, client, hunt):
+    def test_only_waiting_actions_are_marked_on_the_owners_roster(self, client, hunt):
         from bs4 import BeautifulSoup
 
         url = reverse("n26-gang", args=[hunt.gang.pk])
         client.force_login(hunt.owner)
+        model = client.get(url).context["sheet"].models[0]
+        # Affordable is not waiting: a priced action stays on Edit.
+        assert model.action_names == ()
+
+        start(client, hunt, hunt.clear)
         response = client.get(url)
-        model = next(
-            model
-            for model in response.context["sheet"].models
-            if model.id == str(hunt.fighter.pk)
-        )
+        model = response.context["sheet"].models[0]
         assert model.action_names == ("Suit Evolution",)
+        assert model.action_colour == "blue"
         card = BeautifulSoup(response.content, "html.parser").find(
             id=f"model-{hunt.fighter.pk}"
         )
-        assert card.find(
+        mark = card.find(
             "a",
-            href=f"{reverse('n26-edit-fighter', args=[hunt.fighter.pk])}#n26-action-panels",
+            href=f"{reverse('n26-edit-fighter', args=[hunt.fighter.pk])}#actions",
         )
-
-        with operation(hunt.gang, actor=hunt.owner) as op:
-            op.tally(hunt.kills, -3)
-        assert client.get(url).context["sheet"].models[0].action_names == ()
+        assert mark["aria-label"] == "Actions waiting: Suit Evolution"
+        assert "var(--color-blue-500)" in mark.find("span")["style"]
 
         client.logout()
         assert client.get(url).context["sheet"].models[0].action_names == ()
+
+    def test_the_mark_takes_the_gang_colour(self, client, hunt):
+        hunt.gang.colour = "red"
+        hunt.gang.save(update_fields=["colour"])
+        start(client, hunt, hunt.clear)
+        response = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
+        assert response.context["sheet"].models[0].action_colour == "red"
+        edit = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        assert edit.context["action_colour"] == "red"
+        assert [panel.flagged for panel in edit.context["action_panels"]] == [True]
 
     def test_a_started_flow_stays_on_the_roster_when_tracking_is_paused(
         self, client, hunt, counter_tracking
@@ -448,6 +458,14 @@ class TestSuitEvolutionForms:
         client.force_login(hunt.owner)
         url = reverse("n26-gang", args=[hunt.gang.pk])
 
+        def draft(fighter):
+            ActionRecord.objects.create(
+                gang=hunt.gang,
+                fighter=fighter,
+                action=hunt.action,
+                request_key=uuid4(),
+            )
+
         def measure():
             client.get(url)
             with CaptureQueriesContext(connection) as queries:
@@ -459,13 +477,16 @@ class TestSuitEvolutionForms:
             )
             return len(queries)
 
+        draft(hunt.fighter)
         one = measure()
+        hired = []
         with operation(hunt.gang, actor=hunt.owner) as op:
             for number in range(3):
                 model = op.hire(hunt.fighter.membership.profile, f"Hunter {number}")
                 op.assign(hunt.action, miniature=model)
-                kills = op.assign(hunt.kills.counter, miniature=model)
-                op.tally(kills, 6)
+                hired.append(model)
+        for model in hired:
+            draft(model)
         assert measure() == one
 
     def test_credit_payment_figures_use_the_currency_symbol_without_a_unit(self):

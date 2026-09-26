@@ -1127,9 +1127,10 @@ class ModelCard:
     skills_href: str = ""
     #: Owner-only equipment-card management. Empty on previews and prints.
     model_cards_href: str = ""
-    #: Effective actions from the card; a view fills names only for usable ones.
-    action_ids: tuple[str, ...] = ()
+    #: Actions the roster flags: an earned use or an unfinished draft. The
+    #: gang view fills these for the owner only.
     action_names: tuple[str, ...] = ()
+    action_colour: str = ""
     #: Authored standing in each effective rank table. A roster supplies these
     #: in one batch; a standalone card derives its own without writing history.
     rank_summaries: tuple[RankSummary, ...] = ()
@@ -2578,13 +2579,6 @@ def build_model_card(
         founding_budget=budget is not None,
         status=miniature.status,
     )
-    if computed is not None:
-        from n26.core.access import actions_for
-
-        rendered.action_ids = tuple(
-            str(access.action.pk)
-            for access in actions_for(miniature, card=card, computed=computed)
-        )
     if rank_summaries is None:
         rank_summaries = progression_summaries(
             {miniature.pk: card},
