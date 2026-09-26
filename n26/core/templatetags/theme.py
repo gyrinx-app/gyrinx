@@ -27,7 +27,7 @@ SINGULAR = {
 # URL is refused rather than passed through.
 TOKEN = re.compile(r"[a-z][a-z0-9-]*")
 LITERAL = re.compile(
-    r"#[0-9a-fA-F]{3,8}"
+    r"#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})"
     r"|(?:rgb|rgba|hsl|hsla|oklch|oklab|var)\([-\w\s.,%/]*\)"
 )
 

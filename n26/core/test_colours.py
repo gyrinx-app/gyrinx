@@ -28,6 +28,8 @@ def test_a_theme_name_or_a_colour_literal_is_drawn(value, drawn):
         "red; background-image: url(https://example.com/x)",
         "url(https://example.com/x)",
         "#fff; color: red",
+        "#12345",
+        "#1234567",
         'red"',
         "red blue",
     ],
