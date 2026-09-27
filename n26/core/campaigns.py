@@ -1428,6 +1428,8 @@ class BattleStake:
     name: str
     awarded_to: str
     holder: str
+    #: Whether the reader is the campaign's arbitrator, who can change it.
+    arbitrator: bool = False
 
     @property
     def outcome(self):
@@ -1439,9 +1441,22 @@ class BattleStake:
 
     @property
     def held_by(self):
-        if self.holder:
-            return f"Held by {self.holder}"
-        return "Not held by any gang"
+        """Who holds it now, where the outcome does not already say so."""
+        if not self.holder:
+            return "Not held by any gang."
+        if self.holder == (self.awarded_to or self.holder):
+            return ""
+        return f"Held by {self.holder}."
+
+    @property
+    def note(self):
+        """The line under the stake: who holds it, and who can change it."""
+        who = (
+            ""
+            if self.arbitrator
+            else ("Only the campaign's arbitrator can change this on Edit battle.")
+        )
+        return " ".join(part for part in (self.held_by, who) if part)
 
 
 def a_stake(label):
@@ -1450,8 +1465,37 @@ def a_stake(label):
     return f"{'an' if word[:1] in 'aeiou' else 'a'} {word}"
 
 
-def battle_stake(battle):
-    """The battle's stake as ``BattleStake``, or None where it has none."""
+def stake_came_from(battle):
+    """The gang holding the battle's stake before the battle moved it: the
+    gang its transfer took it from, or the holder now where it has not
+    moved. None where the battle stakes nothing or nobody holds it."""
+    if battle is None or battle.stake_id is None:
+        return None
+    if battle.stake_transfer_mark is not None:
+        lost = (
+            LedgerEvent.objects.filter(
+                batch=battle.stake_transfer_mark,
+                campaign_asset_id=battle.stake_id,
+                kind=LedgerEvent.Kind.LOST,
+            )
+            .select_related("gang")
+            .first()
+        )
+        return lost.gang if lost else None
+    stake = (
+        CampaignAsset.objects.select_related("holder__gang")
+        .filter(pk=battle.stake_id)
+        .first()
+    )
+    return stake.holder.gang if stake is not None and stake.held else None
+
+
+def battle_stake(battle, viewer=None):
+    """The battle's stake as ``BattleStake``, or None where it has none.
+
+    ``viewer`` is who is reading, so the arbitrator is not told to ask
+    themselves.
+    """
     if battle is None or battle.stake_id is None:
         return None
     stake = (
@@ -1468,6 +1512,7 @@ def battle_stake(battle):
         name=str(stake),
         awarded_to=awarded_to.name if awarded_to else "",
         holder=stake.holder.gang.name if stake.held else "",
+        arbitrator=viewer is not None and viewer.pk == battle.campaign.owner_id,
     )
 
 

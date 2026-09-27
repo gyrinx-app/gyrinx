@@ -608,11 +608,12 @@ class BattleForm(forms.Form):
     stake_awarded_to = forms.ModelChoiceField(
         queryset=None,
         required=False,
-        empty_label="Stays with its current gang",
+        empty_label="Stays with the gang that held it before the battle",
     )
     revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
 
     def __init__(self, *args, playing, battle=None, **kwargs):
+        from n26.core.campaigns import stake_came_from
         from n26.core.models import Battle
 
         super().__init__(*args, **kwargs)
@@ -647,7 +648,16 @@ class BattleForm(forms.Form):
             self.stake_label = ""
             return
         self.fields["stake"].queryset = stakes
-        self.fields["stake_awarded_to"].queryset = self._awardable(playing, battle)
+        # The gang that held it before the battle is the empty choice, so it
+        # is not offered again by name.
+        came_from = stake_came_from(battle)
+        awardable = self._awardable(playing, battle)
+        if came_from is not None:
+            awardable = awardable.exclude(pk=came_from.pk)
+            self.fields["stake_awarded_to"].empty_label = f"Stays with {came_from.name}"
+            if battle.stake_awarded_to_id == came_from.pk:
+                self.initial["stake_awarded_to"] = None
+        self.fields["stake_awarded_to"].queryset = awardable
         from n26.core.campaigns import a_stake
 
         noun = stake_noun(stakes)

@@ -280,6 +280,42 @@ class TestWhatCanBeStaked:
         assert holder(table) == table.choir
 
 
+class TestWhereItCanGo:
+    def options(self, table):
+        table.battle.refresh_from_db()
+        form = BattleForm(playing=Gang.objects.all(), battle=table.battle)
+        return [label for _, label in form.fields["stake_awarded_to"].choices]
+
+    def test_before_a_stake_is_set_the_empty_choice_says_what_it_does(self, table):
+        assert self.options(table) == [
+            "Stays with the gang that held it before the battle",
+            "Ashen Choir",
+            "Rust Kings",
+        ]
+
+    def test_the_gang_that_held_it_is_offered_once(self, table):
+        stake_as(table, None)
+
+        assert self.options(table) == ["Stays with Ashen Choir", "Rust Kings"]
+
+    def test_after_the_award_the_empty_choice_still_names_the_first_holder(
+        self, client, table
+    ):
+        client.post(edit_url(table), form_fields(table))
+
+        assert self.options(table) == ["Stays with Ashen Choir", "Rust Kings"]
+        client.post(edit_url(table), form_fields(table, stake_awarded_to=""))
+        assert holder(table) == table.choir
+
+    def test_a_stake_awarded_to_its_first_holder_shows_as_staying(self, table):
+        stake_as(table, table.choir)
+        table.battle.refresh_from_db()
+
+        form = BattleForm(playing=Gang.objects.all(), battle=table.battle)
+
+        assert form.initial["stake_awarded_to"] is None
+
+
 class TestRemovingTheBattle:
     def test_a_battle_that_moved_its_stake_cannot_be_removed(self, client, table):
         client.post(edit_url(table), form_fields(table))
@@ -350,9 +386,24 @@ class TestWhoMovesTheStake:
         stake = BeautifulSoup(page.content, "html.parser").select_one(
             "[data-battle-stake]"
         )
-        assert "Territory staked" in stake.get_text()
-        assert "Held by Rust Kings" in stake.get_text()
+        text = " ".join(stake.get_text().split())
+        assert "Territory staked" in text
+        assert "Old Ruins · Goes to Rust Kings" in text
+        # It is where it went, so the holder is not named twice.
+        assert "Held by" not in text
+        assert "Only the campaign's arbitrator can change this on Edit battle." in text
         assert stake.select("select, input, button") == []
+
+    def test_the_arbitrator_is_not_told_to_ask_themselves(self, client, table):
+        stake_as(table, table.kings)
+
+        page = client.get(
+            reverse("n26-battle", args=[table.campaign.pk, table.battle.pk])
+        )
+
+        text = stake_text(page)
+        assert "Old Ruins · Goes to Rust Kings" in text
+        assert "arbitrator" not in text
 
 
 class TestBothReportsAgree:
@@ -399,6 +450,26 @@ class TestBothReportsAgree:
 
         assert outcome("Rust Kings") == "Stays with Rust Kings"
         assert outcome("") == "Not given to any gang"
+
+    def test_the_note_names_a_holder_the_outcome_does_not(self):
+        def note(awarded_to, holder, arbitrator=False):
+            return BattleStake(
+                label="Territory staked",
+                name="Old Ruins",
+                awarded_to=awarded_to,
+                holder=holder,
+                arbitrator=arbitrator,
+            ).note
+
+        assert note("Rust Kings", "Rust Kings", arbitrator=True) == ""
+        assert note("", "Rust Kings", arbitrator=True) == ""
+        assert note("Rust Kings", "Bystanders", arbitrator=True) == (
+            "Held by Bystanders."
+        )
+        assert note("Rust Kings", "Bystanders") == (
+            "Held by Bystanders. Only the campaign's arbitrator can change "
+            "this on Edit battle."
+        )
 
 
 def stake_text(response):

@@ -7,5 +7,5 @@ holder is read from the asset now, so every report names the same gang.
     <p class="text-sm">
         <span class="font-semibold">{{ stake.name }}</span> · {{ stake.outcome }}
     </p>
-    <p class="text-sm text-muted">{{ stake.held_by }}. Only the arbitrator can change this, by editing the battle.</p>
+    {% if stake.note %}<p class="text-sm text-muted">{{ stake.note }}</p>{% endif %}
 </div>

@@ -375,7 +375,7 @@ def post_battle_editor(request, pk):
         "mission": mission_results(
             plan, payload, refresh_url=request.path, show_errors=show_errors
         ),
-        "stake": battle_stake(report.battle),
+        "stake": battle_stake(report.battle, request.user),
         "xp_toolbar": xp_toolbar(models),
         "version_form": version,
         "errors": errors,
@@ -430,7 +430,7 @@ def post_battle_receipt(request, pk, sequence=None):
             "receipt": revision.receipt,
             "receipt_models": receipt_models(revision.receipt),
             "mission": receipt_mission(revision.receipt, revision),
-            "stake": battle_stake(report.battle),
+            "stake": battle_stake(report.battle, request.user),
             "revisions": report.revisions.only("sequence", "created"),
             "may_edit": can_edit_report(report, request.user),
         },
