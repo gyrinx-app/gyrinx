@@ -582,12 +582,28 @@ def recipes():
         "filterMenu": filter_menu_recipe(),
         "quickSwitcher": quick_switcher_recipe(),
         "pickList": pick_list_recipe(),
+        "popover": {
+            "panel": classes(
+                '<c-ui.popover panel_label="Help">Body</c-ui.popover>',
+                "div",
+                "div",
+                "div",
+                "div",
+            )[3]
+        },
         "icons": {
             name: [
                 {"tag": tag, "attrs": attrs}
                 for tag, attrs in Elements(str(resolve(name).body)).elements
             ]
-            for name in ("search", "x", "chevron-down", "info", "check")
+            for name in (
+                "search",
+                "x",
+                "chevron-down",
+                "info",
+                "check",
+                "circle-question-mark",
+            )
         },
     }
 

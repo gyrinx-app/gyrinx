@@ -19,8 +19,10 @@ from n26.core.crews import CrewSelection, save_crew
 from n26.core.models import (
     Activity,
     Assignment,
+    BattleCrew,
     CounterValue,
     LedgerEvent,
+    Miniature,
     PostBattleReport,
 )
 from n26.core.operations import operation
@@ -40,14 +42,20 @@ from n26.library.authoring import (
     op_sets_status,
     targets_model,
 )
+from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
+    assign,
+    create_wargear,
     found_campaign,
     found_gang,
     hire,
     join_campaign,
+    modifier,
+    op_adds_model,
     op_changes_counter,
     open_founding,
 )
+from n26.tests.sandbox.actions import targets_model as targets_the_model
 
 pytestmark = pytest.mark.django_db
 
@@ -679,6 +687,76 @@ class TestStartingAndResuming:
         report = PostBattleReport.objects.get(gang=table.gang)
         assert report.battle_id == (None if standalone else table.battle.pk)
         assert report.reference == "Stand-off"
+
+    def test_a_pet_is_preselected_when_its_owner_starts(
+        self, client, table, feature, person_type, gang_type
+    ):
+        profile = Profile.objects.create(
+            name="Cyber-mastiff", profile_type=person_type, gang_type=gang_type
+        )
+        wargear = create_wargear("Cyber-mastiff (pet)")
+        modifier(
+            "Cyber-mastiff wargear brings a pet",
+            targets_the_model(),
+            op_adds_model(profile),
+            carried_by=wargear,
+        )
+        assign(wargear, miniature=table.models[0])
+        pet = Miniature.objects.get(name="Cyber-mastiff", membership__gang=table.gang)
+        save_crew(
+            battle=table.battle,
+            gang=table.gang,
+            actor=table.owner,
+            revision=0,
+            selections=[CrewSelection(str(table.models[0].pk), "starting")],
+            confirm=True,
+        )
+        report = start(client, table)
+        payload = client.get(editor_url(report)).context["payload"]
+        by_id = {row["id"]: row for row in payload["models"]}
+        assert by_id[str(pet.pk)]["participated"]
+        assert not by_id[str(table.models[1].pk)]["participated"]
+
+    def test_a_pet_saved_as_starting_does_not_take_part_without_its_owner(
+        self, client, table, feature, person_type, gang_type
+    ):
+        profile = Profile.objects.create(
+            name="Cyber-mastiff", profile_type=person_type, gang_type=gang_type
+        )
+        wargear = create_wargear("Cyber-mastiff (pet)")
+        modifier(
+            "Cyber-mastiff wargear brings a pet",
+            targets_the_model(),
+            op_adds_model(profile),
+            carried_by=wargear,
+        )
+        assign(wargear, miniature=table.models[0])
+        pet = Miniature.objects.get(name="Cyber-mastiff", membership__gang=table.gang)
+        crew = BattleCrew.objects.create(battle=table.battle, gang=table.gang)
+        crew.members.create(
+            miniature=pet,
+            miniature_name=pet.name,
+            role="starting",
+            card_name="Full equipment",
+        )
+        report = start(client, table)
+        payload = client.get(editor_url(report)).context["payload"]
+        by_id = {row["id"]: row for row in payload["models"]}
+        assert not by_id[str(pet.pk)]["participated"]
+
+    def test_a_deleted_starting_member_does_not_tick_every_model(
+        self, client, table, feature
+    ):
+        crew = BattleCrew.objects.create(battle=table.battle, gang=table.gang)
+        crew.members.create(
+            miniature=None,
+            miniature_name="Gone",
+            role="starting",
+            card_name="Full equipment",
+        )
+        report = start(client, table)
+        payload = client.get(editor_url(report)).context["payload"]
+        assert not any(row["participated"] for row in payload["models"])
 
     def test_saved_crew_only_preselects_starting_models(self, client, table, feature):
         save_crew(

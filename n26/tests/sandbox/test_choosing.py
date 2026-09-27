@@ -1213,10 +1213,14 @@ class TestTheXBesideAnOpenOffer:
             form = page.find("form", action=dismiss_url(gang, line))
             group = form.parent
             assert {"items-center", "gap-0"} <= set(group["class"])
-            assert group.find(
+            link = group.find(
                 "a",
                 href=lambda href, prefix=line.href: href and href.startswith(prefix),
             )
+            if line.is_tier_ladder:
+                assert link is None
+            else:
+                assert link is not None
             assert "py-0!" not in form.find("button")["class"]
         page = BeautifulSoup(sheet_body(client, gang), "html.parser")
         form = page.find(

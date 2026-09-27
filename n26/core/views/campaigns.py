@@ -1033,7 +1033,7 @@ def _playing(campaign):
 @requires_flag(CAMPAIGNS)
 @login_required
 def add_battle(request, pk):
-    """Record a battle before or after it is fought."""
+    """Add a battle before it is fought; its outcome is recorded by editing it."""
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import BattleForm
     from n26.core.operations import Refusal
@@ -1050,7 +1050,7 @@ def add_battle(request, pk):
             except Refusal as exc:
                 form.add_error(None, str(exc))
             else:
-                messages.success(request, "Battle recorded.")
+                messages.success(request, "Battle added.")
                 return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
     else:
         form = BattleForm(playing=playing)

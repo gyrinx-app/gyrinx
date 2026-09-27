@@ -645,3 +645,4 @@ export {
     type QuickSwitcherProps,
     type SwitcherRow,
 } from "./QuickSwitcher";
+export { HelpPopover } from "./HelpPopover";

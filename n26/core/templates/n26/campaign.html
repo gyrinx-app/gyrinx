@@ -138,7 +138,7 @@ reader's other campaigns — the same pattern a gang's screens use.
                 <c-ui.button size="sm"
                              variant="primary"
                              href="{% url 'n26-campaign-add-battle' campaign.pk %}">
-                    Record battle
+                    Add battle
                 </c-ui.button>
             </c-slot>
         {% endif %}
@@ -187,21 +187,36 @@ reader's other campaigns — the same pattern a gang's screens use.
                         <tr>
                             <th scope="col">Battle</th>
                             <th scope="col">Gangs</th>
-                            <th scope="col">Result</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for battle in battles %}
-                            <tr>
-                                <td>
+                            {# relative lets the title's n26-row-link cover the row; ! beats the table kit's near-invisible hover. #}
+                            <tr class="relative hover:bg-ink-500/5!">
+                                <td class="align-top">
                                     <c-n26.link href="{% url 'n26-battle' campaign.pk battle.pk %}"
-                                                class="font-medium">{{ battle.title }}</c-n26.link>
+                                                class="n26-row-link font-medium">{{ battle.title }}</c-n26.link>
                                     <div class="mt-1 text-sm tabular-nums text-muted">{{ battle.date|date:"j M Y" }}</div>
                                 </td>
                                 <td>
-                                    {% for gang in battle.gangs.all %}{% if not forloop.first %}, {% endif %}{{ gang.name }}{% empty %}<span class="text-muted">No gangs named</span>{% endfor %}
+                                    <ul class="flex flex-col gap-1">
+                                        {% for gang, won in battle.gang_outcomes %}
+                                            <li>
+                                                <c-n26.color-swatch color="{{ gang.colour }}" />
+                                                {{ gang.name }}
+                                                {% if won %}
+                                                    <c-n26.icon name="trophy"
+                                                                label="Winner"
+                                                                stroke_width="2"
+                                                                class="inline-block size-4 align-[-0.15em] text-accent" />
+                                                {% endif %}
+                                            </li>
+                                        {% empty %}
+                                            <li class="text-muted">No gangs named</li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% if battle.result == "draw" %}<p class="mt-1 text-sm text-muted">Draw</p>{% endif %}
                                 </td>
-                                <td>{{ battle.result_label }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>

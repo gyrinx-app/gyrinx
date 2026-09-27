@@ -533,7 +533,12 @@ class BringGangForm(forms.Form):
 
 
 class BattleForm(forms.Form):
-    """A battle's identity, participants and optional result."""
+    """A battle's identity and participants, and on edit its outcome.
+
+    A new battle carries no outcome fields: players add it before the
+    game, choose crews from its page, and record the outcome afterwards
+    by editing it.
+    """
 
     scenario = forms.CharField(max_length=200, label="Scenario")
 
@@ -547,7 +552,7 @@ class BattleForm(forms.Form):
         label="Participants",
         widget=forms.CheckboxSelectMultiple,
     )
-    result = forms.ChoiceField(label="Result")
+    result = forms.ChoiceField(label="Outcome")
     winners = forms.ModelMultipleChoiceField(
         queryset=None,
         required=False,
@@ -569,7 +574,8 @@ class BattleForm(forms.Form):
         self.fields["result"].choices = Battle.Result.choices
         self.fields["result"].initial = Battle.Result.NOT_RECORDED
         if battle is None:
-            del self.fields["revision"]
+            for name in ("revision", "result", "winners"):
+                del self.fields[name]
         else:
             self.initial.update(
                 scenario=battle.scenario,
