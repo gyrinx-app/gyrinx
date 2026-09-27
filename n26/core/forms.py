@@ -604,15 +604,11 @@ class BattleForm(forms.Form):
         queryset=None,
         required=False,
         empty_label="Nothing staked",
-        error_messages={
-            "invalid_choice": "Choose an asset a participant holds.",
-        },
     )
     stake_awarded_to = forms.ModelChoiceField(
         queryset=None,
         required=False,
-        empty_label="Stays with its holder",
-        error_messages={"invalid_choice": "Choose a participant."},
+        empty_label="Stays with its current gang",
     )
     revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
 
@@ -652,10 +648,18 @@ class BattleForm(forms.Form):
             return
         self.fields["stake"].queryset = stakes
         self.fields["stake_awarded_to"].queryset = self._awardable(playing, battle)
+        from n26.core.campaigns import a_stake
+
         noun = stake_noun(stakes)
         self.stake_label = f"{noun} staked"
         self.fields["stake"].label = self.stake_label
+        self.fields["stake"].error_messages["invalid_choice"] = (
+            f"Select {a_stake(noun)} a participant holds."
+        )
         self.fields["stake_awarded_to"].label = f"{noun} goes to"
+        self.fields["stake_awarded_to"].error_messages["invalid_choice"] = (
+            f"Select a participant to give the {noun[:1].lower() + noun[1:]} to."
+        )
 
     def _awardable(self, playing, battle):
         """The gangs the stake can go to: the participants being saved,

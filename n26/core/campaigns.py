@@ -430,15 +430,16 @@ class CampaignOperation:
             return None, None
         stake = _asset_under_the_lock(stake)
         if stake is None or stake.campaign_id != self.campaign.pk:
-            raise Refusal("Choose an asset from this campaign.")
+            raise Refusal("Select an asset from this campaign.")
         if stake.pk != battle.stake_id and not (
             stake.held and stake.holder.gang_id in gang_ids
         ):
+            noun = a_stake(stake.asset.asset_type.label_singular)
             raise Refusal(
-                f"No participant holds {stake}. Choose an asset a participant holds."
+                f"No participant holds {stake}. Select {noun} a participant holds."
             )
         if awarded_to is not None and awarded_to.pk not in gang_ids:
-            raise Refusal(f"Choose a participant to give {stake} to.")
+            raise Refusal(f"Select a participant to give {stake} to.")
         return stake, awarded_to
 
     def _settle_stake(self, battle, stake, awarded_to, gang_ids):
@@ -1432,13 +1433,21 @@ class BattleStake:
     def outcome(self):
         if self.awarded_to:
             return f"Goes to {self.awarded_to}"
-        return "Stays with its holder"
+        if self.holder:
+            return f"Stays with {self.holder}"
+        return "Not given to any gang"
 
     @property
     def held_by(self):
         if self.holder:
             return f"Held by {self.holder}"
         return "Not held by any gang"
+
+
+def a_stake(label):
+    """A stake's type word in a sentence: "a territory", "an asset"."""
+    word = label[:1].lower() + label[1:]
+    return f"{'an' if word[:1] in 'aeiou' else 'a'} {word}"
 
 
 def battle_stake(battle):

@@ -16,7 +16,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.core.campaigns import battle_stake, campaign_operation
+from n26.core.campaigns import BattleStake, battle_stake, campaign_operation
 from n26.core.forms import BattleForm
 from n26.core.models import Battle, Gang, LedgerEvent, PostBattleReport
 from n26.core.operations import Refusal
@@ -273,7 +273,7 @@ class TestWhatCanBeStaked:
         )
 
         assert response.status_code == 200
-        assert "Choose an asset a participant holds." in response.content.decode()
+        assert "Select a territory a participant holds." in response.content.decode()
         foreign.refresh_from_db()
         assert foreign.holder.gang == outsiders
         assert Battle.objects.get(pk=table.battle.pk).stake is None
@@ -390,6 +390,15 @@ class TestBothReportsAgree:
 
     def test_no_stake_shows_nothing(self, table):
         assert battle_stake(table.battle) is None
+
+    def test_a_stake_not_given_away_stays_with_its_holder(self):
+        def outcome(holder):
+            return BattleStake(
+                label="Territory staked", name="Old Ruins", awarded_to="", holder=holder
+            ).outcome
+
+        assert outcome("Rust Kings") == "Stays with Rust Kings"
+        assert outcome("") == "Not given to any gang"
 
 
 def stake_text(response):
