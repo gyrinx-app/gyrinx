@@ -246,6 +246,24 @@ def test_campaign_creation():
 
 Tests are automatically run in GitHub Actions on every pull request and push to main. The test suite must pass before code can be merged.
 
+### Reading a failed job while the run is still going
+
+`gh run view --log-failed` waits until every job in the workflow run has
+finished. A completed job (for example the required `test` job) already
+exposes logs on `GET .../actions/jobs/JOB_ID/logs` while `test-full` is still
+running:
+
+```bash
+python scripts/fetch_job_logs.py
+python scripts/fetch_job_logs.py 2667
+python scripts/fetch_job_logs.py --job 108503680591
+```
+
+The helper filters for pytest `FAILURES` rather than the Post job cleanup /
+container tail. An in-progress job's latest chunk can lag several minutes.
+Load the `ci-job-logs` skill. Do not use `gh run view --log-failed` to watch a
+run that has not finished.
+
 ## Common Issues
 
 ### Static Files
