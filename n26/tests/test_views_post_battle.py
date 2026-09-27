@@ -1909,7 +1909,7 @@ class TestModelModule:
         assert fallback.find_parent("noscript") is not None
         kept = alive.find("input", attrs={"name": f"model-{model.pk}-equipment"})
         assert kept["type"] == "hidden"
-        assert "open when this model is dead or destroyed" in alive.get_text()
+        assert "only when this model is dead or destroyed" in alive.get_text()
         dead = refresh(
             client,
             report,

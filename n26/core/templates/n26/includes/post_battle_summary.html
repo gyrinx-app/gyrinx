@@ -40,9 +40,9 @@
                     {% if model.result.equipment_changed %}
                         <p>
                             {% if model.result.equipment_disposition == "stash" %}
-                                Move to stash:
+                                Moves to the stash:
                             {% else %}
-                                Mark lost:
+                                Marked lost:
                             {% endif %}
                             {{ model.result.equipment_affected_names|join:', '|default:'No equipment' }}.
                         </p>

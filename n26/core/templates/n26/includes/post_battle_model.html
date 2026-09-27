@@ -189,7 +189,7 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                                     placeholder=""
                                     size="lg"
                                     :attrs="model.refresh_attrs">
-                    <option value="">From current status and results</option>
+                    <option value="">Set from its current status and results</option>
                     {% for value,label in model.status_options %}
                         <option value="{{ value }}"
                                 {% if value == model.status %}selected{% endif %}>{{ label }}</option>
@@ -224,7 +224,7 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                 <input type="hidden"
                        name="{{ model.prefix }}-equipment"
                        value="{{ model.equipment }}">
-                <p class="text-sm text-muted">Equipment choices open when this model is dead or destroyed.</p>
+                <p class="text-sm text-muted">You can move equipment or mark it lost only when this model is dead or destroyed.</p>
                 {% comment %}
                 Without scripts the module is not redrawn when the status
                 changes, so the choice stays on offer. Posted after the hidden
