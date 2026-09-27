@@ -1,0 +1,158 @@
+{% comment %}
+The gang's results from the battle: lines of credits and the gang's
+counters. Its buttons, and a change to an amount or a counter, post the form
+and swap this fieldset for the server's copy (see post_battle_refresh.html),
+so the id must stay put.
+{% endcomment %}
+<fieldset id="mission-results"
+          class="min-w-0 scroll-mt-24 space-y-6 border border-box-border bg-surface p-4 sm:p-5"
+          hx-target="this"
+          hx-swap="outerHTML"
+          hx-sync="closest form:queue all"
+          data-mission-results>
+    <legend class="sr-only">Mission results</legend>
+    <div>
+        <h2 class="text-lg font-semibold">Mission results</h2>
+        <p class="mt-1 text-sm text-muted">Enter the credits the gang gained and any change to its counters.</p>
+    </div>
+    <div class="space-y-3">
+        <h3 id="credits-heading" class="text-base font-semibold">Credits</h3>
+        <ul class="space-y-3" aria-labelledby="credits-heading">
+            {% for line in mission.credit_rows %}
+                <li class="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 border-b border-box-border pb-3 last:border-0 last:pb-0 sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:border-0 sm:pb-0">
+                    <input type="hidden" name="credit_line" value="{{ line.id }}">
+                    <c-ui.field label="Amount" for="{{ line.prefix }}-amount">
+                        <c-ui.input id="{{ line.prefix }}-amount"
+                                    name="{{ line.prefix }}-amount"
+                                    type="number"
+                                    min="0"
+                                    inputmode="numeric"
+                                    value="{{ line.amount }}"
+                                    size="lg"
+                                    :attrs="line.amount_attrs"
+                                    data-credit-amount />
+                        {% if line.amount_errors %}
+                            <c-ui.error id="{{ line.prefix }}-amount-error"
+                                        message="{{ line.amount_errors|join:' ' }}" />
+                        {% endif %}
+                    </c-ui.field>
+                    <c-ui.field label="Reason"
+                                for="{{ line.prefix }}-reason"
+                                class="col-span-2 sm:col-span-1">
+                        <c-ui.input id="{{ line.prefix }}-reason"
+                                    name="{{ line.prefix }}-reason"
+                                    maxlength="255"
+                                    value="{{ line.reason }}"
+                                    placeholder="e.g. Scenario reward"
+                                    size="lg"
+                                    :attrs="line.reason_attrs" />
+                        {% if line.reason_errors %}
+                            <c-ui.error id="{{ line.prefix }}-reason-error"
+                                        message="{{ line.reason_errors|join:' ' }}" />
+                        {% endif %}
+                    </c-ui.field>
+                    <c-ui.button type="submit"
+                                 name="intent"
+                                 value="remove-credit-line:{{ line.id }}"
+                                 variant="ghost"
+                                 size="sm"
+                                 aria-label="{{ line.remove_label }}"
+                                 class="col-start-2 row-start-1 sm:col-start-3 sm:mb-1"
+                                 :attrs="mission.button_attrs">
+                        Remove
+                    </c-ui.button>
+                </li>
+            {% endfor %}
+        </ul>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            {% if mission.can_add_line %}
+                <c-ui.button type="submit"
+                             id="add-credit-line"
+                             name="intent"
+                             value="add-credit-line"
+                             size="sm"
+                             :attrs="mission.button_attrs">
+                    Add credits
+                </c-ui.button>
+            {% endif %}
+            <p class="ml-auto text-sm">
+                Credits from this battle: <span class="font-semibold tabular-nums"
+       data-credit-total>{{ mission.total_text }}</span>
+            </p>
+        </div>
+    </div>
+    {% if mission.counter_rows %}
+        <div class="space-y-3">
+            <h3 id="gang-counters-heading" class="text-base font-semibold">Gang counters</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm" aria-labelledby="gang-counters-heading">
+                    <thead>
+                        <tr class="border-b border-box-border text-left text-muted">
+                            <th scope="col" class="py-2 pr-3 font-medium">Counter</th>
+                            <th scope="col"
+                                class="hidden py-2 pr-3 text-right font-medium sm:table-cell">Before</th>
+                            <th scope="col" class="py-2 pr-3 font-medium">Change</th>
+                            {% if mission.show_effects %}
+                                <th scope="col" class="py-2 pr-3 text-right font-medium">From results</th>
+                            {% endif %}
+                            <th scope="col" class="py-2 text-right font-medium">After</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in mission.counter_rows %}
+                            <tr class="border-b border-box-border">
+                                <th scope="row" class="py-2 pr-3 text-left font-medium">
+                                    <label for="{{ row.prefix }}">{{ row.change.name }}</label>
+                                    <span class="block text-xs font-normal text-muted tabular-nums sm:hidden">Before {{ row.start }}</span>
+                                </th>
+                                <td class="hidden py-2 pr-3 text-right tabular-nums sm:table-cell">{{ row.start }}</td>
+                                <td class="py-2 pr-3">
+                                    <input type="hidden"
+                                           name="gang_counter"
+                                           value="{{ row.change.assignment_id }}">
+                                    <div class="flex items-center gap-1">
+                                        <c-ui.button type="submit"
+                                                     id="{{ row.prefix }}-minus"
+                                                     name="intent"
+                                                     value="{{ row.intent }}:-1"
+                                                     size="sm"
+                                                     aria-label="{{ row.minus_label }}"
+                                                     :attrs="row.minus_attrs">
+                                            −1
+                                        </c-ui.button>
+                                        <div class="w-16 sm:w-20">
+                                            <c-ui.input id="{{ row.prefix }}"
+                                                        name="{{ row.prefix }}"
+                                                        type="number"
+                                                        step="1"
+                                                        value="{{ row.entered }}"
+                                                        placeholder="0"
+                                                        aria-describedby="{{ row.prefix }}-after"
+                                                        data-counter-base="{{ row.base }}"
+                                                        data-counter-limit="{{ row.limit }}" />
+                                        </div>
+                                        <c-ui.button type="submit"
+                                                     id="{{ row.prefix }}-plus"
+                                                     name="intent"
+                                                     value="{{ row.intent }}:+1"
+                                                     size="sm"
+                                                     aria-label="{{ row.plus_label }}"
+                                                     :attrs="row.plus_attrs">
+                                            +1
+                                        </c-ui.button>
+                                    </div>
+                                </td>
+                                {% if mission.show_effects %}
+                                    <td class="py-2 pr-3 text-right tabular-nums">{{ row.change.effect|stringformat:'+d' }}</td>
+                                {% endif %}
+                                <td id="{{ row.prefix }}-after"
+                                    class="py-2 text-right font-semibold tabular-nums"
+                                    data-counter-after>{{ row.change.after }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+</fieldset>

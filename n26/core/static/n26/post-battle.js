@@ -114,6 +114,63 @@
         }
     });
 
+    // Mission results: the credits total and each counter's "After" follow
+    // what is typed. The server's figures replace them on the next update.
+    const whole = (value) => {
+        const number = Number(String(value || "").trim() || 0);
+        return Number.isInteger(number) ? number : 0;
+    };
+    // An amount of credits is a whole number from 0 up. Anything else is
+    // refused on saving, so it adds nothing to the total meanwhile.
+    const amount = (value) => {
+        const text = String(value || "").trim();
+        return /^\d+$/.test(text) && Number(text) <= 1000000 ? Number(text) : 0;
+    };
+    const redrawMission = () => {
+        const total = form.querySelector("[data-credit-total]");
+        if (total) {
+            const sum = [
+                ...form.querySelectorAll("input[data-credit-amount]"),
+            ].reduce((running, input) => running + amount(input.value), 0);
+            total.textContent = `+${sum}¢`;
+        }
+        for (const input of form.querySelectorAll("input[data-counter-base]")) {
+            const change = whole(input.value);
+            const landing = Number(input.dataset.counterBase) + change;
+            const after = document.getElementById(
+                input.getAttribute("aria-describedby"),
+            );
+            if (after) after.textContent = landing;
+            const limit = Number(input.dataset.counterLimit || 1000);
+            for (const button of form.querySelectorAll(
+                `button[data-counter-step="${input.id}"]`,
+            )) {
+                button.disabled =
+                    button.dataset.step === "-1"
+                        ? landing <= 0 || change <= -limit
+                        : change >= limit;
+            }
+        }
+    };
+
+    // A counter's −1 and +1 step its change here, like typing would; the
+    // autosave keeps it. Without scripts they post the form.
+    form.addEventListener("click", (event) => {
+        const button = event.target.closest?.("button[data-counter-step]");
+        if (!button || !form.contains(button)) return;
+        event.preventDefault();
+        const input = document.getElementById(button.dataset.counterStep);
+        if (!input) return;
+        const number = Number(String(input.value || "").trim() || 0);
+        if (!Number.isInteger(number)) return;
+        const next = number + (button.dataset.step === "-1" ? -1 : 1);
+        const limit = Number(input.dataset.counterLimit || 1000);
+        if (Math.abs(next) > limit) return;
+        if (Number(input.dataset.counterBase) + next < 0) return;
+        input.value = next ? String(next) : "";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
     form.addEventListener("htmx:confirm", (event) => {
         event.preventDefault();
         window.clearTimeout(timer);
@@ -239,6 +296,7 @@
         section = "";
         sent = new Map();
         redrawXpToolbar();
+        redrawMission();
         // Entries typed elsewhere while the update was in flight were not
         // in it. The server's "Draft saved" line would be wrong about them.
         if (dirty && !failed) {
@@ -250,6 +308,7 @@
 
     form.addEventListener("input", () => {
         redrawXpToolbar();
+        redrawMission();
         dirty = true;
         window.clearTimeout(timer);
         if (!failed) {

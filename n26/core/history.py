@@ -822,10 +822,14 @@ def _tell(e, row, alive):
             return (Span(f"received {figure} from {other}"), *because), "credits"
         case Kind.INCOME:
             amount = -e.credits_delta
+            # A later revision of a post-battle report corrects the first.
+            revision = e.post_battle_revision
+            correcting = revision is not None and revision.sequence > 1
+            sign = "+" if amount >= 0 else "−"
             wording = (
                 f"received {amount}¢"
-                if amount >= 0
-                else f"corrected income by {amount}¢"
+                if amount >= 0 and not correcting
+                else f"corrected credits by {sign}{abs(amount)}¢"
             )
             because = (Span(f" — {e.note}"),) if e.note else ()
             return (Span(wording), *because), "credits"

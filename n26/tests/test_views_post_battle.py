@@ -24,6 +24,7 @@ from n26.core.models import (
     LedgerEvent,
     Miniature,
     PostBattleReport,
+    PostBattleRevision,
 )
 from n26.core.operations import operation
 from n26.core.post_battle import start_report
@@ -54,6 +55,8 @@ from n26.tests.sandbox.actions import (
     op_adds_model,
     op_changes_counter,
     open_founding,
+    remove,
+    tally,
 )
 from n26.tests.sandbox.actions import targets_model as targets_the_model
 
@@ -151,7 +154,28 @@ def html_fields(response, **changes):
                 continue
             values = [element.get("value", "on" if kind == "checkbox" else "")]
         data.setdefault(name, []).extend(values)
+    return with_first_credits(data, changes)
+
+
+def with_first_credits(data, changes):
+    """Read and write the first line of credits as ``credits`` and ``reason``.
+
+    Most tests enter one amount; this keeps them to the words they mean.
+    """
+    changes = dict(changes)
+    line = (data.get("credit_line") or [None])[0]
+    if line is not None:
+        for short, field in (("credits", "amount"), ("reason", "reason")):
+            name = f"credit-{line}-{field}"
+            if short in changes:
+                changes[name] = changes.pop(short)
+            data[short] = changes.get(name, data.get(name))
     return data | changes
+
+
+def first_credits(payload):
+    """The first line of credits in a saved draft or context payload."""
+    return payload["credit_lines"][0]["amount"]
 
 
 def record_results_form(response, url):
@@ -185,7 +209,7 @@ def start(client, table, *, standalone=False):
 
 
 def awards(response, table, **changes):
-    return (
+    return with_first_credits(
         html_fields(
             response,
             intent="apply",
@@ -196,8 +220,8 @@ def awards(response, table, **changes):
                 f"model-{table.models[0].pk}-participated": "on",
                 f"model-{table.models[0].pk}-xp": "2",
             },
-        )
-        | changes
+        ),
+        changes,
     )
 
 
@@ -853,7 +877,7 @@ class TestStartingAndResuming:
         assert response.status_code == 302
         resumed = client.get(response.url)
         raw = resumed.context["payload"]
-        assert raw["credits"] == "still deciding"
+        assert raw["credit_lines"][0]["amount"] == "still deciding"
         assert raw["models"][0]["xp"] == "not finished"
         assert raw["models"][0]["effects"][0]["choices"] == {
             "unfinished-choice": ["remember-this"]
@@ -887,7 +911,7 @@ class TestStartingAndResuming:
         assert response.json()["revision"] == report.draft_revision == 1
         assert response.json()["generation"] == str(report.generation)
         assert response.json()["saved"]
-        assert report.draft["credits"] == "15"
+        assert first_credits(report.draft) == "15"
         assert xp_value(table.models[0]) == 0
 
 
@@ -951,7 +975,7 @@ class TestApplyingAndCorrecting:
         response = client.post(editor_url(report), data)
         assert response.status_code == 409
         assert "Confirm which models took part" in response.content.decode()
-        assert response.context["payload"]["credits"] == "20"
+        assert first_credits(response.context["payload"]) == "20"
         assert response.context["models"][0].xp == "2"
         assert html_fields(response)["credits"] == ["20"]
         assert LedgerEvent.objects.count() == before
@@ -972,7 +996,8 @@ class TestApplyingAndCorrecting:
         events = LedgerEvent.objects.count()
         assert client.post(editor_url(report), data).status_code == 302
         late = client.post(
-            editor_url(report), data | {"intent": "autosave", "credits": "999"}
+            editor_url(report),
+            with_first_credits(data, {"intent": "autosave", "credits": "999"}),
         )
         assert late.status_code == 302
         report.refresh_from_db()
@@ -1189,7 +1214,7 @@ class TestStaleAndMalformedForms:
         assert kept[f"model-{model_id}-equipment"] == ["lost"]
         assert kept[f"model-{model_id}-effect"] == [effect_id]
         report.refresh_from_db()
-        assert report.draft["credits"] == "10"
+        assert first_credits(report.draft) == "10"
         assert (
             client.post(editor_url(report), kept | {"intent": "save"}).status_code
             == 409
@@ -1221,11 +1246,13 @@ class TestStaleAndMalformedForms:
             client.get(editor_url(report)), intent="autosave", credits="10"
         )
         assert client.post(editor_url(report), data).status_code == 200
-        response = client.post(editor_url(report), data | {"credits": "20"})
+        response = client.post(
+            editor_url(report), with_first_credits(data, {"credits": "20"})
+        )
         assert response.status_code == 409
         assert "another tab" in response.json()["error"]
         report.refresh_from_db()
-        assert report.draft["credits"] == "10"
+        assert first_credits(report.draft) == "10"
 
     @pytest.mark.parametrize("field", ["model", "effect"])
     def test_malformed_content_ids_do_not_raise_500(
@@ -2165,3 +2192,276 @@ class TestConflictingStatuses:
         text = summary_text(redrawn)
         assert message in text
         assert "Final status" not in text
+
+
+def mission(response):
+    return BeautifulSoup(response.content, "html.parser").find(
+        "fieldset", id="mission-results"
+    )
+
+
+def mission_step(client, report, response, intent, **changes):
+    """Click a Mission results button as htmx does."""
+    return client.post(
+        editor_url(report),
+        html_fields(response, intent=intent, **changes),
+        HTTP_HX_REQUEST="true",
+    )
+
+
+def credit_line_ids(response):
+    return [
+        element["value"]
+        for element in mission(response).select("input[name=credit_line]")
+    ]
+
+
+@pytest.fixture
+def reputation(table):
+    counter = assign(create_counter("Reputation"), gang=table.gang, actor=table.owner)
+    tally(counter, 5)
+    return counter
+
+
+class TestMissionResults:
+    """Lines of credits and the gang's counters, redrawn in place."""
+
+    def test_the_section_starts_with_one_line_and_adds_and_removes_lines(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        section = mission(page)
+        assert section.find("h2").get_text(strip=True) == "Mission results"
+        assert "Gang results" not in page.content.decode()
+        (first,) = credit_line_ids(page)
+        added = mission_step(client, report, page, "add-credit-line")
+        assert added.status_code == 200
+        ids = credit_line_ids(added)
+        assert len(ids) == 2 and ids[0] == first
+        report.refresh_from_db()
+        assert [line["id"] for line in report.draft["credit_lines"]] == ids
+        page = client.get(editor_url(report))
+        removed = mission_step(client, report, page, f"remove-credit-line:{first}")
+        assert removed.status_code == 200
+        assert credit_line_ids(removed) == [ids[1]]
+
+    def test_total_and_two_lines_reach_the_ledger_and_receipt(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        page = client.post(
+            editor_url(report),
+            html_fields(client.get(editor_url(report)), intent="add-credit-line"),
+        )
+        first, second = credit_line_ids(page)
+        fields = awards(
+            page,
+            table,
+            intent="check",
+            **{
+                f"credit-{first}-amount": "40",
+                f"credit-{first}-reason": "Scenario reward",
+                f"credit-{second}-amount": "15",
+                f"credit-{second}-reason": "Bounty",
+            },
+        )
+        checked = client.post(editor_url(report), fields)
+        assert "Credits from this battle: +55¢" in " ".join(
+            mission(checked).get_text(" ", strip=True).split()
+        )
+        applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
+        assert applied.status_code == 302
+        assert list(
+            LedgerEvent.objects.filter(
+                gang=table.gang, kind=LedgerEvent.Kind.INCOME
+            ).values_list("credits_delta", flat=True)
+        ) == [-40, -15]
+        receipt = client.get(receipt_url(report)).content.decode()
+        assert "Scenario reward" in receipt and "Bounty" in receipt
+        assert_books(table)
+
+    def test_gang_counter_steps_and_shows_now_and_after(
+        self, client, table, feature, reputation
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        key = str(reputation.pk)
+        row = mission(page).find("input", id=f"gang-counter-{key}").find_parent("tr")
+        assert row.find("label").get_text(strip=True) == "Reputation"
+        minus = row.find("button", attrs={"value": f"counter-step:{key}:-1"})
+        assert not minus.has_attr("disabled")
+        stepped = mission_step(client, report, page, f"counter-step:{key}:+1")
+        row = mission(stepped).find("input", id=f"gang-counter-{key}")
+        assert row["value"] == "1"
+        cells = [
+            cell.get_text(strip=True) for cell in row.find_parent("tr").find_all("td")
+        ]
+        assert cells[0] == "5" and cells[-1] == "6"
+        assert "From results" not in mission(stepped).get_text()
+        report.refresh_from_db()
+        assert report.draft["gang_counters"] == {key: "1"}
+
+    def test_counter_steps_post_the_form_only_without_scripts(
+        self, client, table, feature, reputation
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        key = str(reputation.pk)
+        for step in ("-1", "+1"):
+            button = mission(page).find(
+                "button", attrs={"value": f"counter-step:{key}:{step}"}
+            )
+            assert not button.has_attr("hx-post")
+            assert button["data-counter-step"] == f"gang-counter-{key}"
+            assert button["data-step"] == step
+
+    def test_minus_is_off_where_the_counter_would_go_below_zero(
+        self, client, table, feature
+    ):
+        empty = assign(create_counter("Favour"), gang=table.gang, actor=table.owner)
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        minus = mission(page).find(
+            "button", attrs={"value": f"counter-step:{empty.pk}:-1"}
+        )
+        assert minus.has_attr("disabled")
+
+    def test_applied_counter_change_is_on_the_receipt(
+        self, client, table, feature, reputation
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        fields = awards(page, table, **{f"gang-counter-{reputation.pk}": "2"})
+        checked = client.post(editor_url(report), fields | {"intent": "check"})
+        applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
+        assert applied.status_code == 302
+        assert CounterValue.objects.get(assignment=reputation).value == 7
+        receipt = BeautifulSoup(
+            client.get(receipt_url(report)).content, "html.parser"
+        ).get_text(" ", strip=True)
+        assert "Reputation 5 → 7" in " ".join(receipt.split())
+
+    def test_a_correction_applies_after_a_changed_counter_is_removed(
+        self, client, table, feature, reputation
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        fields = awards(page, table, **{f"gang-counter-{reputation.pk}": "2"})
+        checked = client.post(editor_url(report), fields | {"intent": "check"})
+        assert (
+            client.post(
+                editor_url(report), html_fields(checked, intent="apply")
+            ).status_code
+            == 302
+        )
+        remove(reputation, actor=table.owner)
+        corrected = client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+        assert corrected.status_code == 302
+        page = client.get(editor_url(report))
+        assert mission(page).find("input", attrs={"name": "gang_counter"}) is None
+        checked = client.post(
+            editor_url(report), html_fields(page, intent="check", credits="25")
+        )
+        assert checked.context["plan"].valid, checked.context["plan"].errors
+        applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
+        assert applied.status_code == 302
+        revision = report.revisions.get(sequence=2)
+        assert revision.inputs["gang_counters"] == {str(reputation.pk): 2}
+        assert_books(table)
+
+    def test_an_old_receipt_still_shows_its_reason(self, client, table, feature):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        applied = client.post(editor_url(report), awards(page, table))
+        assert applied.status_code == 302
+        revision = report.revisions.get()
+        receipt = dict(revision.receipt)
+        for key in ("credit_lines", "credits_total", "gang_counters"):
+            receipt.pop(key)
+        receipt["reason"] = "Old single reason"
+        PostBattleRevision.objects.filter(pk=revision.pk).update(receipt=receipt)
+        text = client.get(receipt_url(report)).content.decode()
+        assert "Old single reason" in text
+        assert "Mission results" in text
+
+
+class TestMissionResultsAddUp:
+    """Before, the change and After agree, and credits read as totals."""
+
+    def apply_first(self, client, table, report, **changes):
+        page = client.get(editor_url(report))
+        checked = client.post(
+            editor_url(report), awards(page, table, intent="check", **changes)
+        )
+        applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
+        assert applied.status_code == 302
+        corrected = client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+        assert corrected.status_code == 302
+        return client.get(editor_url(report))
+
+    def test_a_correction_shows_the_counter_before_this_report(
+        self, client, table, feature, reputation
+    ):
+        report = start(client, table)
+        page = self.apply_first(
+            client, table, report, **{f"gang-counter-{reputation.pk}": "2"}
+        )
+
+        field = mission(page).find("input", id=f"gang-counter-{reputation.pk}")
+        cells = [
+            cell.get_text(strip=True) for cell in field.find_parent("tr").find_all("td")
+        ]
+        assert (cells[0], field["value"], cells[-1]) == ("5", "2", "7")
+        assert "Before" in mission(page).find("thead").get_text()
+
+    def test_a_negative_amount_is_refused_by_its_field(self, client, table, feature):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        (line,) = credit_line_ids(page)
+
+        checked = client.post(
+            editor_url(report),
+            html_fields(
+                page,
+                intent="check",
+                **{f"credit-{line}-amount": "-40", f"credit-{line}-reason": "Fine"},
+            ),
+        )
+
+        field = mission(checked).find("input", id=f"credit-{line}-amount")
+        assert field["aria-invalid"] == "true"
+        error = mission(checked).find(id=field["aria-describedby"])
+        assert "Enter a whole number from 0 to 1,000,000" in error.get_text()
+        assert "Credits from this battle: +0¢" in " ".join(
+            mission(checked).get_text(" ", strip=True).split()
+        )
+
+    def test_a_corrected_receipt_shows_the_total_and_the_change(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        page = self.apply_first(client, table, report)
+        (line,) = credit_line_ids(page)
+        checked = client.post(
+            editor_url(report),
+            html_fields(page, intent="check", **{f"credit-{line}-amount": "5"}),
+        )
+        summary = summary_text(checked)
+        assert "Credits from this battle +5¢" in summary
+        assert "Change from the last version −15¢" in summary
+        applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
+        assert applied.status_code == 302
+
+        second = " ".join(
+            BeautifulSoup(client.get(receipt_url(report, 2)).content, "html.parser")
+            .find("main")
+            .get_text(" ", strip=True)
+            .split()
+        )
+        assert "Credits from this battle +5¢" in second
+        assert "Change from the last version −15¢" in second
+        first = client.get(receipt_url(report, 1)).content.decode()
+        assert "+20¢" in first
+        assert "Change from the last version" not in first
+        assert "Credits adjustment" not in first

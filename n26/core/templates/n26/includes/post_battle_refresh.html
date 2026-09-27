@@ -1,9 +1,10 @@
 {% comment %}
-The response to an in-place update: the model's module swaps in where the
-request came from; the summary, the form's version, the save line and,
-while the page shows errors, the error list go out of band.
+The response to an in-place update: the section (a model's module, or
+Mission results) swaps in where the request came from; the summary, the
+form's version, the save line and, while the page shows errors, the error
+list go out of band.
 {% endcomment %}
-{% include "n26/includes/post_battle_model.html" %}
+{% include section %}
 {% include "n26/includes/post_battle_summary.html" with oob=True %}
 {% if show_errors %}
     {% include "n26/includes/post_battle_errors.html" with oob=True %}

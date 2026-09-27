@@ -5,11 +5,19 @@
     <p class="mt-2 text-sm text-muted">Use Check changes to review the current entries. Nothing changes until you apply them.</p>
     <dl class="mt-4 space-y-3 text-sm">
         <div class="flex justify-between gap-3">
-            <dt>Credits adjustment</dt>
+            <dt>Credits from this battle</dt>
             <dd class="font-semibold tabular-nums">
-                {{ plan.credits_change|stringformat:'+d' }}¢
+                {{ plan.total_text }}
             </dd>
         </div>
+        {% if plan.change_text %}
+            <div class="flex justify-between gap-3">
+                <dt>Change from the last version</dt>
+                <dd class="tabular-nums">
+                    {{ plan.change_text }}
+                </dd>
+            </div>
+        {% endif %}
         {% if plan.credits_before != None %}
             <div class="flex justify-between gap-3">
                 <dt>Credits balance</dt>
@@ -25,6 +33,14 @@
                 </dd>
             </div>
         {% endif %}
+        {% for change in plan.moving_gang_counters %}
+            <div class="flex justify-between gap-3">
+                <dt>{{ change.name }}</dt>
+                <dd class="tabular-nums">
+                    {{ change.before }} → {{ change.after }}
+                </dd>
+            </div>
+        {% endfor %}
     </dl>
     <ul class="mt-4 space-y-3 text-sm">
         {% for model in models %}

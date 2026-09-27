@@ -8,6 +8,8 @@ from uuid import uuid4
 from django import forms
 from django.utils import timezone
 
+from n26.core.counter_changes import LIMIT as COUNTER_LIMIT
+from n26.core.post_battle import MAX_CREDIT_LINES, normalise, signed
 from n26.core.status import Status, label_for, status_colour
 
 
@@ -31,6 +33,7 @@ class ReportVersionForm(forms.Form):
 
 MAX_MODELS = 200
 MAX_EFFECTS = 20
+MAX_COUNTERS = 50
 
 
 def posted_payload(data):
@@ -71,10 +74,22 @@ def posted_payload(data):
                 "effects": effects,
             }
         )
+    lines = [
+        {
+            "id": line,
+            "amount": data.get(f"credit-{line}-amount", ""),
+            "reason": data.get(f"credit-{line}-reason", ""),
+        }
+        for line in dict.fromkeys(data.getlist("credit_line")[:MAX_CREDIT_LINES])
+    ]
+    counters = {
+        key: data.get(f"gang-counter-{key}", "")
+        for key in dict.fromkeys(data.getlist("gang_counter")[:MAX_COUNTERS])
+    }
     return {
-        "schema": 1,
-        "credits": data.get("credits", ""),
-        "reason": data.get("reason", ""),
+        "schema": 2,
+        "credit_lines": lines,
+        "gang_counters": counters,
         "participation_confirmed": data.get("participation_confirmed") == "on",
         "models": models,
     }
@@ -83,11 +98,36 @@ def posted_payload(data):
 XP_STEPS = {"xp-step:+1": 1, "xp-step:-1": -1}
 
 
+def _step_counter(values, key, step):
+    """Move one entered counter change by ``step``, within the limit."""
+    try:
+        amount = int(str(values.get(key) or 0).strip())
+    except ValueError:
+        raise forms.ValidationError(
+            "Enter a whole number for the counter change before you use −1 or +1."
+        ) from None
+    values[key] = str(max(-COUNTER_LIMIT, min(COUNTER_LIMIT, amount + step)))
+
+
 def change_draft(payload, intent, *, xp_eligible=frozenset()):
     """Server-side form actions alter pending values, never the gang."""
-    payload = deepcopy(payload)
+    payload = normalise(payload)
     payload.pop("bulk_undo", None)
-    if intent in XP_STEPS:
+    if intent == "add-credit-line":
+        if len(payload["credit_lines"]) < MAX_CREDIT_LINES:
+            payload["credit_lines"].append(
+                {"id": str(uuid4()), "amount": "", "reason": ""}
+            )
+    elif intent.startswith("remove-credit-line:"):
+        target = intent.removeprefix("remove-credit-line:")
+        payload["credit_lines"] = [
+            line for line in payload["credit_lines"] if line.get("id") != target
+        ]
+    elif intent.startswith("counter-step:"):
+        key, _, step = intent.removeprefix("counter-step:").rpartition(":")
+        if step in {"+1", "-1"} and key in payload["gang_counters"]:
+            _step_counter(payload["gang_counters"], key, int(step))
+    elif intent in XP_STEPS:
         step = XP_STEPS[intent]
         for model in payload["models"]:
             if not model["participated"] or model["id"] not in xp_eligible:
@@ -266,6 +306,13 @@ def _effect_label(labels):
     return " or ".join(dict.fromkeys(labels))
 
 
+def refreshes_mission(intent):
+    """Whether an in-place update redraws the Mission results section."""
+    return intent == "add-credit-line" or intent.startswith(
+        ("remove-credit-line:", "counter-step:")
+    )
+
+
 def refreshed_model(payload, intent):
     """The model whose module an in-place update redraws, if any."""
     kind, _, target = intent.partition(":")
@@ -357,6 +404,185 @@ def editor_models(plan, payload, refresh_url=""):
             )
         )
     return models
+
+
+@dataclass
+class CreditRow:
+    id: str
+    amount: str
+    reason: str
+    number: int
+    amount_errors: list = field(default_factory=list)
+    reason_errors: list = field(default_factory=list)
+
+    @property
+    def prefix(self):
+        return f"credit-{self.id}"
+
+    @property
+    def remove_label(self):
+        return f"Remove line of credits {self.number}"
+
+    def _error_attrs(self, name, errors):
+        if not errors:
+            return {}
+        return {
+            "aria-invalid": "true",
+            "aria-describedby": f"{self.prefix}-{name}-error",
+        }
+
+    @property
+    def amount_attrs(self):
+        return self._error_attrs("amount", self.amount_errors)
+
+    @property
+    def reason_attrs(self):
+        return self._error_attrs("reason", self.reason_errors)
+
+
+@dataclass
+class CounterRow:
+    """One gang counter in Mission results: now, the change, and after."""
+
+    change: object
+    entered: str
+
+    @property
+    def prefix(self):
+        return f"gang-counter-{self.change.assignment_id}"
+
+    @property
+    def intent(self):
+        return f"counter-step:{self.change.assignment_id}"
+
+    @property
+    def base(self):
+        """Where the counter lands with nothing entered, for the page
+        script to add a typed change to."""
+        return self.change.after - self.change.manual
+
+    @property
+    def start(self):
+        """The Before column: the reading before this report, so Before,
+        the change and what results add sum to After."""
+        return self.change.start
+
+    @property
+    def limit(self):
+        return COUNTER_LIMIT
+
+    def _step_attrs(self, step, disabled):
+        """The page script steps the field in place; without scripts the
+        button posts the form."""
+        attrs = {"data-counter-step": self.prefix, "data-step": step}
+        return (attrs | {"disabled": True}) if disabled else attrs
+
+    @property
+    def minus_attrs(self):
+        return self._step_attrs(
+            "-1", self.change.after <= 0 or self.change.manual <= -COUNTER_LIMIT
+        )
+
+    @property
+    def plus_attrs(self):
+        return self._step_attrs("+1", self.change.manual >= COUNTER_LIMIT)
+
+    @property
+    def minus_label(self):
+        return f"Remove 1 from {self.change.name}"
+
+    @property
+    def plus_label(self):
+        return f"Add 1 to {self.change.name}"
+
+
+@dataclass
+class MissionResults:
+    """The gang's results from the battle: credits and gang counters."""
+
+    credit_rows: list
+    counter_rows: list
+    total: int
+    #: Whether any result moves a gang counter; the column shows only then.
+    show_effects: bool
+    can_add_line: bool
+    refresh_url: str = ""
+
+    @property
+    def total_text(self):
+        return f"{signed(self.total)}¢"
+
+    @property
+    def button_attrs(self):
+        return {"hx-post": self.refresh_url} if self.refresh_url else {}
+
+
+def mission_results(plan, payload, refresh_url="", show_errors=False):
+    """The Mission results section's rows, from the draft and the plan.
+
+    A report always shows at least one line of credits to type into; a
+    new line has a fresh reference until the draft saves it. With
+    ``show_errors``, each line carries its own errors to show by its
+    fields.
+    """
+    field_errors = plan.credit_field_errors if show_errors else {}
+    lines = payload.get("credit_lines") or [
+        {"id": str(uuid4()), "amount": "", "reason": ""}
+    ]
+    entered = payload.get("gang_counters") or {}
+    return MissionResults(
+        credit_rows=[
+            CreditRow(
+                id=str(line.get("id", "")),
+                amount=str(
+                    line.get("amount") if line.get("amount") is not None else ""
+                ),
+                reason=str(line.get("reason") or ""),
+                number=number,
+                amount_errors=field_errors.get(f"{line.get('id', '')}-amount", []),
+                reason_errors=field_errors.get(f"{line.get('id', '')}-reason", []),
+            )
+            for number, line in enumerate(lines, start=1)
+        ],
+        counter_rows=[
+            CounterRow(
+                change=change,
+                entered=str(entered.get(change.assignment_id) or ""),
+            )
+            for change in plan.gang_counters
+        ],
+        total=plan.credits_total,
+        show_effects=plan.gang_counter_effects,
+        can_add_line=len(lines) < MAX_CREDIT_LINES,
+        refresh_url=refresh_url,
+    )
+
+
+def receipt_mission(receipt, revision=None):
+    """The receipt's lines of credits and gang counters.
+
+    The credits from this battle are the lines' total. A correction also
+    names its change from the version before. A receipt written before
+    lines of credits holds one reason for the whole adjustment, and shows
+    it as it was.
+    """
+    total = receipt.get("credits_total")
+    if total is None and revision is not None:
+        total = revision.inputs.get("credits")
+    if total is None:
+        total = receipt.get("credits_change", 0)
+    correction = revision is not None and revision.sequence > 1
+    change = receipt.get("credits_change", 0)
+    return {
+        "total_text": f"{signed(int(total or 0))}¢",
+        "change_text": f"{signed(int(change or 0))}¢" if correction else "",
+        "credit_lines": [
+            line | {"amount_text": f"{signed(int(line.get('amount') or 0))}¢"}
+            for line in receipt.get("credit_lines", [])
+        ],
+        "reason": "" if "credit_lines" in receipt else receipt.get("reason", ""),
+        "gang_counters": receipt.get("gang_counters", []),
+    }
 
 
 def receipt_models(receipt):
