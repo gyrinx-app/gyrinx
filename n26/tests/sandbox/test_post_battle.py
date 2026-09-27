@@ -496,6 +496,69 @@ class TestCorrections:
         apply(report, owner)
         assert CounterValue.objects.get(assignment__miniature=model).value == 0
 
+    def test_a_replaced_injury_takes_its_status_with_it(
+        self, report, owner, model, content
+    ):
+        injury = effect_for(report, owner, content["wound"])
+        report = save(report, owner, payload_for(model, effects=[injury]))
+        apply(report, owner)
+        model.refresh_from_db()
+        assert model.status == Status.RECOVERY
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model))
+
+        plan = preview_report(report, actor=owner)
+
+        assert plan.errors == []
+        assert plan.models[0].final_status == Status.ACTIVE
+        apply(report, owner)
+        model.refresh_from_db()
+        assert model.status == Status.ACTIVE
+
+    def test_a_replacing_injury_sets_the_status_it_implies(
+        self, report, owner, model, content
+    ):
+        injury = effect_for(report, owner, content["wound"])
+        report = save(report, owner, payload_for(model, effects=[injury]))
+        apply(report, owner)
+        report = start_correction(report, actor=owner)
+        injury["pick"] = str(content["death"].pk)
+        report = save(report, owner, payload_for(model, effects=[injury]))
+
+        plan = preview_report(report, actor=owner)
+
+        assert plan.errors == []
+        assert plan.models[0].final_status == Status.DEAD
+
+    def test_an_explicit_final_status_wins_over_a_replaced_injury(
+        self, report, owner, model, content
+    ):
+        injury = effect_for(report, owner, content["wound"])
+        report = save(report, owner, payload_for(model, effects=[injury]))
+        apply(report, owner)
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model, status=Status.CRITICAL))
+
+        plan = preview_report(report, actor=owner)
+
+        assert plan.errors == []
+        assert plan.models[0].final_status == Status.CRITICAL
+
+    def test_a_result_that_disagrees_with_the_status_now_names_both(
+        self, report, owner, model, content
+    ):
+        with operation(report.gang, actor=owner) as op:
+            op.set_status(model, Status.RECOVERY)
+        injury = effect_for(report, owner, content["death"])
+        report = save(report, owner, payload_for(model, effects=[injury]))
+
+        plan = preview_report(report, actor=owner)
+
+        assert plan.errors == [
+            "Cinder: Memorable Death makes Cinder Dead, but Cinder's final status "
+            "is In Recovery. Choose the final status."
+        ]
+
     def test_two_reversed_contributions_cannot_clip_the_counter(
         self, report, owner, model, content
     ):

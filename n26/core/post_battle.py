@@ -766,6 +766,17 @@ def preview_report(report, *, actor, payload=None):
     old_models = {m["id"]: m for m in old.get("models", [])}
     xp_sources = _manual_xp_sources(report, old_models)
     old_occurrences = previous.receipt.get("occurrences", {}) if previous else {}
+    # Each model's status before the report was first applied.
+    first = (
+        report.revisions.filter(sequence=1).only("receipt").first()
+        if previous
+        else None
+    )
+    started = {
+        m["id"]: m["status_before"]
+        for m in (first.receipt.get("models", []) if first else [])
+        if m.get("status_before") in Status.values
+    }
     credits = _integer(payload.get("credits"), "credits", errors)
     reason = str(payload.get("reason", "")).strip()
     if (credits or old.get("credits", 0)) and not reason:
@@ -984,6 +995,7 @@ def preview_report(report, *, actor, payload=None):
             )
         normalized_effects = []
         implied = []
+        implied_by = []
         new_counts = defaultdict(int)
         for raw_effect in raw.get("effects", []):
             try:
@@ -1059,6 +1071,7 @@ def preview_report(report, *, actor, payload=None):
                 )
             )
             implied.extend(effect.statuses)
+            implied_by.extend((effect.name, status) for status in effect.statuses)
         explicit = str(raw.get("status", ""))
         if explicit and explicit not in Status.values:
             model_errors.append("Choose a valid final status.")
@@ -1068,26 +1081,56 @@ def preview_report(report, *, actor, payload=None):
             and any(e.kind == LedgerEvent.Kind.STATUS_SET for e in events)
             for _, root, events in plan._removals
         )
-        existing_conflict = miniature.status != Status.ACTIVE and any(
-            status != miniature.status for status in implied
-        )
-        if (
-            len(set(implied)) > 1 or removing_status or existing_conflict
-        ) and not explicit:
-            model_errors.append(
-                "These results set different statuses. Choose the final status."
+        # A result this correction replaces set the status the model has
+        # now. The status follows the new results instead: the last one
+        # that sets a status, or the status the model had before this
+        # report when none does. A kept result may have set it too, so
+        # with one on the model the player chooses.
+        followed = None
+        if removing_status:
+            keeps_a_result = any(
+                held["model_id"] == model_id for held in plan._retained.values()
             )
+            if implied:
+                followed = implied[-1]
+            elif not keeps_a_result:
+                followed = started.get(model_id)
+        current_label = label_for(miniature.status, vehicle)
+        if not explicit:
+            if len(set(implied)) > 1:
+                model_errors.append(
+                    "These results set different statuses. Choose the final status."
+                )
+            elif removing_status and followed is None:
+                model_errors.append(
+                    f"The result that made {miniature.name} {current_label} is "
+                    "replaced. Choose the final status."
+                )
+            elif (
+                not removing_status
+                and miniature.status != Status.ACTIVE
+                and implied
+                and implied[-1] != miniature.status
+            ):
+                name, status = implied_by[-1]
+                verb = "leaves" if status == Status.ACTIVE else "makes"
+                model_errors.append(
+                    f"{name} {verb} {miniature.name} {label_for(status, vehicle)}, "
+                    f"but {miniature.name}'s final status is {current_label}. "
+                    "Choose the final status."
+                )
         status_changed = explicit and (
             not previous
             or explicit != before.get("status")
             or implied
             or removing_status
         )
-        final_status = (
-            explicit
-            if status_changed
-            else (implied[-1] if implied else miniature.status)
-        )
+        if status_changed:
+            final_status = explicit
+        elif followed is not None:
+            final_status = followed
+        else:
+            final_status = implied[-1] if implied else miniature.status
         result.final_status = final_status
         if status_changed or implied or removing_status:
             plan._status_writes[model_id] = final_status

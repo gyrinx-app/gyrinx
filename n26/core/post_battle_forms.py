@@ -170,7 +170,7 @@ class ReportModel:
     status_options: list
     #: ``(table label, [(value, text), ...])`` per table, for optgroups.
     effect_groups: list = field(default_factory=list)
-    #: "Add lasting injury", "Add damage" — from the tables' own words.
+    #: "Add Lasting Injury", "Add Damage" — the tables' own words.
     add_effect_label: str = ""
     #: Where an in-place update posts. Empty draws plain form controls.
     refresh_url: str = ""
@@ -216,14 +216,37 @@ class ReportModel:
         return self.result.final_status != self.result.status
 
     @property
+    def xp_changes(self):
+        return self.result.xp_after != self.result.xp_before
+
+    @property
+    def named_effects(self):
+        """The results picked so far. An empty slot records nothing."""
+        return [effect for effect in self.effects if effect.name]
+
+    @property
+    def ends_in_recovery(self):
+        return self.status_changes and self.result.final_status == Status.RECOVERY
+
+    @property
+    def changes(self):
+        """Whether the summary lists this model: something it records."""
+        return bool(
+            self.xp_changes
+            or self.named_effects
+            or self.status_changes
+            or self.result.equipment_changed
+        )
+
+    @property
     def equipment_label(self):
         return f"What happens to {self.name}'s equipment"
 
 
 def _effect_label(labels):
-    """One phrase for a model's tables: "lasting injury", or
-    "lasting injury or damage" where a model has both."""
-    return " or ".join(dict.fromkeys(label.lower() for label in labels))
+    """One phrase for a model's tables, in their authored words: "Lasting
+    Injury", or "Lasting Injury or Damage" where a model has both."""
+    return " or ".join(dict.fromkeys(labels))
 
 
 def refreshed_model(payload, intent):
@@ -320,15 +343,32 @@ def editor_models(plan, payload, refresh_url=""):
 
 
 def receipt_models(receipt):
-    """The receipt's models, with each status's badge colour."""
-    return [
-        model
-        | {
-            "status_before_colour": status_colour(model.get("status_before")),
-            "status_after_colour": status_colour(model.get("status_after")),
+    """The receipt's models that took part or changed, with what changed
+    and each status's badge colour."""
+    models = []
+    for model in receipt.get("models", []):
+        changed = {
+            "xp_changed": model.get("xp_before") != model.get("xp_after")
+            or bool(model.get("xp_change")),
+            "status_changed": model.get("status_before") != model.get("status_after"),
         }
-        for model in receipt.get("models", [])
-    ]
+        if not (
+            model.get("participated")
+            or changed["xp_changed"]
+            or changed["status_changed"]
+            or model.get("effects")
+            or model.get("equipment_changed")
+        ):
+            continue
+        models.append(
+            model
+            | changed
+            | {
+                "status_before_colour": status_colour(model.get("status_before")),
+                "status_after_colour": status_colour(model.get("status_after")),
+            }
+        )
+    return models
 
 
 def _plural(count, one, many):

@@ -54,7 +54,7 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                                 size="lg" />
                 </c-ui.field>
             {% else %}
-                <c-ui.field label="XP gained" description_trailing="{{ model.current_xp_label }}">
+                <c-ui.field label="XP gained">
                     <input type="hidden" name="{{ model.prefix }}-xp" value="{{ model.xp }}">
                     <c-ui.popover strategy="fixed"
                                   position="bottom"

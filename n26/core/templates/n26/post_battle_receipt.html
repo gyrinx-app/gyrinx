@@ -26,20 +26,27 @@
                             <h3 class="font-semibold">{{ model.name }}</h3>
                             <span class="text-sm text-muted">{% if model.participated %}Took part{% else %}Did not take part{% endif %}</span>
                         </div>
-                        <p class="text-sm">{{ model.xp_change|stringformat:'+d' }} XP adjustment · {{ model.xp_before }} → {{ model.xp_after }} XP</p>
-                        <p class="flex flex-wrap items-center gap-2 text-sm text-muted">
-                            Status:
-                            <c-ui.badge size="sm" color="{{ model.status_before_colour }}">
-                                {{ model.status_before_label|default:model.status_before }}
-                            </c-ui.badge>
-                            <span aria-hidden="true">→</span><span class="sr-only">to</span>
-                            <c-ui.badge size="sm" color="{{ model.status_after_colour }}">
-                                {{ model.status_after_label|default:model.status_after }}
-                            </c-ui.badge>
-                        </p>
+                        {% if model.xp_changed %}
+                            <p class="text-sm">
+                                {% if model.xp_change %}{{ model.xp_change|stringformat:'+d' }} XP ·{% endif %}
+                                {{ model.xp_before }} → {{ model.xp_after }} XP
+                            </p>
+                        {% endif %}
                         {% if model.effects %}<ul class="list-disc space-y-1 pl-5 text-sm">{% for effect in model.effects %}<li>{{ effect }}</li>{% endfor %}</ul>{% endif %}
+                        {% if model.status_changed %}
+                            <p class="flex flex-wrap items-center gap-2 text-sm text-muted">
+                                Status:
+                                <c-ui.badge size="sm" color="{{ model.status_before_colour }}">
+                                    {{ model.status_before_label|default:model.status_before }}
+                                </c-ui.badge>
+                                <span aria-hidden="true">→</span><span class="sr-only">to</span>
+                                <c-ui.badge size="sm" color="{{ model.status_after_colour }}">
+                                    {{ model.status_after_label|default:model.status_after }}
+                                </c-ui.badge>
+                            </p>
+                        {% endif %}
                         {% if model.equipment_changed %}
-                            <p class="text-sm">{% if model.equipment_disposition == "stash" %}Moved to stash{% else %}Marked lost{% endif %}: {{ model.equipment_names|join:', '|default:'No equipment' }}.</p>
+                            <p class="text-sm">{% if model.equipment_disposition == "stash" %}Moved to the stash{% else %}Marked lost{% endif %}: {{ model.equipment_names|join:', '|default:'No equipment' }}.</p>
                             {% if model.equipment_exclusions %}<p class="text-sm text-muted">Stayed with the model: {{ model.equipment_exclusions|join:', ' }}.</p>{% endif %}
                         {% endif %}
                     </li>

@@ -1751,7 +1751,7 @@ class TestModelModule:
         box = module(added, vehicle)
         assert box.find("button", value=f"add-effect:{vehicle.pk}").get_text(
             strip=True
-        ) == ("Add lasting damage")
+        ) == ("Add Lasting Damage")
         (field,) = box.select("select[id$='-pick']")
         assert box.find("label", attrs={"for": field["id"]}).get_text(strip=True) == (
             "Lasting Damage 1"
@@ -1760,7 +1760,7 @@ class TestModelModule:
         fighter = module(added, table.models[0])
         assert fighter.find(
             "button", value=f"add-effect:{table.models[0].pk}"
-        ).get_text(strip=True) == ("Add lasting injury")
+        ).get_text(strip=True) == ("Add Lasting injury")
         assert "lasting effect" not in added.content.decode().lower()
 
     def test_a_plural_card_heading_still_names_one_result(
@@ -1792,7 +1792,7 @@ class TestModelModule:
         ]
         assert box.find("button", value=f"add-effect:{model.pk}").get_text(
             strip=True
-        ) == ("Add lasting injury")
+        ) == ("Add Lasting injury")
 
     def test_options_lead_with_their_roll_band(self, client, table, feature):
         kind = create_slot_type("Test table (dice)", is_lasting_effect=True)
@@ -1941,7 +1941,8 @@ class TestModelModule:
         summary = BeautifulSoup(alive_again.content, "html.parser").find(
             id="post-battle-summary"
         )
-        assert "Equipment stays with the model." in summary.get_text()
+        # An ignored choice changes nothing, so the model is not listed.
+        assert "Cinder" not in summary.get_text()
 
 
 class TestModuleRefreshEdges:
@@ -2014,3 +2015,103 @@ class TestModuleRefreshEdges:
         document = BeautifulSoup(response.content, "html.parser")
         assert document.find(id="post-battle-errors") is None
         assert "Cinder's XP" not in module(response, model).get_text()
+
+
+def summary_text(response):
+    summary = BeautifulSoup(response.content, "html.parser").find(
+        id="post-battle-summary"
+    )
+    return " ".join(summary.get_text(" ").split())
+
+
+class TestWhatTheSummaryAndReceiptList:
+    """Only what a report records: no empty slots, no unchanged totals."""
+
+    def test_the_summary_lists_only_models_with_changes(self, client, table, feature):
+        report = start(client, table)
+        cinder, ember = table.models
+        added = client.post(
+            editor_url(report),
+            html_fields(
+                client.get(editor_url(report)), intent=f"add-effect:{ember.pk}"
+            ),
+        )
+        checked = client.post(
+            editor_url(report),
+            html_fields(added, intent="check", **{f"model-{cinder.pk}-xp": "1"}),
+        )
+
+        text = summary_text(checked)
+        assert "Cinder +1 XP XP total: 0 → 1" in text
+        assert "Ember" not in text
+        assert "XP adjustment" not in text
+        assert "Final status" not in text
+
+    def test_a_model_ending_in_recovery_says_how_long(self, client, table, feature):
+        report = start(client, table)
+        assert "campaign cycle" not in client.get(editor_url(report)).content.decode()
+
+        checked, _ = with_effect(client, table, report, table.wound)
+
+        text = summary_text(checked)
+        assert "Final status: In Recovery" in text
+        assert "Stays In Recovery until the end of the campaign cycle." in text
+
+    def test_the_receipt_follows_the_editor_and_skips_what_did_not_change(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        checked, _ = with_effect(client, table, report, table.wound)
+        data = awards(checked, table)
+        data.pop(f"model-{table.models[1].pk}-participated", None)
+        applied = client.post(editor_url(report), data)
+        assert applied.status_code == 302
+
+        receipt = BeautifulSoup(client.get(applied.url).content, "html.parser")
+        models = receipt.select("main li h3")
+        assert [h.get_text(strip=True) for h in models] == ["Cinder"]
+        text = " ".join(models[0].find_parent("li").get_text(" ").split())
+        assert text.index("+2 XP") < text.index("Grievous Wound")
+        assert text.index("Grievous Wound") < text.index("Status:")
+        assert "XP adjustment" not in text
+
+    def test_a_receipt_leaves_out_an_unchanged_status(self, client, table, feature):
+        report = start(client, table)
+        applied = client.post(
+            editor_url(report), awards(client.get(editor_url(report)), table)
+        )
+
+        text = client.get(applied.url).content.decode()
+        assert "Status:" not in text
+        assert "+2 XP" in text
+
+    def test_a_model_that_cannot_take_xp_shows_no_xp_figures(
+        self, client, table, feature, make_profile
+    ):
+        visitor = hire(table.gang, make_profile("Civilian"), "Visitor")
+        report = start(client, table)
+
+        box = module(client.get(editor_url(report)), visitor)
+
+        assert "Current XP" not in box.get_text()
+        assert box.select_one("[data-xp-why]") is not None
+
+    def test_check_names_a_result_that_disagrees_with_the_status(
+        self, client, table, feature
+    ):
+        death = create_pickable(
+            "Memorable Death",
+            table.injury_kind,
+            effects=[(targets_model(), op_sets_status(Status.DEAD))],
+        )
+        add_picklist_member(table.injury_table, death)
+        with operation(table.gang, actor=table.owner) as op:
+            op.set_status(table.models[0], Status.RECOVERY)
+        report = start(client, table)
+
+        checked, _ = with_effect(client, table, report, death)
+
+        assert (
+            "Cinder: Memorable Death makes Cinder Dead, but Cinder's final status "
+            "is In Recovery. Choose the final status."
+        ) in checked.context["errors"]
