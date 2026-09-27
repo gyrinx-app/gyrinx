@@ -446,8 +446,6 @@ class CounterRow:
 
     change: object
     entered: str
-    #: htmx's attributes for the step buttons; empty draws plain buttons.
-    button_attrs: dict = field(default_factory=dict)
 
     @property
     def prefix(self):
@@ -470,16 +468,24 @@ class CounterRow:
         return self.change.start
 
     @property
+    def limit(self):
+        return COUNTER_LIMIT
+
+    def _step_attrs(self, step, disabled):
+        """The page script steps the field in place; without scripts the
+        button posts the form."""
+        attrs = {"data-counter-step": self.prefix, "data-step": step}
+        return (attrs | {"disabled": True}) if disabled else attrs
+
+    @property
     def minus_attrs(self):
-        if self.change.after <= 0 or self.change.manual <= -COUNTER_LIMIT:
-            return {"disabled": True}
-        return self.button_attrs
+        return self._step_attrs(
+            "-1", self.change.after <= 0 or self.change.manual <= -COUNTER_LIMIT
+        )
 
     @property
     def plus_attrs(self):
-        if self.change.manual >= COUNTER_LIMIT:
-            return {"disabled": True}
-        return self.button_attrs
+        return self._step_attrs("+1", self.change.manual >= COUNTER_LIMIT)
 
     @property
     def minus_label(self):
@@ -524,7 +530,6 @@ def mission_results(plan, payload, refresh_url="", show_errors=False):
         {"id": str(uuid4()), "amount": "", "reason": ""}
     ]
     entered = payload.get("gang_counters") or {}
-    button_attrs = {"hx-post": refresh_url} if refresh_url else {}
     return MissionResults(
         credit_rows=[
             CreditRow(
@@ -543,7 +548,6 @@ def mission_results(plan, payload, refresh_url="", show_errors=False):
             CounterRow(
                 change=change,
                 entered=str(entered.get(change.assignment_id) or ""),
-                button_attrs=button_attrs,
             )
             for change in plan.gang_counters
         ],

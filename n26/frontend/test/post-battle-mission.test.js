@@ -20,6 +20,15 @@ beforeEach(async () => {
             <span data-credit-total>+40¢</span>
             <input id="rep" data-counter-base="5" aria-describedby="rep-after" value="">
             <span id="rep-after">5</span>
+            <input id="favour" data-counter-base="1" data-counter-limit="1000"
+                   aria-describedby="favour-after" value="">
+            <span id="favour-after">1</span>
+            <button type="submit" id="favour-minus" name="intent"
+                    value="counter-step:favour:-1"
+                    data-counter-step="favour" data-step="-1">−1</button>
+            <button type="submit" id="favour-plus" name="intent"
+                    value="counter-step:favour:+1"
+                    data-counter-step="favour" data-step="+1">+1</button>
         </form>
         <p id="draft-save-status"></p>
     `;
@@ -64,6 +73,33 @@ describe("post-battle Mission results", () => {
         expect(form.querySelector("[data-credit-total]").textContent).toBe(
             "+40¢",
         );
+    });
+
+    it("steps a counter in the page without a request", () => {
+        const submitted = vi.fn((event) => event.preventDefault());
+        form.addEventListener("submit", submitted);
+        const plus = document.getElementById("favour-plus");
+
+        plus.click();
+        plus.click();
+
+        expect(document.getElementById("favour").value).toBe("2");
+        expect(document.getElementById("favour-after").textContent).toBe("3");
+        expect(submitted).not.toHaveBeenCalled();
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("stops −1 where the counter would go below 0", () => {
+        const minus = document.getElementById("favour-minus");
+
+        minus.click();
+
+        expect(document.getElementById("favour").value).toBe("-1");
+        expect(document.getElementById("favour-after").textContent).toBe("0");
+        expect(minus.disabled).toBe(true);
+        minus.disabled = false;
+        minus.click();
+        expect(document.getElementById("favour").value).toBe("-1");
     });
 
     it("shows where a counter lands after a typed change", () => {

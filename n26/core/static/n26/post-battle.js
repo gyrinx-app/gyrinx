@@ -135,14 +135,41 @@
             total.textContent = `+${sum}¢`;
         }
         for (const input of form.querySelectorAll("input[data-counter-base]")) {
+            const change = whole(input.value);
+            const landing = Number(input.dataset.counterBase) + change;
             const after = document.getElementById(
                 input.getAttribute("aria-describedby"),
             );
-            if (after)
-                after.textContent =
-                    Number(input.dataset.counterBase) + whole(input.value);
+            if (after) after.textContent = landing;
+            const limit = Number(input.dataset.counterLimit || 1000);
+            for (const button of form.querySelectorAll(
+                `button[data-counter-step="${input.id}"]`,
+            )) {
+                button.disabled =
+                    button.dataset.step === "-1"
+                        ? landing <= 0 || change <= -limit
+                        : change >= limit;
+            }
         }
     };
+
+    // A counter's −1 and +1 step its change here, like typing would; the
+    // autosave keeps it. Without scripts they post the form.
+    form.addEventListener("click", (event) => {
+        const button = event.target.closest?.("button[data-counter-step]");
+        if (!button || !form.contains(button)) return;
+        event.preventDefault();
+        const input = document.getElementById(button.dataset.counterStep);
+        if (!input) return;
+        const number = Number(String(input.value || "").trim() || 0);
+        if (!Number.isInteger(number)) return;
+        const next = number + (button.dataset.step === "-1" ? -1 : 1);
+        const limit = Number(input.dataset.counterLimit || 1000);
+        if (Math.abs(next) > limit) return;
+        if (Number(input.dataset.counterBase) + next < 0) return;
+        input.value = next ? String(next) : "";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
 
     form.addEventListener("htmx:confirm", (event) => {
         event.preventDefault();

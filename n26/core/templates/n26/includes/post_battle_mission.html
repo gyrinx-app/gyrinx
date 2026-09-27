@@ -128,7 +128,8 @@ so the id must stay put.
                                                         value="{{ row.entered }}"
                                                         placeholder="0"
                                                         aria-describedby="{{ row.prefix }}-after"
-                                                        data-counter-base="{{ row.base }}" />
+                                                        data-counter-base="{{ row.base }}"
+                                                        data-counter-limit="{{ row.limit }}" />
                                         </div>
                                         <c-ui.button type="submit"
                                                      id="{{ row.prefix }}-plus"

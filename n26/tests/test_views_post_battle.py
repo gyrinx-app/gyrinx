@@ -2302,6 +2302,20 @@ class TestMissionResults:
         report.refresh_from_db()
         assert report.draft["gang_counters"] == {key: "1"}
 
+    def test_counter_steps_post_the_form_only_without_scripts(
+        self, client, table, feature, reputation
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        key = str(reputation.pk)
+        for step in ("-1", "+1"):
+            button = mission(page).find(
+                "button", attrs={"value": f"counter-step:{key}:{step}"}
+            )
+            assert not button.has_attr("hx-post")
+            assert button["data-counter-step"] == f"gang-counter-{key}"
+            assert button["data-step"] == step
+
     def test_minus_is_off_where_the_counter_would_go_below_zero(
         self, client, table, feature
     ):
