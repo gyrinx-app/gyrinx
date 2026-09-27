@@ -27,6 +27,7 @@ from n26.core.status import Status, status_colour
 from n26.library.authoring import add_picklist_member
 from n26.tests.sandbox.actions import (
     add_built_in,
+    assign,
     attach,
     create_counter,
     create_pickable,
@@ -45,6 +46,7 @@ from n26.tests.sandbox.actions import (
     modifier,
     op_changes_counter,
     op_sets_status,
+    remove,
     tally,
     targets_every_model,
     targets_model,
@@ -1314,3 +1316,235 @@ class TestRollBands:
 )
 def test_status_colour(status, colour):
     assert status_colour(status) == colour
+
+
+def with_lines(model, *lines, counters=None):
+    """A schema-2 report: ``lines`` are ``(id, amount, reason)``."""
+    payload = payload_for(model)
+    del payload["credits"], payload["reason"]
+    payload["schema"] = 2
+    payload["credit_lines"] = [
+        {"id": key, "amount": amount, "reason": reason} for key, amount, reason in lines
+    ]
+    payload["gang_counters"] = counters or {}
+    return payload
+
+
+def income_events(gang):
+    return list(
+        LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.INCOME)
+        .order_by("created", "pk")
+        .values_list("credits_delta", "note")
+    )
+
+
+@pytest.mark.usefixtures("counter_tracking")
+class TestCreditLines:
+    """Each line of credits is its own event, and corrections go line by line."""
+
+    def test_lines_add_up_and_each_is_one_event(self, report, owner, model, gang):
+        scenario, bounty = str(uuid4()), str(uuid4())
+        report = save(
+            report,
+            owner,
+            with_lines(
+                model, (scenario, 40, "Scenario reward"), (bounty, 15, "Bounty")
+            ),
+        )
+        plan = preview_report(report, actor=owner)
+        assert plan.credits_total == plan.credits_change == 55
+        saved = apply(report, owner)
+        assert income_events(gang) == [(-40, "Scenario reward"), (-15, "Bounty")]
+        gang.refresh_from_db()
+        assert gang.credits == 1055
+        assert saved.receipt["credit_lines"] == [
+            {"id": scenario, "amount": 40, "reason": "Scenario reward"},
+            {"id": bounty, "amount": 15, "reason": "Bounty"},
+        ]
+        assert saved.inputs["schema"] == 2
+        assert_reconciled(gang)
+
+    def test_each_amount_needs_a_reason_and_empty_lines_are_dropped(
+        self, report, owner, model
+    ):
+        unexplained = str(uuid4())
+        report = save(
+            report,
+            owner,
+            with_lines(model, (unexplained, 10, ""), (str(uuid4()), "", "")),
+        )
+        plan = preview_report(report, actor=owner)
+        assert "Add a reason for each amount of credits." in plan.errors
+        assert [line["id"] for line in plan.inputs["credit_lines"]] == [unexplained]
+
+    def test_at_most_twenty_lines(self, report, owner, model):
+        lines = [(str(uuid4()), 1, "Tithe") for _ in range(21)]
+        report = save(report, owner, with_lines(model, *lines))
+        assert (
+            "Add up to 20 lines of credits."
+            in preview_report(report, actor=owner).errors
+        )
+
+    def test_a_correction_changes_and_removes_lines_one_event_each(
+        self, report, owner, model, gang
+    ):
+        scenario, bounty, loot = str(uuid4()), str(uuid4()), str(uuid4())
+        report = save(
+            report,
+            owner,
+            with_lines(
+                model, (scenario, 40, "Scenario reward"), (bounty, 15, "Bounty")
+            ),
+        )
+        apply(report, owner)
+        report = start_correction(report, actor=owner)
+        report = save(
+            report,
+            owner,
+            with_lines(model, (scenario, 30, "Scenario reward"), (loot, 5, "Loot")),
+        )
+        apply(report, owner)
+        assert income_events(gang)[2:] == [
+            (10, "Correction: Scenario reward"),
+            (-5, "Loot"),
+            (15, "Correction: Bounty"),
+        ]
+        gang.refresh_from_db()
+        assert gang.credits == 1035
+        assert_reconciled(gang)
+
+    def test_a_reason_change_alone_writes_nothing(self, report, owner, model, gang):
+        line = str(uuid4())
+        report = save(report, owner, with_lines(model, (line, 20, "Reward")))
+        apply(report, owner)
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, with_lines(model, (line, 20, "Scenario reward")))
+        apply(report, owner)
+        assert len(income_events(gang)) == 1
+
+    def test_a_schema_one_report_corrects_through_its_legacy_line(
+        self, report, owner, model, gang
+    ):
+        report = save(report, owner, payload_for(model, credits=40))
+        first = apply(report, owner)
+        assert first.inputs["credit_lines"] == [
+            {"id": "legacy", "amount": 40, "reason": "Scenario reward"}
+        ]
+        # Stand in for a revision applied before lines of credits existed.
+        inputs = deepcopy(first.inputs)
+        del inputs["credit_lines"], inputs["gang_counters"]
+        inputs |= {"schema": 1, "credits": 40, "reason": "Scenario reward"}
+        PostBattleRevision.objects.filter(pk=first.pk).update(inputs=inputs)
+        report = start_correction(report, actor=owner)
+        assert report.draft["credit_lines"] == [
+            {"id": "legacy", "amount": 40, "reason": "Scenario reward"}
+        ]
+        payload = deepcopy(report.draft)
+        payload["credit_lines"][0]["amount"] = 25
+        payload["credit_lines"].append(
+            {"id": str(uuid4()), "amount": 5, "reason": "Bounty"}
+        )
+        report = save(report, owner, payload)
+        apply(report, owner)
+        assert income_events(gang)[1:] == [
+            (15, "Correction: Scenario reward"),
+            (-5, "Bounty"),
+        ]
+        gang.refresh_from_db()
+        assert gang.credits == 1030
+        assert_reconciled(gang)
+
+
+@pytest.fixture
+def reputation(gang, owner):
+    counter = assign(create_counter("Reputation"), gang=gang, actor=owner)
+    tally(counter, 5)
+    return counter
+
+
+def counter_value(assignment):
+    return CounterValue.objects.get(assignment=assignment).value
+
+
+@pytest.mark.usefixtures("counter_tracking")
+class TestGangCounters:
+    """The gang's counters change by hand, and corrections by the difference."""
+
+    def test_preview_matches_what_is_applied(self, report, owner, model, reputation):
+        key = str(reputation.pk)
+        report = save(report, owner, with_lines(model, counters={key: "2"}))
+        plan = preview_report(report, actor=owner)
+        (change,) = plan.gang_counters
+        assert (change.name, change.before, change.manual, change.after) == (
+            "Reputation",
+            5,
+            2,
+            7,
+        )
+        saved = apply(report, owner)
+        assert counter_value(reputation) == change.after == 7
+        assert saved.inputs["gang_counters"] == {key: 2}
+        (line,) = saved.receipt["gang_counters"]
+        assert (line["name"], line["before"], line["after"]) == ("Reputation", 5, 7)
+        event = LedgerEvent.objects.get(
+            assignment=reputation, post_battle_revision=saved
+        )
+        assert event.counter_delta == 2
+
+    def test_xp_and_income_are_not_offered(
+        self, report, owner, model, gang, reputation
+    ):
+        income = assign(create_counter("Income"), gang=gang, actor=owner)
+        plan = preview_report(report, actor=owner)
+        offered = {change.assignment_id for change in plan.gang_counters}
+        assert offered == {str(reputation.pk)}
+        assert str(income.pk) not in offered
+
+    def test_a_correction_keeps_a_later_tally(self, report, owner, model, reputation):
+        key = str(reputation.pk)
+        report = save(report, owner, with_lines(model, counters={key: 3}))
+        apply(report, owner)
+        tally(reputation, 4)
+        report = start_correction(report, actor=owner)
+        assert report.draft["gang_counters"] == {key: 3}
+        report = save(report, owner, with_lines(model, counters={key: 1}))
+        apply(report, owner)
+        assert counter_value(reputation) == 5 + 3 + 4 - 2
+
+    def test_below_zero_is_refused(self, report, owner, model, reputation):
+        report = save(
+            report, owner, with_lines(model, counters={str(reputation.pk): -6})
+        )
+        assert (
+            "Reputation cannot go below 0."
+            in preview_report(report, actor=owner).errors
+        )
+
+    def test_a_removed_counter_cannot_be_corrected(
+        self, report, owner, model, reputation
+    ):
+        key = str(reputation.pk)
+        report = save(report, owner, with_lines(model, counters={key: 2}))
+        apply(report, owner)
+        remove(reputation, actor=owner)
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, with_lines(model, counters={key: 1}))
+        errors = preview_report(report, actor=owner).errors
+        assert any("correct the change to Reputation" in error for error in errors)
+        report = save(report, owner, with_lines(model, counters={key: 2}))
+        assert preview_report(report, actor=owner).valid
+
+    def test_a_result_that_moves_a_model_counter_leaves_the_gang_alone(
+        self, report, owner, model, content, reputation
+    ):
+        key = str(reputation.pk)
+        payload = with_lines(model, counters={key: 1})
+        payload["models"][0]["effects"] = [effect_for(report, owner, content["lesson"])]
+        report = save(report, owner, payload)
+        plan = preview_report(report, actor=owner)
+        (change,) = plan.gang_counters
+        assert change.effect == 0
+        assert not plan.gang_counter_effects
+        assert plan.models[0].xp_after == plan.models[0].xp_before + 2
+        apply(report, owner)
+        assert counter_value(reputation) == 6

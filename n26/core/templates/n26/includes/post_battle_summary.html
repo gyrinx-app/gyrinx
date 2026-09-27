@@ -25,6 +25,14 @@
                 </dd>
             </div>
         {% endif %}
+        {% for change in plan.moving_gang_counters %}
+            <div class="flex justify-between gap-3">
+                <dt>{{ change.name }}</dt>
+                <dd class="tabular-nums">
+                    {{ change.before }} → {{ change.after }}
+                </dd>
+            </div>
+        {% endfor %}
     </dl>
     <ul class="mt-4 space-y-3 text-sm">
         {% for model in models %}

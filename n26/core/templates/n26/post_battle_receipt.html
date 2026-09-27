@@ -17,7 +17,54 @@
         <c-ui.alert variant="success">
             Recorded{% if revision.actor %} by {{ revision.actor.username }}{% endif %} on {{ revision.created|date:'j F Y, H:i' }}. This receipt keeps the values recorded at that time.
         </c-ui.alert>
-        <c-n26.section title="Gang results"><dl class="grid gap-3 text-sm sm:grid-cols-2"><div><dt class="text-muted">Credits adjustment</dt><dd class="mt-1 text-lg font-semibold tabular-nums">{{ receipt.credits_change|stringformat:'+d' }}¢</dd></div><div><dt class="text-muted">Credits balance after applying</dt><dd class="mt-1 text-lg font-semibold tabular-nums">{% if receipt.credits_after != None %}{{ receipt.credits_after }}¢{% else %}Untracked{% endif %}</dd></div>{% if receipt.reason %}<div class="sm:col-span-2"><dt class="text-muted">Reason</dt><dd class="mt-1">{{ receipt.reason }}</dd></div>{% endif %}</dl></c-n26.section>
+        <c-n26.section title="Mission results">
+            <dl class="grid gap-3 text-sm sm:grid-cols-2">
+                <div>
+                    <dt class="text-muted">Credits adjustment</dt>
+                    <dd class="mt-1 text-lg font-semibold tabular-nums">
+                        {{ receipt.credits_change|stringformat:'+d' }}¢
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-muted">Credits balance after applying</dt>
+                    <dd class="mt-1 text-lg font-semibold tabular-nums">
+                        {% if receipt.credits_after != None %}
+                            {{ receipt.credits_after }}¢
+                        {% else %}
+                            Untracked
+                        {% endif %}
+                    </dd>
+                </div>
+                {% if mission.reason %}
+                    <div class="sm:col-span-2">
+                        <dt class="text-muted">Reason</dt>
+                        <dd class="mt-1">
+                            {{ mission.reason }}
+                        </dd>
+                    </div>
+                {% endif %}
+            </dl>
+            {% if mission.credit_lines %}
+                <h3 class="mt-4 text-sm font-semibold">Credits from this battle</h3>
+                <ul class="mt-2 space-y-1 text-sm">
+                    {% for line in mission.credit_lines %}
+                        <li class="flex justify-between gap-3">
+                            <span>{{ line.reason }}</span><span class="tabular-nums">{{ line.amount|stringformat:'+d' }}¢</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            {% if mission.gang_counters %}
+                <h3 class="mt-4 text-sm font-semibold">Gang counters</h3>
+                <ul class="mt-2 space-y-1 text-sm">
+                    {% for change in mission.gang_counters %}
+                        <li class="flex justify-between gap-3">
+                            <span>{{ change.name }}</span><span class="tabular-nums">{{ change.before }} → {{ change.after }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </c-n26.section>
         <c-n26.section title="Model results">
             <ul class="divide-y divide-box-border">
                 {% for model in receipt_models %}

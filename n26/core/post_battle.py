@@ -20,6 +20,13 @@ from django.utils import timezone
 
 from n26.core.battle_permissions import may_record_gang
 from n26.core.card import Node, build_gang_card, build_modifier_index, carriers
+from n26.core.counter_changes import (
+    CounterChange,
+    entries,
+    held_counters,
+    plan_changes,
+    read_changes,
+)
 from n26.core.counter_tracking import is_active
 from n26.core.effects import compute, compute_gang, counter_readings
 from n26.core.models import Assignment, Battle, Campaign, Gang, LedgerEvent, Miniature
@@ -167,12 +174,118 @@ class PostBattlePlan:
     credits_change: int
     review: str
     inputs: dict
+    #: What the credit lines add up to: the credits from this battle.
+    credits_total: int = 0
+    credit_lines: list = field(default_factory=list)
+    gang_counters: list[CounterChange] = field(default_factory=list)
     # Resolved objects are private execution data, never template inputs.
     _writes: list = field(default_factory=list, repr=False)
     _removals: list = field(default_factory=list, repr=False)
     _status_writes: dict = field(default_factory=dict, repr=False)
     _equipment: dict = field(default_factory=dict, repr=False)
     _retained: dict = field(default_factory=dict, repr=False)
+    #: ``(amount, note)`` per credits event: one per line that changes.
+    _credit_events: list = field(default_factory=list, repr=False)
+
+    @property
+    def moving_gang_counters(self):
+        """The gang counters this report moves when applied."""
+        return [
+            change for change in self.gang_counters if change.delta or change.effect
+        ]
+
+    @property
+    def gang_counter_effects(self):
+        """Whether any gang counter moves because of a result."""
+        return any(change.effect for change in self.gang_counters)
+
+
+#: At most this many credit lines in one report.
+MAX_CREDIT_LINES = 20
+#: The one line a report saved before credit lines existed becomes.
+LEGACY_LINE = "legacy"
+
+
+def normalise(payload):
+    """A report's values in the current shape, as a copy.
+
+    Reports saved before credit lines held one amount and one reason.
+    They read as a single line whose id is ``legacy``, so a correction
+    of an old report changes that line like any other.
+    """
+    payload = deepcopy(payload) if isinstance(payload, dict) else {}
+    credits = payload.pop("credits", "")
+    reason = payload.pop("reason", "")
+    if "credit_lines" not in payload:
+        payload["credit_lines"] = (
+            [{"id": LEGACY_LINE, "amount": credits, "reason": reason}]
+            if str(credits or "").strip() not in ("", "0") or str(reason or "").strip()
+            else []
+        )
+    payload.setdefault("gang_counters", {})
+    payload["schema"] = 2
+    return payload
+
+
+def _credit_lines(raw, errors):
+    """The lines that carry credits, checked. Empty lines are dropped."""
+    if not isinstance(raw, list) or any(not isinstance(line, dict) for line in raw):
+        errors.append("The credit lines are invalid.")
+        return []
+    if len(raw) > MAX_CREDIT_LINES:
+        errors.append(f"Add up to {MAX_CREDIT_LINES} lines of credits.")
+        raw = raw[:MAX_CREDIT_LINES]
+    lines = []
+    seen = set()
+    for line in raw:
+        key = str(line.get("id", ""))
+        if key != LEGACY_LINE:
+            try:
+                key = str(UUID(key))
+            except ValueError:
+                errors.append(
+                    "A line of credits has an invalid reference. Remove it and add it again."
+                )
+                continue
+        if key in seen:
+            errors.append("Each line of credits needs its own reference.")
+            continue
+        seen.add(key)
+        amount = _integer(line.get("amount"), "credits", errors)
+        reason = str(line.get("reason") or "").strip()
+        if len(reason) > 255:
+            errors.append("Keep each credits reason to 255 characters or fewer.")
+        if amount and not reason:
+            errors.append("Add a reason for each amount of credits.")
+        if amount:
+            lines.append({"id": key, "amount": amount, "reason": reason})
+    return lines
+
+
+def _credit_events(lines, recorded):
+    """One credits event per line that changes, against the lines recorded.
+
+    A new line adds its amount. A changed amount adds the difference, and
+    a removed line takes its amount back, each named as a correction, so
+    the gang's credit history reads line by line.
+    """
+    old = {line["id"]: line for line in recorded}
+    events = []
+    for line in lines:
+        before = old.pop(line["id"], None)
+        if before is None:
+            events.append((line["amount"], line["reason"]))
+        elif line["amount"] != int(before["amount"] or 0):
+            events.append(
+                (
+                    line["amount"] - int(before["amount"] or 0),
+                    f"Correction: {line['reason'] or before['reason']}",
+                )
+            )
+    for before in old.values():
+        if int(before["amount"] or 0):
+            events.append((-int(before["amount"]), f"Correction: {before['reason']}"))
+    return events
 
 
 def can_edit_report(report, actor):
@@ -293,7 +406,7 @@ def start_correction(report, *, actor):
         _require_editor(report, actor)
         if report.state == PostBattleReport.State.DRAFT:
             return report
-        report.draft = deepcopy(
+        report.draft = normalise(
             report.revisions.get(sequence=report.latest_sequence).inputs
         )
         report.generation = uuid4()
@@ -742,7 +855,7 @@ def _manual_xp_sources(report, old_models):
 
 def preview_report(report, *, actor, payload=None):
     _require_editor(report, actor)
-    payload = _draft(report.draft if payload is None else payload)
+    payload = normalise(_draft(report.draft if payload is None else payload))
     errors = []
     raw_models = payload.get("models", [])
     if (
@@ -765,7 +878,7 @@ def preview_report(report, *, actor, payload=None):
         if report.latest_sequence
         else None
     )
-    old = previous.inputs if previous else {}
+    old = normalise(previous.inputs if previous else {})
     old_models = {m["id"]: m for m in old.get("models", [])}
     xp_sources = _manual_xp_sources(report, old_models)
     old_occurrences = previous.receipt.get("occurrences", {}) if previous else {}
@@ -780,22 +893,18 @@ def preview_report(report, *, actor, payload=None):
         for m in (first.receipt.get("models", []) if first else [])
         if m.get("status_before") in Status.values
     }
-    credits = _integer(payload.get("credits"), "credits", errors)
-    reason = str(payload.get("reason", "")).strip()
-    if (credits or old.get("credits", 0)) and not reason:
-        errors.append("Add a reason for these credits.")
-    if len(reason) > 255:
-        errors.append("Keep the credits reason to 255 characters or fewer.")
+    lines = _credit_lines(payload.get("credit_lines"), errors)
+    credit_events = _credit_events(lines, old["credit_lines"])
     inputs = {
-        "schema": 1,
-        "credits": credits,
-        "reason": reason,
+        "schema": 2,
+        "credit_lines": lines,
+        "gang_counters": {},
         "participation_confirmed": payload.get("participation_confirmed") is True,
         "models": [],
     }
     if not inputs["participation_confirmed"]:
         errors.append("Confirm which models took part before applying these results.")
-    change = credits - old.get("credits", 0)
+    change = sum(amount for amount, _ in credit_events)
     plan = PostBattlePlan(
         False,
         errors,
@@ -805,6 +914,9 @@ def preview_report(report, *, actor, payload=None):
         change,
         "",
         inputs,
+        credits_total=sum(line["amount"] for line in lines),
+        credit_lines=lines,
+        _credit_events=credit_events,
     )
     if not report.gang.credits_unlimited and plan.credits_after < 0:
         errors.append("The gang does not have enough credits to make this correction.")
@@ -826,7 +938,27 @@ def preview_report(report, *, actor, payload=None):
     index = build_modifier_index(
         [*carriers(gang_card, *gang_card.members.values()), *selected]
     )
-    compute_gang(gang_card, index)
+    gang_computed = compute_gang(gang_card, index)
+    facts = []
+    entered = read_changes(payload.get("gang_counters"), errors)
+    recorded = old.get("gang_counters") or {}
+    # A result's stored effect tallies the counter of whoever it lands on,
+    # and every result here lands on a model, so no result moves a gang
+    # counter: the gang's lines have no effect part.
+    plan.gang_counters, counter_errors = plan_changes(
+        held_counters(gang_card.all_nodes(), gang_computed.counters),
+        entered,
+        recorded,
+        names={
+            line["assignment_id"]: line["name"]
+            for line in (previous.receipt if previous else {}).get("gang_counters", [])
+        },
+    )
+    errors.extend(counter_errors)
+    inputs["gang_counters"] = entries(plan.gang_counters, entered, recorded)
+    facts.append(
+        ["gang-counters", [change.assignment_id for change in plan.gang_counters]]
+    )
     submitted = {str(m.get("id")): m for m in raw_models}
     if len(submitted) != len(raw_models):
         errors.append("Each model can appear only once in a report.")
@@ -840,7 +972,6 @@ def preview_report(report, *, actor, payload=None):
             "A model in this report is no longer on this gang's roster. Restore it before correcting these results."
         )
     occurrences = set()
-    facts = []
     choices_cache = {}
     active = is_active()
     assignments = {
@@ -1246,12 +1377,16 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
         with operation(
             gang, actor=actor, batch=saved.batch, post_battle_revision=saved
         ) as op:
-            op.receive_credits(
-                plan.credits_change,
-                plan.inputs["reason"] or "Post-battle income correction",
-            )
+            for amount, note in plan._credit_events:
+                op.receive_credits(amount, note)
             counter_changes = [
-                (-event.counter_delta, event.assignment, occurrence, event)
+                (
+                    -event.counter_delta,
+                    event.assignment,
+                    occurrence,
+                    event,
+                    "Post-battle correction",
+                )
                 for occurrence, _, events in plan._removals
                 for event in events
                 if event.kind == LedgerEvent.Kind.TALLIED and event.counter_delta
@@ -1262,20 +1397,32 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                     Assignment.objects.get(pk=model.xp_assignment_id),
                     None,
                     None,
+                    "Post-battle XP",
                 )
                 for model in plan.models
                 if model.xp_change
             )
+            counter_changes.extend(
+                (
+                    change.delta,
+                    Assignment.objects.get(pk=change.assignment_id),
+                    None,
+                    None,
+                    "Post-battle results",
+                )
+                for change in plan.gang_counters
+                if change.delta
+            )
             # The preview validates their combined balance. Positive adjustments
             # must arrive first so tally's zero floor cannot clip a valid total.
-            for change, assignment, occurrence, event in sorted(
+            for change, assignment, occurrence, event, note in sorted(
                 counter_changes, key=lambda item: -item[0]
             ):
                 op.post_battle_occurrence = UUID(occurrence) if occurrence else None
                 op.tally(
                     assignment,
                     change,
-                    note="Post-battle correction" if event else "Post-battle XP",
+                    note=note,
                     **({"reversal_of": event} if event else {}),
                 )
             for occurrence, root, _ in plan._removals:
@@ -1345,7 +1492,11 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
         final_index = build_modifier_index(
             carriers(final_card, *final_card.members.values())
         )
-        compute_gang(final_card, final_index)
+        final_gang = compute_gang(final_card, final_index)
+        gang_readings = {
+            counter.id: counter.reading
+            for counter in held_counters(final_card.all_nodes(), final_gang.counters)
+        }
         final_statuses = dict(
             Miniature.objects.filter(pk__in=[m.id for m in plan.models]).values_list(
                 "pk", "status"
@@ -1371,7 +1522,18 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
             "credits_before": plan.credits_before,
             "credits_after": None if gang.credits_unlimited else gang.credits,
             "credits_change": plan.credits_change,
-            "reason": plan.inputs["reason"],
+            "credits_total": plan.credits_total,
+            "credit_lines": plan.credit_lines,
+            "gang_counters": [
+                asdict(
+                    replace(
+                        change,
+                        after=gang_readings.get(change.assignment_id, change.after),
+                    )
+                )
+                for change in plan.gang_counters
+                if change.changes
+            ],
             "models": [
                 {
                     "id": m.id,

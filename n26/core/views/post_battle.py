@@ -27,9 +27,12 @@ from n26.core.post_battle_forms import (
     change_draft,
     editor_models,
     keep_recorded_xp,
+    mission_results,
     posted_payload,
+    receipt_mission,
     receipt_models,
     refreshed_model,
+    refreshes_mission,
     xp_toolbar,
 )
 from n26.core.views.battles import battle_or_404
@@ -78,9 +81,9 @@ def _initial_payload(gang, battle=None):
             )
     # A pet takes part when its owner starts; any other model when it starts.
     return {
-        "schema": 1,
-        "credits": "",
-        "reason": "",
+        "schema": 2,
+        "credit_lines": [{"id": str(uuid4()), "amount": "", "reason": ""}],
+        "gang_counters": {},
         "participation_confirmed": False,
         "models": [
             {
@@ -239,6 +242,7 @@ def battle_report(request, pk, battle_pk, gang_pk):
 def post_battle_editor(request, pk):
     from n26.core.post_battle import (
         apply_report,
+        normalise,
         preview_report,
         save_draft,
         xp_eligible_models,
@@ -248,18 +252,20 @@ def post_battle_editor(request, pk):
     _editable_or_404(report, request.user)
     if report.state == PostBattleReport.State.APPLIED:
         return _report_destination(report, request)
-    payload = report.draft
+    payload = normalise(report.draft)
     errors = []
     show_errors = False
     status = 200
     posted = request.method == "POST"
     version = ReportVersionForm(request.POST if posted else None)
     refresh = None
+    mission = False
     if posted:
         payload = posted_payload(request.POST)
         intent = request.POST.get("intent", "save")
         if is_htmx(request):
             refresh = refreshed_model(payload, intent)
+            mission = refreshes_mission(intent)
         if version.is_valid():
             version_data = version.cleaned_data
             prior = PostBattleRevision.objects.filter(
@@ -317,7 +323,7 @@ def post_battle_editor(request, pk):
                 # An in-place update keeps the errors the page is showing,
                 # so a fixed one disappears and the rest stay put.
                 show_errors = intent == "check" or bool(
-                    refresh and request.POST.get("showing_errors")
+                    (refresh or mission) and request.POST.get("showing_errors")
                 )
             except (Refusal, ValidationError) as exc:
                 errors = (
@@ -333,7 +339,7 @@ def post_battle_editor(request, pk):
             status = 400
         if intent == "autosave":
             return JsonResponse({"error": " ".join(errors)}, status=status)
-        if refresh and errors:
+        if (refresh or mission) and errors:
             # htmx leaves the page as it is on an error, so every entry
             # stays; the page script shows this text by the save status.
             return HttpResponse(
@@ -363,12 +369,19 @@ def post_battle_editor(request, pk):
         "payload": payload,
         "plan": plan,
         "models": models,
+        "mission": mission_results(plan, payload, refresh_url=request.path),
         "xp_toolbar": xp_toolbar(models),
         "version_form": version,
         "errors": errors,
         "show_errors": show_errors,
         "stale": stale,
     }
+    if mission:
+        return render(
+            request,
+            "n26/includes/post_battle_refresh.html",
+            context | {"section": "n26/includes/post_battle_mission.html"},
+        )
     if refresh:
         refreshed = next((model for model in models if model.id == refresh), None)
         if refreshed is None:
@@ -378,7 +391,8 @@ def post_battle_editor(request, pk):
         return render(
             request,
             "n26/includes/post_battle_refresh.html",
-            context | {"model": refreshed},
+            context
+            | {"model": refreshed, "section": "n26/includes/post_battle_model.html"},
         )
     return render(request, "n26/post_battle.html", context, status=status)
 
@@ -409,6 +423,7 @@ def post_battle_receipt(request, pk, sequence=None):
             "revision": revision,
             "receipt": revision.receipt,
             "receipt_models": receipt_models(revision.receipt),
+            "mission": receipt_mission(revision.receipt),
             "revisions": report.revisions.only("sequence", "created"),
             "may_edit": can_edit_report(report, request.user),
         },

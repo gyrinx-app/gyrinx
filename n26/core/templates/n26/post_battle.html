@@ -26,29 +26,7 @@
         {% include "n26/includes/post_battle_errors.html" %}
         <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <div class="min-w-0 space-y-8">
-                <c-n26.form-section title="Gang results"
-                                    class="border border-box-border bg-surface p-4 sm:p-5"
-                                    description="Enter the credits awarded for this battle. Leave blank if there were none.">
-                    <div class="grid gap-4 sm:grid-cols-[10rem_minmax(0,1fr)]">
-                        <c-ui.field label="Credits gained" for="report-credits">
-                            <c-ui.input id="report-credits"
-                                        name="credits"
-                                        type="number"
-                                        min="0"
-                                        inputmode="numeric"
-                                        value="{{ payload.credits|default_if_none:'' }}"
-                                        size="lg" />
-                        </c-ui.field>
-                        <c-ui.field label="Reason" for="report-reason">
-                            <c-ui.input id="report-reason"
-                                        name="reason"
-                                        maxlength="255"
-                                        value="{{ payload.reason|default:'' }}"
-                                        placeholder="e.g. Scenario reward"
-                                        size="lg" />
-                        </c-ui.field>
-                    </div>
-                </c-n26.form-section>
+                {% include "n26/includes/post_battle_mission.html" %}
                 <section aria-labelledby="models-heading" class="space-y-3">
                     <div>
                         <h2 id="models-heading" class="text-lg font-semibold">Model results</h2>

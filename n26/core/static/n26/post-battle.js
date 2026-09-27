@@ -114,6 +114,30 @@
         }
     });
 
+    // Mission results: the credits total and each counter's "After" follow
+    // what is typed. The server's figures replace them on the next update.
+    const whole = (value) => {
+        const number = Number(String(value || "").trim() || 0);
+        return Number.isInteger(number) ? number : 0;
+    };
+    const redrawMission = () => {
+        const total = form.querySelector("[data-credit-total]");
+        if (total) {
+            const sum = [
+                ...form.querySelectorAll("input[data-credit-amount]"),
+            ].reduce((running, input) => running + whole(input.value), 0);
+            total.textContent = `+${sum}¢`;
+        }
+        for (const input of form.querySelectorAll("input[data-counter-base]")) {
+            const after = document.getElementById(
+                input.getAttribute("aria-describedby"),
+            );
+            if (after)
+                after.textContent =
+                    Number(input.dataset.counterBase) + whole(input.value);
+        }
+    };
+
     form.addEventListener("htmx:confirm", (event) => {
         event.preventDefault();
         window.clearTimeout(timer);
@@ -250,6 +274,7 @@
 
     form.addEventListener("input", () => {
         redrawXpToolbar();
+        redrawMission();
         dirty = true;
         window.clearTimeout(timer);
         if (!failed) {
