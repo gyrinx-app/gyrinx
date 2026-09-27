@@ -91,8 +91,8 @@ Author those links with existing built-ins or modifiers:
 
 1. Give eligible fighters the Advancement action, Standard fighter ranks and
    the hidden Advancement slot.
-2. Give the Spyrer rule Suit Evolution and Suit Maintenance.
-3. Give the Hunt Master profile Recruitment augmentation.
+2. Give the Spyrer subtype Suit Evolution and Suit Maintenance.
+3. Give the Experienced Hunter rule Recruitment augmentation for Hunt Masters.
 4. Give eligible fighters the hidden Promotion marker for the supplied
    promotions. It does not draw a special-rule line.
 5. Mark each item's augmentation slot as `tier_ladder`, with `max_picks=1`.

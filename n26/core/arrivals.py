@@ -125,12 +125,13 @@ def asking(gang, written, *, include_staged=False, hosts=None):
     lost: the slot stands unresolved on the sheet, which is where a
     reader makes it.
     """
-    from n26.core.render import slot_key
+    from n26.core.render import is_tier_ladder, slot_key
 
     open_slots = [
         (host, slot)
         for host, slot in arrived(gang, written)
         if slot.slot is not None and slot.max_picks > 0 and not slot.is_resolved
+        if not is_tier_ladder(slot)
         if hosts is None or host in hosts
     ]
     if not open_slots:

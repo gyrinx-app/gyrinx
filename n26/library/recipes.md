@@ -540,9 +540,11 @@ Write a short **Summary** for each tier and, if useful, an
 The app does not write them from the modifiers. The modifiers still determine
 what the tier does; check that each summary matches them.
 
-**Do not launch Malcadon hunting rig augmentations yet.** The app cannot upgrade
-the tier after the player chooses Ballistic Skill or Weapon Skill. Leave this
-rig's augmentation slot unattached. Continue with the Malcadon weapons.
+**Do not treat the Malcadon hunting rig as complete.** Neither tier has its
+intended effects. The app cannot yet carry a Ballistic Skill or Weapon Skill
+decision through a tier upgrade. Run the **Spyrer augmentation repair** in
+Maintenance to detach its unfinished slot from live gear and remove existing
+empty slot assignments. Build the lasting choice before attaching it again.
 
 ### Reuse the shared definitions
 
@@ -550,7 +552,8 @@ Open **Foundations → Fighter actions and advancement table**. Create missing
 definitions there, then reuse the existing **Augmentation** slot type, **Suit
 Evolution**, **Suit Maintenance** and **Recruitment augmentation** actions.
 Do not create a second set. Foundations supplies the actions and their prices;
-you supply each item's tiers and grant the actions to the eligible fighters.
+you supply each item's tiers and check that eligible fighters receive the
+actions through their existing subtype and rules.
 
 An item's setup has three parts:
 
@@ -647,10 +650,10 @@ not its firing profile.
   before augmentation. If the existing save uses a special rule, each
   upgraded tier also needs **Takes something away** for the base version.
   Check that the card displays only the upgraded save.
-- **Conditional benefits:** represent Yeld's cover benefit with a named special
-  rule granted to the model by Tier 2, alongside Tier 1's Movement improvement.
-  The card records the rule; players apply its condition at the table. Do not
-  improve the model's ordinary Save unconditionally.
+- **Conditional benefits:** Yeld Tier 2 keeps Tier 1's Movement improvement and
+  grants **Chameleonic protection**. The rule records the penalty to hit with
+  ranged attacks even after the wearer moves. Players apply it at the table;
+  do not change the model's ordinary Save.
 
 Use names and annotations for special rules. These rules appear on the model's
 card. They do not automate saving throws.
@@ -666,26 +669,17 @@ spends **4 Kill Count** to augment an item or clear glitches. Suit Maintenance
 spends **100¢** to clear glitches. Recruitment augmentation uses an earned
 recruitment allowance. Granting an action does not spend these resources.
 
-### Give the actions to fighters
+### Check action access
 
-1. Open an eligible **fighter entry**, starting with your test entry. Add a
-   modifier with **The model carrying it → Gives something**. Click **Configure
-   new modifier**, set **Kind** to **action**, select **Suit Evolution**, then
-   **Attach modifier**.
-2. Add **Suit Maintenance** using **The model carrying it → Gives something**
-   again. Reuse these two modifiers on the eligible real Spyrer fighter entries
-   only when you are ready to launch.
-3. To test Hunt Master's free augmentation, also grant **Recruitment
-   augmentation** to your test entry. Use **The model carrying it → Gives
-   something** again. Attach it before hiring the test model.
-4. Check the fighter's **Kill Count** and **Glitch Count**. Reuse the counters
-   already built into the **Spyrer** subtype. If either is missing, ask the
-   maintainer to check that shared subtype before continuing. Do not add another
-   copy directly to each fighter.
+The **Spyrer** subtype grants **Suit Evolution** and **Suit Maintenance**. Its
+built-in counters supply **Kill Count** and **Glitch Count**. The **Experienced
+Hunter** rule grants **Recruitment augmentation** to a Hunt Master. A test
+fighter with the Spyrer subtype should have both suit actions. To test the free
+recruitment action, use a Hunt Master with Experienced Hunter and hire a new
+fighter after the recruitment allowance is active.
 
-Attach these modifiers to **fighter entries** to limit action access to eligible
-fighters. Do not grant these actions or progression rules through the **gang
-type**. At launch, grant Recruitment augmentation only to **Spyre Hunt Master**.
+Check access on the fighter's action list before testing an outcome. Do not add
+another copy of these action grants or counters directly to a fighter entry.
 
 ### Test one complete item before repeating
 
@@ -705,16 +699,20 @@ staged profiles. The built-in test gear arrives with the model.
 
 1. Hire a fresh model from the test entry. Check that its
    unselected tier does not add a line to the roster card. The model's edit
-   page should have **Choose tier** beside the rig. Check both counters appear
-   once. Give the test model **8 Kill Count** and note its Strength and Attacks.
+   page should show the rig without a **Choose tier** link until a tier has been
+   earned. Check both counters appear once. Give the test model **8 Kill Count**
+   and note its Strength and Attacks.
 2. On the model's edit page, start **Suit Evolution**, select **Hunting Rig
    Augmentation**, then the rig's **Tier 1**. Review it. Cancel once and check
    that neither the tier nor Kill Count changed.
 3. Start again and confirm Tier 1. Check **4 Kill Count** remains, Strength has
-   improved by 1, and Attacks is unchanged.
+   improved by 1, and Attacks is unchanged. The ordinary chooser now offers
+   Tier 1 and **None**; it must not offer Tier 2 yet.
 4. Complete a second evolution for Tier 2. Check **0 Kill Count** remains,
    Strength is still only 1 better than the starting value, and Attacks is now
    1 better. The card should show **Jakara hunting rig (Tier 2)** on one line.
+   The ordinary chooser may switch among Tier 1, Tier 2 and None without
+   changing Kill Count or the completed action records.
 5. For a weapon, repeat through every tier and inspect its firing profile and
    traits. For a rule-based benefit, check the special rule and its annotation
    on the card. Check both newly equipped and already-carried items.
@@ -723,8 +721,8 @@ staged profiles. The built-in test gear arrives with the model.
    newly hired Hunt Master has one recruitment augmentation use and spends it
    only when confirming a result.
 
-If an action is missing, check its fighter-entry modifier and available balance
-or allowance. Setting **Usable by** alone does not grant access. If an item is
+If an action is missing, check the fighter's subtype or rules and its available
+balance or allowance. Setting **Usable by** alone does not grant access. If an item is
 missing from the selection, check its built-in slot,
 **Tier ladder** mode, numeric levels, live pickables and live members. A finished
 item at its last tier is not offered again.
@@ -736,14 +734,15 @@ weapon, change each modifier's **is_one_of** condition to name the real weapon
 instead of the test weapon. Where the library has separate versions, such as
 Jakara and Hunt Master weapons, include every intended version in the condition.
 
-With the content maintainer's approval, attach the tested slot to the real item
-and grant the actions to the real fighter entries as above. Keep the test gear
-and test fighter entries staged. These attachments change live content.
+With the content maintainer's approval, attach the tested slot to the real item.
+Check that eligible entries already carry the Spyrer subtype and that Hunt
+Masters carry Experienced Hunter. Keep the test gear and test fighter entries
+staged. Attaching the slot changes live content.
 
 Check a fresh hire and an existing model after the attachments. If an existing
 item has no augmentation line, ask a maintainer to check the built-in update;
-do not remove and rebuy the player's equipment. Leave Malcadon hunting rig's
-ladder unattached and list it as deferred in the launch notes.
+do not remove and rebuy the player's equipment. Keep the Malcadon hunting rig
+slot detached until its lasting characteristic choice is supported.
 
 ## The Lasting Injury and Lasting Damage tables
 

@@ -93,7 +93,7 @@ def gang_next(request, pk):
     handling. Either comes back here with whatever the picks brought
     added to the address.
     """
-    from n26.core.render import ArrivalBlock, ArrivalScreen
+    from n26.core.render import ArrivalBlock, ArrivalScreen, is_tier_ladder
 
     gang = _own_gang_or_404(request, pk)
     shown = sees_staged(request.user)
@@ -110,7 +110,9 @@ def gang_next(request, pk):
     located = {
         key: found
         for key, found in find_slots(gang, asks).items()
-        if found.slot.slot is not None and found.slot.max_picks > 0
+        if found.slot.slot is not None
+        and found.slot.max_picks > 0
+        and not is_tier_ladder(found.slot)
     }
     located = {key: located[key] for key in asks if key in located}
 
