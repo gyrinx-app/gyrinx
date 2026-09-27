@@ -17,11 +17,11 @@ The name of a pet the weapon brought follows the tier
     <span class="min-w-0">{{ weapon.name }}{{ weapon.slot_mark }}{{ weapon.tier_mark }}{{ weapon.brought_mark }}</span>
     <c-n26.model-card.mode when="edit">
         {% for choice in weapon.choices %}
-            {% if choice.is_tier_ladder and choice.href %}
+            {% if choice.is_tier_ladder %}
                 <span class="inline-flex items-center gap-0">
-                    <c-ui.button href="{{ choice.href }}"
-                                 variant="ghost"
-                                 size="xs">{% if choice.is_resolved %}Change tier{% else %}Choose tier{% endif %}</c-ui.button>
+                    {% if choice.href %}
+                        <c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.is_resolved %}Change tier{% else %}Choose tier{% endif %}</c-ui.button>
+                    {% endif %}
                     <c-n26.choice-dismiss :choice="choice" />
                 </span>
             {% endif %}

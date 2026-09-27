@@ -168,9 +168,10 @@ class TestFieldlessActionConfigurations:
         assert attached.status_code == 302
         assert Outcome.objects.get(name="Clear counters").apply_changes == operation
 
-    def test_recruitment_rule_can_be_created_edited_and_attached_to_an_action(
+    def test_recruitment_rule_has_a_form_and_builder_creates_one_for_an_action(
         self, author, client, default_pack
     ):
+        from n26.library.authoring import create_slot_type
         from n26.library.models import Action, RecruitmentAllowanceRule
 
         created = client.post("/n26/authoring/recruitment-allowance-rule/new/", {})
@@ -180,21 +181,33 @@ class TestFieldlessActionConfigurations:
         assert client.get(detail).status_code == 200
         assert client.post(detail, {"act": "edit"}).status_code == 302
 
-        attached = client.post(
+        tier = create_slot_type("Rig augmentation")
+        created_action = client.post(
             "/n26/authoring/action/new/",
             {
-                "name": "Recruitment augmentation",
-                "timing": "recruitment",
-                "recruitment_allowance_rule": str(rule.pk),
+                "draft": json.dumps(
+                    {
+                        "name": "Recruitment augmentation",
+                        "timing": "recruitment",
+                        "useMode": "recruitment",
+                        "outcomes": [
+                            {
+                                "name": "Choose rig tier",
+                                "operation": "augment",
+                                "slotType": str(tier.pk),
+                            }
+                        ],
+                    }
+                )
             },
         )
-        assert attached.status_code == 302
-        assert (
-            Action.objects.get(
-                name="Recruitment augmentation"
-            ).recruitment_allowance_rule
-            == rule
-        )
+        assert created_action.status_code == 302
+        action = Action.objects.get(name="Recruitment augmentation")
+        assert action.recruitment_allowance_rule is not None
+        assert action.recruitment_allowance_rule != rule
+        outcome = action.outcomes.get().outcome
+        assert outcome.name == "Choose rig tier"
+        assert outcome.augment_carried_item.slot_type == tier
 
 
 class TestRankThresholdWords:

@@ -185,7 +185,7 @@ exclude = ["*.md"]
 
 [tool.djlint]
 profile = "django"
-custom_blocks = "element,slot,setvar,is_active"
+custom_blocks = "element,slot,setvar,is_active,react_host"
 # H026 fires on the `class=""` default that every cotton component must declare
 # in <c-vars> to merge caller-supplied classes (cotton has no auto-merge: an
 # undeclared `class` emits two class attributes and the caller's is dropped).

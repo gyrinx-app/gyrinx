@@ -150,7 +150,7 @@ class TestRecordingABattle:
 class TestBattleModel:
     def test_legacy_record_has_no_invented_scenario_or_result(self, campaign):
         battle = Battle.objects.create(campaign=campaign, date=date(2026, 8, 3))
-        assert battle.title == "Battle on 2026-08-03"
+        assert battle.title == "Battle on 3 Aug 2026"
         assert battle.result_label == "Not recorded"
         assert not battle.scenario
 

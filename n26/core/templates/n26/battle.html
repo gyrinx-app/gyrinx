@@ -29,10 +29,16 @@
         </c-n26.page-header>
         {% if not battle.scenario %}<p class="text-sm text-muted">Scenario not recorded.</p>{% endif %}
         <section class="border border-box-border bg-surface p-4 sm:p-5"
-                 aria-labelledby="battle-result-heading">
-            <h2 id="battle-result-heading" class="text-sm font-medium text-muted">Result</h2>
+                 aria-labelledby="battle-outcome-heading">
+            <h2 id="battle-outcome-heading" class="text-sm font-medium text-muted">Outcome</h2>
             <p class="mt-1 text-xl font-semibold">{{ battle.result_label }}</p>
-            {% if battle.result == "not_recorded" %}<p class="mt-2 text-sm text-muted">The result has not been recorded. This does not mean the battle was a draw.</p>{% endif %}
+            {% if battle.result == "not_recorded" and yours %}
+                <c-ui.button size="sm"
+                             class="mt-3"
+                             href="{% url 'n26-campaign-edit-battle' campaign.pk battle.pk %}#outcome">
+                    Record outcome
+                </c-ui.button>
+            {% endif %}
         </section>
         <section aria-labelledby="battle-participants-heading">
             <h2 id="battle-participants-heading" class="mb-3 text-lg font-semibold">Participants</h2>

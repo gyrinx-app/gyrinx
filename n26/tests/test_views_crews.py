@@ -14,11 +14,12 @@ from django.urls import reverse
 from gyrinx.site.models import Availability, FeatureFlag, WritePause
 from n26.core.campaigns import campaign_operation
 from n26.core.crews import CrewSelection, save_crew
-from n26.core.models import BattleCrew, PrintConfig
+from n26.core.models import BattleCrew, Miniature, PrintConfig
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
 from n26.flags import CAMPAIGNS
+from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
     assign,
     attach,
@@ -37,6 +38,9 @@ from n26.tests.sandbox.actions import (
     give_weapon,
     hire,
     join_campaign,
+    modifier,
+    op_adds_model,
+    targets_model,
 )
 from n26.write_pause import WritesPaused
 
@@ -223,9 +227,7 @@ class TestCrewForms:
         client.post(address(table), fields(table))
         response = client.get(address(table))
         document = BeautifulSoup(response.content, "html.parser")
-        host = document.select_one(
-            "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
-        )
+        host = document.select_one("[data-react-module*='/crew-picker-']")
         assert host is not None
         props = json.loads(document.find(id=host["data-react-props"]).string)
         assert props == response.context["crew_picker"]
@@ -243,6 +245,22 @@ class TestCrewForms:
         form = host.find_parent("form")
         assert not form.select("[x-data], [x-model], [x-show]")
         assert not form.select('script[src$="battle-actions.js"]')
+
+    def test_the_longer_explanations_sit_behind_help_icons(
+        self, client, table, feature
+    ):
+        response = client.get(address(table))
+        document = BeautifulSoup(response.content, "html.parser")
+        hosts = document.select("[data-react-module*='/help-']")
+        labels = [
+            json.loads(document.find(id=host["data-react-props"]).string)["label"]
+            for host in hosts
+        ]
+        assert labels == ["More about crew selection", "More about the random draw"]
+        assert all("min-h-32" not in host.get("class", []) for host in hosts)
+        page_text = document.get_text(" ", strip=True)
+        assert "Select the starting crew and any reinforcements." in page_text
+        assert "Each drawn model gets a random equipment set" not in page_text
 
     def test_invalid_post_preserves_picker_values_and_field_errors(
         self, client, table, feature
@@ -269,9 +287,7 @@ class TestCrewForms:
         model.save(update_fields=["name"])
         response = client.get(address(table))
         document = BeautifulSoup(response.content, "html.parser")
-        host = document.select_one(
-            "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
-        )
+        host = document.select_one("[data-react-module*='/crew-picker-']")
         props = json.loads(document.find(id=host["data-react-props"]).string)
         selected = next(item for item in props["models"] if item["id"] == str(model.pk))
         assert selected["name"] == model.name
@@ -397,6 +413,120 @@ class TestCrewForms:
         response = client.post(address(table), fields(table, action="unknown"))
         assert response.status_code == 200
         assert not BattleCrew.objects.exists()
+
+
+@pytest.fixture
+def pet(table, person_type, gang_type):
+    """Mara buys wargear that brings a pet, so the pet has an owner."""
+    profile = Profile.objects.create(
+        name="Cyber-mastiff", profile_type=person_type, gang_type=gang_type, price=0
+    )
+    wargear = create_wargear("Cyber-mastiff (pet)")
+    modifier(
+        "Cyber-mastiff wargear brings a pet",
+        targets_model(),
+        op_adds_model(profile),
+        carried_by=wargear,
+    )
+    assign(wargear, miniature=table.models[0])
+    found = Miniature.objects.get(name="Cyber-mastiff", membership__gang=table.gang)
+    assert found.owned_by == table.models[0]
+    return found
+
+
+class TestCrewPets:
+    def test_a_pet_is_not_offered_or_drawn(self, client, table, pet, feature):
+        response = client.get(address(table))
+        ids = {model["id"] for model in response.context["crew_picker"]["models"]}
+        assert ids == {str(model.pk) for model in table.models}
+        response = client.post(
+            address(table),
+            fields(table, action="draw", random_count="3")
+            | {f"role_{m.pk}": "out" for m in table.models},
+        )
+        assert response.status_code == 200
+        assert "Only 2 eligible models remain" in response.content.decode()
+        assert not BattleCrew.objects.exists()
+
+    def test_a_pet_bought_into_the_stash_is_listed(
+        self, client, table, person_type, gang_type, feature
+    ):
+        profile = Profile.objects.create(
+            name="Phyrr Cat", profile_type=person_type, gang_type=gang_type, price=0
+        )
+        wargear = create_wargear("Phyrr Cat (pet)")
+        modifier(
+            "Phyrr Cat wargear brings a pet",
+            targets_model(),
+            op_adds_model(profile),
+            carried_by=wargear,
+        )
+        assign(wargear, stash=table.gang.stash)
+        stashed = Miniature.objects.get(name="Phyrr Cat", membership__gang=table.gang)
+        assert stashed.owned_by is None
+        response = client.get(address(table))
+        ids = {model["id"] for model in response.context["crew_picker"]["models"]}
+        assert str(stashed.pk) in ids
+
+    def test_a_saved_pet_leaves_the_crew_on_resave(self, client, table, pet, feature):
+        crew = BattleCrew.objects.create(battle=table.battle, gang=table.gang)
+        crew.members.create(
+            miniature=pet,
+            miniature_name=pet.name,
+            role="starting",
+            card_name="Full equipment",
+        )
+        response = client.post(address(table), fields(table, revision="0"))
+        assert response.status_code == 302
+        assert not crew.members.filter(miniature=pet).exists()
+
+    def test_the_sheet_draws_a_pet_after_its_owner_and_does_not_count_it(
+        self, client, table, pet, feature
+    ):
+        client.post(address(table), fields(table))
+        sheet = client.get(address(table, sheet=True))
+        (owner_line,) = [
+            line
+            for line in sheet.context["sheet"].starting
+            if line.member.miniature_id == table.models[0].pk
+        ]
+        assert [card.name for card in owner_line.pets] == ["Cyber-mastiff"]
+        assert len(sheet.context["sheet"].starting) == 1
+        body = sheet.content.decode()
+        assert "Goes with its owner. Not counted in the crew." in body
+        printed = client.get(address(table, sheet=True) + "?print=1")
+        titles = [row["card"].name for row in printed.context["rows"]]
+        assert titles.index("Cyber-mastiff") == titles.index("Mara") + 1
+
+    def test_a_pet_saved_as_a_member_is_drawn_once_with_its_owner(
+        self, client, table, pet, feature
+    ):
+        owner = table.models[0]
+        crew = BattleCrew.objects.create(
+            battle=table.battle, gang=table.gang, confirmed=True
+        )
+        for model in (owner, pet):
+            crew.members.create(
+                miniature=model,
+                miniature_name=model.name,
+                role="starting",
+                card_name="Full equipment",
+                rating=10,
+            )
+        sheet = client.get(address(table, sheet=True)).context["sheet"]
+        assert [line.member.miniature_id for line in sheet.starting] == [owner.pk]
+        assert [card.name for card in sheet.starting[0].pets] == ["Cyber-mastiff"]
+        assert sheet.starting_rating == 10
+
+    def test_a_pet_whose_owner_is_not_in_the_crew_is_not_drawn(
+        self, client, table, pet, feature
+    ):
+        client.post(
+            address(table), fields(table, **{f"role_{table.models[0].pk}": "out"})
+        )
+        sheet = client.get(address(table, sheet=True))
+        assert all(not line.pets for line in sheet.context["sheet"].reserves)
+        assert "Cyber-mastiff" not in sheet.content.decode()
 
 
 class TestCrewPagePermissions:

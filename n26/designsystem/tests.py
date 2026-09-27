@@ -804,7 +804,7 @@ class TestTheShellStillDraws:
         assert "Old Ruins by the sump" in page
         assert "Reputation" in page
         assert "Unclaimed" in page
-        assert "Record battle" in page
+        assert "Add battle" in page
         assert "Old Ruins went to The Ashen Choir" in page
 
     def test_the_new_gang_shell_offers_its_types(self, reader):
