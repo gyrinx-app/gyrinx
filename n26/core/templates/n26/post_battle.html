@@ -62,22 +62,40 @@
                         <p class="mt-1 text-sm text-muted">Select the models that actually took part. Unused reinforcements do not earn participation XP.</p>
                     </div>
                     <div class="border border-box-border bg-surface">
-                        <c-n26.action-bar class="border-b border-box-border bg-ink-100 p-3 dark:bg-ink-900">
+                        <c-n26.action-bar class="border-b border-box-border bg-ink-100 p-3 dark:bg-ink-900"
+                                          data-xp-toolbar>
                             <div class="mr-auto">
-                                <p class="text-sm font-semibold"><span data-participant-count>{{ participant_count }}</span> took part</p>
-                                <p class="mt-1 text-xs text-muted">Add participation XP to the selected models.</p>
+                                <p class="text-sm font-semibold"
+                                   data-xp-count
+                                   data-one="{{ xp_toolbar.count_one }}"
+                                   data-many="{{ xp_toolbar.count_many }}">{{ xp_toolbar.count_label }}</p>
+                                <p id="xp-toolbar-blocked"
+                                   class="mt-1 text-xs text-muted"
+                                   data-xp-blocked
+                                   data-one="{{ xp_toolbar.blocked_one }}"
+                                   data-many="{{ xp_toolbar.blocked_many }}"
+                                   {% if not xp_toolbar.blocked_message %}hidden{% endif %}>{{ xp_toolbar.blocked_message }}</p>
                             </div>
                             <c-ui.button type="submit"
                                          name="intent"
-                                         value="participation-xp"
-                                         aria-label="Add 1 XP to participants">
-                                Add 1 XP
+                                         value="xp-step:-1"
+                                         aria-label="{{ xp_toolbar.minus_label }}"
+                                         data-xp-step="-1"
+                                         data-one="{{ xp_toolbar.minus_one }}"
+                                         data-many="{{ xp_toolbar.minus_many }}"
+                                         :attrs="xp_toolbar.minus_attrs">
+                                −1 XP
                             </c-ui.button>
-                            {% if payload.bulk_undo %}<c-ui.button type="submit"
-             name="intent"
-             value="undo-xp"
-             aria-label="Undo XP addition"
-             variant="ghost">Undo</c-ui.button>{% endif %}
+                            <c-ui.button type="submit"
+                                         name="intent"
+                                         value="xp-step:+1"
+                                         aria-label="{{ xp_toolbar.plus_label }}"
+                                         data-xp-step="+1"
+                                         data-one="{{ xp_toolbar.plus_one }}"
+                                         data-many="{{ xp_toolbar.plus_many }}"
+                                         :attrs="xp_toolbar.plus_attrs">
+                                +1 XP
+                            </c-ui.button>
                         </c-n26.action-bar>
                         <c-ui.table class="n26-participation-table">
                             <caption class="sr-only">Models that took part and XP awarded</caption>
@@ -100,6 +118,8 @@
                                                        type="checkbox"
                                                        name="{{ model.prefix }}-participated"
                                                        aria-label="{{ model.name }} took part"
+                                                       data-xp-participant="{{ model.prefix }}-xp"
+                                                       {% if not model.result.xp_available %}data-xp-blocked-name="{{ model.name }}"{% endif %}
                                                        class="size-5 shrink-0 accent-[var(--color-accent)]"
                                                        {% if model.participated %}checked{% endif %}>
                                                 <span class="min-w-0"><span class="block font-semibold">{{ model.name }}</span><span class="mt-1 block text-xs text-muted">{{ model.result.status_label }}</span></span>
@@ -109,6 +129,11 @@
                                         <td>
                                             <label for="{{ model.prefix }}-xp"
                                                    class="sr-only">XP gained for {{ model.name }}</label>
+                                            {% if not model.result.xp_available %}
+                                                <input type="hidden"
+                                                       name="{{ model.prefix }}-xp"
+                                                       value="{{ model.xp }}">
+                                            {% endif %}
                                             <c-ui.input id="{{ model.prefix }}-xp"
                                                         name="{{ model.prefix }}-xp"
                                                         type="number"
@@ -116,9 +141,11 @@
                                                         inputmode="numeric"
                                                         aria-describedby="{{ model.prefix }}-xp-help"
                                                         value="{{ model.xp }}"
+                                                        data-xp-input
+                                                        :attrs="model.xp_attrs"
                                                         size="lg" />
                                             <div id="{{ model.prefix }}-xp-help">
-                                                {% if not model.result.xp_available %}<p class="mt-1 text-xs text-muted">No editable XP counter. Leave blank.</p>{% endif %}
+                                                {% if not model.result.xp_available %}<p class="mt-1 text-xs text-muted">{{ model.result.xp_blocked_message }}</p>{% endif %}
                                                 {% if show_errors and model.result.errors %}<a href="#{{ model.prefix }}-errors"
    class="mt-1 block text-xs text-red-700 underline dark:text-red-300">Check this model's results</a>{% endif %}
                                             </div>

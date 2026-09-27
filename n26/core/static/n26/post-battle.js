@@ -49,13 +49,52 @@
         await saving;
     };
 
-    form.addEventListener("input", () => {
-        const count = form.querySelector("[data-participant-count]");
-        if (count) {
-            count.textContent = form.querySelectorAll(
-                'input[name$="-participated"]:checked',
-            ).length;
+    // The server renders the XP toolbar. This redraws it from the same
+    // templates while models are ticked, so it never waits for a save.
+    const plural = (element, count) =>
+        (count === 1 ? element.dataset.one : element.dataset.many).replace(
+            "{n}",
+            count,
+        );
+    const redrawXpToolbar = () => {
+        const toolbar = form.querySelector("[data-xp-toolbar]");
+        if (!toolbar) return;
+        const selected = [
+            ...form.querySelectorAll("input[data-xp-participant]:checked"),
+        ];
+        const blocked = selected
+            .filter((box) => box.dataset.xpBlockedName)
+            .map((box) => box.dataset.xpBlockedName);
+        const entered = selected
+            .filter((box) => !box.dataset.xpBlockedName)
+            .map((box) => {
+                const value = document.getElementById(
+                    box.dataset.xpParticipant,
+                )?.value;
+                const number = Number(value || 0);
+                return Number.isInteger(number) ? number : 1;
+            });
+        const count = toolbar.querySelector("[data-xp-count]");
+        count.textContent = plural(count, selected.length);
+        const message = toolbar.querySelector("[data-xp-blocked]");
+        message.textContent = blocked.length
+            ? plural(message, blocked.length).replace(
+                  "{names}",
+                  blocked.join(", "),
+              )
+            : "";
+        message.hidden = !blocked.length;
+        for (const button of toolbar.querySelectorAll("[data-xp-step]")) {
+            button.setAttribute("aria-label", plural(button, selected.length));
+            button.disabled =
+                button.dataset.xpStep === "+1"
+                    ? !entered.length
+                    : entered.every((value) => value <= 0);
         }
+    };
+
+    form.addEventListener("input", () => {
+        redrawXpToolbar();
         dirty = true;
         window.clearTimeout(timer);
         if (!failed) {

@@ -82,8 +82,9 @@ class ModelResult:
     xp_after: int
     xp_change: int
     xp_assignment_id: str | None
-    xp_available: bool
+    xp_blocked: str
     xp_award_assignment_id: str | None = None
+    xp_recorded: int = 0
     is_vehicle: bool = False
     effect_slots: list[EffectSlot] = field(default_factory=list)
     effects: list[EffectResult] = field(default_factory=list)
@@ -95,6 +96,44 @@ class ModelResult:
     equipment_exclusions: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     participated: bool = False
+
+    @property
+    def xp_available(self):
+        return not self.xp_blocked
+
+    @property
+    def xp_blocked_message(self):
+        return xp_blocked_message(self.xp_blocked, self.name)
+
+
+# Why a model cannot take XP in this report, most general first.
+XP_TRACKING_OFF = "tracking_off"
+XP_NO_COUNTER = "no_counter"
+XP_SEVERAL_COUNTERS = "several_counters"
+_XP_BLOCKED_MESSAGES = {
+    XP_TRACKING_OFF: "XP cannot be recorded until counter history is switched on.",
+    XP_NO_COUNTER: "{name} has no XP counter, so XP cannot be recorded here.",
+    XP_SEVERAL_COUNTERS: (
+        "{name} has more than one XP counter. Remove the extra one on the "
+        "model's edit page, then record XP."
+    ),
+}
+
+
+def xp_blocked_message(reason, name):
+    if not reason:
+        return ""
+    return _XP_BLOCKED_MESSAGES[reason].format(name=name)
+
+
+def _xp_blocked(xp_nodes, active):
+    if not active:
+        return XP_TRACKING_OFF
+    if not xp_nodes:
+        return XP_NO_COUNTER
+    if len(xp_nodes) > 1:
+        return XP_SEVERAL_COUNTERS
+    return ""
 
 
 @dataclass
@@ -462,6 +501,12 @@ def _remove_nodes(nodes, removed):
             node.children = _remove_nodes(node.children, removed)
             kept.append(node)
     return kept
+
+
+def xp_eligible_models(report, *, actor, payload):
+    """The ids of models whose XP this report can change."""
+    plan = preview_report(report, actor=actor, payload=payload)
+    return {model.id for model in plan.models if model.xp_available}
 
 
 def _project_counters(card, index, plan, result, facts):
@@ -844,6 +889,7 @@ def preview_report(report, *, actor, payload=None):
             and n.assignment is not None
             and not n.suppressed
         ]
+        xp_blocked = _xp_blocked(xp_nodes, active)
         xp_assignment = xp_nodes[0].assignment if len(xp_nodes) == 1 else None
         xp_readings = [
             r.value
@@ -853,10 +899,8 @@ def preview_report(report, *, actor, payload=None):
         xp_before = sum(xp_readings)
         xp = _integer(raw.get("xp"), f"{miniature.name}'s XP", model_errors)
         xp_change = xp - before.get("xp", 0)
-        if xp_change and (xp_assignment is None or not active):
-            model_errors.append(
-                "This model needs one tracked XP counter before XP can be changed."
-            )
+        if xp_change and xp_blocked:
+            model_errors.append(xp_blocked_message(xp_blocked, "This model"))
         xp_source = xp_sources.get(model_id)
         if before.get("xp", 0):
             if xp_change and (
@@ -885,8 +929,9 @@ def preview_report(report, *, actor, payload=None):
             xp_before + xp_change,
             xp_change,
             str(xp_assignment.pk) if xp_assignment else None,
-            xp_assignment is not None and active,
+            xp_blocked,
             xp_award_assignment_id=xp_source,
+            xp_recorded=before.get("xp", 0),
             is_vehicle=vehicle,
             errors=model_errors,
             participated=raw.get("participated") is True,

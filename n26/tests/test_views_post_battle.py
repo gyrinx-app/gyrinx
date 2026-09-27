@@ -999,49 +999,6 @@ class TestApplyingAndCorrecting:
 class TestDraftActions:
     """Conveniences change saved inputs, never XP or injuries before Apply."""
 
-    def test_bulk_xp_and_undo_only_change_selected_participants(
-        self, client, table, feature
-    ):
-        report = start(client, table)
-        first, reserve = table.models
-        data = html_fields(
-            client.get(editor_url(report)),
-            intent="participation-xp",
-            **{
-                f"model-{first.pk}-participated": "on",
-                f"model-{first.pk}-xp": "3",
-                f"model-{reserve.pk}-xp": "5",
-            },
-        )
-        response = client.post(editor_url(report), data)
-        assert response.status_code == 200
-        assert [row.xp for row in response.context["models"]] == ["4", "5"]
-        assert "Undo XP addition" in response.content.decode()
-        undone = client.post(
-            editor_url(report), html_fields(response, intent="undo-xp")
-        )
-        assert undone.status_code == 200
-        assert [row.xp for row in undone.context["models"]] == ["3", "5"]
-        assert "Undo XP addition" not in undone.content.decode()
-        assert xp_value(first) == xp_value(reserve) == 0
-
-    def test_undo_preserves_an_extra_manual_xp_change(self, client, table, feature):
-        report = start(client, table)
-        model = table.models[0]
-        response = client.post(
-            editor_url(report),
-            html_fields(
-                client.get(editor_url(report)),
-                intent="participation-xp",
-                **{f"model-{model.pk}-participated": "on", f"model-{model.pk}-xp": "3"},
-            ),
-        )
-        undone = client.post(
-            editor_url(report),
-            html_fields(response, intent="undo-xp", **{f"model-{model.pk}-xp": "8"}),
-        )
-        assert undone.context["models"][0].xp == "7"
-
     def test_an_optional_dependent_choice_may_stay_blank(self, client, table, feature):
         injury, hand = dependent_injury(table, required=False)
         report = start(client, table)
@@ -1122,38 +1079,6 @@ class TestDraftActions:
             miniature=table.models[0], pickable=hand, archived=False
         ).exists()
         assert_books(table)
-
-    def test_xp_undo_survives_adding_and_removing_a_lasting_effect(
-        self, client, table, feature
-    ):
-        report = start(client, table)
-        model = table.models[0]
-        incremented = client.post(
-            editor_url(report),
-            html_fields(
-                client.get(editor_url(report)),
-                intent="participation-xp",
-                **{
-                    f"model-{model.pk}-participated": "on",
-                    f"model-{model.pk}-xp": "3",
-                },
-            ),
-        )
-        added = client.post(
-            editor_url(report),
-            html_fields(incremented, intent=f"add-effect:{model.pk}"),
-        )
-        assert "Undo XP addition" in added.content.decode()
-        effect_id = added.context["models"][0].effects[0].id
-        removed = client.post(
-            editor_url(report),
-            html_fields(added, intent=f"remove-effect:{effect_id}"),
-        )
-        assert "Undo XP addition" in removed.content.decode()
-        undone = client.post(editor_url(report), html_fields(removed, intent="undo-xp"))
-        assert undone.context["models"][0].xp == "3"
-        assert "Undo XP addition" not in undone.content.decode()
-        assert xp_value(model) == 0
 
     def test_repeated_injuries_keep_separate_occurrences_and_remove_one(
         self, client, table, feature
@@ -1402,6 +1327,184 @@ class TestReportQueryGrowth:
             hire(table.gang, profile, name)
         assert count() <= small
         assert len(client.get(editor_url(report)).context["models"]) == 5
+
+
+def step(client, report, response, intent, **changes):
+    stepped = client.post(
+        editor_url(report), html_fields(response, intent=intent, **changes)
+    )
+    assert stepped.status_code == 200, stepped.context["errors"]
+    return stepped
+
+
+def entered_xp(response):
+    return [row.xp for row in response.context["models"]]
+
+
+def toolbar_button(response, value):
+    document = BeautifulSoup(response.content, "html.parser")
+    return document.select_one(f'button[name="intent"][value="{value}"]')
+
+
+class TestXpSteps:
+    """The toolbar steps the entered XP of selected models, never the gang."""
+
+    def test_steps_change_only_selected_participants(self, client, table, feature):
+        report = start(client, table)
+        first, reserve = table.models
+        added = step(
+            client,
+            report,
+            client.get(editor_url(report)),
+            "xp-step:+1",
+            **{
+                f"model-{first.pk}-participated": "on",
+                f"model-{first.pk}-xp": "3",
+                f"model-{reserve.pk}-xp": "5",
+            },
+        )
+        assert entered_xp(added) == ["4", "5"]
+        removed = step(client, report, added, "xp-step:-1")
+        assert entered_xp(removed) == ["3", "5"]
+        assert xp_value(first) == xp_value(reserve) == 0
+
+    def test_repeated_steps_persist_and_stop_at_zero(self, client, table, feature):
+        report = start(client, table)
+        ticked = {f"model-{m.pk}-participated": "on" for m in table.models}
+        page = client.get(editor_url(report))
+        assert toolbar_button(page, "xp-step:-1").has_attr("disabled")
+        assert toolbar_button(page, "xp-step:+1").has_attr("disabled")
+        page = step(client, report, page, "xp-step:+1", **ticked)
+        assert toolbar_button(page, "xp-step:+1")["aria-label"] == (
+            "Add 1 XP to the 2 selected models"
+        )
+        page = step(client, report, page, "xp-step:+1")
+        page = step(client, report, page, "xp-step:+1")
+        page = step(client, report, page, "xp-step:-1")
+        assert entered_xp(page) == ["2", "2"]
+        resumed = client.get(editor_url(report))
+        assert entered_xp(resumed) == ["2", "2"]
+        for _ in range(3):
+            resumed = step(client, report, resumed, "xp-step:-1")
+        assert entered_xp(resumed) == ["0", "0"]
+        assert toolbar_button(resumed, "xp-step:-1").has_attr("disabled")
+        assert not toolbar_button(resumed, "xp-step:+1").has_attr("disabled")
+
+    def test_a_stale_version_keeps_the_entries(self, client, table, feature):
+        report = start(client, table)
+        model = table.models[0]
+        page = client.get(editor_url(report))
+        step(client, report, page, "check")
+        refused = client.post(
+            editor_url(report),
+            html_fields(
+                page,
+                intent="xp-step:+1",
+                **{f"model-{model.pk}-participated": "on", f"model-{model.pk}-xp": "4"},
+            ),
+        )
+        assert refused.status_code == 409
+        assert html_fields(refused)[f"model-{model.pk}-xp"] == ["5"]
+        report.refresh_from_db()
+        assert report.draft["models"][0]["xp"] == ""
+
+    def test_an_old_draft_undo_record_is_ignored(self, client, table, feature):
+        report = start(client, table)
+        model = table.models[0]
+        report.draft["bulk_undo"] = {str(model.pk): "3"}
+        report.save(update_fields=["draft"])
+        page = client.get(editor_url(report))
+        assert page.status_code == 200
+        saved = step(client, report, page, "check")
+        assert "bulk_undo" not in saved.context["payload"]
+        report.refresh_from_db()
+        assert "bulk_undo" not in report.draft
+
+
+class TestXpBlockedModels:
+    """A model that cannot take XP says why and never blocks the others."""
+
+    @pytest.fixture
+    def visitor(self, table, make_profile):
+        return hire(table.gang, make_profile("Civilian"), "Visitor")
+
+    def test_steps_skip_a_model_without_an_xp_counter(
+        self, client, table, feature, visitor
+    ):
+        report = start(client, table)
+        first = table.models[0]
+        page = step(
+            client,
+            report,
+            client.get(editor_url(report)),
+            "xp-step:+1",
+            **{
+                f"model-{first.pk}-participated": "on",
+                f"model-{visitor.pk}-participated": "on",
+            },
+        )
+        by_id = {row.id: row.xp for row in page.context["models"]}
+        assert by_id[str(first.pk)] == "1"
+        assert by_id[str(visitor.pk)] == ""
+        document = BeautifulSoup(page.content, "html.parser")
+        assert document.select_one("[data-xp-blocked]").get_text(strip=True) == (
+            "1 selected model cannot take XP: Visitor."
+        )
+        field = document.select_one(f'input[id="model-{visitor.pk}-xp"]')
+        assert field.has_attr("disabled")
+        help_text = document.find(id=field["aria-describedby"])
+        assert help_text.get_text(" ", strip=True) == (
+            "Visitor has no XP counter, so XP cannot be recorded here."
+        )
+        applied = client.post(
+            editor_url(report),
+            html_fields(
+                page,
+                intent="apply",
+                credits="20",
+                reason="Scenario reward",
+                participation_confirmed="on",
+            ),
+        )
+        assert applied.status_code == 302, applied.context["errors"]
+        assert xp_value(first) == 1
+        assert_books(table)
+
+    def test_a_stray_value_on_a_blocked_model_does_not_block_apply(
+        self, client, table, feature, visitor
+    ):
+        report = start(client, table)
+        payload = report.draft
+        for model in payload["models"]:
+            if model["id"] == str(visitor.pk):
+                model["xp"] = "1"
+        report.draft = payload
+        report.save(update_fields=["draft"])
+        page = client.get(editor_url(report))
+        assert html_fields(page)[f"model-{visitor.pk}-xp"] == [""]
+        applied = client.post(editor_url(report), awards(page, table))
+        assert applied.status_code == 302, applied.context["errors"]
+
+    def test_a_crafted_award_for_a_blocked_model_is_refused(
+        self, client, table, feature, visitor
+    ):
+        report = start(client, table)
+        refused = client.post(
+            editor_url(report),
+            awards(
+                client.get(editor_url(report)),
+                table,
+                **{f"model-{visitor.pk}-xp": "2"},
+            ),
+        )
+        assert refused.status_code == 409
+        assert (
+            "Visitor: This model has no XP counter, so XP cannot be recorded here."
+            in refused.context["errors"]
+        )
+        assert not Assignment.objects.filter(
+            miniature=visitor, counter__isnull=False
+        ).exists()
 
 
 class TestRecordResultsEntry:
