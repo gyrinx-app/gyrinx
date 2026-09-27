@@ -717,6 +717,33 @@ class TestStartingAndResuming:
         assert by_id[str(pet.pk)]["participated"]
         assert not by_id[str(table.models[1].pk)]["participated"]
 
+    def test_a_pet_saved_as_starting_does_not_take_part_without_its_owner(
+        self, client, table, feature, person_type, gang_type
+    ):
+        profile = Profile.objects.create(
+            name="Cyber-mastiff", profile_type=person_type, gang_type=gang_type
+        )
+        wargear = create_wargear("Cyber-mastiff (pet)")
+        modifier(
+            "Cyber-mastiff wargear brings a pet",
+            targets_the_model(),
+            op_adds_model(profile),
+            carried_by=wargear,
+        )
+        assign(wargear, miniature=table.models[0])
+        pet = Miniature.objects.get(name="Cyber-mastiff", membership__gang=table.gang)
+        crew = BattleCrew.objects.create(battle=table.battle, gang=table.gang)
+        crew.members.create(
+            miniature=pet,
+            miniature_name=pet.name,
+            role="starting",
+            card_name="Full equipment",
+        )
+        report = start(client, table)
+        payload = client.get(editor_url(report)).context["payload"]
+        by_id = {row["id"]: row for row in payload["models"]}
+        assert not by_id[str(pet.pk)]["participated"]
+
     def test_a_deleted_starting_member_does_not_tick_every_model(
         self, client, table, feature
     ):

@@ -71,7 +71,7 @@ def _initial_payload(gang, battle=None):
                     role="starting", miniature__isnull=False
                 ).values_list("miniature_id", flat=True)
             )
-    # A pet takes part whenever its owner starts.
+    # A pet takes part when its owner starts; any other model when it starts.
     return {
         "schema": 1,
         "credits": "",
@@ -80,8 +80,10 @@ def _initial_payload(gang, battle=None):
         "models": [
             {
                 "id": str(model.pk),
-                "participated": model.pk in starting
-                or getattr(model.membership.caused_by, "miniature_root_id", None)
+                "participated": (
+                    getattr(model.membership.caused_by, "miniature_root_id", None)
+                    or model.pk
+                )
                 in starting,
                 "xp": "",
                 "status": "",

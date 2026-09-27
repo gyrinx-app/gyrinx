@@ -23,8 +23,8 @@ CREW_HELP = {
         "Select one equipment set for each model.",
         "After the battle, you can say which reinforcements took part.",
         (
-            "Pets are not listed. A pet joins the crew with its owner and does "
-            "not count towards the crew size."
+            "A pet that belongs to a model is not listed. It joins the crew "
+            "with its owner and does not count towards the crew size."
         ),
     ],
 }
