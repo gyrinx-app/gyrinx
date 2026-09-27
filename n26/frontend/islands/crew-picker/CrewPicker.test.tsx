@@ -94,20 +94,20 @@ describe("CrewPicker", () => {
         const { user, data } = setup();
         expect(
             screen
-                .getByRole("combobox", { name: "Crew for Nell" })
+                .getByRole("combobox", { name: "Starting crew or reinforcement for Nell" })
                 .hasAttribute("disabled"),
         ).toBe(true);
         expect(data().get("role_b")).toBe("out");
-        expect(screen.getByText("1 model")).toBeTruthy();
+        expect(screen.getByText("1 model selected")).toBeTruthy();
         await user.click(screen.getByRole("checkbox", { name: "Select Nell" }));
         expect(data().get("role_b")).toBe("starting");
-        expect(screen.getByText("2 models")).toBeTruthy();
+        expect(screen.getByText("2 models selected")).toBeTruthy();
         expect(
             screen.getByText("1 starting · 1 reinforcement · Revision 2"),
         ).toBeTruthy();
         expect(
             screen
-                .getByRole("combobox", { name: "Crew for Nell" })
+                .getByRole("combobox", { name: "Starting crew or reinforcement for Nell" })
                 .hasAttribute("disabled"),
         ).toBe(false);
     });
@@ -218,14 +218,14 @@ describe("CrewPicker", () => {
         expect(data().get("role_a")).toBe("out");
         expect(data().get("override_a")).toBeNull();
         expect(data().get("card_a")).toBe("short");
-        expect(screen.getByText("0 models")).toBeTruthy();
+        expect(screen.getByText("0 models selected")).toBeTruthy();
         await user.click(checkbox);
         expect(checkbox.checked).toBe(true);
         expect(equipment.disabled).toBe(false);
         expect(equipment.value).toBe("short");
         expect(data().get("role_a")).toBe("reserve");
         expect(data().get("override_a")).toBe("on");
-        expect(screen.getByText("1 model")).toBeTruthy();
+        expect(screen.getByText("1 model selected")).toBeTruthy();
     });
 
     it("requires a fresh selection for a saved model whose status has since changed", async () => {
@@ -235,7 +235,7 @@ describe("CrewPicker", () => {
         const { user, data } = setup([recovering]);
         expect(data().get("role_a")).toBe("out");
         expect(data().get("card_a")).toBe("saved:old");
-        expect(screen.getByText("0 models")).toBeTruthy();
+        expect(screen.getByText("0 models selected")).toBeTruthy();
         await user.click(
             screen.getByRole("checkbox", {
                 name: "Select Mara",
@@ -244,7 +244,7 @@ describe("CrewPicker", () => {
         expect(data().get("role_a")).toBe("starting");
         expect(data().get("card_a")).toBe("saved:old");
         expect(data().get("override_a")).toBe("on");
-        expect(screen.getByText("1 model")).toBeTruthy();
+        expect(screen.getByText("1 model selected")).toBeTruthy();
     });
 
     it("preserves the selection override when the model is hidden by search", async () => {
@@ -320,6 +320,6 @@ describe("CrewPicker", () => {
         unmount();
         setup([]);
         expect(screen.getByText("No models in this gang yet.")).toBeTruthy();
-        expect(screen.getByText("0 models")).toBeTruthy();
+        expect(screen.getByText("0 models selected")).toBeTruthy();
     });
 });

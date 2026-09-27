@@ -64,7 +64,12 @@ def may_edit_crew(*, campaign, gang, actor):
 
 
 def crew_roster(gang, crew=None):
-    """One fetch family for the roster, its named cards and their equipment."""
+    """One fetch family for the roster, its named cards and their equipment.
+
+    A pet goes into battle with its owner and does not count towards the
+    crew, so a model another model's kit brought in is never on offer here.
+    A pet saved before that rule is dropped from the crew on its next save.
+    """
     saved = list(crew.members.all()) if crew else []
     saved_by_model = {m.miniature_id: m for m in saved if m.miniature_id}
     models = list(
@@ -75,6 +80,7 @@ def crew_roster(gang, crew=None):
             )
             | Q(pk__in=saved_by_model)
         )
+        .exclude(membership__caused_by__miniature_root__isnull=False)
         .select_related("membership__profile", "membership__caused_by__miniature_root")
         .order_by("name", "pk")
     )

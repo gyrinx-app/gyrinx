@@ -14,11 +14,12 @@ from django.urls import reverse
 from gyrinx.site.models import Availability, FeatureFlag, WritePause
 from n26.core.campaigns import campaign_operation
 from n26.core.crews import CrewSelection, save_crew
-from n26.core.models import BattleCrew, PrintConfig
+from n26.core.models import BattleCrew, Miniature, PrintConfig
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
 from n26.flags import CAMPAIGNS
+from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
     assign,
     attach,
@@ -37,6 +38,9 @@ from n26.tests.sandbox.actions import (
     give_weapon,
     hire,
     join_campaign,
+    modifier,
+    op_adds_model,
+    targets_model,
 )
 from n26.write_pause import WritesPaused
 
@@ -397,6 +401,55 @@ class TestCrewForms:
         response = client.post(address(table), fields(table, action="unknown"))
         assert response.status_code == 200
         assert not BattleCrew.objects.exists()
+
+
+@pytest.fixture
+def pet(table, person_type, gang_type):
+    """Mara buys wargear that brings a pet, so the pet has an owner."""
+    profile = Profile.objects.create(
+        name="Cyber-mastiff", profile_type=person_type, gang_type=gang_type, price=0
+    )
+    wargear = create_wargear("Cyber-mastiff (pet)")
+    modifier(
+        "Cyber-mastiff wargear brings a pet",
+        targets_model(),
+        op_adds_model(profile),
+        carried_by=wargear,
+    )
+    assign(wargear, miniature=table.models[0])
+    found = Miniature.objects.get(name="Cyber-mastiff", membership__gang=table.gang)
+    assert found.owned_by == table.models[0]
+    return found
+
+
+class TestCrewPets:
+    def test_a_pet_is_not_offered_or_drawn(self, client, table, pet, feature):
+        response = client.get(address(table))
+        ids = {model["id"] for model in response.context["crew_picker"]["models"]}
+        assert ids == {str(model.pk) for model in table.models}
+        client.post(
+            address(table),
+            fields(table, action="draw", random_count="2")
+            | {f"role_{m.pk}": "out" for m in table.models},
+        )
+        crew = BattleCrew.objects.get()
+        assert set(crew.members.values_list("miniature_id", flat=True)) == {
+            model.pk for model in table.models
+        }
+
+    def test_a_pet_saved_before_the_fix_leaves_the_crew_on_resave(
+        self, client, table, pet, feature
+    ):
+        crew = BattleCrew.objects.create(battle=table.battle, gang=table.gang)
+        crew.members.create(
+            miniature=pet,
+            miniature_name=pet.name,
+            role="starting",
+            card_name="Full equipment",
+        )
+        response = client.post(address(table), fields(table, revision="0"))
+        assert response.status_code == 302
+        assert not crew.members.filter(miniature=pet).exists()
 
 
 class TestCrewPagePermissions:

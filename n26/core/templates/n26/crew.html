@@ -21,7 +21,7 @@
                 </c-ui.breadcrumbs>
             </c-slot>
         </c-n26.page-header>
-        <p class="text-sm text-muted">Select the starting crew and any reinforcements. Select one equipment set for each model. Reinforcements are not automatically marked as having taken part.</p>
+        <p class="text-sm text-muted">Select the starting crew and any reinforcements. Select one equipment set for each model. After the battle, you can say which reinforcements took part. Pets are not listed: they go with their owner.</p>
         <form method="post" class="space-y-6">
             {% csrf_token %}
             {{ form.revision }}
@@ -30,7 +30,7 @@
    role="alert">Check the details below. Your selections have been kept.</p>{% endif %}
             <section class="border border-box-border bg-surface p-4"
                      aria-labelledby="crew-draw-heading">
-                <h2 id="crew-draw-heading" class="mb-3 font-semibold">Randomly add models</h2>
+                <h2 id="crew-draw-heading" class="mb-3 font-semibold">Randomly select models</h2>
                 <div class="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap">
                     <div class="min-w-0 sm:w-28">
                         <c-ui.field label="Number"
@@ -66,8 +66,14 @@
                         Draw and save draft</span>
                     </c-ui.button>
                 </div>
-                <p class="mt-3 text-xs text-muted">The draw adds to the selections below. Only available, unselected models enter the draw. An equipment set is drawn for each eligible model before the models are drawn.</p>
-                {% if crew.draw_number %}<p class="mt-2 text-xs text-muted">{{ crew.draw_number }} saved draw{{ crew.draw_number|pluralize }}. Reloading this page does not draw again.</p>{% endif %}
+                <div class="mt-3 space-y-2 text-xs text-muted">
+                    <p>
+                        Use this to select models at random. For Random selection, enter the size of the starting crew. For Hybrid selection, select your chosen models (X) below first, then draw the random ones (Y) here. See the crew selection rules in the Core Rulebook, page 141.
+                    </p>
+                    <p>
+                        Only available models you have not selected are in the draw. Each drawn model gets a random equipment set. Drawn models are ticked below and saved in your draft, so reloading this page does not draw again.
+                    </p>
+                </div>
             </section>
             {% react_island "crew-picker" crew_picker %}
         </form>
