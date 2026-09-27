@@ -421,12 +421,18 @@ class LiveGitHub:
         return list(payload.get("workflow_runs") or payload.get("runs") or [])
 
     def jobs_for_run(self, run_id: int) -> list[dict]:
-        payload = json.loads(
-            self._gh_text(
-                ["gh", "api", f"repos/{self.repo_name()}/actions/runs/{run_id}/jobs"]
-            )
+        # --paginate with --jq prints one job per line across every page.
+        lines = self._gh_text(
+            [
+                "gh",
+                "api",
+                "--paginate",
+                "--jq",
+                ".jobs[]",
+                f"repos/{self.repo_name()}/actions/runs/{run_id}/jobs?per_page=100",
+            ]
         )
-        return list(payload.get("jobs") or [])
+        return [json.loads(line) for line in lines.splitlines() if line.strip()]
 
     def job(self, job_id: int) -> dict:
         return json.loads(
@@ -450,6 +456,10 @@ class LiveGitHub:
             detail = (result.stderr or result.stdout or "").strip() or (
                 f"gh api exited {result.returncode}"
             )
+            # Only a missing log means "not yet". Auth, rate limits and
+            # network failures must fail the command.
+            if "HTTP 404" not in detail:
+                raise RuntimeError(f"Could not fetch logs for job {job_id}: {detail}")
             raise JobLogsUnavailable(
                 f"No logs for job {job_id} yet ({detail}). "
                 "Queued jobs have none; in-progress logs can lag several minutes."
