@@ -63,6 +63,15 @@ class NamedCard:
     id: str = ""
     note: str = ""
 
+    @property
+    def warning(self):
+        """Props for the warning icon beside the card's name."""
+        return {
+            "label": "Why this card needs attention",
+            "paragraphs": [self.note],
+            "tone": "warning",
+        }
+
 
 #: The rules limit one card to three weapons.
 MOST_WEAPONS_ON_A_CARD = 3

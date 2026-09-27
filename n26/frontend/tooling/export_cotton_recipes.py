@@ -603,6 +603,7 @@ def recipes():
                 "info",
                 "check",
                 "circle-question-mark",
+                "triangle-alert",
             )
         },
     }

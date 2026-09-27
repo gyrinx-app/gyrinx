@@ -80,6 +80,23 @@ describe("HelpPopover", () => {
         expect(document.activeElement).toBe(trigger);
     });
 
+    it("draws the warning tone as a ghost button with a red icon", () => {
+        render(
+            <HelpPopover label="Why this card needs attention" tone="warning">
+                <p>Too many weapons.</p>
+            </HelpPopover>,
+        );
+        const trigger = screen.getByRole("button", {
+            name: "Why this card needs attention",
+        });
+        expect(trigger.className).toContain("n26-icon-only");
+        expect(trigger.querySelector("svg")!.getAttribute("class")).toContain(
+            "text-red-600",
+        );
+        fireEvent.click(trigger);
+        expect(screen.getByText("Too many weapons.")).toBeTruthy();
+    });
+
     it("closes on a click outside", () => {
         const trigger = setup();
         fireEvent.click(trigger);

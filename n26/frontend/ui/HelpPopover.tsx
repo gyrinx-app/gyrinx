@@ -21,13 +21,29 @@ const CLOSE_DELAY = 200;
  * the next click, Escape, or a click or focus outside, so touch and keyboard
  * readers can open it too.
  */
+const TONES = {
+    help: {
+        icon: "circle-question-mark",
+        button: "inline-flex cursor-pointer items-center rounded-full text-ink-500 transition-colors hover:text-ink-900 focus-ring dark:text-ink-400 dark:hover:text-white",
+        svg: "size-4",
+    },
+    warning: {
+        icon: "triangle-alert",
+        button: `${cotton.buttonSmall.ghost} n26-icon-only`,
+        svg: "size-4 text-red-600 dark:text-red-400",
+    },
+} as const;
+
 export function HelpPopover({
     label,
+    tone = "help",
     children,
 }: {
     label: string;
+    tone?: keyof typeof TONES;
     children: ReactNode;
 }) {
+    const look = TONES[tone];
     const panelId = useId();
     const root = useRef<HTMLSpanElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
@@ -149,10 +165,10 @@ export function HelpPopover({
                 aria-expanded={open}
                 aria-controls={panelId}
                 onClick={onClick}
-                className="inline-flex cursor-pointer items-center rounded-full text-ink-500 transition-colors hover:text-ink-900 focus-ring dark:text-ink-400 dark:hover:text-white"
+                className={look.button}
             >
                 <svg
-                    className="size-4"
+                    className={look.svg}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -161,9 +177,8 @@ export function HelpPopover({
                     strokeLinejoin="round"
                     aria-hidden="true"
                 >
-                    {cotton.icons["circle-question-mark"].map(
-                        ({ tag, attrs }, key) =>
-                            createElement(tag, { ...attrs, key }),
+                    {cotton.icons[look.icon].map(({ tag, attrs }, key) =>
+                        createElement(tag, { ...attrs, key }),
                     )}
                 </svg>
             </button>

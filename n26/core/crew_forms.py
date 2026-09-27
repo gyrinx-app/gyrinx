@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from django import forms
 
-from n26.core.crews import CrewSelection, saved_card_key
+from n26.core.crews import CrewSelection, same_card, saved_card_key
 from n26.core.models.crew import CrewMember
 from n26.core.status import Status
 
@@ -49,14 +49,23 @@ class CrewForm(forms.Form):
                 initial=saved.role if saved else "out",
             )
             choices = [(c.key, c.name) for c in item.cards]
-            if saved:
+            # A saved card that still matches a card on offer is that card.
+            # Only one that has since changed keeps its own saved entry.
+            current = next(
+                (c for c in item.cards if saved and same_card(saved, c)), None
+            )
+            if saved and current is None:
                 choices.insert(
                     0, (saved_card_key(saved), f"{saved.card_name} — saved selection")
                 )
             self.fields[card_name] = forms.ChoiceField(
                 label=f"Model card for {model.name}",
                 choices=choices,
-                initial=saved_card_key(saved) if saved else item.cards[0].key,
+                initial=current.key
+                if current
+                else saved_card_key(saved)
+                if saved
+                else item.cards[0].key,
             )
             self.fields[override_name] = forms.BooleanField(
                 label="Allow for this battle",

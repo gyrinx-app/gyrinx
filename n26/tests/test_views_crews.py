@@ -239,9 +239,15 @@ class TestCrewForms:
         for model in props["models"]:
             assert model["available"] is True
             assert model["savedSource"] == "Added to this crew manually."
-            assert model["card"]["value"].startswith("saved:")
-            assert model["card"]["choices"][0]["value"] == model["card"]["value"]
+            labels = [choice["label"] for choice in model["card"]["choices"]]
+            assert not any("saved selection" in label for label in labels)
+            assert len(labels) == len(set(labels))
             assert model["role"]["name"] == f"role_{model['id']}"
+        values = {model["id"]: model["card"]["value"] for model in props["models"]}
+        assert values == {
+            str(table.models[0].pk): str(table.card.pk),
+            str(table.models[1].pk): "full",
+        }
         form = host.find_parent("form")
         assert not form.select("[x-data], [x-model], [x-show]")
         assert not form.select('script[src$="battle-actions.js"]')
@@ -334,11 +340,23 @@ class TestCrewForms:
         assert (
             response.context["form"][f"role_{table.models[0].pk}"].value() == "starting"
         )
-        assert (
-            response.context["form"][f"card_{table.models[0].pk}"]
-            .value()
-            .startswith("saved:")
+        assert response.context["form"][f"card_{table.models[0].pk}"].value() == str(
+            table.card.pk
         )
+
+    def test_a_card_edited_since_it_was_saved_keeps_its_saved_entry(
+        self, client, table, feature
+    ):
+        client.post(address(table), fields(table, action="draft"))
+        table.card.assignments.clear()
+        response = client.get(address(table))
+        (mara,) = [
+            model
+            for model in response.context["crew_picker"]["models"]
+            if model["id"] == str(table.models[0].pk)
+        ]
+        assert mara["card"]["value"].startswith("saved:")
+        assert mara["card"]["choices"][0]["label"] == "Long range — saved selection"
 
     def test_refusal_keeps_submitted_values_and_revision(self, client, table, feature):
         client.post(address(table), fields(table))
@@ -376,6 +394,24 @@ class TestCrewForms:
         crew.refresh_from_db()
         assert crew.draw_number == 1
         assert crew.last_draw == snapshot
+
+    def test_resaving_a_drawn_card_keeps_it_marked_as_drawn(
+        self, client, table, feature
+    ):
+        client.post(
+            address(table),
+            fields(table, action="draw", random_count="2")
+            | {f"role_{m.pk}": "out" for m in table.models},
+        )
+        editor = client.get(address(table))
+        payload = {"revision": "1", "random_role": "starting", "action": "save"}
+        for model in editor.context["crew_picker"]["models"]:
+            payload[model["role"]["name"]] = model["role"]["value"]
+            payload[model["card"]["name"]] = model["card"]["value"]
+        response = client.post(address(table), payload)
+        assert response.status_code == 302
+        crew = BattleCrew.objects.get()
+        assert set(crew.members.values_list("card_source", flat=True)) == {"random"}
 
     def test_recovery_override_is_visible_and_required(self, client, table, feature):
         with operation(table.gang, actor=table.owner) as act:

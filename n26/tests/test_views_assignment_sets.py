@@ -1,6 +1,9 @@
 """Named model cards are owner-only display preferences, not equipment trades."""
 
+import json
+
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import connection
@@ -238,12 +241,18 @@ class TestManagingModelCards:
     ):
         for name in ("Autogun", "Laspistol"):
             give_weapon(model, create_weapon(name))
-        cards = client.get(address(model)).context["cards"]
+        response = client.get(address(model))
+        cards = response.context["cards"]
         assert cards[0].note == (
             "This model has more than three weapons, so it needs more than one "
             "card for a battle."
         )
+        assert cards[0].warning["tone"] == "warning"
         assert not cards[1].note
+        page = BeautifulSoup(response.content, "html.parser")
+        (host,) = page.select("[data-react-module*='/help-']")
+        props = json.loads(page.find(id=host["data-react-props"]).string)
+        assert props == cards[0].warning
 
     def test_a_card_name_is_escaped_in_the_page(self, client, model, flag):
         save_model_card(model, name="<script>alert(1)</script>", assignments=[])

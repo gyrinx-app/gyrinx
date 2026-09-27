@@ -142,6 +142,13 @@ def saved_card_key(member):
     return f"saved:{member.pk}"
 
 
+def same_card(member, option):
+    """Whether a saved card is still one of the cards on offer, unchanged."""
+    return member.assignment_set_id == option.assignment_set_id and set(
+        member.equipment_ids
+    ) == set(option.equipment_ids)
+
+
 @guarded_write
 def save_crew(
     *,
@@ -209,7 +216,9 @@ def save_crew(
                     f"The selected model card for {model.name} is no longer available. Select another card."
                 )
             card_source = (
-                CrewMember.Source.OVERRIDE
+                saved.card_source
+                if saved and same_card(saved, card)
+                else CrewMember.Source.OVERRIDE
                 if saved
                 and saved.card_source
                 in {CrewMember.Source.RANDOM, CrewMember.Source.OVERRIDE}
