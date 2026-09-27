@@ -70,7 +70,7 @@ creates has no change to enter, only what the result adds.
                         {% endif %}
                     </td>
                     {% if show_effects %}
-                        <td class="py-2 pr-3 text-right tabular-nums">{{ row.change.effect|stringformat:'+d' }}</td>
+                        <td class="py-2 pr-3 text-right tabular-nums">{{ row.change.from_results|stringformat:'+d' }}</td>
                     {% endif %}
                     <td {% if row.editable %}id="{{ row.prefix }}-after"{% endif %}
                         class="py-2 text-right font-semibold tabular-nums"

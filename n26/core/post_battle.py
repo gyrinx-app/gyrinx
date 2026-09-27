@@ -151,7 +151,7 @@ class ModelResult:
 
     @property
     def counter_effects(self):
-        return any(change.effect for change in self.counters)
+        return any(change.from_results for change in self.counters)
 
     @property
     def xp_available(self):
@@ -1150,6 +1150,27 @@ def preview_report(report, *, actor, payload=None):
         plan._removals.append((occurrence, root, events))
         removed.update(descendants)
         facts.append(["remove", occurrence, sorted(descendants)])
+    # What results this report applied before added to each model's
+    # counters, kept or taken back: part of the reading now, so the
+    # counter table can show where each counter started.
+    earlier_results = defaultdict(lambda: defaultdict(int))
+    kept = {
+        event_id: held["model_id"]
+        for held in plan._retained.values()
+        for event_id in held["event_ids"]
+    }
+    for event in LedgerEvent.objects.filter(
+        pk__in=kept, kind=LedgerEvent.Kind.TALLIED
+    ).exclude(counter_delta=0):
+        earlier_results[kept[str(event.pk)]][str(event.assignment_id)] += (
+            event.counter_delta
+        )
+    for _, root, events in plan._removals:
+        for event in events:
+            if event.kind == LedgerEvent.Kind.TALLIED and event.counter_delta:
+                earlier_results[str(root.miniature_root_id)][
+                    str(event.assignment_id)
+                ] += event.counter_delta
     for model_id, card in gang_card.members.items():
         model_id = str(model_id)
         miniature = card.miniature
@@ -1461,6 +1482,7 @@ def preview_report(report, *, actor, payload=None):
             effects=effect_deltas,
             names=recorded_counter_names.get(model_id, {}),
             change_on=f"{miniature.name}'s card",
+            earlier=earlier_results.get(model_id, {}),
         )
         model_errors.extend(counter_errors)
         result.counters.extend(

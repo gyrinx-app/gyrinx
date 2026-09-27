@@ -35,7 +35,8 @@ class CounterChange:
     enters in total, ``effect`` what this report's results add, and
     ``after`` where the counter lands. ``recorded`` is what the report
     last applied, so a correction moves the counter by ``manual -
-    recorded``.
+    recorded``. ``earlier`` is what results this report applied before
+    added to the reading now: those it keeps and those it takes back.
     """
 
     assignment_id: str
@@ -45,11 +46,18 @@ class CounterChange:
     effect: int
     after: int
     recorded: int = 0
+    earlier: int = 0
 
     @property
     def start(self):
-        """The reading before this report: what it applied taken off."""
-        return self.before - self.recorded
+        """The reading before this report: everything it applied taken
+        off, so the start, the change and ``from_results`` sum to after."""
+        return self.before - self.recorded - self.earlier
+
+    @property
+    def from_results(self):
+        """What the report's results add, those kept from before too."""
+        return self.effect + self.earlier
 
     @property
     def delta(self):
@@ -159,7 +167,13 @@ def read_changes(raw, errors):
 
 
 def plan_changes(
-    held, entered, recorded, effects=None, names=None, change_on="the gang page"
+    held,
+    entered,
+    recorded,
+    effects=None,
+    names=None,
+    change_on="the gang page",
+    earlier=None,
 ):
     """Every held counter's line, and why any of them cannot be applied.
 
@@ -168,6 +182,8 @@ def plan_changes(
     ``effects`` is what this report's results move each counter by.
     ``names`` names a recorded counter that is no longer held.
     ``change_on`` is where the player can change the counter instead.
+    ``earlier`` is what results this report applied before added to each
+    counter's reading, for showing where the counter started.
 
     Returns ``(changes, errors)``. A counter the report changed before
     that has since been removed or moved to another holder cannot be
@@ -176,6 +192,7 @@ def plan_changes(
     """
     effects = effects or {}
     names = names or {}
+    earlier = earlier or {}
     errors = []
     changes = []
     by_id = {counter.id: counter for counter in held}
@@ -195,6 +212,7 @@ def plan_changes(
                 effect=effect,
                 after=after,
                 recorded=was,
+                earlier=earlier.get(counter.id, 0),
             )
         )
     for key in sorted(set(entered) | set(recorded)):

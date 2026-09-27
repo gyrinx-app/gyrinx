@@ -347,10 +347,11 @@ class ReportModel:
 
     @property
     def note_help(self):
-        if self.result.earlier_note_stays:
-            return f"The earlier note stays in {self.name}'s notes. Edit it there."
+        # Typing does not redraw the module, so the help cannot depend on
+        # whether the note has changed: once a note is in the model's
+        # notes, say where it is, whatever is typed next.
         if self.result.note_recorded:
-            return f"This note is already in {self.name}'s notes."
+            return f"The earlier note stays in {self.name}'s notes. Edit it there."
         return f"Added to the end of {self.name}'s notes when you apply these results."
 
     @property

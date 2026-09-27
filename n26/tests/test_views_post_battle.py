@@ -2547,6 +2547,42 @@ class TestModelCounters:
         assert "Kill Count: 2 → 3 (+1 entered)" in receipt
         assert_books(table)
 
+    def test_a_correction_shows_where_the_counter_started(
+        self, client, table, feature, kills
+    ):
+        bloodied = create_pickable(
+            "Bloodied",
+            table.injury_kind,
+            effects=[
+                (
+                    targets_model(),
+                    op_changes_counter(kills.counter, mode="add", amount=1),
+                )
+            ],
+        )
+        add_picklist_member(table.injury_table, bloodied)
+        report = start(client, table)
+        cinder = table.models[0]
+        field = f"model-{cinder.pk}-counter-{kills.pk}"
+        checked, _ = with_effect(client, table, report, bloodied)
+        applied = client.post(
+            editor_url(report), awards(checked, table, intent="apply", **{field: "1"})
+        )
+        assert applied.status_code == 302
+        assert CounterValue.objects.get(assignment=kills).value == 4
+        client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+
+        page = client.get(editor_url(report))
+
+        box = module(page, cinder).find(attrs={"data-model-counters": True})
+        entry = box.find("input", id=field)
+        cells = [
+            cell.get_text(strip=True) for cell in entry.find_parent("tr").find_all("td")
+        ]
+        # Before, the entered change and what the kept result adds make After.
+        assert (cells[0], entry["value"], cells[2], cells[-1]) == ("2", "1", "+1", "4")
+        assert "From results" in box.find("thead").get_text()
+
     def test_a_correction_applies_after_a_changed_counter_is_removed(
         self, client, table, feature, kills
     ):
@@ -2617,6 +2653,8 @@ class TestModelNotes:
         client.post(reverse("n26-post-battle-correct", args=[report.pk]))
         page = client.get(editor_url(report))
         assert module(page, cinder).find("textarea", id=note).get_text() == "First."
+        help_text = module(page, cinder).find(id=f"{note}-help").get_text(strip=True)
+        assert help_text == "The earlier note stays in Cinder's notes. Edit it there."
         checked = client.post(
             editor_url(report), html_fields(page, intent="check", **{note: "Second."})
         )
