@@ -81,6 +81,9 @@ so the id must stay put.
             </p>
         </div>
     </div>
+    {% if stake %}
+        {% include "n26/includes/battle_stake.html" %}
+    {% endif %}
     {% if mission.counter_rows %}
         <div class="space-y-3">
             <h3 id="gang-counters-heading" class="text-base font-semibold">Gang counters</h3>

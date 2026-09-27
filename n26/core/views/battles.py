@@ -11,7 +11,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from n26.core.battle_permissions import may_record_gang
-from n26.core.campaigns import campaign_operation
+from n26.core.campaigns import battle_stake, campaign_operation
 from n26.core.forms import BattleForm
 from n26.core.models import Battle, BattleCrew, CampaignEvent, Gang, PostBattleReport
 from n26.core.operations import Refusal
@@ -120,6 +120,7 @@ def battle(request, pk, battle_pk):
             "participants": participants,
             "request_key": uuid4(),
             "recorded": recorded,
+            "stake": battle_stake(found),
             "yours": campaign.owner_id == request.user.pk,
             "has_history": bool(crews or reports) or found.gang_events.exists(),
         },

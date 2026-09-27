@@ -1,0 +1,11 @@
+{% comment %}
+What a battle staked, read-only. The arbitrator sets it on Edit battle; the
+holder is read from the asset now, so every report names the same gang.
+{% endcomment %}
+<div class="space-y-1" data-battle-stake>
+    <h3 class="text-base font-semibold">{{ stake.label }}</h3>
+    <p class="text-sm">
+        <span class="font-semibold">{{ stake.name }}</span> · {{ stake.outcome }}
+    </p>
+    <p class="text-sm text-muted">{{ stake.held_by }}. Only the arbitrator can change this, by editing the battle.</p>
+</div>
