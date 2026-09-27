@@ -76,8 +76,9 @@ class NamedCard:
         }
 
 
-#: The rules limit one card to three weapons.
-MOST_WEAPONS_ON_A_CARD = 3
+#: The rules limit one card to three weapon slots. A two-slot weapon takes
+#: two; a grenade is wargear and takes none.
+MOST_WEAPON_SLOTS_ON_A_CARD = 3
 
 
 def _previews(miniature, assignment_sets):
@@ -110,8 +111,10 @@ def _previews(miniature, assignment_sets):
         ).select_related("membership__profile")
     )
     dismissed = DismissedOffer.keys_for(miniature.gang)
-    weapons = sum(
-        1 for row in own_rows if row.weapon_id is not None and not row.removes
+    weapon_slots = sum(
+        row.weapon.slots
+        for row in own_rows
+        if row.weapon_id is not None and not row.removes
     )
     previews = []
     for position, (named, card, effects) in enumerate(
@@ -133,7 +136,7 @@ def _previews(miniature, assignment_sets):
                 card=drawn,
                 id=str(named.pk) if named else "",
                 note=""
-                if named or weapons <= MOST_WEAPONS_ON_A_CARD
+                if named or weapon_slots <= MOST_WEAPON_SLOTS_ON_A_CARD
                 else (
                     "This model has more than three weapons. Add a model card "
                     "to use it in a battle."

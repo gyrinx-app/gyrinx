@@ -258,6 +258,15 @@ class TestManagingModelCards:
         props = json.loads(page.find(id=host["data-react-props"]).string)
         assert props == cards[0].warning
 
+    @pytest.mark.parametrize(
+        "slots,warned", [((2, 2), True), ((0, 0, 0), False), ((1,), False)]
+    )
+    def test_the_note_counts_weapon_slots(self, client, model, flag, slots, warned):
+        for number, size in enumerate(slots):
+            give_weapon(model, create_weapon(f"Extra {number}", slots=size))
+        cards = client.get(address(model)).context["cards"]
+        assert bool(cards[0].note) is warned
+
     def test_a_card_name_is_escaped_in_the_page(self, client, model, flag):
         save_model_card(model, name="<script>alert(1)</script>", assignments=[])
         drawn = client.get(address(model)).content.decode()
