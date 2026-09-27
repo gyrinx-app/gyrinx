@@ -107,6 +107,23 @@ def start(client, hunt, outcome):
 
 
 class TestSuitEvolutionForms:
+    def test_more_carried_ladders_do_not_add_per_item_queries(self, client, hunt):
+        client.force_login(hunt.owner)
+        url = reverse("n26-edit-fighter", args=[hunt.fighter.pk])
+
+        def measure():
+            client.get(url)
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(url)
+            assert response.status_code == 200
+            return len(queries)
+
+        one = measure()
+        for _ in range(4):
+            buy(hunt.fighter, thing=hunt.item.wargear, paid=0)
+
+        assert measure() == one
+
     def test_an_invalid_hidden_request_key_has_a_visible_explanation(
         self, client, hunt
     ):
@@ -582,7 +599,7 @@ class TestSuitEvolutionForms:
         assert "Hunting rig" in name_line.get_text(" ", strip=True)
         assert "flex-wrap" in name_line.get("class", [])
         assert menu in name_line.descendants
-        assert "Choose tier" in name_line.get_text(" ", strip=True)
+        assert "Choose tier" not in name_line.get_text(" ", strip=True)
         assert "Rig augmentation" not in name_line.get_text(" ", strip=True)
 
     def test_credit_prices_use_the_credit_unit(self, client, hunt):
@@ -675,6 +692,8 @@ class TestSuitEvolutionForms:
     def test_a_carried_item_is_reviewed_before_any_kills_are_spent(self, client, hunt):
         from bs4 import BeautifulSoup
 
+        from n26.core.render import option_key
+
         record, _, _ = start(client, hunt, hunt.upgrade)
         choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
         response = client.get(choose)
@@ -745,6 +764,19 @@ class TestSuitEvolutionForms:
         assert (
             ActionRecord.objects.get(pk=record.pk).state == ActionRecord.State.COMPLETED
         )
+        tier_slot = Assignment.objects.get(
+            caused_by=hunt.item, slot__mode=Slot.Mode.TIER_LADDER, archived=False
+        )
+        key = f"{hunt.fighter.pk}:{tier_slot.pk}:{tier_slot.slot_id}"
+        picker = reverse("n26-choose", args=[hunt.gang.pk, key])
+        assert client.post(picker, {"thing": "none"}).status_code == 302
+        assert (
+            client.post(picker, {"thing": option_key(hunt.tiers[0])}).status_code == 302
+        )
+        hunt.kills.refresh_from_db()
+        assert hunt.kills.counter_value.value == 2
+        assert ActionRecord.objects.filter(fighter=hunt.fighter).count() == 1
+        assert client.get(confirmed.url).status_code == 200
         hunt.gang.refresh_from_db()
         assert_reconciled(hunt.gang)
 

@@ -730,6 +730,7 @@ class TestAuthoredPickerCopy:
     def test_the_lead_and_tier_summary_come_from_the_author(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
+        climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
         ladder = ladder_of(orrus, "Bolt launchers")
         key = f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
         client.force_login(owner)
@@ -749,6 +750,7 @@ class TestAuthoredPickerCopy:
         slot = Slot.objects.get(name="Bolt launchers augmentation")
         slot.introduction = ""
         slot.save(update_fields=["introduction"])
+        climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
         ladder = ladder_of(orrus, "Bolt launchers")
         key = f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
         client.force_login(owner)
@@ -800,17 +802,15 @@ class TestAuthoredPickerCopy:
         assert_reconciled(gang)
 
 
-class TestThePickerReturnsWhereItWasOpened:
-    """A link from the model's own page carries that page's address, and
-    settling the choice lands the reader back there. An address that is
-    not this site's own falls back to the gang."""
+class TestTierLaddersNeedAnAction:
+    """The ordinary choice page cannot grant an augmentation tier."""
 
     def picker(self, gang, orrus):
         ladder = ladder_of(orrus, "Bolt launchers")
         key = f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
         return reverse("n26-choose", args=[gang.pk, key])
 
-    def test_the_edit_page_links_its_choice_with_its_own_address(
+    def test_the_edit_page_shows_the_ladder_without_a_choice_link(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
         client.force_login(owner)
@@ -818,43 +818,121 @@ class TestThePickerReturnsWhereItWasOpened:
 
         page = client.get(edit).content.decode()
 
-        assert f"return={edit}" in page.replace("%2F", "/")
+        assert self.picker(gang, orrus) not in page
 
-    def test_saving_from_the_edit_page_lands_back_on_it(
+    def test_direct_get_and_post_cannot_grant_or_replace_a_tier(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
         client.force_login(owner)
-        edit = reverse("n26-edit-fighter", args=[orrus.pk])
         picker = self.picker(gang, orrus)
 
-        page = client.get(f"{picker}?return={edit}").content.decode()
-        assert f'name="return" value="{edit}"' in page
-
-        reply = client.post(
-            picker,
-            {"thing": option_key(bolt_launcher_tiers["Tier 2"]), "return": edit},
+        assert client.get(picker).status_code == 404
+        assert (
+            client.post(
+                picker, {"thing": option_key(bolt_launcher_tiers["Tier 2"])}
+            ).status_code
+            == 404
         )
+        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == [None]
 
-        assert reply.status_code == 302
-        assert reply.url == edit
+        climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
+        page = client.get(picker).content.decode()
+        assert "Tier 1" in page
+        assert "Tier 2" not in page
+        assert (
+            client.post(
+                picker, {"thing": option_key(bolt_launcher_tiers["Tier 2"])}
+            ).status_code
+            == 302
+        )
+        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 1"]
+        assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "2"
+        assert_reconciled(gang)
+
+    def test_switching_among_earned_tiers_keeps_action_history(
+        self, client, owner, gang, spyrer, orrus, bolt_launcher_tiers
+    ):
+        from uuid import uuid4
+
+        from n26.core.models import ActionRecord, SlotSelection
+        from n26.library.authoring import create_action
+
+        climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 2"])
+        ladder = ladder_of(orrus, "Bolt launchers")
+        action = create_action("Suit Evolution", "post_cycle")
+        record = ActionRecord.objects.create(
+            gang=gang,
+            fighter=orrus,
+            action=action,
+            request_key=uuid4(),
+            state=ActionRecord.State.COMPLETED,
+        )
+        SlotSelection.objects.create(
+            action_record=record,
+            item_assignment=ladder.anchor.assignment.caused_by,
+            slot_assignment=ladder.anchor.assignment,
+            intended_pick=bolt_launcher_tiers["Tier 2"],
+            new_pick=ladder.picks[0].assignment,
+        )
+        client.force_login(owner)
+        picker = self.picker(gang, orrus)
+
+        assert (
+            client.post(
+                picker, {"thing": option_key(bolt_launcher_tiers["Tier 1"])}
+            ).status_code
+            == 302
+        )
+        assert stat_of(gun_of(orrus, "Bolt launchers"), "AP") == "-1"
+        assert (
+            client.post(
+                picker, {"thing": option_key(bolt_launcher_tiers["Tier 2"])}
+            ).status_code
+            == 302
+        )
         assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 2"]
+        assert (
+            ActionRecord.objects.get(pk=record.pk).state == ActionRecord.State.COMPLETED
+        )
+        assert (
+            SlotSelection.objects.get(action_record=record).intended_pick
+            == (bolt_launcher_tiers["Tier 2"])
+        )
+        other = hire(gang, spyrer, "Kaustos", paid=200)
+        launchers = orrus.assignments.get(weapon__isnull=False, archived=False)
+        move(launchers, other)
+        moved_picker = self.picker(gang, other)
+        assert client.post(moved_picker, {"thing": "none"}).status_code == 302
+        assert (
+            client.post(
+                moved_picker, {"thing": option_key(bolt_launcher_tiers["Tier 2"])}
+            ).status_code
+            == 302
+        )
+        assert [c.chosen for c in gun_of(other, "Bolt launchers").choices] == ["Tier 2"]
+        assert_reconciled(gang)
 
-    def test_an_address_that_is_not_ours_falls_back_to_the_gang(
+    def test_a_tier_selected_before_actions_remains_available_after_choosing_none(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
+        climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
         client.force_login(owner)
         picker = self.picker(gang, orrus)
 
-        reply = client.post(
-            picker,
-            {
-                "thing": option_key(bolt_launcher_tiers["Tier 1"]),
-                "return": "https://elsewhere.example/steal",
-            },
+        assert client.post(picker, {"thing": "none"}).status_code == 302
+        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == [None]
+        assert (
+            picker
+            in client.get(reverse("n26-edit-fighter", args=[orrus.pk])).content.decode()
         )
-
-        assert reply.status_code == 302
-        assert reply.url == reverse("n26-gang", args=[gang.pk])
+        assert (
+            client.post(
+                picker, {"thing": option_key(bolt_launcher_tiers["Tier 1"])}
+            ).status_code
+            == 302
+        )
+        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 1"]
+        assert_reconciled(gang)
 
 
 class TestDismissingTheLadderFromTheSheet:
@@ -892,13 +970,9 @@ class TestDismissingTheLadderFromTheSheet:
         assert dismiss in client.get(edit).content.decode()
         assert "Augmentation: &mdash;" not in client.get(sheet).content.decode()
 
-    def test_choosing_a_level_through_a_dismissed_ladder_takes_the_dismissal_off(
+    def test_a_dismissed_ladder_cannot_be_chosen_from_the_ordinary_page(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
-        """The ladder is the weapon's own — its slot is caused by the
-        launchers and drawn under them — and a pick landing on it from
-        the pick screen clears the dismissal like any other pick, so
-        stepping back down later leaves the level open to choose."""
         from n26.core.models import DismissedOffer
 
         client.force_login(owner)
@@ -911,6 +985,6 @@ class TestDismissingTheLadderFromTheSheet:
             {"thing": option_key(bolt_launcher_tiers["Tier 1"])},
         )
 
-        assert reply.status_code == 302
-        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 1"]
-        assert not DismissedOffer.objects.filter(gang=gang).exists()
+        assert reply.status_code == 404
+        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == [None]
+        assert DismissedOffer.objects.filter(gang=gang, slot_key=key).exists()
