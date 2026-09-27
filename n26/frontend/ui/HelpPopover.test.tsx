@@ -63,6 +63,23 @@ describe("HelpPopover", () => {
         expect(document.activeElement).toBe(trigger);
     });
 
+    it("moves focus into the panel when opened from the keyboard", () => {
+        const trigger = setup();
+        trigger.focus();
+        fireEvent.click(trigger, { detail: 0 });
+        expect(document.activeElement).toBe(screen.getByRole("dialog"));
+        fireEvent.keyDown(document, { key: "Escape" });
+        expect(document.activeElement).toBe(trigger);
+    });
+
+    it("leaves focus on the icon when opened with a pointer", () => {
+        const trigger = setup();
+        trigger.focus();
+        fireEvent.click(trigger, { detail: 1 });
+        expect(screen.getByRole("dialog")).toBeTruthy();
+        expect(document.activeElement).toBe(trigger);
+    });
+
     it("closes on a click outside", () => {
         const trigger = setup();
         fireEvent.click(trigger);

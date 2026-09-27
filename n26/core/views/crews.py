@@ -22,21 +22,28 @@ CREW_HELP = {
     "paragraphs": [
         "Select one equipment set for each model.",
         "After the battle, you can say which reinforcements took part.",
-        "Pets are not listed. A pet joins the crew with its owner and does not "
-        "count towards the crew size.",
+        (
+            "Pets are not listed. A pet joins the crew with its owner and does "
+            "not count towards the crew size."
+        ),
     ],
 }
 
 DRAW_HELP = {
     "label": "More about the random draw",
     "paragraphs": [
-        "Use this to select models at random. For random selection, enter the "
-        "size of the starting crew. For hybrid selection, first select the "
-        "models you want below (the X), then draw the rest (the Y) here. The "
-        "crew selection rules are in the Core Rulebook, page 141.",
-        "Only available models you have not selected are in the draw. Each "
-        "drawn model gets a random equipment set. Drawn models are ticked below "
-        "and saved in your draft, so reloading this page does not draw again.",
+        (
+            "Use this to select models at random. For random selection, enter "
+            "the size of the starting crew. For hybrid selection, first select "
+            "the models you want below (the X), then draw the rest (the Y) "
+            "here. The crew selection rules are in the Core Rulebook, page 141."
+        ),
+        (
+            "Only available models you have not selected are in the draw. Each "
+            "drawn model gets a random equipment set. Drawn models are ticked "
+            "below and saved in your draft, so reloading this page does not "
+            "draw again."
+        ),
     ],
 }
 

@@ -1,6 +1,7 @@
 import {
     createElement,
     type CSSProperties,
+    type MouseEvent,
     type ReactNode,
     useEffect,
     useId,
@@ -32,6 +33,7 @@ export function HelpPopover({
     const trigger = useRef<HTMLButtonElement>(null);
     const panel = useRef<HTMLDivElement>(null);
     const timer = useRef<number | undefined>(undefined);
+    const focusPanel = useRef(false);
     const [open, setOpen] = useState(false);
     const [pinned, setPinned] = useState(false);
     const [panelStyle, setPanelStyle] = useState<CSSProperties>({
@@ -54,6 +56,12 @@ export function HelpPopover({
     }
 
     useEffect(() => () => window.clearTimeout(timer.current), []);
+
+    useEffect(() => {
+        if (!open || !focusPanel.current) return;
+        focusPanel.current = false;
+        panel.current?.focus();
+    }, [open, pinned]);
 
     useEffect(() => {
         if (!open) return;
@@ -110,16 +118,15 @@ export function HelpPopover({
         };
     }, [open]);
 
-    function onClick() {
+    function onClick(event: MouseEvent<HTMLButtonElement>) {
         window.clearTimeout(timer.current);
-        if (open && !pinned) {
-            setPinned(true);
-            return;
-        }
-        if (open) {
+        if (open && pinned) {
             close();
             return;
         }
+        // A keyboard press reports no click count. Moving focus into the
+        // panel is what tells a screen reader the explanation has opened.
+        focusPanel.current = event.detail === 0;
         setOpen(true);
         setPinned(true);
     }
@@ -166,6 +173,7 @@ export function HelpPopover({
                     id={panelId}
                     role="dialog"
                     aria-label={label}
+                    tabIndex={-1}
                     className={`${cotton.popover.panel} fixed z-50 space-y-2 font-normal`}
                     style={panelStyle}
                 >
