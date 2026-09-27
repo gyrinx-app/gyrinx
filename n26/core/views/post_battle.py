@@ -26,6 +26,7 @@ from n26.core.post_battle_forms import (
     StartReportForm,
     change_draft,
     editor_models,
+    keep_recorded_xp,
     posted_payload,
     xp_toolbar,
 )
@@ -321,6 +322,9 @@ def post_battle_editor(request, pk):
         if intent == "autosave":
             return JsonResponse({"error": " ".join(errors)}, status=status)
     plan = preview_report(report, actor=request.user, payload=payload)
+    payload, changed = keep_recorded_xp(payload, plan)
+    if changed:
+        plan = preview_report(report, actor=request.user, payload=payload)
     if show_errors:
         errors = list(dict.fromkeys([*errors, *plan.errors]))
     # A refused stale save keeps the submitted generation/revision. Replacing

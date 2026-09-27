@@ -1482,8 +1482,48 @@ class TestXpBlockedModels:
         report.save(update_fields=["draft"])
         page = client.get(editor_url(report))
         assert html_fields(page)[f"model-{visitor.pk}-xp"] == [""]
+        shown = next(m for m in page.context["plan"].models if m.id == str(visitor.pk))
+        assert shown.xp_change == 0
+        assert not any(
+            error.startswith("Visitor:") for error in page.context["plan"].errors
+        )
+        summary = BeautifulSoup(page.content, "html.parser").find(
+            "aside", attrs={"aria-labelledby": "changes-heading"}
+        )
+        assert "Visitor" not in summary.get_text(" ", strip=True)
         applied = client.post(editor_url(report), awards(page, table))
         assert applied.status_code == 302, applied.context["errors"]
+
+    def test_a_correction_after_the_xp_counter_is_removed_applies(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        model = table.models[0]
+        first = client.post(
+            editor_url(report), awards(client.get(editor_url(report)), table)
+        )
+        assert first.status_code == 302, first.context["errors"]
+        counter = Assignment.objects.get(
+            miniature_root=model, counter__isnull=False, archived=False
+        )
+        with operation(table.gang, actor=table.owner) as op:
+            op.remove(counter)
+        corrected = client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+        page = client.get(corrected.url)
+        field = BeautifulSoup(page.content, "html.parser").select_one(
+            f'input[id="model-{model.pk}-xp"]'
+        )
+        assert field.has_attr("disabled")
+        assert html_fields(page)[f"model-{model.pk}-xp"] == ["2"]
+        applied = client.post(
+            editor_url(report), html_fields(page, intent="apply", credits="30")
+        )
+        assert applied.status_code == 302, applied.context["errors"]
+        assert applied.url == receipt_url(report, 2)
+        counter.refresh_from_db()
+        assert counter.archived
+        assert CounterValue.objects.get(assignment=counter).value == 2
+        assert_books(table)
 
     def test_a_crafted_award_for_a_blocked_model_is_refused(
         self, client, table, feature, visitor

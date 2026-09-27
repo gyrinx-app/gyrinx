@@ -120,6 +120,29 @@ def change_draft(payload, intent, *, xp_eligible=frozenset()):
     return payload
 
 
+def keep_recorded_xp(payload, plan):
+    """Put back the recorded award on models that cannot take XP.
+
+    Returns the payload and whether anything changed. Drafts saved before
+    blocked models were skipped can hold XP those models cannot take.
+    """
+    blocked = {
+        str(model.id): str(model.xp_recorded or "")
+        for model in plan.models
+        if not model.xp_available
+    }
+    changed = False
+    payload = deepcopy(payload)
+    for model in payload.get("models", []):
+        if not isinstance(model, dict):
+            continue
+        recorded = blocked.get(str(model.get("id")))
+        if recorded is not None and str(model.get("xp") or "") != recorded:
+            model["xp"] = recorded
+            changed = True
+    return payload, changed
+
+
 @dataclass
 class ReportEffect:
     id: str
