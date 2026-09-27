@@ -108,4 +108,6 @@ class TestPopoversUseTheSamePlacer:
         assert "{% if strategy == 'fixed' %}" in source
 
     def test_the_post_battle_reason_popover_asks_for_it(self):
-        assert '<c-ui.popover strategy="fixed"' in source_of("n26/post_battle.html")
+        assert '<c-ui.popover strategy="fixed"' in source_of(
+            "n26/includes/post_battle_model.html"
+        )
