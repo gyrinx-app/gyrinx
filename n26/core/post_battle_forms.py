@@ -167,8 +167,8 @@ class ReportModel:
     status_options: list
 
     @property
-    def xp_attrs(self):
-        return {} if self.result.xp_available else {"disabled": True}
+    def xp_why_label(self):
+        return f"Why {self.name} cannot take XP"
 
     @property
     def final_status_label(self):

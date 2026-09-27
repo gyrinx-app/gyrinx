@@ -1450,10 +1450,13 @@ class TestXpBlockedModels:
         assert document.select_one("[data-xp-blocked]").get_text(strip=True) == (
             "1 selected model cannot take XP: Visitor."
         )
-        field = document.select_one(f'input[id="model-{visitor.pk}-xp"]')
-        assert field.has_attr("disabled")
-        help_text = document.find(id=field["aria-describedby"])
-        assert help_text.get_text(" ", strip=True) == (
+        assert document.select_one(f'input[id="model-{visitor.pk}-xp"]') is None
+        why = document.select_one(f'button[id="model-{visitor.pk}-xp-why-button"]')
+        assert why["type"] == "button"
+        assert why["aria-label"] == "Why Visitor cannot take XP"
+        assert why["aria-expanded"] == "false"
+        reason = document.find(id=why["aria-controls"])
+        assert reason.get_text(" ", strip=True) == (
             "Visitor has no XP counter, so XP cannot be recorded here."
         )
         applied = client.post(
@@ -1510,10 +1513,9 @@ class TestXpBlockedModels:
             op.remove(counter)
         corrected = client.post(reverse("n26-post-battle-correct", args=[report.pk]))
         page = client.get(corrected.url)
-        field = BeautifulSoup(page.content, "html.parser").select_one(
-            f'input[id="model-{model.pk}-xp"]'
-        )
-        assert field.has_attr("disabled")
+        document = BeautifulSoup(page.content, "html.parser")
+        assert document.select_one(f'input[id="model-{model.pk}-xp"]') is None
+        assert document.select_one(f'button[id="model-{model.pk}-xp-why-button"]')
         assert html_fields(page)[f"model-{model.pk}-xp"] == ["2"]
         applied = client.post(
             editor_url(report), html_fields(page, intent="apply", credits="30")
