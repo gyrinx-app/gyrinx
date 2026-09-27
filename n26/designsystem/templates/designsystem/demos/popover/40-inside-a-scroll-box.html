@@ -1,0 +1,18 @@
+{# title: Inside something that scrolls #}
+{# note: Both boxes below scroll sideways. The left popover is placed the ordinary way and the box cuts it off. The right popover is strategy="fixed", measured against the window instead, so the box does not reach it. Open both. #}
+<div class="flex flex-wrap gap-8">
+    <div class="w-64 overflow-x-auto border border-box-border p-3">
+        <div class="w-96">
+            <c-ui.popover trigger_text="Cut off" panel_label="Cut off" align="end">
+                <p class="w-64">This panel is clipped by the scrolling box around it.</p>
+            </c-ui.popover>
+        </div>
+    </div>
+    <div class="w-64 overflow-x-auto border border-box-border p-3">
+        <div class="w-96">
+            <c-ui.popover trigger_text="Whole" panel_label="Whole" align="end" strategy="fixed">
+                <p class="w-64">This panel is placed against the window, so the box does not clip it.</p>
+            </c-ui.popover>
+        </div>
+    </div>
+</div>

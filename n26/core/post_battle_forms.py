@@ -247,7 +247,6 @@ class XpToolbar:
     """The selected-models bar. The page script redraws it from the templates."""
 
     selected: int
-    blocked_names: list
     minus_disabled: bool
     plus_disabled: bool
 
@@ -256,8 +255,6 @@ class XpToolbar:
     plus_many = "Add 1 XP to the {n} selected models"
     minus_one = "Remove 1 XP from the selected model"
     minus_many = "Remove 1 XP from the {n} selected models"
-    blocked_one = "1 selected model cannot take XP: {names}."
-    blocked_many = "{n} selected models cannot take XP: {names}."
 
     @property
     def minus_attrs(self):
@@ -279,14 +276,6 @@ class XpToolbar:
     def minus_label(self):
         return _plural(self.selected, self.minus_one, self.minus_many)
 
-    @property
-    def blocked_message(self):
-        if not self.blocked_names:
-            return ""
-        return _plural(
-            len(self.blocked_names), self.blocked_one, self.blocked_many
-        ).replace("{names}", ", ".join(self.blocked_names))
-
 
 def xp_toolbar(models):
     selected = [model for model in models if model.participated]
@@ -300,7 +289,6 @@ def xp_toolbar(models):
 
     return XpToolbar(
         selected=len(selected),
-        blocked_names=[m.name for m in selected if not m.result.xp_available],
         minus_disabled=all(entered(model) <= 0 for model in eligible),
         plus_disabled=not eligible,
     )

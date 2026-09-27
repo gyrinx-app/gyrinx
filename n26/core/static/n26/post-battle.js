@@ -62,11 +62,8 @@
         const selected = [
             ...form.querySelectorAll("input[data-xp-participant]:checked"),
         ];
-        const blocked = selected
-            .filter((box) => box.dataset.xpBlockedName)
-            .map((box) => box.dataset.xpBlockedName);
         const entered = selected
-            .filter((box) => !box.dataset.xpBlockedName)
+            .filter((box) => !("xpBlocked" in box.dataset))
             .map((box) => {
                 const value = document.getElementById(
                     box.dataset.xpParticipant,
@@ -76,14 +73,6 @@
             });
         const count = toolbar.querySelector("[data-xp-count]");
         count.textContent = plural(count, selected.length);
-        const message = toolbar.querySelector("[data-xp-blocked]");
-        message.textContent = blocked.length
-            ? plural(message, blocked.length).replace(
-                  "{names}",
-                  blocked.join(", "),
-              )
-            : "";
-        message.hidden = !blocked.length;
         for (const button of toolbar.querySelectorAll("[data-xp-step]")) {
             button.setAttribute("aria-label", plural(button, selected.length));
             button.disabled =

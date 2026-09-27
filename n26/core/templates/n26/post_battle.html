@@ -69,12 +69,6 @@
                                    data-xp-count
                                    data-one="{{ xp_toolbar.count_one }}"
                                    data-many="{{ xp_toolbar.count_many }}">{{ xp_toolbar.count_label }}</p>
-                                <p id="xp-toolbar-blocked"
-                                   class="mt-1 text-xs text-muted"
-                                   data-xp-blocked
-                                   data-one="{{ xp_toolbar.blocked_one }}"
-                                   data-many="{{ xp_toolbar.blocked_many }}"
-                                   {% if not xp_toolbar.blocked_message %}hidden{% endif %}>{{ xp_toolbar.blocked_message }}</p>
                             </div>
                             <div class="flex shrink-0 gap-2">
                                 <c-ui.button type="submit"
@@ -109,7 +103,7 @@
                                     <th scope="col">XP gained</th>
                                 </tr>
                             </thead>
-                            <tbody x-data="{ why: null }">
+                            <tbody>
                                 {% for model in models %}
                                     <tr>
                                         <td>
@@ -121,7 +115,7 @@
                                                        name="{{ model.prefix }}-participated"
                                                        aria-label="{{ model.name }} took part"
                                                        data-xp-participant="{{ model.prefix }}-xp"
-                                                       {% if not model.result.xp_available %}data-xp-blocked-name="{{ model.name }}"{% endif %}
+                                                       {% if not model.result.xp_available %}data-xp-blocked{% endif %}
                                                        class="size-5 shrink-0 accent-[var(--color-accent)]"
                                                        {% if model.participated %}checked{% endif %}>
                                                 <span class="min-w-0"><span class="block font-semibold">{{ model.name }}</span><span class="mt-1 block text-xs text-muted">{{ model.result.status_label }}</span></span>
@@ -145,21 +139,29 @@
                                                 <input type="hidden"
                                                        name="{{ model.prefix }}-xp"
                                                        value="{{ model.xp }}">
-                                                <c-ui.button variant="ghost"
-                                                             size="sm"
-                                                             compact
-                                                             id="{{ model.prefix }}-xp-why-button"
-                                                             aria-label="{{ model.xp_why_label }}"
-                                                             aria-expanded="false"
-                                                             ::aria-expanded="why === '{{ model.id }}'"
-                                                             aria-controls="{{ model.prefix }}-xp-why"
-                                                             x-on:click="why = why === '{{ model.id }}' ? null : '{{ model.id }}'"
-                                                             x-on:keydown.escape="why = null"
-                                                             data-xp-why>
-                                                    <span class="n26-icon-only">
-                                                        <c-n26.icon name="circle-question-mark" class="size-5" />
-                                                    </span>
-                                                </c-ui.button>
+                                                <c-ui.popover strategy="fixed"
+                                                              position="bottom"
+                                                              align="end"
+                                                              panel_id="{{ model.prefix }}-xp-why"
+                                                              panel_label="{{ model.xp_why_label }}">
+                                                    <c-slot name="trigger">
+                                                        <c-ui.button variant="ghost"
+                                                                     size="sm"
+                                                                     compact
+                                                                     id="{{ model.prefix }}-xp-why-button"
+                                                                     aria-label="{{ model.xp_why_label }}"
+                                                                     aria-expanded="false"
+                                                                     ::aria-expanded="open"
+                                                                     aria-controls="{{ model.prefix }}-xp-why"
+                                                                     data-xp-why>
+                                                            <span class="n26-icon-only">
+                                                                <c-n26.icon name="circle-question-mark"
+                                                                            class="size-5" />
+                                                            </span>
+                                                        </c-ui.button>
+                                                    </c-slot>
+                                                    <p class="w-64 max-w-full">{{ model.result.xp_blocked_message }}</p>
+                                                </c-ui.popover>
                                             {% endif %}
                                             <div id="{{ model.prefix }}-xp-help">
                                                 {% if show_errors and model.result.errors %}<a href="#{{ model.prefix }}-errors"
@@ -167,14 +169,6 @@
                                             </div>
                                         </td>
                                     </tr>
-                                    {% if not model.result.xp_available %}
-                                        <tr id="{{ model.prefix }}-xp-why"
-                                            x-show="why === '{{ model.id }}'"
-                                            x-cloak>
-                                            <td colspan="3"
-                                                class="text-sm text-muted">{{ model.result.xp_blocked_message }}</td>
-                                        </tr>
-                                    {% endif %}
                                     {% if show_errors and model.result.errors %}
                                         <tr>
                                             <td colspan="3" id="{{ model.prefix }}-errors">

@@ -1447,8 +1447,10 @@ class TestXpBlockedModels:
         assert by_id[str(first.pk)] == "1"
         assert by_id[str(visitor.pk)] == ""
         document = BeautifulSoup(page.content, "html.parser")
-        assert document.select_one("[data-xp-blocked]").get_text(strip=True) == (
-            "1 selected model cannot take XP: Visitor."
+        toolbar = document.select_one("[data-xp-toolbar]")
+        assert "cannot take XP" not in toolbar.get_text(" ", strip=True)
+        assert toolbar.select_one("[data-xp-count]").get_text(strip=True) == (
+            "2 selected"
         )
         assert document.select_one(f'input[id="model-{visitor.pk}-xp"]') is None
         why = document.select_one(f'button[id="model-{visitor.pk}-xp-why-button"]')

@@ -10,6 +10,7 @@ Keyboard activation of the owned trigger moves focus into the panel. Escape clos
 Following a link in the panel closes it. The panel scrolls within the viewport when its content is tall.
 panel_id is optional. When omitted, Alpine assigns a unique id and connects the owned trigger to it.
 class styles the panel. trigger_class styles only the owned trigger.
+A panel inside a scrolling ancestor is clipped. strategy=fixed places it against the window with n26PositionMenu instead, above or below the trigger. The page shell must load n26/menu-position.js.
 {% endcomment %}
 
 <c-vars
@@ -24,6 +25,7 @@ class styles the panel. trigger_class styles only the owned trigger.
   panel_label=""
   panel_id=""
   class=""
+  strategy="absolute"
 />
 
 <div
@@ -46,9 +48,11 @@ class styles the panel. trigger_class styles only the owned trigger.
       clearTimeout(this._closeT);
     },
     position() {
-      window.CottonUI.positionPopover(this.$refs.trigger, this.$refs.panel, {
+      {% if strategy == 'fixed' %}window.n26PositionMenu(this.$refs.trigger, this.$refs.panel, {
+        position: '{{ position }}', align: '{{ align }}', offset: {{ offset }}, flip: true,
+      });{% else %}window.CottonUI.positionPopover(this.$refs.trigger, this.$refs.panel, {
         position: '{{ position }}', align: '{{ align }}', offset: {{ offset }}, responsive: true,
-      });
+      });{% endif %}
     },
     doOpen(moveFocus = false) {
       clearTimeout(this._closeT);

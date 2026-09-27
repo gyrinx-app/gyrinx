@@ -17,9 +17,6 @@ beforeEach(async () => {
             <input name="generation" value="4">
             <div data-xp-toolbar>
                 <p data-xp-count data-one="{n} selected" data-many="{n} selected">0 selected</p>
-                <p data-xp-blocked hidden
-                   data-one="1 selected model cannot take XP: {names}."
-                   data-many="{n} selected models cannot take XP: {names}."></p>
                 <button type="submit" data-xp-step="-1" disabled
                         data-one="Remove 1 XP from the selected model"
                         data-many="Remove 1 XP from the {n} selected models">−1 XP</button>
@@ -31,7 +28,7 @@ beforeEach(async () => {
             <input id="a-xp" value="">
             <input type="checkbox" id="b" data-xp-participant="b-xp">
             <input id="b-xp" value="2">
-            <input type="checkbox" id="c" data-xp-participant="c-xp" data-xp-blocked-name="Visitor">
+            <input type="checkbox" id="c" data-xp-participant="c-xp" data-xp-blocked>
             <input id="c-xp" value="" disabled>
         </form>
         <p id="draft-save-status"></p>
@@ -59,17 +56,12 @@ function tick(id) {
 const button = (step) => form.querySelector(`[data-xp-step="${step}"]`);
 
 describe("post-battle XP toolbar", () => {
-    it("counts the selected models and names the ones that cannot take XP", () => {
+    it("counts every selected model, including ones that cannot take XP", () => {
         tick("a");
         tick("c");
 
         expect(form.querySelector("[data-xp-count]").textContent).toBe(
             "2 selected",
-        );
-        const blocked = form.querySelector("[data-xp-blocked]");
-        expect(blocked.hidden).toBe(false);
-        expect(blocked.textContent).toBe(
-            "1 selected model cannot take XP: Visitor.",
         );
         expect(button("+1").getAttribute("aria-label")).toBe(
             "Add 1 XP to the 2 selected models",
