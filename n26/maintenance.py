@@ -291,7 +291,6 @@ LOCK_KEYS = {
     Operation.ACTIVATE_COUNTER_HISTORY: 826_020_627,
     Operation.INITIALISE_ACTION_ALLOWANCES: 826_020_626,
     Operation.RESET_SPYRER_BUILT_INS: 826_020_628,
-    Operation.FINISH_SPYRER_AUGMENTATIONS: 826_020_629,
 }
 
 
@@ -1234,51 +1233,6 @@ def reset_spyrer_built_ins_view(request):
     )
 
 
-@task
-def finish_spyrer_augmentations(backfill_id, **unused):
-    from n26.core.spyrer_augmentation_repair import Refused, apply_one, prepare
-
-    run_per_gang(
-        backfill_id,
-        operation=Operation.FINISH_SPYRER_AUGMENTATIONS,
-        what="Spyrer augmentation repair",
-        find=prepare,
-        apply_one=apply_one,
-        refusals=(Refused,),
-        again=lambda: finish_spyrer_augmentations.enqueue(backfill_id=backfill_id),
-    )
-
-
-def finish_spyrer_augmentations_view(request):
-    from n26.core.spyrer_augmentation_repair import find
-
-    return _deletion_view(
-        request,
-        Operation.FINISH_SPYRER_AUGMENTATIONS,
-        find,
-        finish_spyrer_augmentations,
-        {
-            "noun": "repair",
-            "intro": (
-                "Detach the unfinished Malcadon hunting rig augmentation slot and "
-                "remove its empty copies from existing gear. Give Yeld hunting "
-                "rig Tier 2 its Movement increase and conditional protection. "
-                "Grant older Hunt Masters their missing recruitment augmentation "
-                "use. Selected tiers, paid actions and their history stay in place."
-            ),
-            "nothing_heading": "Nothing to repair",
-            "nothing_flash": "The Spyrer augmentation repair is already complete.",
-            "nothing_words": "The Spyrer augmentation repair is already complete.",
-            "refuses_heading": "The repair cannot run",
-            "button": "Repair Spyrer augmentations",
-            "confirm": (
-                "Detach the Malcadon rig slot, repair Yeld Tier 2, and grant "
-                "missing Hunt Master recruitment uses?"
-            ),
-        },
-    )
-
-
 REHOST_WORDS = {
     "noun": "move",
     "intro": (
@@ -2216,13 +2170,6 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.FINISH_SPYRER_AUGMENTATIONS.value,
         name=Operation.FINISH_SPYRER_AUGMENTATIONS.label,
-        added=date(2026, 9, 27),
-        description=(
-            "Withdraw the empty Malcadon rig augmentation slot, repair Yeld "
-            "rig Tier 2, and grant older Hunt Masters their missing recruitment "
-            "augmentation use. Existing selected tiers and action history remain."
-        ),
-        view=finish_spyrer_augmentations_view,
         detail_template="admin/maintenance/n26/_per_gang_detail.html",
     )
 )
@@ -3008,7 +2955,6 @@ register_control_operation(
 #: schedules, so dev and tests invoke the sweep function directly.
 task_routes = [
     N26TaskRoute(reset_spyrer_built_ins, ack_deadline=600),
-    N26TaskRoute(finish_spyrer_augmentations, ack_deadline=600),
     N26PausedTaskRoute(activate_counter_history, ack_deadline=600),
     N26TaskRoute(delete_test_content, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(delete_firing_line, ack_deadline=600, min_retry_delay=60),
