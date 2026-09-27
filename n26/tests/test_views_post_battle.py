@@ -1763,6 +1763,37 @@ class TestModelModule:
         ).get_text(strip=True) == ("Add lasting injury")
         assert "lasting effect" not in added.content.decode().lower()
 
+    def test_a_plural_card_heading_still_names_one_result(
+        self, client, table, feature, make_profile
+    ):
+        profile = make_profile("Test fighter")
+        add_built_in(
+            profile,
+            create_slot(
+                "Test slot",
+                table.injury_kind,
+                table.injury_table,
+                label="Lasting injuries",
+                min_picks=0,
+                max_picks=9,
+            ),
+        )
+        model = hire(table.gang, profile, "Third model")
+        report = start(client, table)
+        added = client.post(
+            editor_url(report),
+            html_fields(
+                client.get(editor_url(report)), intent=f"add-effect:{model.pk}"
+            ),
+        )
+        box = module(added, model)
+        assert [group["label"] for group in box.find_all("optgroup")] == [
+            "Lasting injury"
+        ]
+        assert box.find("button", value=f"add-effect:{model.pk}").get_text(
+            strip=True
+        ) == ("Add lasting injury")
+
     def test_options_lead_with_their_roll_band(self, client, table, feature):
         kind = create_slot_type("Test table (dice)", is_lasting_effect=True)
         banded = create_picklist(

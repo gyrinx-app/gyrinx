@@ -975,7 +975,10 @@ def preview_report(report, *, actor, payload=None):
             result.effect_slots.append(
                 EffectSlot(
                     key,
-                    slot.kind_label,
+                    # The table's kind, singular: one row is one result.
+                    # The slot's own label is the card's heading, often
+                    # plural ("Lasting Injuries").
+                    slot.slot.slot_type.name,
                     [Option(str(v.thing.pk), v.name, v.band) for v in options.values()],
                 )
             )
