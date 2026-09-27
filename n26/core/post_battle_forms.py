@@ -1,5 +1,6 @@
 """The report form preserves incomplete values separately from gameplay validation."""
 
+import json
 from copy import deepcopy
 from dataclasses import dataclass, field
 from uuid import uuid4
@@ -7,7 +8,7 @@ from uuid import uuid4
 from django import forms
 from django.utils import timezone
 
-from n26.core.status import Status, label_for
+from n26.core.status import Status, label_for, status_colour
 
 
 class StartReportForm(forms.Form):
@@ -147,6 +148,8 @@ def keep_recorded_xp(payload, plan):
 class ReportEffect:
     id: str
     selected: str
+    #: The field's label: the table's own word and a number, "Damage 2".
+    label: str = ""
     questions: list = field(default_factory=list)
     name: str = ""
     retained_choices: list = field(default_factory=list)
@@ -165,17 +168,73 @@ class ReportModel:
     effect_options: list
     effects: list
     status_options: list
+    #: ``(table label, [(value, text), ...])`` per table, for optgroups.
+    effect_groups: list = field(default_factory=list)
+    #: "Add lasting injury", "Add damage" — from the tables' own words.
+    add_effect_label: str = ""
+    #: Where an in-place update posts. Empty draws plain form controls.
+    refresh_url: str = ""
+
+    @property
+    def refresh_attrs(self):
+        """A control whose change redraws this model's module in place."""
+        if not self.refresh_url:
+            return {}
+        return {
+            "hx-post": self.refresh_url,
+            "hx-trigger": "change",
+            "hx-vals": json.dumps({"intent": f"refresh-model:{self.id}"}),
+        }
+
+    @property
+    def button_attrs(self):
+        """A button inside the module: htmx posts its own intent."""
+        return {"hx-post": self.refresh_url} if self.refresh_url else {}
 
     @property
     def xp_why_label(self):
         return f"Why {self.name} cannot take XP"
 
     @property
+    def status_colour(self):
+        return status_colour(self.result.status)
+
+    @property
     def final_status_label(self):
         return label_for(self.result.final_status, self.result.is_vehicle)
 
+    @property
+    def final_status_colour(self):
+        return status_colour(self.result.final_status)
 
-def editor_models(plan, payload):
+    @property
+    def status_changes(self):
+        return self.result.final_status != self.result.status
+
+    @property
+    def equipment_label(self):
+        return f"What happens to {self.name}'s equipment"
+
+
+def _effect_label(labels):
+    """One phrase for a model's tables: "lasting injury", or
+    "lasting injury or damage" where a model has both."""
+    return " or ".join(dict.fromkeys(label.lower() for label in labels))
+
+
+def refreshed_model(payload, intent):
+    """The model whose module an in-place update redraws, if any."""
+    kind, _, target = intent.partition(":")
+    if kind in {"refresh-model", "add-effect"}:
+        return target
+    if kind in {"remove-effect", "clear-choices"}:
+        for model in payload.get("models", []):
+            if any(effect.get("id") == target for effect in model["effects"]):
+                return model["id"]
+    return None
+
+
+def editor_models(plan, payload, refresh_url=""):
     """Plain field values and the domain's options, without database reads."""
     raw = {str(model.get("id")): model for model in payload.get("models", [])}
     models = []
@@ -183,21 +242,32 @@ def editor_models(plan, payload):
         model_id = str(model.id)
         values = raw.get(model_id, {})
         proposed = {str(effect.id): effect for effect in model.effects}
-        options = [
-            (f"{slot.key}|{option.value}", f"{slot.label} · {option.label}")
+        slot_labels = {slot.key: slot.label for slot in model.effect_slots}
+        groups = [
+            (
+                slot.label,
+                [
+                    (f"{slot.key}|{option.value}", option.text)
+                    for option in slot.options
+                ],
+            )
             for slot in model.effect_slots
-            for option in slot.options
+            if slot.options
         ]
+        options = [option for _, grouped in groups for option in grouped]
+        default_label = next(iter(slot_labels.values()), "")
         effects = []
-        for effect in values.get("effects", []):
+        for number, effect in enumerate(values.get("effects", []), start=1):
             found = proposed.get(str(effect.get("id")))
             selected = f"{effect.get('slot', '')}|{effect.get('pick', '')}"
             if selected == "|":
                 selected = ""
+            label = slot_labels.get(effect.get("slot", ""), default_label)
             effects.append(
                 ReportEffect(
                     id=str(effect.get("id", "")),
                     selected=selected,
+                    label=f"{label} {number}".strip(),
                     questions=found.questions if found else [],
                     name=found.name if found else "",
                     retained_choices=[
@@ -233,9 +303,28 @@ def editor_models(plan, payload):
                 status_options=[
                     (value, label_for(value, vehicle)) for value in Status.values
                 ],
+                effect_groups=groups,
+                add_effect_label=(
+                    f"Add {_effect_label(label for label, _ in groups)}"
+                    if groups
+                    else ""
+                ),
+                refresh_url=refresh_url,
             )
         )
     return models
+
+
+def receipt_models(receipt):
+    """The receipt's models, with each status's badge colour."""
+    return [
+        model
+        | {
+            "status_before_colour": status_colour(model.get("status_before")),
+            "status_after_colour": status_colour(model.get("status_after")),
+        }
+        for model in receipt.get("models", [])
+    ]
 
 
 def _plural(count, one, many):
@@ -250,11 +339,12 @@ class XpToolbar:
     minus_disabled: bool
     plus_disabled: bool
 
-    count_one = count_many = "{n} selected"
-    plus_one = "Add 1 XP to the selected model"
-    plus_many = "Add 1 XP to the {n} selected models"
-    minus_one = "Remove 1 XP from the selected model"
-    minus_many = "Remove 1 XP from the {n} selected models"
+    count_one = "1 model took part"
+    count_many = "{n} models took part"
+    plus_one = "Add 1 XP to the model that took part"
+    plus_many = "Add 1 XP to each of the {n} models that took part"
+    minus_one = "Remove 1 XP from the model that took part"
+    minus_many = "Remove 1 XP from each of the {n} models that took part"
 
     @property
     def minus_attrs(self):

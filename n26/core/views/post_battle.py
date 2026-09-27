@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Exists, OuterRef, Prefetch, Q
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -28,9 +28,12 @@ from n26.core.post_battle_forms import (
     editor_models,
     keep_recorded_xp,
     posted_payload,
+    receipt_models,
+    refreshed_model,
     xp_toolbar,
 )
 from n26.core.views.battles import battle_or_404
+from n26.core.views.htmx import is_htmx
 from n26.core.views.permissions import (
     _any_campaign_or_404,
     _any_gang_or_404,
@@ -249,9 +252,12 @@ def post_battle_editor(request, pk):
     status = 200
     posted = request.method == "POST"
     version = ReportVersionForm(request.POST if posted else None)
+    refresh = None
     if posted:
         payload = posted_payload(request.POST)
         intent = request.POST.get("intent", "save")
+        if is_htmx(request):
+            refresh = refreshed_model(payload, intent)
         if version.is_valid():
             version_data = version.cleaned_data
             prior = PostBattleRevision.objects.filter(
@@ -321,6 +327,12 @@ def post_battle_editor(request, pk):
             status = 400
         if intent == "autosave":
             return JsonResponse({"error": " ".join(errors)}, status=status)
+        if refresh and errors:
+            # htmx leaves the page as it is on an error, so every entry
+            # stays; the page script shows this text by the save status.
+            return HttpResponse(
+                " ".join(errors), status=status, content_type="text/plain"
+            )
     plan = preview_report(report, actor=request.user, payload=payload)
     payload, changed = keep_recorded_xp(payload, plan)
     if changed:
@@ -337,25 +349,29 @@ def post_battle_editor(request, pk):
         "review": plan.review,
     }
     version = ReportVersionForm(initial=values)
-    models = editor_models(plan, payload)
-    return render(
-        request,
-        "n26/post_battle.html",
-        {
-            "report": report,
-            "gang": report.gang,
-            "battle": report.battle,
-            "payload": payload,
-            "plan": plan,
-            "models": models,
-            "xp_toolbar": xp_toolbar(models),
-            "version_form": version,
-            "errors": errors,
-            "show_errors": show_errors,
-            "stale": stale,
-        },
-        status=status,
-    )
+    models = editor_models(plan, payload, refresh_url=request.path)
+    context = {
+        "report": report,
+        "gang": report.gang,
+        "battle": report.battle,
+        "payload": payload,
+        "plan": plan,
+        "models": models,
+        "xp_toolbar": xp_toolbar(models),
+        "version_form": version,
+        "errors": errors,
+        "show_errors": show_errors,
+        "stale": stale,
+    }
+    if refresh:
+        refreshed = next((model for model in models if model.id == refresh), None)
+        if refreshed is not None:
+            return render(
+                request,
+                "n26/includes/post_battle_refresh.html",
+                context | {"model": refreshed},
+            )
+    return render(request, "n26/post_battle.html", context, status=status)
 
 
 @requires_flag(CAMPAIGNS)
@@ -383,6 +399,7 @@ def post_battle_receipt(request, pk, sequence=None):
             "battle": report.battle,
             "revision": revision,
             "receipt": revision.receipt,
+            "receipt_models": receipt_models(revision.receipt),
             "revisions": report.revisions.only("sequence", "created"),
             "may_edit": can_edit_report(report, request.user),
         },

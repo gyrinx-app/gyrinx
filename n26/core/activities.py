@@ -39,7 +39,7 @@ VISIT_HELP = (
     "Points are lost when you complete the action."
 )
 
-POST_BATTLE_HELP = "Record XP, credits and lasting effects after a battle."
+POST_BATTLE_HELP = "Record XP, credits and each model's results after a battle."
 
 #: How many acts the square prints. Enough to say what has been going on
 #: without becoming the history page, which is one click away.

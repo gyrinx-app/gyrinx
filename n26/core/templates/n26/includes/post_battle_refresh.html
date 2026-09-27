@@ -1,0 +1,13 @@
+{% comment %}
+The response to an in-place update: the model's module swaps in where the
+request came from; the summary, the form's version and the save line go
+out of band.
+{% endcomment %}
+{% include "n26/includes/post_battle_model.html" %}
+{% include "n26/includes/post_battle_summary.html" with oob=True %}
+<div id="post-battle-version" hx-swap-oob="true">{{ version_form }}</div>
+<p id="draft-save-status"
+   hx-swap-oob="true"
+   role="status"
+   aria-live="polite"
+   class="text-sm text-muted">Draft saved {{ report.modified|date:'H:i' }}</p>

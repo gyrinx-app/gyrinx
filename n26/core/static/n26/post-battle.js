@@ -4,16 +4,27 @@
 (() => {
     const form = document.getElementById("post-battle-form");
     if (!form) return;
-    const status = document.getElementById("draft-save-status");
+    // An in-place update replaces this line, so look it up each time.
+    const status = {
+        set textContent(text) {
+            document.getElementById("draft-save-status").textContent = text;
+        },
+    };
     let timer;
     let saving = null;
     let dirty = false;
     let waiting = false;
     let submitting = false;
     let failed = false;
+    // An in-place update of one model's section saves the whole form too.
+    // Autosave waits for it, and it waits for an autosave already running,
+    // so two saves never race on the same draft version.
+    let refreshing = null;
+    let refreshed = null;
 
     const save = async () => {
         if (saving || waiting || submitting || failed || !dirty) return;
+        if (refreshing) return;
         dirty = false;
         status.textContent = "Saving draft…";
         const body = new FormData(form);
@@ -82,6 +93,37 @@
         }
     };
 
+    form.addEventListener("htmx:confirm", (event) => {
+        event.preventDefault();
+        window.clearTimeout(timer);
+        const issue = async () => {
+            if (saving) await saving;
+            if (failed || submitting) return;
+            event.detail.issueRequest(true);
+        };
+        issue();
+    });
+    form.addEventListener("htmx:beforeRequest", () => {
+        window.clearTimeout(timer);
+        dirty = false;
+        status.textContent = "Saving draft…";
+        refreshing = new Promise((resolve) => {
+            refreshed = resolve;
+        });
+    });
+    form.addEventListener("htmx:afterRequest", (event) => {
+        if (!event.detail.successful) {
+            failed = true;
+            dirty = true;
+            const message =
+                event.detail.xhr?.responseText || "Draft could not be saved.";
+            status.textContent = `${message} Your entries are still here. Use Save draft to retry.`;
+        }
+        refreshed?.();
+        refreshing = null;
+        redrawXpToolbar();
+    });
+
     form.addEventListener("input", () => {
         redrawXpToolbar();
         dirty = true;
@@ -98,12 +140,13 @@
             return;
         }
         window.clearTimeout(timer);
-        if (saving) {
+        if (saving || refreshing) {
             event.preventDefault();
             event.stopImmediatePropagation();
             waiting = true;
             const button = event.submitter;
             await saving;
+            await refreshing;
             waiting = false;
             form.requestSubmit(button);
         } else {
@@ -111,7 +154,7 @@
         }
     });
     window.addEventListener("beforeunload", (event) => {
-        if ((dirty || saving || waiting) && !submitting) {
+        if ((dirty || saving || refreshing || waiting) && !submitting) {
             event.preventDefault();
             event.returnValue = "";
         }

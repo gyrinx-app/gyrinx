@@ -250,28 +250,23 @@ def with_effect(client, table, report, injury):
 
 
 class TestReportLayout:
-    """Participation is tabular; confirmation and submit share one form footer."""
+    """Each model's results sit in one module; submit shares one form footer."""
 
-    def test_each_model_has_one_participation_and_xp_control_in_the_table(
+    def test_each_model_has_one_module_holding_all_its_controls(
         self, client, table, feature
     ):
         report = start(client, table)
         document = BeautifulSoup(client.get(editor_url(report)).content, "html.parser")
         form = document.find("form", id="post-battle-form")
-        participants = form.find("table")
-        assert participants.caption.get_text(strip=True) == (
-            "Models that took part and XP awarded"
-        )
-        assert len(participants.tbody.find_all("tr")) == len(table.models)
+        assert form.find("table") is None
         for model in table.models:
-            for field in ("participated", "xp"):
+            module = form.find("fieldset", id=f"result-{model.pk}")
+            assert module.legend.get_text(strip=True) == model.name
+            assert module.select_one(f'[name="model_id"][value="{model.pk}"]')
+            for field in ("participated", "xp", "status", "equipment"):
                 name = f"model-{model.pk}-{field}"
                 assert len(form.select(f'[name="{name}"]')) == 1
-                assert participants.select_one(f'[name="{name}"]') is not None
-            assert participants.select_one(f'[name="model_id"][value="{model.pk}"]')
-            details = form.find("fieldset", id=f"result-{model.pk}")
-            assert details.find("select", attrs={"name": f"model-{model.pk}-status"})
-            assert details.find("select", attrs={"name": f"model-{model.pk}-equipment"})
+                assert module.select_one(f'[name="{name}"]') is not None
         footer = form.select_one("[data-battle-actions]")
         confirmation = footer.find("input", attrs={"name": "participation_confirmed"})
         assert confirmation["aria-required"] == "true"
@@ -280,9 +275,32 @@ class TestReportLayout:
         assert len(form.select('[name="participation_confirmed"]')) == 1
         assert "battle-actions.js" in str(document)
 
-    def test_xp_errors_are_next_to_the_participation_table_controls(
+    def test_module_sections_run_from_took_part_to_equipment(
         self, client, table, feature
     ):
+        report = start(client, table)
+        model = table.models[0]
+        page = client.post(
+            editor_url(report),
+            html_fields(
+                client.get(editor_url(report)), intent=f"add-effect:{model.pk}"
+            ),
+        )
+        module = BeautifulSoup(page.content, "html.parser").find(
+            "fieldset", id=f"result-{model.pk}"
+        )
+        effect = page.context["models"][0].effects[0]
+        order = [
+            f"model-{model.pk}-participated",
+            f"model-{model.pk}-xp",
+            f"effect-{effect.id}-pick",
+            f"model-{model.pk}-status",
+            f"model-{model.pk}-equipment",
+        ]
+        names = [element["name"] for element in module.select("[name]")]
+        assert [name for name in names if name in order] == order
+
+    def test_xp_errors_are_inside_the_model_module(self, client, table, feature):
         report = start(client, table)
         model = table.models[0]
         response = client.post(
@@ -293,12 +311,12 @@ class TestReportLayout:
                 **{f"model-{model.pk}-xp": "-1"},
             ),
         )
-        document = BeautifulSoup(response.content, "html.parser")
-        participants = document.find("table")
-        field = participants.find("input", id=f"model-{model.pk}-xp")
-        help_text = participants.find(id=field["aria-describedby"])
-        error_link = help_text.find("a")
-        errors = participants.select_one(error_link["href"])
+        module = BeautifulSoup(response.content, "html.parser").find(
+            "fieldset", id=f"result-{model.pk}"
+        )
+        field = module.find("input", id=f"model-{model.pk}-xp")
+        help_text = module.find(id=field["aria-describedby"])
+        errors = module.select_one(help_text.find("a")["href"])
         assert "Enter a whole number" in errors.get_text()
         assert "Cinder's XP" in errors.get_text()
 
@@ -1051,7 +1069,7 @@ class TestDraftActions:
             ),
         )
         assert changed.status_code == 200
-        assert "Reset effect choices" in BeautifulSoup(
+        assert "Reset choices" in BeautifulSoup(
             changed.content, "html.parser"
         ).get_text(" ", strip=True), changed.context["models"][0].effects
         assert html_fields(changed)[f"effect-{effect_id}-choice-{question.key}"] == [
@@ -1062,7 +1080,7 @@ class TestDraftActions:
             html_fields(changed, intent=f"clear-choices:{effect_id}"),
         )
         assert cleared.status_code == 200
-        assert "Reset effect choices" not in cleared.content.decode()
+        assert "Reset choices" not in cleared.content.decode()
         kept = html_fields(cleared)
         assert kept["credits"] == ["31"]
         assert kept["reason"] == ["Keep this edited reason"]
@@ -1376,7 +1394,7 @@ class TestXpSteps:
         assert toolbar_button(page, "xp-step:+1").has_attr("disabled")
         page = step(client, report, page, "xp-step:+1", **ticked)
         assert toolbar_button(page, "xp-step:+1")["aria-label"] == (
-            "Add 1 XP to the 2 selected models"
+            "Add 1 XP to each of the 2 models that took part"
         )
         page = step(client, report, page, "xp-step:+1")
         page = step(client, report, page, "xp-step:+1")
@@ -1450,7 +1468,7 @@ class TestXpBlockedModels:
         toolbar = document.select_one("[data-xp-toolbar]")
         assert "cannot take XP" not in toolbar.get_text(" ", strip=True)
         assert toolbar.select_one("[data-xp-count]").get_text(strip=True) == (
-            "2 selected"
+            "2 models took part"
         )
         assert document.select_one(f'input[id="model-{visitor.pk}-xp"]') is None
         why = document.select_one(f'button[id="model-{visitor.pk}-xp-why-button"]')
@@ -1678,3 +1696,208 @@ class TestRecordResultsEntry:
         link = document.find("a", href=start_url(table))
         assert link.get_text(strip=True) == "Continue draft"
         assert link["aria-label"] == f"Continue draft for {table.gang.name}"
+
+
+def refresh(client, report, response, model, *, after=None, **changes):
+    """Post the form as a changed select does: htmx, one model's intent.
+
+    ``after`` is an earlier refresh: its version replaces the page's, as
+    the out-of-band swap does in the browser.
+    """
+    fields = html_fields(response, intent=f"refresh-model:{model.pk}", **changes)
+    if after is not None:
+        version = BeautifulSoup(after.content, "html.parser").find(
+            id="post-battle-version"
+        )
+        for element in version.select("input[name]"):
+            fields[element["name"]] = [element.get("value", "")]
+    return client.post(editor_url(report), fields, HTTP_HX_REQUEST="true")
+
+
+def module(response, model):
+    return BeautifulSoup(response.content, "html.parser").find(
+        "fieldset", id=f"result-{model.pk}"
+    )
+
+
+class TestModelModule:
+    """One module per model, worded by its tables, redrawn in place."""
+
+    def test_a_vehicle_table_reads_damage(
+        self, client, table, feature, make_profile, vehicle_type
+    ):
+        kind = create_slot_type("Damage", is_lasting_effect=True)
+        dent = create_pickable("Dented Hull", kind)
+        damage = create_picklist("Damage table", kind, members=[dent])
+        slot = create_slot("Damage", kind, damage, min_picks=0, max_picks=100)
+        truck = make_profile("Cargo-8", profile_type=vehicle_type)
+        add_built_in(truck, table.xp)
+        add_built_in(truck, slot)
+        vehicle = hire(table.gang, truck, "Rust Bucket")
+        report = start(client, table)
+        added = client.post(
+            editor_url(report),
+            html_fields(
+                client.get(editor_url(report)), intent=f"add-effect:{vehicle.pk}"
+            ),
+        )
+        box = module(added, vehicle)
+        assert box.find("button", value=f"add-effect:{vehicle.pk}").get_text(
+            strip=True
+        ) == ("Add damage")
+        (field,) = box.select("select[id$='-pick']")
+        assert box.find("label", attrs={"for": field["id"]}).get_text(strip=True) == (
+            "Damage 1"
+        )
+        assert box.find("optgroup")["label"] == "Damage"
+        fighter = module(added, table.models[0])
+        assert fighter.find(
+            "button", value=f"add-effect:{table.models[0].pk}"
+        ).get_text(strip=True) == ("Add lasting injury")
+        assert "lasting effect" not in added.content.decode().lower()
+
+    def test_options_lead_with_their_roll_band(self, client, table, feature):
+        kind = create_slot_type("Banded injury", is_lasting_effect=True)
+        banded = create_picklist(
+            "Banded injuries", kind, dice="d66", roll_selects="band"
+        )
+        out_cold = create_pickable("Out Cold", kind)
+        add_picklist_member(banded, out_cold, roll_low=11, roll_high=16)
+        profile = table.models[0].membership.profile
+        add_built_in(
+            profile,
+            create_slot("Banded injury", kind, banded, min_picks=0, max_picks=9),
+        )
+        model = hire(table.gang, profile, "Ash")
+        report = start(client, table)
+        added = client.post(
+            editor_url(report),
+            html_fields(
+                client.get(editor_url(report)), intent=f"add-effect:{model.pk}"
+            ),
+        )
+        groups = {
+            group["label"]: [option.get_text(strip=True) for option in group("option")]
+            for group in module(added, model).find_all("optgroup")
+        }
+        assert groups["Banded injury"] == ["11–16 Out Cold"]
+        assert groups["Lasting injury"] == ["Grievous Wound"]
+        (row,) = [row for row in added.context["models"] if row.id == str(model.pk)]
+        values = [value for value, _ in row.effect_options]
+        assert any(value.endswith(f"|{out_cold.pk}") for value in values)
+
+    def test_refresh_returns_the_module_summary_and_new_version(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        model = table.models[0]
+        page = client.get(editor_url(report))
+        response = refresh(
+            client, report, page, model, **{f"model-{model.pk}-status": "dead"}
+        )
+        assert response.status_code == 200
+        document = BeautifulSoup(response.content, "html.parser")
+        assert document.find("form") is None
+        box = document.find("fieldset", id=f"result-{model.pk}")
+        assert box.find("select", attrs={"name": f"model-{model.pk}-equipment"})
+        assert document.find(id="post-battle-summary")["hx-swap-oob"] == "true"
+        version = document.find(id="post-battle-version")
+        assert version["hx-swap-oob"] == "true"
+        report.refresh_from_db()
+        assert version.find("input", attrs={"name": "revision"})["value"] == str(
+            report.draft_revision
+        )
+        assert report.draft["models"][0]["status"] == "dead"
+
+    def test_a_stale_refresh_is_refused_and_keeps_the_saved_draft(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        model = table.models[0]
+        page = client.get(editor_url(report))
+        assert refresh(client, report, page, model).status_code == 200
+        report.refresh_from_db()
+        saved = report.draft
+        stale = refresh(
+            client, report, page, model, **{f"model-{model.pk}-status": "dead"}
+        )
+        assert stale.status_code == 409
+        assert stale["Content-Type"].startswith("text/plain")
+        report.refresh_from_db()
+        assert report.draft == saved
+
+    def test_refresh_without_htmx_draws_the_whole_page(self, client, table, feature):
+        report = start(client, table)
+        model = table.models[0]
+        response = client.post(
+            editor_url(report),
+            html_fields(
+                client.get(editor_url(report)), intent=f"refresh-model:{model.pk}"
+            ),
+        )
+        assert response.status_code == 200
+        assert b'id="post-battle-form"' in response.content
+
+    @pytest.mark.parametrize(
+        "status,label,colour",
+        [
+            (Status.ACTIVE, "Active", "ink"),
+            (Status.RECOVERY, "In Recovery", "amber"),
+            (Status.CAPTURED, "Captured", "red"),
+            (Status.DEAD, "Dead", "red"),
+        ],
+    )
+    def test_the_heading_carries_a_status_badge(
+        self, client, table, feature, status, label, colour
+    ):
+        model = table.models[0]
+        model.status = status
+        model.save(update_fields=["status"])
+        report = start(client, table)
+        response = client.get(editor_url(report))
+        heading = module(response, model).find("h3")
+        assert heading.get_text(" ", strip=True) == f"{model.name} Status: {label}"
+        assert response.context["models"][0].status_colour == colour
+
+    def test_equipment_choice_shows_only_for_a_dead_model(self, client, table, feature):
+        report = start(client, table)
+        model = table.models[0]
+        page = client.get(editor_url(report))
+        alive = module(page, model)
+        assert (
+            alive.find("select", attrs={"name": f"model-{model.pk}-equipment"}) is None
+        )
+        kept = alive.find("input", attrs={"name": f"model-{model.pk}-equipment"})
+        assert kept["type"] == "hidden"
+        assert "open when this model is dead or destroyed" in alive.get_text()
+        dead = refresh(
+            client,
+            report,
+            page,
+            model,
+            **{
+                f"model-{model.pk}-status": "dead",
+                f"model-{model.pk}-equipment": "lost",
+            },
+        )
+        box = module(dead, model)
+        select = box.find("select", attrs={"name": f"model-{model.pk}-equipment"})
+        assert select.find("option", selected=True)["value"] == "lost"
+        assert "What happens to Cinder's equipment" in box.get_text()
+        alive_again = refresh(
+            client,
+            report,
+            page,
+            model,
+            after=dead,
+            **{f"model-{model.pk}-status": "", f"model-{model.pk}-equipment": "lost"},
+        )
+        assert alive_again.status_code == 200
+        kept = module(alive_again, model).find(
+            "input", attrs={"name": f"model-{model.pk}-equipment"}
+        )
+        assert kept["value"] == "lost"
+        summary = BeautifulSoup(alive_again.content, "html.parser").find(
+            id="post-battle-summary"
+        )
+        assert "Equipment stays with the model." in summary.get_text()
