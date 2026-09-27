@@ -8,7 +8,6 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
           hx-target="this"
           hx-swap="outerHTML"
           hx-sync="closest form:queue all"
-          hx-disabled-elt="closest fieldset"
           data-post-battle-model>
     <legend class="sr-only">{{ model.name }}</legend>
     <input type="hidden" name="model_id" value="{{ model.id }}">

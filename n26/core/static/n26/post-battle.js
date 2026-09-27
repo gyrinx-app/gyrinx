@@ -103,18 +103,95 @@
         };
         issue();
     });
-    // The module being redrawn is disabled while its update is in flight,
-    // which takes focus away from the control just changed. Put it back
-    // on the same control in the new module.
-    let focused = "";
-    form.addEventListener("htmx:beforeRequest", () => {
+    // While a section is redrawn, its buttons and selects are locked so a
+    // second click cannot post twice. Its text fields stay open: what is
+    // typed into them meanwhile is carried into the redrawn section, and
+    // focus goes back to the control the player used last, never to the
+    // button that started the update if they have moved on since.
+    const lockable = "button, select";
+    const typed = (element) =>
+        element.matches("textarea") ||
+        (element.matches("input") &&
+            !["hidden", "button", "submit", "reset"].includes(element.type));
+    const reading = (element) =>
+        element.type === "checkbox" || element.type === "radio"
+            ? element.checked
+            : element.value;
+    const fields = (section) =>
+        [...section.querySelectorAll("input, textarea")].filter(
+            (element) => element.id && typed(element),
+        );
+    let lastFocused = null;
+    document.addEventListener("focusin", (event) => {
+        lastFocused = event.target;
+    });
+    let section = null;
+    let trigger = "";
+    let sent = new Map();
+    let locked = [];
+    let carried = new Map();
+    let restore = null;
+    // Focus a control in the redrawn section, unless the player has
+    // already focused something that is still on the page.
+    const refocus = (target) => {
+        const next = target && document.getElementById(target.id);
+        if (!next || next.disabled) return;
+        const active = document.activeElement;
+        if (active && active !== document.body && active.isConnected) return;
+        next.focus({ preventScroll: true });
+        if (target.start === null) return;
+        try {
+            next.setSelectionRange(target.start, target.end);
+        } catch {
+            // Number inputs have no caret to put back.
+        }
+    };
+    form.addEventListener("htmx:beforeRequest", (event) => {
         window.clearTimeout(timer);
         dirty = false;
-        focused = document.activeElement?.id || "";
+        section = event.detail.target || null;
+        trigger = event.detail.elt?.id || "";
+        sent = new Map(
+            section
+                ? fields(section).map((element) => [
+                      element.id,
+                      reading(element),
+                  ])
+                : [],
+        );
+        carried = new Map();
+        restore = null;
+        locked = section
+            ? [...section.querySelectorAll(lockable)].filter(
+                  (element) => !element.disabled,
+              )
+            : [];
+        for (const element of locked) element.disabled = true;
         status.textContent = "Saving draft…";
         refreshing = new Promise((resolve) => {
             refreshed = resolve;
         });
+    });
+    form.addEventListener("htmx:beforeSwap", (event) => {
+        if (!section || event.detail.target !== section) return;
+        for (const element of fields(section)) {
+            if (reading(element) !== sent.get(element.id))
+                carried.set(element.id, reading(element));
+        }
+        const active = document.activeElement;
+        if (active && active !== document.body && section.contains(active)) {
+            restore = {
+                id: active.id,
+                start: active.selectionStart ?? null,
+                end: active.selectionEnd ?? null,
+            };
+        } else if (
+            (!active || active === document.body) &&
+            lastFocused?.id === trigger &&
+            section.contains(lastFocused)
+        ) {
+            restore = { id: trigger, start: null, end: null };
+        }
     });
     form.addEventListener("htmx:afterRequest", (event) => {
         if (!event.detail.successful) {
@@ -124,12 +201,26 @@
                 event.detail.xhr?.responseText || "Draft could not be saved.";
             status.textContent = `${message} Your entries are still here. Use Save draft to retry.`;
         }
+        // A section that was not replaced keeps its own controls: unlock them.
+        for (const element of locked) {
+            if (element.isConnected) element.disabled = false;
+        }
+        locked = [];
         refreshed?.();
         refreshing = null;
-        redrawXpToolbar();
-        if (focused && !form.contains(document.activeElement)) {
-            document.getElementById(focused)?.focus({ preventScroll: true });
+        for (const [id, value] of carried) {
+            const element = document.getElementById(id);
+            if (!element || !typed(element)) continue;
+            if (element.type === "checkbox" || element.type === "radio")
+                element.checked = value;
+            else element.value = value;
+            dirty = true;
         }
+        carried = new Map();
+        section = null;
+        redrawXpToolbar();
+        refocus(restore);
+        restore = null;
         // Entries typed elsewhere while the update was in flight were not
         // in it. The server's "Draft saved" line would be wrong about them.
         if (dirty && !failed) {
