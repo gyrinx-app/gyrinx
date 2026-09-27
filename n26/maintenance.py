@@ -261,6 +261,10 @@ class Operation(models.TextChoices):
         "n26_reset_spyrer_built_ins",
         "n26: reset the mistaken Spyre Hunters built-ins",
     )
+    FINISH_SPYRER_AUGMENTATIONS = (
+        "n26_finish_spyrer_augmentations",
+        "n26: finish the Spyrer augmentation launch",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
@@ -2158,6 +2162,14 @@ register_operation(
         added=date(2026, 9, 22),
         description="Remove the four mistaken Spyre Hunters built-ins, their propagated assignments and three inspected action uses.",
         view=reset_spyrer_built_ins_view,
+        detail_template="admin/maintenance/n26/_per_gang_detail.html",
+    )
+)
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.FINISH_SPYRER_AUGMENTATIONS.value,
+        name=Operation.FINISH_SPYRER_AUGMENTATIONS.label,
         detail_template="admin/maintenance/n26/_per_gang_detail.html",
     )
 )

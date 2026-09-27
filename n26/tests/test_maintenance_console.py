@@ -467,6 +467,7 @@ class TestARepairThatHasBeenRun:
         Operation.CLEAR_SPARE_ANSWERS,
         Operation.DELETE_RETIRED_KINDS,
         Operation.MERGE_WARGEAR_INTO_WEAPON,
+        Operation.FINISH_SPYRER_AUGMENTATIONS,
     )
 
     def test_there_is_something_to_check(self):
