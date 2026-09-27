@@ -76,26 +76,28 @@
                                    data-many="{{ xp_toolbar.blocked_many }}"
                                    {% if not xp_toolbar.blocked_message %}hidden{% endif %}>{{ xp_toolbar.blocked_message }}</p>
                             </div>
-                            <c-ui.button type="submit"
-                                         name="intent"
-                                         value="xp-step:-1"
-                                         aria-label="{{ xp_toolbar.minus_label }}"
-                                         data-xp-step="-1"
-                                         data-one="{{ xp_toolbar.minus_one }}"
-                                         data-many="{{ xp_toolbar.minus_many }}"
-                                         :attrs="xp_toolbar.minus_attrs">
-                                −1 XP
-                            </c-ui.button>
-                            <c-ui.button type="submit"
-                                         name="intent"
-                                         value="xp-step:+1"
-                                         aria-label="{{ xp_toolbar.plus_label }}"
-                                         data-xp-step="+1"
-                                         data-one="{{ xp_toolbar.plus_one }}"
-                                         data-many="{{ xp_toolbar.plus_many }}"
-                                         :attrs="xp_toolbar.plus_attrs">
-                                +1 XP
-                            </c-ui.button>
+                            <div class="flex shrink-0 gap-2">
+                                <c-ui.button type="submit"
+                                             name="intent"
+                                             value="xp-step:-1"
+                                             aria-label="{{ xp_toolbar.minus_label }}"
+                                             data-xp-step="-1"
+                                             data-one="{{ xp_toolbar.minus_one }}"
+                                             data-many="{{ xp_toolbar.minus_many }}"
+                                             :attrs="xp_toolbar.minus_attrs">
+                                    −1 XP
+                                </c-ui.button>
+                                <c-ui.button type="submit"
+                                             name="intent"
+                                             value="xp-step:+1"
+                                             aria-label="{{ xp_toolbar.plus_label }}"
+                                             data-xp-step="+1"
+                                             data-one="{{ xp_toolbar.plus_one }}"
+                                             data-many="{{ xp_toolbar.plus_many }}"
+                                             :attrs="xp_toolbar.plus_attrs">
+                                    +1 XP
+                                </c-ui.button>
+                            </div>
                         </c-n26.action-bar>
                         <c-ui.table class="n26-participation-table">
                             <caption class="sr-only">Models that took part and XP awarded</caption>
