@@ -540,11 +540,8 @@ Write a short **Summary** for each tier and, if useful, an
 The app does not write them from the modifiers. The modifiers still determine
 what the tier does; check that each summary matches them.
 
-**Do not treat the Malcadon hunting rig as complete.** Neither tier has its
-intended effects. The app cannot yet carry a Ballistic Skill or Weapon Skill
-decision through a tier upgrade. Run the **Spyrer augmentation repair** in
-Maintenance to detach its unfinished slot from live gear and remove existing
-empty slot assignments. Build the lasting choice before attaching it again.
+The app cannot yet carry a Ballistic Skill or Weapon Skill choice through
+a Malcadon hunting rig tier upgrade.
 
 ### Reuse the shared definitions
 
