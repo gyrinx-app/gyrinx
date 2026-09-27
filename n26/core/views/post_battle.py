@@ -26,7 +26,9 @@ from n26.core.post_battle_forms import (
     StartReportForm,
     change_draft,
     editor_models,
+    keep_recorded_xp,
     posted_payload,
+    xp_toolbar,
 )
 from n26.core.views.battles import battle_or_404
 from n26.core.views.permissions import (
@@ -230,7 +232,12 @@ def battle_report(request, pk, battle_pk, gang_pk):
 @requires_flag(CAMPAIGNS)
 @login_required
 def post_battle_editor(request, pk):
-    from n26.core.post_battle import apply_report, preview_report, save_draft
+    from n26.core.post_battle import (
+        apply_report,
+        preview_report,
+        save_draft,
+        xp_eligible_models,
+    )
 
     report = _report_or_404(pk)
     _editable_or_404(report, request.user)
@@ -255,7 +262,15 @@ def post_battle_editor(request, pk):
                     "n26-post-battle-revision", pk=report.pk, sequence=prior.sequence
                 )
             try:
-                payload = change_draft(payload, intent, previous=report.draft)
+                payload = change_draft(
+                    payload,
+                    intent,
+                    xp_eligible=xp_eligible_models(
+                        report, actor=request.user, payload=payload
+                    )
+                    if intent.startswith("xp-step:")
+                    else frozenset(),
+                )
                 report = save_draft(
                     report,
                     actor=request.user,
@@ -307,6 +322,9 @@ def post_battle_editor(request, pk):
         if intent == "autosave":
             return JsonResponse({"error": " ".join(errors)}, status=status)
     plan = preview_report(report, actor=request.user, payload=payload)
+    payload, changed = keep_recorded_xp(payload, plan)
+    if changed:
+        plan = preview_report(report, actor=request.user, payload=payload)
     if show_errors:
         errors = list(dict.fromkeys([*errors, *plan.errors]))
     # A refused stale save keeps the submitted generation/revision. Replacing
@@ -319,6 +337,7 @@ def post_battle_editor(request, pk):
         "review": plan.review,
     }
     version = ReportVersionForm(initial=values)
+    models = editor_models(plan, payload)
     return render(
         request,
         "n26/post_battle.html",
@@ -328,14 +347,12 @@ def post_battle_editor(request, pk):
             "battle": report.battle,
             "payload": payload,
             "plan": plan,
-            "models": editor_models(plan, payload),
+            "models": models,
+            "xp_toolbar": xp_toolbar(models),
             "version_form": version,
             "errors": errors,
             "show_errors": show_errors,
             "stale": stale,
-            "participant_count": sum(
-                bool(model.get("participated")) for model in payload.get("models", [])
-            ),
         },
         status=status,
     )

@@ -1005,7 +1005,9 @@ class TestWithoutCounterTracking:
 
     def test_xp_is_refused_without_counter_tracking(self, report, owner, model):
         report = save(report, owner, payload_for(model, xp=2))
-        assert "tracked XP" in " ".join(preview_report(report, actor=owner).errors)
+        plan = preview_report(report, actor=owner)
+        assert plan.models[0].xp_blocked == "tracking_off"
+        assert "counter history is switched on" in " ".join(plan.errors)
 
     def test_no_xp_counter_is_created_as_a_fallback(
         self, gang, owner, gang_type, fighter_type
@@ -1032,3 +1034,101 @@ class TestWithoutCounterTracking:
         saved = apply(report, owner)
         assert saved.receipt["credits_change"] == 30
         assert saved.receipt["credits_after"] is None
+
+
+def payload_for_all(models, **by_name):
+    """One entry per model, with XP entered by model name."""
+    payload = payload_for(models[0])
+    payload["models"] = [
+        {
+            "id": str(m.pk),
+            "participated": True,
+            "xp": by_name.get(m.name, 0),
+            "status": "",
+            "equipment": "keep",
+            "effects": [],
+        }
+        for m in models
+    ]
+    return payload
+
+
+@pytest.mark.usefixtures("counter_tracking")
+class TestXpBlockedReasons:
+    """Each reason a model cannot take XP is named, and it blocks only that model."""
+
+    def test_a_model_with_one_xp_counter_can_take_xp(self, report, owner, model):
+        result = preview_report(report, actor=owner).models[0]
+        assert result.xp_blocked == ""
+        assert result.xp_available
+        assert result.xp_blocked_message == ""
+
+    def test_a_model_without_an_xp_counter_is_named(
+        self, report, owner, gang, gang_type, fighter_type
+    ):
+        visitor = hire(
+            gang, create_profile("Civilian", fighter_type, gang_type), "Visitor"
+        )
+        result = next(
+            m
+            for m in preview_report(report, actor=owner).models
+            if m.id == str(visitor.pk)
+        )
+        assert result.xp_blocked == "no_counter"
+        assert not result.xp_available
+        assert result.xp_blocked_message == (
+            "Visitor has no XP counter, so XP cannot be recorded here."
+        )
+
+    def test_a_model_with_two_xp_counters_is_named(self, report, owner, model):
+        duplicate = Assignment.objects.get(miniature=model, counter__isnull=False)
+        # A second, hand-added XP counter beside the built-in one.
+        duplicate.pk = None
+        duplicate.materialised_from = None
+        duplicate.materialised_for = None
+        duplicate.save()
+        result = preview_report(report, actor=owner).models[0]
+        assert result.xp_blocked == "several_counters"
+        assert result.xp_blocked_message.startswith(
+            "Cinder has more than one XP counter."
+        )
+
+    def test_a_crafted_award_for_a_blocked_model_is_still_refused(
+        self, report, owner, gang, model, gang_type, fighter_type
+    ):
+        visitor = hire(
+            gang, create_profile("Civilian", fighter_type, gang_type), "Visitor"
+        )
+        report = save(report, owner, payload_for_all([model, visitor], Visitor=2))
+        plan = preview_report(report, actor=owner)
+        assert not plan.valid
+        assert (
+            "Visitor: This model has no XP counter, so XP cannot be recorded here."
+            in plan.errors
+        )
+
+    def test_a_blocked_participant_without_xp_does_not_stop_the_report(
+        self, report, owner, gang, model, content, gang_type, fighter_type
+    ):
+        visitor = hire(
+            gang, create_profile("Civilian", fighter_type, gang_type), "Visitor"
+        )
+        payload = payload_for_all([model, visitor], Cinder=2)
+        payload["credits"] = 20
+        payload["models"][1]["status"] = Status.RECOVERY
+        report = save(report, owner, payload)
+        wound = effect_for(report, owner, content["wound"])
+        payload["models"][0]["effects"] = [wound]
+        report = save(report, owner, payload)
+        saved = apply(report, owner)
+        gang.refresh_from_db()
+        visitor.refresh_from_db()
+        model.refresh_from_db()
+        assert gang.credits == 1020
+        assert visitor.status == Status.RECOVERY
+        assert model.status == Status.RECOVERY
+        assert saved.receipt["models"][0]["xp_change"] == 2
+        assert not Assignment.objects.filter(
+            miniature=visitor, counter__isnull=False
+        ).exists()
+        assert_reconciled(gang)

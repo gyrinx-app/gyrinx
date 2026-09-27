@@ -94,3 +94,18 @@ class TestTheCardMenuAsksForIt:
         on a narrow screen. A menu placed inside that box loses whatever hangs
         past its edges, which is most of the menu on the last weapon."""
         assert 'strategy="fixed"' in source_of("cotton/n26/owned_actions.html")
+
+
+class TestPopoversUseTheSamePlacer:
+    """A popover asking for the fixed strategy is placed by the same script,
+    so a popover in a scrolling table is not cut off at the table's edges."""
+
+    def test_the_popover_calls_the_placer_only_when_asked(self):
+        source = source_of("cotton/ui/popover.html")
+
+        assert PLACER in source
+        assert 'strategy="absolute"' in source
+        assert "{% if strategy == 'fixed' %}" in source
+
+    def test_the_post_battle_reason_popover_asks_for_it(self):
+        assert '<c-ui.popover strategy="fixed"' in source_of("n26/post_battle.html")

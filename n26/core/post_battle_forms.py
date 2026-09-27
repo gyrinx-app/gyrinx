@@ -79,34 +79,25 @@ def posted_payload(data):
     }
 
 
-def change_draft(payload, intent, *, previous=None):
+XP_STEPS = {"xp-step:+1": 1, "xp-step:-1": -1}
+
+
+def change_draft(payload, intent, *, xp_eligible=frozenset()):
     """Server-side form actions alter pending values, never the gang."""
     payload = deepcopy(payload)
-    if previous and "bulk_undo" in previous and intent != "undo-xp":
-        payload["bulk_undo"] = previous["bulk_undo"]
-    if intent == "participation-xp":
-        before = {}
+    payload.pop("bulk_undo", None)
+    if intent in XP_STEPS:
+        step = XP_STEPS[intent]
         for model in payload["models"]:
-            if model["participated"]:
-                try:
-                    amount = int(model["xp"] or 0)
-                except TypeError, ValueError:
-                    raise forms.ValidationError(
-                        "Enter whole numbers for XP before adding participation XP."
-                    ) from None
-                before[model["id"]] = model["xp"]
-                model["xp"] = str(amount + 1)
-        payload["bulk_undo"] = before
-    elif intent == "undo-xp":
-        before = (previous or {}).get("bulk_undo", {})
-        for model in payload["models"]:
-            if model["id"] in before:
-                try:
-                    model["xp"] = str(int(model["xp"] or 0) - 1)
-                except TypeError, ValueError:
-                    raise forms.ValidationError(
-                        "Enter whole numbers for XP before undoing the addition."
-                    ) from None
+            if not model["participated"] or model["id"] not in xp_eligible:
+                continue
+            try:
+                amount = int(model["xp"] or 0)
+            except TypeError, ValueError:
+                raise forms.ValidationError(
+                    "Enter whole numbers for XP before changing XP for the selected models."
+                ) from None
+            model["xp"] = str(max(0, amount + step))
     elif intent.startswith("add-effect:"):
         target = intent.removeprefix("add-effect:")
         for model in payload["models"]:
@@ -127,6 +118,29 @@ def change_draft(payload, intent, *, previous=None):
                 if effect["id"] == target:
                     effect["choices"] = {}
     return payload
+
+
+def keep_recorded_xp(payload, plan):
+    """Put back the recorded award on models that cannot take XP.
+
+    Returns the payload and whether anything changed. Drafts saved before
+    blocked models were skipped can hold XP those models cannot take.
+    """
+    blocked = {
+        str(model.id): str(model.xp_recorded or "")
+        for model in plan.models
+        if not model.xp_available
+    }
+    changed = False
+    payload = deepcopy(payload)
+    for model in payload.get("models", []):
+        if not isinstance(model, dict):
+            continue
+        recorded = blocked.get(str(model.get("id")))
+        if recorded is not None and str(model.get("xp") or "") != recorded:
+            model["xp"] = recorded
+            changed = True
+    return payload, changed
 
 
 @dataclass
@@ -151,6 +165,10 @@ class ReportModel:
     effect_options: list
     effects: list
     status_options: list
+
+    @property
+    def xp_why_label(self):
+        return f"Why {self.name} cannot take XP"
 
     @property
     def final_status_label(self):
@@ -201,7 +219,13 @@ def editor_models(plan, payload):
                 prefix=f"model-{model_id}",
                 result=model,
                 participated=bool(values.get("participated", model.participated)),
-                xp=values.get("xp", ""),
+                # A model that cannot take XP keeps its recorded award, so
+                # an old or stray value never blocks the rest of the report.
+                xp=(
+                    values.get("xp", "")
+                    if model.xp_available
+                    else str(model.xp_recorded or "")
+                ),
                 status=values.get("status", ""),
                 equipment=values.get("equipment", "keep"),
                 effect_options=options,
@@ -212,3 +236,59 @@ def editor_models(plan, payload):
             )
         )
     return models
+
+
+def _plural(count, one, many):
+    return (one if count == 1 else many).replace("{n}", str(count))
+
+
+@dataclass
+class XpToolbar:
+    """The selected-models bar. The page script redraws it from the templates."""
+
+    selected: int
+    minus_disabled: bool
+    plus_disabled: bool
+
+    count_one = count_many = "{n} selected"
+    plus_one = "Add 1 XP to the selected model"
+    plus_many = "Add 1 XP to the {n} selected models"
+    minus_one = "Remove 1 XP from the selected model"
+    minus_many = "Remove 1 XP from the {n} selected models"
+
+    @property
+    def minus_attrs(self):
+        return {"disabled": True} if self.minus_disabled else {}
+
+    @property
+    def plus_attrs(self):
+        return {"disabled": True} if self.plus_disabled else {}
+
+    @property
+    def count_label(self):
+        return _plural(self.selected, self.count_one, self.count_many)
+
+    @property
+    def plus_label(self):
+        return _plural(self.selected, self.plus_one, self.plus_many)
+
+    @property
+    def minus_label(self):
+        return _plural(self.selected, self.minus_one, self.minus_many)
+
+
+def xp_toolbar(models):
+    selected = [model for model in models if model.participated]
+    eligible = [model for model in selected if model.result.xp_available]
+
+    def entered(model):
+        try:
+            return int(model.xp or 0)
+        except TypeError, ValueError:
+            return 1
+
+    return XpToolbar(
+        selected=len(selected),
+        minus_disabled=all(entered(model) <= 0 for model in eligible),
+        plus_disabled=not eligible,
+    )

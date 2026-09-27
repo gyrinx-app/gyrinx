@@ -62,22 +62,36 @@
                         <p class="mt-1 text-sm text-muted">Select the models that actually took part. Unused reinforcements do not earn participation XP.</p>
                     </div>
                     <div class="border border-box-border bg-surface">
-                        <c-n26.action-bar class="border-b border-box-border bg-ink-100 p-3 dark:bg-ink-900">
-                            <div class="mr-auto">
-                                <p class="text-sm font-semibold"><span data-participant-count>{{ participant_count }}</span> took part</p>
-                                <p class="mt-1 text-xs text-muted">Add participation XP to the selected models.</p>
+                        <c-n26.action-bar class="border-b border-box-border bg-ink-100 p-3 dark:bg-ink-900"
+                                          data-xp-toolbar>
+                            <div class="mr-auto" role="status" aria-live="polite">
+                                <p class="text-sm font-semibold"
+                                   data-xp-count
+                                   data-one="{{ xp_toolbar.count_one }}"
+                                   data-many="{{ xp_toolbar.count_many }}">{{ xp_toolbar.count_label }}</p>
                             </div>
-                            <c-ui.button type="submit"
-                                         name="intent"
-                                         value="participation-xp"
-                                         aria-label="Add 1 XP to participants">
-                                Add 1 XP
-                            </c-ui.button>
-                            {% if payload.bulk_undo %}<c-ui.button type="submit"
-             name="intent"
-             value="undo-xp"
-             aria-label="Undo XP addition"
-             variant="ghost">Undo</c-ui.button>{% endif %}
+                            <div class="flex shrink-0 gap-2">
+                                <c-ui.button type="submit"
+                                             name="intent"
+                                             value="xp-step:-1"
+                                             aria-label="{{ xp_toolbar.minus_label }}"
+                                             data-xp-step="-1"
+                                             data-one="{{ xp_toolbar.minus_one }}"
+                                             data-many="{{ xp_toolbar.minus_many }}"
+                                             :attrs="xp_toolbar.minus_attrs">
+                                    −1 XP
+                                </c-ui.button>
+                                <c-ui.button type="submit"
+                                             name="intent"
+                                             value="xp-step:+1"
+                                             aria-label="{{ xp_toolbar.plus_label }}"
+                                             data-xp-step="+1"
+                                             data-one="{{ xp_toolbar.plus_one }}"
+                                             data-many="{{ xp_toolbar.plus_many }}"
+                                             :attrs="xp_toolbar.plus_attrs">
+                                    +1 XP
+                                </c-ui.button>
+                            </div>
                         </c-n26.action-bar>
                         <c-ui.table class="n26-participation-table">
                             <caption class="sr-only">Models that took part and XP awarded</caption>
@@ -100,6 +114,8 @@
                                                        type="checkbox"
                                                        name="{{ model.prefix }}-participated"
                                                        aria-label="{{ model.name }} took part"
+                                                       data-xp-participant="{{ model.prefix }}-xp"
+                                                       {% if not model.result.xp_available %}data-xp-blocked{% endif %}
                                                        class="size-5 shrink-0 accent-[var(--color-accent)]"
                                                        {% if model.participated %}checked{% endif %}>
                                                 <span class="min-w-0"><span class="block font-semibold">{{ model.name }}</span><span class="mt-1 block text-xs text-muted">{{ model.result.status_label }}</span></span>
@@ -107,18 +123,47 @@
                                         </td>
                                         <td class="text-right tabular-nums">{{ model.result.xp_before }}</td>
                                         <td>
-                                            <label for="{{ model.prefix }}-xp"
-                                                   class="sr-only">XP gained for {{ model.name }}</label>
-                                            <c-ui.input id="{{ model.prefix }}-xp"
-                                                        name="{{ model.prefix }}-xp"
-                                                        type="number"
-                                                        min="0"
-                                                        inputmode="numeric"
-                                                        aria-describedby="{{ model.prefix }}-xp-help"
-                                                        value="{{ model.xp }}"
-                                                        size="lg" />
+                                            {% if model.result.xp_available %}
+                                                <label for="{{ model.prefix }}-xp"
+                                                       class="sr-only">XP gained for {{ model.name }}</label>
+                                                <c-ui.input id="{{ model.prefix }}-xp"
+                                                            name="{{ model.prefix }}-xp"
+                                                            type="number"
+                                                            min="0"
+                                                            inputmode="numeric"
+                                                            aria-describedby="{{ model.prefix }}-xp-help"
+                                                            value="{{ model.xp }}"
+                                                            data-xp-input
+                                                            size="lg" />
+                                            {% else %}
+                                                <input type="hidden"
+                                                       name="{{ model.prefix }}-xp"
+                                                       value="{{ model.xp }}">
+                                                <c-ui.popover strategy="fixed"
+                                                              position="bottom"
+                                                              align="end"
+                                                              panel_id="{{ model.prefix }}-xp-why"
+                                                              panel_label="{{ model.xp_why_label }}">
+                                                    <c-slot name="trigger">
+                                                        <c-ui.button variant="ghost"
+                                                                     size="sm"
+                                                                     compact
+                                                                     id="{{ model.prefix }}-xp-why-button"
+                                                                     aria-label="{{ model.xp_why_label }}"
+                                                                     aria-expanded="false"
+                                                                     ::aria-expanded="open"
+                                                                     aria-controls="{{ model.prefix }}-xp-why"
+                                                                     data-xp-why>
+                                                            <span class="n26-icon-only">
+                                                                <c-n26.icon name="circle-question-mark"
+                                                                            class="size-5" />
+                                                            </span>
+                                                        </c-ui.button>
+                                                    </c-slot>
+                                                    <p class="w-64 max-w-full">{{ model.result.xp_blocked_message }}</p>
+                                                </c-ui.popover>
+                                            {% endif %}
                                             <div id="{{ model.prefix }}-xp-help">
-                                                {% if not model.result.xp_available %}<p class="mt-1 text-xs text-muted">No editable XP counter. Leave blank.</p>{% endif %}
                                                 {% if show_errors and model.result.errors %}<a href="#{{ model.prefix }}-errors"
    class="mt-1 block text-xs text-red-700 underline dark:text-red-300">Check this model's results</a>{% endif %}
                                             </div>
