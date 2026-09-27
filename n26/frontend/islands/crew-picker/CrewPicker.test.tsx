@@ -94,7 +94,9 @@ describe("CrewPicker", () => {
         const { user, data } = setup();
         expect(
             screen
-                .getByRole("combobox", { name: "Starting crew or reinforcement for Nell" })
+                .getByRole("combobox", {
+                    name: "Starting crew or reinforcement for Nell",
+                })
                 .hasAttribute("disabled"),
         ).toBe(true);
         expect(data().get("role_b")).toBe("out");
@@ -107,7 +109,9 @@ describe("CrewPicker", () => {
         ).toBeTruthy();
         expect(
             screen
-                .getByRole("combobox", { name: "Starting crew or reinforcement for Nell" })
+                .getByRole("combobox", {
+                    name: "Starting crew or reinforcement for Nell",
+                })
                 .hasAttribute("disabled"),
         ).toBe(false);
     });

@@ -68,7 +68,7 @@ def crew_roster(gang, crew=None):
 
     A pet goes into battle with its owner and does not count towards the
     crew, so a model another model's kit brought in is never on offer here.
-    A pet saved before that rule is dropped from the crew on its next save.
+    A saved pet is not in the roster, so the next save drops it from the crew.
     """
     saved = list(crew.members.all()) if crew else []
     saved_by_model = {m.miniature_id: m for m in saved if m.miniature_id}
@@ -319,6 +319,9 @@ class CrewCard:
     member: CrewMember
     card: ModelCard | None
     missing_equipment: bool = False
+    #: The member's pets, drawn with all their own equipment. They go into
+    #: battle with their owner and are not counted in the crew or its rating.
+    pets: tuple[ModelCard, ...] = ()
 
 
 @dataclass
@@ -338,6 +341,17 @@ def build_crew_sheet(crew):
             "miniature__membership__caused_by__miniature_root",
         )
     )
+    owners = {member.miniature_id for member in members if member.miniature_id}
+    pets = list(
+        Miniature.objects.filter(
+            membership__gang=crew.gang,
+            membership__archived=False,
+            membership__caused_by__miniature_root__in=owners,
+        )
+        .exclude(status=Status.DEAD)
+        .select_related("membership__profile", "membership__caused_by__miniature_root")
+        .order_by("name", "pk")
+    )
     gang_card = build_gang_card(crew.gang)
     available_by_model = {
         miniature_id: {str(a.pk) for a in assignments if a.miniature_id == miniature_id}
@@ -351,11 +365,12 @@ def build_crew_sheet(crew):
             for value in member.equipment_ids
             if value in available_by_model.get(member.miniature_id, set())
         )
+        + tuple(value for pet in pets for value in available_by_model.get(pet.pk, ()))
     )
     gang_card.members = gang_card.members_under(selected)
     index = build_modifier_index(carriers(gang_card, *gang_card.members.values()))
     compute_gang(gang_card, index)
-    minis = [member.miniature for member in members if member.miniature]
+    minis = [member.miniature for member in members if member.miniature] + pets
     computed = {
         miniature.pk: compute(gang_card.members[miniature.pk], index)
         for miniature in minis
@@ -373,6 +388,20 @@ def build_crew_sheet(crew):
         ),
     )
     sheet.rating = sheet.starting_rating + sheet.reserve_rating
+    pets_by_owner = {}
+    for pet in pets:
+        raw = gang_card.members.get(pet.pk)
+        if raw is None:
+            continue
+        pets_by_owner.setdefault(pet.owned_by.pk, []).append(
+            build_model_card(
+                pet,
+                card=raw,
+                computed=computed[pet.pk],
+                brought_in=brought,
+                rank_summaries=ranks[pet.pk],
+            )
+        )
     for member in members:
         miniature = member.miniature
         raw = gang_card.members.get(member.miniature_id)
@@ -396,6 +425,7 @@ def build_crew_sheet(crew):
                 set(member.equipment_ids)
                 - available_by_model.get(member.miniature_id, set())
             ),
+            tuple(pets_by_owner.get(member.miniature_id, ())),
         )
         (
             sheet.starting

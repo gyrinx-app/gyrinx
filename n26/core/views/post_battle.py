@@ -67,9 +67,9 @@ def _initial_payload(gang, battle=None):
         crew = BattleCrew.objects.filter(battle=battle, gang=gang).first()
         if crew:
             starting = set(
-                crew.members.filter(role="starting").values_list(
-                    "miniature_id", flat=True
-                )
+                crew.members.filter(
+                    role="starting", miniature__isnull=False
+                ).values_list("miniature_id", flat=True)
             )
     # A pet takes part whenever its owner starts.
     return {

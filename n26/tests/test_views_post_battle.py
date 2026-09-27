@@ -19,6 +19,7 @@ from n26.core.crews import CrewSelection, save_crew
 from n26.core.models import (
     Activity,
     Assignment,
+    BattleCrew,
     CounterValue,
     LedgerEvent,
     Miniature,
@@ -715,6 +716,20 @@ class TestStartingAndResuming:
         by_id = {row["id"]: row for row in payload["models"]}
         assert by_id[str(pet.pk)]["participated"]
         assert not by_id[str(table.models[1].pk)]["participated"]
+
+    def test_a_deleted_starting_member_does_not_tick_every_model(
+        self, client, table, feature
+    ):
+        crew = BattleCrew.objects.create(battle=table.battle, gang=table.gang)
+        crew.members.create(
+            miniature=None,
+            miniature_name="Gone",
+            role="starting",
+            card_name="Full equipment",
+        )
+        report = start(client, table)
+        payload = client.get(editor_url(report)).context["payload"]
+        assert not any(row["participated"] for row in payload["models"])
 
     def test_saved_crew_only_preselects_starting_models(self, client, table, feature):
         save_crew(

@@ -176,6 +176,18 @@ def crew_sheet(request, pk, battle_pk, gang_pk):
                     "columns": detail_columns(card) if card else [],
                 }
             )
+            for pet in line.pets:
+                rows.append(
+                    {
+                        "card": pet,
+                        "subtitle": " · ".join(
+                            part
+                            for part in ("Pet", pet.profile_name, pet.owner_line)
+                            if part
+                        ),
+                        "columns": detail_columns(pet),
+                    }
+                )
         return render(
             request,
             "n26/print_gang.html",

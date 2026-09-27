@@ -427,19 +427,16 @@ class TestCrewPets:
         response = client.get(address(table))
         ids = {model["id"] for model in response.context["crew_picker"]["models"]}
         assert ids == {str(model.pk) for model in table.models}
-        client.post(
+        response = client.post(
             address(table),
-            fields(table, action="draw", random_count="2")
+            fields(table, action="draw", random_count="3")
             | {f"role_{m.pk}": "out" for m in table.models},
         )
-        crew = BattleCrew.objects.get()
-        assert set(crew.members.values_list("miniature_id", flat=True)) == {
-            model.pk for model in table.models
-        }
+        assert response.status_code == 200
+        assert "Only 2 eligible models remain" in response.content.decode()
+        assert not BattleCrew.objects.exists()
 
-    def test_a_pet_saved_before_the_fix_leaves_the_crew_on_resave(
-        self, client, table, pet, feature
-    ):
+    def test_a_saved_pet_leaves_the_crew_on_resave(self, client, table, pet, feature):
         crew = BattleCrew.objects.create(battle=table.battle, gang=table.gang)
         crew.members.create(
             miniature=pet,
@@ -450,6 +447,34 @@ class TestCrewPets:
         response = client.post(address(table), fields(table, revision="0"))
         assert response.status_code == 302
         assert not crew.members.filter(miniature=pet).exists()
+
+    def test_the_sheet_draws_a_pet_after_its_owner_and_does_not_count_it(
+        self, client, table, pet, feature
+    ):
+        client.post(address(table), fields(table))
+        sheet = client.get(address(table, sheet=True))
+        (owner_line,) = [
+            line
+            for line in sheet.context["sheet"].starting
+            if line.member.miniature_id == table.models[0].pk
+        ]
+        assert [card.name for card in owner_line.pets] == ["Cyber-mastiff"]
+        assert len(sheet.context["sheet"].starting) == 1
+        body = sheet.content.decode()
+        assert "Goes with its owner. Not counted in the crew." in body
+        printed = client.get(address(table, sheet=True) + "?print=1")
+        titles = [row["card"].name for row in printed.context["rows"]]
+        assert titles.index("Cyber-mastiff") == titles.index("Mara") + 1
+
+    def test_a_pet_whose_owner_is_not_in_the_crew_is_not_drawn(
+        self, client, table, pet, feature
+    ):
+        client.post(
+            address(table), fields(table, **{f"role_{table.models[0].pk}": "out"})
+        )
+        sheet = client.get(address(table, sheet=True))
+        assert all(not line.pets for line in sheet.context["sheet"].reserves)
+        assert "Cyber-mastiff" not in sheet.content.decode()
 
 
 class TestCrewPagePermissions:
