@@ -72,7 +72,7 @@ describe("CrewPicker", () => {
         async (invalid) => {
             const changed = model("a", "Mara", "starting");
             changed.card.value = invalid;
-            changed.card.choices = [{ value: "full", label: "Full equipment" }];
+            changed.card.choices = [{ value: "full", label: "All equipment" }];
             changed.card.errors = ["Select a valid choice."];
             const { user, data } = setup([changed]);
             const select = screen.getByRole<HTMLSelectElement>("combobox", {
@@ -83,9 +83,7 @@ describe("CrewPicker", () => {
             );
             expect(data().get("card_a")).toBe(invalid);
             await user.selectOptions(select, "full");
-            expect(select.selectedOptions[0].textContent).toBe(
-                "Full equipment",
-            );
+            expect(select.selectedOptions[0].textContent).toBe("All equipment");
             expect(data().get("card_a")).toBe("full");
         },
     );

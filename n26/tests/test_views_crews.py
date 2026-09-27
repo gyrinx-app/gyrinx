@@ -607,7 +607,7 @@ class TestCrewPagePermissions:
         assert "Autogun" in paper.get_text()
         assert "Toll bridge" in paper.get_text()
         assert "Starting crew · Long range" in paper.get_text()
-        assert "Reinforcements · Full equipment" in paper.get_text()
+        assert "Reinforcements · All equipment" in paper.get_text()
         header = paper.select_one(".n26-print-card")
         entries = {
             entry.select_one(".n26-print-entry-label").get_text(

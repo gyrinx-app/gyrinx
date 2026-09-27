@@ -11,7 +11,7 @@
 {% block content %}
     <div class="space-y-8">
         <c-n26.page-header title="Model cards"
-                           lead="Choose which weapons and wargear appear on each card. The model still owns all its equipment and keeps its full rating.">
+                           lead="Select which weapons and wargear appear on each card. The model still owns all its equipment and keeps its full rating.">
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
                     <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
@@ -29,7 +29,7 @@
             </c-slot>
         </c-n26.page-header>
         {% if not has_named_cards %}
-            <p class="text-sm text-muted">This model has one standard card showing all its equipment. Add named cards to choose between different equipment selections.</p>
+            <p class="text-sm text-muted">All equipment is always available. Add a named card to use a smaller set of equipment in a battle.</p>
         {% endif %}
         <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
             {% for row in cards %}
@@ -48,6 +48,7 @@
                             </div>
                         {% endif %}
                     </div>
+                    {% if row.note %}<p class="text-sm text-amber-700 dark:text-amber-300">{{ row.note }}</p>{% endif %}
                     <c-n26.model-card :card="row.card" :tabs="False" />
                 </section>
             {% endfor %}

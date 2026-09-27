@@ -132,15 +132,24 @@ class TestSavedCrews:
             save(table, [select(model, card=table.ranged.pk)])
         assert not BattleCrew.objects.exists()
 
-    def test_named_cards_never_add_an_implicit_full_equipment_choice(self, table):
+    def test_all_equipment_is_offered_first_but_only_named_cards_are_drawn(self, table):
         roster = crew_roster(table.gang)
         mara = next(item for item in roster if item.miniature.pk == table.models[0].pk)
-        assert {card.key for card in mara.cards} == {
+        assert [card.key for card in mara.cards] == [
+            "full",
+            *(card.key for card in mara.cards[1:]),
+        ]
+        assert mara.cards[0].name == "All equipment"
+        assert {card.key for card in mara.cards[1:]} == {
             str(table.ranged.pk),
             str(table.close.pk),
         }
-        with pytest.raises(Refusal, match="no longer available"):
-            save(table, [select(table.models[0])])
+        assert {card.key for card in mara.draw_cards} == {
+            str(table.ranged.pk),
+            str(table.close.pk),
+        }
+        crew = save(table, [select(table.models[0])])
+        assert crew.members.get().card_name == "All equipment"
 
     def test_saved_card_survives_rename_edit_and_deletion(self, table):
         crew = save(table, [select(table.models[0], card=table.ranged.pk)])
