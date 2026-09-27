@@ -57,3 +57,21 @@ def explains(status, vehicle=False):
         case Status.DEAD:
             return "Adds nothing to the gang's rating."
     return ""
+
+
+#: The badge colour for each status. Colour marks trouble: an active model
+#: stays neutral, recovery is a warning, anything worse is red. A dead
+#: model's card also fades.
+_COLOURS = {
+    Status.ACTIVE: "ink",
+    Status.RECOVERY: "amber",
+    Status.CRITICAL: "red",
+    Status.CAPTURED: "red",
+    Status.RANSOMED: "red",
+    Status.DEAD: "red",
+}
+
+
+def status_colour(status):
+    """The badge colour for a status. An empty status reads as active."""
+    return _COLOURS[Status(status or Status.ACTIVE)]

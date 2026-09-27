@@ -37,7 +37,7 @@ import json
 
 from django.contrib.messages import get_messages
 from django.http import HttpResponse
-from django.shortcuts import redirect
+from django.shortcuts import redirect, resolve_url
 
 #: How long a toast stays before it dismisses itself. An error toast is
 #: given no timeout at all: the reason a click did nothing is worth more
@@ -99,3 +99,19 @@ def stay_or_redirect(request, to):
     if is_htmx(request):
         return no_update(request)
     return redirect(to)
+
+
+def redirect_page(request, to, *args, **kwargs):
+    """Go to another page, even from inside a partial update.
+
+    Without htmx this is a plain redirect. With htmx a redirect would be
+    followed by the XMLHttpRequest and the whole page swapped into the
+    small target the control named, so the answer is ``HX-Redirect``
+    instead, which htmx turns into a real page load.
+    """
+    to = resolve_url(to, *args, **kwargs)
+    if not is_htmx(request):
+        return redirect(to)
+    response = HttpResponse(status=204)
+    response["HX-Redirect"] = to
+    return response

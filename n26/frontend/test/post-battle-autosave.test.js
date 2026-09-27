@@ -121,3 +121,99 @@ describe("post-battle draft autosave", () => {
         expect(options.body.get("credits")).toBe("75");
     });
 });
+
+function htmxEvent(type, detail) {
+    const event = new CustomEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        detail,
+    });
+    form.elements.credits.dispatchEvent(event);
+    return event;
+}
+
+describe("post-battle in-place updates", () => {
+    it("waits for a running autosave before sending an update", async () => {
+        let finish;
+        fetch.mockReturnValueOnce(
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+        );
+        form.elements.credits.value = "75";
+        form.elements.credits.dispatchEvent(
+            new Event("input", { bubbles: true }),
+        );
+        await vi.advanceTimersByTimeAsync(900);
+        expect(fetch).toHaveBeenCalledTimes(1);
+
+        const issueRequest = vi.fn();
+        const confirm = htmxEvent("htmx:confirm", { issueRequest });
+        expect(confirm.defaultPrevented).toBe(true);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(issueRequest).not.toHaveBeenCalled();
+
+        finish(
+            new Response(
+                JSON.stringify({
+                    revision: 4,
+                    generation: "4",
+                    saved: "18:00:00",
+                }),
+                { status: 200 },
+            ),
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        expect(issueRequest).toHaveBeenCalledWith(true);
+    });
+
+    it("saves input that arrives while an update is in flight", async () => {
+        htmxEvent("htmx:beforeRequest", {});
+        form.elements.credits.value = "75";
+        form.elements.credits.dispatchEvent(
+            new Event("input", { bubbles: true }),
+        );
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(fetch).not.toHaveBeenCalled();
+        expect(unloadWarning()).toBe(true);
+
+        // The out-of-band swap writes the server's line first.
+        status.textContent = "Draft saved 18:00";
+        fetch.mockResolvedValueOnce(
+            new Response(
+                JSON.stringify({
+                    revision: 5,
+                    generation: "4",
+                    saved: "18:01:00",
+                }),
+                { status: 200 },
+            ),
+        );
+        htmxEvent("htmx:afterRequest", { successful: true });
+        expect(status.textContent).toBe("Unsaved changes");
+        await vi.advanceTimersByTimeAsync(900);
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(fetch.mock.calls[0][1].body.get("credits")).toBe("75");
+        expect(status.textContent).toBe("Draft saved 18:01:00");
+    });
+
+    it("keeps the server's saved line when nothing changed meanwhile", async () => {
+        htmxEvent("htmx:beforeRequest", {});
+        status.textContent = "Draft saved 18:00";
+        htmxEvent("htmx:afterRequest", { successful: true });
+        expect(status.textContent).toBe("Draft saved 18:00");
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("shows the server's reason when an update is refused", async () => {
+        htmxEvent("htmx:beforeRequest", {});
+        htmxEvent("htmx:afterRequest", {
+            successful: false,
+            xhr: { responseText: "Someone else saved this draft." },
+        });
+        expect(status.textContent).toBe(
+            "Someone else saved this draft. Your entries are still here. Use Save draft to retry.",
+        );
+    });
+});

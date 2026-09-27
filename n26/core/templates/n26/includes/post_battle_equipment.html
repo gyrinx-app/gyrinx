@@ -1,0 +1,13 @@
+<c-ui.field label="{{ model.equipment_label }}"
+            for="{{ model.prefix }}-equipment">
+    <c-ui.select.native id="{{ model.prefix }}-equipment"
+                        name="{{ model.prefix }}-equipment"
+                        placeholder=""
+                        size="lg"
+                        :attrs="model.refresh_attrs">
+        <option value="keep" {% if model.equipment == 'keep' %}selected{% endif %}>Leave with the model</option>
+        <option value="stash"
+                {% if model.equipment == 'stash' %}selected{% endif %}>Move equipment to the stash</option>
+        <option value="lost" {% if model.equipment == 'lost' %}selected{% endif %}>Mark equipment lost</option>
+    </c-ui.select.native>
+</c-ui.field>

@@ -39,6 +39,17 @@ from n26.write_pause import write_guard
 class Option:
     value: str
     label: str
+    #: The rolls that land on this option on a roll table, "11-16", or
+    #: empty where the list has no dice.
+    band: str = ""
+
+    @property
+    def text(self):
+        """The option as a list shows it: the band first, so a player
+        finds their roll by scanning. Ranges take an en dash."""
+        if not self.band:
+            return self.label
+        return f"{self.band.replace('-', '–')} {self.label}"
 
 
 @dataclass
@@ -94,8 +105,18 @@ class ModelResult:
     equipment_changed: bool = False
     equipment_affected_names: list[str] = field(default_factory=list)
     equipment_exclusions: list[str] = field(default_factory=list)
+    #: A disposition was saved while the model was dead, and the model is
+    #: no longer dead. The draft keeps it; this report ignores it.
+    equipment_ignored: bool = False
     errors: list[str] = field(default_factory=list)
     participated: bool = False
+    #: Why the final status must be chosen by hand, when it must. Shown
+    #: in the model's module as soon as it arises, not only after Check.
+    status_conflict: str = ""
+
+    @property
+    def equipment_applies(self):
+        return self.final_status == Status.DEAD
 
     @property
     def xp_available(self):
@@ -362,7 +383,7 @@ def _effect_steps(thing, index, errors, facts, active):
         elif isinstance(effect, OpChangesCounter):
             if not active:
                 errors.append(
-                    "Counter tracking must be active before applying this lasting effect."
+                    f"Counter tracking must be active before applying {thing}."
                 )
         elif effect is not None and getattr(effect, "is_stored", False):
             errors.append(
@@ -396,7 +417,7 @@ def _project_effect(
     )
     answers = raw.get("choices") or {}
     if not isinstance(answers, dict):
-        result_errors.append("The choices for this lasting effect are invalid.")
+        result_errors.append(f"The choices for {thing} are invalid.")
         answers = {}
     asked = set()
     for _ in range(5):
@@ -417,12 +438,12 @@ def _project_effect(
                 not isinstance(value, str) for value in chosen
             ):
                 chosen = []
-                result_errors.append("The choices for this lasting effect are invalid.")
+                result_errors.append(f"The choices for {thing} are invalid.")
             result.questions.append(
                 ChoiceQuestion(
                     key,
                     question.kind_label,
-                    [Option(k, v.name) for k, v in offered.items()],
+                    [Option(k, v.name, v.band) for k, v in offered.items()],
                     chosen,
                     question.min_picks,
                     question.max_picks,
@@ -437,7 +458,7 @@ def _project_effect(
                 and question.slot.assigned_to == Slot.WillBeAssignedTo.GANG
             ) or (question.offer and question.offer.will_be_assigned_to == "gang"):
                 result_errors.append(
-                    "This lasting effect asks for a gang-wide choice. Resolve it separately before continuing."
+                    f"{thing} asks for a gang-wide choice. Resolve it separately before continuing."
                 )
                 continue
             if (
@@ -483,13 +504,11 @@ def _project_effect(
                     _effect_steps(option.thing, index, result_errors, facts, active)
                 )
     else:
-        result_errors.append(
-            "This lasting effect has too many linked choices to record here."
-        )
+        result_errors.append(f"{thing} has too many linked choices to record here.")
     known = {q.key for q in result.questions}
     if any(value for key, value in answers.items() if key not in known):
         result_errors.append(
-            "Some choices no longer belong to this lasting effect. Check its choices again."
+            f"Some choices no longer belong to {thing}. Check its choices again."
         )
     return result_errors
 
@@ -555,7 +574,7 @@ def _project_counters(card, index, plan, result, facts):
             matches = counters.get(effect.counter_id, [])
             if len(matches) > 1:
                 result.errors.append(
-                    "This lasting effect has more than one matching counter. Resolve it separately."
+                    f"{thing} has more than one matching counter. Resolve it separately."
                 )
                 continue
             if not matches:
@@ -740,7 +759,7 @@ def preview_report(report, *, actor, payload=None):
             or any(not isinstance(e, dict) for e in raw.get("effects", []))
         ):
             raw["effects"] = []
-            errors.append("The lasting effects are invalid.")
+            errors.append("A model's results are invalid.")
     previous = (
         report.revisions.filter(sequence=report.latest_sequence).first()
         if report.latest_sequence
@@ -750,6 +769,17 @@ def preview_report(report, *, actor, payload=None):
     old_models = {m["id"]: m for m in old.get("models", [])}
     xp_sources = _manual_xp_sources(report, old_models)
     old_occurrences = previous.receipt.get("occurrences", {}) if previous else {}
+    # Each model's status before the report was first applied.
+    first = (
+        report.revisions.filter(sequence=1).only("receipt").first()
+        if previous
+        else None
+    )
+    started = {
+        m["id"]: m["status_before"]
+        for m in (first.receipt.get("models", []) if first else [])
+        if m.get("status_before") in Status.values
+    }
     credits = _integer(payload.get("credits"), "credits", errors)
     reason = str(payload.get("reason", "")).strip()
     if (credits or old.get("credits", 0)) and not reason:
@@ -840,7 +870,7 @@ def preview_report(report, *, actor, payload=None):
             or str(root.miniature_root_id) != held["model_id"]
         ):
             errors.append(
-                "A lasting effect being corrected has already been removed or moved. Correct it separately first."
+                f"{held['name']} has already been removed or moved since it was recorded. Correct it separately first."
             )
             continue
         descendants = {str(a.pk) for a in subtree(root) if not a.archived} | {
@@ -848,7 +878,7 @@ def preview_report(report, *, actor, payload=None):
         }
         if descendants != set(held["assignment_ids"]):
             errors.append(
-                "A lasting effect being corrected has changed since it was recorded. Correct it separately first."
+                f"{held['name']} has changed since it was recorded. Correct it separately first."
             )
             continue
         events = list(
@@ -867,7 +897,7 @@ def preview_report(report, *, actor, payload=None):
                     or value is None
                 ):
                     errors.append(
-                        "This lasting effect changed a counter that cannot be safely reversed. Correct that counter separately first."
+                        f"{held['name']} changed a counter that cannot be safely reversed. Correct that counter separately first."
                     )
         plan._removals.append((occurrence, root, events))
         removed.update(descendants)
@@ -959,23 +989,27 @@ def preview_report(report, *, actor, payload=None):
             result.effect_slots.append(
                 EffectSlot(
                     key,
-                    slot.kind_label,
-                    [Option(str(v.thing.pk), v.name) for v in options.values()],
+                    # The table's kind, singular: one row is one result.
+                    # The slot's own label is the card's heading, often
+                    # plural ("Lasting Injuries").
+                    slot.slot.slot_type.name,
+                    [Option(str(v.thing.pk), v.name, v.band) for v in options.values()],
                 )
             )
         normalized_effects = []
         implied = []
+        implied_by = []
         new_counts = defaultdict(int)
         for raw_effect in raw.get("effects", []):
             try:
                 occurrence = str(UUID(str(raw_effect.get("id"))))
             except ValueError, TypeError, AttributeError:
                 model_errors.append(
-                    "A lasting effect has an invalid reference. Remove it and add it again."
+                    "A result has an invalid reference. Remove it and add it again."
                 )
                 continue
             if occurrence in occurrences:
-                model_errors.append("Each lasting effect needs its own reference.")
+                model_errors.append("Each result needs its own reference.")
                 continue
             occurrences.add(occurrence)
             spec = {
@@ -989,7 +1023,7 @@ def preview_report(report, *, actor, payload=None):
                 held = plan._retained[occurrence]
                 if held["model_id"] != model_id:
                     model_errors.append(
-                        "A recorded lasting effect cannot move to another model."
+                        f"{held['name']} was recorded on another model and cannot move."
                     )
                 questions = [
                     ChoiceQuestion(
@@ -1015,9 +1049,7 @@ def preview_report(report, *, actor, payload=None):
                 (v for v in offered.values() if str(v.thing.pk) == spec["pick"]), None
             )
             if slot is None or option is None or not isinstance(option.thing, Pickable):
-                model_errors.append(
-                    "Choose a lasting effect from one of this model's available tables."
-                )
+                model_errors.append("Choose a result from one of this model's tables.")
                 continue
             new_counts[spec["slot"]] += 1
             if len(slot.picks) + new_counts[spec["slot"]] > slot.max_picks:
@@ -1042,6 +1074,7 @@ def preview_report(report, *, actor, payload=None):
                 )
             )
             implied.extend(effect.statuses)
+            implied_by.extend((effect.name, status) for status in effect.statuses)
         explicit = str(raw.get("status", ""))
         if explicit and explicit not in Status.values:
             model_errors.append("Choose a valid final status.")
@@ -1051,26 +1084,65 @@ def preview_report(report, *, actor, payload=None):
             and any(e.kind == LedgerEvent.Kind.STATUS_SET for e in events)
             for _, root, events in plan._removals
         )
-        existing_conflict = miniature.status != Status.ACTIVE and any(
-            status != miniature.status for status in implied
-        )
-        if (
-            len(set(implied)) > 1 or removing_status or existing_conflict
-        ) and not explicit:
-            model_errors.append(
-                "Choose the final status to resolve these lasting effects."
+        # A result this correction replaces set the status the model has
+        # now. The status follows the new results instead: the last one
+        # that sets a status, or the status the model had before this
+        # report when none does. A kept result may have set it too, so
+        # with one on the model the player chooses.
+        followed = None
+        if removing_status:
+            keeps_a_result = any(
+                held["model_id"] == model_id for held in plan._retained.values()
             )
+            if implied:
+                followed = implied[-1]
+            elif not keeps_a_result:
+                followed = started.get(model_id)
+        current_label = label_for(miniature.status, vehicle)
+        if not explicit:
+            if len(set(implied)) > 1:
+                said = [
+                    f"{name} makes {miniature.name} {label_for(status, vehicle)}"
+                    for name, status in dict.fromkeys(implied_by)
+                ]
+                listed = (
+                    f"{', '.join(said[:-1])} and {said[-1]}"
+                    if len(said) > 1
+                    else said[0]
+                )
+                result.status_conflict = f"{listed}. Choose the final status."
+            elif removing_status and followed is None:
+                result.status_conflict = (
+                    f"The result that made {miniature.name} {current_label} is "
+                    "replaced. Choose the final status."
+                )
+            elif (
+                not removing_status
+                and miniature.status != Status.ACTIVE
+                and implied
+                and implied[-1] != miniature.status
+            ):
+                name, status = implied_by[-1]
+                verb = "leaves" if status == Status.ACTIVE else "makes"
+                result.status_conflict = (
+                    f"{name} {verb} {miniature.name} {label_for(status, vehicle)}, "
+                    f"but {miniature.name}'s final status is {current_label}. "
+                    "Choose the final status."
+                )
+            if result.status_conflict:
+                model_errors.append(result.status_conflict)
         status_changed = explicit and (
             not previous
             or explicit != before.get("status")
             or implied
             or removing_status
         )
-        final_status = (
-            explicit
-            if status_changed
-            else (implied[-1] if implied else miniature.status)
-        )
+        if status_changed:
+            final_status = explicit
+        elif followed is not None:
+            final_status = followed
+        else:
+            final_status = implied[-1] if implied else miniature.status
         result.final_status = final_status
         if status_changed or implied or removing_status:
             plan._status_writes[model_id] = final_status
@@ -1079,6 +1151,13 @@ def preview_report(report, *, actor, payload=None):
         if disposition not in {"keep", "stash", "lost"}:
             model_errors.append("Choose what happens to this model's equipment.")
             disposition = "keep"
+        if final_status != Status.DEAD:
+            # The choice only applies to a dead model. The draft keeps it,
+            # so it comes back if the model dies again; this report
+            # records what was recorded before, which changes nothing.
+            recorded = before.get("equipment", "keep")
+            result.equipment_ignored = disposition != recorded
+            disposition = recorded
         if (
             before.get("equipment", "keep") != "keep"
             and disposition != before["equipment"]
@@ -1097,27 +1176,22 @@ def preview_report(report, *, actor, payload=None):
         result.equipment_names = [str(a.assignable) for a in gear]
         result.equipment_disposition = disposition
         if disposition != "keep" and disposition != before.get("equipment", "keep"):
-            if final_status != Status.DEAD:
-                model_errors.append(
-                    "Only a dead or destroyed model's equipment can be disposed of here."
-                )
-            else:
-                movable, affected, names, exclusions = _equipment_disposal(
-                    card, assignments
-                )
-                result.equipment_changed = True
-                result.equipment_affected_names = names
-                result.equipment_exclusions = exclusions
-                plan._equipment[model_id] = (disposition, movable)
-                facts.append(
-                    [
-                        "equipment",
-                        model_id,
-                        disposition,
-                        affected,
-                        exclusions,
-                    ]
-                )
+            movable, affected, names, exclusions = _equipment_disposal(
+                card, assignments
+            )
+            result.equipment_changed = True
+            result.equipment_affected_names = names
+            result.equipment_exclusions = exclusions
+            plan._equipment[model_id] = (disposition, movable)
+            facts.append(
+                [
+                    "equipment",
+                    model_id,
+                    disposition,
+                    affected,
+                    exclusions,
+                ]
+            )
         inputs["models"].append(
             {
                 "id": model_id,

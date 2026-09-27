@@ -93,9 +93,9 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                         {# Do not swap this control. The server answers with a dialog or an out-of-band update. #}
                         {% if card.status_label %}
                             {% if status_hx and status_href %}
-                                <c-ui.badge size="sm" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
+                                <c-ui.badge size="sm" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" color="{{ card.status_colour }}">{{ card.status_label }}</c-ui.badge>
                             {% else %}
-                                <c-ui.badge size="sm" href="{{ status_href }}" color="{% if card.status == 'recovery' %}amber{% elif card.status == 'dead' %}ink{% else %}red{% endif %}">{{ card.status_label }}</c-ui.badge>
+                                <c-ui.badge size="sm" href="{{ status_href }}" color="{{ card.status_colour }}">{{ card.status_label }}</c-ui.badge>
                             {% endif %}
                         {% elif status_href %}
                             {# djlint:off #}

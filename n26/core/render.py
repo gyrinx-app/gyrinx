@@ -29,7 +29,7 @@ from n26.core.models.dismissed_offer import slot_key as _address
 from n26.core.models.ledger import Reason
 from n26.core.owned import thing_key
 from n26.core.progression import RankSummary, progression_summaries
-from n26.core.status import Status
+from n26.core.status import Status, status_colour
 from n26.core.status import label_for as status_label
 from n26.library.models import (
     EMPTY_VALUE,
@@ -1187,6 +1187,11 @@ class ModelCard:
     #: Where the model's picture is, or empty for none. A URL — a
     #: renderer does not reach into storage.
     image_url: str = ""
+
+    @property
+    def status_colour(self):
+        """The status badge's colour, shared with the post-battle editor."""
+        return status_colour(self.status)
 
     @property
     def questions(self):

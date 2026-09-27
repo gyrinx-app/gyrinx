@@ -14,6 +14,7 @@ from n26.core.campaigns import campaign_operation
 from n26.core.models import Assignment, CounterValue, LedgerEvent, PostBattleRevision
 from n26.core.operations import Refusal, operation
 from n26.core.post_battle import (
+    Option,
     apply_report,
     can_edit_report,
     preview_report,
@@ -22,7 +23,8 @@ from n26.core.post_battle import (
     start_report,
 )
 from n26.core.reconcile import assert_reconciled
-from n26.core.status import Status
+from n26.core.status import Status, status_colour
+from n26.library.authoring import add_picklist_member
 from n26.tests.sandbox.actions import (
     add_built_in,
     attach,
@@ -375,6 +377,23 @@ class TestApplication:
         model.refresh_from_db()
         assert model.status == Status.DEAD
 
+    def test_conflicting_injuries_name_each_result_and_status(
+        self, report, owner, model, content
+    ):
+        injuries = [
+            effect_for(report, owner, content[name]) for name in ("wound", "death")
+        ]
+        report = save(report, owner, payload_for(model, effects=injuries))
+
+        (result,) = preview_report(report, actor=owner).models
+
+        message = (
+            "Grievous Wound makes Cinder In Recovery and Memorable Death makes "
+            "Cinder Dead. Choose the final status."
+        )
+        assert result.status_conflict == message
+        assert f"Cinder: {message}" in preview_report(report, actor=owner).errors
+
     def test_content_counter_effect_is_in_the_receipt(
         self, report, owner, model, content
     ):
@@ -493,6 +512,69 @@ class TestCorrections:
         report = save(report, owner, payload_for(model, status=Status.ACTIVE))
         apply(report, owner)
         assert CounterValue.objects.get(assignment__miniature=model).value == 0
+
+    def test_a_replaced_injury_takes_its_status_with_it(
+        self, report, owner, model, content
+    ):
+        injury = effect_for(report, owner, content["wound"])
+        report = save(report, owner, payload_for(model, effects=[injury]))
+        apply(report, owner)
+        model.refresh_from_db()
+        assert model.status == Status.RECOVERY
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model))
+
+        plan = preview_report(report, actor=owner)
+
+        assert plan.errors == []
+        assert plan.models[0].final_status == Status.ACTIVE
+        apply(report, owner)
+        model.refresh_from_db()
+        assert model.status == Status.ACTIVE
+
+    def test_a_replacing_injury_sets_the_status_it_implies(
+        self, report, owner, model, content
+    ):
+        injury = effect_for(report, owner, content["wound"])
+        report = save(report, owner, payload_for(model, effects=[injury]))
+        apply(report, owner)
+        report = start_correction(report, actor=owner)
+        injury["pick"] = str(content["death"].pk)
+        report = save(report, owner, payload_for(model, effects=[injury]))
+
+        plan = preview_report(report, actor=owner)
+
+        assert plan.errors == []
+        assert plan.models[0].final_status == Status.DEAD
+
+    def test_an_explicit_final_status_wins_over_a_replaced_injury(
+        self, report, owner, model, content
+    ):
+        injury = effect_for(report, owner, content["wound"])
+        report = save(report, owner, payload_for(model, effects=[injury]))
+        apply(report, owner)
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, payload_for(model, status=Status.CRITICAL))
+
+        plan = preview_report(report, actor=owner)
+
+        assert plan.errors == []
+        assert plan.models[0].final_status == Status.CRITICAL
+
+    def test_a_result_that_disagrees_with_the_status_now_names_both(
+        self, report, owner, model, content
+    ):
+        with operation(report.gang, actor=owner) as op:
+            op.set_status(model, Status.RECOVERY)
+        injury = effect_for(report, owner, content["death"])
+        report = save(report, owner, payload_for(model, effects=[injury]))
+
+        plan = preview_report(report, actor=owner)
+
+        assert plan.errors == [
+            "Cinder: Memorable Death makes Cinder Dead, but Cinder's final status "
+            "is In Recovery. Choose the final status."
+        ]
 
     def test_two_reversed_contributions_cannot_clip_the_counter(
         self, report, owner, model, content
@@ -1132,3 +1214,103 @@ class TestXpBlockedReasons:
             miniature=visitor, counter__isnull=False
         ).exists()
         assert_reconciled(gang)
+
+
+class TestEquipmentOnlyForTheDead:
+    """A disposition applies to a dead model. A stale one waits in the draft."""
+
+    def test_an_active_model_with_equipment_lost_applies_and_moves_nothing(
+        self, report, owner, model, gang
+    ):
+        assignment = give_weapon(model, create_weapon("Autogun", price=20), paid=20)
+        report = save(report, owner, payload_for(model, equipment="lost"))
+        plan = preview_report(report, actor=owner)
+        assert plan.valid, plan.errors
+        result = plan.models[0]
+        assert not result.equipment_applies
+        assert result.equipment_ignored
+        assert not result.equipment_changed
+        saved = apply(report, owner)
+        assert saved.inputs["models"][0]["equipment"] == "keep"
+        assert not saved.receipt["models"][0]["equipment_changed"]
+        assignment.refresh_from_db()
+        assert not assignment.archived
+        assert assignment.stash_id is None
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_a_draft_value_survives_a_status_flip_and_returns_on_death(
+        self, report, owner, model, content
+    ):
+        give_weapon(model, create_weapon("Autogun", price=20), paid=20)
+        death = effect_for(report, owner, content["death"])
+        report = save(
+            report, owner, payload_for(model, effects=[death], equipment="stash")
+        )
+        dead = preview_report(report, actor=owner).models[0]
+        assert dead.equipment_applies and dead.equipment_changed
+        report = save(report, owner, payload_for(model, equipment="stash"))
+        assert report.draft["models"][0]["equipment"] == "stash"
+        alive = preview_report(report, actor=owner)
+        assert alive.valid, alive.errors
+        assert alive.models[0].equipment_ignored
+        assert not alive.models[0].equipment_changed
+        report = save(
+            report, owner, payload_for(model, effects=[death], equipment="stash")
+        )
+        again = preview_report(report, actor=owner).models[0]
+        assert again.equipment_changed
+        assert again.equipment_affected_names == ["Autogun"]
+
+
+class TestRollBands:
+    """Roll-table options lead with their band; the values stay the same."""
+
+    def test_options_on_a_roll_table_carry_their_band(
+        self, default_pack, gang_type, fighter_type
+    ):
+        kind = create_slot_type("Lasting injury", is_lasting_effect=True)
+        out_cold = create_pickable("Out Cold", kind)
+        wound = create_pickable("Grievous Wound", kind)
+        table = create_picklist("Injuries", kind, dice="d66", roll_selects="band")
+        add_picklist_member(table, out_cold, roll_low=11, roll_high=16)
+        add_picklist_member(table, wound, roll_low=21)
+        slot = create_slot("Lasting injury", kind, table, min_picks=0, max_picks=9)
+        profile = create_profile("Ganger", fighter_type, gang_type)
+        add_built_in(profile, slot)
+        owner = User.objects.create_user("band-owner")
+        gang = found_gang("Test gang", gang_type, owner=owner, budget=100)
+        hire(gang, profile, "Cinder")
+        report = start_report(gang, actor=owner, request_key=uuid4())
+        (slot_offer,) = preview_report(report, actor=owner).models[0].effect_slots
+        assert [(o.value, o.text) for o in slot_offer.options] == [
+            (str(out_cold.pk), "11–16 Out Cold"),
+            (str(wound.pk), "21 Grievous Wound"),
+        ]
+
+    def test_a_table_without_dice_shows_names_only(self, report, owner):
+        (slot_offer,) = preview_report(report, actor=owner).models[0].effect_slots
+        assert [o.text for o in slot_offer.options] == [
+            o.label for o in slot_offer.options
+        ]
+        assert all(not o.band for o in slot_offer.options)
+
+    def test_option_text(self):
+        assert Option("x", "Out Cold", "11-16").text == "11–16 Out Cold"
+        assert Option("x", "Out Cold").text == "Out Cold"
+
+
+@pytest.mark.parametrize(
+    "status,colour",
+    [
+        (Status.ACTIVE, "ink"),
+        ("", "ink"),
+        (Status.RECOVERY, "amber"),
+        (Status.CRITICAL, "red"),
+        (Status.CAPTURED, "red"),
+        (Status.RANSOMED, "red"),
+        (Status.DEAD, "red"),
+    ],
+)
+def test_status_colour(status, colour):
+    assert status_colour(status) == colour
