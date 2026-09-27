@@ -67,10 +67,11 @@ def _initial_payload(gang, battle=None):
         crew = BattleCrew.objects.filter(battle=battle, gang=gang).first()
         if crew:
             starting = set(
-                crew.members.filter(role="starting").values_list(
-                    "miniature_id", flat=True
-                )
+                crew.members.filter(
+                    role="starting", miniature__isnull=False
+                ).values_list("miniature_id", flat=True)
             )
+    # A pet takes part when its owner starts; any other model when it starts.
     return {
         "schema": 1,
         "credits": "",
@@ -79,7 +80,11 @@ def _initial_payload(gang, battle=None):
         "models": [
             {
                 "id": str(model.pk),
-                "participated": model.pk in starting,
+                "participated": (
+                    getattr(model.membership.caused_by, "miniature_root_id", None)
+                    or model.pk
+                )
+                in starting,
                 "xp": "",
                 "status": "",
                 "equipment": "keep",
@@ -87,7 +92,7 @@ def _initial_payload(gang, battle=None):
             }
             for model in Miniature.objects.filter(
                 membership__gang=gang, membership__archived=False
-            )
+            ).select_related("membership__caused_by")
         ],
     }
 

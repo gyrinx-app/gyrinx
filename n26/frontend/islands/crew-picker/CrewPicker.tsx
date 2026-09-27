@@ -212,10 +212,13 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                                 }
                             >
                                 <div className="space-y-3">
-                                    <Field label="Crew" htmlFor={model.role.id}>
+                                    <Field
+                                        label="Starting crew or reinforcement"
+                                        htmlFor={model.role.id}
+                                    >
                                         <NativeSelect
                                             id={model.role.id}
-                                            aria-label={`Crew for ${model.name}`}
+                                            aria-label={`Starting crew or reinforcement for ${model.name}`}
                                             aria-invalid={
                                                 model.role.errors.length > 0 ||
                                                 undefined
@@ -327,7 +330,8 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                     <div className="text-sm" role="status" aria-live="polite">
                         <p className="font-semibold">
                             {selected.length}{" "}
-                            {selected.length === 1 ? "model" : "models"}
+                            {selected.length === 1 ? "model" : "models"}{" "}
+                            selected
                         </p>
                         <p className="text-xs text-muted">
                             {starting} starting · {reserves}{" "}
