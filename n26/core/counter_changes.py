@@ -156,7 +156,7 @@ def plan_changes(held, entered, recorded, effects=None, names=None):
 
     Returns ``(changes, errors)``. A counter the report changed before
     that has since been removed or moved to another holder cannot be
-    corrected here, in the same words as an XP award. Leaving it out of
+    corrected here. Leaving it out of
     ``entered`` keeps its recorded change.
     """
     effects = effects or {}
@@ -191,8 +191,8 @@ def plan_changes(held, entered, recorded, effects=None, names=None):
             continue
         name = names.get(key, "this counter")
         errors.append(
-            f"You cannot correct the change to {name} because its original "
-            f"counter is unavailable or has changed. Adjust {name} separately."
+            f"You cannot correct the change to {name}: it was removed or moved "
+            f"after this report was applied. Change {name} on the gang page."
         )
     return changes, errors
 

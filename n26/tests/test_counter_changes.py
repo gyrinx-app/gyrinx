@@ -97,8 +97,8 @@ class TestPlanChanges:
         gone = str(uuid4())
         _, errors = plan_changes([], {gone: 1}, {gone: 3}, names={gone: "Favour"})
         assert errors == [
-            "You cannot correct the change to Favour because its original "
-            "counter is unavailable or has changed. Adjust Favour separately."
+            "You cannot correct the change to Favour: it was removed or moved "
+            "after this report was applied. Change Favour on the gang page."
         ]
 
     def test_an_unchanged_entry_for_a_counter_that_has_gone_is_kept(self):

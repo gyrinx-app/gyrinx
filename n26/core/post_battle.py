@@ -174,7 +174,7 @@ class PostBattlePlan:
     credits_change: int
     review: str
     inputs: dict
-    #: What the credit lines add up to: the credits from this battle.
+    #: What the lines of credits add up to: the credits from this battle.
     credits_total: int = 0
     credit_lines: list = field(default_factory=list)
     gang_counters: list[CounterChange] = field(default_factory=list)
@@ -200,16 +200,16 @@ class PostBattlePlan:
         return any(change.effect for change in self.gang_counters)
 
 
-#: At most this many credit lines in one report.
+#: At most this many lines of credits in one report.
 MAX_CREDIT_LINES = 20
-#: The one line a report saved before credit lines existed becomes.
+#: The one line a report saved before lines of credits existed becomes.
 LEGACY_LINE = "legacy"
 
 
 def normalise(payload):
     """A report's values in the current shape, as a copy.
 
-    Reports saved before credit lines held one amount and one reason.
+    Reports saved before lines of credits held one amount and one reason.
     They read as a single line whose id is ``legacy``, so a correction
     of an old report changes that line like any other.
     """
@@ -230,7 +230,9 @@ def normalise(payload):
 def _credit_lines(raw, errors):
     """The lines that carry credits, checked. Empty lines are dropped."""
     if not isinstance(raw, list) or any(not isinstance(line, dict) for line in raw):
-        errors.append("The credit lines are invalid.")
+        errors.append(
+            "A line of credits could not be read. Remove it and add it again."
+        )
         return []
     if len(raw) > MAX_CREDIT_LINES:
         errors.append(f"Add up to {MAX_CREDIT_LINES} lines of credits.")

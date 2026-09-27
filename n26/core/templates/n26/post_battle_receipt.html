@@ -20,7 +20,7 @@
         <c-n26.section title="Mission results">
             <dl class="grid gap-3 text-sm sm:grid-cols-2">
                 <div>
-                    <dt class="text-muted">Credits adjustment</dt>
+                    <dt class="text-muted">Credits from this battle</dt>
                     <dd class="mt-1 text-lg font-semibold tabular-nums">
                         {{ receipt.credits_change|stringformat:'+d' }}¢
                     </dd>
@@ -45,7 +45,7 @@
                 {% endif %}
             </dl>
             {% if mission.credit_lines %}
-                <h3 class="mt-4 text-sm font-semibold">Credits from this battle</h3>
+                <h3 class="mt-4 text-sm font-semibold">Lines of credits</h3>
                 <ul class="mt-2 space-y-1 text-sm">
                     {% for line in mission.credit_lines %}
                         <li class="flex justify-between gap-3">

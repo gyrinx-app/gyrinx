@@ -419,7 +419,7 @@ class CreditRow:
 
     @property
     def remove_label(self):
-        return f"Remove credits line {self.number}"
+        return f"Remove line of credits {self.number}"
 
 
 @dataclass
