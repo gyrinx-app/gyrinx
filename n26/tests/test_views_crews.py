@@ -448,6 +448,26 @@ class TestCrewPets:
         assert "Only 2 eligible models remain" in response.content.decode()
         assert not BattleCrew.objects.exists()
 
+    def test_a_pet_bought_into_the_stash_is_listed(
+        self, client, table, person_type, gang_type, feature
+    ):
+        profile = Profile.objects.create(
+            name="Phyrr Cat", profile_type=person_type, gang_type=gang_type, price=0
+        )
+        wargear = create_wargear("Phyrr Cat (pet)")
+        modifier(
+            "Phyrr Cat wargear brings a pet",
+            targets_model(),
+            op_adds_model(profile),
+            carried_by=wargear,
+        )
+        assign(wargear, stash=table.gang.stash)
+        stashed = Miniature.objects.get(name="Phyrr Cat", membership__gang=table.gang)
+        assert stashed.owned_by is None
+        response = client.get(address(table))
+        ids = {model["id"] for model in response.context["crew_picker"]["models"]}
+        assert str(stashed.pk) in ids
+
     def test_a_saved_pet_leaves_the_crew_on_resave(self, client, table, pet, feature):
         crew = BattleCrew.objects.create(battle=table.battle, gang=table.gang)
         crew.members.create(
