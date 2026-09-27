@@ -55,6 +55,7 @@ from n26.tests.sandbox.actions import (
     op_adds_model,
     op_changes_counter,
     open_founding,
+    remove,
     tally,
 )
 from n26.tests.sandbox.actions import targets_model as targets_the_model
@@ -2326,6 +2327,34 @@ class TestMissionResults:
             client.get(receipt_url(report)).content, "html.parser"
         ).get_text(" ", strip=True)
         assert "Reputation 5 → 7" in " ".join(receipt.split())
+
+    def test_a_correction_applies_after_a_changed_counter_is_removed(
+        self, client, table, feature, reputation
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        fields = awards(page, table, **{f"gang-counter-{reputation.pk}": "2"})
+        checked = client.post(editor_url(report), fields | {"intent": "check"})
+        assert (
+            client.post(
+                editor_url(report), html_fields(checked, intent="apply")
+            ).status_code
+            == 302
+        )
+        remove(reputation, actor=table.owner)
+        corrected = client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+        assert corrected.status_code == 302
+        page = client.get(editor_url(report))
+        assert mission(page).find("input", attrs={"name": "gang_counter"}) is None
+        checked = client.post(
+            editor_url(report), html_fields(page, intent="check", credits="25")
+        )
+        assert checked.context["plan"].valid, checked.context["plan"].errors
+        applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
+        assert applied.status_code == 302
+        revision = report.revisions.get(sequence=2)
+        assert revision.inputs["gang_counters"] == {str(reputation.pk): 2}
+        assert_books(table)
 
     def test_an_old_receipt_still_shows_its_reason(self, client, table, feature):
         report = start(client, table)

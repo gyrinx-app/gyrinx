@@ -107,6 +107,17 @@ class TestPlanChanges:
         assert errors == []
         assert entries(changes, {gone: 3}, {gone: 3}) == {gone: 3}
 
+    def test_a_counter_that_has_gone_and_is_left_out_keeps_its_change(self):
+        gone = str(uuid4())
+        changes, errors = plan_changes([], {}, {gone: 2})
+        assert errors == []
+        assert entries(changes, {}, {gone: 2}) == {gone: 2}
+
+    def test_an_entered_zero_for_a_counter_that_has_gone_is_refused(self):
+        gone = str(uuid4())
+        _, errors = plan_changes([], {gone: 0}, {gone: 2}, names={gone: "Favour"})
+        assert len(errors) == 1
+
     def test_entries_keep_only_what_the_report_changes(self):
         kept, cleared = held(), held(name="Favour")
         changes, _ = plan_changes([kept, cleared], {kept.id: 2}, {cleared.id: 1})

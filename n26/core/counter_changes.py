@@ -156,7 +156,8 @@ def plan_changes(held, entered, recorded, effects=None, names=None):
 
     Returns ``(changes, errors)``. A counter the report changed before
     that has since been removed or moved to another holder cannot be
-    corrected here, in the same words as an XP award.
+    corrected here, in the same words as an XP award. Leaving it out of
+    ``entered`` keeps its recorded change.
     """
     effects = effects or {}
     names = names or {}
@@ -182,7 +183,11 @@ def plan_changes(held, entered, recorded, effects=None, names=None):
             )
         )
     for key in sorted(set(entered) | set(recorded)):
-        if key in by_id or entered.get(key, 0) == recorded.get(key, 0):
+        # The page draws no row for a counter that has gone, so a report
+        # that leaves it out keeps the recorded change. Only a change
+        # entered for it is refused.
+        was = recorded.get(key, 0)
+        if key in by_id or entered.get(key, was) == was:
             continue
         name = names.get(key, "this counter")
         errors.append(
