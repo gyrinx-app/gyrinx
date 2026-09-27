@@ -33,7 +33,7 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def live_spyrers(default_pack, counter_tracking, owner, person_type):
     gang_type = a.create_gang_type("Spyre Hunters", starting_credits=1000)
-    profile = a.create_profile("Hunt Master", person_type, gang_type, price=100)
+    profile = a.create_profile("Spyre Hunt Master", person_type, gang_type, price=100)
     a.set_statline(profile, movement=5, weapon_skill=3, toughness=3)
     action = a.create_action(
         "Recruitment augmentation",
@@ -265,21 +265,21 @@ def test_preview_query_count_stays_flat_as_hunt_masters_grow(live_spyrers):
     assert_reconciled(gang)
 
 
-def test_empty_slot_is_removed_from_an_archived_gang_without_granting_a_use(
+def test_empty_slot_is_removed_and_missing_use_granted_in_an_archived_gang(
     live_spyrers,
 ):
     gang, fighter, action, _, empty_slot, *_ = live_spyrers
     gang.archive()
     plan = find()
     assert plan.empty_slots == 1
-    assert plan.missing_uses == 0
+    assert plan.missing_uses == 1
 
     prepare()
     apply_one(gang.pk)
 
     empty_slot.refresh_from_db()
     assert empty_slot.archived
-    assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()
+    assert ActionAllowance.objects.filter(fighter=fighter, action=action).count() == 1
     assert_reconciled(gang)
 
 

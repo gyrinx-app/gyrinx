@@ -71,7 +71,7 @@ def _one(model, **lookups):
 def _content():
     pack = _one(ContentPack, slug=settings.DEFAULT_CONTENT_PACK_SLUG)
     rig = _one(Wargear, pack=pack, name__iexact="Malcadon hunting rig")
-    profile = _one(Profile, pack=pack, name__iexact="Hunt Master")
+    profile = _one(Profile, pack=pack, name__iexact="Spyre Hunt Master")
     action = _one(Action, pack=pack, name__iexact="Recruitment augmentation")
     tier1 = _one(
         Pickable, pack=pack, name__iexact="Tier 1", qualifier__iexact="Yeld hunting rig"
@@ -147,7 +147,6 @@ def _missing_hunt_masters(profile, action):
         Miniature.objects.filter(
             membership__profile=profile,
             membership__archived=False,
-            membership__gang__archived=False,
         )
         .exclude(
             action_allowances__action=action,
