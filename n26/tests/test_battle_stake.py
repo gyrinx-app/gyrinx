@@ -243,6 +243,64 @@ class TestWhatCanBeStaked:
         assert "stake" not in form.fields
         assert "stake_awarded_to" not in form.fields
 
+    def test_a_gang_added_in_the_same_save_can_win_it(self, client, table):
+        response = client.post(
+            edit_url(table),
+            form_fields(
+                table,
+                gangs=[str(g.pk) for g in (table.choir, table.kings, table.bystanders)],
+                winners=[str(table.bystanders.pk)],
+                stake_awarded_to=str(table.bystanders.pk),
+            ),
+        )
+
+        assert response.status_code == 302
+        assert holder(table) == table.bystanders
+
+    def test_another_campaigns_asset_is_refused(self, client, table, gang_type):
+        other = found_campaign(
+            "Elsewhere", table.campaign.campaign_type, owner=table.arbitrator
+        )
+        outsiders = found_gang("Outsiders", gang_type, owner=table.arbitrator)
+        join_campaign(outsiders, other)
+        foreign = add_asset(
+            other, create_asset("Far Ruins", table.ruins.asset.asset_type)
+        )
+        assign_asset(foreign, outsiders)
+
+        response = client.post(
+            edit_url(table), form_fields(table, stake=str(foreign.pk))
+        )
+
+        assert response.status_code == 200
+        assert "Choose an asset a participant holds." in response.content.decode()
+        foreign.refresh_from_db()
+        assert foreign.holder.gang == outsiders
+        assert Battle.objects.get(pk=table.battle.pk).stake is None
+        assert holder(table) == table.choir
+
+
+class TestRemovingTheBattle:
+    def test_a_battle_that_moved_its_stake_cannot_be_removed(self, client, table):
+        client.post(edit_url(table), form_fields(table))
+        table.battle.refresh_from_db()
+
+        response = client.post(
+            reverse(
+                "n26-campaign-remove-battle",
+                args=[table.campaign.pk, table.battle.pk],
+            ),
+            {"revision": table.battle.revision},
+            follow=True,
+        )
+
+        assert (
+            "cannot remove a battle with recorded gang history"
+            in response.content.decode()
+        )
+        assert Battle.objects.filter(pk=table.battle.pk).exists()
+        assert holder(table) == table.kings
+
 
 class TestCorrectingTheStake:
     def test_a_different_recipient_reverses_the_transfer_first(self, table):

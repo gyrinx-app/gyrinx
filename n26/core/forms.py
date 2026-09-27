@@ -7,6 +7,7 @@ gang types are the library's own.
 """
 
 from django import forms
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 
 from n26.core.colours import GANG_COLOURS
@@ -650,11 +651,21 @@ class BattleForm(forms.Form):
             self.stake_label = ""
             return
         self.fields["stake"].queryset = stakes
-        self.fields["stake_awarded_to"].queryset = battle.gangs.order_by("name")
+        self.fields["stake_awarded_to"].queryset = self._awardable(playing, battle)
         noun = stake_noun(stakes)
         self.stake_label = f"{noun} staked"
         self.fields["stake"].label = self.stake_label
         self.fields["stake_awarded_to"].label = f"{noun} goes to"
+
+    def _awardable(self, playing, battle):
+        """The gangs the stake can go to: the participants being saved,
+        so a gang added in this save can win it. Saving checks again."""
+        if not self.is_bound:
+            return battle.gangs.order_by("name")
+        try:
+            return playing.filter(pk__in=self.data.getlist("gangs")).order_by("name")
+        except ValidationError, ValueError:
+            return playing.none()
 
     def clean(self):
         from n26.core.models import Battle
