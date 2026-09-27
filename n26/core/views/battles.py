@@ -44,6 +44,14 @@ class BattleParticipant:
     crew: object = None
     report: object = None
 
+    @property
+    def report_label(self):
+        if self.report is None:
+            return "Record results"
+        if self.report.state == PostBattleReport.State.DRAFT:
+            return "Continue draft"
+        return "View results"
+
 
 @requires_flag(CAMPAIGNS)
 @login_required

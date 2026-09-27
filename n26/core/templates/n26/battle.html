@@ -85,23 +85,24 @@
                                       action="{% url 'n26-battle-report' campaign.pk battle.pk participant.id %}">
                                     {% csrf_token %}
                                     <input type="hidden" name="request_key" value="{{ request_key }}">
-                                    <c-ui.button size="sm" variant="primary" type="submit">
-                                        Record results
+                                    <c-ui.button size="sm"
+                                                 variant="primary"
+                                                 type="submit"
+                                                 aria-label="{{ participant.report_label }} for {{ participant.name }}">
+                                        {{ participant.report_label }}
                                     </c-ui.button>
                                 </form>
                             {% elif participant.may_record %}
                                 <c-ui.button size="sm"
                                              variant="primary"
-                                             href="{% url 'n26-battle-report' campaign.pk battle.pk participant.id %}">
-                                    {% if participant.report.state == "draft" %}
-                                        Continue draft
-                                    {% else %}
-                                        View results
-                                    {% endif %}
+                                             href="{% url 'n26-battle-report' campaign.pk battle.pk participant.id %}"
+                                             aria-label="{{ participant.report_label }} for {{ participant.name }}">
+                                    {{ participant.report_label }}
                                 </c-ui.button>
                             {% elif participant.report.latest_sequence %}
                                 <c-ui.button size="sm"
-                                             href="{% url 'n26-post-battle-receipt' participant.report.pk %}">
+                                             href="{% url 'n26-post-battle-receipt' participant.report.pk %}"
+                                             aria-label="View results for {{ participant.name }}">
                                     View results
                                 </c-ui.button>
                             {% endif %}

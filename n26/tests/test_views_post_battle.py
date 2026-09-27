@@ -1519,3 +1519,15 @@ class TestRecordResultsEntry:
             in text
         )
         assert "Changes apply to this gang only." not in text
+
+    def test_battle_page_buttons_name_the_gang(self, client, table, feature):
+        battle_page = reverse("n26-battle", args=[table.campaign.pk, table.battle.pk])
+        button = record_results_form(client.get(battle_page), start_url(table)).find(
+            "button"
+        )
+        assert button["aria-label"] == f"Record results for {table.gang.name}"
+        start(client, table)
+        document = BeautifulSoup(client.get(battle_page).content, "html.parser")
+        link = document.find("a", href=start_url(table))
+        assert link.get_text(strip=True) == "Continue draft"
+        assert link["aria-label"] == f"Continue draft for {table.gang.name}"
