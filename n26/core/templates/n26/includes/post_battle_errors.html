@@ -1,0 +1,19 @@
+<div id="post-battle-errors" {% if oob %}hx-swap-oob="true"{% endif %}>
+    {% if errors %}
+        <section id="report-errors"
+                 tabindex="-1"
+                 role="alert"
+                 class="rounded-lg border border-red-300 bg-red-50 p-4 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100">
+            <input type="hidden" name="showing_errors" value="1">
+            <h2 class="font-semibold">Check these results</h2>
+            <ul class="mt-2 list-disc space-y-1 pl-5">
+                {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+            </ul>
+            {% if stale %}
+                <p class="mt-3">
+                    Your entries are still shown below. <c-n26.link href="{% url 'n26-post-battle-editor' report.pk %}">Open the latest saved draft</c-n26.link> in another tab to compare them.
+                </p>
+            {% endif %}
+        </section>
+    {% endif %}
+</div>

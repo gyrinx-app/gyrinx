@@ -103,9 +103,14 @@
         };
         issue();
     });
+    // The module being redrawn is disabled while its update is in flight,
+    // which takes focus away from the control just changed. Put it back
+    // on the same control in the new module.
+    let focused = "";
     form.addEventListener("htmx:beforeRequest", () => {
         window.clearTimeout(timer);
         dirty = false;
+        focused = document.activeElement?.id || "";
         status.textContent = "Saving draft…";
         refreshing = new Promise((resolve) => {
             refreshed = resolve;
@@ -122,6 +127,16 @@
         refreshed?.();
         refreshing = null;
         redrawXpToolbar();
+        if (focused && !form.contains(document.activeElement)) {
+            document.getElementById(focused)?.focus({ preventScroll: true });
+        }
+        // Entries typed elsewhere while the update was in flight were not
+        // in it. The server's "Draft saved" line would be wrong about them.
+        if (dirty && !failed) {
+            status.textContent = "Unsaved changes";
+            window.clearTimeout(timer);
+            timer = window.setTimeout(save, 900);
+        }
     });
 
     form.addEventListener("input", () => {

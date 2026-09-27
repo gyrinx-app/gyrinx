@@ -23,14 +23,7 @@
         </c-n26.page-header>
         {% if report.latest_sequence %}<div class="border border-box-border bg-surface p-4"><p class="font-semibold">Correcting recorded results</p><p class="mt-1 text-sm text-muted">Enter the corrected awards for this battle. Only the difference from the previous report is applied to today's totals.</p><c-n26.link href="{% url 'n26-post-battle-receipt' report.pk %}"
             class="mt-2 inline-block text-sm">View recorded results</c-n26.link></div>{% endif %}
-        {% if errors %}
-            <section id="report-errors"
-                     tabindex="-1"
-                     role="alert"
-                     class="rounded-lg border border-red-300 bg-red-50 p-4 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100">
-                <h2 class="font-semibold">Check these results</h2>
-                <ul class="mt-2 list-disc space-y-1 pl-5">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
-                {% if stale %}<p class="mt-3">Your entries are still shown below. <c-n26.link href="{% url 'n26-post-battle-editor' report.pk %}">Open the latest saved draft</c-n26.link> in another tab to compare them.</p>{% endif %}</section>{% endif %}
+        {% include "n26/includes/post_battle_errors.html" %}
         <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <div class="min-w-0 space-y-8">
                 <c-n26.form-section title="Gang results"

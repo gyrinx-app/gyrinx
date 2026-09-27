@@ -33,7 +33,7 @@ from n26.core.post_battle_forms import (
     xp_toolbar,
 )
 from n26.core.views.battles import battle_or_404
-from n26.core.views.htmx import is_htmx
+from n26.core.views.htmx import is_htmx, redirect_page
 from n26.core.views.permissions import (
     _any_campaign_or_404,
     _any_gang_or_404,
@@ -102,12 +102,14 @@ def _initial_payload(gang, battle=None):
     }
 
 
-def _report_destination(report):
+def _report_destination(report, request=None):
     name = (
         "n26-post-battle-receipt"
         if report.state == PostBattleReport.State.APPLIED
         else "n26-post-battle-editor"
     )
+    if request is not None:
+        return redirect_page(request, name, pk=report.pk)
     return redirect(name, pk=report.pk)
 
 
@@ -245,7 +247,7 @@ def post_battle_editor(request, pk):
     report = _report_or_404(pk)
     _editable_or_404(report, request.user)
     if report.state == PostBattleReport.State.APPLIED:
-        return _report_destination(report)
+        return _report_destination(report, request)
     payload = report.draft
     errors = []
     show_errors = False
@@ -312,7 +314,11 @@ def post_battle_editor(request, pk):
                 if intent == "save":
                     messages.success(request, "Draft saved. The gang has not changed.")
                     return redirect("n26-post-battle-editor", pk=report.pk)
-                show_errors = intent == "check"
+                # An in-place update keeps the errors the page is showing,
+                # so a fixed one disappears and the rest stay put.
+                show_errors = intent == "check" or bool(
+                    refresh and request.POST.get("showing_errors")
+                )
             except (Refusal, ValidationError) as exc:
                 errors = (
                     exc.messages if isinstance(exc, ValidationError) else [str(exc)]
@@ -365,12 +371,15 @@ def post_battle_editor(request, pk):
     }
     if refresh:
         refreshed = next((model for model in models if model.id == refresh), None)
-        if refreshed is not None:
-            return render(
-                request,
-                "n26/includes/post_battle_refresh.html",
-                context | {"model": refreshed},
-            )
+        if refreshed is None:
+            # The model has left the roster since the page was drawn:
+            # there is no module to swap, so draw the page again.
+            return redirect_page(request, "n26-post-battle-editor", pk=report.pk)
+        return render(
+            request,
+            "n26/includes/post_battle_refresh.html",
+            context | {"model": refreshed},
+        )
     return render(request, "n26/post_battle.html", context, status=status)
 
 

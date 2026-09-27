@@ -167,7 +167,7 @@ describe("post-battle in-place updates", () => {
         expect(issueRequest).toHaveBeenCalledWith(true);
     });
 
-    it("pauses autosave while an update is in flight", async () => {
+    it("saves input that arrives while an update is in flight", async () => {
         htmxEvent("htmx:beforeRequest", {});
         form.elements.credits.value = "75";
         form.elements.credits.dispatchEvent(
@@ -177,10 +177,8 @@ describe("post-battle in-place updates", () => {
         expect(fetch).not.toHaveBeenCalled();
         expect(unloadWarning()).toBe(true);
 
-        htmxEvent("htmx:afterRequest", { successful: true });
-        form.elements.credits.dispatchEvent(
-            new Event("input", { bubbles: true }),
-        );
+        // The out-of-band swap writes the server's line first.
+        status.textContent = "Draft saved 18:00";
         fetch.mockResolvedValueOnce(
             new Response(
                 JSON.stringify({
@@ -191,8 +189,21 @@ describe("post-battle in-place updates", () => {
                 { status: 200 },
             ),
         );
+        htmxEvent("htmx:afterRequest", { successful: true });
+        expect(status.textContent).toBe("Unsaved changes");
         await vi.advanceTimersByTimeAsync(900);
         expect(fetch).toHaveBeenCalledTimes(1);
+        expect(fetch.mock.calls[0][1].body.get("credits")).toBe("75");
+        expect(status.textContent).toBe("Draft saved 18:01:00");
+    });
+
+    it("keeps the server's saved line when nothing changed meanwhile", async () => {
+        htmxEvent("htmx:beforeRequest", {});
+        status.textContent = "Draft saved 18:00";
+        htmxEvent("htmx:afterRequest", { successful: true });
+        expect(status.textContent).toBe("Draft saved 18:00");
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(fetch).not.toHaveBeenCalled();
     });
 
     it("shows the server's reason when an update is refused", async () => {

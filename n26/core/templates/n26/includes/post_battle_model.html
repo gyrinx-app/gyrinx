@@ -8,6 +8,7 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
           hx-target="this"
           hx-swap="outerHTML"
           hx-sync="closest form:queue all"
+          hx-disabled-elt="closest fieldset"
           data-post-battle-model>
     <legend class="sr-only">{{ model.name }}</legend>
     <input type="hidden" name="model_id" value="{{ model.id }}">
@@ -210,21 +211,7 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                 </p>
             {% endif %}
             {% if model.result.equipment_applies %}
-                <c-ui.field label="{{ model.equipment_label }}"
-                            for="{{ model.prefix }}-equipment">
-                    <c-ui.select.native id="{{ model.prefix }}-equipment"
-                                        name="{{ model.prefix }}-equipment"
-                                        placeholder=""
-                                        size="lg"
-                                        :attrs="model.refresh_attrs">
-                        <option value="keep"
-                                {% if model.equipment == 'keep' %}selected{% endif %}>Leave with the model</option>
-                        <option value="stash"
-                                {% if model.equipment == 'stash' %}selected{% endif %}>Move equipment to the stash</option>
-                        <option value="lost"
-                                {% if model.equipment == 'lost' %}selected{% endif %}>Mark equipment lost</option>
-                    </c-ui.select.native>
-                </c-ui.field>
+                {% include "n26/includes/post_battle_equipment.html" %}
                 {% if model.result.equipment_changed %}
                     <p class="text-sm">
                         {% if model.result.equipment_disposition == "stash" %}
@@ -244,6 +231,15 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                        name="{{ model.prefix }}-equipment"
                        value="{{ model.equipment }}">
                 <p class="text-sm text-muted">Equipment choices open when this model is dead or destroyed.</p>
+                {% comment %}
+                Without scripts the module is not redrawn when the status
+                changes, so the choice stays on offer. Posted after the hidden
+                field, its value is the one read; the report ignores it
+                unless the model ends dead.
+                {% endcomment %}
+                <noscript>
+                    {% include "n26/includes/post_battle_equipment.html" %}
+                </noscript>
             {% endif %}
         </div>
     </div>

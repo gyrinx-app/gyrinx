@@ -265,7 +265,12 @@ class TestReportLayout:
             assert module.select_one(f'[name="model_id"][value="{model.pk}"]')
             for field in ("participated", "xp", "status", "equipment"):
                 name = f"model-{model.pk}-{field}"
-                assert len(form.select(f'[name="{name}"]')) == 1
+                scripted = [
+                    element
+                    for element in form.select(f'[name="{name}"]')
+                    if element.find_parent("noscript") is None
+                ]
+                assert len(scripted) == 1
                 assert module.select_one(f'[name="{name}"]') is not None
         footer = form.select_one("[data-battle-actions]")
         confirmation = footer.find("input", attrs={"name": "participation_confirmed"})
@@ -297,7 +302,9 @@ class TestReportLayout:
             f"model-{model.pk}-status",
             f"model-{model.pk}-equipment",
         ]
-        names = [element["name"] for element in module.select("[name]")]
+        names = list(
+            dict.fromkeys(element["name"] for element in module.select("[name]"))
+        )
         assert [name for name in names if name in order] == order
 
     def test_xp_errors_are_inside_the_model_module(self, client, table, feature):
@@ -1864,9 +1871,11 @@ class TestModelModule:
         model = table.models[0]
         page = client.get(editor_url(report))
         alive = module(page, model)
-        assert (
-            alive.find("select", attrs={"name": f"model-{model.pk}-equipment"}) is None
+        # Only a browser without scripts draws the choice for a live model.
+        (fallback,) = alive.find_all(
+            "select", attrs={"name": f"model-{model.pk}-equipment"}
         )
+        assert fallback.find_parent("noscript") is not None
         kept = alive.find("input", attrs={"name": f"model-{model.pk}-equipment"})
         assert kept["type"] == "hidden"
         assert "open when this model is dead or destroyed" in alive.get_text()
@@ -1881,6 +1890,7 @@ class TestModelModule:
             },
         )
         box = module(dead, model)
+        assert box.find("noscript") is None
         select = box.find("select", attrs={"name": f"model-{model.pk}-equipment"})
         assert select.find("option", selected=True)["value"] == "lost"
         assert "What happens to Cinder's equipment" in box.get_text()
@@ -1901,3 +1911,75 @@ class TestModelModule:
             id="post-battle-summary"
         )
         assert "Equipment stays with the model." in summary.get_text()
+
+
+class TestModuleRefreshEdges:
+    """An in-place update never swaps a whole page into a module."""
+
+    def test_a_report_applied_elsewhere_sends_htmx_to_the_receipt(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        model = table.models[0]
+        page = client.get(editor_url(report))
+        applied = client.post(editor_url(report), awards(page, table))
+        assert applied.status_code == 302
+        response = refresh(client, report, page, model)
+        assert response.status_code == 204
+        assert response["HX-Redirect"] == receipt_url(report)
+
+    def test_a_model_gone_from_the_roster_reloads_the_editor(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        model = table.models[0]
+        page = client.get(editor_url(report))
+        model.membership.archived = True
+        model.membership.save(update_fields=["archived"])
+        response = refresh(client, report, page, model)
+        assert response.status_code == 204
+        assert response["HX-Redirect"] == editor_url(report)
+
+    def test_shown_errors_follow_the_entries(self, client, table, feature):
+        report = start(client, table)
+        model = table.models[0]
+        checked = client.post(
+            editor_url(report),
+            html_fields(
+                client.get(editor_url(report)),
+                intent="check",
+                **{f"model-{model.pk}-xp": "-1"},
+            ),
+        )
+        assert "Cinder's XP" in module(checked, model).get_text()
+        still_wrong = refresh(client, report, checked, model)
+        document = BeautifulSoup(still_wrong.content, "html.parser")
+        assert "Cinder's XP" in module(still_wrong, model).get_text()
+        region = document.find(id="post-battle-errors")
+        assert region["hx-swap-oob"] == "true"
+        assert "Cinder's XP" in region.get_text()
+        fixed = refresh(
+            client,
+            report,
+            checked,
+            model,
+            after=still_wrong,
+            **{f"model-{model.pk}-xp": "1"},
+        )
+        document = BeautifulSoup(fixed.content, "html.parser")
+        assert "Cinder's XP" not in module(fixed, model).get_text()
+        assert "Cinder's XP" not in document.find(id="post-battle-errors").get_text()
+
+    def test_without_shown_errors_a_refresh_sends_none(self, client, table, feature):
+        report = start(client, table)
+        model = table.models[0]
+        response = refresh(
+            client,
+            report,
+            client.get(editor_url(report)),
+            model,
+            **{f"model-{model.pk}-xp": "-1"},
+        )
+        document = BeautifulSoup(response.content, "html.parser")
+        assert document.find(id="post-battle-errors") is None
+        assert "Cinder's XP" not in module(response, model).get_text()
