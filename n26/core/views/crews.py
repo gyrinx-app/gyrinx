@@ -17,6 +17,29 @@ from n26.core.views.battles import battle_or_404
 from n26.core.views.permissions import _any_campaign_or_404
 from n26.flags import CAMPAIGNS, requires_flag
 
+CREW_HELP = {
+    "label": "More about crew selection",
+    "paragraphs": [
+        "Select one equipment set for each model.",
+        "After the battle, you can say which reinforcements took part.",
+        "Pets are not listed. A pet joins the crew with its owner and does not "
+        "count towards the crew size.",
+    ],
+}
+
+DRAW_HELP = {
+    "label": "More about the random draw",
+    "paragraphs": [
+        "Use this to select models at random. For random selection, enter the "
+        "size of the starting crew. For hybrid selection, first select the "
+        "models you want below (the X), then draw the rest (the Y) here. The "
+        "crew selection rules are in the Core Rulebook, page 141.",
+        "Only available models you have not selected are in the draw. Each "
+        "drawn model gets a random equipment set. Drawn models are ticked below "
+        "and saved in your draft, so reloading this page does not draw again.",
+    ],
+}
+
 
 def _context(request, pk, battle_pk, gang_pk):
     campaign = _any_campaign_or_404(request, pk, with_owner_badge=False)
@@ -131,6 +154,8 @@ def edit_crew(request, pk, battle_pk, gang_pk):
             "gang": gang,
             "crew": crew,
             "form": form,
+            "crew_help": CREW_HELP,
+            "draw_help": DRAW_HELP,
             "crew_picker": _crew_picker(
                 form,
                 crew=crew,

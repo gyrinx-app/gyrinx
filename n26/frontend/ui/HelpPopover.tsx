@@ -1,0 +1,177 @@
+import {
+    createElement,
+    type CSSProperties,
+    type ReactNode,
+    useEffect,
+    useId,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from "react";
+import cotton from "../generated/cotton.json";
+
+const OPEN_DELAY = 120;
+const CLOSE_DELAY = 200;
+
+/**
+ * A question-mark button that opens a short explanation.
+ *
+ * Hovering opens the panel and leaving closes it. A click keeps it open until
+ * the next click, Escape, or a click or focus outside, so touch and keyboard
+ * readers can open it too.
+ */
+export function HelpPopover({
+    label,
+    children,
+}: {
+    label: string;
+    children: ReactNode;
+}) {
+    const panelId = useId();
+    const root = useRef<HTMLSpanElement>(null);
+    const trigger = useRef<HTMLButtonElement>(null);
+    const panel = useRef<HTMLDivElement>(null);
+    const timer = useRef<number | undefined>(undefined);
+    const [open, setOpen] = useState(false);
+    const [pinned, setPinned] = useState(false);
+    const [panelStyle, setPanelStyle] = useState<CSSProperties>({
+        visibility: "hidden",
+    });
+
+    function close() {
+        window.clearTimeout(timer.current);
+        setOpen(false);
+        setPinned(false);
+        setPanelStyle({ visibility: "hidden" });
+    }
+
+    function later(next: boolean, delay: number) {
+        window.clearTimeout(timer.current);
+        timer.current = window.setTimeout(
+            () => (next ? setOpen(true) : close()),
+            delay,
+        );
+    }
+
+    useEffect(() => () => window.clearTimeout(timer.current), []);
+
+    useEffect(() => {
+        if (!open) return;
+
+        function dismissOutside(event: Event) {
+            if (!root.current?.contains(event.target as Node)) close();
+        }
+
+        function dismissOnEscape(event: KeyboardEvent) {
+            if (event.key !== "Escape") return;
+            close();
+            trigger.current?.focus();
+        }
+
+        document.addEventListener("pointerdown", dismissOutside);
+        document.addEventListener("focusin", dismissOutside);
+        document.addEventListener("keydown", dismissOnEscape);
+        return () => {
+            document.removeEventListener("pointerdown", dismissOutside);
+            document.removeEventListener("focusin", dismissOutside);
+            document.removeEventListener("keydown", dismissOnEscape);
+        };
+    }, [open]);
+
+    useLayoutEffect(() => {
+        if (!open) return;
+
+        function placePanel() {
+            if (!trigger.current || !panel.current) return;
+            const margin = 16;
+            const gap = 8;
+            const anchor = trigger.current.getBoundingClientRect();
+            const width = Math.min(288, window.innerWidth - margin * 2);
+            const height = panel.current.offsetHeight;
+            const below = anchor.bottom + gap;
+            const top =
+                below + height > window.innerHeight - margin &&
+                anchor.top - gap - height >= margin
+                    ? anchor.top - gap - height
+                    : below;
+            const left = Math.min(
+                Math.max(margin, anchor.left),
+                window.innerWidth - width - margin,
+            );
+            setPanelStyle({ visibility: "visible", left, top, width });
+        }
+
+        placePanel();
+        window.addEventListener("resize", placePanel);
+        window.addEventListener("scroll", placePanel, true);
+        return () => {
+            window.removeEventListener("resize", placePanel);
+            window.removeEventListener("scroll", placePanel, true);
+        };
+    }, [open]);
+
+    function onClick() {
+        window.clearTimeout(timer.current);
+        if (open && !pinned) {
+            setPinned(true);
+            return;
+        }
+        if (open) {
+            close();
+            return;
+        }
+        setOpen(true);
+        setPinned(true);
+    }
+
+    return (
+        <span
+            ref={root}
+            className="inline-flex align-middle"
+            onMouseEnter={() => {
+                if (!pinned) later(true, OPEN_DELAY);
+            }}
+            onMouseLeave={() => {
+                if (!pinned) later(false, CLOSE_DELAY);
+            }}
+        >
+            <button
+                ref={trigger}
+                type="button"
+                aria-label={label}
+                aria-expanded={open}
+                aria-controls={panelId}
+                onClick={onClick}
+                className="inline-flex cursor-pointer items-center rounded-full text-ink-500 transition-colors hover:text-ink-900 focus-ring dark:text-ink-400 dark:hover:text-white"
+            >
+                <svg
+                    className="size-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                >
+                    {cotton.icons["circle-question-mark"].map(
+                        ({ tag, attrs }, key) =>
+                            createElement(tag, { ...attrs, key }),
+                    )}
+                </svg>
+            </button>
+            {open && (
+                <div
+                    ref={panel}
+                    id={panelId}
+                    role="dialog"
+                    aria-label={label}
+                    className={`${cotton.popover.panel} fixed z-50 space-y-2 font-normal`}
+                    style={panelStyle}
+                >
+                    {children}
+                </div>
+            )}
+        </span>
+    );
+}

@@ -227,9 +227,7 @@ class TestCrewForms:
         client.post(address(table), fields(table))
         response = client.get(address(table))
         document = BeautifulSoup(response.content, "html.parser")
-        host = document.select_one(
-            "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
-        )
+        host = document.select_one("[data-react-module*='/crew-picker-']")
         assert host is not None
         props = json.loads(document.find(id=host["data-react-props"]).string)
         assert props == response.context["crew_picker"]
@@ -247,6 +245,21 @@ class TestCrewForms:
         form = host.find_parent("form")
         assert not form.select("[x-data], [x-model], [x-show]")
         assert not form.select('script[src$="battle-actions.js"]')
+
+    def test_the_longer_explanations_sit_behind_help_icons(
+        self, client, table, feature
+    ):
+        response = client.get(address(table))
+        document = BeautifulSoup(response.content, "html.parser")
+        hosts = document.select("[data-react-module*='/help-']")
+        labels = [
+            json.loads(document.find(id=host["data-react-props"]).string)["label"]
+            for host in hosts
+        ]
+        assert labels == ["More about crew selection", "More about the random draw"]
+        page_text = document.get_text(" ", strip=True)
+        assert "Select the starting crew and any reinforcements." in page_text
+        assert "Each drawn model gets a random equipment set" not in page_text
 
     def test_invalid_post_preserves_picker_values_and_field_errors(
         self, client, table, feature
@@ -273,9 +286,7 @@ class TestCrewForms:
         model.save(update_fields=["name"])
         response = client.get(address(table))
         document = BeautifulSoup(response.content, "html.parser")
-        host = document.select_one(
-            "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
-        )
+        host = document.select_one("[data-react-module*='/crew-picker-']")
         props = json.loads(document.find(id=host["data-react-props"]).string)
         selected = next(item for item in props["models"] if item["id"] == str(model.pk))
         assert selected["name"] == model.name
