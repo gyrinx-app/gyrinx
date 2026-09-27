@@ -78,7 +78,9 @@ def posted_payload(data):
                         data.getlist(f"{prefix}-counter")[:MAX_COUNTERS]
                     )
                 },
-                "note": data.get(f"{prefix}-note", ""),
+                # A browser counts a line break as one character and posts
+                # two; the note is kept with one, as its limit counts it.
+                "note": data.get(f"{prefix}-note", "").replace("\r\n", "\n"),
             }
         )
     lines = [

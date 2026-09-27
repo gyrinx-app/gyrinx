@@ -2626,3 +2626,45 @@ class TestModelNotes:
         cinder.refresh_from_db()
         assert cinder.notes.count("First.") == 1
         assert cinder.notes.count("Second.") == 1
+
+
+class TestModelResultEdges:
+    """Posted values the page would not send, and line breaks in notes."""
+
+    def test_a_note_at_the_limit_with_line_breaks_is_accepted(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        cinder = table.models[0]
+        # 1,995 characters as the browser counts them, 2,001 once each line
+        # break is posted as two.
+        text = "\r\n".join(["x" * 285, *["x" * 284] * 6])
+        assert len(text.replace("\r\n", "\n")) == 1995
+        assert len(text) == 2001
+        fields = awards(
+            client.get(editor_url(report)),
+            table,
+            intent="check",
+            **{f"model-{cinder.pk}-note": text},
+        )
+        checked = client.post(editor_url(report), fields)
+        assert checked.context["plan"].valid, checked.context["plan"].errors
+        assert checked.context["plan"].models[0].note == text.replace("\r\n", "\n")
+
+    def test_a_change_to_a_counter_the_model_does_not_hold_is_refused(
+        self, client, table, feature, kills
+    ):
+        glitch = create_counter("Glitch Count")
+        ember_counter = assign(create_counter("Grudges"), miniature=table.models[1])
+        report = start(client, table)
+        cinder = table.models[0]
+        prefix = f"model-{cinder.pk}"
+        for key in ("", str(glitch.pk), str(ember_counter.pk)):
+            fields = awards(client.get(editor_url(report)), table, intent="check")
+            fields[f"{prefix}-counter"] = [str(kills.pk), key]
+            fields[f"{prefix}-counter-{key}"] = "1"
+            checked = client.post(editor_url(report), fields)
+            plan = checked.context["plan"]
+            assert not plan.valid
+            assert any("You cannot correct the change to" in e for e in plan.errors)
+        assert not report.revisions.exists()

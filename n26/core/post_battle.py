@@ -1475,7 +1475,7 @@ def preview_report(report, *, actor, payload=None):
             if value and changeable_counter(counter)
         )
         facts.append(["model-counters", model_id, sorted(held_ids)])
-        note = str(raw.get("note") or "").strip()
+        note = str(raw.get("note") or "").replace("\r\n", "\n").strip()
         if len(note) > MAX_NOTE:
             model_errors.append(f"Keep the note to {MAX_NOTE:,} characters or fewer.")
         result.note = note
@@ -1744,8 +1744,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                                 ),
                             )
                         )
-                        for change in m.counters
-                        if change.changes
+                        for change in m.moving_counters
                     ],
                     "note_appended": m.note if m.note_appends else "",
                 }

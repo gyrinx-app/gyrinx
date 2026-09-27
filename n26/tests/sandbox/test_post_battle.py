@@ -1786,3 +1786,16 @@ class TestModelNotes:
         report = save(report, owner, with_model(model, note="x" * 2001))
         errors = preview_report(report, actor=owner).errors
         assert "Cinder: Keep the note to 2,000 characters or fewer." in errors
+
+
+@pytest.mark.usefixtures("counter_tracking")
+def test_a_correction_leaves_an_unchanged_counter_off_the_receipt(
+    report, owner, model, kill_count
+):
+    key = str(kill_count.pk)
+    report = save(report, owner, with_model(model, counters={key: 1}))
+    apply(report, owner)
+    report = start_correction(report, actor=owner)
+    report = save(report, owner, with_model(model, counters={key: 1}, xp=1))
+    saved = apply(report, owner)
+    assert saved.receipt["models"][0]["counters"] == []
