@@ -335,12 +335,16 @@ class CrewSheet:
 
 
 def build_crew_sheet(crew):
-    members = list(
-        crew.members.select_related(
+    # A pet saved as a crew member is drawn with its owner instead, and like
+    # any pet it is not counted in the crew or its rating.
+    members = [
+        member
+        for member in crew.members.select_related(
             "miniature__membership__profile",
             "miniature__membership__caused_by__miniature_root",
         )
-    )
+        if member.miniature is None or member.miniature.owned_by is None
+    ]
     owners = {member.miniature_id for member in members if member.miniature_id}
     pets = list(
         Miniature.objects.filter(

@@ -477,6 +477,26 @@ class TestCrewPets:
         titles = [row["card"].name for row in printed.context["rows"]]
         assert titles.index("Cyber-mastiff") == titles.index("Mara") + 1
 
+    def test_a_pet_saved_as_a_member_is_drawn_once_with_its_owner(
+        self, client, table, pet, feature
+    ):
+        owner = table.models[0]
+        crew = BattleCrew.objects.create(
+            battle=table.battle, gang=table.gang, confirmed=True
+        )
+        for model in (owner, pet):
+            crew.members.create(
+                miniature=model,
+                miniature_name=model.name,
+                role="starting",
+                card_name="Full equipment",
+                rating=10,
+            )
+        sheet = client.get(address(table, sheet=True)).context["sheet"]
+        assert [line.member.miniature_id for line in sheet.starting] == [owner.pk]
+        assert [card.name for card in sheet.starting[0].pets] == ["Cyber-mastiff"]
+        assert sheet.starting_rating == 10
+
     def test_a_pet_whose_owner_is_not_in_the_crew_is_not_drawn(
         self, client, table, pet, feature
     ):
