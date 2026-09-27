@@ -62,6 +62,8 @@ class NamedCard:
     card: ModelCard
     id: str = ""
     note: str = ""
+    #: Where the reader goes to act on the note.
+    note_href: str = ""
 
     @property
     def warning(self):
@@ -70,6 +72,7 @@ class NamedCard:
             "label": "Why this card needs attention",
             "paragraphs": [self.note],
             "tone": "warning",
+            "cta": {"label": "Add a model card", "href": self.note_href},
         }
 
 
@@ -132,8 +135,11 @@ def _previews(miniature, assignment_sets):
                 note=""
                 if named or weapons <= MOST_WEAPONS_ON_A_CARD
                 else (
-                    "This model has more than three weapons, so it needs more "
-                    "than one card for a battle."
+                    "This model has more than three weapons. Add a model card "
+                    "to use it in a battle."
+                ),
+                note_href=reverse(
+                    "n26-model-card-create", args=[miniature.gang.pk, miniature.pk]
                 ),
             )
         )

@@ -37,10 +37,13 @@ const TONES = {
 export function HelpPopover({
     label,
     tone = "help",
+    cta,
     children,
 }: {
     label: string;
     tone?: keyof typeof TONES;
+    /** A link under the explanation, for what the reader can do next. */
+    cta?: { label: string; href: string };
     children: ReactNode;
 }) {
     const look = TONES[tone];
@@ -193,6 +196,15 @@ export function HelpPopover({
                     style={panelStyle}
                 >
                     {children}
+                    {cta && (
+                        <p>
+                            <a href={cta.href} className={cotton.link[0]}>
+                                <span className={cotton.link[1]}>
+                                    {cta.label}
+                                </span>
+                            </a>
+                        </p>
+                    )}
                 </div>
             )}
         </span>

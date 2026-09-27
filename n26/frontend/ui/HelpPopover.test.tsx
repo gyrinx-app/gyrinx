@@ -97,6 +97,27 @@ describe("HelpPopover", () => {
         expect(screen.getByText("Too many weapons.")).toBeTruthy();
     });
 
+    it("draws an optional call to action as a link", () => {
+        render(
+            <HelpPopover
+                label="Why this card needs attention"
+                cta={{ label: "Add a model card", href: "/cards/new/" }}
+            >
+                <p>Too many weapons.</p>
+            </HelpPopover>,
+        );
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Why this card needs attention",
+            }),
+        );
+        expect(
+            screen
+                .getByRole("link", { name: "Add a model card" })
+                .getAttribute("href"),
+        ).toBe("/cards/new/");
+    });
+
     it("closes on a click outside", () => {
         const trigger = setup();
         fireEvent.click(trigger);
