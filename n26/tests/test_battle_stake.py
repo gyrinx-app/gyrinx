@@ -18,6 +18,7 @@ from django.urls import reverse
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import BattleStake, battle_stake, campaign_operation
 from n26.core.forms import BattleForm
+from n26.core.history import build
 from n26.core.models import Battle, Gang, LedgerEvent, PostBattleReport
 from n26.core.operations import Refusal
 from n26.core.post_battle import start_report
@@ -478,3 +479,44 @@ def stake_text(response):
     )
     assert stake is not None
     return " ".join(stake.get_text().split())
+
+
+class TestGangHistory:
+    """Each gang's history says the stake moved in the battle, from the
+    gang's own side, and names nobody as the one who lost it."""
+
+    def told(self, gang, viewer=None):
+        return [
+            (act.actor, "".join(span.text for span in act.spans))
+            for act in build(gang, viewer=viewer)
+            if "Old Ruins" in "".join(span.text for span in act.spans)
+        ]
+
+    def test_the_award_is_won_and_lost_in_the_battle(self, table):
+        stake_as(table, table.kings)
+
+        assert self.told(table.choir)[-1] == ("", "Lost Old Ruins in Stand-off")
+        assert self.told(table.kings) == [("", "Won Old Ruins in Stand-off")]
+
+    def test_a_correction_says_the_battle_was_corrected(self, table):
+        stake_as(table, table.kings)
+        stake_as(table, None)
+        stake_as(table, table.kings)
+
+        assert self.told(table.kings) == [
+            ("", "Won Old Ruins in Stand-off"),
+            ("", "Returned Old Ruins after Stand-off was corrected"),
+            ("", "Won Old Ruins in Stand-off"),
+        ]
+        assert self.told(table.choir)[-3:] == [
+            ("", "Lost Old Ruins in Stand-off"),
+            ("", "Got Old Ruins back after Stand-off was corrected"),
+            ("", "Lost Old Ruins in Stand-off"),
+        ]
+
+    def test_a_transfer_on_the_campaign_page_reads_as_before(self, table):
+        transfer_asset(table.ruins, table.kings)
+
+        assert self.told(table.kings) == [
+            ("arbitrator", "gained the territory Old Ruins")
+        ]

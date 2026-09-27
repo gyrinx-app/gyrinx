@@ -188,6 +188,7 @@ def _events(gang, window=None):
         "campaign",
         "campaign_asset__asset__asset_type",
         "counterpart",
+        "battle",
     )
     if window is None:
         return list(rows.order_by("created", "id"))
@@ -213,6 +214,7 @@ def _acts_from(events, viewer, *, alive):
     """The acts these events tell, oldest first."""
     rows = _rows_for(events)
     _name_the_rolls(events, rows)
+    _mark_stake_corrections(events)
     sources = _comes_with_sources(events, rows)
     acts = []
     #: Where each thing's opening act landed, so an old record's grant
@@ -669,8 +671,12 @@ def _turn(e, row):
 def _one_act(e, row, viewer, alive):
     spans, category = _tell(e, row, alive)
     model = _model_of(e, row)
-    # A grant's sentence already names who gained the thing.
-    actor = "" if e.kind == Kind.GRANTED and model is not None else _actor(e, viewer)
+    # A grant's sentence already names who gained the thing, and a
+    # battle's stake is won or lost by the gang itself.
+    told_by_the_gang = (e.kind == Kind.GRANTED and model is not None) or (
+        e.kind in HOLDING and e.battle_id is not None
+    )
+    actor = "" if told_by_the_gang else _actor(e, viewer)
     return Act(
         when=e.created,
         actor=actor,
@@ -726,6 +732,8 @@ def _tell(e, row, alive):
     )
 
     if _about_a_holding(e):
+        if e.battle_id is not None:
+            return _tell_stake(e), "gang"
         return _tell_holding(e), "gang"
 
     match e.kind:
@@ -994,6 +1002,41 @@ def _holding_name(e):
         str(campaign_asset),
         reverse("n26-campaign", args=[campaign_asset.campaign_id]) + "#assets",
     )
+
+
+def _mark_stake_corrections(events):
+    """Mark each battle's stake moving to or from this gang as the award
+    or a correction undoing it.
+
+    Editing a battle moves its stake, and a later edit moves it back
+    before anything else, so for one gang, one battle and one asset the
+    moves alternate: the first is the award, the next undoes it, and so
+    on. ``events`` are oldest first.
+    """
+    seen = {}
+    for e in events:
+        if e.kind in HOLDING and e.battle_id is not None:
+            key = (e.battle_id, e.campaign_asset_id)
+            e.stake_correction = seen.get(key, 0) % 2 == 1
+            seen[key] = seen.get(key, 0) + 1
+
+
+def _tell_stake(e):
+    """A battle's stake moving, as the gang's own history says it: "Won
+    Old Ruins in Stand-off", or, once the battle was corrected, "Got Old
+    Ruins back after Stand-off was corrected"."""
+    battle = e.battle.title
+    name = _holding_name(e)
+    gained = e.kind == Kind.GAINED
+    if getattr(e, "stake_correction", False):
+        verb = "Got " if gained else "Returned "
+        after = " back" if gained else ""
+        return (
+            Span(verb),
+            name,
+            Span(f"{after} after {battle} was corrected"),
+        )
+    return (Span("Won " if gained else "Lost "), name, Span(f" in {battle}"))
 
 
 def _tell_holding(e):
