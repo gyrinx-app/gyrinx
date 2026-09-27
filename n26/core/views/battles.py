@@ -1,6 +1,7 @@
 """Battle records: shared reading and arbitrator-owned metadata."""
 
 from dataclasses import dataclass
+from uuid import uuid4
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -42,6 +43,14 @@ class BattleParticipant:
     may_record: bool
     crew: object = None
     report: object = None
+
+    @property
+    def report_label(self):
+        if self.report is None:
+            return "Record results"
+        if self.report.state == PostBattleReport.State.DRAFT:
+            return "Continue draft"
+        return "View results"
 
 
 @requires_flag(CAMPAIGNS)
@@ -109,6 +118,7 @@ def battle(request, pk, battle_pk):
             "campaign": campaign,
             "battle": found,
             "participants": participants,
+            "request_key": uuid4(),
             "recorded": recorded,
             "yours": campaign.owner_id == request.user.pk,
             "has_history": bool(crews or reports) or found.gang_events.exists(),

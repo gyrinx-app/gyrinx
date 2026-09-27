@@ -154,14 +154,30 @@ def html_fields(response, **changes):
     return data | changes
 
 
+def record_results_form(response, url):
+    """The Record results form that posts to ``url`` on a rendered page."""
+    document = BeautifulSoup(response.content, "html.parser")
+    form = document.find("form", action=url)
+    assert form is not None
+    return form
+
+
+def record_results_fields(response, url):
+    form = record_results_form(response, url)
+    return {
+        element["name"]: element.get("value", "")
+        for element in form.select("input[name]")
+    }
+
+
 def start(client, table, *, standalone=False):
     url = start_url(table, standalone=standalone)
-    initial = client.get(url)
-    assert initial.status_code == 200
-    response = client.post(
-        url,
-        html_fields(initial, date="2026-09-20", reference="Stand-off"),
-    )
+    if standalone:
+        data = html_fields(client.get(url), date="2026-09-20", reference="Stand-off")
+    else:
+        battle_page = reverse("n26-battle", args=[table.campaign.pk, table.battle.pk])
+        data = record_results_fields(client.get(battle_page), url)
+    response = client.post(url, data)
     assert response.status_code == 302
     report = PostBattleReport.objects.get(gang=table.gang)
     assert response.url == editor_url(report)
@@ -518,6 +534,7 @@ class TestReportGroups:
             "View results" if applied else "Continue draft"
         )
         assert campaign_group.find("a", href=start_url(table)) is None
+        assert campaign_group.find("form", action=start_url(table)) is None
         assert standalone_group.find("a", href=destination) is None
         assert len(document.find_all("a", href=editor_url(standalone))) == 1
         assert standalone_group.find("a", href=editor_url(standalone)) is not None
@@ -549,7 +566,7 @@ class TestReportGroups:
         document = BeautifulSoup(
             client.get(start_url(table, standalone=True)).content, "html.parser"
         )
-        assert len(document.find_all("a", href=start_url(table))) == 1
+        assert len(document.find_all("form", action=start_url(table))) == 1
         assert document.find("a", href=editor_url(report)) is None
         assert "Continue draft" not in document.get_text()
 
@@ -595,6 +612,7 @@ class TestReportGroups:
         assert explanation in campaign_group.get_text()
         assert document.find("a", href=editor_url(report)) is None
         assert document.find("a", href=start_url(table)) is None
+        assert document.find("form", action=start_url(table)) is None
         assert (
             table.battle.title
             not in document.select_one("#standalone-reports").get_text()
@@ -670,23 +688,27 @@ class TestStartingAndResuming:
     """Reading creates nothing; starting and saving can safely be retried."""
 
     def test_start_page_get_does_not_write(self, client, table, feature):
-        for standalone in (False, True):
-            response = client.get(start_url(table, standalone=standalone))
-            assert response.status_code == 200
-            assert not PostBattleReport.objects.exists()
+        response = client.get(start_url(table, standalone=True))
+        assert response.status_code == 200
+        assert not PostBattleReport.objects.exists()
 
     @pytest.mark.parametrize("standalone", [False, True])
     def test_starting_twice_creates_one_report(
         self, client, table, feature, standalone
     ):
         url = start_url(table, standalone=standalone)
-        data = html_fields(client.get(url), date="2026-09-20", reference="Stand-off")
+        if standalone:
+            data = html_fields(
+                client.get(url), date="2026-09-20", reference="Stand-off"
+            )
+        else:
+            data = {"request_key": str(uuid4())}
         first = client.post(url, data)
         second = client.post(url, data)
         assert first.url == second.url
         report = PostBattleReport.objects.get(gang=table.gang)
         assert report.battle_id == (None if standalone else table.battle.pk)
-        assert report.reference == "Stand-off"
+        assert report.reference == ("Stand-off" if standalone else table.battle.title)
 
     def test_a_pet_is_preselected_when_its_owner_starts(
         self, client, table, feature, person_type, gang_type
@@ -860,9 +882,8 @@ class TestApplyingAndCorrecting:
         document = BeautifulSoup(receipt.content, "html.parser")
         assert document.find("h1").get_text(strip=True) == "Recorded results"
         breadcrumb = document.select_one('[aria-label="Breadcrumb"]')
-        assert (
-            breadcrumb.select_one('[aria-current="page"]').get_text(strip=True)
-            == "Recorded results"
+        assert breadcrumb.select_one('[aria-current="page"]').get_text(strip=True) == (
+            "Stand-off" if standalone else "Recorded results"
         )
         callout = document.select_one('[role="alert"]:not([data-message])')
         assert "rounded-box" in callout["class"]
@@ -1381,3 +1402,132 @@ class TestReportQueryGrowth:
             hire(table.gang, profile, name)
         assert count() <= small
         assert len(client.get(editor_url(report)).context["models"]) == 5
+
+
+class TestRecordResultsEntry:
+    """Record results starts the draft on POST and opens the editor straight away."""
+
+    def test_battle_report_get_does_not_write_and_returns_to_the_battle(
+        self, client, table, feature
+    ):
+        response = client.get(start_url(table))
+        assert response.status_code == 302
+        assert response.url == reverse(
+            "n26-battle", args=[table.campaign.pk, table.battle.pk]
+        )
+        assert not PostBattleReport.objects.exists()
+
+    def test_battle_report_get_with_a_report_goes_to_it(self, client, table, feature):
+        report = start(client, table)
+        response = client.get(start_url(table))
+        assert response.status_code == 302
+        assert response.url == editor_url(report)
+
+    def test_record_results_opens_the_editor_with_the_battle_details(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        assert report.battle_id == table.battle.pk
+        assert report.date == table.battle.date
+        assert report.reference == table.battle.title
+
+    def test_a_second_request_key_still_opens_the_one_battle_report(
+        self, client, table, feature
+    ):
+        url = start_url(table)
+        first = client.post(url, {"request_key": str(uuid4())})
+        second = client.post(url, {"request_key": str(uuid4())})
+        assert first.url == second.url
+        assert PostBattleReport.objects.filter(gang=table.gang).count() == 1
+
+    def test_a_missing_request_key_returns_to_the_battle_without_writing(
+        self, client, table, feature
+    ):
+        response = client.post(start_url(table), {})
+        assert response.url == reverse(
+            "n26-battle", args=[table.campaign.pk, table.battle.pk]
+        )
+        assert not PostBattleReport.objects.exists()
+
+    def test_the_post_battle_list_starts_a_campaign_report_by_post(
+        self, client, table, feature
+    ):
+        url = start_url(table)
+        data = record_results_fields(client.get(start_url(table, standalone=True)), url)
+        assert data["request_key"]
+        response = client.post(url, data)
+        report = PostBattleReport.objects.get(gang=table.gang)
+        assert response.url == editor_url(report)
+        assert report.battle_id == table.battle.pk
+
+    @pytest.mark.parametrize("page", ["editor", "receipt"])
+    def test_campaign_report_breadcrumb_links_the_battle_and_the_gang(
+        self, client, table, feature, page
+    ):
+        report = start(client, table)
+        if page == "receipt":
+            applied = client.post(
+                editor_url(report), awards(client.get(editor_url(report)), table)
+            )
+            assert applied.status_code == 302
+        response = client.get(
+            editor_url(report) if page == "editor" else receipt_url(report)
+        )
+        document = BeautifulSoup(response.content, "html.parser")
+        header = document.find("h1").find_parent("div", class_="gap-1")
+        crumbs = [
+            (item.get_text(strip=True), item.get("href"))
+            for item in header.select("nav li a, nav li [aria-current]")
+        ]
+        assert crumbs == [
+            (
+                table.battle.title,
+                reverse("n26-battle", args=[table.campaign.pk, table.battle.pk]),
+            ),
+            (table.gang.name, reverse("n26-gang", args=[table.gang.pk])),
+            (
+                "Post-battle results" if page == "editor" else "Recorded results",
+                None,
+            ),
+        ]
+        assert header.get_text().count(table.gang.name) == 1
+
+    def test_standalone_breadcrumb_links_the_gang_and_its_reports(
+        self, client, table, feature
+    ):
+        report = start(client, table, standalone=True)
+        document = BeautifulSoup(client.get(editor_url(report)).content, "html.parser")
+        header = document.find("h1").find_parent("div", class_="gap-1")
+        crumbs = [
+            (item.get_text(strip=True), item.get("href"))
+            for item in header.select("nav li a, nav li [aria-current]")
+        ]
+        assert crumbs == [
+            (table.gang.name, reverse("n26-gang", args=[table.gang.pk])),
+            ("Post-battle", reverse("n26-gang-post-battle", args=[table.gang.pk])),
+            ("Stand-off", None),
+        ]
+        assert header.get_text().count(table.gang.name) == 1
+
+    def test_the_action_bar_says_entries_save_as_you_go(self, client, table, feature):
+        report = start(client, table)
+        text = BeautifulSoup(
+            client.get(editor_url(report)).content, "html.parser"
+        ).get_text(" ", strip=True)
+        assert (
+            "Entries save as you go. The gang changes only when you apply the results."
+            in text
+        )
+        assert "Changes apply to this gang only." not in text
+
+    def test_battle_page_buttons_name_the_gang(self, client, table, feature):
+        battle_page = reverse("n26-battle", args=[table.campaign.pk, table.battle.pk])
+        button = record_results_form(client.get(battle_page), start_url(table)).find(
+            "button"
+        )
+        assert button["aria-label"] == f"Record results for {table.gang.name}"
+        start(client, table)
+        document = BeautifulSoup(client.get(battle_page).content, "html.parser")
+        link = document.find("a", href=start_url(table))
+        assert link.get_text(strip=True) == "Continue draft"
+        assert link["aria-label"] == f"Continue draft for {table.gang.name}"

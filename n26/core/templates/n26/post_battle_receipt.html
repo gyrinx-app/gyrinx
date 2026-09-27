@@ -6,8 +6,12 @@
 {% block content %}
     <div class="w-full space-y-6">
         <c-n26.page-header title="Recorded results"
-                           lead="{{ receipt.gang }} · {{ receipt.date }}">
-            <c-slot name="breadcrumb"><c-ui.breadcrumbs>{% if battle %}<c-ui.breadcrumbs.item href="{% url 'n26-battle' battle.campaign_id battle.pk %}">{{ receipt.battle }}</c-ui.breadcrumbs.item>{% else %}<c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ receipt.gang }}</c-ui.breadcrumbs.item>{% endif %}<c-ui.breadcrumbs.item :current="True">Recorded results</c-ui.breadcrumbs.item></c-ui.breadcrumbs></c-slot>
+                           lead="{% if battle %}{{ receipt.battle }} · {% endif %}{{ report.date|date:'j M Y' }}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    {% include "n26/includes/post_battle_breadcrumbs.html" with current="Recorded results" %}
+                </c-ui.breadcrumbs>
+            </c-slot>
             <c-slot name="actions"><c-ui.button href="{% url 'n26-gang' gang.pk %}">View gang</c-ui.button></c-slot>
         </c-n26.page-header>
         <c-ui.alert variant="success">
