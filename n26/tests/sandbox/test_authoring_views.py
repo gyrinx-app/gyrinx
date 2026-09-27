@@ -171,7 +171,8 @@ class TestFieldlessActionConfigurations:
     def test_recruitment_rule_has_a_form_and_builder_creates_one_for_an_action(
         self, author, client, default_pack
     ):
-        from n26.library.models import Action, RecruitmentAllowanceRule, SlotType
+        from n26.library.authoring import create_slot_type
+        from n26.library.models import Action, RecruitmentAllowanceRule
 
         created = client.post("/n26/authoring/recruitment-allowance-rule/new/", {})
         rule = RecruitmentAllowanceRule.objects.get()
@@ -180,7 +181,7 @@ class TestFieldlessActionConfigurations:
         assert client.get(detail).status_code == 200
         assert client.post(detail, {"act": "edit"}).status_code == 302
 
-        tier = SlotType.objects.create(name="Rig augmentation")
+        tier = create_slot_type("Rig augmentation")
         created_action = client.post(
             "/n26/authoring/action/new/",
             {
@@ -204,7 +205,9 @@ class TestFieldlessActionConfigurations:
         action = Action.objects.get(name="Recruitment augmentation")
         assert action.recruitment_allowance_rule is not None
         assert action.recruitment_allowance_rule != rule
-        assert action.outcomes.get().outcome.name == "Choose rig tier"
+        outcome = action.outcomes.get().outcome
+        assert outcome.name == "Choose rig tier"
+        assert outcome.augment_carried_item.slot_type == tier
 
 
 class TestRankThresholdWords:
