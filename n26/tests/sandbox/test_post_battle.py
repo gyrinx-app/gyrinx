@@ -1799,3 +1799,18 @@ def test_a_correction_leaves_an_unchanged_counter_off_the_receipt(
     report = save(report, owner, with_model(model, counters={key: 1}, xp=1))
     saved = apply(report, owner)
     assert saved.receipt["models"][0]["counters"] == []
+
+
+@pytest.mark.usefixtures("counter_tracking")
+def test_a_correction_leaves_an_unchanged_gang_counter_off_the_receipt(
+    report, owner, model, reputation
+):
+    key = str(reputation.pk)
+    report = save(report, owner, with_lines(model, counters={key: 2}))
+    apply(report, owner)
+    report = start_correction(report, actor=owner)
+    report = save(
+        report, owner, with_lines(model, (str(uuid4()), 5, "Bounty"), counters={key: 2})
+    )
+    saved = apply(report, owner)
+    assert saved.receipt["gang_counters"] == []

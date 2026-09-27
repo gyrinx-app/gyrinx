@@ -1714,8 +1714,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                         ),
                     )
                 )
-                for change in plan.gang_counters
-                if change.changes
+                for change in plan.moving_gang_counters
             ],
             "models": [
                 {
