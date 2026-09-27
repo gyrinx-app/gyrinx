@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.dateformat import format as format_date
 
 from n26.core.models.abstract import Archived, Base, Owned
 
@@ -447,7 +448,20 @@ class Battle(Base):
 
     @property
     def title(self):
-        return self.scenario or f"Battle on {self.date}"
+        return self.scenario or f"Battle on {format_date(self.date, 'j M Y')}"
+
+    @property
+    def gang_outcomes(self):
+        """Each participant with whether it won, by name.
+
+        Reads ``gangs`` and ``winners`` through ``.all()`` so a list that
+        prefetched both asks nothing more per battle.
+        """
+        won = {gang.pk for gang in self.winners.all()}
+        return [
+            (gang, gang.pk in won)
+            for gang in sorted(self.gangs.all(), key=lambda gang: gang.name.lower())
+        ]
 
     @property
     def result_label(self):
@@ -460,12 +474,14 @@ class Battle(Base):
         from django.core.exceptions import ValidationError
 
         if result not in cls.Result.values:
-            raise ValidationError({"result": "Select a result."})
+            raise ValidationError({"result": "Select an outcome."})
         if result == cls.Result.WINNERS and not winners:
             raise ValidationError({"winners": "Select at least one winning gang."})
         if result != cls.Result.WINNERS and winners:
             raise ValidationError(
-                {"winners": "Clear the winners for a draw or an unrecorded result."}
+                {
+                    "winners": "Clear the winners for a draw or an outcome not yet recorded."
+                }
             )
         if {gang.pk for gang in winners} - {gang.pk for gang in gangs}:
             raise ValidationError({"winners": "Every winner must be a participant."})

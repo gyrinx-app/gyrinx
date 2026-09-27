@@ -77,33 +77,51 @@ def fields(gang=None, **changes):
 
 
 class TestBattleForm:
-    def test_requires_scenario_date_and_explicit_result(self):
+    """A new battle has no outcome; the outcome is recorded by editing it."""
+
+    def test_a_new_battle_asks_only_for_scenario_and_date(self):
         form = BattleForm({}, playing=Gang.objects.none())
         assert not form.is_valid()
-        assert set(form.errors) == {"scenario", "date", "result"}
+        assert set(form.errors) == {"scenario", "date"}
+        assert "result" not in form.fields
+        assert "winners" not in form.fields
+
+    def test_editing_requires_an_explicit_outcome(self, battle):
+        form = BattleForm({}, playing=Gang.objects.none(), battle=battle)
+        assert not form.is_valid()
+        assert {"scenario", "date", "result"} <= set(form.errors)
 
     @pytest.mark.parametrize(
         "result,winners", [("draw", True), ("not_recorded", True), ("winners", False)]
     )
-    def test_result_matches_winners(self, gang, result, winners):
+    def test_result_matches_winners(self, gang, battle, result, winners):
         form = BattleForm(
-            fields(gang, result=result, winners=[str(gang.pk)] if winners else []),
+            fields(
+                gang,
+                result=result,
+                winners=[str(gang.pk)] if winners else [],
+                revision=0,
+            ),
             playing=Gang.objects.all(),
+            battle=battle,
         )
         assert not form.is_valid()
         assert "winners" in form.errors
 
-    def test_winner_is_a_participant(self, gang):
+    def test_winner_is_a_participant(self, gang, battle):
         form = BattleForm(
-            fields(result="winners", winners=[str(gang.pk)]), playing=Gang.objects.all()
+            fields(result="winners", winners=[str(gang.pk)], revision=0),
+            playing=Gang.objects.all(),
+            battle=battle,
         )
         assert not form.is_valid()
         assert "Every winner must be a participant." in form.errors["winners"]
 
-    def test_outside_gang_is_not_a_choice(self, gang):
+    def test_outside_gang_is_not_a_choice(self, gang, battle):
         form = BattleForm(
-            fields(gang, result="winners", winners=[str(gang.pk)]),
+            fields(gang, result="winners", winners=[str(gang.pk)], revision=0),
             playing=Gang.objects.none(),
+            battle=battle,
         )
         assert not form.is_valid()
         assert set(form.errors) == {"gangs", "winners"}
@@ -270,18 +288,57 @@ class TestBattlePages:
         assert "Stand-off" in response.content.decode()
         assert "Not recorded" in response.content.decode()
         assert "Edit battle" in response.content.decode()
+        assert f'href="{address(campaign, battle, "edit/")}#outcome"' in (
+            response.content.decode()
+        )
+
+    def test_create_ignores_an_outcome_sent_with_it(self, client, campaign, gang, flag):
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/battles/new/",
+            fields(gang, result="winners", winners=[str(gang.pk)]),
+        )
+        battle = Battle.objects.get(campaign=campaign)
+        assert battle.result == Battle.Result.NOT_RECORDED
+        assert not battle.winners.exists()
+
+    def test_the_add_page_offers_no_outcome(self, client, campaign, flag):
+        drawn = client.get(f"/n26/campaigns/{campaign.pk}/battles/new/")
+        assert drawn.status_code == 200
+        assert 'name="result"' not in drawn.content.decode()
+        assert 'name="winners"' not in drawn.content.decode()
 
     def test_legacy_detail_and_campaign_do_not_invent_results(
         self, client, campaign, flag
     ):
         legacy = Battle.objects.create(campaign=campaign, date=date(2026, 8, 3))
         detail = client.get(address(campaign, legacy)).content.decode()
-        assert "Battle on 2026-08-03" in detail
+        assert "Battle on 3 Aug 2026" in detail
         assert "Scenario not recorded." in detail
         assert "Not recorded" in detail
         campaign_page = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         assert address(campaign, legacy) in campaign_page
-        assert "Not recorded" in campaign_page
+        assert 'aria-label="Winner"' not in campaign_page
+        assert ">Draw<" not in campaign_page
+
+    def test_campaign_battles_mark_winners_and_draws(
+        self, client, campaign, arbitrator, gang, flag
+    ):
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            won = act.record_battle(
+                date(2026, 8, 4),
+                [gang],
+                scenario="Ambush",
+                result="winners",
+                winners=[gang],
+            )
+            act.record_battle(
+                date(2026, 8, 5), [gang], scenario="Sabotage", result="draw"
+            )
+        campaign_page = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+        assert campaign_page.count('aria-label="Winner"') == 1
+        assert ">Draw<" in campaign_page
+        assert f'href="{address(campaign, won)}"' in campaign_page
+        assert "n26-row-link" in campaign_page
 
     def test_edit_records_result_without_gang_changes(
         self, client, campaign, battle, gang, flag
