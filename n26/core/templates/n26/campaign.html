@@ -191,9 +191,9 @@ reader's other campaigns — the same pattern a gang's screens use.
                     </thead>
                     <tbody>
                         {% for battle in battles %}
-                            {# The row is relative so the title link's n26-row-link sheet covers it. #}
-                            <tr class="relative">
-                                <td>
+                            {# relative lets the title's n26-row-link cover the row; ! beats the table kit's near-invisible hover. #}
+                            <tr class="relative hover:bg-ink-500/5!">
+                                <td class="align-top">
                                     <c-n26.link href="{% url 'n26-battle' campaign.pk battle.pk %}"
                                                 class="n26-row-link font-medium">{{ battle.title }}</c-n26.link>
                                     <div class="mt-1 text-sm tabular-nums text-muted">{{ battle.date|date:"j M Y" }}</div>
