@@ -540,10 +540,11 @@ Write a short **Summary** for each tier and, if useful, an
 The app does not write them from the modifiers. The modifiers still determine
 what the tier does; check that each summary matches them.
 
-**Do not treat the Malcadon hunting rig as complete.** Its augmentation slot is
-already attached to live gear, but neither tier has its intended effects. The
-app cannot yet carry a Ballistic Skill or Weapon Skill decision through a tier
-upgrade. Resolve the live slot before testing or launching these tiers.
+**Do not treat the Malcadon hunting rig as complete.** Neither tier has its
+intended effects. The app cannot yet carry a Ballistic Skill or Weapon Skill
+decision through a tier upgrade. Run the **Spyrer augmentation repair** in
+Maintenance to detach its unfinished slot from live gear and remove existing
+empty slot assignments. Build the lasting choice before attaching it again.
 
 ### Reuse the shared definitions
 
@@ -649,10 +650,10 @@ not its firing profile.
   before augmentation. If the existing save uses a special rule, each
   upgraded tier also needs **Takes something away** for the base version.
   Check that the card displays only the upgraded save.
-- **Conditional benefits:** represent Yeld's cover benefit with a named special
-  rule granted to the model by Tier 2, alongside Tier 1's Movement improvement.
-  The card records the rule; players apply its condition at the table. Do not
-  improve the model's ordinary Save unconditionally.
+- **Conditional benefits:** Yeld Tier 2 keeps Tier 1's Movement improvement and
+  grants **Chameleonic protection**. The rule records the penalty to hit with
+  ranged attacks even after the wearer moves. Players apply it at the table;
+  do not change the model's ordinary Save.
 
 Use names and annotations for special rules. These rules appear on the model's
 card. They do not automate saving throws.
@@ -740,8 +741,8 @@ staged. Attaching the slot changes live content.
 
 Check a fresh hire and an existing model after the attachments. If an existing
 item has no augmentation line, ask a maintainer to check the built-in update;
-do not remove and rebuy the player's equipment. Verify the Malcadon hunting rig
-separately before treating the augmentation launch as complete.
+do not remove and rebuy the player's equipment. Keep the Malcadon hunting rig
+slot detached until its lasting characteristic choice is supported.
 
 ## The Lasting Injury and Lasting Damage tables
 
