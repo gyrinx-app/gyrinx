@@ -53,17 +53,17 @@ def battle(request, pk, battle_pk):
     active_gang_ids = set(
         campaign.memberships.filter(left__isnull=True).values_list("gang_id", flat=True)
     )
+    # A pet saved as a crew member goes with its owner and is not counted.
+    counted = Q(members__miniature__membership__caused_by__miniature_root__isnull=True)
+    starting = counted & Q(members__role="starting")
+    reserve = counted & Q(members__role="reserve")
     crews = {
         crew.gang_id: crew
         for crew in BattleCrew.objects.filter(battle=found).annotate(
-            starting_count=Count("members", filter=Q(members__role="starting")),
-            reserve_count=Count("members", filter=Q(members__role="reserve")),
-            starting_rating=Sum(
-                "members__rating", filter=Q(members__role="starting"), default=0
-            ),
-            reserve_rating=Sum(
-                "members__rating", filter=Q(members__role="reserve"), default=0
-            ),
+            starting_count=Count("members", filter=starting),
+            reserve_count=Count("members", filter=reserve),
+            starting_rating=Sum("members__rating", filter=starting, default=0),
+            reserve_rating=Sum("members__rating", filter=reserve, default=0),
         )
     }
     reports = {

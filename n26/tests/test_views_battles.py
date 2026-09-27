@@ -13,18 +13,24 @@ from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.crews import CrewSelection, save_crew
 from n26.core.forms import BattleForm
-from n26.core.models import Battle, CampaignEvent, Gang, LedgerEvent
+from n26.core.models import Battle, CampaignEvent, Gang, LedgerEvent, Miniature
 from n26.core.operations import operation
 from n26.core.post_battle import start_report
 from n26.core.reconcile import assert_reconciled
 from n26.flags import CAMPAIGNS
+from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
+    assign,
+    create_wargear,
     create_weapon,
     found_campaign,
     found_gang,
     give_weapon,
     hire,
     join_campaign,
+    modifier,
+    op_adds_model,
+    targets_model,
 )
 
 pytestmark = pytest.mark.django_db
@@ -128,6 +134,52 @@ class TestBattleForm:
 
 
 class TestBattlePages:
+    def test_a_pet_saved_as_a_crew_member_is_not_counted(
+        self,
+        client,
+        campaign,
+        battle,
+        gang,
+        arbitrator,
+        flag,
+        default_pack,
+        make_profile,
+        person_type,
+        gang_type,
+    ):
+        owner = hire(gang, make_profile("Gunner"), "Mara", paid=20)
+        save_crew(
+            battle=battle,
+            gang=gang,
+            actor=arbitrator,
+            revision=0,
+            selections=[CrewSelection(str(owner.pk), "starting")],
+            confirm=True,
+        )
+        profile = Profile.objects.create(
+            name="Cyber-mastiff", profile_type=person_type, gang_type=gang_type
+        )
+        wargear = create_wargear("Cyber-mastiff (pet)")
+        modifier(
+            "Cyber-mastiff wargear brings a pet",
+            targets_model(),
+            op_adds_model(profile),
+            carried_by=wargear,
+        )
+        assign(wargear, miniature=owner, actor=arbitrator)
+        pet = Miniature.objects.get(name="Cyber-mastiff", membership__gang=gang)
+        battle.crews.get().members.create(
+            miniature=pet,
+            miniature_name=pet.name,
+            role="starting",
+            card_name="Full equipment",
+            rating=40,
+        )
+
+        crew = client.get(address(campaign, battle)).context["participants"][0].crew
+        assert crew.starting_count == 1
+        assert crew.starting_rating == 20
+
     @pytest.mark.parametrize("reader", [False, True])
     def test_confirmed_crew_shows_starting_and_reinforcement_ratings_separately(
         self,
