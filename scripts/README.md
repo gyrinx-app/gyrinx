@@ -93,6 +93,11 @@ the generated image out of git and check it for private data before uploading.
 - `check_core_suite_bounds.py`: CI helper. Given a collected `pytest -m core` count,
   refuses a value outside `CORE_SUITE_MIN`..`MAX` and warns when the count is
   within 50 of the max (the next core test would fail the required job).
+- `fetch_job_logs.py`: Read a GitHub Actions job log while sibling jobs are still
+  running. `gh run view --log-failed` waits until the whole run ends; this helper
+  uses `GET .../actions/jobs/JOB_ID/logs` and prints the pytest `FAILURES`
+  excerpt. `python scripts/fetch_job_logs.py` (current PR) or pass a PR number.
+  Load the `ci-job-logs` skill.
 - `fmt-check.sh` / `fmt.sh`: Run / apply formatting.
 - `manage.py`: Django management wrapper (also available as `manage` on `PATH` once the venv is
   active).

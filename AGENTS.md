@@ -30,7 +30,8 @@ Load the relevant skill before working in its area. Use `gyrinx-conventions`
 for Django and domain changes, `microcopy` for user-facing text,
 `design-system` for UI, `n26-react` for N26 interactions, `sql-performance` for
 database-backed pages, `worktree-db` for database lifecycle work,
-`dev-server` for local browser testing and `canvas-viewer` for `.canvas.tsx`
+`dev-server` for local browser testing, `ci-job-logs` when a GitHub Actions job
+fails while the run is still going, and `canvas-viewer` for `.canvas.tsx`
 artifacts when the IDE Canvas surface is unavailable.
 
 ## Working in the repository
@@ -108,7 +109,11 @@ Before pushing:
 
 See [`docs/developing-gyrinx/testing.md`](docs/developing-gyrinx/testing.md) for
 the checks required by CI. Fix failures in the source; do not bypass static
-checks or pre-commit hooks.
+checks or pre-commit hooks. When a GitHub Actions job fails while sibling jobs
+are still running, do not wait on `gh run view --log-failed`. Load the
+`ci-job-logs` skill and run `python scripts/fetch_job_logs.py` (current PR) or
+pass a PR number. It reads `GET .../actions/jobs/JOB_ID/logs` and prints the
+pytest `FAILURES` excerpt.
 
 ## Architecture and security
 
