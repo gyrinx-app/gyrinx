@@ -1730,17 +1730,17 @@ def module(response, model):
 class TestModelModule:
     """One module per model, worded by its tables, redrawn in place."""
 
-    def test_a_vehicle_table_reads_damage(
+    def test_a_vehicle_table_is_named_by_its_own_label(
         self, client, table, feature, make_profile, vehicle_type
     ):
-        kind = create_slot_type("Damage", is_lasting_effect=True)
-        dent = create_pickable("Dented Hull", kind)
-        damage = create_picklist("Damage table", kind, members=[dent])
-        slot = create_slot("Damage", kind, damage, min_picks=0, max_picks=100)
-        truck = make_profile("Cargo-8", profile_type=vehicle_type)
-        add_built_in(truck, table.xp)
-        add_built_in(truck, slot)
-        vehicle = hire(table.gang, truck, "Rust Bucket")
+        kind = create_slot_type("Lasting Damage", is_lasting_effect=True)
+        result = create_pickable("Superficial Damage", kind)
+        damage = create_picklist("Lasting Damage Table", kind, members=[result])
+        slot = create_slot("Lasting Damage", kind, damage, min_picks=0, max_picks=100)
+        profile = make_profile("Test vehicle", profile_type=vehicle_type)
+        add_built_in(profile, table.xp)
+        add_built_in(profile, slot)
+        vehicle = hire(table.gang, profile, "Vehicle")
         report = start(client, table)
         added = client.post(
             editor_url(report),
@@ -1751,12 +1751,12 @@ class TestModelModule:
         box = module(added, vehicle)
         assert box.find("button", value=f"add-effect:{vehicle.pk}").get_text(
             strip=True
-        ) == ("Add damage")
+        ) == ("Add lasting damage")
         (field,) = box.select("select[id$='-pick']")
         assert box.find("label", attrs={"for": field["id"]}).get_text(strip=True) == (
-            "Damage 1"
+            "Lasting Damage 1"
         )
-        assert box.find("optgroup")["label"] == "Damage"
+        assert box.find("optgroup")["label"] == "Lasting Damage"
         fighter = module(added, table.models[0])
         assert fighter.find(
             "button", value=f"add-effect:{table.models[0].pk}"
@@ -1764,18 +1764,18 @@ class TestModelModule:
         assert "lasting effect" not in added.content.decode().lower()
 
     def test_options_lead_with_their_roll_band(self, client, table, feature):
-        kind = create_slot_type("Banded injury", is_lasting_effect=True)
+        kind = create_slot_type("Test table (dice)", is_lasting_effect=True)
         banded = create_picklist(
-            "Banded injuries", kind, dice="d66", roll_selects="band"
+            "Test table (dice)", kind, dice="d66", roll_selects="band"
         )
         out_cold = create_pickable("Out Cold", kind)
         add_picklist_member(banded, out_cold, roll_low=11, roll_high=16)
         profile = table.models[0].membership.profile
         add_built_in(
             profile,
-            create_slot("Banded injury", kind, banded, min_picks=0, max_picks=9),
+            create_slot("Test table (dice)", kind, banded, min_picks=0, max_picks=9),
         )
-        model = hire(table.gang, profile, "Ash")
+        model = hire(table.gang, profile, "Third model")
         report = start(client, table)
         added = client.post(
             editor_url(report),
@@ -1787,7 +1787,7 @@ class TestModelModule:
             group["label"]: [option.get_text(strip=True) for option in group("option")]
             for group in module(added, model).find_all("optgroup")
         }
-        assert groups["Banded injury"] == ["11–16 Out Cold"]
+        assert groups["Test table (dice)"] == ["11–16 Out Cold"]
         assert groups["Lasting injury"] == ["Grievous Wound"]
         (row,) = [row for row in added.context["models"] if row.id == str(model.pk)]
         values = [value for value, _ in row.effect_options]

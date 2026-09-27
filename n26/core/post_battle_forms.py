@@ -196,6 +196,10 @@ class ReportModel:
         return f"Why {self.name} cannot take XP"
 
     @property
+    def current_xp_label(self):
+        return f"Current XP: {self.result.xp_before}"
+
+    @property
     def status_colour(self):
         return status_colour(self.result.status)
 

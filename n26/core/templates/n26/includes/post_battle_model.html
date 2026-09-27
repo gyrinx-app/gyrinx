@@ -38,14 +38,12 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
             {% for error in model.result.errors %}<li>{{ error }}</li>{% endfor %}
         </ul>
     {% endif %}
-    <div class="mt-4 grid gap-x-6 gap-y-5 lg:grid-cols-2">
-        <div class="min-w-0 space-y-4" data-model-progress>
-            <div class="space-y-1.5">
-                {% if model.result.xp_available %}
-                    <div class="flex items-baseline justify-between gap-3">
-                        <label for="{{ model.prefix }}-xp" class="text-sm font-medium">XP gained</label>
-                        <span class="text-xs text-muted tabular-nums">Current XP: {{ model.result.xp_before }}</span>
-                    </div>
+    <div class="mt-4 max-w-xl space-y-4">
+        <div class="space-y-4" data-model-progress>
+            {% if model.result.xp_available %}
+                <c-ui.field label="XP gained"
+                            for="{{ model.prefix }}-xp"
+                            description_trailing="{{ model.current_xp_label }}">
                     <c-ui.input id="{{ model.prefix }}-xp"
                                 name="{{ model.prefix }}-xp"
                                 type="number"
@@ -55,48 +53,44 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                                 value="{{ model.xp }}"
                                 data-xp-input
                                 size="lg" />
-                {% else %}
+                </c-ui.field>
+            {% else %}
+                <c-ui.field label="XP gained" description_trailing="{{ model.current_xp_label }}">
                     <input type="hidden" name="{{ model.prefix }}-xp" value="{{ model.xp }}">
-                    <div class="flex items-center justify-between gap-3">
-                        <span class="flex items-center gap-1 text-sm font-medium">
-                            XP gained
-                            <c-ui.popover strategy="fixed"
-                                          position="bottom"
-                                          align="start"
-                                          panel_id="{{ model.prefix }}-xp-why"
-                                          panel_label="{{ model.xp_why_label }}">
-                                <c-slot name="trigger">
-                                    <c-ui.button variant="ghost"
-                                                 size="sm"
-                                                 compact
-                                                 id="{{ model.prefix }}-xp-why-button"
-                                                 aria-label="{{ model.xp_why_label }}"
-                                                 aria-expanded="false"
-                                                 ::aria-expanded="open"
-                                                 aria-controls="{{ model.prefix }}-xp-why"
-                                                 data-xp-why>
-                                        <span class="n26-icon-only">
-                                            <c-n26.icon name="circle-question-mark" class="size-5" />
-                                        </span>
-                                    </c-ui.button>
-                                </c-slot>
-                                <p class="w-64 max-w-full">{{ model.result.xp_blocked_message }}</p>
-                            </c-ui.popover>
-                        </span>
-                        <span class="text-xs text-muted tabular-nums">Current XP: {{ model.result.xp_before }}</span>
-                    </div>
+                    <c-ui.popover strategy="fixed"
+                                  position="bottom"
+                                  align="start"
+                                  panel_id="{{ model.prefix }}-xp-why"
+                                  panel_label="{{ model.xp_why_label }}">
+                        <c-slot name="trigger">
+                            <c-ui.button variant="ghost"
+                                         size="sm"
+                                         compact
+                                         id="{{ model.prefix }}-xp-why-button"
+                                         aria-label="{{ model.xp_why_label }}"
+                                         aria-expanded="false"
+                                         ::aria-expanded="open"
+                                         aria-controls="{{ model.prefix }}-xp-why"
+                                         data-xp-why>
+                                <span class="n26-icon-only">
+                                    <c-n26.icon name="circle-question-mark" class="size-5" />
+                                </span>
+                            </c-ui.button>
+                        </c-slot>
+                        <p class="w-64 max-w-full">{{ model.result.xp_blocked_message }}</p>
+                    </c-ui.popover>
+                </c-ui.field>
+            {% endif %}
+            <div id="{{ model.prefix }}-xp-help">
+                {% if show_errors and model.result.errors %}
+                    <a href="#{{ model.prefix }}-errors"
+                       class="block text-xs text-red-700 underline dark:text-red-300">Check this model's results</a>
                 {% endif %}
-                <div id="{{ model.prefix }}-xp-help">
-                    {% if show_errors and model.result.errors %}
-                        <a href="#{{ model.prefix }}-errors"
-                           class="block text-xs text-red-700 underline dark:text-red-300">Check this model's results</a>
-                    {% endif %}
-                </div>
             </div>
         </div>
-        <div class="min-w-0 space-y-4" data-model-outcome>
+        <div class="space-y-4" data-model-outcome>
             {% for effect in model.effects %}
-                <div class="space-y-3 border-l-2 border-box-border pl-3">
+                <div class="space-y-3">
                     <input type="hidden"
                            name="{{ model.prefix }}-effect"
                            value="{{ effect.id }}">

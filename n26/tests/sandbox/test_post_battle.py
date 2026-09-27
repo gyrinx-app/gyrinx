@@ -1199,7 +1199,7 @@ class TestRollBands:
         profile = create_profile("Ganger", fighter_type, gang_type)
         add_built_in(profile, slot)
         owner = User.objects.create_user("band-owner")
-        gang = found_gang("Banded", gang_type, owner=owner, budget=100)
+        gang = found_gang("Test gang", gang_type, owner=owner, budget=100)
         hire(gang, profile, "Cinder")
         report = start_report(gang, actor=owner, request_key=uuid4())
         (slot_offer,) = preview_report(report, actor=owner).models[0].effect_slots
