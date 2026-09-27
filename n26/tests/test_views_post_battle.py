@@ -2115,3 +2115,53 @@ class TestWhatTheSummaryAndReceiptList:
             "Cinder: Memorable Death makes Cinder Dead, but Cinder's final status "
             "is In Recovery. Choose the final status."
         ) in checked.context["errors"]
+
+
+class TestConflictingStatuses:
+    """Results that set different statuses ask for a choice at once."""
+
+    def test_the_module_and_summary_show_the_conflict_as_it_arises(
+        self, client, table, feature
+    ):
+        death = create_pickable(
+            "Memorable Death",
+            table.injury_kind,
+            effects=[(targets_model(), op_sets_status(Status.DEAD))],
+        )
+        add_picklist_member(table.injury_table, death)
+        report = start(client, table)
+        cinder = table.models[0]
+        page = client.get(editor_url(report))
+        for _ in range(2):
+            page = client.post(
+                editor_url(report),
+                html_fields(page, intent=f"add-effect:{cinder.pk}"),
+            )
+        entry = next(m for m in page.context["models"] if m.id == str(cinder.pk))
+        first, second = (effect.id for effect in entry.effects)
+        option = {value.split("|")[1]: value for value, _ in entry.effect_options}
+
+        redrawn = refresh(
+            client,
+            report,
+            page,
+            cinder,
+            **{
+                f"effect-{first}-pick": option[str(table.wound.pk)],
+                f"effect-{second}-pick": option[str(death.pk)],
+            },
+        )
+
+        message = (
+            "Grievous Wound makes Cinder In Recovery and Memorable Death makes "
+            "Cinder Dead. Choose the final status."
+        )
+        box = module(redrawn, cinder)
+        conflict = box.find(id=f"model-{cinder.pk}-status-conflict")
+        assert conflict.get_text(strip=True) == message
+        assert "After this battle" not in box.get_text()
+        status = box.find("select", id=f"model-{cinder.pk}-status")
+        assert status["aria-describedby"] == conflict["id"]
+        text = summary_text(redrawn)
+        assert message in text
+        assert "Final status" not in text

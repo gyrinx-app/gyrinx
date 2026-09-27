@@ -187,6 +187,17 @@ class ReportModel:
         }
 
     @property
+    def status_attrs(self):
+        """The Final status select: redraws the module, and points at the
+        conflict that asks for a choice."""
+        if not self.result.status_conflict:
+            return self.refresh_attrs
+        return self.refresh_attrs | {
+            "aria-describedby": f"{self.prefix}-status-conflict",
+            "aria-invalid": "true",
+        }
+
+    @property
     def button_attrs(self):
         """A button inside the module: htmx posts its own intent."""
         return {"hx-post": self.refresh_url} if self.refresh_url else {}
@@ -213,7 +224,12 @@ class ReportModel:
 
     @property
     def status_changes(self):
-        return self.result.final_status != self.result.status
+        """Whether the status changes. Never while the results conflict:
+        until the player chooses, there is no final status to name."""
+        return (
+            not self.result.status_conflict
+            and self.result.final_status != self.result.status
+        )
 
     @property
     def xp_changes(self):
@@ -235,6 +251,7 @@ class ReportModel:
             self.xp_changes
             or self.named_effects
             or self.status_changes
+            or self.result.status_conflict
             or self.result.equipment_changed
         )
 

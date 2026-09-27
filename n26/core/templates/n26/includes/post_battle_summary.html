@@ -36,7 +36,9 @@
                         <p class="text-muted">XP total: {{ model.result.xp_before }} → {{ model.result.xp_after }}</p>
                     {% endif %}
                     {% for effect in model.named_effects %}<p class="text-muted">{{ effect.name }}</p>{% endfor %}
-                    {% if model.status_changes %}
+                    {% if model.result.status_conflict %}
+                        <p class="text-red-700 dark:text-red-300">{{ model.result.status_conflict }}</p>
+                    {% elif model.status_changes %}
                         <p class="text-muted">Final status: {{ model.final_status_label }}</p>
                         {% if model.ends_in_recovery %}
                             <p class="text-xs text-muted">Stays In Recovery until the end of the campaign cycle.</p>

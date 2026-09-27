@@ -377,6 +377,23 @@ class TestApplication:
         model.refresh_from_db()
         assert model.status == Status.DEAD
 
+    def test_conflicting_injuries_name_each_result_and_status(
+        self, report, owner, model, content
+    ):
+        injuries = [
+            effect_for(report, owner, content[name]) for name in ("wound", "death")
+        ]
+        report = save(report, owner, payload_for(model, effects=injuries))
+
+        (result,) = preview_report(report, actor=owner).models
+
+        message = (
+            "Grievous Wound makes Cinder In Recovery and Memorable Death makes "
+            "Cinder Dead. Choose the final status."
+        )
+        assert result.status_conflict == message
+        assert f"Cinder: {message}" in preview_report(report, actor=owner).errors
+
     def test_content_counter_effect_is_in_the_receipt(
         self, report, owner, model, content
     ):

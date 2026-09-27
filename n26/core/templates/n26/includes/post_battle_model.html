@@ -174,6 +174,7 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
             {% if model.add_effect_label %}
                 <c-ui.button type="submit"
                              name="intent"
+                             id="{{ model.prefix }}-add-effect"
                              value="add-effect:{{ model.id }}"
                              size="sm"
                              :attrs="model.button_attrs">
@@ -187,7 +188,7 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                                     name="{{ model.prefix }}-status"
                                     placeholder=""
                                     size="lg"
-                                    :attrs="model.refresh_attrs">
+                                    :attrs="model.status_attrs">
                     <option value="">Set from its current status and results</option>
                     {% for value,label in model.status_options %}
                         <option value="{{ value }}"
@@ -195,7 +196,10 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                     {% endfor %}
                 </c-ui.select.native>
             </c-ui.field>
-            {% if model.status_changes %}
+            {% if model.result.status_conflict %}
+                <p id="{{ model.prefix }}-status-conflict"
+                   class="text-sm text-red-700 dark:text-red-300">{{ model.result.status_conflict }}</p>
+            {% elif model.status_changes %}
                 <p class="flex flex-wrap items-center gap-2 text-sm">
                     After this battle:
                     <c-ui.badge size="sm" color="{{ model.final_status_colour }}">

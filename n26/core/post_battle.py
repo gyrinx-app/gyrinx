@@ -110,6 +110,9 @@ class ModelResult:
     equipment_ignored: bool = False
     errors: list[str] = field(default_factory=list)
     participated: bool = False
+    #: Why the final status must be chosen by hand, when it must. Shown
+    #: in the model's module as soon as it arises, not only after Check.
+    status_conflict: str = ""
 
     @property
     def equipment_applies(self):
@@ -1098,11 +1101,18 @@ def preview_report(report, *, actor, payload=None):
         current_label = label_for(miniature.status, vehicle)
         if not explicit:
             if len(set(implied)) > 1:
-                model_errors.append(
-                    "These results set different statuses. Choose the final status."
+                said = [
+                    f"{name} makes {miniature.name} {label_for(status, vehicle)}"
+                    for name, status in dict.fromkeys(implied_by)
+                ]
+                listed = (
+                    f"{', '.join(said[:-1])} and {said[-1]}"
+                    if len(said) > 1
+                    else said[0]
                 )
+                result.status_conflict = f"{listed}. Choose the final status."
             elif removing_status and followed is None:
-                model_errors.append(
+                result.status_conflict = (
                     f"The result that made {miniature.name} {current_label} is "
                     "replaced. Choose the final status."
                 )
@@ -1114,11 +1124,13 @@ def preview_report(report, *, actor, payload=None):
             ):
                 name, status = implied_by[-1]
                 verb = "leaves" if status == Status.ACTIVE else "makes"
-                model_errors.append(
+                result.status_conflict = (
                     f"{name} {verb} {miniature.name} {label_for(status, vehicle)}, "
                     f"but {miniature.name}'s final status is {current_label}. "
                     "Choose the final status."
                 )
+            if result.status_conflict:
+                model_errors.append(result.status_conflict)
         status_changed = explicit and (
             not previous
             or explicit != before.get("status")
