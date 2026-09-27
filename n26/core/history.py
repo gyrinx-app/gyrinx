@@ -188,6 +188,7 @@ def _events(gang, window=None):
         "campaign",
         "campaign_asset__asset__asset_type",
         "counterpart",
+        "battle",
     )
     if window is None:
         return list(rows.order_by("created", "id"))
@@ -669,8 +670,12 @@ def _turn(e, row):
 def _one_act(e, row, viewer, alive):
     spans, category = _tell(e, row, alive)
     model = _model_of(e, row)
-    # A grant's sentence already names who gained the thing.
-    actor = "" if e.kind == Kind.GRANTED and model is not None else _actor(e, viewer)
+    # A grant's sentence already names who gained the thing, and a
+    # battle's stake is won or lost by the gang itself.
+    told_by_the_gang = (e.kind == Kind.GRANTED and model is not None) or (
+        e.kind in HOLDING and e.battle_id is not None
+    )
+    actor = "" if told_by_the_gang else _actor(e, viewer)
     return Act(
         when=e.created,
         actor=actor,
@@ -726,6 +731,8 @@ def _tell(e, row, alive):
     )
 
     if _about_a_holding(e):
+        if e.battle_id is not None:
+            return _tell_stake(e), "gang"
         return _tell_holding(e), "gang"
 
     match e.kind:
@@ -994,6 +1001,24 @@ def _holding_name(e):
         str(campaign_asset),
         reverse("n26-campaign", args=[campaign_asset.campaign_id]) + "#assets",
     )
+
+
+def _tell_stake(e):
+    """A battle's stake moving, as the gang's own history says it: "Won
+    Old Ruins in Stand-off", or, for the move a correction wrote to undo
+    an earlier one, "Got Old Ruins back after Stand-off was corrected"."""
+    battle = e.battle.title
+    name = _holding_name(e)
+    gained = e.kind == Kind.GAINED
+    if e.reversal_of_id is not None:
+        verb = "Got " if gained else "Returned "
+        after = " back" if gained else ""
+        return (
+            Span(verb),
+            name,
+            Span(f"{after} after {battle} was corrected"),
+        )
+    return (Span("Won " if gained else "Lost "), name, Span(f" in {battle}"))
 
 
 def _tell_holding(e):

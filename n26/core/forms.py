@@ -7,6 +7,8 @@ gang types are the library's own.
 """
 
 from django import forms
+from django.core.exceptions import ValidationError
+from django.db.models import Q
 
 from n26.core.colours import GANG_COLOURS
 from n26.core.widgets import RichText
@@ -532,6 +534,45 @@ class BringGangForm(forms.Form):
         self.fields["gang"].queryset = gangs
 
 
+class StakeChoiceField(forms.ModelChoiceField):
+    """A campaign asset, named with the gang holding it now."""
+
+    def label_from_instance(self, obj):
+        if obj.held:
+            return f"{obj} (held by {obj.holder.gang.name})"
+        return f"{obj} (not held)"
+
+
+def stakes_offered(battle):
+    """The campaign assets a battle could stake: those its participants
+    hold now, and whatever it already stakes. None for a new battle."""
+    from n26.core.models import CampaignAsset
+
+    if battle is None:
+        return None
+    return (
+        CampaignAsset.objects.filter(campaign_id=battle.campaign_id)
+        .filter(
+            Q(
+                holder__left__isnull=True,
+                holder__gang__in=battle.gangs.values("pk"),
+            )
+            | Q(pk=battle.stake_id)
+        )
+        .select_related("asset__asset_type", "holder__gang")
+    )
+
+
+def stake_noun(stakes):
+    """What the stake is called: the asset type's own word where every
+    asset on offer is of one type, and "Asset" otherwise."""
+    labels = {stake.asset.asset_type.label_singular for stake in stakes}
+    if len(labels) != 1:
+        return "Asset"
+    label = labels.pop()
+    return label[:1].upper() + label[1:]
+
+
 class BattleForm(forms.Form):
     """A battle's identity and participants, and on edit its outcome.
 
@@ -559,9 +600,20 @@ class BattleForm(forms.Form):
         label="Winning gangs",
         widget=forms.CheckboxSelectMultiple,
     )
+    stake = StakeChoiceField(
+        queryset=None,
+        required=False,
+        empty_label="Nothing staked",
+    )
+    stake_awarded_to = forms.ModelChoiceField(
+        queryset=None,
+        required=False,
+        empty_label="Stays with the gang that held it before the battle",
+    )
     revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
 
     def __init__(self, *args, playing, battle=None, **kwargs):
+        from n26.core.campaigns import stake_came_from
         from n26.core.models import Battle
 
         super().__init__(*args, **kwargs)
@@ -584,7 +636,50 @@ class BattleForm(forms.Form):
                 result=battle.result,
                 winners=[gang.pk for gang in battle.winners.all()],
                 revision=battle.revision,
+                stake=battle.stake_id,
+                stake_awarded_to=battle.stake_awarded_to_id,
             )
+        stakes = stakes_offered(battle)
+        if not stakes:
+            # Nothing to stake: the fields go, and saving leaves the
+            # battle's stake as it is.
+            del self.fields["stake"]
+            del self.fields["stake_awarded_to"]
+            self.stake_label = ""
+            return
+        self.fields["stake"].queryset = stakes
+        # The gang that held it before the battle is the empty choice, so it
+        # is not offered again by name.
+        came_from = stake_came_from(battle)
+        awardable = self._awardable(playing, battle)
+        if came_from is not None:
+            awardable = awardable.exclude(pk=came_from.pk)
+            self.fields["stake_awarded_to"].empty_label = f"Stays with {came_from.name}"
+            if battle.stake_awarded_to_id == came_from.pk:
+                self.initial["stake_awarded_to"] = None
+        self.fields["stake_awarded_to"].queryset = awardable
+        from n26.core.campaigns import a_stake
+
+        noun = stake_noun(stakes)
+        self.stake_label = f"{noun} staked"
+        self.fields["stake"].label = self.stake_label
+        self.fields["stake"].error_messages["invalid_choice"] = (
+            f"Select {a_stake(noun)} a participant holds."
+        )
+        self.fields["stake_awarded_to"].label = f"{noun} goes to"
+        self.fields["stake_awarded_to"].error_messages["invalid_choice"] = (
+            f"Select a participant to give the {noun[:1].lower() + noun[1:]} to."
+        )
+
+    def _awardable(self, playing, battle):
+        """The gangs the stake can go to: the participants being saved,
+        so a gang added in this save can win it. Saving checks again."""
+        if not self.is_bound:
+            return battle.gangs.order_by("name")
+        try:
+            return playing.filter(pk__in=self.data.getlist("gangs")).order_by("name")
+        except ValidationError, ValueError:
+            return playing.none()
 
     def clean(self):
         from n26.core.models import Battle

@@ -45,6 +45,10 @@ from n26.core.models import Campaign, CampaignAsset, CampaignEvent, LedgerEvent
 NO_CEILING = "unlimited"
 
 
+#: Left as it is: what ``edit_battle`` takes for a stake it is not given.
+KEEP = object()
+
+
 def _now():
     return timezone.now()
 
@@ -323,8 +327,24 @@ class CampaignOperation:
         )
         return battle
 
-    def edit_battle(self, battle, *, scenario, date, gangs, result, winners, revision):
-        """Amend the battle record, retaining its gang history."""
+    def edit_battle(
+        self,
+        battle,
+        *,
+        scenario,
+        date,
+        gangs,
+        result,
+        winners,
+        revision,
+        stake=KEEP,
+        stake_awarded_to=KEEP,
+    ):
+        """Amend the battle record, retaining its gang history.
+
+        ``stake`` and ``stake_awarded_to`` are left as they are unless
+        given. See ``_settle_stake`` for what changing them moves.
+        """
         from n26.core.operations import Refusal
 
         battle = self._locked_battle(battle)
@@ -348,18 +368,41 @@ class CampaignOperation:
             raise Refusal(
                 "You cannot remove a participant with recorded battle history, a saved crew or a post-battle report."
             )
+        if stake is KEEP:
+            stake = battle.stake
+        if stake_awarded_to is KEEP:
+            stake_awarded_to = battle.stake_awarded_to
+        stake, stake_awarded_to = self._stake_details(
+            battle, stake=stake, awarded_to=stake_awarded_to, gang_ids=gang_ids
+        )
+        stake_changed = (
+            getattr(stake, "pk", None),
+            getattr(stake_awarded_to, "pk", None),
+        ) != (battle.stake_id, battle.stake_awarded_to_id)
         before = (battle.scenario, battle.date, battle.result)
         if (
             before == (scenario, date, result)
             and previous_gangs == gang_ids
             and set(battle.winners.values_list("pk", flat=True))
             == {gang.pk for gang in winners}
+            and not stake_changed
         ):
             return battle
+        if stake_changed:
+            self._settle_stake(battle, stake, stake_awarded_to, gang_ids)
         battle.scenario, battle.date, battle.result = scenario, date, result
         battle.revision += 1
         battle.save(
-            update_fields=["scenario", "date", "result", "revision", "modified"]
+            update_fields=[
+                "scenario",
+                "date",
+                "result",
+                "revision",
+                "stake",
+                "stake_awarded_to",
+                "stake_transfer_mark",
+                "modified",
+            ]
         )
         battle.gangs.set(gangs)
         battle.winners.set(winners)
@@ -369,6 +412,115 @@ class CampaignOperation:
             note=f"{scenario} on {date.isoformat()}",
         )
         return battle
+
+    def _stake_details(self, battle, *, stake, awarded_to, gang_ids):
+        """Check a battle's stake against its participants.
+
+        The stake as it stands under the campaign's line, and the gang it
+        goes to. A newly chosen stake must be held by a participant, and
+        only a participant can win it.
+        """
+        from n26.core.operations import Refusal
+
+        if stake is None:
+            if awarded_to is not None:
+                raise Refusal(
+                    "Select what was staked before selecting which gang it goes to."
+                )
+            return None, None
+        stake = _asset_under_the_lock(stake)
+        if stake is None or stake.campaign_id != self.campaign.pk:
+            raise Refusal("Select an asset from this campaign.")
+        if stake.pk != battle.stake_id and not (
+            stake.held and stake.holder.gang_id in gang_ids
+        ):
+            noun = a_stake(stake.asset.asset_type.label_singular)
+            raise Refusal(
+                f"No participant holds {stake}. Select {noun} a participant holds."
+            )
+        if awarded_to is not None and awarded_to.pk not in gang_ids:
+            raise Refusal(f"Select a participant to give {stake} to.")
+        return stake, awarded_to
+
+    def _settle_stake(self, battle, stake, awarded_to, gang_ids):
+        """Move the stake to the gang it now goes to, once.
+
+        A transfer this battle already made is reversed first, and only if
+        the gang it went to still holds the asset: otherwise it has changed
+        hands since, and undoing it would take it from somebody else. The
+        new transfer happens only where the asset is not already with the
+        gang it goes to, and its mark is kept on the battle so saving again
+        moves nothing.
+        """
+        from n26.core.operations import Refusal
+
+        if battle.stake_transfer_mark is not None:
+            self._reverse_stake(battle)
+        battle.stake, battle.stake_awarded_to = stake, awarded_to
+        if stake is None or awarded_to is None:
+            return
+        stake = _asset_under_the_lock(stake)
+        if stake.held and stake.holder.gang_id == awarded_to.pk:
+            return
+        if not stake.held or stake.holder.gang_id not in gang_ids:
+            raise Refusal(
+                f"{stake} is not held by a participant any more. "
+                "Transfer it on the campaign page."
+            )
+        mark = uuid4()
+        self.transfer(stake, self._playing(awarded_to, stake), battle=battle, mark=mark)
+        battle.stake_transfer_mark = mark
+
+    def _reverse_stake(self, battle):
+        from n26.core.models import LedgerEvent
+        from n26.core.operations import Refusal
+
+        stake = battle.stake and _asset_under_the_lock(battle.stake)
+        if stake is not None:
+            if not (
+                stake.held
+                and battle.stake_awarded_to_id is not None
+                and stake.holder.gang_id == battle.stake_awarded_to_id
+            ):
+                raise Refusal(
+                    f"{stake} cannot move back: the gang it went to no longer holds it. "
+                    "Transfer it on the campaign page."
+                )
+            lost = (
+                LedgerEvent.objects.filter(
+                    batch=battle.stake_transfer_mark,
+                    campaign_asset=stake,
+                    kind=LedgerEvent.Kind.LOST,
+                )
+                .select_related("gang")
+                .first()
+            )
+            if lost is None:
+                raise Refusal(
+                    f"{stake} cannot move back: the gang it went to no longer holds it. "
+                    "Transfer it on the campaign page."
+                )
+            self.transfer(
+                stake,
+                self._playing(lost.gang, stake),
+                battle=battle,
+                reverses=battle.stake_transfer_mark,
+            )
+        battle.stake_transfer_mark = None
+
+    def _playing(self, gang, stake):
+        from n26.core.models import CampaignMembership
+        from n26.core.operations import Refusal
+
+        membership = CampaignMembership.objects.filter(
+            campaign=self.campaign, gang=gang, left__isnull=True
+        ).first()
+        if membership is None:
+            raise Refusal(
+                f"{gang.name} has left the campaign, so {stake} cannot go to "
+                "them. Transfer it on the campaign page."
+            )
+        return membership
 
     def remove_battle(self, battle, *, revision):
         """Remove an unused battle; attributed gang history keeps its occasion."""
@@ -630,7 +782,16 @@ class CampaignOperation:
             op.event(campaign_asset, LedgerEvent.Kind.LOST, note=str(campaign_asset))
         return campaign_asset
 
-    def transfer(self, campaign_asset, membership, by_holder=None):
+    def transfer(
+        self,
+        campaign_asset,
+        membership,
+        by_holder=None,
+        *,
+        battle=None,
+        mark=None,
+        reverses=None,
+    ):
         """Hand a held asset from the gang holding it to another gang
         playing this campaign.
 
@@ -643,6 +804,11 @@ class CampaignOperation:
         An asset nobody holds cannot be handed over: assigning is the act
         for that. An asset already held by the receiving gang is refused
         too, in words, since nothing would change hands.
+
+        ``battle`` names the battle that moved it, on both records, and
+        ``mark`` is the mark they share where the caller keeps it.
+        ``reverses`` is the mark of an earlier transfer this one undoes:
+        each record then points at the one it reverses on the same gang.
         """
         from n26.core.operations import Refusal, operation
 
@@ -666,11 +832,33 @@ class CampaignOperation:
         loser = campaign_asset.holder
         campaign_asset.holder = membership
         campaign_asset.save(update_fields=["holder", "modified"])
-        mark = uuid4()
+        mark = mark or uuid4()
+        undone = (
+            {
+                (e.gang_id, e.kind): e
+                for e in LedgerEvent.objects.filter(
+                    batch=reverses, campaign_asset=campaign_asset
+                )
+            }
+            if reverses is not None
+            else {}
+        )
         with operation(loser.gang, actor=self.actor, batch=mark) as op:
-            op.event(campaign_asset, LedgerEvent.Kind.LOST, note=str(campaign_asset))
+            op.event(
+                campaign_asset,
+                LedgerEvent.Kind.LOST,
+                note=str(campaign_asset),
+                battle=battle,
+                reversal_of=undone.get((loser.gang_id, LedgerEvent.Kind.GAINED)),
+            )
         with operation(membership.gang, actor=self.actor, batch=mark) as op:
-            op.event(campaign_asset, LedgerEvent.Kind.GAINED, note=str(campaign_asset))
+            op.event(
+                campaign_asset,
+                LedgerEvent.Kind.GAINED,
+                note=str(campaign_asset),
+                battle=battle,
+                reversal_of=undone.get((membership.gang_id, LedgerEvent.Kind.LOST)),
+            )
         return campaign_asset
 
     # --- What the arbitrator adds ------------------------------------------
@@ -1251,6 +1439,106 @@ def _asset_under_the_lock(campaign_asset):
         CampaignAsset.objects.select_related("holder__gang", "asset__asset_type")
         .filter(pk=campaign_asset.pk)
         .first()
+    )
+
+
+@dataclass(frozen=True)
+class BattleStake:
+    """What a battle staked and where it went, for reading.
+
+    The holder is the asset's own, read now, so every page that shows the
+    stake names the same gang whoever's report it sits in.
+    """
+
+    label: str
+    name: str
+    awarded_to: str
+    holder: str
+    #: Whether the reader is the campaign's arbitrator, who can change it.
+    arbitrator: bool = False
+
+    @property
+    def outcome(self):
+        if self.awarded_to:
+            return f"Goes to {self.awarded_to}"
+        if self.holder:
+            return f"Stays with {self.holder}"
+        return "Not given to any gang"
+
+    @property
+    def held_by(self):
+        """Who holds it now, where the outcome does not already say so."""
+        if not self.holder:
+            return "Not held by any gang."
+        if self.holder == (self.awarded_to or self.holder):
+            return ""
+        return f"Held by {self.holder}."
+
+    @property
+    def note(self):
+        """The line under the stake: who holds it, and who can change it."""
+        who = (
+            ""
+            if self.arbitrator
+            else ("Only the campaign's arbitrator can change this on Edit battle.")
+        )
+        return " ".join(part for part in (self.held_by, who) if part)
+
+
+def a_stake(label):
+    """A stake's type word in a sentence: "a territory", "an asset"."""
+    word = label[:1].lower() + label[1:]
+    return f"{'an' if word[:1] in 'aeiou' else 'a'} {word}"
+
+
+def stake_came_from(battle):
+    """The gang holding the battle's stake before the battle moved it: the
+    gang its transfer took it from, or the holder now where it has not
+    moved. None where the battle stakes nothing or nobody holds it."""
+    if battle is None or battle.stake_id is None:
+        return None
+    if battle.stake_transfer_mark is not None:
+        lost = (
+            LedgerEvent.objects.filter(
+                batch=battle.stake_transfer_mark,
+                campaign_asset_id=battle.stake_id,
+                kind=LedgerEvent.Kind.LOST,
+            )
+            .select_related("gang")
+            .first()
+        )
+        return lost.gang if lost else None
+    stake = (
+        CampaignAsset.objects.select_related("holder__gang")
+        .filter(pk=battle.stake_id)
+        .first()
+    )
+    return stake.holder.gang if stake is not None and stake.held else None
+
+
+def battle_stake(battle, viewer=None):
+    """The battle's stake as ``BattleStake``, or None where it has none.
+
+    ``viewer`` is who is reading, so the arbitrator is not told to ask
+    themselves.
+    """
+    if battle is None or battle.stake_id is None:
+        return None
+    stake = (
+        CampaignAsset.objects.select_related("asset__asset_type", "holder__gang")
+        .filter(pk=battle.stake_id)
+        .first()
+    )
+    if stake is None:
+        return None
+    label = stake.asset.asset_type.label_singular
+    awarded_to = battle.stake_awarded_to
+    return BattleStake(
+        label=f"{label[:1].upper()}{label[1:]} staked",
+        name=str(stake),
+        awarded_to=awarded_to.name if awarded_to else "",
+        holder=stake.holder.gang.name if stake.held else "",
+        arbitrator=viewer is not None and viewer.pk == battle.campaign.owner_id,
     )
 
 

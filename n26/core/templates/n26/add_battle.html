@@ -66,7 +66,7 @@
             <c-n26.form-section id="outcome"
                                 class="scroll-mt-24"
                                 title="After the game"
-                                description="Record the outcome once the battle is played. It does not change credits, experience or injuries.">
+                                description="Record the outcome once the battle is played. Saving does not change credits, XP or injuries. A staked territory moves when you save.">
                 <c-ui.field label="Outcome *"
                             error="x"
                             :form="form"
@@ -90,6 +90,39 @@
                         {% endfor %}
                     </div>
                 </c-ui.field>
+                {% if form.stake_label %}
+                    <c-ui.field label="{{ form.fields.stake.label }}"
+                                error="x"
+                                :form="form"
+                                name="stake"
+                                for="battle-stake">
+                        <c-ui.select.native id="battle-stake" name="stake" placeholder="">
+                            {% for value, label in form.fields.stake.choices %}
+                                <option value="{{ value }}"
+                                        {% if value|stringformat:'s' == form.stake.value|stringformat:'s' %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </c-ui.select.native>
+                    </c-ui.field>
+                    <c-ui.field label="{{ form.fields.stake_awarded_to.label }}"
+                                error="x"
+                                :form="form"
+                                name="stake_awarded_to"
+                                for="battle-stake-awarded-to">
+                        <p class="mb-2 text-sm text-muted">
+                            Saving gives it to the gang you select. If you change your pick later, it moves only if that gang still holds it.
+                        </p>
+                        <c-ui.select.native id="battle-stake-awarded-to" name="stake_awarded_to" placeholder="">
+                            {% for value, label in form.fields.stake_awarded_to.choices %}
+                                <option value="{{ value }}"
+                                        {% if value|stringformat:'s' == form.stake_awarded_to.value|stringformat:'s' %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </c-ui.select.native>
+                    </c-ui.field>
+                {% endif %}
             </c-n26.form-section>
         {% endif %}
     </c-n26.form-page>
