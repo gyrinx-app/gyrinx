@@ -16,6 +16,7 @@ from n26.core.models import (
     ActionRecord,
     Assignment,
     CounterTracking,
+    LedgerEntry,
     SlotSelection,
 )
 from n26.core.operations import operation
@@ -194,6 +195,32 @@ def test_repair_refuses_a_malcadon_slot_with_a_selection(live_spyrers):
 
     assert not plan.ok
     assert "selected tier" in plan.problems[0]
+    assert not member.archived
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["list_price", "discount", "paid", "trade_points", "rating_contribution"],
+)
+def test_repair_refuses_a_malcadon_slot_with_any_ledger_value(live_spyrers, field):
+    _, _, _, member, empty_slot, *_ = live_spyrers
+    LedgerEntry.objects.filter(assignment=empty_slot).update(**{field: 1})
+
+    plan = find()
+
+    assert not plan.ok
+    assert "non-zero ledger entry" in plan.problems[0]
+    assert not member.archived
+
+
+def test_repair_refuses_a_malcadon_slot_without_a_ledger_entry(live_spyrers):
+    _, _, _, member, empty_slot, *_ = live_spyrers
+    LedgerEntry.objects.filter(assignment=empty_slot).delete()
+
+    plan = find()
+
+    assert not plan.ok
+    assert "missing or non-zero ledger entry" in plan.problems[0]
     assert not member.archived
 
 

@@ -165,12 +165,17 @@ def _slot_problems(rig, member, gang=None):
         slots = slots.filter(gang_root=gang)
     if slots.exclude(materialised_for__wargear=rig).exists():
         return ("A Malcadon rig slot is not attached to its original rig.",)
-    if slots.exclude(
-        ledger_entry__paid=0,
-        ledger_entry__trade_points=0,
-        ledger_entry__rating_contribution=0,
-    ).exists():
-        return ("A Malcadon rig slot has a non-zero ledger value.",)
+    if (
+        slots.filter(ledger_entry__isnull=True).exists()
+        or slots.exclude(
+            ledger_entry__list_price=0,
+            ledger_entry__discount=0,
+            ledger_entry__paid=0,
+            ledger_entry__trade_points=0,
+            ledger_entry__rating_contribution=0,
+        ).exists()
+    ):
+        return ("A Malcadon rig slot has a missing or non-zero ledger entry.",)
     if Assignment.objects.filter(
         Q(caused_by__in=slots) | Q(chosen_for__in=slots)
     ).exists():
