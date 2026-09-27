@@ -462,23 +462,20 @@ def editor_models(plan, payload, refresh_url=""):
                     else ""
                 ),
                 refresh_url=refresh_url,
-                counter_rows=_model_counter_rows(
-                    model, values.get("counters"), refresh_url
-                ),
+                counter_rows=_model_counter_rows(model, values.get("counters")),
                 note=str(values.get("note") or ""),
             )
         )
     return models
 
 
-def _model_counter_rows(model, entered, refresh_url):
+def _model_counter_rows(model, entered):
     entered = entered if isinstance(entered, dict) else {}
     prefix = f"model-{model.id}"
     return [
         CounterRow(
             change=change,
             entered=str(entered.get(change.assignment_id) or ""),
-            button_attrs={"hx-post": refresh_url} if refresh_url else {},
             list_name=f"{prefix}-counter",
             field_prefix=f"{prefix}-counter",
             step_intent=f"model-counter-step:{model.id}",

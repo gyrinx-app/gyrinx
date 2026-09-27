@@ -2520,6 +2520,22 @@ class TestModelCounters:
         report.refresh_from_db()
         assert report.draft["models"][0]["counters"] == {key: "1"}
 
+    def test_model_counter_steps_post_the_form_only_without_scripts(
+        self, client, table, feature, kills
+    ):
+        report = start(client, table)
+        cinder = table.models[0]
+        box = module(client.get(editor_url(report)), cinder)
+        field = f"model-{cinder.pk}-counter-{kills.pk}"
+        for step in ("-1", "+1"):
+            button = box.find(
+                "button",
+                attrs={"value": f"model-counter-step:{cinder.pk}:{kills.pk}:{step}"},
+            )
+            assert not button.has_attr("hx-post")
+            assert button["data-counter-step"] == field
+        assert box.find("input", id=field)["data-counter-limit"] == "1000"
+
     def test_applied_counter_is_on_the_receipt(self, client, table, feature, kills):
         report = start(client, table)
         cinder = table.models[0]
