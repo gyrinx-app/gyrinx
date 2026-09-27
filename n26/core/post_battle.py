@@ -1460,6 +1460,7 @@ def preview_report(report, *, actor, payload=None):
             recorded,
             effects=effect_deltas,
             names=recorded_counter_names.get(model_id, {}),
+            change_on=f"{miniature.name}'s card",
         )
         model_errors.extend(counter_errors)
         result.counters.extend(

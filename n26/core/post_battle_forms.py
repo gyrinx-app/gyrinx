@@ -343,7 +343,7 @@ class ReportModel:
 
     @property
     def note_label(self):
-        return f"Note for {self.name}'s notes (optional)"
+        return f"Add to {self.name}'s notes (optional)"
 
     @property
     def note_help(self):

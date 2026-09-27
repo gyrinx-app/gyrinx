@@ -158,18 +158,21 @@ def read_changes(raw, errors):
     return changes
 
 
-def plan_changes(held, entered, recorded, effects=None, names=None):
+def plan_changes(
+    held, entered, recorded, effects=None, names=None, change_on="the gang page"
+):
     """Every held counter's line, and why any of them cannot be applied.
 
     ``entered`` and ``recorded`` are the change this report makes in
     total and the change it last applied, keyed by assignment id.
     ``effects`` is what this report's results move each counter by.
     ``names`` names a recorded counter that is no longer held.
+    ``change_on`` is where the player can change the counter instead.
 
     Returns ``(changes, errors)``. A counter the report changed before
     that has since been removed or moved to another holder cannot be
-    corrected here. Leaving it out of
-    ``entered`` keeps its recorded change.
+    corrected here. Leaving it out of ``entered`` keeps its recorded
+    change.
     """
     effects = effects or {}
     names = names or {}
@@ -204,7 +207,7 @@ def plan_changes(held, entered, recorded, effects=None, names=None):
         name = names.get(key, "this counter")
         errors.append(
             f"You cannot correct the change to {name}: it was removed or moved "
-            f"after this report was applied. Change {name} on the gang page."
+            f"after this report was applied. Change {name} on {change_on}."
         )
     return changes, errors
 

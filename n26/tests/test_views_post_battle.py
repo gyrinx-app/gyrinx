@@ -2593,7 +2593,7 @@ class TestModelNotes:
         label = module(page, cinder).find(
             "label", attrs={"for": f"model-{cinder.pk}-note"}
         )
-        assert label.get_text(strip=True) == "Note for Cinder's notes (optional)"
+        assert label.get_text(strip=True) == "Add to Cinder's notes (optional)"
         fields = awards(page, table, **{f"model-{cinder.pk}-note": "Held the bridge."})
         checked = client.post(editor_url(report), fields | {"intent": "check"})
         assert "Adds a note to Cinder's notes." in checked.content.decode()
