@@ -164,6 +164,11 @@ def _xp_blocked(xp_nodes, active):
     return ""
 
 
+def signed(number):
+    """A change with its sign: "+15", "−15" with a real minus, "+0"."""
+    return f"+{number}" if number >= 0 else f"−{-number}"
+
+
 @dataclass
 class PostBattlePlan:
     valid: bool
@@ -177,6 +182,10 @@ class PostBattlePlan:
     #: What the lines of credits add up to: the credits from this battle.
     credits_total: int = 0
     credit_lines: list = field(default_factory=list)
+    #: A line's errors by field: ``{"<line id>-amount": [message, ...]}``.
+    credit_field_errors: dict = field(default_factory=dict)
+    #: Whether this report corrects one already applied.
+    correcting: bool = False
     gang_counters: list[CounterChange] = field(default_factory=list)
     # Resolved objects are private execution data, never template inputs.
     _writes: list = field(default_factory=list, repr=False)
@@ -186,6 +195,15 @@ class PostBattlePlan:
     _retained: dict = field(default_factory=dict, repr=False)
     #: ``(amount, note)`` per credits event: one per line that changes.
     _credit_events: list = field(default_factory=list, repr=False)
+
+    @property
+    def total_text(self):
+        return f"{signed(self.credits_total)}¢"
+
+    @property
+    def change_text(self):
+        """A correction's change from the version applied before."""
+        return f"{signed(self.credits_change)}¢" if self.correcting else ""
 
     @property
     def moving_gang_counters(self):
@@ -227,8 +245,14 @@ def normalise(payload):
     return payload
 
 
-def _credit_lines(raw, errors):
-    """The lines that carry credits, checked. Empty lines are dropped."""
+def _credit_lines(raw, errors, field_errors=None):
+    """The lines that carry credits, checked. Empty lines are dropped.
+
+    ``field_errors`` collects each line's errors by field, keyed
+    ``"<line id>-amount"`` or ``"<line id>-reason"``, so the page can show
+    them beside the field as well as in the list at the top.
+    """
+    field_errors = {} if field_errors is None else field_errors
     if not isinstance(raw, list) or any(not isinstance(line, dict) for line in raw):
         errors.append(
             "A line of credits could not be read. Remove it and add it again."
@@ -253,12 +277,17 @@ def _credit_lines(raw, errors):
             errors.append("Each line of credits needs its own reference.")
             continue
         seen.add(key)
-        amount = _integer(line.get("amount"), "credits", errors)
+        amount_errors, reason_errors = [], []
+        amount = _integer(line.get("amount"), "credits", amount_errors)
         reason = str(line.get("reason") or "").strip()
         if len(reason) > 255:
-            errors.append("Keep each credits reason to 255 characters or fewer.")
+            reason_errors.append("Keep each credits reason to 255 characters or fewer.")
         if amount and not reason:
-            errors.append("Add a reason for each amount of credits.")
+            reason_errors.append("Add a reason for each amount of credits.")
+        for name, found in (("amount", amount_errors), ("reason", reason_errors)):
+            if found:
+                field_errors[f"{key}-{name}"] = found
+                errors.extend(found)
         if amount:
             lines.append({"id": key, "amount": amount, "reason": reason})
     return lines
@@ -268,8 +297,9 @@ def _credit_events(lines, recorded):
     """One credits event per line that changes, against the lines recorded.
 
     A new line adds its amount. A changed amount adds the difference, and
-    a removed line takes its amount back, each named as a correction, so
-    the gang's credit history reads line by line.
+    a removed line takes its amount back, each under its line's reason, so
+    the gang's credit history reads line by line. The history calls an
+    event from a later revision a correction.
     """
     old = {line["id"]: line for line in recorded}
     events = []
@@ -281,12 +311,12 @@ def _credit_events(lines, recorded):
             events.append(
                 (
                     line["amount"] - int(before["amount"] or 0),
-                    f"Correction: {line['reason'] or before['reason']}",
+                    line["reason"] or before["reason"],
                 )
             )
     for before in old.values():
         if int(before["amount"] or 0):
-            events.append((-int(before["amount"]), f"Correction: {before['reason']}"))
+            events.append((-int(before["amount"]), before["reason"]))
     return events
 
 
@@ -895,7 +925,8 @@ def preview_report(report, *, actor, payload=None):
         for m in (first.receipt.get("models", []) if first else [])
         if m.get("status_before") in Status.values
     }
-    lines = _credit_lines(payload.get("credit_lines"), errors)
+    credit_field_errors = {}
+    lines = _credit_lines(payload.get("credit_lines"), errors, credit_field_errors)
     credit_events = _credit_events(lines, old["credit_lines"])
     inputs = {
         "schema": 2,
@@ -918,6 +949,8 @@ def preview_report(report, *, actor, payload=None):
         inputs,
         credits_total=sum(line["amount"] for line in lines),
         credit_lines=lines,
+        credit_field_errors=credit_field_errors,
+        correcting=previous is not None,
         _credit_events=credit_events,
     )
     if not report.gang.credits_unlimited and plan.credits_after < 0:

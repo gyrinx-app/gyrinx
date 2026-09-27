@@ -369,7 +369,9 @@ def post_battle_editor(request, pk):
         "payload": payload,
         "plan": plan,
         "models": models,
-        "mission": mission_results(plan, payload, refresh_url=request.path),
+        "mission": mission_results(
+            plan, payload, refresh_url=request.path, show_errors=show_errors
+        ),
         "xp_toolbar": xp_toolbar(models),
         "version_form": version,
         "errors": errors,
@@ -423,7 +425,7 @@ def post_battle_receipt(request, pk, sequence=None):
             "revision": revision,
             "receipt": revision.receipt,
             "receipt_models": receipt_models(revision.receipt),
-            "mission": receipt_mission(revision.receipt),
+            "mission": receipt_mission(revision.receipt, revision),
             "revisions": report.revisions.only("sequence", "created"),
             "may_edit": can_edit_report(report, request.user),
         },

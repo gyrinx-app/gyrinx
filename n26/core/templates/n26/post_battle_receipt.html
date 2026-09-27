@@ -22,9 +22,17 @@
                 <div>
                     <dt class="text-muted">Credits from this battle</dt>
                     <dd class="mt-1 text-lg font-semibold tabular-nums">
-                        {{ receipt.credits_change|stringformat:'+d' }}¢
+                        {{ mission.total_text }}
                     </dd>
                 </div>
+                {% if mission.change_text %}
+                    <div>
+                        <dt class="text-muted">Change from the last version</dt>
+                        <dd class="mt-1 text-lg font-semibold tabular-nums">
+                            {{ mission.change_text }}
+                        </dd>
+                    </div>
+                {% endif %}
                 <div>
                     <dt class="text-muted">Credits balance after applying</dt>
                     <dd class="mt-1 text-lg font-semibold tabular-nums">
@@ -49,7 +57,7 @@
                 <ul class="mt-2 space-y-1 text-sm">
                     {% for line in mission.credit_lines %}
                         <li class="flex justify-between gap-3">
-                            <span>{{ line.reason }}</span><span class="tabular-nums">{{ line.amount|stringformat:'+d' }}¢</span>
+                            <span>{{ line.reason }}</span><span class="tabular-nums">{{ line.amount_text }}</span>
                         </li>
                     {% endfor %}
                 </ul>

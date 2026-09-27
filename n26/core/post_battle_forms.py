@@ -9,7 +9,7 @@ from django import forms
 from django.utils import timezone
 
 from n26.core.counter_changes import LIMIT as COUNTER_LIMIT
-from n26.core.post_battle import MAX_CREDIT_LINES, normalise
+from n26.core.post_battle import MAX_CREDIT_LINES, normalise, signed
 from n26.core.status import Status, label_for, status_colour
 
 
@@ -412,6 +412,8 @@ class CreditRow:
     amount: str
     reason: str
     number: int
+    amount_errors: list = field(default_factory=list)
+    reason_errors: list = field(default_factory=list)
 
     @property
     def prefix(self):
@@ -420,6 +422,22 @@ class CreditRow:
     @property
     def remove_label(self):
         return f"Remove line of credits {self.number}"
+
+    def _error_attrs(self, name, errors):
+        if not errors:
+            return {}
+        return {
+            "aria-invalid": "true",
+            "aria-describedby": f"{self.prefix}-{name}-error",
+        }
+
+    @property
+    def amount_attrs(self):
+        return self._error_attrs("amount", self.amount_errors)
+
+    @property
+    def reason_attrs(self):
+        return self._error_attrs("reason", self.reason_errors)
 
 
 @dataclass
@@ -444,6 +462,12 @@ class CounterRow:
         """Where the counter lands with nothing entered, for the page
         script to add a typed change to."""
         return self.change.after - self.change.manual
+
+    @property
+    def start(self):
+        """The Before column: the reading before this report, so Before,
+        the change and what results add sum to After."""
+        return self.change.start
 
     @property
     def minus_attrs(self):
@@ -480,19 +504,22 @@ class MissionResults:
 
     @property
     def total_text(self):
-        return f"{self.total:+d}¢"
+        return f"{signed(self.total)}¢"
 
     @property
     def button_attrs(self):
         return {"hx-post": self.refresh_url} if self.refresh_url else {}
 
 
-def mission_results(plan, payload, refresh_url=""):
+def mission_results(plan, payload, refresh_url="", show_errors=False):
     """The Mission results section's rows, from the draft and the plan.
 
     A report always shows at least one line of credits to type into; a
-    new line has a fresh reference until the draft saves it.
+    new line has a fresh reference until the draft saves it. With
+    ``show_errors``, each line carries its own errors to show by its
+    fields.
     """
+    field_errors = plan.credit_field_errors if show_errors else {}
     lines = payload.get("credit_lines") or [
         {"id": str(uuid4()), "amount": "", "reason": ""}
     ]
@@ -507,6 +534,8 @@ def mission_results(plan, payload, refresh_url=""):
                 ),
                 reason=str(line.get("reason") or ""),
                 number=number,
+                amount_errors=field_errors.get(f"{line.get('id', '')}-amount", []),
+                reason_errors=field_errors.get(f"{line.get('id', '')}-reason", []),
             )
             for number, line in enumerate(lines, start=1)
         ],
@@ -525,14 +554,28 @@ def mission_results(plan, payload, refresh_url=""):
     )
 
 
-def receipt_mission(receipt):
+def receipt_mission(receipt, revision=None):
     """The receipt's lines of credits and gang counters.
 
-    A receipt written before lines of credits holds one reason for the
-    whole adjustment, and shows it as it was.
+    The credits from this battle are the lines' total. A correction also
+    names its change from the version before. A receipt written before
+    lines of credits holds one reason for the whole adjustment, and shows
+    it as it was.
     """
+    total = receipt.get("credits_total")
+    if total is None and revision is not None:
+        total = revision.inputs.get("credits")
+    if total is None:
+        total = receipt.get("credits_change", 0)
+    correction = revision is not None and revision.sequence > 1
+    change = receipt.get("credits_change", 0)
     return {
-        "credit_lines": receipt.get("credit_lines", []),
+        "total_text": f"{signed(int(total or 0))}¢",
+        "change_text": f"{signed(int(change or 0))}¢" if correction else "",
+        "credit_lines": [
+            line | {"amount_text": f"{signed(int(line.get('amount') or 0))}¢"}
+            for line in receipt.get("credit_lines", [])
+        ],
         "reason": "" if "credit_lines" in receipt else receipt.get("reason", ""),
         "gang_counters": receipt.get("gang_counters", []),
     }

@@ -120,12 +120,18 @@
         const number = Number(String(value || "").trim() || 0);
         return Number.isInteger(number) ? number : 0;
     };
+    // An amount of credits is a whole number from 0 up. Anything else is
+    // refused on saving, so it adds nothing to the total meanwhile.
+    const amount = (value) => {
+        const text = String(value || "").trim();
+        return /^\d+$/.test(text) && Number(text) <= 1000000 ? Number(text) : 0;
+    };
     const redrawMission = () => {
         const total = form.querySelector("[data-credit-total]");
         if (total) {
             const sum = [
                 ...form.querySelectorAll("input[data-credit-amount]"),
-            ].reduce((running, input) => running + whole(input.value), 0);
+            ].reduce((running, input) => running + amount(input.value), 0);
             total.textContent = `+${sum}¢`;
         }
         for (const input of form.querySelectorAll("input[data-counter-base]")) {
@@ -263,6 +269,7 @@
         section = "";
         sent = new Map();
         redrawXpToolbar();
+        redrawMission();
         // Entries typed elsewhere while the update was in flight were not
         // in it. The server's "Draft saved" line would be wrong about them.
         if (dirty && !failed) {

@@ -7,9 +7,17 @@
         <div class="flex justify-between gap-3">
             <dt>Credits from this battle</dt>
             <dd class="font-semibold tabular-nums">
-                {{ plan.credits_change|stringformat:'+d' }}¢
+                {{ plan.total_text }}
             </dd>
         </div>
+        {% if plan.change_text %}
+            <div class="flex justify-between gap-3">
+                <dt>Change from the last version</dt>
+                <dd class="tabular-nums">
+                    {{ plan.change_text }}
+                </dd>
+            </div>
+        {% endif %}
         {% if plan.credits_before != None %}
             <div class="flex justify-between gap-3">
                 <dt>Credits balance</dt>

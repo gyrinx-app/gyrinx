@@ -55,6 +55,17 @@ describe("post-battle Mission results", () => {
         );
     });
 
+    it("leaves a negative or broken amount out of the total", () => {
+        type("second", "-40");
+        expect(form.querySelector("[data-credit-total]").textContent).toBe(
+            "+40¢",
+        );
+        type("second", "1.5");
+        expect(form.querySelector("[data-credit-total]").textContent).toBe(
+            "+40¢",
+        );
+    });
+
     it("shows where a counter lands after a typed change", () => {
         type("rep", "-2");
         expect(document.getElementById("rep-after").textContent).toBe("3");

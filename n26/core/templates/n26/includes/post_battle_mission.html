@@ -9,7 +9,6 @@ so the id must stay put.
           hx-target="this"
           hx-swap="outerHTML"
           hx-sync="closest form:queue all"
-          hx-disabled-elt="closest fieldset"
           data-mission-results>
     <legend class="sr-only">Mission results</legend>
     <div>
@@ -30,7 +29,12 @@ so the id must stay put.
                                     inputmode="numeric"
                                     value="{{ line.amount }}"
                                     size="lg"
+                                    :attrs="line.amount_attrs"
                                     data-credit-amount />
+                        {% if line.amount_errors %}
+                            <c-ui.error id="{{ line.prefix }}-amount-error"
+                                        message="{{ line.amount_errors|join:' ' }}" />
+                        {% endif %}
                     </c-ui.field>
                     <c-ui.field label="Reason"
                                 for="{{ line.prefix }}-reason"
@@ -40,7 +44,12 @@ so the id must stay put.
                                     maxlength="255"
                                     value="{{ line.reason }}"
                                     placeholder="e.g. Scenario reward"
-                                    size="lg" />
+                                    size="lg"
+                                    :attrs="line.reason_attrs" />
+                        {% if line.reason_errors %}
+                            <c-ui.error id="{{ line.prefix }}-reason-error"
+                                        message="{{ line.reason_errors|join:' ' }}" />
+                        {% endif %}
                     </c-ui.field>
                     <c-ui.button type="submit"
                                  name="intent"
@@ -81,7 +90,7 @@ so the id must stay put.
                         <tr class="border-b border-box-border text-left text-muted">
                             <th scope="col" class="py-2 pr-3 font-medium">Counter</th>
                             <th scope="col"
-                                class="hidden py-2 pr-3 text-right font-medium sm:table-cell">Now</th>
+                                class="hidden py-2 pr-3 text-right font-medium sm:table-cell">Before</th>
                             <th scope="col" class="py-2 pr-3 font-medium">Change</th>
                             {% if mission.show_effects %}
                                 <th scope="col" class="py-2 pr-3 text-right font-medium">From results</th>
@@ -94,9 +103,9 @@ so the id must stay put.
                             <tr class="border-b border-box-border">
                                 <th scope="row" class="py-2 pr-3 text-left font-medium">
                                     <label for="{{ row.prefix }}">{{ row.change.name }}</label>
-                                    <span class="block text-xs font-normal text-muted tabular-nums sm:hidden">Now {{ row.change.before }}</span>
+                                    <span class="block text-xs font-normal text-muted tabular-nums sm:hidden">Before {{ row.start }}</span>
                                 </th>
-                                <td class="hidden py-2 pr-3 text-right tabular-nums sm:table-cell">{{ row.change.before }}</td>
+                                <td class="hidden py-2 pr-3 text-right tabular-nums sm:table-cell">{{ row.start }}</td>
                                 <td class="py-2 pr-3">
                                     <input type="hidden"
                                            name="gang_counter"

@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
+from n26.core import history
 from n26.core.campaigns import campaign_operation
 from n26.core.models import Assignment, CounterValue, LedgerEvent, PostBattleRevision
 from n26.core.operations import Refusal, operation
@@ -1405,10 +1406,17 @@ class TestCreditLines:
         )
         apply(report, owner)
         assert income_events(gang)[2:] == [
-            (10, "Correction: Scenario reward"),
+            (10, "Scenario reward"),
             (-5, "Loot"),
-            (15, "Correction: Bounty"),
+            (15, "Bounty"),
         ]
+        told = [
+            "".join(span.text for span in act.spans)
+            for act in history.build(gang, viewer=owner)
+        ]
+        assert "corrected credits by −10¢ — Scenario reward" in told
+        assert "corrected credits by +5¢ — Loot" in told
+        assert "received 40¢ — Scenario reward" in told
         gang.refresh_from_db()
         assert gang.credits == 1035
         assert_reconciled(gang)
@@ -1447,7 +1455,7 @@ class TestCreditLines:
         report = save(report, owner, payload)
         apply(report, owner)
         assert income_events(gang)[1:] == [
-            (15, "Correction: Scenario reward"),
+            (15, "Scenario reward"),
             (-5, "Bounty"),
         ]
         gang.refresh_from_db()

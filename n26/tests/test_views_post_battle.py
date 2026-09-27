@@ -2370,3 +2370,84 @@ class TestMissionResults:
         text = client.get(receipt_url(report)).content.decode()
         assert "Old single reason" in text
         assert "Mission results" in text
+
+
+class TestMissionResultsAddUp:
+    """Before, the change and After agree, and credits read as totals."""
+
+    def apply_first(self, client, table, report, **changes):
+        page = client.get(editor_url(report))
+        checked = client.post(
+            editor_url(report), awards(page, table, intent="check", **changes)
+        )
+        applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
+        assert applied.status_code == 302
+        corrected = client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+        assert corrected.status_code == 302
+        return client.get(editor_url(report))
+
+    def test_a_correction_shows_the_counter_before_this_report(
+        self, client, table, feature, reputation
+    ):
+        report = start(client, table)
+        page = self.apply_first(
+            client, table, report, **{f"gang-counter-{reputation.pk}": "2"}
+        )
+
+        field = mission(page).find("input", id=f"gang-counter-{reputation.pk}")
+        cells = [
+            cell.get_text(strip=True) for cell in field.find_parent("tr").find_all("td")
+        ]
+        assert (cells[0], field["value"], cells[-1]) == ("5", "2", "7")
+        assert "Before" in mission(page).find("thead").get_text()
+
+    def test_a_negative_amount_is_refused_by_its_field(self, client, table, feature):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        (line,) = credit_line_ids(page)
+
+        checked = client.post(
+            editor_url(report),
+            html_fields(
+                page,
+                intent="check",
+                **{f"credit-{line}-amount": "-40", f"credit-{line}-reason": "Fine"},
+            ),
+        )
+
+        field = mission(checked).find("input", id=f"credit-{line}-amount")
+        assert field["aria-invalid"] == "true"
+        error = mission(checked).find(id=field["aria-describedby"])
+        assert "Enter a whole number from 0 to 1,000,000" in error.get_text()
+        assert "Credits from this battle: +0¢" in " ".join(
+            mission(checked).get_text(" ", strip=True).split()
+        )
+
+    def test_a_corrected_receipt_shows_the_total_and_the_change(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        page = self.apply_first(client, table, report)
+        (line,) = credit_line_ids(page)
+        checked = client.post(
+            editor_url(report),
+            html_fields(page, intent="check", **{f"credit-{line}-amount": "5"}),
+        )
+        summary = summary_text(checked)
+        assert "Credits from this battle +5¢" in summary
+        assert "Change from the last version −15¢" in summary
+        applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
+        assert applied.status_code == 302
+
+        second = " ".join(
+            BeautifulSoup(client.get(receipt_url(report, 2)).content, "html.parser")
+            .find("main")
+            .get_text(" ", strip=True)
+            .split()
+        )
+        assert "Credits from this battle +5¢" in second
+        assert "Change from the last version −15¢" in second
+        first = client.get(receipt_url(report, 1)).content.decode()
+        assert "+20¢" in first
+        assert "Change from the last version" not in first
+        assert "Credits adjustment" not in first

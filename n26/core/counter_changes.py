@@ -47,6 +47,11 @@ class CounterChange:
     recorded: int = 0
 
     @property
+    def start(self):
+        """The reading before this report: what it applied taken off."""
+        return self.before - self.recorded
+
+    @property
     def delta(self):
         """The entered change still to apply."""
         return self.manual - self.recorded
