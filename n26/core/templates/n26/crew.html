@@ -23,7 +23,8 @@
         </c-n26.page-header>
         <div class="flex items-center gap-2 text-sm text-muted">
             <p>Select the starting crew and any reinforcements.</p>
-            {% react_island "help" crew_help %}
+            {% react_host "help" crew_help class="inline-flex" %}
+            {% endreact_host %}
         </div>
         <form method="post" class="space-y-6">
             {% csrf_token %}
@@ -35,7 +36,8 @@
                      aria-labelledby="crew-draw-heading">
                 <div class="mb-3 flex items-center gap-2">
                     <h2 id="crew-draw-heading" class="font-semibold">Randomly select models</h2>
-                    {% react_island "help" draw_help %}
+                    {% react_host "help" draw_help class="inline-flex" %}
+                    {% endreact_host %}
                 </div>
                 <div class="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap">
                     <div class="min-w-0 sm:w-28">

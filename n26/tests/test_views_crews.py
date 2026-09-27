@@ -257,6 +257,7 @@ class TestCrewForms:
             for host in hosts
         ]
         assert labels == ["More about crew selection", "More about the random draw"]
+        assert all("min-h-32" not in host.get("class", []) for host in hosts)
         page_text = document.get_text(" ", strip=True)
         assert "Select the starting crew and any reinforcements." in page_text
         assert "Each drawn model gets a random equipment set" not in page_text
