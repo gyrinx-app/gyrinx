@@ -26,8 +26,19 @@
                             {% endif %}
                             {% if entry.unavailable %}<p class="text-sm text-muted">{{ entry.unavailable }}</p>{% endif %}
                         </div>
-                        {% if entry.href %}<c-ui.button variant="primary"
-             href="{{ entry.href }}">{{ entry.label }}</c-ui.button>{% endif %}
+                        {% if entry.href %}
+                            <c-ui.button variant="primary" href="{{ entry.href }}">
+                                {{ entry.label }}
+                            </c-ui.button>
+                        {% elif entry.start_url %}
+                            <form method="post" action="{{ entry.start_url }}">
+                                {% csrf_token %}
+                                <input type="hidden" name="request_key" value="{{ entry.request_key }}">
+                                <c-ui.button variant="primary" type="submit">
+                                    Record results
+                                </c-ui.button>
+                            </form>
+                        {% endif %}
                     </li>
                 {% empty %}
                     <li class="text-sm text-muted">No campaign battles yet. You can start a standalone report below.</li>

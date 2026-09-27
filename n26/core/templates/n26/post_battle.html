@@ -7,8 +7,13 @@
 {% block content %}
     <form method="post" id="post-battle-form" class="space-y-6" novalidate>
         {% csrf_token %}{{ version_form }}
-        <c-n26.page-header title="Post-battle results" lead="{{ gang.name }}">
-            <c-slot name="breadcrumb"><c-ui.breadcrumbs>{% if battle %}<c-ui.breadcrumbs.item href="{% url 'n26-battle' battle.campaign_id battle.pk %}">{{ battle.title }}</c-ui.breadcrumbs.item>{% else %}<c-ui.breadcrumbs.item href="{% url 'n26-gang-post-battle' gang.pk %}">Post-battle</c-ui.breadcrumbs.item>{% endif %}<c-ui.breadcrumbs.item :current="True">{{ gang.name }}</c-ui.breadcrumbs.item></c-ui.breadcrumbs></c-slot>
+        <c-n26.page-header title="Post-battle results"
+                           lead="{% if battle %}{{ battle.title }} · {% endif %}{{ report.date|date:'j M Y' }}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    {% include "n26/includes/post_battle_breadcrumbs.html" with current="Post-battle results" %}
+                </c-ui.breadcrumbs>
+            </c-slot>
             <c-slot name="actions">
                 <p id="draft-save-status"
                    role="status"
@@ -282,7 +287,7 @@
                 </label>
             </div>
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <p class="text-sm text-muted">Changes apply to this gang only.</p>
+                <p class="text-sm text-muted">Entries save as you go. The gang changes only when you apply the results.</p>
                 <c-n26.form-actions class="w-full sm:w-auto">
                     <c-ui.button type="submit" name="intent" value="save">
                         Save draft

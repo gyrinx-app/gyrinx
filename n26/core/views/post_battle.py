@@ -128,10 +128,10 @@ def _campaign_report_entry(battle, gang):
         )
     else:
         entry.update(
-            href=reverse(
+            start_url=reverse(
                 "n26-battle-report", args=[battle.campaign_id, battle.pk, gang.pk]
             ),
-            label="Post-battle",
+            request_key=uuid4(),
         )
     return entry
 
@@ -196,6 +196,7 @@ def gang_post_battle(request, pk):
 @requires_flag(CAMPAIGNS)
 @login_required
 def battle_report(request, pk, battle_pk, gang_pk):
+    """Start a campaign battle's report on POST; a GET only redirects."""
     from n26.core.post_battle import start_report
 
     campaign = _any_campaign_or_404(request, pk)
@@ -208,32 +209,22 @@ def battle_report(request, pk, battle_pk, gang_pk):
     _editable_or_404(candidate, request.user)
     if found:
         return _report_destination(found)
-    form = StartReportForm(
-        request.POST if request.method == "POST" else None,
-        initial={
-            "request_key": uuid4(),
-            "date": battle.date,
-            "reference": battle.title,
-        },
-    )
-    if request.method == "POST" and form.is_valid():
-        try:
-            report = start_report(
-                gang,
-                actor=request.user,
-                battle=battle,
-                payload=_initial_payload(gang, battle),
-                **form.cleaned_data,
-            )
-        except Refusal as exc:
-            form.add_error(None, str(exc))
-        else:
-            return _report_destination(report)
-    return render(
-        request,
-        "n26/start_post_battle.html",
-        {"gang": gang, "battle": battle, "campaign": campaign, "form": form},
-    )
+    if request.method != "POST":
+        return redirect("n26-battle", pk=campaign.pk, battle_pk=battle.pk)
+    try:
+        report = start_report(
+            gang,
+            actor=request.user,
+            battle=battle,
+            request_key=request.POST.get("request_key", ""),
+            date=battle.date,
+            reference=battle.title,
+            payload=_initial_payload(gang, battle),
+        )
+    except Refusal as exc:
+        messages.error(request, str(exc))
+        return redirect("n26-battle", pk=campaign.pk, battle_pk=battle.pk)
+    return _report_destination(report)
 
 
 @requires_flag(CAMPAIGNS)
