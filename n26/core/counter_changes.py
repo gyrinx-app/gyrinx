@@ -13,7 +13,7 @@ is shown beside the entered change and counted once.
 Nothing here reads the database or knows whose counters they are: the
 caller hands over the card's nodes and readings, and gets back one
 ``CounterChange`` per counter and the errors to show. The gang's
-counters use it today; a model's counters can use it the same way.
+counters and each model's use it the same way.
 """
 
 from dataclasses import dataclass
@@ -87,12 +87,19 @@ def changeable(node):
     Income (whose reading is the sum of what the gang holds, so a tally
     would be a mistake).
     """
-    thing = node.assignable
     return (
-        isinstance(thing, Counter)
-        and node.assignment is not None
+        node.assignment is not None
         and not node.broadcast
         and not node.suppressed
+        and changeable_counter(node.assignable)
+    )
+
+
+def changeable_counter(thing):
+    """Whether a library counter is one a report changes by hand: drawn,
+    and neither XP nor Income."""
+    return (
+        isinstance(thing, Counter)
         and thing.drawn
         and thing.name.casefold() != XP_COUNTER.casefold()
         and not is_income_counter(thing)

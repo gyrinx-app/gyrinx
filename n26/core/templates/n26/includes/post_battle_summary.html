@@ -51,6 +51,9 @@
                         {% if model.result.xp_change %}<p class="text-muted">{{ model.result.xp_change|stringformat:'+d' }} XP</p>{% endif %}
                         <p class="text-muted">XP total: {{ model.result.xp_before }} → {{ model.result.xp_after }}</p>
                     {% endif %}
+                    {% for change, parts in model.summary_counters %}
+                        <p class="text-muted">{{ change.name }}: {{ change.before }} → {{ change.after }} ({{ parts }})</p>
+                    {% endfor %}
                     {% for effect in model.named_effects %}<p class="text-muted">{{ effect.name }}</p>{% endfor %}
                     {% if model.result.status_conflict %}
                         <p class="text-red-700 dark:text-red-300">{{ model.result.status_conflict }}</p>
@@ -75,6 +78,7 @@
                     {% elif model.result.equipment_ignored %}
                         <p class="text-muted">Equipment stays with the model.</p>
                     {% endif %}
+                    {% if model.result.note_appends %}<p class="text-muted">Adds a note to {{ model.name }}'s notes.</p>{% endif %}
                 </li>
             {% endif %}
         {% endfor %}

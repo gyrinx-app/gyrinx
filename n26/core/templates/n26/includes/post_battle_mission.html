@@ -84,75 +84,7 @@ so the id must stay put.
     {% if mission.counter_rows %}
         <div class="space-y-3">
             <h3 id="gang-counters-heading" class="text-base font-semibold">Gang counters</h3>
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm" aria-labelledby="gang-counters-heading">
-                    <thead>
-                        <tr class="border-b border-box-border text-left text-muted">
-                            <th scope="col" class="py-2 pr-3 font-medium">Counter</th>
-                            <th scope="col"
-                                class="hidden py-2 pr-3 text-right font-medium sm:table-cell">Before</th>
-                            <th scope="col" class="py-2 pr-3 font-medium">Change</th>
-                            {% if mission.show_effects %}
-                                <th scope="col" class="py-2 pr-3 text-right font-medium">From results</th>
-                            {% endif %}
-                            <th scope="col" class="py-2 text-right font-medium">After</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in mission.counter_rows %}
-                            <tr class="border-b border-box-border">
-                                <th scope="row" class="py-2 pr-3 text-left font-medium">
-                                    <label for="{{ row.prefix }}">{{ row.change.name }}</label>
-                                    <span class="block text-xs font-normal text-muted tabular-nums sm:hidden">Before {{ row.start }}</span>
-                                </th>
-                                <td class="hidden py-2 pr-3 text-right tabular-nums sm:table-cell">{{ row.start }}</td>
-                                <td class="py-2 pr-3">
-                                    <input type="hidden"
-                                           name="gang_counter"
-                                           value="{{ row.change.assignment_id }}">
-                                    <div class="flex items-center gap-1">
-                                        <c-ui.button type="submit"
-                                                     id="{{ row.prefix }}-minus"
-                                                     name="intent"
-                                                     value="{{ row.intent }}:-1"
-                                                     size="sm"
-                                                     aria-label="{{ row.minus_label }}"
-                                                     :attrs="row.minus_attrs">
-                                            −1
-                                        </c-ui.button>
-                                        <div class="w-16 sm:w-20">
-                                            <c-ui.input id="{{ row.prefix }}"
-                                                        name="{{ row.prefix }}"
-                                                        type="number"
-                                                        step="1"
-                                                        value="{{ row.entered }}"
-                                                        placeholder="0"
-                                                        aria-describedby="{{ row.prefix }}-after"
-                                                        data-counter-base="{{ row.base }}"
-                                                        data-counter-limit="{{ row.limit }}" />
-                                        </div>
-                                        <c-ui.button type="submit"
-                                                     id="{{ row.prefix }}-plus"
-                                                     name="intent"
-                                                     value="{{ row.intent }}:+1"
-                                                     size="sm"
-                                                     aria-label="{{ row.plus_label }}"
-                                                     :attrs="row.plus_attrs">
-                                            +1
-                                        </c-ui.button>
-                                    </div>
-                                </td>
-                                {% if mission.show_effects %}
-                                    <td class="py-2 pr-3 text-right tabular-nums">{{ row.change.effect|stringformat:'+d' }}</td>
-                                {% endif %}
-                                <td id="{{ row.prefix }}-after"
-                                    class="py-2 text-right font-semibold tabular-nums"
-                                    data-counter-after>{{ row.change.after }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+            {% include "n26/includes/post_battle_counters.html" with rows=mission.counter_rows show_effects=mission.show_effects heading_id="gang-counters-heading" %}
         </div>
     {% endif %}
 </fieldset>

@@ -86,6 +86,12 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                        class="block text-xs text-red-700 underline dark:text-red-300">Check this model's results</a>
                 {% endif %}
             </div>
+            {% if model.counter_rows %}
+                <div class="space-y-1.5" data-model-counters>
+                    <h4 id="{{ model.counters_heading_id }}" class="text-sm font-medium">Counters</h4>
+                    {% include "n26/includes/post_battle_counters.html" with rows=model.counter_rows show_effects=model.show_counter_effects heading_id=model.counters_heading_id %}
+                </div>
+            {% endif %}
         </div>
         <div class="space-y-4" data-model-outcome>
             {% for effect in model.effects %}
@@ -239,5 +245,13 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                 </noscript>
             {% endif %}
         </div>
+    </div>
+    <div class="mt-5 space-y-1.5" data-model-note>
+        <label for="{{ model.prefix }}-note" class="text-sm font-medium">{{ model.note_label }}</label>
+        {# The note is the textarea's value, so no whitespace may wrap it. #}
+        {# djlint:off #}
+        <c-ui.textarea.impl id="{{ model.prefix }}-note" name="{{ model.prefix }}-note" height="xs" maxlength="{{ model.note_limit }}" aria-describedby="{{ model.prefix }}-note-help">{{ model.note }}</c-ui.textarea.impl>
+        {# djlint:on #}
+        <p id="{{ model.prefix }}-note-help" class="text-xs text-muted">{{ model.note_help }}</p>
     </div>
 </fieldset>

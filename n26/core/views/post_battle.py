@@ -97,6 +97,8 @@ def _initial_payload(gang, battle=None):
                 "status": "",
                 "equipment": "keep",
                 "effects": [],
+                "counters": {},
+                "note": "",
             }
             for model in Miniature.objects.filter(
                 membership__gang=gang, membership__archived=False

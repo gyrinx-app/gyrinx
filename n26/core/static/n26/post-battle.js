@@ -114,8 +114,9 @@
         }
     });
 
-    // Mission results: the credits total and each counter's "After" follow
-    // what is typed. The server's figures replace them on the next update.
+    // The credits total and each counter's "After", the gang's and every
+    // model's, follow what is typed. The server's figures replace them on
+    // the next update.
     const whole = (value) => {
         const number = Number(String(value || "").trim() || 0);
         return Number.isInteger(number) ? number : 0;

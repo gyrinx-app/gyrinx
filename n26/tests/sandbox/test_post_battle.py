@@ -1556,3 +1556,233 @@ class TestGangCounters:
         assert plan.models[0].xp_after == plan.models[0].xp_before + 2
         apply(report, owner)
         assert counter_value(reputation) == 6
+
+
+@pytest.fixture
+def kill_count(model):
+    counter = assign(create_counter("Kill Count"), miniature=model)
+    tally(counter, 2)
+    return counter
+
+
+@pytest.fixture
+def glitches(model):
+    return assign(create_counter("Glitch count"), miniature=model)
+
+
+@pytest.fixture
+def glitch(content, glitches):
+    """An injury whose stored effect adds 1 to Glitch count."""
+    pick = create_pickable(
+        "Neural Glitch",
+        content["kind"],
+        effects=[
+            (
+                targets_model(),
+                op_changes_counter(glitches.assignable, mode="add", amount=1),
+            )
+        ],
+    )
+    add_picklist_member(content["table"], pick)
+    return pick
+
+
+def with_model(model, **values):
+    """A schema-2 report with ``values`` on its one model."""
+    payload = with_lines(model)
+    payload["models"][0] |= values
+    return payload
+
+
+@pytest.mark.usefixtures("counter_tracking")
+class TestModelCounters:
+    """A model's counters change by hand, beside what its results add."""
+
+    def test_kill_count_plus_one_applies(self, report, owner, model, kill_count):
+        key = str(kill_count.pk)
+        report = save(report, owner, with_model(model, counters={key: "1"}))
+        plan = preview_report(report, actor=owner)
+        (change,) = plan.models[0].counters
+        assert (change.name, change.before, change.manual, change.after) == (
+            "Kill Count",
+            2,
+            1,
+            3,
+        )
+        saved = apply(report, owner)
+        assert counter_value(kill_count) == 3
+        assert saved.inputs["models"][0]["counters"] == {key: 1}
+        (line,) = saved.receipt["models"][0]["counters"]
+        assert (line["name"], line["before"], line["after"]) == ("Kill Count", 2, 3)
+        event = LedgerEvent.objects.get(
+            assignment=kill_count, post_battle_revision=saved
+        )
+        assert event.counter_delta == 1
+        assert event.note.endswith("Post-battle results")
+
+    def test_xp_is_not_offered_and_every_held_counter_is(
+        self, report, owner, model, kill_count, glitches
+    ):
+        plan = preview_report(report, actor=owner)
+        assert [change.name for change in plan.models[0].counters] == [
+            "Kill Count",
+            "Glitch count",
+        ]
+
+    def test_an_injury_glitch_shows_once_in_preview_and_receipt(
+        self, report, owner, model, glitches, glitch
+    ):
+        payload = with_model(model)
+        payload["models"][0]["effects"] = [effect_for(report, owner, glitch)]
+        report = save(report, owner, payload)
+        plan = preview_report(report, actor=owner)
+        (change,) = plan.models[0].counters
+        assert (change.manual, change.effect, change.after) == (0, 1, 1)
+        assert plan.models[0].counter_effects
+        saved = apply(report, owner)
+        assert counter_value(glitches) == 1
+        (line,) = saved.receipt["models"][0]["counters"]
+        assert (line["manual"], line["effect"], line["after"]) == (0, 1, 1)
+        # The injury's own stored effect wrote the tally; nothing else did.
+        assert (
+            LedgerEvent.objects.filter(
+                assignment=glitches, kind=LedgerEvent.Kind.TALLIED
+            ).count()
+            == 1
+        )
+
+    def test_a_manual_change_and_an_injury_add_up(
+        self, report, owner, model, glitches, glitch
+    ):
+        key = str(glitches.pk)
+        payload = with_model(model, counters={key: 2})
+        payload["models"][0]["effects"] = [effect_for(report, owner, glitch)]
+        report = save(report, owner, payload)
+        (change,) = preview_report(report, actor=owner).models[0].counters
+        assert (change.manual, change.effect, change.after) == (2, 1, 3)
+        saved = apply(report, owner)
+        assert counter_value(glitches) == 3
+        (line,) = saved.receipt["models"][0]["counters"]
+        assert line["after"] == 3
+
+    def test_a_correction_keeps_a_later_tally(self, report, owner, model, kill_count):
+        key = str(kill_count.pk)
+        report = save(report, owner, with_model(model, counters={key: 3}))
+        apply(report, owner)
+        tally(kill_count, 4)
+        report = start_correction(report, actor=owner)
+        assert report.draft["models"][0]["counters"] == {key: 3}
+        report = save(report, owner, with_model(model, counters={key: 1}))
+        apply(report, owner)
+        assert counter_value(kill_count) == 2 + 3 + 4 - 2
+        assert_reconciled(model.gang)
+
+    def test_below_zero_is_refused(self, report, owner, model, kill_count):
+        report = save(
+            report, owner, with_model(model, counters={str(kill_count.pk): -3})
+        )
+        errors = preview_report(report, actor=owner).errors
+        assert "Cinder: Kill Count cannot go below 0." in errors
+
+    def test_a_removed_counter_leaves_the_rest_correctable(
+        self, report, owner, model, kill_count
+    ):
+        key = str(kill_count.pk)
+        report = save(report, owner, with_model(model, counters={key: 1}, xp=1))
+        apply(report, owner)
+        remove(kill_count, actor=owner)
+        report = start_correction(report, actor=owner)
+        # The form no longer lists the counter, so nothing is posted for it.
+        payload = deepcopy(report.draft)
+        payload["models"][0]["counters"] = {}
+        payload["models"][0]["xp"] = 2
+        report = save(report, owner, payload)
+        plan = preview_report(report, actor=owner)
+        assert plan.valid, plan.errors
+        assert plan.inputs["models"][0]["counters"] == {key: 1}
+        report = save(report, owner, with_model(model, counters={key: 2}, xp=2))
+        errors = preview_report(report, actor=owner).errors
+        assert any("correct the change to Kill Count" in error for error in errors)
+
+
+def notes_of(model):
+    model.refresh_from_db(fields=["notes"])
+    return model.notes
+
+
+@pytest.mark.usefixtures("counter_tracking")
+class TestModelNotes:
+    """A note is added to the model's notes once, and never taken away."""
+
+    def test_appears_once_with_the_battle_and_date(self, report, owner, model):
+        model.notes = "<p>Old notes.</p>"
+        model.save(update_fields=["notes"])
+        report = save(report, owner, with_model(model, note="Took <the> bridge."))
+        saved = apply(report, owner)
+        expected = (
+            f"<p>Old notes.</p><p><strong>Stand-off, "
+            f"{report.date:%-d %B %Y}:</strong> Took &lt;the&gt; bridge.</p>"
+        )
+        assert notes_of(model) == expected
+        assert saved.receipt["models"][0]["note_appended"] == "Took <the> bridge."
+        event = LedgerEvent.objects.get(miniature=model, kind=LedgerEvent.Kind.NOTED)
+        assert event.post_battle_revision == saved
+
+    def test_a_retry_does_not_add_it_twice(self, report, owner, model):
+        report = save(report, owner, with_model(model, note="Held the line."))
+        key = uuid4()
+        apply(report, owner, key=key)
+        report.refresh_from_db()
+        apply_report(
+            report,
+            actor=owner,
+            generation=report.generation,
+            revision=report.draft_revision,
+            submission_key=key,
+            review="",
+        )
+        assert notes_of(model).count("Held the line.") == 1
+
+    def test_an_empty_note_changes_nothing(self, report, owner, model):
+        report = save(report, owner, with_model(model, note="   "))
+        saved = apply(report, owner)
+        assert notes_of(model) == ""
+        assert saved.receipt["models"][0]["note_appended"] == ""
+        assert not LedgerEvent.objects.filter(kind=LedgerEvent.Kind.NOTED).exists()
+
+    def test_a_correction_with_the_same_note_adds_nothing(self, report, owner, model):
+        report = save(report, owner, with_model(model, note="Held the line."))
+        apply(report, owner)
+        report = start_correction(report, actor=owner)
+        assert report.draft["models"][0]["note"] == "Held the line."
+        report = save(report, owner, with_model(model, note="Held the line.", xp=1))
+        plan = preview_report(report, actor=owner)
+        assert not plan.models[0].note_appends
+        saved = apply(report, owner)
+        assert notes_of(model).count("Held the line.") == 1
+        assert saved.receipt["models"][0]["note_appended"] == ""
+
+    def test_a_changed_note_adds_once_and_keeps_the_old(self, report, owner, model):
+        report = save(report, owner, with_model(model, note="Held the line."))
+        apply(report, owner)
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, with_model(model, note="Held the bridge."))
+        plan = preview_report(report, actor=owner)
+        assert plan.models[0].earlier_note_stays
+        apply(report, owner)
+        notes = notes_of(model)
+        assert notes.count("Held the line.") == 1
+        assert notes.count("Held the bridge.") == 1
+        # A later correction with the new text, after one with none, adds nothing.
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, with_model(model, note=""))
+        apply(report, owner)
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, with_model(model, note="Held the bridge."))
+        apply(report, owner)
+        assert notes_of(model).count("Held the bridge.") == 1
+
+    def test_a_long_note_is_refused(self, report, owner, model):
+        report = save(report, owner, with_model(model, note="x" * 2001))
+        errors = preview_report(report, actor=owner).errors
+        assert "Cinder: Keep the note to 2,000 characters or fewer." in errors
