@@ -282,6 +282,8 @@ def apply_one(gang_id):
                 allowances = grant_recruitment_allowances(op, fighter)
                 if any(allowance.action_id != action.pk for allowance in allowances):
                     raise Refused(f"{fighter} has an unrelated recruitment action use.")
+                if len(allowances) != 1:
+                    raise Refused(f"{fighter} did not receive a recruitment use.")
                 granted += len(allowances)
         gang.refresh_from_db()
         assert_reconciled(gang)

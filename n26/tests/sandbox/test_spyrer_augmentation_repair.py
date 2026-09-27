@@ -11,11 +11,17 @@ from gyrinx.maintenance.models import Backfill
 from n26 import maintenance
 from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
-from n26.core.models import ActionAllowance, ActionRecord, Assignment, SlotSelection
+from n26.core.models import (
+    ActionAllowance,
+    ActionRecord,
+    Assignment,
+    CounterTracking,
+    SlotSelection,
+)
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_model_card
-from n26.core.spyrer_augmentation_repair import apply_one, find, prepare
+from n26.core.spyrer_augmentation_repair import Refused, apply_one, find, prepare
 from n26.library import authoring as a
 from n26.library.models import Rule, Stat
 from n26.tests.sandbox.actions import buy, choose, found_gang, hire
@@ -163,6 +169,20 @@ def test_repair_is_idempotent_and_keeps_an_older_completed_action(live_spyrers):
     assert tier2.modifiers.count() == 2
     assert ActionRecord.objects.filter(fighter=fighter).count() == 1
     assert find().nothing_here
+
+
+def test_repair_rolls_back_a_gang_if_recruitment_grant_stops(live_spyrers):
+    gang, fighter, action, _, empty_slot, *_ = live_spyrers
+    prepare()
+    CounterTracking.objects.filter(pk=1).update(activated_at=None, activation_run=None)
+
+    with pytest.raises(Refused, match="did not receive a recruitment use"):
+        apply_one(gang.pk)
+
+    empty_slot.refresh_from_db()
+    assert not empty_slot.archived
+    assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()
+    assert_reconciled(gang)
 
 
 def test_repair_refuses_a_malcadon_slot_with_a_selection(live_spyrers):
