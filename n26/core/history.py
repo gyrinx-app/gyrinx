@@ -214,7 +214,6 @@ def _acts_from(events, viewer, *, alive):
     """The acts these events tell, oldest first."""
     rows = _rows_for(events)
     _name_the_rolls(events, rows)
-    _mark_stake_corrections(events)
     sources = _comes_with_sources(events, rows)
     acts = []
     #: Where each thing's opening act landed, so an old record's grant
@@ -1004,31 +1003,14 @@ def _holding_name(e):
     )
 
 
-def _mark_stake_corrections(events):
-    """Mark each battle's stake moving to or from this gang as the award
-    or a correction undoing it.
-
-    Editing a battle moves its stake, and a later edit moves it back
-    before anything else, so for one gang, one battle and one asset the
-    moves alternate: the first is the award, the next undoes it, and so
-    on. ``events`` are oldest first.
-    """
-    seen = {}
-    for e in events:
-        if e.kind in HOLDING and e.battle_id is not None:
-            key = (e.battle_id, e.campaign_asset_id)
-            e.stake_correction = seen.get(key, 0) % 2 == 1
-            seen[key] = seen.get(key, 0) + 1
-
-
 def _tell_stake(e):
     """A battle's stake moving, as the gang's own history says it: "Won
-    Old Ruins in Stand-off", or, once the battle was corrected, "Got Old
-    Ruins back after Stand-off was corrected"."""
+    Old Ruins in Stand-off", or, for the move a correction wrote to undo
+    an earlier one, "Got Old Ruins back after Stand-off was corrected"."""
     battle = e.battle.title
     name = _holding_name(e)
     gained = e.kind == Kind.GAINED
-    if getattr(e, "stake_correction", False):
+    if e.reversal_of_id is not None:
         verb = "Got " if gained else "Returned "
         after = " back" if gained else ""
         return (

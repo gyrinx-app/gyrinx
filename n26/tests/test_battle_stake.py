@@ -16,9 +16,10 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
+from n26.core import history
 from n26.core.campaigns import BattleStake, battle_stake, campaign_operation
 from n26.core.forms import BattleForm
-from n26.core.history import build
+from n26.core.history import build, latest
 from n26.core.models import Battle, Gang, LedgerEvent, PostBattleReport
 from n26.core.operations import Refusal
 from n26.core.post_battle import start_report
@@ -513,6 +514,34 @@ class TestGangHistory:
             ("", "Got Old Ruins back after Stand-off was corrected"),
             ("", "Lost Old Ruins in Stand-off"),
         ]
+
+    def test_the_correction_is_recorded_on_the_moves_it_undoes(self, table):
+        stake_as(table, table.kings)
+        stake_as(table, None)
+
+        undo = LedgerEvent.objects.filter(
+            campaign_asset=table.ruins, reversal_of__isnull=False
+        ).select_related("reversal_of")
+        assert {(e.gang, e.kind, e.reversal_of.kind) for e in undo} == {
+            (table.kings, LedgerEvent.Kind.LOST, LedgerEvent.Kind.GAINED),
+            (table.choir, LedgerEvent.Kind.GAINED, LedgerEvent.Kind.LOST),
+        }
+
+    def test_the_snapshot_and_the_full_history_agree(self, table, monkeypatch):
+        stake_as(table, table.kings)
+        stake_as(table, None)
+        # A snapshot too short to see the award still reads the
+        # correction as one.
+        monkeypatch.setattr(history, "SNAPSHOT_WINDOW", 1)
+
+        for gang in (table.kings, table.choir):
+            full = ["".join(span.text for span in act.spans) for act in build(gang)][-1]
+            snapshot = [
+                "".join(span.text for span in act.spans)
+                for act in latest(gang, limit=1)
+            ]
+            assert snapshot == [full]
+            assert full.endswith("after Stand-off was corrected")
 
     def test_a_transfer_on_the_campaign_page_reads_as_before(self, table):
         transfer_asset(table.ruins, table.kings)

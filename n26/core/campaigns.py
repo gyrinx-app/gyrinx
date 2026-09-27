@@ -500,7 +500,12 @@ class CampaignOperation:
                     f"{stake} cannot move back: the gang it went to no longer holds it. "
                     "Transfer it on the campaign page."
                 )
-            self.transfer(stake, self._playing(lost.gang, stake), battle=battle)
+            self.transfer(
+                stake,
+                self._playing(lost.gang, stake),
+                battle=battle,
+                reverses=battle.stake_transfer_mark,
+            )
         battle.stake_transfer_mark = None
 
     def _playing(self, gang, stake):
@@ -778,7 +783,14 @@ class CampaignOperation:
         return campaign_asset
 
     def transfer(
-        self, campaign_asset, membership, by_holder=None, *, battle=None, mark=None
+        self,
+        campaign_asset,
+        membership,
+        by_holder=None,
+        *,
+        battle=None,
+        mark=None,
+        reverses=None,
     ):
         """Hand a held asset from the gang holding it to another gang
         playing this campaign.
@@ -795,6 +807,8 @@ class CampaignOperation:
 
         ``battle`` names the battle that moved it, on both records, and
         ``mark`` is the mark they share where the caller keeps it.
+        ``reverses`` is the mark of an earlier transfer this one undoes:
+        each record then points at the one it reverses on the same gang.
         """
         from n26.core.operations import Refusal, operation
 
@@ -819,12 +833,23 @@ class CampaignOperation:
         campaign_asset.holder = membership
         campaign_asset.save(update_fields=["holder", "modified"])
         mark = mark or uuid4()
+        undone = (
+            {
+                (e.gang_id, e.kind): e
+                for e in LedgerEvent.objects.filter(
+                    batch=reverses, campaign_asset=campaign_asset
+                )
+            }
+            if reverses is not None
+            else {}
+        )
         with operation(loser.gang, actor=self.actor, batch=mark) as op:
             op.event(
                 campaign_asset,
                 LedgerEvent.Kind.LOST,
                 note=str(campaign_asset),
                 battle=battle,
+                reversal_of=undone.get((loser.gang_id, LedgerEvent.Kind.GAINED)),
             )
         with operation(membership.gang, actor=self.actor, batch=mark) as op:
             op.event(
@@ -832,6 +857,7 @@ class CampaignOperation:
                 LedgerEvent.Kind.GAINED,
                 note=str(campaign_asset),
                 battle=battle,
+                reversal_of=undone.get((membership.gang_id, LedgerEvent.Kind.LOST)),
             )
         return campaign_asset
 
