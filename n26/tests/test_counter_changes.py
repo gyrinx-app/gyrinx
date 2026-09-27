@@ -101,6 +101,13 @@ class TestPlanChanges:
             "after this report was applied. Change Favour on the gang page."
         ]
 
+    def test_a_model_counter_that_has_gone_points_at_the_model_card(self):
+        gone = str(uuid4())
+        _, errors = plan_changes(
+            [], {gone: 1}, {gone: 3}, names={gone: "Favour"}, change_on="Cinder's card"
+        )
+        assert errors[0].endswith("Change Favour on Cinder's card.")
+
     def test_an_unchanged_entry_for_a_counter_that_has_gone_is_kept(self):
         gone = str(uuid4())
         changes, errors = plan_changes([], {gone: 3}, {gone: 3})

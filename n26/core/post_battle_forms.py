@@ -9,7 +9,7 @@ from django import forms
 from django.utils import timezone
 
 from n26.core.counter_changes import LIMIT as COUNTER_LIMIT
-from n26.core.post_battle import MAX_CREDIT_LINES, normalise, signed
+from n26.core.post_battle import MAX_CREDIT_LINES, MAX_NOTE, normalise, signed
 from n26.core.status import Status, label_for, status_colour
 
 
@@ -72,6 +72,15 @@ def posted_payload(data):
                 "status": data.get(f"{prefix}-status", ""),
                 "equipment": data.get(f"{prefix}-equipment", "keep"),
                 "effects": effects,
+                "counters": {
+                    key: data.get(f"{prefix}-counter-{key}", "")
+                    for key in dict.fromkeys(
+                        data.getlist(f"{prefix}-counter")[:MAX_COUNTERS]
+                    )
+                },
+                # A browser counts a line break as one character and posts
+                # two; the note is kept with one, as its limit counts it.
+                "note": data.get(f"{prefix}-note", "").replace("\r\n", "\n"),
             }
         )
     lines = [
@@ -109,6 +118,13 @@ def _step_counter(values, key, step):
     values[key] = str(max(-COUNTER_LIMIT, min(COUNTER_LIMIT, amount + step)))
 
 
+def _model_counter_step(intent):
+    """``model-counter-step:<model>:<counter>:<step>`` in its three parts."""
+    target, _, rest = intent.removeprefix("model-counter-step:").partition(":")
+    key, _, step = rest.rpartition(":")
+    return target, key, step if step in {"+1", "-1"} else "0"
+
+
 def change_draft(payload, intent, *, xp_eligible=frozenset()):
     """Server-side form actions alter pending values, never the gang."""
     payload = normalise(payload)
@@ -127,6 +143,12 @@ def change_draft(payload, intent, *, xp_eligible=frozenset()):
         key, _, step = intent.removeprefix("counter-step:").rpartition(":")
         if step in {"+1", "-1"} and key in payload["gang_counters"]:
             _step_counter(payload["gang_counters"], key, int(step))
+    elif intent.startswith("model-counter-step:"):
+        target, key, step = _model_counter_step(intent)
+        for model in payload["models"]:
+            counters = model.get("counters")
+            if model["id"] == target and isinstance(counters, dict) and key in counters:
+                _step_counter(counters, key, int(step))
     elif intent in XP_STEPS:
         step = XP_STEPS[intent]
         for model in payload["models"]:
@@ -214,6 +236,8 @@ class ReportModel:
     add_effect_label: str = ""
     #: Where an in-place update posts. Empty draws plain form controls.
     refresh_url: str = ""
+    counter_rows: list = field(default_factory=list)
+    note: str = ""
 
     @property
     def refresh_attrs(self):
@@ -293,11 +317,46 @@ class ReportModel:
             or self.status_changes
             or self.result.status_conflict
             or self.result.equipment_changed
+            or self.result.moving_counters
+            or self.result.note_appends
         )
 
     @property
     def equipment_label(self):
         return f"What happens to {self.name}'s equipment"
+
+    @property
+    def summary_counters(self):
+        """The counters this report moves, with where each change came from."""
+        return [
+            (change, counter_parts(change.delta, change.effect))
+            for change in self.result.moving_counters
+        ]
+
+    @property
+    def show_counter_effects(self):
+        return self.result.counter_effects
+
+    @property
+    def counters_heading_id(self):
+        return f"{self.prefix}-counters-heading"
+
+    @property
+    def note_label(self):
+        return f"Add to {self.name}'s notes (optional)"
+
+    @property
+    def note_help(self):
+        # Typing does not redraw the module, so the help cannot depend on
+        # whether the note has changed: once a note is in the model's
+        # notes, say where it is, whatever is typed next.
+        if self.result.note_recorded:
+            return f"The earlier note stays in {self.name}'s notes. Edit it there."
+        return f"Added to the end of {self.name}'s notes when you apply these results."
+
+    @property
+    def note_limit(self):
+        return MAX_NOTE
 
 
 def _effect_label(labels):
@@ -318,6 +377,8 @@ def refreshed_model(payload, intent):
     kind, _, target = intent.partition(":")
     if kind in {"refresh-model", "add-effect"}:
         return target
+    if kind == "model-counter-step":
+        return _model_counter_step(intent)[0]
     if kind in {"remove-effect", "clear-choices"}:
         for model in payload.get("models", []):
             if any(effect.get("id") == target for effect in model["effects"]):
@@ -401,9 +462,26 @@ def editor_models(plan, payload, refresh_url=""):
                     else ""
                 ),
                 refresh_url=refresh_url,
+                counter_rows=_model_counter_rows(model, values.get("counters")),
+                note=str(values.get("note") or ""),
             )
         )
     return models
+
+
+def _model_counter_rows(model, entered):
+    entered = entered if isinstance(entered, dict) else {}
+    prefix = f"model-{model.id}"
+    return [
+        CounterRow(
+            change=change,
+            entered=str(entered.get(change.assignment_id) or ""),
+            list_name=f"{prefix}-counter",
+            field_prefix=f"{prefix}-counter",
+            step_intent=f"model-counter-step:{model.id}",
+        )
+        for change in model.counters
+    ]
 
 
 @dataclass
@@ -442,18 +520,28 @@ class CreditRow:
 
 @dataclass
 class CounterRow:
-    """One gang counter in Mission results: now, the change, and after."""
+    """One counter's row, the gang's or a model's: now, the change, and after."""
 
     change: object
     entered: str
+    #: The name the form lists each counter under; each counter's field
+    #: is this name, a dash and the counter's id.
+    list_name: str = "gang_counter"
+    field_prefix: str = "gang-counter"
+    step_intent: str = "counter-step"
+
+    @property
+    def editable(self):
+        """A counter a result creates has no change to enter yet."""
+        return bool(self.change.assignment_id)
 
     @property
     def prefix(self):
-        return f"gang-counter-{self.change.assignment_id}"
+        return f"{self.field_prefix}-{self.change.assignment_id}"
 
     @property
     def intent(self):
-        return f"counter-step:{self.change.assignment_id}"
+        return f"{self.step_intent}:{self.change.assignment_id}"
 
     @property
     def base(self):
@@ -585,15 +673,34 @@ def receipt_mission(receipt, revision=None):
     }
 
 
+def counter_parts(manual, effect):
+    """Where a counter's change came from: "+1 entered, +1 from results"."""
+    parts = []
+    if manual:
+        parts.append(f"{manual:+d} entered")
+    if effect:
+        parts.append(f"{effect:+d} from results")
+    return ", ".join(parts)
+
+
 def receipt_models(receipt):
-    """The receipt's models that took part or changed, with what changed
-    and each status's badge colour."""
+    """The receipt's models that took part or changed, with what changed,
+    each status's badge colour and where each counter's change came from."""
     models = []
     for model in receipt.get("models", []):
         changed = {
             "xp_changed": model.get("xp_before") != model.get("xp_after")
             or bool(model.get("xp_change")),
             "status_changed": model.get("status_before") != model.get("status_after"),
+            "counters": [
+                line
+                | {
+                    "parts": counter_parts(
+                        line["manual"] - line["recorded"], line["effect"]
+                    )
+                }
+                for line in model.get("counters", [])
+            ],
         }
         if not (
             model.get("participated")
@@ -601,6 +708,8 @@ def receipt_models(receipt):
             or changed["status_changed"]
             or model.get("effects")
             or model.get("equipment_changed")
+            or changed["counters"]
+            or model.get("note_appended")
         ):
             continue
         models.append(

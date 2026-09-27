@@ -2465,3 +2465,260 @@ class TestMissionResultsAddUp:
         assert "+20¢" in first
         assert "Change from the last version" not in first
         assert "Credits adjustment" not in first
+
+
+@pytest.fixture
+def kills(table):
+    counter = assign(create_counter("Kill Count"), miniature=table.models[0])
+    tally(counter, 2)
+    return counter
+
+
+def counter_step(client, report, response, model, intent, **changes):
+    """Click a model counter's step button as htmx does."""
+    return client.post(
+        editor_url(report),
+        html_fields(response, intent=intent, **changes),
+        HTTP_HX_REQUEST="true",
+    )
+
+
+class TestModelCounters:
+    """A model's counters sit under its XP and step in place."""
+
+    def test_only_counters_the_model_holds_are_shown(
+        self, client, table, feature, kills
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        cinder, ember = table.models
+        field = f"model-{cinder.pk}-counter-{kills.pk}"
+        progress = module(page, cinder).find(attrs={"data-model-progress": True})
+        row = progress.find("input", id=field).find_parent("tr")
+        assert row.find("label").get_text(strip=True) == "Kill Count"
+        assert module(page, ember).find(attrs={"data-model-counters": True}) is None
+
+    def test_a_step_redraws_the_module_and_saves_the_draft(
+        self, client, table, feature, kills
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        cinder = table.models[0]
+        key = str(kills.pk)
+        stepped = counter_step(
+            client, report, page, cinder, f"model-counter-step:{cinder.pk}:{key}:+1"
+        )
+        assert stepped.status_code == 200
+        field = module(stepped, cinder).find(
+            "input", id=f"model-{cinder.pk}-counter-{key}"
+        )
+        assert field["value"] == "1"
+        cells = [
+            cell.get_text(strip=True) for cell in field.find_parent("tr").find_all("td")
+        ]
+        assert cells[0] == "2" and cells[-1] == "3"
+        report.refresh_from_db()
+        assert report.draft["models"][0]["counters"] == {key: "1"}
+
+    def test_model_counter_steps_post_the_form_only_without_scripts(
+        self, client, table, feature, kills
+    ):
+        report = start(client, table)
+        cinder = table.models[0]
+        box = module(client.get(editor_url(report)), cinder)
+        field = f"model-{cinder.pk}-counter-{kills.pk}"
+        for step in ("-1", "+1"):
+            button = box.find(
+                "button",
+                attrs={"value": f"model-counter-step:{cinder.pk}:{kills.pk}:{step}"},
+            )
+            assert not button.has_attr("hx-post")
+            assert button["data-counter-step"] == field
+        assert box.find("input", id=field)["data-counter-limit"] == "1000"
+
+    def test_applied_counter_is_on_the_receipt(self, client, table, feature, kills):
+        report = start(client, table)
+        cinder = table.models[0]
+        fields = awards(
+            client.get(editor_url(report)),
+            table,
+            **{f"model-{cinder.pk}-counter-{kills.pk}": "1"},
+        )
+        checked = client.post(editor_url(report), fields | {"intent": "check"})
+        summary = " ".join(
+            BeautifulSoup(checked.content, "html.parser")
+            .find(id="post-battle-summary")
+            .get_text(" ", strip=True)
+            .split()
+        )
+        assert "Kill Count: 2 → 3 (+1 entered)" in summary
+        applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
+        assert applied.status_code == 302
+        assert CounterValue.objects.get(assignment=kills).value == 3
+        receipt = " ".join(
+            BeautifulSoup(client.get(receipt_url(report)).content, "html.parser")
+            .get_text(" ", strip=True)
+            .split()
+        )
+        assert "Kill Count: 2 → 3 (+1 entered)" in receipt
+        assert_books(table)
+
+    def test_a_correction_shows_where_the_counter_started(
+        self, client, table, feature, kills
+    ):
+        bloodied = create_pickable(
+            "Bloodied",
+            table.injury_kind,
+            effects=[
+                (
+                    targets_model(),
+                    op_changes_counter(kills.counter, mode="add", amount=1),
+                )
+            ],
+        )
+        add_picklist_member(table.injury_table, bloodied)
+        report = start(client, table)
+        cinder = table.models[0]
+        field = f"model-{cinder.pk}-counter-{kills.pk}"
+        checked, _ = with_effect(client, table, report, bloodied)
+        applied = client.post(
+            editor_url(report), awards(checked, table, intent="apply", **{field: "1"})
+        )
+        assert applied.status_code == 302
+        assert CounterValue.objects.get(assignment=kills).value == 4
+        client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+
+        page = client.get(editor_url(report))
+
+        box = module(page, cinder).find(attrs={"data-model-counters": True})
+        entry = box.find("input", id=field)
+        cells = [
+            cell.get_text(strip=True) for cell in entry.find_parent("tr").find_all("td")
+        ]
+        # Before, the entered change and what the kept result adds make After.
+        assert (cells[0], entry["value"], cells[2], cells[-1]) == ("2", "1", "+1", "4")
+        assert "From results" in box.find("thead").get_text()
+
+    def test_a_correction_applies_after_a_changed_counter_is_removed(
+        self, client, table, feature, kills
+    ):
+        report = start(client, table)
+        cinder = table.models[0]
+        fields = awards(
+            client.get(editor_url(report)),
+            table,
+            **{f"model-{cinder.pk}-counter-{kills.pk}": "1"},
+        )
+        checked = client.post(editor_url(report), fields | {"intent": "check"})
+        assert (
+            client.post(
+                editor_url(report), html_fields(checked, intent="apply")
+            ).status_code
+            == 302
+        )
+        remove(kills, actor=table.owner)
+        corrected = client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+        assert corrected.status_code == 302
+        page = client.get(editor_url(report))
+        assert module(page, cinder).find(attrs={"data-model-counters": True}) is None
+        checked = client.post(
+            editor_url(report),
+            html_fields(page, intent="check", **{f"model-{cinder.pk}-xp": "3"}),
+        )
+        assert checked.context["plan"].valid, checked.context["plan"].errors
+        applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
+        assert applied.status_code == 302
+        revision = report.revisions.get(sequence=2)
+        assert revision.inputs["models"][0]["counters"] == {str(kills.pk): 1}
+        assert_books(table)
+
+
+class TestModelNotes:
+    """An optional note goes into the model's notes once."""
+
+    def test_the_note_is_added_to_the_model_notes_and_the_receipt(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        cinder = table.models[0]
+        page = client.get(editor_url(report))
+        label = module(page, cinder).find(
+            "label", attrs={"for": f"model-{cinder.pk}-note"}
+        )
+        assert label.get_text(strip=True) == "Add to Cinder's notes (optional)"
+        fields = awards(page, table, **{f"model-{cinder.pk}-note": "Held the bridge."})
+        checked = client.post(editor_url(report), fields | {"intent": "check"})
+        assert "Adds a note to Cinder's notes." in checked.content.decode()
+        applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
+        assert applied.status_code == 302
+        cinder.refresh_from_db()
+        assert cinder.notes.count("Held the bridge.") == 1
+        assert "Stand-off, 20 September 2026" in cinder.notes
+        receipt = client.get(receipt_url(report)).content.decode()
+        assert "Held the bridge." in receipt
+
+    def test_a_changed_note_in_a_correction_says_the_earlier_one_stays(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        cinder = table.models[0]
+        note = f"model-{cinder.pk}-note"
+        fields = awards(client.get(editor_url(report)), table, **{note: "First."})
+        checked = client.post(editor_url(report), fields | {"intent": "check"})
+        client.post(editor_url(report), html_fields(checked, intent="apply"))
+        client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+        page = client.get(editor_url(report))
+        assert module(page, cinder).find("textarea", id=note).get_text() == "First."
+        help_text = module(page, cinder).find(id=f"{note}-help").get_text(strip=True)
+        assert help_text == "The earlier note stays in Cinder's notes. Edit it there."
+        checked = client.post(
+            editor_url(report), html_fields(page, intent="check", **{note: "Second."})
+        )
+        help_text = module(checked, cinder).find(id=f"{note}-help").get_text(strip=True)
+        assert help_text == "The earlier note stays in Cinder's notes. Edit it there."
+        client.post(editor_url(report), html_fields(checked, intent="apply"))
+        cinder.refresh_from_db()
+        assert cinder.notes.count("First.") == 1
+        assert cinder.notes.count("Second.") == 1
+
+
+class TestModelResultEdges:
+    """Posted values the page would not send, and line breaks in notes."""
+
+    def test_a_note_at_the_limit_with_line_breaks_is_accepted(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        cinder = table.models[0]
+        # 1,995 characters as the browser counts them, 2,001 once each line
+        # break is posted as two.
+        text = "\r\n".join(["x" * 285, *["x" * 284] * 6])
+        assert len(text.replace("\r\n", "\n")) == 1995
+        assert len(text) == 2001
+        fields = awards(
+            client.get(editor_url(report)),
+            table,
+            intent="check",
+            **{f"model-{cinder.pk}-note": text},
+        )
+        checked = client.post(editor_url(report), fields)
+        assert checked.context["plan"].valid, checked.context["plan"].errors
+        assert checked.context["plan"].models[0].note == text.replace("\r\n", "\n")
+
+    def test_a_change_to_a_counter_the_model_does_not_hold_is_refused(
+        self, client, table, feature, kills
+    ):
+        glitch = create_counter("Glitch Count")
+        ember_counter = assign(create_counter("Grudges"), miniature=table.models[1])
+        report = start(client, table)
+        cinder = table.models[0]
+        prefix = f"model-{cinder.pk}"
+        for key in ("", str(glitch.pk), str(ember_counter.pk)):
+            fields = awards(client.get(editor_url(report)), table, intent="check")
+            fields[f"{prefix}-counter"] = [str(kills.pk), key]
+            fields[f"{prefix}-counter-{key}"] = "1"
+            checked = client.post(editor_url(report), fields)
+            plan = checked.context["plan"]
+            assert not plan.valid
+            assert any("You cannot correct the change to" in e for e in plan.errors)
+        assert not report.revisions.exists()

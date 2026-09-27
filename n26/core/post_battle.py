@@ -17,11 +17,14 @@ from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
+from django.utils.formats import date_format
+from django.utils.html import escape
 
 from n26.core.battle_permissions import may_record_gang
 from n26.core.card import Node, build_gang_card, build_modifier_index, carriers
 from n26.core.counter_changes import (
     CounterChange,
+    changeable_counter,
     entries,
     held_counters,
     plan_changes,
@@ -120,10 +123,35 @@ class ModelResult:
     #: Why the final status must be chosen by hand, when it must. Shown
     #: in the model's module as soon as it arises, not only after Check.
     status_conflict: str = ""
+    #: The model's counters other than XP: every one it holds, and any a
+    #: result creates.
+    counters: list[CounterChange] = field(default_factory=list)
+    #: The note for the model's notes, as entered.
+    note: str = ""
+    #: The note this report last added to the model's notes.
+    note_recorded: str = ""
 
     @property
     def equipment_applies(self):
         return self.final_status == Status.DEAD
+
+    @property
+    def note_appends(self):
+        """Whether applying adds the note to the model's notes."""
+        return bool(self.note) and self.note != self.note_recorded
+
+    @property
+    def earlier_note_stays(self):
+        """Whether a note this report added stays although it changed."""
+        return bool(self.note_recorded) and self.note != self.note_recorded
+
+    @property
+    def moving_counters(self):
+        return [change for change in self.counters if change.delta or change.effect]
+
+    @property
+    def counter_effects(self):
+        return any(change.from_results for change in self.counters)
 
     @property
     def xp_available(self):
@@ -218,6 +246,8 @@ class PostBattlePlan:
         return any(change.effect for change in self.gang_counters)
 
 
+#: The longest note a report adds to one model's notes.
+MAX_NOTE = 2000
 #: At most this many lines of credits in one report.
 MAX_CREDIT_LINES = 20
 #: The one line a report saved before lines of credits existed becomes.
@@ -673,8 +703,17 @@ def xp_eligible_models(report, *, actor, payload):
     return {model.id for model in plan.models if model.xp_available}
 
 
-def _project_counters(card, index, plan, result, facts):
-    """Mirror the ordered stored tallies, without writing or hiding a clamp."""
+def _project_counters(card, index, plan, result, facts, manual=None):
+    """Mirror the ordered stored tallies, without writing or hiding a clamp.
+
+    ``manual`` is the change this report still has to make to each counter
+    by hand, keyed by assignment id. Returns what the report's results move
+    each counter other than XP by, keyed by assignment id, and the counters
+    a result creates, keyed by the library counter.
+    """
+    manual = manual or {}
+    effect_deltas = defaultdict(int)
+    created = {}
     counters = {}
     by_assignment = {}
     for node in card.all_nodes():
@@ -703,9 +742,15 @@ def _project_counters(card, index, plan, result, facts):
             held[0] += delta
             if held[2].name.casefold() == XP_COUNTER.casefold():
                 xp_effect_delta += delta
+            else:
+                effect_deltas[key] += delta
     if result.xp_assignment_id in by_assignment:
         by_assignment[result.xp_assignment_id][0] += result.xp_change
-    if any(held[0] < 0 for held in by_assignment.values()):
+    for key, delta in manual.items():
+        if key in by_assignment:
+            by_assignment[key][0] += delta
+    # A counter changed by hand has its own line saying it cannot go below 0.
+    if any(held[0] < 0 for key, held in by_assignment.items() if key not in manual):
         result.errors.append(
             "These corrections would take a counter below zero. Correct its later changes first."
         )
@@ -726,6 +771,7 @@ def _project_counters(card, index, plan, result, facts):
                 counter = effect.counter
                 matches = [[0, None, counter]]
                 counters[effect.counter_id] = matches
+                created[effect.counter_id] = matches[0]
             held = matches[0]
             before = held[0]
             if effect.mode == OpChangesCounter.Mode.ADD:
@@ -739,7 +785,36 @@ def _project_counters(card, index, plan, result, facts):
             )
             if held[2].name.casefold() == XP_COUNTER.casefold():
                 xp_effect_delta += held[0] - before
+            elif held[1] is not None:
+                effect_deltas[held[1]] += held[0] - before
     result.xp_after += xp_effect_delta
+    return effect_deltas, created
+
+
+def _recorded_notes(report):
+    """The note each model last had added to its notes by this report."""
+    notes = {}
+    if not report.latest_sequence:
+        return notes
+    for receipt in (
+        report.revisions.filter(sequence__lte=report.latest_sequence)
+        .order_by("sequence")
+        .values_list("receipt", flat=True)
+    ):
+        for model in receipt.get("models", []):
+            if model.get("note_appended"):
+                notes[model["id"]] = model["note_appended"]
+    return notes
+
+
+def note_paragraph(report, note):
+    """The paragraph a report adds to a model's notes: the battle, its date,
+    and the note, escaped, its line breaks kept."""
+    title = report.battle.title if report.battle_id else report.reference
+    when = date_format(report.date, "j F Y")
+    heading = f"{title}, {when}" if title else when
+    body = "<br>".join(escape(line) for line in note.splitlines())
+    return f"<p><strong>{escape(heading)}:</strong> {body}</p>"
 
 
 def _equipment_disposal(card, assignments):
@@ -1006,6 +1081,13 @@ def preview_report(report, *, actor, payload=None):
         errors.append(
             "A model in this report is no longer on this gang's roster. Restore it before correcting these results."
         )
+    recorded_counter_names = {
+        model["id"]: {
+            line["assignment_id"]: line["name"] for line in model.get("counters", [])
+        }
+        for model in (previous.receipt if previous else {}).get("models", [])
+    }
+    recorded_notes = _recorded_notes(report)
     occurrences = set()
     choices_cache = {}
     active = is_active()
@@ -1068,6 +1150,27 @@ def preview_report(report, *, actor, payload=None):
         plan._removals.append((occurrence, root, events))
         removed.update(descendants)
         facts.append(["remove", occurrence, sorted(descendants)])
+    # What results this report applied before added to each model's
+    # counters, kept or taken back: part of the reading now, so the
+    # counter table can show where each counter started.
+    earlier_results = defaultdict(lambda: defaultdict(int))
+    kept = {
+        event_id: held["model_id"]
+        for held in plan._retained.values()
+        for event_id in held["event_ids"]
+    }
+    for event in LedgerEvent.objects.filter(
+        pk__in=kept, kind=LedgerEvent.Kind.TALLIED
+    ).exclude(counter_delta=0):
+        earlier_results[kept[str(event.pk)]][str(event.assignment_id)] += (
+            event.counter_delta
+        )
+    for _, root, events in plan._removals:
+        for event in events:
+            if event.kind == LedgerEvent.Kind.TALLIED and event.counter_delta:
+                earlier_results[str(root.miniature_root_id)][
+                    str(event.assignment_id)
+                ] += event.counter_delta
     for model_id, card in gang_card.members.items():
         model_id = str(model_id)
         miniature = card.miniature
@@ -1358,6 +1461,48 @@ def preview_report(report, *, actor, payload=None):
                     exclusions,
                 ]
             )
+        held = held_counters(card.all_nodes(), counter_readings(card, computed))
+        entered = read_changes(raw.get("counters"), model_errors)
+        recorded = before.get("counters") or {}
+        held_ids = {counter.id for counter in held}
+        # A counter the model no longer holds is not in the form, so what
+        # the report recorded for it stands.
+        manual = {
+            key: (entered.get(key, 0) if key in held_ids else entered.get(key, value))
+            - recorded.get(key, 0)
+            for key, value in {**recorded, **entered}.items()
+        }
+        effect_deltas, created = _project_counters(
+            card, index, plan, result, facts, manual
+        )
+        result.counters, counter_errors = plan_changes(
+            held,
+            entered,
+            recorded,
+            effects=effect_deltas,
+            names=recorded_counter_names.get(model_id, {}),
+            change_on=f"{miniature.name}'s card",
+            earlier=earlier_results.get(model_id, {}),
+        )
+        model_errors.extend(counter_errors)
+        result.counters.extend(
+            CounterChange(
+                assignment_id="",
+                name=str(counter),
+                before=0,
+                manual=0,
+                effect=value,
+                after=value,
+            )
+            for value, _, counter in created.values()
+            if value and changeable_counter(counter)
+        )
+        facts.append(["model-counters", model_id, sorted(held_ids)])
+        note = str(raw.get("note") or "").replace("\r\n", "\n").strip()
+        if len(note) > MAX_NOTE:
+            model_errors.append(f"Keep the note to {MAX_NOTE:,} characters or fewer.")
+        result.note = note
+        result.note_recorded = recorded_notes.get(model_id, "")
         inputs["models"].append(
             {
                 "id": model_id,
@@ -1367,9 +1512,10 @@ def preview_report(report, *, actor, payload=None):
                 "status": explicit,
                 "equipment": disposition,
                 "effects": normalized_effects,
+                "counters": entries(result.counters, entered, recorded),
+                "note": note,
             }
         )
-        _project_counters(card, index, plan, result, facts)
         facts.append(["xp", model_id, result.xp_assignment_id])
         errors.extend(f"{miniature.name}: {error}" for error in model_errors)
     plan.review = sha256(
@@ -1448,6 +1594,18 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                 for change in plan.gang_counters
                 if change.delta
             )
+            counter_changes.extend(
+                (
+                    change.delta,
+                    Assignment.objects.get(pk=change.assignment_id),
+                    None,
+                    None,
+                    "Post-battle results",
+                )
+                for model in plan.models
+                for change in model.counters
+                if change.assignment_id and change.delta
+            )
             # The preview validates their combined balance. Positive adjustments
             # must arrive first so tally's zero floor cannot clip a valid total.
             for change, assignment, occurrence, event, note in sorted(
@@ -1486,6 +1644,13 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
             for model_id, status in plan._status_writes.items():
                 miniature = Miniature.objects.get(pk=model_id)
                 op.set_status(miniature, status, note="Post-battle results")
+            for model in plan.models:
+                if model.note_appends:
+                    op.append_note(
+                        Miniature.objects.get(pk=model.id),
+                        note_paragraph(report, model.note),
+                        note="Post-battle results",
+                    )
             for disposition, gear in plan._equipment.values():
                 for assignment in gear:
                     if disposition == "stash":
@@ -1528,7 +1693,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
             carriers(final_card, *final_card.members.values())
         )
         final_gang = compute_gang(final_card, final_index)
-        gang_readings = {
+        counter_readings_after = {
             counter.id: counter.reading
             for counter in held_counters(final_card.all_nodes(), final_gang.counters)
         }
@@ -1540,11 +1705,15 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
         final_statuses = {str(pk): status for pk, status in final_statuses.items()}
         final_readings = {}
         for pk, card in final_card.members.items():
-            computed = compute(card, final_index)
+            readings = counter_readings(card, compute(card, final_index))
             final_readings[str(pk)] = sum(
                 r.value
-                for r in counter_readings(card, computed)
+                for r in readings
                 if r.thing.name.casefold() == XP_COUNTER.casefold()
+            )
+            counter_readings_after.update(
+                (counter.id, counter.reading)
+                for counter in held_counters(card.all_nodes(), readings)
             )
         for model in plan.models:
             model.xp_after = final_readings.get(model.id, 0)
@@ -1563,11 +1732,12 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                 asdict(
                     replace(
                         change,
-                        after=gang_readings.get(change.assignment_id, change.after),
+                        after=counter_readings_after.get(
+                            change.assignment_id, change.after
+                        ),
                     )
                 )
-                for change in plan.gang_counters
-                if change.changes
+                for change in plan.moving_gang_counters
             ],
             "models": [
                 {
@@ -1587,6 +1757,18 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                     "equipment_changed": m.equipment_changed,
                     "equipment_names": m.equipment_affected_names,
                     "equipment_exclusions": m.equipment_exclusions,
+                    "counters": [
+                        asdict(
+                            replace(
+                                change,
+                                after=counter_readings_after.get(
+                                    change.assignment_id, change.after
+                                ),
+                            )
+                        )
+                        for change in m.moving_counters
+                    ],
+                    "note_appended": m.note if m.note_appends else "",
                 }
                 for m in plan.models
             ],

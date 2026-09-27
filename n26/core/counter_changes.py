@@ -13,7 +13,7 @@ is shown beside the entered change and counted once.
 Nothing here reads the database or knows whose counters they are: the
 caller hands over the card's nodes and readings, and gets back one
 ``CounterChange`` per counter and the errors to show. The gang's
-counters use it today; a model's counters can use it the same way.
+counters and each model's use it the same way.
 """
 
 from dataclasses import dataclass
@@ -35,7 +35,8 @@ class CounterChange:
     enters in total, ``effect`` what this report's results add, and
     ``after`` where the counter lands. ``recorded`` is what the report
     last applied, so a correction moves the counter by ``manual -
-    recorded``.
+    recorded``. ``earlier`` is what results this report applied before
+    added to the reading now: those it keeps and those it takes back.
     """
 
     assignment_id: str
@@ -45,11 +46,18 @@ class CounterChange:
     effect: int
     after: int
     recorded: int = 0
+    earlier: int = 0
 
     @property
     def start(self):
-        """The reading before this report: what it applied taken off."""
-        return self.before - self.recorded
+        """The reading before this report: everything it applied taken
+        off, so the start, the change and ``from_results`` sum to after."""
+        return self.before - self.recorded - self.earlier
+
+    @property
+    def from_results(self):
+        """What the report's results add, those kept from before too."""
+        return self.effect + self.earlier
 
     @property
     def delta(self):
@@ -87,12 +95,19 @@ def changeable(node):
     Income (whose reading is the sum of what the gang holds, so a tally
     would be a mistake).
     """
-    thing = node.assignable
     return (
-        isinstance(thing, Counter)
-        and node.assignment is not None
+        node.assignment is not None
         and not node.broadcast
         and not node.suppressed
+        and changeable_counter(node.assignable)
+    )
+
+
+def changeable_counter(thing):
+    """Whether a library counter is one a report changes by hand: drawn,
+    and neither XP nor Income."""
+    return (
+        isinstance(thing, Counter)
         and thing.drawn
         and thing.name.casefold() != XP_COUNTER.casefold()
         and not is_income_counter(thing)
@@ -151,21 +166,33 @@ def read_changes(raw, errors):
     return changes
 
 
-def plan_changes(held, entered, recorded, effects=None, names=None):
+def plan_changes(
+    held,
+    entered,
+    recorded,
+    effects=None,
+    names=None,
+    change_on="the gang page",
+    earlier=None,
+):
     """Every held counter's line, and why any of them cannot be applied.
 
     ``entered`` and ``recorded`` are the change this report makes in
     total and the change it last applied, keyed by assignment id.
     ``effects`` is what this report's results move each counter by.
     ``names`` names a recorded counter that is no longer held.
+    ``change_on`` is where the player can change the counter instead.
+    ``earlier`` is what results this report applied before added to each
+    counter's reading, for showing where the counter started.
 
     Returns ``(changes, errors)``. A counter the report changed before
     that has since been removed or moved to another holder cannot be
-    corrected here. Leaving it out of
-    ``entered`` keeps its recorded change.
+    corrected here. Leaving it out of ``entered`` keeps its recorded
+    change.
     """
     effects = effects or {}
     names = names or {}
+    earlier = earlier or {}
     errors = []
     changes = []
     by_id = {counter.id: counter for counter in held}
@@ -185,6 +212,7 @@ def plan_changes(held, entered, recorded, effects=None, names=None):
                 effect=effect,
                 after=after,
                 recorded=was,
+                earlier=earlier.get(counter.id, 0),
             )
         )
     for key in sorted(set(entered) | set(recorded)):
@@ -197,7 +225,7 @@ def plan_changes(held, entered, recorded, effects=None, names=None):
         name = names.get(key, "this counter")
         errors.append(
             f"You cannot correct the change to {name}: it was removed or moved "
-            f"after this report was applied. Change {name} on the gang page."
+            f"after this report was applied. Change {name} on {change_on}."
         )
     return changes, errors
 

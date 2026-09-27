@@ -87,6 +87,16 @@
                                 {{ model.xp_before }} → {{ model.xp_after }} XP
                             </p>
                         {% endif %}
+                        {% if model.counters %}
+                            <ul class="space-y-1 text-sm">
+                                {% for line in model.counters %}
+                                    <li>
+                                        {{ line.name }}: {{ line.before }} → {{ line.after }}
+                                        {% if line.parts %}<span class="text-muted">({{ line.parts }})</span>{% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
                         {% if model.effects %}<ul class="list-disc space-y-1 pl-5 text-sm">{% for effect in model.effects %}<li>{{ effect }}</li>{% endfor %}</ul>{% endif %}
                         {% if model.status_changed %}
                             <p class="flex flex-wrap items-center gap-2 text-sm text-muted">
@@ -103,6 +113,12 @@
                         {% if model.equipment_changed %}
                             <p class="text-sm">{% if model.equipment_disposition == "stash" %}Moved to the stash{% else %}Marked lost{% endif %}: {{ model.equipment_names|join:', '|default:'No equipment' }}.</p>
                             {% if model.equipment_exclusions %}<p class="text-sm text-muted">Stayed with the model: {{ model.equipment_exclusions|join:', ' }}.</p>{% endif %}
+                        {% endif %}
+                        {% if model.note_appended %}
+                            <div class="text-sm">
+                                <p class="text-muted">Added to {{ model.name }}'s notes:</p>
+                                <p class="whitespace-pre-line">{{ model.note_appended }}</p>
+                            </div>
                         {% endif %}
                     </li>
 {% empty %}<li class="text-sm text-muted">No model updates.</li>{% endfor %}

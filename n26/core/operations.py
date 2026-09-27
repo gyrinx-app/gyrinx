@@ -995,6 +995,19 @@ class Operation:
         """
         return self._write_prose(miniature, "notes", notes, LedgerEvent.Kind.NOTED)
 
+    def append_note(self, miniature, paragraph, note=""):
+        """Add a paragraph to the end of a model's notes, and say so.
+
+        What was there stays as it was. The paragraph is HTML the caller
+        has already escaped. As ``edit_notes``, the history records the
+        act and never the words; ``note`` says what added them.
+        """
+        miniature.refresh_from_db(fields=["notes"])
+        miniature.notes = f"{miniature.notes}{paragraph}"
+        miniature.save(update_fields=["notes", "modified"])
+        self.event(miniature, LedgerEvent.Kind.NOTED, note=note)
+        return miniature
+
     def edit_lore(self, miniature, lore):
         """Store the model's story as written, and say it changed.
 
