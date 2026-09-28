@@ -68,8 +68,8 @@ artifacts when the IDE Canvas surface is unavailable.
   pytest with xdist and `--nomigrations`.
 - Run pytest via this worktree's interpreter: `.venv/bin/python -m pytest`. A
   sibling worktree's `pytest` on PATH imports that checkout's code. The root
-  conftest exits if it detects that mismatch. Use `pytest -n 0 -s <test>` when
-  debugging print output. Use `pytest -n 4` rather than saturating the shared
+  conftest exits if it detects that mismatch. Add `-n 0 -s <test>` when
+  debugging print output, and use `-n 4` rather than saturating the shared
   Postgres lock table while another agent has a test run active.
 - Format with `./scripts/fmt.sh`.
 - Build SCSS with `npm run css`; never commit generated CSS under
