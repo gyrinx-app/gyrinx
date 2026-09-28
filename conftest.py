@@ -1,5 +1,8 @@
+import importlib.util
 import os
+import sys
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from django.apps import apps
@@ -36,17 +39,36 @@ from scripts.changed_test_paths import ChangedTestPaths, parse_changed_test_path
 User = get_user_model()
 
 
+def _foreign_venv_message(rootpath, executable):
+    """Run the guard from this checkout's file, not the installed package.
+
+    Under a sibling's interpreter, ``import gyrinx`` can resolve to that
+    sibling's editable install, which may not have the guard at all.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "_gyrinx_pytest_venv", Path(__file__).parent / "gyrinx" / "pytest_venv.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.foreign_venv_message(rootpath, executable)
+
+
 # Filled by pytest_configure from GYRINX_CHANGED_TEST_PATHS.
 _CHANGED_TEST_PATHS = pytest.StashKey[ChangedTestPaths]()
 
 
 def pytest_configure(config):
-    """Read the test paths the pull request touched.
+    """Refuse a sibling worktree's interpreter, then mark the PR's tests core.
 
-    The required CI job runs `pytest -m core`. scripts/changed_test_paths.py
-    lists the test files the change added or modified, plus the directories
-    whose conftest or fixtures module changed, in GYRINX_CHANGED_TEST_PATHS.
+    A sibling checkout's ``pytest`` on PATH imports that tree's code. Exit
+    before collection so those phantom failures never run. The required CI
+    job runs `pytest -m core`. scripts/changed_test_paths.py lists the test
+    files the change added or modified, plus the directories whose conftest
+    or fixtures module changed, in GYRINX_CHANGED_TEST_PATHS.
     """
+    message = _foreign_venv_message(config.rootpath, sys.executable)
+    if message:
+        pytest.exit(message, returncode=2)
     config.stash[_CHANGED_TEST_PATHS] = parse_changed_test_paths(
         os.environ.get("GYRINX_CHANGED_TEST_PATHS", "")
     )

@@ -7,24 +7,24 @@ Gyrinx uses pytest for testing with Django integration. Tests are organized by a
 ### Local Testing
 
 ```bash
-# Run all tests
-pytest
+# Prefer this worktree's interpreter so PATH cannot pick a sibling checkout
+.venv/bin/python -m pytest
 
 # Run tests for specific app
-pytest n23/core/tests/
-pytest n23/content/tests/
+.venv/bin/python -m pytest n23/core/tests/
+.venv/bin/python -m pytest n23/content/tests/
 
 # Run specific test file
-pytest n23/core/tests/test_models_core.py
+.venv/bin/python -m pytest n23/core/tests/test_models_core.py
 
 # Run specific test function
-pytest n23/core/tests/test_models_core.py::test_list_creation
+.venv/bin/python -m pytest n23/core/tests/test_models_core.py::test_list_creation
 
 # Run with verbose output
-pytest -v
+.venv/bin/python -m pytest -v
 
 # Run with coverage
-pytest --cov=gyrinx
+.venv/bin/python -m pytest --cov=gyrinx
 ```
 
 ### Full Test Suite
@@ -38,7 +38,7 @@ pytest --cov=gyrinx
 # needs the worktree venv on PATH.
 PATH="$PWD/.venv/bin:$PATH" npm run js
 # Codex: .codex/run.sh npm run js
-pytest
+.venv/bin/python -m pytest
 
 # Continuous test runner
 ptw .
@@ -55,7 +55,7 @@ and reports, but does not block a merge.
 
 ```bash
 # Run what the required CI job runs
-pytest -m core
+.venv/bin/python -m pytest -m core
 ```
 
 `core` marks the tests that must never break: fundamental behaviour, a few
@@ -88,7 +88,13 @@ scripts/changed_test_paths.py origin/main
 
 ### Per-Worktree Testing
 
-Each worktree has its own database. The session hook automatically sets `DB_NAME` so `pytest` targets the correct database. No extra configuration needed — just run `pytest` from within any worktree.
+Each worktree has its own database and its own `.venv`. The session hook
+automatically sets `DB_NAME` so tests target this checkout's database. Invoke
+pytest as `.venv/bin/python -m pytest` from the worktree you mean: a sibling
+worktree's `pytest` on PATH imports that checkout's code and fails with
+phantom errors. The root conftest refuses to start when it detects that
+mismatch. Two pytest runs in the same worktree also share `test_<DB>_gwN`
+names — wait for the first to finish, then run one suite.
 
 ## Test Organization
 

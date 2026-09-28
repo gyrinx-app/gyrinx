@@ -66,9 +66,11 @@ artifacts when the IDE Canvas surface is unavailable.
 - Use `./scripts/test.sh` for the full suite, or build React with `npm run js`
   before direct pytest runs on a clean checkout. `pyproject.toml` already runs
   pytest with xdist and `--nomigrations`.
-- Use `pytest -n 0 -s <test>` when debugging print output. Use `pytest -n 4`
-  rather than saturating the shared Postgres lock table while another agent has
-  a test run active.
+- Run pytest via this worktree's interpreter: `.venv/bin/python -m pytest`. A
+  sibling worktree's `pytest` on PATH imports that checkout's code. The root
+  conftest exits if it detects that mismatch. Add `-n 0 -s <test>` when
+  debugging print output, and use `-n 4` rather than saturating the shared
+  Postgres lock table while another agent has a test run active.
 - Format with `./scripts/fmt.sh`.
 - Build SCSS with `npm run css`; never commit generated CSS under
   `n23/core/static/core/css/`.

@@ -112,6 +112,10 @@ Bash tool invocation, but a normal interactive terminal needs the same env or
 
 `setup-local-postgres.sh` solves this by appending a block to
 `.venv/bin/activate` that exports the right vars on each `source .venv/bin/activate`.
+Run pytest as `.venv/bin/python -m pytest` from the worktree you mean: a
+sibling checkout's `pytest` on PATH imports that tree's code. The root
+conftest exits if this worktree has a `.venv` and the running interpreter is
+a different one.
 
 - The hook reads `git rev-parse --show-toplevel` from your `$PWD` at
   activation time, so it picks up the correct worktree even when the venv is
