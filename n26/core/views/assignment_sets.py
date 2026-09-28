@@ -138,8 +138,8 @@ def _previews(miniature, assignment_sets):
                 note=""
                 if named or weapon_slots <= MOST_WEAPON_SLOTS_ON_A_CARD
                 else (
-                    "This model has more than three weapons. Add a model card "
-                    "to use it in a battle."
+                    "This model has more weapons than one card can hold. Add a "
+                    "model card to use it in a battle."
                 ),
                 note_href=reverse(
                     "n26-model-card-create", args=[miniature.gang.pk, miniature.pk]

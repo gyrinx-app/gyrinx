@@ -244,8 +244,8 @@ class TestManagingModelCards:
         response = client.get(address(model))
         cards = response.context["cards"]
         assert cards[0].note == (
-            "This model has more than three weapons. Add a model card to use it "
-            "in a battle."
+            "This model has more weapons than one card can hold. Add a model "
+            "card to use it in a battle."
         )
         assert cards[0].warning["cta"] == {
             "label": "Add a model card",
