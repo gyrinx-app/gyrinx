@@ -164,7 +164,7 @@ export function CrewPicker({ models, battleUrl, revision }: CrewPickerProps) {
                                 }
                                 meta={
                                     <span className="shrink-0 text-right text-xs tabular-nums text-muted">
-                                        Full equipment
+                                        All equipment
                                         <br />
                                         {model.fullRating}¢
                                     </span>

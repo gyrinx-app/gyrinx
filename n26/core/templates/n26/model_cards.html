@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
+{% load navigation react %}
 {% block head_title %}{{ miniature.name }} · Model cards{% endblock %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
@@ -11,7 +11,7 @@
 {% block content %}
     <div class="space-y-8">
         <c-n26.page-header title="Model cards"
-                           lead="Choose which weapons and wargear appear on each card. The model still owns all its equipment and keeps its full rating.">
+                           lead="Select which weapons and wargear appear on each card. The model still owns all its equipment and keeps its full rating.">
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
                     <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
@@ -29,22 +29,35 @@
             </c-slot>
         </c-n26.page-header>
         {% if not has_named_cards %}
-            <p class="text-sm text-muted">This model has one standard card showing all its equipment. Add named cards to choose between different equipment selections.</p>
+            <p class="text-sm text-muted">All equipment is always available. Add a named card to use a smaller set of equipment in a battle.</p>
         {% endif %}
         <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
             {% for row in cards %}
                 <section class="min-w-0 space-y-3"
                          aria-labelledby="card-heading-{{ forloop.counter }}">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <h2 id="card-heading-{{ forloop.counter }}" class="text-lg font-semibold">{{ row.name }}</h2>
+                    <div class="flex min-h-8 flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-1">
+                            <h2 id="card-heading-{{ forloop.counter }}"
+                                class="text-lg font-semibold">{{ row.name }}</h2>
+                            {% if row.note %}
+                                {% react_host "help" row.warning class="inline-flex" %}
+                                {% endreact_host %}
+                            {% endif %}
+                        </div>
                         {% if row.id %}
-                            <div class="flex flex-wrap items-center gap-2">
-                                <c-ui.button size="sm"
+                            <div class="flex items-center gap-1">
+                                <c-ui.button size="xs"
                                              variant="default"
                                              href="{% url 'n26-model-card-edit' gang.pk miniature.pk row.id %}">Edit</c-ui.button>
-                                <c-ui.button size="sm"
+                                <c-ui.button size="xs"
                                              variant="ghost"
-                                             href="{% url 'n26-model-card-remove' gang.pk miniature.pk row.id %}">Remove</c-ui.button>
+                                             href="{% url 'n26-model-card-remove' gang.pk miniature.pk row.id %}"
+                                             aria-label="Remove {{ row.name }}"
+                                             title="Remove this card">
+                                    <span class="n26-icon-only">
+                                        <c-n26.icon name="x" class="size-4" />
+                                    </span>
+                                </c-ui.button>
                             </div>
                         {% endif %}
                     </div>

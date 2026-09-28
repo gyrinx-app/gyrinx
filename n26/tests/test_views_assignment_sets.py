@@ -1,6 +1,9 @@
 """Named model cards are owner-only display preferences, not equipment trades."""
 
+import json
+
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import connection
@@ -90,13 +93,14 @@ def fields(name="Long range", assignments=(), revision=None):
 class TestManagingModelCards:
     """Named selections replace the standard option and leave the books alone."""
 
-    def test_the_standard_card_shows_all_equipment(self, client, model, flag):
+    def test_the_all_equipment_card_shows_all_equipment(self, client, model, flag):
         response = client.get(address(model))
         assert response.status_code == 200
         cards = response.context["cards"]
         assert len(cards) == 1
-        assert cards[0].name == "Standard"
+        assert cards[0].name == "All equipment"
         assert not cards[0].id
+        assert not cards[0].note
         assert [weapon.name for weapon in cards[0].card.weapons] == [
             "Combat shotgun",
             "Stiletto knife",
@@ -131,7 +135,7 @@ class TestManagingModelCards:
         assert list(Assignment.objects.values_list("pk", flat=True)) == equipment
         assert_reconciled(model.gang)
 
-    def test_named_cards_have_no_phantom_standard_card_and_keep_full_rating(
+    def test_all_equipment_comes_first_and_named_cards_keep_full_rating(
         self, client, model, kit, named, flag
     ):
         save_model_card(
@@ -141,8 +145,17 @@ class TestManagingModelCards:
         )
         response = client.get(address(model))
         cards = response.context["cards"]
-        assert [row.name for row in cards] == ["Long range", "Riding kit"]
-        shooting, riding = [row.card for row in cards]
+        assert [row.name for row in cards] == [
+            "All equipment",
+            "Long range",
+            "Riding kit",
+        ]
+        assert [row.id for row in cards][0] == ""
+        everything, shooting, riding = [row.card for row in cards]
+        assert [weapon.name for weapon in everything.weapons] == [
+            "Combat shotgun",
+            "Stiletto knife",
+        ]
         assert shooting.rating == riding.rating == 185
         assert shooting.type_line == "Fighter"
         assert riding.type_line == "Fighter (Mounted)"
@@ -156,7 +169,7 @@ class TestManagingModelCards:
     def test_an_empty_equipment_selection_is_valid(self, client, model, flag):
         response = client.post(address(model, "new/"), fields("No weapons"))
         assert response.status_code == 302
-        card = client.get(response.url).context["cards"][0].card
+        card = client.get(response.url).context["cards"][1].card
         assert card.weapons == []
         assert card.rating == 185
         assert [skill.name for skill in card.skills] == ["Nerves of Steel"]
@@ -194,9 +207,9 @@ class TestManagingModelCards:
         response = client.get(address(model, f"{named.pk}/remove/"))
         assert response.status_code == 200
         assert AssignmentSet.objects.filter(pk=named.pk).exists()
-        assert "return to one standard card" in response.content.decode()
+        assert "have only its All equipment card" in response.content.decode()
 
-    def test_removing_the_last_card_restores_the_standard_option(
+    def test_removing_the_last_card_leaves_all_equipment(
         self, client, model, named, flag
     ):
         events = LedgerEvent.objects.count()
@@ -206,7 +219,8 @@ class TestManagingModelCards:
         )
         assert response.status_code == 302
         assert not model.assignment_sets.exists()
-        assert client.get(response.url).context["cards"][0].name == "Standard"
+        cards = client.get(response.url).context["cards"]
+        assert [row.name for row in cards] == ["All equipment"]
         assert LedgerEvent.objects.count() == events
         assert equipment_for(model).count() == 3
 
@@ -218,8 +232,40 @@ class TestManagingModelCards:
         )
         assert response.status_code == 302
         assert [row.id for row in client.get(response.url).context["cards"]] == [
-            str(other.pk)
+            "",
+            str(other.pk),
         ]
+
+    def test_more_than_three_weapons_get_a_note_on_all_equipment(
+        self, client, model, named, flag
+    ):
+        for name in ("Autogun", "Laspistol"):
+            give_weapon(model, create_weapon(name))
+        response = client.get(address(model))
+        cards = response.context["cards"]
+        assert cards[0].note == (
+            "This model has more weapons than one card can hold. Add a model "
+            "card to use it in a battle."
+        )
+        assert cards[0].warning["cta"] == {
+            "label": "Add a model card",
+            "href": address(model, "new/"),
+        }
+        assert cards[0].warning["tone"] == "warning"
+        assert not cards[1].note
+        page = BeautifulSoup(response.content, "html.parser")
+        (host,) = page.select("[data-react-module*='/help-']")
+        props = json.loads(page.find(id=host["data-react-props"]).string)
+        assert props == cards[0].warning
+
+    @pytest.mark.parametrize(
+        "slots,warned", [((2, 2), True), ((0, 0, 0), False), ((1,), False)]
+    )
+    def test_the_note_counts_weapon_slots(self, client, model, flag, slots, warned):
+        for number, size in enumerate(slots):
+            give_weapon(model, create_weapon(f"Extra {number}", slots=size))
+        cards = client.get(address(model)).context["cards"]
+        assert bool(cards[0].note) is warned
 
     def test_a_card_name_is_escaped_in_the_page(self, client, model, flag):
         save_model_card(model, name="<script>alert(1)</script>", assignments=[])
@@ -431,4 +477,4 @@ class TestModelCardQueryGrowth:
                 assignments=list(kit.values()),
             )
         assert count() <= small
-        assert len(client.get(address(model)).context["cards"]) == 7
+        assert len(client.get(address(model)).context["cards"]) == 8

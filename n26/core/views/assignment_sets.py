@@ -14,6 +14,7 @@ from n26.core.assignment_set_forms import ModelCardForm, RemoveModelCardForm
 from n26.core.assignment_sets import remove_model_card as remove_card
 from n26.core.assignment_sets import save_model_card
 from n26.core.card import assemble, build_card, build_modifier_index, carriers
+from n26.core.crews import ALL_EQUIPMENT
 from n26.core.effects import compute
 from n26.core.fields import to_ulid
 from n26.core.models import Assignment, AssignmentSet, DismissedOffer, Miniature
@@ -60,6 +61,24 @@ class NamedCard:
     name: str
     card: ModelCard
     id: str = ""
+    note: str = ""
+    #: Where the reader goes to act on the note.
+    note_href: str = ""
+
+    @property
+    def warning(self):
+        """Props for the warning icon beside the card's name."""
+        return {
+            "label": "Why this card needs attention",
+            "paragraphs": [self.note],
+            "tone": "warning",
+            "cta": {"label": "Add a model card", "href": self.note_href},
+        }
+
+
+#: The rules limit one card to three weapon slots. A two-slot weapon takes
+#: two; a grenade is wargear and takes none.
+MOST_WEAPON_SLOTS_ON_A_CARD = 3
 
 
 def _previews(miniature, assignment_sets):
@@ -68,7 +87,7 @@ def _previews(miniature, assignment_sets):
     own_rows = [
         node.assignment for node in base.all_nodes() if not node.broadcast
     ] + base.removals
-    cards = [
+    cards = [base] + [
         assemble(
             miniature,
             own_rows,
@@ -79,8 +98,6 @@ def _previews(miniature, assignment_sets):
         )
         for named in assignment_sets
     ]
-    if not cards:
-        cards = [base]
     index = build_modifier_index(carriers(base.gang_card, *cards))
     computed = [compute(card, index) for card in cards]
     ranks = progression_summaries_for_cards(
@@ -94,9 +111,14 @@ def _previews(miniature, assignment_sets):
         ).select_related("membership__profile")
     )
     dismissed = DismissedOffer.keys_for(miniature.gang)
+    weapon_slots = sum(
+        row.weapon.slots
+        for row in own_rows
+        if row.weapon_id is not None and not row.removes
+    )
     previews = []
     for position, (named, card, effects) in enumerate(
-        zip(assignment_sets or [None], cards, computed, strict=True)
+        zip([None, *assignment_sets], cards, computed, strict=True)
     ):
         drawn = build_model_card(
             miniature,
@@ -110,9 +132,18 @@ def _previews(miniature, assignment_sets):
         drawn.id = ""
         previews.append(
             NamedCard(
-                name=named.name if named else "Standard",
+                name=named.name if named else ALL_EQUIPMENT,
                 card=drawn,
                 id=str(named.pk) if named else "",
+                note=""
+                if named or weapon_slots <= MOST_WEAPON_SLOTS_ON_A_CARD
+                else (
+                    "This model has more weapons than one card can hold. Add a "
+                    "model card to use it in a battle."
+                ),
+                note_href=reverse(
+                    "n26-model-card-create", args=[miniature.gang.pk, miniature.pk]
+                ),
             )
         )
     return previews

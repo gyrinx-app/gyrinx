@@ -45,12 +45,19 @@ class CardOption:
     assignment_set_id: object = None
 
 
+ALL_EQUIPMENT = "All equipment"
+
+
 @dataclass
 class CrewRosterModel:
     miniature: Miniature
+    #: "All equipment" first, then the model's named cards.
     cards: list[CardOption]
     saved: CrewMember | None = None
     available: bool = True
+    #: What a random draw picks from: the named cards when there are any.
+    #: "All equipment" is always there to select by hand.
+    draw_cards: list[CardOption] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -106,31 +113,40 @@ def crew_roster(gang, crew=None):
         cards_by_model.setdefault(named.miniature_id, []).append(
             CardOption(str(named.pk), named.name, ids, named.pk)
         )
-    return [
-        CrewRosterModel(
-            miniature=m,
-            cards=cards_by_model.get(m.pk)
-            or [
-                CardOption(
-                    "full",
-                    "Full equipment",
-                    tuple(sorted(equipment_by_model.get(m.pk, set()))),
-                )
-            ],
-            saved=saved_by_model.get(m.pk),
-            available=bool(
-                m.membership
-                and m.membership.gang_id == gang.pk
-                and not m.membership.archived
-                and m.status != Status.DEAD
-            ),
+    roster = []
+    for m in models:
+        everything = CardOption(
+            "full",
+            ALL_EQUIPMENT,
+            tuple(sorted(equipment_by_model.get(m.pk, set()))),
         )
-        for m in models
-    ]
+        named = cards_by_model.get(m.pk, [])
+        roster.append(
+            CrewRosterModel(
+                miniature=m,
+                cards=[everything, *named],
+                draw_cards=named or [everything],
+                saved=saved_by_model.get(m.pk),
+                available=bool(
+                    m.membership
+                    and m.membership.gang_id == gang.pk
+                    and not m.membership.archived
+                    and m.status != Status.DEAD
+                ),
+            )
+        )
+    return roster
 
 
 def saved_card_key(member):
     return f"saved:{member.pk}"
+
+
+def same_card(member, option):
+    """Whether a saved card is still one of the cards on offer, unchanged."""
+    return member.assignment_set_id == option.assignment_set_id and set(
+        member.equipment_ids
+    ) == set(option.equipment_ids)
 
 
 @guarded_write
@@ -200,7 +216,9 @@ def save_crew(
                     f"The selected model card for {model.name} is no longer available. Select another card."
                 )
             card_source = (
-                CrewMember.Source.OVERRIDE
+                saved.card_source
+                if saved and same_card(saved, card)
+                else CrewMember.Source.OVERRIDE
                 if saved
                 and saved.card_source
                 in {CrewMember.Source.RANDOM, CrewMember.Source.OVERRIDE}
@@ -238,7 +256,7 @@ def save_crew(
                 f"Only {len(pool)} eligible models remain. Enter a smaller draw."
             )
         rng = random.SystemRandom()
-        cards = {str(item.miniature.pk): rng.choice(item.cards) for item in pool}
+        cards = {str(item.miniature.pk): rng.choice(item.draw_cards) for item in pool}
         chosen = rng.sample(pool, random_count)
         drawn = tuple(item.miniature.name for item in chosen)
         draw_record = {
