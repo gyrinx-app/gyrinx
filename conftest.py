@@ -1,4 +1,5 @@
 import os
+import sys
 from collections.abc import Callable
 
 import pytest
@@ -9,6 +10,7 @@ from django.contrib.sites.models import Site
 from django.core.cache import cache, caches
 from django.db.models.signals import post_migrate
 
+from gyrinx.pytest_venv import foreign_venv_message
 from gyrinx.site.models import BANNER_CACHE_KEYS
 
 # Re-export the local task-queue driver fixture so tests can request `task_queue`
@@ -41,12 +43,17 @@ _CHANGED_TEST_PATHS = pytest.StashKey[ChangedTestPaths]()
 
 
 def pytest_configure(config):
-    """Read the test paths the pull request touched.
+    """Refuse a sibling worktree's interpreter, then mark the PR's tests core.
 
-    The required CI job runs `pytest -m core`. scripts/changed_test_paths.py
-    lists the test files the change added or modified, plus the directories
-    whose conftest or fixtures module changed, in GYRINX_CHANGED_TEST_PATHS.
+    A sibling checkout's ``pytest`` on PATH imports that tree's code. Exit
+    before collection so those phantom failures never run. The required CI
+    job runs `pytest -m core`. scripts/changed_test_paths.py lists the test
+    files the change added or modified, plus the directories whose conftest
+    or fixtures module changed, in GYRINX_CHANGED_TEST_PATHS.
     """
+    message = foreign_venv_message(config.rootpath, sys.executable)
+    if message:
+        pytest.exit(message, returncode=2)
     config.stash[_CHANGED_TEST_PATHS] = parse_changed_test_paths(
         os.environ.get("GYRINX_CHANGED_TEST_PATHS", "")
     )
