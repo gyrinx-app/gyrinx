@@ -48,6 +48,23 @@ def test_a_sibling_worktree_venv_is_an_error(tmp_path):
     assert "sibling" in message
 
 
+def test_a_sibling_venv_whose_python_is_a_symlink_is_an_error(tmp_path):
+    """uv links .venv/bin/python to a shared interpreter outside any .venv."""
+    shared = tmp_path / "uv" / "python3.14"
+    shared.parent.mkdir(parents=True)
+    shared.write_text("#!/bin/sh\n")
+    shared.chmod(0o755)
+    here = tmp_path / "here"
+    (here / ".venv" / "bin").mkdir(parents=True)
+    (here / ".venv" / "bin" / "python").symlink_to(shared)
+    other_python = tmp_path / "other" / ".venv" / "bin" / "python"
+    other_python.parent.mkdir(parents=True)
+    other_python.symlink_to(shared)
+
+    assert foreign_venv_message(here, other_python) is not None
+    assert foreign_venv_message(here, here / ".venv" / "bin" / "python") is None
+
+
 def test_system_python_is_silent_even_when_a_venv_exists(tmp_path):
     worktree = tmp_path / "here"
     _python(worktree)

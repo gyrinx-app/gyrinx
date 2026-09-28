@@ -15,7 +15,10 @@ def foreign_venv_message(rootpath, executable):
     that share the parent environment are left alone.
     """
     root = Path(rootpath).resolve()
-    exe = Path(executable).resolve()
+    # A venv's python is a symlink to a shared interpreter, so resolving it
+    # would leave every .venv. Resolve only the directory holding it.
+    executable = Path(executable)
+    exe = executable.parent.resolve() / executable.name
     expected = root / ".venv"
     if not expected.exists():
         return None
