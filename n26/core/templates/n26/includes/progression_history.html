@@ -10,6 +10,9 @@ started uses remain visible without presenting them as completed advances.
         <c-ui.card>
             <c-slot name="header">
                 <span class="font-semibold">Rank history</span>
+                {% for rank in progression.summaries %}
+                    {% if rank.current_title %}<span class="ml-2 text-sm text-muted">{{ rank.current_title }}</span>{% endif %}
+                {% endfor %}
             </c-slot>
             <ol class="divide-y divide-box-border text-sm">
                 {% for rank in progression.history %}
