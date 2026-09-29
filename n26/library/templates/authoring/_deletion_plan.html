@@ -1,8 +1,8 @@
 {% comment %}
 What a delete would take, drawn on every page that asks the question:
-what goes, the fighters a firing line is removed from, the test gangs
+what goes, the models a free copy is removed from, the test gangs
 and test campaigns that go with it, and what refuses it. Takes
-`counts`, `lines`, `test_gangs`, `test_campaigns` and `refusals` from
+`counts`, `lines`, `lines_words`, `test_gangs`, `test_campaigns` and `refusals` from
 _deletion_words in n26/library/views.py. Nothing here changes anything.
 {% endcomment %}
 {% if refusals %}
@@ -28,14 +28,14 @@ _deletion_words in n26/library/views.py. Nothing here changes anything.
     </c-n26.form-section>
 {% endif %}
 {% if lines and not refusals %}
-    <c-n26.form-section title="Fighters that have this line"
-                        description="Nobody paid for it: the weapon brought it. Deleting the line removes it from these fighters. Their gangs are not otherwise touched.">
+    <c-n26.form-section title="{{ lines_words.title }}"
+                        description="{{ lines_words.description }}">
         <c-ui.table>
             <thead>
                 <tr>
                     <th scope="col">Gang</th>
                     <th scope="col">Owner</th>
-                    <th scope="col" class="w-full">Fighters</th>
+                    <th scope="col" class="w-full">{{ lines_words.column }}</th>
                 </tr>
             </thead>
             <tbody>

@@ -35,6 +35,13 @@ removed from each, gang by gang, before the row goes
 (:func:`remove_free_lines_from`). A line somebody paid for, or one with
 something under it, refuses as any held row does.
 
+A copy a built-in set handed out is free in the same way, and takes the
+same ending when asked for with ``remove_built_in_copies``: nobody chose
+it and nobody paid. Once the author has taken
+the thing out of every set, the archived memberships go with the row
+and the copies are removed gang by gang first. A thing a set still
+brings refuses, because every future hire would bring it again.
+
 The plan is the contract. The page draws it, and :func:`apply` reads it
 again under locks and performs exactly it, or refuses because what stood
 has changed since it was read. Nothing here writes outside ``apply``.
@@ -157,6 +164,9 @@ class DeletionPlan:
     lines: tuple = ()
     refusals: tuple = ()
     nothing_here: bool = False
+    #: Whether built-in copies were read as removable, so a second
+    #: reading asks the same question.
+    removes_built_in_copies: bool = False
 
     @property
     def ok(self):
@@ -172,6 +182,12 @@ class DeletionPlan:
     @property
     def fighters_with_lines(self):
         return sum(len(line.fighters) for line in self.lines)
+
+    @property
+    def lines_are_built_ins(self):
+        """Whether the free copies are built-ins rather than a weapon's
+        firing line, which decides how the page names them."""
+        return self.removes_built_in_copies
 
     @property
     def test_gangs(self):
@@ -222,7 +238,15 @@ class DeletionPlan:
                 f"which holds {_and(campaign.holds)}, with its own campaign "
                 "type and pack"
             )
-        if self.lines:
+        if self.lines and self.lines_are_built_ins:
+            models = self.fighters_with_lines
+            gangs = len(self.lines)
+            lines.append(
+                f"remove it from {models} model{'' if models == 1 else 's'} on "
+                f"{gangs} gang{'' if gangs == 1 else 's'} first: it came built "
+                "in, so nobody paid for it"
+            )
+        elif self.lines:
             fighters = self.fighters_with_lines
             gangs = len(self.lines)
             lines.append(
@@ -246,6 +270,7 @@ class DeletionPlan:
             "lines": [line.as_dict() for line in self.lines],
             "refusals": list(self.refusals),
             "preview": list(self.preview()),
+            "removes_built_in_copies": self.removes_built_in_copies,
         }
 
     @classmethod
@@ -263,6 +288,7 @@ class DeletionPlan:
             lines=tuple(Line.from_dict(line) for line in summary.get("lines", [])),
             refusals=tuple(summary.get("refusals", [])),
             nothing_here=not summary.get("targets"),
+            removes_built_in_copies=bool(summary.get("removes_built_in_copies")),
         )
 
     def same_as(self, other):
@@ -338,9 +364,10 @@ class _Planner:
     """One reading. Everything doomed is queued, its references read
     and sorted, and anything those bring down queued in turn."""
 
-    def __init__(self, things, remove_free_lines=False):
+    def __init__(self, things, remove_free_lines=False, remove_built_in_copies=False):
         self.targets = [thing for thing in things]
         self.remove_free_lines = remove_free_lines
+        self.remove_built_in_copies = remove_built_in_copies
         self.doomed = {}
         self.roots = []
         self.modifiers = {}
@@ -402,6 +429,8 @@ class _Planner:
                 owner=gang.owner.username if gang.owner_id else "",
                 archived=gang.archived,
             )
+        if str(assignment.pk) in held.assignment_ids:
+            return
         fighter = assignment.miniature_root.name if assignment.miniature_root_id else ""
         self.lines[key] = replace(
             held,
@@ -491,6 +520,11 @@ class _Planner:
                 # way the delete verb takes it out.
                 self.doom(row)
                 return
+            if self.remove_built_in_copies and row.archived:
+                # Already out of its set and invisible to every surface:
+                # only its copies hold it, and those are read next.
+                self.doom(row, root=True)
+                return
             default_set = row.default_set
             if self.set_goes(default_set):
                 return
@@ -558,12 +592,28 @@ class _Planner:
         return self.doomed.get(key) or reference.row
 
     def sort_player_row(self, reference):
+        from n26.core.models.assignment import ASSIGNABLE_FIELDS
+
         row = reference.row
         label = reference.label
         what = _said(self.thing_named_by(reference, self.model_of(reference)))
         gang = campaign = None
         if label == "n26.assignment":
             gang = self.gang_of_assignment(row)
+            if (
+                self.remove_built_in_copies
+                and gang is not None
+                and row.materialised_from_id is not None
+                and (
+                    reference.field in ASSIGNABLE_FIELDS
+                    or reference.field == "materialised_from"
+                )
+                and not _why_not_a_free_line(row)
+            ):
+                # A copy that is not free falls through and holds, as
+                # any gang's assignment does.
+                self.line(gang, row)
+                return
             if (
                 self.remove_free_lines
                 and reference.field == "weapon_profile"
@@ -700,6 +750,7 @@ class _Planner:
             ),
             refusals=tuple(self.refusals),
             nothing_here=not self.targets,
+            removes_built_in_copies=self.remove_built_in_copies,
         )
 
 
@@ -750,18 +801,18 @@ def _why_not_a_test_gang(gang):
 
 
 def _why_not_a_free_line(assignment):
-    """Why a firing line on a fighter is not one the weapon merely
+    """Why an assignment is not one a weapon or a built-in set merely
     brought — or empty where it is.
 
-    A free line sits under its weapon's own assignment, its books say
-    nothing was paid and nothing counts, and nothing hangs off it. Any
-    of those failing means somebody chose or paid for it, and it is
-    history.
+    A free copy sits under its weapon's own assignment or came from a
+    built-in set, its books say nothing was paid and nothing counts, and
+    nothing hangs off it. Any of those failing means somebody chose or
+    paid for it, and it is history.
     """
     from n26.core.models import Assignment
 
-    if assignment.parent_id is None:
-        return "is not under a weapon"
+    if assignment.parent_id is None and assignment.materialised_from_id is None:
+        return "is not under a weapon and did not come built in"
     try:
         entry = assignment.ledger_entry
     except Assignment.ledger_entry.RelatedObjectDoesNotExist:
@@ -790,13 +841,19 @@ def _why_not_a_free_line(assignment):
     return ""
 
 
-def plan_deletion(things, *, remove_free_lines=False):
+def plan_deletion(things, *, remove_free_lines=False, remove_built_in_copies=False):
     """Read what deleting these rows would take. Never writes.
 
     ``remove_free_lines`` asks for a firing line's fourth ending: the
     free lines fighters have are named for removal rather than refusing.
+    ``remove_built_in_copies`` asks the same of the free copies a
+    built-in set handed out, once the thing is out of every set.
     """
-    planner = _Planner(list(things), remove_free_lines=remove_free_lines)
+    planner = _Planner(
+        list(things),
+        remove_free_lines=remove_free_lines,
+        remove_built_in_copies=remove_built_in_copies,
+    )
     planner.read()
     return planner.plan()
 
@@ -811,7 +868,11 @@ def plan_again(plan):
         if row is None:
             raise Refused(f"nothing was deleted: {label} {pk} is already gone")
         things.append(row)
-    return plan_deletion(things, remove_free_lines=bool(plan.lines))
+    return plan_deletion(
+        things,
+        remove_free_lines=bool(plan.lines) and not plan.removes_built_in_copies,
+        remove_built_in_copies=plan.removes_built_in_copies,
+    )
 
 
 class FreeLineRemoval:
@@ -877,7 +938,6 @@ def remove_free_lines_from(gang_id, plan):
 
     from n26.core.models import Assignment, Gang
     from n26.core.reconcile import check_gang
-    from n26.library import authoring
 
     targets = [
         apps.get_model(label).objects.filter(pk=pk).first()
@@ -926,15 +986,32 @@ def remove_free_lines_from(gang_id, plan):
         said = f"gang {gang.name}: removed the line from {fighters} fighter{'' if fighters == 1 else 's'}"
         # The row goes with the last fighter: after this gang, nothing
         # may name it any more. Asked cheaply first; the full reading
-        # only once the last line is gone.
-        for row in targets:
-            if row is None or Assignment.objects.filter(weapon_profile=row).exists():
-                continue
-            if not plan_deletion([row]).ok:
-                continue
-            authoring.delete_content(row)
-            said += f"; deleted {_said(row)}"
+        # only once the last copy is gone. That reading takes the
+        # archived memberships the copies came from along with the row.
+        unheld = [
+            row
+            for row in targets
+            if row is not None
+            and not Assignment.objects.filter(**{_column(row): row}).exists()
+        ]
+        if unheld:
+            last = plan_deletion(unheld, remove_built_in_copies=True)
+            if last.ok and not last.lines and not last.touches_players:
+                apply(last)
+                said += f"; deleted {_and(_said(row) for row in unheld)}"
         return said
+
+
+def _column(row):
+    """The assignment column that names a row of this kind."""
+    from django.apps import apps
+
+    from n26.core.models.assignment import ASSIGNABLE_FIELDS
+
+    for column, label in ASSIGNABLE_FIELDS.items():
+        if isinstance(row, apps.get_model(label)):
+            return column
+    raise ValueError(f"a {row._meta.verbose_name} is never assigned")
 
 
 def apply(plan, actor=None):
