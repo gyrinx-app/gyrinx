@@ -142,8 +142,8 @@ class TestWhatAsks:
     def test_a_list_above_the_items_own_price_buys_straight_away(
         self, client, fighter, free_list
     ):
-        """A list asking more is the rating, as before: only paying below
-        the full price is a question."""
+        """A list asking more is the rating: only paying below the full
+        price is a question."""
         answer = client.post(equip_url(fighter, free_list), buying("Pistol"))
 
         assert answer.status_code == 302
@@ -226,7 +226,76 @@ class TestWhatConfirmingRates:
         assert entry_for("Pistol").rating_contribution == 25
 
 
-class TestWithAnOverspend:
+class TestAGunAndItsAmmo:
+    """One click can buy a gun and its ammo, each at its own price."""
+
+    @pytest.fixture
+    def armoury(self, gang, tester):
+        from n26.library.authoring import add_weapon_profile, create_weapon
+
+        autogun = create_weapon("Autogun", profiles=[("", 0)], price=20)
+        warp = add_weapon_profile(autogun, name="warp round", price=10)
+        collection = create_collection("Armoury", entries=[autogun, warp])
+        with operation(gang, actor=tester) as op:
+            op.assign(collection, gang=gang)
+        return autogun, collection
+
+    @staticmethod
+    def click(autogun, gun_price=None, ammo_price=None):
+        from django.utils.text import slugify
+
+        scope = slugify(thing_key(autogun))
+        fields = {"thing": thing_key(autogun), f"{scope}:parts": "0"}
+        if gun_price is not None:
+            fields[f"{scope}:price"] = gun_price
+        if ammo_price is not None:
+            fields[f"{scope}:parts:0:price"] = ammo_price
+        return fields
+
+    def test_the_box_names_only_the_ammo_when_only_it_is_below_full(
+        self, client, fighter, armoury
+    ):
+        autogun, collection = armoury
+        body = client.post(
+            equip_url(fighter, collection), self.click(autogun, ammo_price="4")
+        ).content.decode()
+
+        # A named profile reads as the round and its gun.
+        assert "round (Autogun) keeps its full rating of 10¢" in body
+        assert "Autogun and" not in body
+        # The whole click's price, gun and ammo together.
+        assert "Autogun — 24¢." in body
+
+    def test_ticked_rates_the_ammo_at_what_was_paid(
+        self, client, gang, fighter, armoury
+    ):
+        autogun, collection = armoury
+        client.post(
+            equip_url(fighter, collection),
+            {**self.click(autogun, ammo_price="4"), CONFIRM_FIELD: "1", "rate": "paid"},
+        )
+
+        gun = LedgerEntry.objects.get(assignment__weapon=autogun)
+        ammo = LedgerEntry.objects.get(assignment__weapon_profile__name="warp round")
+        assert (gun.paid, gun.list_price, gun.rating_contribution) == (20, 20, 20)
+        assert (ammo.paid, ammo.list_price, ammo.discount) == (4, 4, 0)
+        assert ammo.rating_contribution == 4
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_the_box_names_both_when_both_are_below_full(
+        self, client, fighter, armoury
+    ):
+        autogun, collection = armoury
+        body = client.post(
+            equip_url(fighter, collection),
+            self.click(autogun, gun_price="12", ammo_price="4"),
+        ).content.decode()
+
+        assert "round (Autogun) keep their full rating of 30¢" in body
+        assert "Autogun and " in body
+        assert "Autogun — 16¢." in body
+
     """One click, one question: the box rides the overspend panel."""
 
     @pytest.fixture

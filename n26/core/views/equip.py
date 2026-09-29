@@ -27,7 +27,7 @@ from django.shortcuts import redirect, render
 from django.template.defaultfilters import pluralize
 
 from n26.core.activities import founding_blocks_visit
-from n26.core.confirm import CONFIRM_FIELD, Confirmation
+from n26.core.confirm import CONFIRM_FIELD, Confirmation, carried
 from n26.core.listing import choice_field as _choice_field
 from n26.core.listing import parts_field as _parts_field
 from n26.core.listing import price_field as _price_field
@@ -220,23 +220,28 @@ def _rating_box(request, charges):
     if request.POST.get(CONFIRM_FIELD):
         return None
     below = [
-        (line_paid + surcharge, _full_price(line, surcharge))
+        (line.name, line_paid + surcharge, _full_price(line, surcharge))
         for line, line_paid, surcharge in charges
     ]
-    below = [(paid, full) for paid, full in below if paid < full]
+    below = [(name, paid, full) for name, paid, full in below if paid < full]
     if not below:
         return None
-    paid = sum(paid for paid, _ in below)
-    full = sum(full for _, full in below)
+    # Named, because a click can buy a gun and its ammo and only the ammo
+    # may be below its full price: the box rates only what it names.
+    names = " and ".join(name for name, _, _ in below)
+    paid = sum(paid for _, paid, _ in below)
+    full = sum(full for _, _, full in below)
+    one = len(below) == 1
+    keeps, its = ("keeps", "its") if one else ("keep", "their")
     return Checkbox(
         name=RATE_FIELD,
         value=RATE_AT_PAID,
         label="Match rating to price",
         description=(
-            f"By default, this keeps its full rating of {full}¢ even though "
-            f"you pay {paid}¢. If your group agrees that something bought "
-            "for less is worth only what you paid — for example, one given "
-            "to you for free — tick this box to set its rating to "
+            f"By default, {names} {keeps} {its} full rating of {full}¢ even "
+            f"though you pay {paid}¢. If your group agrees that something "
+            "bought for less is worth only what you paid — for example, one "
+            f"given to you for free — tick this box to set {its} rating to "
             f"{paid}¢."
         ),
     )
@@ -253,10 +258,10 @@ def _rating_question(request, line, spent, checkbox, back):
     return Confirmation(
         title="Choose the rating",
         lead=f"{line.name} — {spent}¢.",
-        heading="You are paying less than its full price",
+        heading="You are paying less than the full price",
         body=(
-            "Choose whether it adds its full price or the price you pay "
-            "to the gang's rating."
+            "Choose whether the gang's rating goes up by the full price or "
+            "by the price you pay."
         ),
         variant="info",
         checkbox=checkbox,
@@ -847,9 +852,16 @@ def _buy_clicked(
     )
     confirmation = _overspend(request, gang, line, asked, at, budget, into)
     if confirmation is not None:
-        return replace(confirmation, checkbox=checkbox)
+        return replace(
+            confirmation,
+            checkbox=checkbox,
+            # The box posts its own value; a carried copy would outvote an
+            # untick.
+            carry=carried(request.POST, leave_out={RATE_FIELD}),
+        )
     if checkbox is not None:
-        return _rating_question(request, line, charge["paid"], checkbox, at)
+        spent = charge["paid"] + sum(part_paid for _, part_paid in paid_for)
+        return _rating_question(request, line, spent, checkbox, at)
     try:
         with operation(gang, actor=request.user) as op:
             # The picked sets go to the operation, which materialises

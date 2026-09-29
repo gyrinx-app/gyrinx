@@ -438,8 +438,10 @@ class Operation:
             list_price = paid + discount
         if rating is None:
             # A discount is a deal on the real price, so the thing still
-            # counts at full value; a collection's own price has no discount
-            # — it IS the price, so it is also the rating. Whatever number
+            # counts at full value. A caller passing no list price means the
+            # price paid is the full price, so it is also the rating; the
+            # equip page passes the item's full price where a list asks
+            # less than it. Whatever number
             # lands here is pinned on this assignment for good: moving the
             # thing later never re-prices it.
             rating = list_price
