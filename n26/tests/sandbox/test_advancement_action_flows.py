@@ -7,7 +7,13 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from n26.core.models import ActionAllowance, ActionRecord, Assignment, LedgerEvent
+from n26.core.models import (
+    ActionAllowance,
+    ActionRecord,
+    Assignment,
+    LedgerEvent,
+    SkillSelection,
+)
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
@@ -319,6 +325,77 @@ class TestAnEarnedAdvancementStartsAndResumes:
 
 
 class TestChangingTheRoll:
+    def test_changing_the_roll_discards_the_draft_skill_but_keeps_its_history(
+        self, client, monkeypatch, advancement
+    ):
+        new_skill = a.create_skill(
+            "Sprint", category=advancement.skills["primary"].category, position=3
+        )
+        _load_rolls(monkeypatch, 12, 2, 3)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["random"]
+        )
+        page = client.get(skill_url)
+        category = page.context["skill_groups"][0]["key"]
+        assert (
+            client.post(
+                skill_url,
+                {
+                    "request_key": page.context["form"]["request_key"].value(),
+                    "skill_set_id": category,
+                },
+            ).status_code
+            == 302
+        )
+        old_selection = SkillSelection.objects.get(action_record=record)
+        assert old_selection.selected_skill == advancement.skills["primary"]
+        old_event = old_selection.random_attempts[-1]["event_id"]
+        roll_url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "roll"]
+        )
+        page = client.get(roll_url)
+        payload = {
+            "request_key": page.context["form"]["request_key"].value(),
+            "previous_roll": page.context["form"]["previous_roll"].value(),
+            "roll_mode": "record",
+            "rolled": "12",
+        }
+        assert client.post(roll_url, payload).status_code == 302
+        assert SkillSelection.objects.filter(pk=old_selection.pk).exists()
+
+        payload["rolled"] = "11"
+        assert client.post(roll_url, payload).status_code == 302
+        assert not SkillSelection.objects.filter(action_record=record).exists()
+        assert LedgerEvent.objects.filter(pk=old_event, action_record=record).exists()
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["random"]
+        )
+        page = client.get(skill_url)
+        assert page.context["stage"] == "skill"
+        assert (
+            client.post(
+                skill_url,
+                {
+                    "request_key": page.context["form"]["request_key"].value(),
+                    "skill_set_id": category,
+                },
+            ).status_code
+            == 302
+        )
+        selection = SkillSelection.objects.get(action_record=record)
+        assert selection.selected_skill == new_skill
+        assert [attempt["roll"] for attempt in selection.random_attempts] == [3]
+        assert client.post(roll_url, payload).status_code == 302
+        assert SkillSelection.objects.filter(pk=selection.pk).exists()
+        assert sorted(
+            LedgerEvent.objects.filter(
+                action_record=record, kind=LedgerEvent.Kind.ROLLED
+            ).values_list("roll", flat=True)
+        ) == [2, 3, 11, 12]
+        assert_reconciled(advancement.gang)
+
     def test_back_allows_a_correction_and_invalidates_the_old_review(
         self, client, monkeypatch, advancement
     ):

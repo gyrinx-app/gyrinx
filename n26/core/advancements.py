@@ -494,6 +494,7 @@ def record_action_roll(
         ]
     )
     if previous_roll is not None:
+        SkillSelection.objects.filter(action_record=record).delete()
         record.terms = {
             key: value
             for key, value in record.terms.items()
