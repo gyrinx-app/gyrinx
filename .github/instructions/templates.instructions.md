@@ -49,6 +49,11 @@ not work — so they will not show up in manual testing.
 - **A `{% if %}` in attribute position renders as literal text.**
   `<c-btn {% if x %}disabled{% endif %}>` does not error; the braces land in the
   markup as junk attributes and the control ships enabled.
+- **`:disabled="False"` still disables the control.** HTML boolean attributes
+  are live when present. Do not interpolate `disabled="{{ flag }}"`. For kit
+  controls that passthrough `{{ attrs }}` (including `<c-ui.button>`), pass
+  `:attrs` with `{'disabled': True}` or `{}`. `scripts/check_cotton.py` scans
+  N26 as well as N23.
 - **A `:prop` the component does not declare skips escaping.** Undeclared
   attributes go out through `{{ attrs }}`, which is `mark_safe`'d — `:id="value"`
   is an attribute-injection hole. Declared props are autoescaped and safe.

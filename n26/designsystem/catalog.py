@@ -106,7 +106,9 @@ GROUPS: list[Group] = [
                     'type="button">; pass type="submit" when it submits a form. '
                     "There is no disabled prop. A plain disabled attribute disables "
                     "the button, but a link has no disabled state and stays "
-                    "clickable. A control "
+                    "clickable. A computed off-state goes in :attrs as "
+                    "{'disabled': True} or {}; disabled=\"False\" is still "
+                    "disabled. A control "
                     "that submits, fetches over htmx or navigates shows a spinner "
                     "and blocks a second click until the work ends, from "
                     'n26/core/static/n26/busy.js. data-busy="off" on the control or '

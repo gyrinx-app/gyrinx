@@ -93,6 +93,21 @@ class TestTheSharePage:
         assert "This gang is unlisted" in page
 
 
+class TestTheButtonPage:
+    """The kit button has no disabled prop; the gallery has to say so."""
+
+    def test_the_page_says_a_false_disabled_attribute_is_still_disabled(self, reader):
+        page = unescape(reader.get("/n26/design/c/button/").content.decode())
+        assert ":attrs" in page
+        assert "{'disabled': True}" in page
+        assert 'disabled="False"' in page
+
+    def test_the_disabled_demo_renders_rather_than_falling_back(self, reader):
+        page = reader.get("/n26/design/c/button/").content.decode()
+        assert "Disabled, links and content" in page
+        assert re.search(r"<button[^>]*\bdisabled\b", page)
+
+
 class TestThePictureBoxPage:
     """Its props and both of its states reach the gallery drawn."""
 

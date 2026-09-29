@@ -32,11 +32,16 @@ interactive template. The component gallery instructions live in
 
 - A `{% block %}` inside a component attribute renders nothing. Use `<c-slot>`.
 - Write `&amp;`, not `&`, in attributes.
-- Pass form fields as `:field="form.x"`; the platform Cotton checker does not
-  scan N26 templates.
-- A `:prop` takes a variable or literal, not a filter, comparison or negation.
-  Compute the value in the view or render cases with `{% if %}`, then inspect
-  the rendered markup.
+- Pass form fields as `:field="form.x"`. `scripts/check_cotton.py` scans N26.
+- A `:prop` takes a bare dotted path, not a filter, comparison or negation.
+  Compute the value in the view. `:disabled="True"` is a static off-state only
+  on components that declare the prop.
+- A `{% if %}` inside a `<c-...>` opening tag is not parsed. Cotton emits the
+  source as junk attributes. Do not write `{% if %}` there to toggle `disabled`.
+- HTML boolean attributes are live when present. `:disabled="False"` still
+  disables the control. For kit controls that dump extras through `{{ attrs }}`
+  (including `<c-ui.button>`), pass `:attrs` with `{'disabled': True}` or `{}`.
+  A static off control is the bare HTML attribute `disabled`.
 - Declare `class` in `<c-vars>` before passing it. An undeclared `class` can
   produce a second attribute that the browser drops with the component styles.
 - Comments inside `<c-vars>` must contain no quote marks, apostrophes or angle
