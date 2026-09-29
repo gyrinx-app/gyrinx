@@ -189,12 +189,12 @@ def _charge(line, paid, surcharge=0, *, rate_at_paid=False):
     so ``paid = list - discount`` still holds and the entry says both
     what the thing is worth and what the gang handed over.
 
-    Rating follows the full price, never the payment. Rating is what the
-    gang owns and it is pinned for good: haggling a sword down does not
-    make it a lesser sword, and paying over the odds does not make it a
-    better one. Only the credits leaving the bank move. ``rate_at_paid``
-    is the rating box, for a table that reads a thing bought below its
-    full price as worth only what was paid.
+    By default rating follows the full price, not the payment. Rating is
+    what the gang owns and it is pinned for good: haggling a sword down
+    does not make it a lesser sword, and paying over the odds does not
+    make it a better one. The exception is ``rate_at_paid``, the ticked
+    rating box: a thing bought below its full price is then rated at what
+    was paid, for a table that reads it as worth only that.
 
     ``surcharge`` is what the options picked on this line add. It
     lands on both figures, because a mount with plasma guns is a dearer
