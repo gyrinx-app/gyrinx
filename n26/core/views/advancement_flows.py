@@ -289,9 +289,10 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         skill_attempts=attempts,
         skill_groups=[
             {
-                "key": str(group.pk),
-                "name": str(group),
-                "checked": "skill_set_id" in form.fields
+                "key": "" if group is None else str(group.pk),
+                "name": "Other skills" if group is None else str(group),
+                "checked": group is not None
+                and "skill_set_id" in form.fields
                 and str(form["skill_set_id"].value()) == str(group.pk),
                 "skills": [
                     {

@@ -290,10 +290,15 @@ def _listed_skills(record, offer, *, computed=None, owned=None):
         .select_related("category")
         .prefetch_related(*USABLE_BY_LISTS)
     }
+    # A random roll is a D6 within one set, so a skill with no set cannot be
+    # rolled for.
+    random = offer.mode == offer.Mode.RANDOM
     return [
         hydrated[pk]
         for pk in ids
-        if pk in hydrated and hydrated[pk].is_usable_by(fighter)
+        if pk in hydrated
+        and hydrated[pk].is_usable_by(fighter)
+        and not (random and hydrated[pk].category_id is None)
     ]
 
 

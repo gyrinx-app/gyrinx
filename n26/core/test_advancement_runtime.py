@@ -3,6 +3,7 @@ from uuid import uuid4
 import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 
 from n26.core.advancements import (
     _fighter_state,
@@ -1384,3 +1385,31 @@ def test_completed_skill_advancement_with_an_active_descendant_cannot_be_correct
     with operation(fighter.gang) as op:
         with pytest.raises(Refusal, match="Later changes depend"):
             op.review_action_correction(completed, terms=terms)
+
+
+def test_select_any_skill_lists_a_skill_with_no_set(client, user, fighter):
+    action, outcome, allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    loose = authoring.create_skill("Loose skill")
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=12)
+    select_any = next(
+        option
+        for option in advancement_options(record, configured)
+        if option.name == "Select any skill"
+    )
+    assert loose in skill_options(record, configured, select_any.id)[None]
+    with operation(fighter.gang) as op:
+        op.save_action_choices(
+            record, outcome=outcome, terms={"pickable_id": select_any.id}
+        )
+
+    client.force_login(user)
+    response = client.get(
+        reverse("n26-action-flow", args=[fighter.pk, record.pk, "skill"])
+    )
+
+    assert response.status_code == 200
+    assert "Other skills" in response.content.decode()
+    assert "Loose skill" in response.content.decode()
