@@ -256,7 +256,7 @@ class TestAnEarnedAdvancementStartsAndResumes:
             == 1
         )
 
-    @pytest.mark.parametrize("rolled", ["", "1", "13", "not a number"])
+    @pytest.mark.parametrize("rolled", ["", "0", "1", "13", "not a number"])
     def test_invalid_recorded_totals_do_not_generate_a_roll(
         self, client, monkeypatch, advancement, rolled
     ):
@@ -276,6 +276,7 @@ class TestAnEarnedAdvancementStartsAndResumes:
         )
         assert response.status_code == 200
         assert "rolled" in response.context["form"].errors
+        assert response.context["advancement_roll"]["rolled"] == rolled
         assert not LedgerEvent.objects.filter(
             action_record=record, kind=LedgerEvent.Kind.ROLLED
         ).exists()
@@ -294,6 +295,7 @@ class TestAnEarnedAdvancementStartsAndResumes:
         )
         assert response.status_code == 200
         assert response.context["form"].errors["roll_mode"] == ["Choose how to roll."]
+        assert response.context["advancement_roll"]["mode"] == ""
         assert not LedgerEvent.objects.filter(
             action_record=record, kind=LedgerEvent.Kind.ROLLED
         ).exists()

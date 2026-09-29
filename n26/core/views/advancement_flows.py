@@ -82,6 +82,7 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
                 return redirect(flow_url(fighter, record, "choose"))
             except Refusal as refusal:
                 form.add_error(None, str(refusal))
+        rolled_value = form["rolled"].value()
         return _page(
             request,
             fighter,
@@ -90,8 +91,8 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
             stage="roll",
             form=form,
             advancement_roll={
-                "mode": form["roll_mode"].value() or "roll",
-                "rolled": str(form["rolled"].value() or ""),
+                "mode": form["roll_mode"].value() or "",
+                "rolled": "" if rolled_value is None else str(rolled_value),
                 "modeErrors": list(form["roll_mode"].errors),
                 "rolledErrors": list(form["rolled"].errors),
                 "previousRoll": previous_roll.roll if previous_roll else None,
