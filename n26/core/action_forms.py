@@ -65,6 +65,7 @@ class AdvancementRollForm(ActionRollForm):
     roll_mode = forms.ChoiceField(
         label="How would you like to roll?",
         choices=[("roll", "Roll in Gyrinx"), ("record", "Record my roll")],
+        error_messages={"required": "Choose how to roll."},
     )
     rolled = forms.IntegerField(
         label="Your 2D6 total", min_value=2, max_value=12, required=False

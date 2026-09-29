@@ -293,7 +293,7 @@ class TestAnEarnedAdvancementStartsAndResumes:
             url, {"request_key": page.context["form"]["request_key"].value()}
         )
         assert response.status_code == 200
-        assert "roll_mode" in response.context["form"].errors
+        assert response.context["form"].errors["roll_mode"] == ["Choose how to roll."]
         assert not LedgerEvent.objects.filter(
             action_record=record, kind=LedgerEvent.Kind.ROLLED
         ).exists()
@@ -325,13 +325,10 @@ class TestAnEarnedAdvancementStartsAndResumes:
 
 
 class TestChangingTheRoll:
-    def test_changing_the_roll_discards_the_draft_skill_but_keeps_its_history(
+    def test_correcting_2d6_preserves_the_skill_roll_but_clears_the_pending_choice(
         self, client, monkeypatch, advancement
     ):
-        new_skill = a.create_skill(
-            "Sprint", category=advancement.skills["primary"].category, position=3
-        )
-        _load_rolls(monkeypatch, 12, 2, 3)
+        _load_rolls(monkeypatch, 12, 2)
         record = _start(client, advancement)
         _post_roll(client, advancement, record)
         skill_url = _choose_result(
@@ -367,33 +364,28 @@ class TestChangingTheRoll:
 
         payload["rolled"] = "11"
         assert client.post(roll_url, payload).status_code == 302
-        assert not SkillSelection.objects.filter(action_record=record).exists()
+        record.refresh_from_db()
+        assert "pickable_id" not in record.terms
+        assert record.review == {}
         assert LedgerEvent.objects.filter(pk=old_event, action_record=record).exists()
         skill_url = _choose_result(
             client, advancement, record, advancement.results["random"]
         )
         page = client.get(skill_url)
         assert page.context["stage"] == "skill"
-        assert (
-            client.post(
-                skill_url,
-                {
-                    "request_key": page.context["form"]["request_key"].value(),
-                    "skill_set_id": category,
-                },
-            ).status_code
-            == 302
-        )
+        assert page.context["skill_resolved"] is True
+        assert page.context["submit_label"] == "Review"
+        assert client.post(skill_url, {"review_skill": "1"}).status_code == 302
         selection = SkillSelection.objects.get(action_record=record)
-        assert selection.selected_skill == new_skill
-        assert [attempt["roll"] for attempt in selection.random_attempts] == [3]
+        assert selection.selected_skill == advancement.skills["primary"]
+        assert selection.random_attempts == old_selection.random_attempts
         assert client.post(roll_url, payload).status_code == 302
         assert SkillSelection.objects.filter(pk=selection.pk).exists()
         assert sorted(
             LedgerEvent.objects.filter(
                 action_record=record, kind=LedgerEvent.Kind.ROLLED
             ).values_list("roll", flat=True)
-        ) == [2, 3, 11, 12]
+        ) == [2, 11, 12]
         assert_reconciled(advancement.gang)
 
     def test_back_allows_a_correction_and_invalidates_the_old_review(
