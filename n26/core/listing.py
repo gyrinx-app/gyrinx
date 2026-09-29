@@ -513,7 +513,11 @@ def copy_row(copy, refunds=True):
                 if copy.fit_href
                 else ()
             ),
-            Action("Reassign", LINK, copy.reassign_href, SECONDARY),
+            *(
+                (Action("Reassign", LINK, copy.reassign_href, SECONDARY),)
+                if copy.reassign_href
+                else ()
+            ),
             *(
                 (Action("Refund", LINK, copy.refund_href, SECONDARY),)
                 if refunds or copy.paid_trade_points

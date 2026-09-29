@@ -30,7 +30,7 @@ def hunt(default_pack, fighter_type, fighter_stats, make_statline, counter_track
     kills = a.create_counter("Kill Count")
     glitches = a.create_counter("Glitch Count")
     augmentation = a.create_slot_type("Augmentation", allows_repeats=False)
-    glitch_type = a.create_slot_type("Glitch")
+    glitch_type = a.create_slot_type("Glitch", plural_name="Glitches")
     rig = a.create_wargear("Hunting rig", price=0)
     strength = fighter_stats["S"]
     tiers = [
@@ -798,6 +798,66 @@ class TestSuitEvolutionForms:
         hunt.gang.refresh_from_db()
         assert_reconciled(hunt.gang)
 
+    @pytest.mark.parametrize("destination", ["fighter", "stash", "weapon"])
+    def test_an_augmented_rig_cannot_be_reassigned_through_a_direct_request(
+        self, client, hunt, destination
+    ):
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+        from n26.core.render import build_model_card
+
+        def statline():
+            card = build_card(hunt.fighter, with_statlines=True)
+            computed = compute(card, build_modifier_index(carriers(card)))
+            return build_model_card(hunt.fighter, card=card, computed=computed).statline
+
+        record, _, _ = start(client, hunt, hunt.upgrade)
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            record = op.review_action(
+                record,
+                outcome=hunt.upgrade,
+                terms={
+                    "item_assignment": str(hunt.item.pk),
+                    "intended_pick": str(hunt.tiers[0].pk),
+                },
+            )
+            record = op.complete_action(
+                record,
+                revision=record.revision,
+                review=record.review,
+                outcome=hunt.upgrade,
+            )
+            other = op.hire(hunt.fighter.membership.profile, "Other hunter", paid=100)
+            weapon = op.give_weapon(other, a.create_weapon("Other weapon"), paid=0)
+        before = statline()
+        assert before.get("S").modified
+        events = list(record.ledger_events.values_list("pk", flat=True))
+        equip = reverse("n26-equip", args=[hunt.fighter.pk])
+        body = client.get(equip).content.decode()
+        assert f"reassign={hunt.item.pk}" not in body
+        assert (
+            reverse("n26-reassign", args=[hunt.item.pk])
+            not in client.get(f"{equip}?reassign={hunt.item.pk}").content.decode()
+        )
+        payload = {
+            "fighter": {"miniature": str(other.pk)},
+            "stash": {"to": "stash"},
+            "weapon": {"to": "weapon", "weapon": str(weapon.pk)},
+        }[destination]
+        refused = client.post(
+            reverse("n26-reassign", args=[hunt.item.pk]), payload, follow=True
+        )
+        assert (
+            "Its earned augmentations belong to this fighter."
+            in refused.content.decode()
+        )
+        hunt.item.refresh_from_db()
+        assert hunt.item.miniature_root_id == hunt.fighter.pk
+        assert statline() == before
+        assert list(record.ledger_events.values_list("pk", flat=True)) == events
+        hunt.gang.refresh_from_db()
+        assert_reconciled(hunt.gang)
+
     def test_a_changed_balance_requires_another_review(self, client, hunt):
         record, _, _ = start(client, hunt, hunt.clear)
         url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "review"])
@@ -822,6 +882,66 @@ class TestSuitEvolutionForms:
         assert client.post(url, {"review": fresh_token}).status_code == 302
         hunt.kills.counter_value.refresh_from_db()
         assert hunt.kills.counter_value.value == 3
+        hunt.gang.refresh_from_db()
+        assert_reconciled(hunt.gang)
+
+    def test_resuming_after_a_glitch_shows_current_state_without_rewriting_the_draft(
+        self, client, hunt
+    ):
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            op.tally(hunt.glitches, -2)
+        record, _, _ = start(client, hunt, hunt.clear)
+        url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "review"])
+        original_review = record.review
+        old_token = client.get(url).context["form"]["review"].value()
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            op.tally(hunt.glitches, 1)
+            op.tally(hunt.kills, 1)
+
+        resumed = client.get(
+            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "resume"]),
+            follow=True,
+        )
+        assert "Glitch Count: 1 → 0" in resumed.content.decode()
+        assert resumed.context["payment_tallies"][0].facts[0].value == "7 Kill Count"
+        record.refresh_from_db()
+        assert record.review == original_review
+        fresh_token = resumed.context["form"]["review"].value()
+
+        refused = client.post(url, {"review": old_token})
+        assert refused.context["form"].non_field_errors()
+        record.refresh_from_db()
+        assert not record.payment_id
+        assert client.post(url, {"review": fresh_token}).status_code == 302
+        assert client.post(url, {"review": fresh_token}).status_code == 302
+        hunt.glitches.counter_value.refresh_from_db()
+        hunt.kills.counter_value.refresh_from_db()
+        assert hunt.glitches.counter_value.value == 0
+        assert hunt.kills.counter_value.value == 3
+        record.refresh_from_db()
+        assert record.review["target"][0]["before"] == 1
+        assert (
+            record.ledger_events.filter(
+                kind=LedgerEvent.Kind.ACTION_USE_COMPLETED
+            ).count()
+            == 1
+        )
+        hunt.gang.refresh_from_db()
+        assert_reconciled(hunt.gang)
+
+    def test_clearing_no_glitches_explains_why_and_spends_nothing(self, client, hunt):
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            op.tally(hunt.glitches, -2)
+        record, _, _ = start(client, hunt, hunt.clear)
+        url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "review"])
+        token = client.get(url).context["form"]["review"].value()
+        refused = client.post(url, {"review": token})
+        assert "This fighter has no glitches to clear." in refused.content.decode()
+        record.refresh_from_db()
+        hunt.kills.counter_value.refresh_from_db()
+        assert not record.payment_id
+        assert record.state == ActionRecord.State.STARTED
+        assert hunt.kills.counter_value.value == 6
         hunt.gang.refresh_from_db()
         assert_reconciled(hunt.gang)
 

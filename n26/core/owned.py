@@ -19,6 +19,7 @@ class EquipHost:
     at: str
     roots: tuple
     miniature: object | None = None
+    bound_items: frozenset = frozenset()
 
     @property
     def is_stash(self):
@@ -30,11 +31,18 @@ class EquipHost:
 
     @classmethod
     def fighter(cls, gang, card, miniature, at):
+        from n26.core.tier_choices import augmentation_bound_items
+
         return cls(
             gang=gang,
             at=at,
             roots=tuple(card.roots),
             miniature=miniature,
+            bound_items=augmentation_bound_items(
+                node.assignment
+                for node in card.all_nodes()
+                if node.assignment is not None and not node.broadcast
+            ),
         )
 
     @classmethod
@@ -390,7 +398,11 @@ def possessions(host: EquipHost):
                     ),
                 ),
                 sell_href=with_query(at, sell=pk),
-                reassign_href=with_query(at, reassign=pk),
+                reassign_href=(
+                    ""
+                    if node.assignment.pk in host.bound_items
+                    else with_query(at, reassign=pk)
+                ),
                 refund_href=with_query(at, refund=pk),
                 remove_href=with_query(at, remove=pk),
                 paid_trade_points=node.paid_trade_points,

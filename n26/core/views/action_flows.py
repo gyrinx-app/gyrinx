@@ -1,5 +1,6 @@
 """Owner-scoped forms for starting and completing fighter actions."""
 
+from copy import copy
 from dataclasses import replace
 from urllib.parse import urlencode
 from uuid import uuid4
@@ -22,7 +23,11 @@ from n26.core.action_forms import (
     StartActionForm,
 )
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
-from n26.core.action_records import active_action_record, quote_for
+from n26.core.action_records import (
+    active_action_record,
+    preview_changes_review,
+    quote_for,
+)
 from n26.core.counter_tracking import is_active as counter_tracking_is_active
 from n26.core.flow import FlowStep
 from n26.core.models import ActionAllowance, ActionRecord
@@ -730,6 +735,20 @@ def _review(request, fighter, record, *, correction):
         return redirect(
             flow_url(fighter, record, "correct" if correction else "outcome")
         )
+    if (
+        request.method != "POST"
+        and not correction
+        and isinstance(record.outcome.operation, ApplyChanges)
+    ):
+        try:
+            # The signed form carries this preview into confirmation. Reading
+            # a draft must not rewrite it or invalidate another open tab.
+            record = copy(record)
+            record.review = preview_changes_review(record)
+        except Refusal as refusal:
+            return _refusal_page(
+                request, fighter, record.action, refusal, record=record
+            )
     form = ConfirmActionForm(
         request.POST or None, initial={"review": _review_token(record)}
     )

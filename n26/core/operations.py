@@ -2916,6 +2916,22 @@ class Operation:
         """
         from n26.core.models import Assignment, LedgerEvent, Miniature, Stash
         from n26.core.owned import is_detachable
+        from n26.core.tier_choices import augmentation_bound_items
+
+        destination_fighter_id = (
+            to.pk
+            if isinstance(to, Miniature)
+            else (to.miniature_root_id if isinstance(to, Assignment) else None)
+        )
+        if (
+            assignment.miniature_root_id is not None
+            and assignment.miniature_root_id != destination_fighter_id
+            and augmentation_bound_items([assignment, *subtree(assignment)])
+        ):
+            raise Refusal(
+                f"You cannot reassign {assignment.assignable}. "
+                "Its earned augmentations belong to this fighter."
+            )
 
         if assignment.parent_id is not None and not is_detachable(
             assignment.assignable

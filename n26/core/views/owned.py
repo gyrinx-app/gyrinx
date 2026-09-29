@@ -438,6 +438,8 @@ def owned_dialog(request, host: EquipHost):
     assignment = _held(host, named)
     if assignment is None:
         return None
+    if kind == "reassign" and assignment.pk in host.bound_items:
+        return None
     # A weapon's own profile belongs to the gun. A screen must not
     # ask a question its answer refuses, so those addresses draw nothing.
     if kind in {"sell", "refund", "remove"} and is_built_in_profile(assignment):
