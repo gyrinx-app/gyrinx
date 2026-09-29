@@ -178,7 +178,12 @@ RATE_FIELD, RATE_AT_PAID = "rate", "paid"
 def _full_price(line, surcharge=0):
     """What a line is worth: the listing's price, or the item's own where
     the listing asks less. A list may hand a thing out below its price,
-    and that does not make it a lesser thing."""
+    and that does not make it a lesser thing.
+
+    A listing priced below nothing keeps its own price: taking that gear
+    makes the model worth less, so its negative figure is the rating."""
+    if line.credits < 0:
+        return line.credits + surcharge
     return max(line.credits, line.thing.reference_price()) + surcharge
 
 

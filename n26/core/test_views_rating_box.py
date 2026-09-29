@@ -298,6 +298,28 @@ class TestAGunAndItsAmmo:
         assert "Autogun — 16¢." in body
 
 
+class TestGearPricedBelowNothing:
+    def test_a_negative_listing_keeps_its_own_price_as_the_rating(
+        self, client, gang, fighter, tester
+    ):
+        """Taking it pays the gang, and the model is worth less for it."""
+        cursed = create_wargear("Cursed trinket", price=0)
+        collection = create_collection(
+            "Odd List", entries=[(cursed, {"price_override": -5})]
+        )
+        with operation(gang, actor=tester) as op:
+            op.assign(collection, gang=gang)
+
+        answer = client.post(equip_url(fighter, collection), buying("Cursed trinket"))
+
+        assert answer.status_code == 302
+        entry = entry_for("Cursed trinket")
+        assert (entry.paid, entry.list_price, entry.discount) == (-5, -5, 0)
+        assert entry.rating_contribution == -5
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+
 class TestBuyingIntoTheStash:
     """The stash's equip page reads the click the same way."""
 
