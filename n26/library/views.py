@@ -3596,8 +3596,29 @@ def _deletion_words(plan, label):
         }
         for line in plan.lines
     ]
+    if plan.lines_are_built_ins:
+        lines_words = {
+            "title": "Models that have it",
+            "description": "It came built in, so nobody paid for it. Deleting "
+            "it removes it from these models and changes nothing else in their "
+            "gangs.",
+            "column": "Models",
+        }
+    else:
+        lines_words = {
+            "title": "Fighters that have this line",
+            "description": "Nobody paid for it: the weapon brought it. Deleting "
+            "the line removes it from these fighters. Their gangs are not "
+            "otherwise touched.",
+            "column": "Fighters",
+        }
     if plan.refusals or plan.nothing_here:
         submit_label = ""
+    elif lines and plan.lines_are_built_ins:
+        n = plan.fighters_with_lines
+        submit_label = (
+            f"Delete {label} and remove it from {n} model{'' if n == 1 else 's'}"
+        )
     elif lines:
         n = plan.fighters_with_lines
         submit_label = (
@@ -3617,6 +3638,7 @@ def _deletion_words(plan, label):
         "test_gangs": gangs,
         "test_campaigns": test_campaigns,
         "lines": lines,
+        "lines_words": lines_words,
         "fighters_with_lines": plan.fighters_with_lines,
         "refusals": list(plan.refusals),
         "counts": sorted(plan.counts().items()),
@@ -3693,7 +3715,7 @@ def thing_delete(request, kind, pk):
     if request.method == "POST":
         elsewhere = _perform_deletion(
             request,
-            plan_deletion([thing]),
+            plan_deletion([thing], remove_built_in_copies=True),
             label,
             reverse("authoring-thing-delete", args=[kind, pk]),
         )
@@ -3714,7 +3736,9 @@ def thing_delete(request, kind, pk):
             "label": label,
             "verbose_name": model._meta.verbose_name,
             "back": back,
-            **_deletion_words(plan_deletion([thing]), label),
+            **_deletion_words(
+                plan_deletion([thing], remove_built_in_copies=True), label
+            ),
         },
     )
 
