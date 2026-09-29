@@ -808,8 +808,9 @@ class TestSuitEvolutionForms:
         assert_reconciled(hunt.gang)
 
     @pytest.mark.parametrize("destination", ["fighter", "stash", "weapon"])
+    @pytest.mark.parametrize("item_kind", ["direct", "granted"])
     def test_an_augmented_rig_cannot_be_reassigned_through_a_direct_request(
-        self, client, hunt, destination
+        self, client, hunt, destination, item_kind
     ):
         from n26.core.card import build_card, build_modifier_index, carriers
         from n26.core.effects import compute
@@ -820,6 +821,15 @@ class TestSuitEvolutionForms:
             computed = compute(card, build_modifier_index(carriers(card)))
             return build_model_card(hunt.fighter, card=card, computed=computed).statline
 
+        if item_kind == "granted":
+            carrier = a.create_wargear("Rig carrier")
+            a.add_built_in(carrier, hunt.item.wargear)
+            moved_item = buy(hunt.fighter, thing=carrier, paid=0)
+            hunt.item = Assignment.objects.get(
+                caused_by=moved_item, wargear=hunt.item.wargear
+            )
+        else:
+            moved_item = hunt.item
         record, _, _ = start(client, hunt, hunt.upgrade)
         with operation(hunt.gang, actor=hunt.owner) as op:
             record = op.review_action(
@@ -843,10 +853,10 @@ class TestSuitEvolutionForms:
         events = list(record.ledger_events.values_list("pk", flat=True))
         equip = reverse("n26-equip", args=[hunt.fighter.pk])
         body = client.get(equip).content.decode()
-        assert f"reassign={hunt.item.pk}" not in body
+        assert f"reassign={moved_item.pk}" not in body
         assert (
-            reverse("n26-reassign", args=[hunt.item.pk])
-            not in client.get(f"{equip}?reassign={hunt.item.pk}").content.decode()
+            reverse("n26-reassign", args=[moved_item.pk])
+            not in client.get(f"{equip}?reassign={moved_item.pk}").content.decode()
         )
         payload = {
             "fighter": {"miniature": str(other.pk)},
@@ -854,7 +864,7 @@ class TestSuitEvolutionForms:
             "weapon": {"to": "weapon", "weapon": str(weapon.pk)},
         }[destination]
         refused = client.post(
-            reverse("n26-reassign", args=[hunt.item.pk]), payload, follow=True
+            reverse("n26-reassign", args=[moved_item.pk]), payload, follow=True
         )
         assert (
             "It has earned augmentations that cannot be transferred."

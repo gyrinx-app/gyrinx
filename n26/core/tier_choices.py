@@ -24,9 +24,14 @@ def augmentation_bound_items(assignments):
     for slot_id, item_id in slots.items():
         if str(slot_id) not in earned:
             continue
-        while item_id in assignments and item_id not in bound:
+        pending = [item_id]
+        while pending:
+            item_id = pending.pop()
+            if item_id not in assignments or item_id in bound:
+                continue
             bound.add(item_id)
-            item_id = assignments[item_id].parent_id
+            item = assignments[item_id]
+            pending.extend((item.parent_id, item.caused_by_id))
     return frozenset(bound)
 
 
