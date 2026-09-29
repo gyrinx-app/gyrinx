@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from django.utils.text import slugify
 
+from n26.core.confirm import CONFIRM_FIELD
 from n26.core.models import Assignment, Gang
 from n26.core.operations import operation
 from n26.core.taxonomy import UNCATEGORISED
@@ -762,7 +763,7 @@ def test_the_price_typed_in_is_the_price_charged(
     client.force_login(tester)
     client.post(
         equip_url(fighter, house_list),
-        {"thing": key_of(sword), price_field(sword): "8"},
+        {"thing": key_of(sword), price_field(sword): "8", CONFIRM_FIELD: "1"},
     )
 
     gang.refresh_from_db()
@@ -785,7 +786,7 @@ def test_a_discount_leaves_the_gang_owning_the_same_thing(
     client.force_login(tester)
     client.post(
         equip_url(fighter, house_list),
-        {"thing": key_of(sword), price_field(sword): "8"},
+        {"thing": key_of(sword), price_field(sword): "8", CONFIRM_FIELD: "1"},
     )
 
     entry = LedgerEntry.objects.get(assignment__wargear=sword)
@@ -837,7 +838,7 @@ def test_a_price_of_nothing_is_a_gift_and_still_counts(
     client.force_login(tester)
     client.post(
         equip_url(fighter, house_list),
-        {"thing": key_of(sword), price_field(sword): "0"},
+        {"thing": key_of(sword), price_field(sword): "0", CONFIRM_FIELD: "1"},
     )
 
     gang.refresh_from_db()
@@ -1058,6 +1059,7 @@ def test_the_prices_of_other_rows_ride_along_and_are_ignored(
             "thing": key_of(knife),
             price_field(knife): "4",
             price_field(sword): "1",
+            CONFIRM_FIELD: "1",
         },
     )
 
@@ -1085,6 +1087,7 @@ def test_a_round_is_charged_at_the_price_typed_on_its_own_row(
             parts_field(autogun): "0",
             price_field(autogun): "12",
             price_field(autogun, 0): "4",
+            CONFIRM_FIELD: "1",
         },
     )
 
@@ -1142,6 +1145,7 @@ def test_a_price_typed_on_an_unticked_round_charges_nothing(
             "thing": key_of(autogun),
             price_field(autogun): "12",
             price_field(autogun, 0): "4",
+            CONFIRM_FIELD: "1",
         },
     )
 

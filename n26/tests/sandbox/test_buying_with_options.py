@@ -348,6 +348,7 @@ class TestBuyingASwap:
                 "thing": key_of(cutter),
                 choice_field(cutter, 0): "2",
                 price_field(cutter): "140",
+                "confirmed": "1",
             },
         )
 

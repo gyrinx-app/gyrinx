@@ -290,7 +290,7 @@ class TestBuyingIntoTheStash:
         client.force_login(tester)
         client.post(
             equip_url(gang, house_list),
-            {"thing": key_of(sword), price_field(sword): "8"},
+            {"thing": key_of(sword), price_field(sword): "8", "confirmed": "1"},
         )
 
         entry = LedgerEntry.objects.get(assignment__wargear=sword)

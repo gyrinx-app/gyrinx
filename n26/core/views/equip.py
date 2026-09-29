@@ -17,7 +17,7 @@ which builds the update itself.
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -170,26 +170,102 @@ def _price_typed(data, field, line):
     return price_typed(data, field, line.credits, line.name)
 
 
-def _charge(line, paid, surcharge=0):
+#: The rating box's field and its ticked value: the hire dialog's own, so
+#: the same box posts the same thing wherever it is asked.
+RATE_FIELD, RATE_AT_PAID = "rate", "paid"
+
+
+def _full_price(line, surcharge=0):
+    """What a line is worth: the listing's price, or the item's own where
+    the listing asks less. A list may hand a thing out below its price,
+    and that does not make it a lesser thing."""
+    return max(line.credits, line.thing.reference_price()) + surcharge
+
+
+def _charge(line, paid, surcharge=0, *, rate_at_paid=False):
     """What the ledger is told about a line bought at a set price.
 
-    The price the listing quoted stays the list price and the gap becomes
-    the discount, so ``paid = list - discount`` still holds and the entry
-    says both what the listing asked and what the gang handed over.
+    The full price stays the list price and the gap becomes the discount,
+    so ``paid = list - discount`` still holds and the entry says both
+    what the thing is worth and what the gang handed over.
 
-    Rating follows the list price, never the payment. Rating is what the
+    Rating follows the full price, never the payment. Rating is what the
     gang owns and it is pinned for good: haggling a sword down does not
     make it a lesser sword, and paying over the odds does not make it a
-    better one. Only the credits leaving the bank move.
+    better one. Only the credits leaving the bank move. ``rate_at_paid``
+    is the rating box, for a table that reads a thing bought below its
+    full price as worth only what was paid.
 
     ``surcharge`` is what the options picked on this line add. It
     lands on both figures, because a mount with plasma guns is a dearer
     mount and not a discounted one: what was agreed at the table is the
     gap between the two, and picking an option never changes it.
     """
-    listed = line.credits + surcharge
+    full = _full_price(line, surcharge)
     paid = paid + surcharge
-    return {"paid": paid, "list_price": listed, "discount": listed - paid}
+    if rate_at_paid and paid < full:
+        return {"paid": paid, "list_price": paid, "discount": 0}
+    return {"paid": paid, "list_price": full, "discount": full - paid}
+
+
+def _rating_box(request, charges):
+    """The rating box for one click, or ``None`` where it has nothing to ask.
+
+    ``charges`` is every ``(line, paid, surcharge)`` the click makes. The
+    box is asked where any is below its full price, and not again once
+    the reader has confirmed: their tick, or its absence, is the choice.
+    """
+    from n26.core.confirm import Checkbox
+
+    if request.POST.get(CONFIRM_FIELD):
+        return None
+    below = [
+        (line_paid + surcharge, _full_price(line, surcharge))
+        for line, line_paid, surcharge in charges
+    ]
+    below = [(paid, full) for paid, full in below if paid < full]
+    if not below:
+        return None
+    paid = sum(paid for paid, _ in below)
+    full = sum(full for _, full in below)
+    return Checkbox(
+        name=RATE_FIELD,
+        value=RATE_AT_PAID,
+        label="Match rating to price",
+        description=(
+            f"By default, this keeps its full rating of {full}¢ even though "
+            f"you pay {paid}¢. If your group agrees that something bought "
+            "for less is worth only what you paid — for example, one given "
+            "to you for free — tick this box to set its rating to "
+            f"{paid}¢."
+        ),
+    )
+
+
+def _rating_question(request, line, spent, checkbox, back):
+    """The page that asks how to rate a purchase made below its full price.
+
+    Only where nothing else is asked: an overspend question carries the
+    box itself, so one click never opens two questions.
+    """
+    from n26.core.confirm import Confirmation, carried
+
+    return Confirmation(
+        title="Choose the rating",
+        lead=f"{line.name} — {spent}¢.",
+        heading="You are paying less than its full price",
+        body=(
+            "Choose whether it adds its full price or the price you pay "
+            "to the gang's rating."
+        ),
+        variant="info",
+        checkbox=checkbox,
+        confirm_label=f"Buy {line.name}",
+        action=request.get_full_path(),
+        cancel_url=back,
+        carry=carried(request.POST, leave_out={RATE_FIELD}),
+        confirm_value="1",
+    )
 
 
 #: What a collection's name says at the end when it says what it is. Every
@@ -753,14 +829,27 @@ def _buy_clicked(
     except BadPrice as refusal:
         messages.error(request, str(refusal))
         return None
-    charge = _charge(line, paid, surcharge)
+    # Absent means unticked, because that is all an unticked box posts,
+    # and unticked keeps the full rating.
+    rate_at_paid = request.POST.get(RATE_FIELD) == RATE_AT_PAID
+    charge = _charge(line, paid, surcharge, rate_at_paid=rate_at_paid)
     # Asked before anything is written, and answered by the reader
     # rather than by a rule: an overspend of Trade Points is allowed,
-    # and only doing it without meaning to is not.
+    # and only doing it without meaning to is not. The rating box rides
+    # the overspend question where both apply.
     asked = _trade_points_asked(line, picked)
+    checkbox = _rating_box(
+        request,
+        [
+            (line, paid, surcharge),
+            *((part, part_paid, 0) for part, part_paid in paid_for),
+        ],
+    )
     confirmation = _overspend(request, gang, line, asked, at, budget, into)
     if confirmation is not None:
-        return confirmation
+        return replace(confirmation, checkbox=checkbox)
+    if checkbox is not None:
+        return _rating_question(request, line, charge["paid"], checkbox, at)
     try:
         with operation(gang, actor=request.user) as op:
             # The picked sets go to the operation, which materialises
@@ -784,7 +873,7 @@ def _buy_clicked(
                     bought,
                     line=part,
                     activity=_counted_against(gang, part, budget),
-                    **_charge(part, part_paid),
+                    **_charge(part, part_paid, rate_at_paid=rate_at_paid),
                 )
     except Refusal as refusal:
         messages.error(request, str(refusal))
