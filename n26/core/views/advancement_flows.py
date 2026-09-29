@@ -30,20 +30,6 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
     selection = getattr(record, "advancement_selection", None)
     promotion = promotion_for(record, configured)
     replacement = replaces_roll(record, configured)
-    if step == "roll" and selection and selection.roll_event_id:
-        if request.method == "POST":
-            return redirect(flow_url(fighter, record, "choose"))
-        return _page(
-            request,
-            fighter,
-            record.action,
-            record=record,
-            stage="roll",
-            form=EmptyActionForm(),
-            recorded_roll=selection.roll_event.roll,
-            submit_label="Continue",
-            submit_variant="primary",
-        )
     if (
         replacement
         and request.method == "POST"
@@ -66,11 +52,22 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
                     request, fighter, record.action, refusal, record=record
                 )
             return redirect(flow_url(fighter, record, "choose"))
-    if not replacement and (selection is None or selection.roll_event_id is None):
+    if not replacement and (
+        step == "roll" or selection is None or selection.roll_event_id is None
+    ):
         if correction:
             raise Refusal("This advancement has no recorded roll to correct.")
+        previous_roll = (
+            selection.roll_event if selection and selection.roll_event_id else None
+        )
         form = AdvancementRollForm(
-            request.POST or None, initial={"request_key": uuid4(), "roll_mode": "roll"}
+            request.POST or None,
+            initial={
+                "request_key": uuid4(),
+                "roll_mode": "record" if previous_roll else "roll",
+                "rolled": previous_roll.roll if previous_roll else None,
+                "previous_roll": previous_roll.pk if previous_roll else None,
+            },
         )
         if request.method == "POST" and form.is_valid():
             try:
@@ -80,6 +77,7 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
                         configured,
                         form.cleaned_data["request_key"],
                         rolled=form.cleaned_data["rolled"],
+                        previous_roll=form.cleaned_data["previous_roll"] or None,
                     )
                 return redirect(flow_url(fighter, record, "choose"))
             except Refusal as refusal:
@@ -91,14 +89,13 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
             record=record,
             stage="roll",
             form=form,
-            roll_modes=[
-                {
-                    "value": value,
-                    "label": label,
-                    "checked": (form["roll_mode"].value() or "roll") == value,
-                }
-                for value, label in form.fields["roll_mode"].choices
-            ],
+            advancement_roll={
+                "mode": form["roll_mode"].value() or "roll",
+                "rolled": str(form["rolled"].value() or ""),
+                "modeErrors": list(form["roll_mode"].errors),
+                "rolledErrors": list(form["rolled"].errors),
+                "previousRoll": previous_roll.roll if previous_roll else None,
+            },
             submit_label="Continue",
             submit_variant="primary",
         )

@@ -410,8 +410,9 @@ def record_action_roll(
     rolled=None,
     rng=None,
     decline_promotion=False,
+    previous_roll=None,
 ):
-    """Persist one 2D6 roll and its record-owned slot before any result pick."""
+    """Record a 2D6 roll, retaining earlier events when a draft roll is changed."""
     requested_record = record
     record = _validate_draft(op, record, configured)
     promotion = promotion_for(record, configured)
@@ -428,7 +429,16 @@ def record_action_roll(
             or selection.slot_assignment.slot_id != configured.slot_id
         ):
             raise Refusal("This action already has a roll for another advancement.")
-        return selection
+        if previous_roll is None or record.terms.get("action_roll_request") == str(
+            request_key
+        ):
+            return selection
+        if str(selection.roll_event_id) != str(previous_roll):
+            raise Refusal("This roll has changed. Reload this page before changing it.")
+        if rolled == selection.roll_event.roll:
+            return selection
+    elif previous_roll is not None:
+        raise Refusal("This roll has changed. Reload this page before changing it.")
     from n26.core.promotions import remove_unfinished_promotion
 
     remove_unfinished_promotion(op, record, selection)
@@ -473,9 +483,24 @@ def record_action_roll(
     )
     selection.slot_assignment, selection.roll_event = anchor, event
     selection.promotion = promotion
+    selection.intended_pick = None
     selection.save(
-        update_fields=["slot_assignment", "roll_event", "promotion", "modified"]
+        update_fields=[
+            "slot_assignment",
+            "roll_event",
+            "promotion",
+            "intended_pick",
+            "modified",
+        ]
     )
+    if previous_roll is not None:
+        record.terms = {
+            key: value
+            for key, value in record.terms.items()
+            if key not in {"pickable_id", "skill_id", "skill_set_id"}
+        }
+        record.review = {}
+        record.revision += 1
     record.terms = {
         **record.terms,
         "action_roll_request": str(request_key),
@@ -483,7 +508,7 @@ def record_action_roll(
         "promotion_rule": str(promotion.pk) if promotion else None,
         "decline_promotion": bool(promotion and promotion.replaces_advancement),
     }
-    record.save(update_fields=["terms", "modified"])
+    record.save(update_fields=["terms", "review", "revision", "modified"])
     requested_record.terms = record.terms
     return selection
 

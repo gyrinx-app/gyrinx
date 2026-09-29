@@ -1,9 +1,8 @@
 {% extends "n26/layouts/base.html" %}
+{% load react %}
 {% comment %}
-This flow remains server-rendered until the React layer has a form bridge for
-Django validation, CSRF, signed review state, persisted random rolls and
-multi-stage resume state. Converting it before that shared primitive exists
-would invent a new client/server contract inside this feature.
+Django owns navigation, validation, signed reviews and persisted rolls.
+The roll controls submit through the surrounding form.
 {% endcomment %}
 {% block head_title %}{{ action }} — {{ miniature.name }}{% endblock %}
 {% block nav_items %}
@@ -97,35 +96,7 @@ would invent a new client/server contract inside this feature.
                 {% endfor %}
             </c-n26.form-section>
         {% elif stage == "roll" %}
-            {% if recorded_roll %}
-                <c-n26.form-section title="Recorded roll">
-                    <p class="text-lg font-semibold">2D6: {{ recorded_roll }}</p>
-                    <p class="text-muted">Continue to choose an advancement using this roll.</p>
-                </c-n26.form-section>
-            {% else %}
-                <c-n26.radio-cards label="Roll 2D6" :form="form" name="roll_mode" min="min(100%, 18rem)">
-                    {% for mode in roll_modes %}
-                        <c-n26.radio-cards.card name="roll_mode"
-                                                value="{{ mode.value }}"
-                                                label="{{ mode.label }}"
-                                                :checked="mode.checked" />
-                    {% endfor %}
-                </c-n26.radio-cards>
-                <c-ui.field label="Your 2D6 total"
-                            description="If you rolled your own dice, enter their total."
-                            :form="form"
-                            name="rolled"
-                            error="rolled"
-                            for="advancement-roll">
-                    <c-ui.input id="advancement-roll"
-                                name="rolled"
-                                type="number"
-                                min="2"
-                                max="12"
-                                inputmode="numeric"
-                                value="{{ form.rolled.value|default_if_none:'' }}" />
-                </c-ui.field>
-            {% endif %}
+            {% react_island "advancement-roll" advancement_roll %}
         {% elif stage == "advancement" %}
             <c-n26.form-section title="{{ advancement_title }}"
                                 description="{{ promotion_description }}">

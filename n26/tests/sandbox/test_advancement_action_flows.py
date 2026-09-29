@@ -235,7 +235,7 @@ class TestAnEarnedAdvancementStartsAndResumes:
         assert "It asks" not in html
         assert "Roll 4+" in html
         back = client.get(page.context["back_href"])
-        assert back.context["recorded_roll"] == 4
+        assert back.context["advancement_roll"]["previousRoll"] == 4
         client.post(page.context["back_href"], {**payload, "rolled": "12"})
         record.refresh_from_db()
         assert record.advancement_selection.roll_event.roll == 4
@@ -270,10 +270,10 @@ class TestAnEarnedAdvancementStartsAndResumes:
             action_record=record, kind=LedgerEvent.Kind.ROLLED
         ).exists()
 
-    def test_an_entered_total_is_not_silently_replaced_by_a_generated_roll(
+    def test_generated_roll_ignores_the_disabled_total(
         self, client, monkeypatch, advancement
     ):
-        _load_rolls(monkeypatch)
+        _load_rolls(monkeypatch, 6)
         record = _start(client, advancement)
         url = reverse(
             "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
@@ -287,11 +287,67 @@ class TestAnEarnedAdvancementStartsAndResumes:
                 "rolled": "8",
             },
         )
-        assert response.status_code == 200
-        assert "roll_mode" in response.context["form"].errors
-        assert not LedgerEvent.objects.filter(
-            action_record=record, kind=LedgerEvent.Kind.ROLLED
-        ).exists()
+        assert response.status_code == 302
+        assert (
+            LedgerEvent.objects.get(
+                action_record=record, kind=LedgerEvent.Kind.ROLLED
+            ).roll
+            == 6
+        )
+
+
+class TestChangingTheRoll:
+    def test_back_allows_a_correction_and_invalidates_the_old_review(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        reviewed = client.post(
+            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        )
+        review_page = client.get(reviewed.url)
+        token = review_page.context["form"]["review"].value()
+        skill_page = client.get(review_page.context["back_href"])
+        choices = client.get(skill_page.context["back_href"])
+        roll_url = choices.context["back_href"]
+        page = client.get(roll_url)
+        payload = {
+            "request_key": page.context["form"]["request_key"].value(),
+            "previous_roll": page.context["form"]["previous_roll"].value(),
+            "roll_mode": "record",
+            "rolled": "3",
+        }
+        response = client.post(roll_url, payload)
+        assert response.status_code == 302, response.context["form"].errors
+        record.refresh_from_db()
+        assert record.advancement_selection.roll_event.roll == 3
+        assert record.review == {}
+        assert "pickable_id" not in record.terms
+        assert "skill_id" not in record.terms
+        choices = client.get(response.url)
+        assert choices.context["roll_value"] == 3
+        assert [
+            item["option"].name for item in choices.context["advancement_options"]
+        ] == ["Select Secondary skill", "Select Primary skill"]
+        assert client.post(roll_url, payload).status_code == 302
+        stale = client.post(
+            roll_url, {**payload, "request_key": str(uuid4()), "rolled": "5"}
+        )
+        assert stale.status_code == 200
+        assert "This roll has changed" in stale.content.decode()
+        client.post(reviewed.url, {"review": token})
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        assert sorted(
+            LedgerEvent.objects.filter(
+                action_record=record, kind=LedgerEvent.Kind.ROLLED
+            ).values_list("roll", flat=True)
+        ) == [3, 12]
+        assert_reconciled(advancement.gang)
 
 
 class TestSelectingSkills:
