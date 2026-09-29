@@ -21,7 +21,11 @@ export function AdvancementRoll(props: AdvancementRollProps) {
                     the history if you change it.
                 </p>
             )}
-            <RadioCards legend="Roll 2D6" min="min(100%, 18rem)">
+            <RadioCards
+                legend="Roll 2D6"
+                min="min(100%, 18rem)"
+                errors={props.modeErrors}
+            >
                 <RadioCard
                     name="roll_mode"
                     value="roll"
@@ -37,11 +41,6 @@ export function AdvancementRoll(props: AdvancementRollProps) {
                     onChange={() => setMode("record")}
                 />
             </RadioCards>
-            {props.modeErrors.map((error) => (
-                <p key={error} role="alert">
-                    {error}
-                </p>
-            ))}
             <Field
                 label="Your 2D6 total"
                 htmlFor={id}

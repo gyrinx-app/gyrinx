@@ -38,7 +38,7 @@ describe("advancement roll", () => {
             <AdvancementRoll
                 mode="record"
                 rolled="13"
-                modeErrors={[]}
+                modeErrors={["Choose how to roll."]}
                 rolledErrors={["Enter a total from 2 to 12."]}
                 previousRoll={4}
             />,
@@ -49,6 +49,12 @@ describe("advancement roll", () => {
         expect(total.disabled).toBe(false);
         expect(total.value).toBe("13");
         expect(total.getAttribute("aria-invalid")).toBe("true");
+        const group = screen.getByRole("group", { name: "Roll 2D6" });
+        expect(group.getAttribute("aria-invalid")).toBe("true");
+        expect(
+            document.getElementById(group.getAttribute("aria-describedby")!)
+                ?.textContent,
+        ).toBe("Choose how to roll.");
         expect(screen.getByText(/Recorded roll: 4/)).toBeTruthy();
     });
 });
