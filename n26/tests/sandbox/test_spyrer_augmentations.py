@@ -39,6 +39,7 @@ from django.urls import reverse
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.models import Assignment
+from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_model_card, option_key
 from n26.library.authoring import is_one_of, targets_weapons
@@ -336,6 +337,65 @@ def traits_of(weapon):
     return [trait.name for trait in weapon.profiles[0].traits]
 
 
+@pytest.mark.parametrize("recruitment", [True, False])
+def test_a_weapon_stat_names_its_tier_after_either_kind_of_augmentation(
+    client,
+    owner,
+    gang,
+    spyrer,
+    bolt_launchers,
+    bolt_launcher_tiers,
+    augmentation,
+    counter_tracking,
+    recruitment,
+):
+    from uuid import uuid4
+
+    from n26.core.operations import operation
+    from n26.library import authoring as a
+
+    kills = a.create_counter("Kill Count")
+    outcome = a.create_outcome("Augment weapon", a.augment_carried_item(augmentation))
+    action = a.create_action(
+        "Recruitment augmentation" if recruitment else "Suit Evolution",
+        "recruitment" if recruitment else "post_cycle",
+        outcomes=[outcome],
+        allowance_rule=a.recruitment_allowance_rule() if recruitment else None,
+        use_price=[]
+        if recruitment
+        else [
+            {"resource": "counter", "payer": "fighter", "counter": kills, "amount": 4}
+        ],
+    )
+    a.add_built_in(spyrer, action)
+    a.add_built_in(spyrer, kills)
+    fighter = hire(gang, spyrer, "Hunt Master", paid=200)
+    weapon = buy(fighter, thing=bolt_launchers, paid=0)
+    with operation(gang, actor=owner) as op:
+        balance = fighter.assignments.get(counter=kills, archived=False)
+        op.tally(balance, 4)
+        record = op.start_action(fighter, action, uuid4())
+        record = op.review_action(
+            record,
+            outcome=outcome,
+            terms={
+                "item_assignment": str(weapon.pk),
+                "intended_pick": str(bolt_launcher_tiers["Tier 1"].pk),
+            },
+        )
+        op.complete_action(
+            record, revision=record.revision, review=record.review, outcome=outcome
+        )
+    cell = gun_of(fighter, "Bolt launchers").profiles[0].statline.get("L")
+    assert cell.value == "2"
+    assert cell.modified
+    assert "Tier 1" in cell.changed_by
+    client.force_login(owner)
+    html = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+    assert "L changed by Tier 1" in html
+    assert_reconciled(gang)
+
+
 def choice_behind(miniature, item):
     """The computed choice an item carries: the one whose anchor the
     item's assignment caused."""
@@ -567,19 +627,17 @@ class TestTheLadderIsTheModelsOwn:
         assert len(gun_of(orrus, "Bolt launchers").choices) == 1
         assert_reconciled(gang)
 
-    def test_a_climbed_ladder_goes_back_to_the_stash_with_the_item(
+    def test_an_earned_tier_keeps_the_item_with_its_fighter(
         self, gang, orrus, bolt_launcher_tiers
     ):
-        """The other way: stashing the gun takes its level out of play and
-        off the model's card, and it returns when the gun is taken up."""
         climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
         launchers = orrus.assignments.get(weapon__isnull=False, archived=False)
 
-        move(launchers, gang.stash)
-        drawn, _ = card_for(orrus)
-        assert drawn.questions == []
-
-        move(launchers, orrus)
+        with pytest.raises(
+            Refusal, match="earned augmentations that cannot be transferred"
+        ):
+            with operation(gang, actor=gang.owner) as op:
+                op.reassign(launchers, gang.stash)
         assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "2"
         assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 1"]
         assert_reconciled(gang)
@@ -900,16 +958,19 @@ class TestTierLaddersNeedAnAction:
         )
         other = hire(gang, spyrer, "Kaustos", paid=200)
         launchers = orrus.assignments.get(weapon__isnull=False, archived=False)
-        move(launchers, other)
-        moved_picker = self.picker(gang, other)
-        assert client.post(moved_picker, {"thing": "none"}).status_code == 302
+        assert client.post(picker, {"thing": "none"}).status_code == 302
+        with pytest.raises(
+            Refusal, match="earned augmentations that cannot be transferred"
+        ):
+            with operation(gang, actor=gang.owner) as op:
+                op.reassign(launchers, other)
         assert (
             client.post(
-                moved_picker, {"thing": option_key(bolt_launcher_tiers["Tier 2"])}
+                picker, {"thing": option_key(bolt_launcher_tiers["Tier 2"])}
             ).status_code
             == 302
         )
-        assert [c.chosen for c in gun_of(other, "Bolt launchers").choices] == ["Tier 2"]
+        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 2"]
         assert_reconciled(gang)
 
     def test_a_tier_selected_before_actions_remains_available_after_choosing_none(

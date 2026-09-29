@@ -597,6 +597,19 @@ def review_action(op, record, *, outcome, terms=None):
     return record
 
 
+def preview_changes_review(record):
+    """Read current balances and targets without changing a saved draft."""
+    quote = quote_for(record.fighter, record.action, gang=record.gang)
+    return {
+        "price": quote.snapshot(),
+        "content": _content_snapshot(record.action),
+        "target": _target_snapshot(
+            record, record.outcome.operation, record.terms, quote=quote
+        ),
+        "terms": deepcopy(record.terms),
+    }
+
+
 def save_action_choices(op, record, *, outcome, terms):
     """Save an explicit draft step without running its typed preview."""
     record = _locked(op, record)
@@ -664,6 +677,15 @@ def _plan_apply_changes(op, record, operation, quote):
     if not changed_counter and not any(
         kind == "picks" and target for kind, target, _ in planned
     ):
+        removed_types = [
+            change.remove_picks.slot_type
+            for change in changes
+            if change.remove_picks_id
+        ]
+        if len(removed_types) == 1 and all(value == 0 for value in starting.values()):
+            raise Refusal(
+                f"This model has no {removed_types[0].plural.lower()} to clear."
+            )
         raise Refusal("That outcome would not change this fighter.")
     return planned
 
@@ -763,6 +785,8 @@ def _pay(op, record, quote):
 
 
 def complete_action(op, record, *, revision, review, outcome):
+    from n26.library.models import ApplyChanges
+
     record = _locked(op, record)
     if record.state == ActionRecord.State.COMPLETED:
         return record
@@ -773,7 +797,11 @@ def complete_action(op, record, *, revision, review, outcome):
         )
     if record.state != ActionRecord.State.STARTED:
         raise Refusal("That action use is no longer awaiting confirmation.")
-    if revision != record.revision or review != record.review:
+    if revision != record.revision or review.get("terms") != record.terms:
+        raise Refusal("Review this action again before confirming it.")
+    # Counter and removal previews are refreshed on read. Confirmation checks
+    # the signed preview against current state and stores it with the receipt.
+    if not isinstance(outcome.operation, ApplyChanges) and review != record.review:
         raise Refusal("Review this action again before confirming it.")
     _validate_draft_definition(record)
     if record.terms.get("outcome") != str(outcome.pk):
@@ -791,16 +819,16 @@ def complete_action(op, record, *, revision, review, outcome):
         raise Refusal("That outcome is not available for this action.")
     outcome = outcome_member.outcome
     quote = quote_action(op, record.fighter, record.action)
-    if not quote.matches(record.review.get("price", [])):
+    if not quote.matches(review.get("price", [])):
         raise Refusal("The price changed. Review this action again.")
-    if _content_snapshot(record.action) != record.review.get("content"):
+    if _content_snapshot(record.action) != review.get("content"):
         raise Refusal("The action changed. Review it again before confirming.")
     configured = outcome.operation
     if configured is None:
         raise LibraryError(f"{outcome} has no operation.")
-    if _target_snapshot(
-        record, configured, record.terms, quote=quote
-    ) != record.review.get("target"):
+    if _target_snapshot(record, configured, record.terms, quote=quote) != review.get(
+        "target"
+    ):
         raise Refusal("The fighter changed. Review this action again.")
     apply_outcome = _prepare_outcome(op, record, configured, quote)
     rating_before = record.fighter.recompute_rating()
@@ -808,6 +836,7 @@ def complete_action(op, record, *, revision, review, outcome):
     apply_outcome()
     rating_after = record.fighter.recompute_rating()
     record.outcome = outcome
+    record.review = review
     record.state = ActionRecord.State.COMPLETED
     record.completed_event = op.event(
         record.fighter,
@@ -819,6 +848,7 @@ def complete_action(op, record, *, revision, review, outcome):
     record.save(
         update_fields=[
             "outcome",
+            "review",
             "state",
             "payment_id",
             "completed_event",

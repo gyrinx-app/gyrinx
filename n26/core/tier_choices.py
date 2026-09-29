@@ -1,7 +1,38 @@
 """Earned augmentation tiers available through the ordinary choice page."""
 
 from n26.core.models import ActionRecord, Assignment, LedgerEvent, SlotSelection
-from n26.library.models import PicklistMember
+from n26.library.models import PicklistMember, Slot
+
+
+def augmentation_bound_items(assignments):
+    """Items with earned tiers, including any parent that would move them."""
+    assignments = {assignment.pk: assignment for assignment in assignments}
+    slot_ids = [pk for pk, assignment in assignments.items() if assignment.slot_id]
+    if not slot_ids:
+        return frozenset()
+    slots = dict(
+        Assignment.objects.filter(
+            pk__in=slot_ids,
+            archived=False,
+            slot__mode=Slot.Mode.TIER_LADDER,
+            slot__assigned_to=Slot.WillBeAssignedTo.BEARER,
+            caused_by__isnull=False,
+        ).values_list("pk", "caused_by_id")
+    )
+    earned = earned_slot_ids(list(slots))
+    bound = set()
+    for slot_id, item_id in slots.items():
+        if str(slot_id) not in earned:
+            continue
+        pending = [item_id]
+        while pending:
+            item_id = pending.pop()
+            if item_id not in assignments or item_id in bound:
+                continue
+            bound.add(item_id)
+            item = assignments[item_id]
+            pending.extend((item.parent_id, item.caused_by_id))
+    return frozenset(bound)
 
 
 def earned_slot_ids(slot_assignment_ids):

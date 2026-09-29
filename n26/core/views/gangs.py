@@ -365,7 +365,10 @@ def gang_sheet(request, pk):
             dismiss_back=at,
         )
         link_skills(*sheet.models)
-        link_stash_actions(sheet, at, refunds=not gang.credits_unlimited)
+        host = EquipHost.stash(gang, card, at=at)
+        link_stash_actions(
+            sheet, at, refunds=not gang.credits_unlimited, bound_items=host.bound_items
+        )
         if sheet.campaign:
             # The campaign's counters only. A model's counter is moved on
             # the model's own page; a campaign counter is drawn here and
@@ -390,7 +393,6 @@ def gang_sheet(request, pk):
         and not ransoming
         and any(request.GET.get(kind) for kind in DIALOGS)
     ):
-        host = EquipHost.stash(gang, card, at=at)
         dialog = owned_dialog(request, host)
     return render(
         request,
