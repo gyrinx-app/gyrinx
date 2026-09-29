@@ -419,7 +419,26 @@ def test_call_site_disabled_false_is_rejected_even_when_declared(tmp_path):
     )
     assert status == 1
     assert ":disabled=" in out
+    # The toggle consumes disabled itself; its :attrs land on the label.
+    assert "omit the attribute." in out
+    assert ":attrs" not in out
+
+
+def test_interpolated_disabled_is_rejected(tmp_path):
+    """disabled="{{ flag }}" renders the attribute whatever flag is."""
+    status, out = _gate(
+        tmp_path, '<c-ui.button disabled="{{ locked }}">Off</c-ui.button>'
+    )
+    assert status == 1
     assert ":attrs" in out
+
+
+def test_formnovalidate_false_is_rejected(tmp_path):
+    status, out = _gate(
+        tmp_path, '<c-ui.button formnovalidate="False">Go</c-ui.button>'
+    )
+    assert status == 1
+    assert "formnovalidate" in out
 
 
 def test_a_suppression_covers_only_the_violation_it_names(tmp_path):

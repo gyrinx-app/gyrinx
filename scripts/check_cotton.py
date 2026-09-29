@@ -71,6 +71,18 @@ BOOLEAN_HTML_ATTRS = frozenset(
         "hidden",
         "open",
         "inert",
+        "formnovalidate",
+        "novalidate",
+        "autoplay",
+        "controls",
+        "muted",
+        "loop",
+        "playsinline",
+        "default",
+        "reversed",
+        "nomodule",
+        "allowfullscreen",
+        "itemscope",
     }
 )
 _BOOLEAN_NAMES = "|".join(sorted(BOOLEAN_HTML_ATTRS))
@@ -79,6 +91,11 @@ BOOLEAN_FALSE_COLON = re.compile(
 )
 BOOLEAN_FALSE_PLAIN = re.compile(
     rf"""(?:^|\s)(?<!:)({_BOOLEAN_NAMES})=["'](?:False|false|None|none)["']"""
+)
+# `disabled="{{ flag }}"` on a prop the component does not declare lands in
+# {{ attrs }} and renders the attribute whatever flag is.
+BOOLEAN_INTERPOLATED = re.compile(
+    rf"""(?:^|\s)(?<!:)({_BOOLEAN_NAMES})=["'][^"']*\{{[{{%]"""
 )
 CVARS = re.compile(r"<c-vars\b(.*?)/?>", re.S)
 # A <c-vars> entry is `name="default"`, `:name="expr"`, or a bare `name` with
@@ -159,14 +176,38 @@ def line_of(src, pos):
     return src.count("\n", 0, pos) + 1
 
 
-def _boolean_false_message(rel, line, name, prop, prefixed):
+def _passes_through(declared, prop):
+    """Does this prop land in {{ attrs }}? Unknown components count as yes."""
+    return declared is None or (
+        prop not in declared and prop.replace("-", "_") not in declared
+    )
+
+
+def _boolean_false_message(rel, line, name, prop, prefixed, passthrough):
     written = f':{prop}="False"' if prefixed else f'{prop}="False"'
+    # A component that declares the prop consumes it itself, so its :attrs
+    # land somewhere else (c-n26.toggle puts them on the wrapping label).
+    fix = (
+        f"omit the attribute, or pass :attrs with {{'{prop}': True}} or {{}}."
+        if passthrough
+        else "omit the attribute."
+    )
     return (
         f"{rel}:{line}: <c-{name} {written}> still leaves the control {prop}.\n"
         "    HTML boolean attributes are live when present, and the string "
         "False is truthy in Django templates.\n"
-        f"    Fix: omit the attribute, or pass :attrs with "
-        f"{{'{prop}': True}} or {{}}."
+        f"    Fix: {fix}"
+    )
+
+
+def _boolean_interpolated_message(rel, line, name, prop):
+    return (
+        f'{rel}:{line}: <c-{name} {prop}="{{{{ ... }}}}"> renders {prop} '
+        "whatever the value is.\n"
+        "    HTML boolean attributes are live when present, and the string "
+        "False is truthy in Django templates.\n"
+        f"    Fix: pass :attrs with {{'{prop}': True}} or {{}}, or pass a "
+        f'declared prop as a bare dotted path (:{prop}="flag").'
     )
 
 
@@ -229,23 +270,48 @@ def main():
             # 2. HTML boolean False at a call site. `<c-vars :disabled="False">`
             # is a Python default; skip those. Bare `disabled` (no value) is
             # the documented always-off pattern for kit buttons.
+            if name not in cache:
+                cache[name] = declared_props(name)
+            declared = cache[name]
+
             flagged_bool = set()
             if name != "vars":
                 for bool_match in BOOLEAN_FALSE_COLON.finditer(attrs):
                     prop = bool_match.group(1)
                     flagged_bool.add(prop)
-                    found.append(_boolean_false_message(rel, line, name, prop, True))
+                    found.append(
+                        _boolean_false_message(
+                            rel, line, name, prop, True, _passes_through(declared, prop)
+                        )
+                    )
                 for bool_match in BOOLEAN_FALSE_PLAIN.finditer(attrs):
                     prop = bool_match.group(1)
                     if prop in flagged_bool:
                         continue
                     flagged_bool.add(prop)
-                    found.append(_boolean_false_message(rel, line, name, prop, False))
+                    found.append(
+                        _boolean_false_message(
+                            rel,
+                            line,
+                            name,
+                            prop,
+                            False,
+                            _passes_through(declared, prop),
+                        )
+                    )
+                for bool_match in BOOLEAN_INTERPOLATED.finditer(attrs):
+                    prop = bool_match.group(1)
+                    if prop in flagged_bool:
+                        continue
+                    # A component that declares the prop decides what the
+                    # value means (c-ui.switch reads "true"/"false"), and a
+                    # kit component outside our roots cannot be checked.
+                    if declared is None or not _passes_through(declared, prop):
+                        continue
+                    flagged_bool.add(prop)
+                    found.append(_boolean_interpolated_message(rel, line, name, prop))
 
             # 3. dynamic attr that the component does not declare
-            if name not in cache:
-                cache[name] = declared_props(name)
-            declared = cache[name]
             if declared is not None:
                 for prop in DYN_ATTR.findall(attrs):
                     if prop in PROXY_ATTRS:
