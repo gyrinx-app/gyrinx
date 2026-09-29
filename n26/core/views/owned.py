@@ -652,7 +652,7 @@ def owned_dialog(request, host: EquipHost):
     }
 
 
-def link_stash_actions(sheet, at, *, refunds=True):
+def link_stash_actions(sheet, at, *, refunds=True, bound_items=frozenset()):
     """Add dialog links without querying; print and read-only sheets stay plain.
 
     ``refunds`` is whether the gang refunds in credits at all. A gang
@@ -662,18 +662,21 @@ def link_stash_actions(sheet, at, *, refunds=True):
     """
     from n26.core.listing import DANGER, LINK, SECONDARY, Action
 
+    bound_ids = {str(pk) for pk in bound_items}
     for line in sheet.stash:
         if not line.id:
             continue
-        menu = [
-            Action(
-                "Fit to a weapon" if line.is_accessory else "Reassign",
-                LINK,
-                with_query(at, reassign=line.id),
-                SECONDARY,
-            ),
-            Action("Sell", LINK, with_query(at, sell=line.id), DANGER),
-        ]
+        menu = []
+        if line.id not in bound_ids:
+            menu.append(
+                Action(
+                    "Fit to a weapon" if line.is_accessory else "Reassign",
+                    LINK,
+                    with_query(at, reassign=line.id),
+                    SECONDARY,
+                )
+            )
+        menu.append(Action("Sell", LINK, with_query(at, sell=line.id), DANGER))
         if refunds or line.paid_trade_points:
             menu.append(
                 Action("Refund", LINK, with_query(at, refund=line.id), SECONDARY)
@@ -1025,7 +1028,7 @@ def reassign_assignment(request, pk):
 
     try:
         with operation(gang, actor=request.user) as op:
-            op.move(assignment, destination)
+            op.reassign(assignment, destination)
     except Refusal as refusal:
         messages.error(request, str(refusal))
         return _unchanged(request, back)

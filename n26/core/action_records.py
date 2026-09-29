@@ -684,7 +684,7 @@ def _plan_apply_changes(op, record, operation, quote):
         ]
         if len(removed_types) == 1 and all(value == 0 for value in starting.values()):
             raise Refusal(
-                f"This fighter has no {removed_types[0].plural.lower()} to clear."
+                f"This model has no {removed_types[0].plural.lower()} to clear."
             )
         raise Refusal("That outcome would not change this fighter.")
     return planned

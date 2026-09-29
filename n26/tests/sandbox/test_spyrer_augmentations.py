@@ -39,7 +39,7 @@ from django.urls import reverse
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.models import Assignment
-from n26.core.operations import Refusal
+from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_model_card, option_key
 from n26.library.authoring import is_one_of, targets_weapons
@@ -634,9 +634,10 @@ class TestTheLadderIsTheModelsOwn:
         launchers = orrus.assignments.get(weapon__isnull=False, archived=False)
 
         with pytest.raises(
-            Refusal, match="earned augmentations belong to this fighter"
+            Refusal, match="earned augmentations that cannot be transferred"
         ):
-            move(launchers, gang.stash)
+            with operation(gang, actor=gang.owner) as op:
+                op.reassign(launchers, gang.stash)
         assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "2"
         assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 1"]
         assert_reconciled(gang)
@@ -959,9 +960,10 @@ class TestTierLaddersNeedAnAction:
         launchers = orrus.assignments.get(weapon__isnull=False, archived=False)
         assert client.post(picker, {"thing": "none"}).status_code == 302
         with pytest.raises(
-            Refusal, match="earned augmentations belong to this fighter"
+            Refusal, match="earned augmentations that cannot be transferred"
         ):
-            move(launchers, other)
+            with operation(gang, actor=gang.owner) as op:
+                op.reassign(launchers, other)
         assert (
             client.post(
                 picker, {"thing": option_key(bolt_launcher_tiers["Tier 2"])}

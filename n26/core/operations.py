@@ -2895,6 +2895,31 @@ class Operation:
             )
         return held
 
+    def reassign(self, assignment, to):
+        """Redistribute equipment without transferring earned augmentations.
+
+        Lifecycle operations use ``move`` directly so death, ransom and
+        promotion can still leave equipment in the stash.
+        """
+        from n26.core.models import Assignment, Miniature
+        from n26.core.tier_choices import augmentation_bound_items
+
+        destination_fighter_id = (
+            to.pk
+            if isinstance(to, Miniature)
+            else (to.miniature_root_id if isinstance(to, Assignment) else None)
+        )
+        if (
+            assignment.miniature_root_id is None
+            or assignment.miniature_root_id != destination_fighter_id
+        ) and augmentation_bound_items([assignment, *subtree(assignment)]):
+            raise Refusal(
+                f"You cannot reassign {assignment.assignable}. "
+                "It has earned augmentations that cannot be transferred."
+            )
+
+        return self.move(assignment, to)
+
     def move(self, assignment, to, note="", *, action_record=None):
         """Re-home an assignment — model to stash, stash to model, onto a gun.
 
@@ -2916,22 +2941,6 @@ class Operation:
         """
         from n26.core.models import Assignment, LedgerEvent, Miniature, Stash
         from n26.core.owned import is_detachable
-        from n26.core.tier_choices import augmentation_bound_items
-
-        destination_fighter_id = (
-            to.pk
-            if isinstance(to, Miniature)
-            else (to.miniature_root_id if isinstance(to, Assignment) else None)
-        )
-        if (
-            assignment.miniature_root_id is not None
-            and assignment.miniature_root_id != destination_fighter_id
-            and augmentation_bound_items([assignment, *subtree(assignment)])
-        ):
-            raise Refusal(
-                f"You cannot reassign {assignment.assignable}. "
-                "Its earned augmentations belong to this fighter."
-            )
 
         if assignment.parent_id is not None and not is_detachable(
             assignment.assignable

@@ -47,10 +47,18 @@ class EquipHost:
 
     @classmethod
     def stash(cls, gang, gang_card, at):
+        from n26.core.tier_choices import augmentation_bound_items
+
         return cls(
             gang=gang,
             at=at,
             roots=tuple(gang_card.stash_roots),
+            bound_items=augmentation_bound_items(
+                node.assignment
+                for root in gang_card.stash_roots
+                for node in root.walk()
+                if node.assignment is not None and not node.broadcast
+            ),
         )
 
 

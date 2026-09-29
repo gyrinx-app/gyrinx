@@ -107,9 +107,15 @@ def start(client, hunt, outcome):
 
 
 class TestSuitEvolutionForms:
-    def test_more_carried_ladders_do_not_add_per_item_queries(self, client, hunt):
+    @pytest.mark.parametrize("location", ["model", "stash"])
+    def test_more_ladders_do_not_add_per_item_queries(self, client, hunt, location):
         client.force_login(hunt.owner)
-        url = reverse("n26-edit-fighter", args=[hunt.fighter.pk])
+        if location == "stash":
+            with operation(hunt.gang, actor=hunt.owner) as op:
+                op.move(hunt.item, hunt.gang.stash)
+            url = reverse("n26-gang", args=[hunt.gang.pk])
+        else:
+            url = reverse("n26-edit-fighter", args=[hunt.fighter.pk])
 
         def measure():
             client.get(url)
@@ -120,7 +126,10 @@ class TestSuitEvolutionForms:
 
         one = measure()
         for _ in range(4):
-            buy(hunt.fighter, thing=hunt.item.wargear, paid=0)
+            item = buy(hunt.fighter, thing=hunt.item.wargear, paid=0)
+            if location == "stash":
+                with operation(hunt.gang, actor=hunt.owner) as op:
+                    op.move(item, hunt.gang.stash)
 
         assert measure() == one
 
@@ -848,12 +857,74 @@ class TestSuitEvolutionForms:
             reverse("n26-reassign", args=[hunt.item.pk]), payload, follow=True
         )
         assert (
-            "Its earned augmentations belong to this fighter."
+            "It has earned augmentations that cannot be transferred."
             in refused.content.decode()
         )
         hunt.item.refresh_from_db()
         assert hunt.item.miniature_root_id == hunt.fighter.pk
         assert statline() == before
+        assert list(record.ledger_events.values_list("pk", flat=True)) == events
+        hunt.gang.refresh_from_db()
+        assert_reconciled(hunt.gang)
+
+    @pytest.mark.parametrize("lifecycle", ["death", "unpaid_ransom"])
+    def test_death_stashes_augmented_kit_without_allowing_its_transfer(
+        self, client, hunt, lifecycle
+    ):
+        from n26.core.status import Status
+        from n26.tests.fixtures import admit_to_founding
+
+        admit_to_founding(hunt.owner)
+        item = buy(hunt.fighter, thing=hunt.item.wargear, paid=10)
+        record, _, _ = start(client, hunt, hunt.upgrade)
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            record = op.review_action(
+                record,
+                outcome=hunt.upgrade,
+                terms={
+                    "item_assignment": str(item.pk),
+                    "intended_pick": str(hunt.tiers[0].pk),
+                },
+            )
+            record = op.complete_action(
+                record,
+                revision=record.revision,
+                review=record.review,
+                outcome=hunt.upgrade,
+            )
+            other = op.hire(hunt.fighter.membership.profile, "Other hunter", paid=100)
+            if lifecycle == "unpaid_ransom":
+                op.set_status(hunt.fighter, Status.RANSOMED)
+        events = list(record.ledger_events.values_list("pk", flat=True))
+        if lifecycle == "unpaid_ransom":
+            url = reverse("n26-pay-ransom", args=[hunt.fighter.pk])
+            payload = {"outcome": "unpaid"}
+        else:
+            url = reverse("n26-mark-fighter", args=[hunt.fighter.pk])
+            payload = {"status": "dead", "kit": "stash"}
+        response = client.post(url, payload, follow=True)
+        assert response.status_code == 200
+        hunt.fighter.refresh_from_db()
+        item.refresh_from_db()
+        assert hunt.fighter.status == Status.DEAD
+        assert item.stash_root_id == hunt.gang.stash.pk
+        assert f"reassign={item.pk}" not in response.content.decode()
+        sheet = reverse("n26-gang", args=[hunt.gang.pk])
+        assert (
+            reverse("n26-reassign", args=[item.pk])
+            not in client.get(f"{sheet}?reassign={item.pk}").content.decode()
+        )
+        refused = client.post(
+            reverse("n26-reassign", args=[item.pk]),
+            {"miniature": str(other.pk)},
+            follow=True,
+        )
+        assert (
+            "earned augmentations that cannot be transferred"
+            in refused.content.decode()
+        )
+        item.refresh_from_db()
+        assert item.stash_root_id == hunt.gang.stash.pk
         assert list(record.ledger_events.values_list("pk", flat=True)) == events
         hunt.gang.refresh_from_db()
         assert_reconciled(hunt.gang)
@@ -936,7 +1007,7 @@ class TestSuitEvolutionForms:
         url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "review"])
         token = client.get(url).context["form"]["review"].value()
         refused = client.post(url, {"review": token})
-        assert "This fighter has no glitches to clear." in refused.content.decode()
+        assert "This model has no glitches to clear." in refused.content.decode()
         record.refresh_from_db()
         hunt.kills.counter_value.refresh_from_db()
         assert not record.payment_id
