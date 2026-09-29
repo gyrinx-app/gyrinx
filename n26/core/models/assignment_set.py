@@ -5,7 +5,7 @@ show on one card; everything else rides every card. Building a card
 without a set means everything the model owns.
 
 Selectable kinds are weapons and wargear hosted on the model; a weapon's
-ammo follows the weapon. Sets change no rating and never go through
+ammo follows the weapon. Sets change no stored rating and never go through
 ``n26.operations``.
 """
 

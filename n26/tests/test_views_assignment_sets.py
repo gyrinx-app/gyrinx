@@ -135,7 +135,7 @@ class TestManagingModelCards:
         assert list(Assignment.objects.values_list("pk", flat=True)) == equipment
         assert_reconciled(model.gang)
 
-    def test_all_equipment_comes_first_and_named_cards_keep_full_rating(
+    def test_all_equipment_comes_first_and_each_card_rates_its_equipment(
         self, client, model, kit, named, flag
     ):
         save_model_card(
@@ -156,7 +156,8 @@ class TestManagingModelCards:
             "Combat shotgun",
             "Stiletto knife",
         ]
-        assert shooting.rating == riding.rating == 185
+        assert shooting.rating == 55 + 35
+        assert riding.rating == 55 + 75 + 20
         assert shooting.type_line == "Fighter"
         assert riding.type_line == "Fighter (Mounted)"
         assert [weapon.name for weapon in shooting.weapons] == ["Combat shotgun"]
@@ -171,7 +172,7 @@ class TestManagingModelCards:
         assert response.status_code == 302
         card = client.get(response.url).context["cards"][1].card
         assert card.weapons == []
-        assert card.rating == 185
+        assert card.rating == 55
         assert [skill.name for skill in card.skills] == ["Nerves of Steel"]
 
     def test_editing_changes_the_name_and_selection(
