@@ -226,7 +226,7 @@ class TestRankedCardSurfaces:
         assert rendered.xp_target == 4
         assert rendered.xp_display == "0/4"
 
-    def test_the_card_and_both_model_screens_show_the_next_authored_xp_target(
+    def test_model_screens_show_the_title_without_repeating_the_target_on_the_card(
         self, client, fighter_with_ranks
     ):
         setup = fighter_with_ranks
@@ -241,7 +241,8 @@ class TestRankedCardSurfaces:
         assert edit.status_code == equip.status_code == 200
         for response in (edit, equip):
             assert "Rookie" in response.content.decode()
-            assert "Next rank at 4 XP" in response.content.decode()
+        assert "Next rank at 4 XP" in edit.content.decode()
+        assert "Next rank at" not in equip.content.decode()
         assert 'id="n26-progression-status"' in edit.content.decode()
         assert 'id="n26-progression-status"' not in equip.content.decode()
 
@@ -281,7 +282,8 @@ class TestRankedCardSurfaces:
         equip_html = equip_update.content.decode()
         assert equip_update.status_code == 200
         assert 'id="n26-model-card-host"' in equip_html
-        assert "Next rank at 7 XP" in equip_html
+        assert "Rookie" in equip_html
+        assert "Next rank at" not in equip_html
         assert 'id="n26-progression-status"' not in equip_html
 
     def test_more_ranked_fighters_do_not_add_roster_queries(self, fighter_with_ranks):

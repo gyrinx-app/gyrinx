@@ -137,7 +137,11 @@ def _post_roll(client, advancement, record):
     page = client.get(url)
     assert page.context["stage"] == "roll"
     response = client.post(
-        url, {"request_key": page.context["form"]["request_key"].value()}
+        url,
+        {
+            "request_key": page.context["form"]["request_key"].value(),
+            "roll_mode": "roll",
+        },
     )
     assert response.status_code == 302
     return response.url
@@ -266,6 +270,24 @@ class TestAnEarnedAdvancementStartsAndResumes:
         )
         assert response.status_code == 200
         assert "rolled" in response.context["form"].errors
+        assert not LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).exists()
+
+    def test_missing_roll_controls_do_not_generate_a_roll(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch)
+        record = _start(client, advancement)
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
+        )
+        page = client.get(url)
+        response = client.post(
+            url, {"request_key": page.context["form"]["request_key"].value()}
+        )
+        assert response.status_code == 200
+        assert "roll_mode" in response.context["form"].errors
         assert not LedgerEvent.objects.filter(
             action_record=record, kind=LedgerEvent.Kind.ROLLED
         ).exists()
