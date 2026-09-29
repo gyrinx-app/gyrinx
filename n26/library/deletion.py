@@ -603,12 +603,11 @@ class _Planner:
             if (
                 self.remove_built_in_copies
                 and gang is not None
-                and row.materialised_from_id is not None
                 and (
                     reference.field in ASSIGNABLE_FIELDS
                     or reference.field == "materialised_from"
                 )
-                and not _why_not_a_free_line(row)
+                and not _why_not_a_built_in_copy(row)
             ):
                 # A copy that is not free falls through and holds, as
                 # any gang's assignment does.
@@ -841,6 +840,26 @@ def _why_not_a_free_line(assignment):
     return ""
 
 
+def _why_not_a_built_in_copy(assignment):
+    """Why an assignment is not a free copy a model's built-ins handed
+    out — or empty where it is.
+
+    Only a carrier's own built-ins count. A set the player took as an
+    option was chosen, so its copies are history, and a copy hosted on
+    the gang or its stash has no model to name.
+    """
+    from n26.library.models import Option
+
+    if assignment.materialised_from_id is None:
+        return "did not come built in"
+    if assignment.miniature_root_id is None:
+        return "is not on a model"
+    member = assignment.materialised_from
+    if Option.objects.filter(default_set_id=member.default_set_id).exists():
+        return "came with an option somebody chose"
+    return _why_not_a_free_line(assignment)
+
+
 def plan_deletion(things, *, remove_free_lines=False, remove_built_in_copies=False):
     """Read what deleting these rows would take. Never writes.
 
@@ -956,7 +975,11 @@ def remove_free_lines_from(gang_id, plan):
             .order_by("pk")
         )
         for line in held:
-            why_not = _why_not_a_free_line(line)
+            why_not = (
+                _why_not_a_built_in_copy(line)
+                if plan.removes_built_in_copies
+                else _why_not_a_free_line(line)
+            )
             if why_not:
                 fighter = (
                     line.miniature_root.name if line.miniature_root_id else "a fighter"
@@ -982,8 +1005,11 @@ def remove_free_lines_from(gang_id, plan):
                 f"gang {gang.name} did not reconcile after removing the line: "
                 + "; ".join(problems)
             )
-        fighters = len(held)
-        said = f"gang {gang.name}: removed the line from {fighters} fighter{'' if fighters == 1 else 's'}"
+        n = len(held)
+        if plan.removes_built_in_copies:
+            said = f"gang {gang.name}: removed it from {n} model{'' if n == 1 else 's'}"
+        else:
+            said = f"gang {gang.name}: removed the line from {n} fighter{'' if n == 1 else 's'}"
         # The row goes with the last fighter: after this gang, nothing
         # may name it any more. Asked cheaply first; the full reading
         # only once the last copy is gone. That reading takes the
@@ -995,7 +1021,9 @@ def remove_free_lines_from(gang_id, plan):
             and not Assignment.objects.filter(**{_column(row): row}).exists()
         ]
         if unheld:
-            last = plan_deletion(unheld, remove_built_in_copies=True)
+            last = plan_deletion(
+                unheld, remove_built_in_copies=plan.removes_built_in_copies
+            )
             if last.ok and not last.lines and not last.touches_players:
                 apply(last)
                 said += f"; deleted {_and(_said(row) for row in unheld)}"

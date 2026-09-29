@@ -123,6 +123,26 @@ class TestOnceTakenOutOfEverySet:
         assert not plan.ok
         assert any("not staff" in words for words in plan.refusals)
 
+    def test_a_copy_from_an_option_the_player_took_still_refuses(
+        self, player, escher, person_type
+    ):
+        from n26.library.authoring import offer_option
+        from n26.tests.sandbox.actions import hire_with_option
+
+        champion = create_profile("Champion", person_type, escher, price=100)
+        chosen = create_skill("Chosen skill")
+        offer_option(champion, "Plain", thing=create_skill("Plain skill"))
+        option = offer_option(champion, "With a skill", thing=chosen)
+        theirs = found_gang("Theirs", escher, owner=player)
+        hire_with_option(theirs, champion, "Model 1", option=option.default_set)
+        take_out_of_its_set(chosen)
+
+        plan = plan_deletion([chosen], remove_built_in_copies=True)
+
+        assert Assignment.objects.filter(skill=chosen).exists()
+        assert not plan.ok
+        assert not plan.lines
+
     def test_the_page_names_the_models_and_deleting_removes_every_copy(
         self, author, client, player, escher, ganger, stray
     ):
