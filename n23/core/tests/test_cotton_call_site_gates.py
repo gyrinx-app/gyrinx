@@ -357,6 +357,71 @@ def test_the_gate_scans_n26_call_sites_against_n26_components(tmp_path):
     assert status == 0, out
 
 
+def test_disabled_false_on_ui_button_is_still_disabled(tmp_path):
+    """`:disabled="False"` on <c-ui.button> lands in {{ attrs }} as a live
+    HTML boolean. The previous undeclared-prop advice (`disabled="{{ value }}"`)
+    has the same bug. Pass :attrs with the key only when true."""
+    status, out = _gate(tmp_path, '<c-ui.button :disabled="False">Off</c-ui.button>')
+    assert status == 1
+    assert ":disabled=" in out
+    assert ":attrs" in out
+    assert "autoescaped" not in out
+
+
+def test_disabled_false_string_on_ui_button_is_still_disabled(tmp_path):
+    status, out = _gate(tmp_path, '<c-ui.button disabled="False">Off</c-ui.button>')
+    assert status == 1
+    assert 'disabled="False"' in out
+    assert ":attrs" in out
+
+
+def test_undeclared_disabled_prop_tells_you_to_use_attrs(tmp_path):
+    """A variable `:disabled="locked"` on <c-ui.button> is the same hole:
+    False still emits the attribute. Do not suggest interpolating it."""
+    status, out = _gate(tmp_path, '<c-ui.button :disabled="locked">Off</c-ui.button>')
+    assert status == 1
+    assert ":disabled=" in out
+    assert ":attrs" in out
+    assert "autoescaped" not in out
+
+
+def test_bare_disabled_on_ui_button_is_allowed(tmp_path):
+    """The gallery's always-off pattern is the bare HTML attribute."""
+    status, out = _gate(tmp_path, "<c-ui.button disabled>Off</c-ui.button>")
+    assert status == 0, out
+
+
+def test_attrs_dict_disabled_is_allowed(tmp_path):
+    status, out = _gate(
+        tmp_path, '<c-ui.button :attrs="row.minus_attrs">-1</c-ui.button>'
+    )
+    assert status == 0, out
+
+
+def test_cvars_disabled_false_default_is_allowed(tmp_path):
+    status, out = _gate(tmp_path, '<c-vars :disabled="False" class="" />')
+    assert status == 0, out
+
+
+def test_declared_disabled_variable_is_allowed(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        '<c-n26.tick-list :offer="offer" name="visiting" :disabled="visit_open" />',
+    )
+    assert status == 0, out
+
+
+def test_call_site_disabled_false_is_rejected_even_when_declared(tmp_path):
+    """Omitting the prop is the enabled state. A False literal at a call site
+    is never useful and is the string agents copy when they mean enabled."""
+    status, out = _gate(
+        tmp_path, '<c-n26.toggle label="On" name="t" :disabled="False" />'
+    )
+    assert status == 1
+    assert ":disabled=" in out
+    assert ":attrs" in out
+
+
 def test_a_suppression_covers_only_the_violation_it_names(tmp_path):
     """A PRE_EXISTING entry pins one call to the one failure it is known
     to carry. A second, unexpected violation on that same unchanged call

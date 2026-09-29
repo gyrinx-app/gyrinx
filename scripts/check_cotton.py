@@ -55,6 +55,31 @@ DYN_ATTR = re.compile(r"(?:^|\s):([\w.-]+)=")
 # `:attrs="attrs"` is cotton's own attribute-proxying idiom (merges a dict of
 # attributes a parent component already received), not a call-site value.
 PROXY_ATTRS = {"attrs"}
+# HTML boolean attributes are live when present. `:disabled="False"` and
+# `disabled="False"` both emit a live attribute (Cotton dumps undeclared
+# props through `{{ attrs }}`; a string "False" is also truthy in `{% if %}`).
+# `<c-vars :disabled="False">` is a Python default, not HTML.
+BOOLEAN_HTML_ATTRS = frozenset(
+    {
+        "disabled",
+        "checked",
+        "selected",
+        "required",
+        "readonly",
+        "multiple",
+        "autofocus",
+        "hidden",
+        "open",
+        "inert",
+    }
+)
+_BOOLEAN_NAMES = "|".join(sorted(BOOLEAN_HTML_ATTRS))
+BOOLEAN_FALSE_COLON = re.compile(
+    rf"""(?:^|\s):({_BOOLEAN_NAMES})=["'](?:False|false|None|none)["']"""
+)
+BOOLEAN_FALSE_PLAIN = re.compile(
+    rf"""(?:^|\s)(?<!:)({_BOOLEAN_NAMES})=["'](?:False|false|None|none)["']"""
+)
 CVARS = re.compile(r"<c-vars\b(.*?)/?>", re.S)
 # A <c-vars> entry is `name="default"`, `:name="expr"`, or a bare `name` with
 # no default at all (n26's ui/error.html declares `name form message` that
@@ -134,6 +159,28 @@ def line_of(src, pos):
     return src.count("\n", 0, pos) + 1
 
 
+def _boolean_false_message(rel, line, name, prop, prefixed):
+    written = f':{prop}="False"' if prefixed else f'{prop}="False"'
+    return (
+        f"{rel}:{line}: <c-{name} {written}> still leaves the control {prop}.\n"
+        "    HTML boolean attributes are live when present, and the string "
+        "False is truthy in Django templates.\n"
+        f"    Fix: omit the attribute, or pass :attrs with "
+        f"{{'{prop}': True}} or {{}}."
+    )
+
+
+def _undeclared_boolean_message(rel, line, name, prop):
+    return (
+        f"{rel}:{line}: <c-{name} :{prop}=...> is not declared in that "
+        f"component's <c-vars>, so it renders through {{{{ attrs }}}}.\n"
+        "    HTML boolean attributes are live when present — "
+        f':{prop}="False" still leaves the control {prop}.\n'
+        f"    Fix: pass :attrs with a dict that includes "
+        f"{{'{prop}': True}} only when true, or {{}}."
+    )
+
+
 def main():
     problems = []
     used = set()
@@ -179,7 +226,23 @@ def main():
                     "leave the element raw HTML."
                 )
 
-            # 2. dynamic attr that the component does not declare
+            # 2. HTML boolean False at a call site. `<c-vars :disabled="False">`
+            # is a Python default; skip those. Bare `disabled` (no value) is
+            # the documented always-off pattern for kit buttons.
+            flagged_bool = set()
+            if name != "vars":
+                for bool_match in BOOLEAN_FALSE_COLON.finditer(attrs):
+                    prop = bool_match.group(1)
+                    flagged_bool.add(prop)
+                    found.append(_boolean_false_message(rel, line, name, prop, True))
+                for bool_match in BOOLEAN_FALSE_PLAIN.finditer(attrs):
+                    prop = bool_match.group(1)
+                    if prop in flagged_bool:
+                        continue
+                    flagged_bool.add(prop)
+                    found.append(_boolean_false_message(rel, line, name, prop, False))
+
+            # 3. dynamic attr that the component does not declare
             if name not in cache:
                 cache[name] = declared_props(name)
             declared = cache[name]
@@ -188,15 +251,23 @@ def main():
                     if prop in PROXY_ATTRS:
                         continue
                     if prop.replace("-", "_") not in declared and prop not in declared:
-                        found.append(
-                            f"{rel}:{line}: <c-{name} :{prop}=...> is not declared in that "
-                            f"component's <c-vars>, so it renders through {{{{ attrs }}}}, which "
-                            f"is NOT html-escaped.\n"
-                            f'    Fix: use {prop}="{{{{ value }}}}" (autoescaped), or declare '
-                            f"the prop in <c-vars>."
-                        )
+                        canon = prop.replace("-", "_")
+                        if (
+                            canon in BOOLEAN_HTML_ATTRS or prop in BOOLEAN_HTML_ATTRS
+                        ) and prop not in flagged_bool:
+                            found.append(
+                                _undeclared_boolean_message(rel, line, name, prop)
+                            )
+                        elif prop not in flagged_bool:
+                            found.append(
+                                f"{rel}:{line}: <c-{name} :{prop}=...> is not declared in that "
+                                f"component's <c-vars>, so it renders through {{{{ attrs }}}}, which "
+                                f"is NOT html-escaped.\n"
+                                f'    Fix: use {prop}="{{{{ value }}}}" (autoescaped), or declare '
+                                f"the prop in <c-vars>."
+                            )
 
-            # 3. an object prop (BoundField / Form) passed without the colon,
+            # 4. an object prop (BoundField / Form) passed without the colon,
             #    or not passed at all.
             prop = OBJECT_PROPS.get(name)
             if prop is not None:
@@ -215,7 +286,7 @@ def main():
                         f"form ships with the control missing."
                     )
 
-            # 4. a search control with no accessible name
+            # 5. a search control with no accessible name
             if name in NEEDS_LABEL and not re.search(r"(?:^|\s):?label=", attrs):
                 found.append(
                     f'{rel}:{line}: <c-{name}> needs label="…" — the specific '

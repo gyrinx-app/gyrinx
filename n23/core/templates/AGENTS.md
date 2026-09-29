@@ -52,6 +52,10 @@ the gate, fix the call site.
   A `:prop` may only be a bare dotted path.
 - **A `{% if %}` in attribute position renders as literal text**, and the browser parses the
   braces as junk attributes. `<c-btn {% if x %}disabled{% endif %}>` ships enabled.
+- **`:disabled="False"` still disables the control.** HTML boolean attributes are live
+  when present. `c-btn` declares `disabled` and only emits the attribute when truthy.
+  Kit buttons that passthrough `{{ attrs }}` (including `<c-ui.button>`) need `:attrs`
+  with `{'disabled': True}` or `{}`. Never interpolate `disabled="{{ flag }}"`.
 - **A `:prop` the component doesn't declare skips escaping** — undeclared attributes go out
   through `{{ attrs }}`, which is `mark_safe`'d, so `:id="value"` is an injection hole.
 - **A form passed without the colon is stringified.** `field="{{ form.x }}"` renders the
