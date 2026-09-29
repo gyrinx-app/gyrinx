@@ -130,6 +130,11 @@ class TestRankActionHistory:
         assert "4 XP" in history
         assert "Training · Training complete" in history
         assert "View receipt" in history
+        history_panel = BeautifulSoup(history, "html.parser").find(
+            id="n26-progression-history"
+        )
+        heading = history_panel.find("span", string="Rank history")
+        assert heading.find_next_sibling("span").get_text(strip=True) == "Rookie"
 
         with operation(setup.gang, actor=setup.owner) as op:
             op.tally(setup.counter, 5)
