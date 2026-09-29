@@ -203,9 +203,12 @@ def _charge(line, paid, surcharge=0, *, rate_at_paid=False):
     """
     full = _full_price(line, surcharge)
     paid = paid + surcharge
+    charge = {"paid": paid, "list_price": full, "discount": full - paid}
     if rate_at_paid and paid < full:
-        return {"paid": paid, "list_price": paid, "discount": 0}
-    return {"paid": paid, "list_price": full, "discount": full - paid}
+        # The list price stays the full price, since the history reads a
+        # list price of nothing as a free profile riding its gun.
+        charge["rating"] = paid
+    return charge
 
 
 def _rating_box(request, charges):

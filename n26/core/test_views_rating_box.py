@@ -194,7 +194,8 @@ class TestWhatConfirmingRates:
         )
 
         entry = entry_for("Sword")
-        assert (entry.paid, entry.list_price, entry.discount) == (0, 0, 0)
+        # The entry still says what the sword is worth and what the deal was.
+        assert (entry.paid, entry.list_price, entry.discount) == (0, 20, 20)
         assert entry.rating_contribution == 0
         gang.refresh_from_db()
         assert gang.rating == 0
@@ -278,7 +279,7 @@ class TestAGunAndItsAmmo:
         gun = LedgerEntry.objects.get(assignment__weapon=autogun)
         ammo = LedgerEntry.objects.get(assignment__weapon_profile__name="warp round")
         assert (gun.paid, gun.list_price, gun.rating_contribution) == (20, 20, 20)
-        assert (ammo.paid, ammo.list_price, ammo.discount) == (4, 4, 0)
+        assert (ammo.paid, ammo.list_price, ammo.discount) == (4, 10, 6)
         assert ammo.rating_contribution == 4
         gang.refresh_from_db()
         assert_reconciled(gang)
@@ -296,6 +297,38 @@ class TestAGunAndItsAmmo:
         assert "Autogun and " in body
         assert "Autogun — 16¢." in body
 
+
+class TestBuyingIntoTheStash:
+    """The stash's equip page reads the click the same way."""
+
+    @pytest.fixture(autouse=True)
+    def founded(self, gang, tester):
+        # Founding writes the stash.
+        with operation(gang, actor=tester) as op:
+            op.found(gang.gang_type)
+
+    def url(self, gang, collection):
+        return f"{reverse('n26-equip-gang', args=[gang.pk])}?list={collection.pk}"
+
+    def test_the_stash_asks_too(self, client, gang, free_list):
+        answer = client.post(self.url(gang, free_list), buying("Sword"))
+
+        assert answer.status_code == 200
+        assert "Match rating to price" in answer.content.decode()
+
+    @pytest.mark.parametrize("ticked, rating", [(False, 20), (True, 0)])
+    def test_the_box_decides_the_stashs_rating(
+        self, client, gang, free_list, ticked, rating
+    ):
+        fields = {CONFIRM_FIELD: "1", **({"rate": "paid"} if ticked else {})}
+        client.post(self.url(gang, free_list), buying("Sword", **fields))
+
+        assert entry_for("Sword").rating_contribution == rating
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+
+class TestWithAnOverspend:
     """One click, one question: the box rides the overspend panel."""
 
     @pytest.fixture
