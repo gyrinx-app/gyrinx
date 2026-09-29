@@ -4,7 +4,8 @@
 id="model-<pk>" is the fragment owner links jump to. Only a stored model has an id; a hire preview must not grow an empty anchor.
 .n26-card-tabs in app.css sits outside any layer so it can beat the kit's margin utilities. Its selectors assume the kit's strip then panels DOM.
 Pass mode into the body. Nested mode checks read that value from context, not from their own props.
-Rating is what the model is worth, weapons and wargear included. Stashed gear counts in wealth instead.
+Rating includes the model and the equipment selected for this card. The all-equipment card includes all of the model's equipment; selecting a card does not change the stored gang rating.
+Stashed gear counts in wealth instead.
 Founding Trade Points are not the rating. They show in gang or edit mode only, while a founding budget is open.
 Lore and notes are sanitised editor HTML. A card can be read by people who are not its owner.
 card.collections and card.effects are on the structure and are not drawn.
@@ -62,19 +63,12 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                     <div class="text-sm text-muted">{{ card.profile_name }}</div>
                 {% endif %}
 
-                {% if card.rank_summaries %}
+                {% if mode == "edit" and card.rank_summaries %}
                     <div class="mt-1 space-y-0.5 text-xs text-muted">
                         {% for rank in card.rank_summaries %}
-                            {% if rank.value is not None %}
+                            {% if rank.value is not None and rank.current_title %}
                                 <p>
-                                    {% if rank.current_title %}
-                                        <span class="font-medium text-ink-900 dark:text-ink-100">{{ rank.current_title }}</span>
-                                    {% else %}
-                                        <span>{{ rank.table_name }}</span>
-                                    {% endif %}
-                                    {% if rank.next_threshold is not None %}
-                                        <span aria-hidden="true">·</span> Next rank at {{ rank.next_threshold }} {{ rank.counter_name }}
-                                    {% endif %}
+                                    <span class="font-medium text-ink-900 dark:text-ink-100">{{ rank.current_title }}</span>
                                 </p>
                             {% endif %}
                         {% endfor %}

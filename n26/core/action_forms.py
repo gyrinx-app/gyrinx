@@ -59,22 +59,34 @@ class ActionRollForm(forms.Form):
 
 
 class AdvancementRollForm(ActionRollForm):
+    previous_roll = forms.CharField(
+        required=False, max_length=26, widget=forms.HiddenInput
+    )
     roll_mode = forms.ChoiceField(
         label="How would you like to roll?",
         choices=[("roll", "Roll in Gyrinx"), ("record", "Record my roll")],
-        required=False,
+        error_messages={"required": "Choose how to roll."},
     )
     rolled = forms.IntegerField(
         label="Your 2D6 total", min_value=2, max_value=12, required=False
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        mode = (
+            self.data.get("roll_mode")
+            if self.is_bound
+            else self.initial.get("roll_mode")
+        )
+        self.fields["rolled"].disabled = mode != "record"
 
     def clean(self):
         data = super().clean()
         if data.get("roll_mode") == "record" and data.get("rolled") is None:
             if "rolled" not in self.errors:
                 self.add_error("rolled", "Enter the total of your two dice.")
-        elif data.get("roll_mode") != "record" and data.get("rolled") is not None:
-            self.add_error("roll_mode", "Select Record my roll to use this total.")
+        if data.get("roll_mode") != "record":
+            data["rolled"] = None
         return data
 
 

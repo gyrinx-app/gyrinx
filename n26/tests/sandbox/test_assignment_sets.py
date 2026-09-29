@@ -140,16 +140,14 @@ class TestNamedSelections:
         assert shooting_card.skills == []
         assert [w.name for w in shooting_card.weapons] == ["Combat shotgun"]
 
-    def test_cost_never_varies_by_card(self, yolanda, kits):
-        """A weapon is bought once and counted once, whichever card shows."""
+    def test_each_card_counts_only_its_selected_equipment(self, yolanda, kits):
         riding, shooting = kits
-        full = card_for(yolanda)
-        assert (
-            card_for(yolanda, riding).rating
-            == card_for(yolanda, shooting).rating
-            == full.rating
-            == 185
-        )
+        assert card_for(yolanda, riding).rating == 55 + 75 + 20
+        assert card_for(yolanda, shooting).rating == 55 + 35
+        assert card_for(yolanda).rating == 185
+        yolanda.refresh_from_db()
+        yolanda.gang.refresh_from_db()
+        assert yolanda.rating == yolanda.gang.rating == 185
 
     def test_ammo_follows_its_weapon_off_the_card(self, yolanda, traits, kits):
         _, shooting = kits

@@ -2785,6 +2785,7 @@ class Operation:
         rolled=None,
         rng=None,
         decline_promotion=False,
+        previous_roll=None,
     ):
         from n26.core.advancements import record_action_roll
 
@@ -2796,6 +2797,7 @@ class Operation:
             rolled=rolled,
             rng=rng,
             decline_promotion=decline_promotion,
+            previous_roll=previous_roll,
         )
 
     def record_skill_roll(

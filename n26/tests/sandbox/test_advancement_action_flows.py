@@ -7,7 +7,13 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from n26.core.models import ActionAllowance, ActionRecord, Assignment, LedgerEvent
+from n26.core.models import (
+    ActionAllowance,
+    ActionRecord,
+    Assignment,
+    LedgerEvent,
+    SkillSelection,
+)
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
@@ -137,7 +143,11 @@ def _post_roll(client, advancement, record):
     page = client.get(url)
     assert page.context["stage"] == "roll"
     response = client.post(
-        url, {"request_key": page.context["form"]["request_key"].value()}
+        url,
+        {
+            "request_key": page.context["form"]["request_key"].value(),
+            "roll_mode": "roll",
+        },
     )
     assert response.status_code == 302
     return response.url
@@ -235,7 +245,7 @@ class TestAnEarnedAdvancementStartsAndResumes:
         assert "It asks" not in html
         assert "Roll 4+" in html
         back = client.get(page.context["back_href"])
-        assert back.context["recorded_roll"] == 4
+        assert back.context["advancement_roll"]["previousRoll"] == 4
         client.post(page.context["back_href"], {**payload, "rolled": "12"})
         record.refresh_from_db()
         assert record.advancement_selection.roll_event.roll == 4
@@ -246,7 +256,7 @@ class TestAnEarnedAdvancementStartsAndResumes:
             == 1
         )
 
-    @pytest.mark.parametrize("rolled", ["", "1", "13", "not a number"])
+    @pytest.mark.parametrize("rolled", ["", "0", "1", "13", "not a number"])
     def test_invalid_recorded_totals_do_not_generate_a_roll(
         self, client, monkeypatch, advancement, rolled
     ):
@@ -266,14 +276,34 @@ class TestAnEarnedAdvancementStartsAndResumes:
         )
         assert response.status_code == 200
         assert "rolled" in response.context["form"].errors
+        assert response.context["advancement_roll"]["rolled"] == rolled
         assert not LedgerEvent.objects.filter(
             action_record=record, kind=LedgerEvent.Kind.ROLLED
         ).exists()
 
-    def test_an_entered_total_is_not_silently_replaced_by_a_generated_roll(
+    def test_missing_roll_controls_do_not_generate_a_roll(
         self, client, monkeypatch, advancement
     ):
         _load_rolls(monkeypatch)
+        record = _start(client, advancement)
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
+        )
+        page = client.get(url)
+        response = client.post(
+            url, {"request_key": page.context["form"]["request_key"].value()}
+        )
+        assert response.status_code == 200
+        assert response.context["form"].errors["roll_mode"] == ["Choose how to roll."]
+        assert response.context["advancement_roll"]["mode"] == ""
+        assert not LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).exists()
+
+    def test_generated_roll_ignores_the_disabled_total(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 6)
         record = _start(client, advancement)
         url = reverse(
             "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
@@ -287,11 +317,130 @@ class TestAnEarnedAdvancementStartsAndResumes:
                 "rolled": "8",
             },
         )
-        assert response.status_code == 200
-        assert "roll_mode" in response.context["form"].errors
-        assert not LedgerEvent.objects.filter(
-            action_record=record, kind=LedgerEvent.Kind.ROLLED
-        ).exists()
+        assert response.status_code == 302
+        assert (
+            LedgerEvent.objects.get(
+                action_record=record, kind=LedgerEvent.Kind.ROLLED
+            ).roll
+            == 6
+        )
+
+
+class TestChangingTheRoll:
+    def test_correcting_2d6_preserves_the_skill_roll_but_clears_the_pending_choice(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12, 2)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["random"]
+        )
+        page = client.get(skill_url)
+        category = page.context["skill_groups"][0]["key"]
+        assert (
+            client.post(
+                skill_url,
+                {
+                    "request_key": page.context["form"]["request_key"].value(),
+                    "skill_set_id": category,
+                },
+            ).status_code
+            == 302
+        )
+        old_selection = SkillSelection.objects.get(action_record=record)
+        assert old_selection.selected_skill == advancement.skills["primary"]
+        old_event = old_selection.random_attempts[-1]["event_id"]
+        roll_url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "roll"]
+        )
+        page = client.get(roll_url)
+        payload = {
+            "request_key": page.context["form"]["request_key"].value(),
+            "previous_roll": page.context["form"]["previous_roll"].value(),
+            "roll_mode": "record",
+            "rolled": "12",
+        }
+        assert client.post(roll_url, payload).status_code == 302
+        assert SkillSelection.objects.filter(pk=old_selection.pk).exists()
+
+        payload["rolled"] = "11"
+        assert client.post(roll_url, payload).status_code == 302
+        record.refresh_from_db()
+        assert "pickable_id" not in record.terms
+        assert record.review == {}
+        assert LedgerEvent.objects.filter(pk=old_event, action_record=record).exists()
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["random"]
+        )
+        page = client.get(skill_url)
+        assert page.context["stage"] == "skill"
+        assert page.context["skill_resolved"] is True
+        assert page.context["submit_label"] == "Review"
+        assert client.post(skill_url, {"review_skill": "1"}).status_code == 302
+        selection = SkillSelection.objects.get(action_record=record)
+        assert selection.selected_skill == advancement.skills["primary"]
+        assert selection.random_attempts == old_selection.random_attempts
+        assert client.post(roll_url, payload).status_code == 302
+        assert SkillSelection.objects.filter(pk=selection.pk).exists()
+        assert sorted(
+            LedgerEvent.objects.filter(
+                action_record=record, kind=LedgerEvent.Kind.ROLLED
+            ).values_list("roll", flat=True)
+        ) == [2, 11, 12]
+        assert_reconciled(advancement.gang)
+
+    def test_back_allows_a_correction_and_invalidates_the_old_review(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        reviewed = client.post(
+            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        )
+        review_page = client.get(reviewed.url)
+        token = review_page.context["form"]["review"].value()
+        skill_page = client.get(review_page.context["back_href"])
+        choices = client.get(skill_page.context["back_href"])
+        roll_url = choices.context["back_href"]
+        page = client.get(roll_url)
+        payload = {
+            "request_key": page.context["form"]["request_key"].value(),
+            "previous_roll": page.context["form"]["previous_roll"].value(),
+            "roll_mode": "record",
+            "rolled": "3",
+        }
+        response = client.post(roll_url, payload)
+        assert response.status_code == 302, response.context["form"].errors
+        record.refresh_from_db()
+        assert record.advancement_selection.roll_event.roll == 3
+        assert record.review == {}
+        assert "pickable_id" not in record.terms
+        assert "skill_id" not in record.terms
+        choices = client.get(response.url)
+        assert choices.context["roll_value"] == 3
+        assert [
+            item["option"].name for item in choices.context["advancement_options"]
+        ] == ["Select Secondary skill", "Select Primary skill"]
+        assert client.post(roll_url, payload).status_code == 302
+        stale = client.post(
+            roll_url, {**payload, "request_key": str(uuid4()), "rolled": "5"}
+        )
+        assert stale.status_code == 200
+        assert "This roll has changed" in stale.content.decode()
+        client.post(reviewed.url, {"review": token})
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        assert sorted(
+            LedgerEvent.objects.filter(
+                action_record=record, kind=LedgerEvent.Kind.ROLLED
+            ).values_list("roll", flat=True)
+        ) == [3, 12]
+        assert_reconciled(advancement.gang)
 
 
 class TestSelectingSkills:

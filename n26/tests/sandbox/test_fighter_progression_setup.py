@@ -353,7 +353,14 @@ class TestFoundationSetup:
         record, url = _start(client, test, allowance)
         monkeypatch.setattr(Dice, "roll", classmethod(lambda cls, dice, rng=None: 10))
         page = client.get(url)
-        client.post(url, {"request_key": page.context["form"]["request_key"].value()})
+        response = client.post(
+            url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "roll_mode": "roll",
+            },
+        )
+        assert response.status_code == 302, _errors(response)
         page = client.get(url)
         pick = next(
             row["option"]
@@ -992,8 +999,13 @@ class TestPromotions:
         page = client.get(url)
         assert page.context["stage"] == "roll"
         response = client.post(
-            url, {"request_key": page.context["form"]["request_key"].value()}
+            url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "roll_mode": "roll",
+            },
         )
+        assert response.status_code == 302, _errors(response)
         page = client.get(response.url)
         pick = next(
             item["option"]

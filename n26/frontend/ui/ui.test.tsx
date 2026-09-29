@@ -12,8 +12,34 @@ import {
     FormActions,
     Input,
     NativeSelect,
+    RadioCards,
     Switch,
 } from "./index";
+
+describe("radio cards", () => {
+    it("associates styled errors with the group and clears their attributes", () => {
+        const view = render(
+            <RadioCards legend="Roll" errors={["Choose how to roll."]}>
+                <input type="radio" aria-label="Roll in Gyrinx" />
+            </RadioCards>,
+        );
+        const group = screen.getByRole("group", { name: "Roll" });
+        const error = screen.getByText("Choose how to roll.");
+        expect(group.getAttribute("aria-invalid")).toBe("true");
+        expect(group.getAttribute("aria-describedby")).toBe(
+            error.parentElement!.id,
+        );
+        expect(error.className).toBe(cotton.field.error);
+        view.rerender(
+            <RadioCards legend="Roll">
+                <input type="radio" aria-label="Roll in Gyrinx" />
+            </RadioCards>,
+        );
+        expect(group.getAttribute("aria-invalid")).toBeNull();
+        expect(group.getAttribute("aria-describedby")).toBeNull();
+        expect(screen.queryByText("Choose how to roll.")).toBeNull();
+    });
+});
 
 function setupCard(initialChecked = false, disabled = false) {
     const changed = vi.fn();

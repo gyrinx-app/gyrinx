@@ -193,8 +193,8 @@ def node_for(assignment):
 class Card:
     miniature: object
     roots: list[Node] = field(default_factory=list)
-    #: The whole pool's worth, whatever this card selects. Rating never
-    #: varies by card — a weapon is bought once and counted once.
+    #: The whole pool's worth, whatever this card selects. The gang counts
+    #: each purchase once; an equipment card shows only its selected kit.
     full_rating: int = 0
 
     #: Equipment a modifier granted, with free profiles beneath
@@ -244,7 +244,7 @@ class Card:
     def rating(self):
         """Everything on *this* card. For an unfiltered card this equals
         ``full_rating``; for a named selection it may be less."""
-        return sum(node.rating_with_extras for node in self.roots)
+        return sum(node.rating_with_extras for node in self.roots if not node.broadcast)
 
     def all_nodes(self):
         for root in (*self.roots, *self.granted):

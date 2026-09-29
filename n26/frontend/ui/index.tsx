@@ -340,23 +340,40 @@ export function Callout({
 export function RadioCards({
     legend,
     min = "14rem",
+    errors = [],
     children,
 }: {
     legend: string;
     min?: string;
+    errors?: string[];
     children: ReactNode;
 }) {
+    const id = useId();
+    const errorId = errors.length ? `${id}-errors` : undefined;
     const recipe = cotton.radioCards.group;
     const style = {
         "--radio-card-min": min,
         gridTemplateColumns: recipe.gridTemplateColumns,
     } as CSSProperties;
     return (
-        <fieldset className={recipe.root}>
+        <fieldset
+            className={recipe.root}
+            aria-invalid={errorId ? true : undefined}
+            aria-describedby={errorId}
+        >
             <legend className={recipe.legend}>{legend}</legend>
             <div className={recipe.grid} style={style}>
                 {children}
             </div>
+            {errorId && (
+                <div id={errorId}>
+                    {errors.map((error, index) => (
+                        <div key={index} className={cotton.field.error}>
+                            {error}
+                        </div>
+                    ))}
+                </div>
+            )}
         </fieldset>
     );
 }

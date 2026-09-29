@@ -11,7 +11,7 @@
 {% block content %}
     <div class="space-y-8">
         <c-n26.page-header title="Model cards"
-                           lead="Select which weapons and wargear appear on each card. The model still owns all its equipment and keeps its full rating.">
+                           lead="Select which weapons and wargear appear on each card. Each card's rating includes only the equipment shown on it.">
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
                     <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>

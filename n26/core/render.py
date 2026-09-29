@@ -3048,7 +3048,7 @@ def card_to_model_card(
         image_url=image_url,
         # A dead model's kit is still drawn, but the model is worth
         # nothing to the gang now, and the figure says so.
-        rating=0 if status == Status.DEAD else card.full_rating,
+        rating=0 if status == Status.DEAD else card.rating,
         status=status,
         status_label=(
             status_label(status, vehicle) if status and status != Status.ACTIVE else ""
