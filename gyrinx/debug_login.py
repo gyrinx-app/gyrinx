@@ -8,11 +8,11 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 
 AGENT_PASSWORD = "password"  # nosec B105 -- fixed DEBUG-only agent password
-AGENT_USERNAME_ERROR = "Debug users must be named 'agent' or 'agent-<purpose>'"
+AGENT_USERNAME_ERROR = "Debug users must be named 'agent' or 'agent-<purpose>'."
 AGENT_ACCOUNT_CONFLICT_ERROR = (
-    "That username already belongs to an account not provisioned for debug agents"
+    "That username already belongs to an account not provisioned for debug agents. "
+    "Choose another name in the form agent-<purpose>."
 )
-DEBUG_AGENT_LOGIN_ERROR = "Invalid debug agent login"
 _AGENT_PURPOSE_CHARACTERS = frozenset(string.ascii_lowercase + string.digits + "-")
 
 

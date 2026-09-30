@@ -196,6 +196,8 @@ manage agent_login_url '/n26/gangs/?state=draft' --username agent-campaign
 
 If a name already belongs to an account that was not provisioned for agent use,
 the command refuses to change it. Choose a purpose-specific variant instead.
+Opening `/_debug/login/` for that name returns the same sentence as plain text
+with status 400, instead of a generic invalid-login line.
 
 Every agent account uses password `password`, is staff, and is not a superuser.
 Never inspect, guess, set, or reset a pre-existing user's password, especially a

@@ -14,10 +14,7 @@ from django.shortcuts import render
 from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_GET
 
-from gyrinx.debug_login import (
-    DEBUG_AGENT_LOGIN_ERROR,
-    ensure_debug_agent_user,
-)
+from gyrinx.debug_login import ensure_debug_agent_user
 from gyrinx.http import safe_redirect
 
 TEST_PLANS_DIR = Path(settings.BASE_DIR) / ".claude" / "test-plans"
@@ -31,9 +28,11 @@ def debug_agent_login(request):
 
     try:
         user = ensure_debug_agent_user(request.GET.get("user", "agent"))
-    except ValueError:
+    except ValueError as error:
+        # DEBUG-only route. The message is one of the fixed sentences from
+        # ensure_debug_agent_user, the same text the agent_login_url command prints.
         return HttpResponseBadRequest(
-            DEBUG_AGENT_LOGIN_ERROR,
+            str(error),
             content_type="text/plain; charset=utf-8",
         )
 
