@@ -14,10 +14,15 @@ from django.shortcuts import render
 from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_GET
 
-from gyrinx.debug_login import ensure_debug_agent_user
+from gyrinx.debug_login import (
+    AGENT_ACCOUNT_CONFLICT_ERROR,
+    AGENT_USERNAME_ERROR,
+    ensure_debug_agent_user,
+)
 from gyrinx.http import safe_redirect
 
 TEST_PLANS_DIR = Path(settings.BASE_DIR) / ".claude" / "test-plans"
+REFUSALS = frozenset({AGENT_USERNAME_ERROR, AGENT_ACCOUNT_CONFLICT_ERROR})
 
 
 @require_GET
@@ -29,10 +34,13 @@ def debug_agent_login(request):
     try:
         user = ensure_debug_agent_user(request.GET.get("user", "agent"))
     except ValueError as error:
-        # DEBUG-only route. The message is one of the fixed sentences from
-        # ensure_debug_agent_user, the same text the agent_login_url command prints.
+        # Echo only the fixed refusals, the same text the agent_login_url
+        # command prints. Any other ValueError keeps its detail to itself.
+        message = str(error)
+        if message not in REFUSALS:
+            message = "Could not start a debug agent session."
         return HttpResponseBadRequest(
-            str(error),
+            message,
             content_type="text/plain; charset=utf-8",
         )
 
