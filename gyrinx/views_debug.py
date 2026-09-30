@@ -36,9 +36,11 @@ def debug_agent_login(request):
     except ValueError as error:
         # Echo only the fixed refusals, the same text the agent_login_url
         # command prints. Any other ValueError keeps its detail to itself.
-        message = str(error)
-        if message not in REFUSALS:
-            message = "Could not start a debug agent session."
+        # Return the module's own constant, not the exception's text.
+        message = next(
+            (refusal for refusal in REFUSALS if refusal == str(error)),
+            "Could not start a debug agent session.",
+        )
         return HttpResponseBadRequest(
             message,
             content_type="text/plain; charset=utf-8",
