@@ -547,7 +547,12 @@ class TestChoosingAHouse:
 
         response = client.post(
             f"{reverse('n26-equip', args=[kaustos.pk])}?list={house_lists['Cawdor'].pk}",
-            {"thing": f"library.wargear:{Wargear.objects.get(name=item).pk}"},
+            {
+                "thing": f"library.wargear:{Wargear.objects.get(name=item).pk}",
+                # The list asks less than the item's own price, which asks
+                # how to rate it; confirming keeps the full rating.
+                "confirmed": "1",
+            },
         )
 
         assert response.status_code == 302

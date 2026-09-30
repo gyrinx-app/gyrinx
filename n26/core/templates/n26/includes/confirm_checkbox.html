@@ -1,0 +1,16 @@
+{% comment %}
+The tick box a n26.core.confirm.Confirmation asks alongside its yes. Expects
+`checkbox`, a n26.core.confirm.Checkbox. Drawn the way the hire dialog draws
+its rating box, so the same choice looks the same wherever it is asked.
+{% endcomment %}
+<label class="flex cursor-pointer items-start gap-2.5">
+    <input type="checkbox"
+           name="{{ checkbox.name }}"
+           value="{{ checkbox.value }}"
+           {% if checkbox.checked %}checked{% endif %}
+           class="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+    <span class="text-sm text-ink-900 dark:text-ink-100">
+        {{ checkbox.label }}
+        {% if checkbox.description %}<span class="block text-muted">{{ checkbox.description }}</span>{% endif %}
+    </span>
+</label>

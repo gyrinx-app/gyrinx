@@ -33,11 +33,12 @@ back rather than navigating away from a page that never reloaded.
                name="{{ confirmation.confirm_field }}"
                value="{{ confirmation.confirm_value }}">
         {% comment %}
-        The same two blocks the whole page draws, in the same components:
-        warning rather than error, because the act is allowed and this only
-        asks whether it was meant.
+        The same blocks the whole page draws, in the same components: never an
+        error, because the act is allowed and this only asks whether it was
+        meant or which way to record it.
         {% endcomment %}
-        <c-ui.alert variant="warning" title="{{ confirmation.heading }}">
+        <c-ui.alert variant="{{ confirmation.variant }}"
+                    title="{{ confirmation.heading }}">
             <p>{{ confirmation.body }}</p>
             {% if confirmation.aside %}
                 <p class="mt-1">
@@ -48,6 +49,9 @@ back rather than navigating away from a page that never reloaded.
         </c-ui.alert>
         {% if confirmation.facts %}
             <c-n26.tally :facts="confirmation.facts" />
+        {% endif %}
+        {% if confirmation.checkbox %}
+            {% include "n26/includes/confirm_checkbox.html" with checkbox=confirmation.checkbox %}
         {% endif %}
     </c-n26.dialog>
 </div>

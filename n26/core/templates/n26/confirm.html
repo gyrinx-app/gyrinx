@@ -47,11 +47,12 @@ the view re-derives the click from the listing and trusts none of it.
                name="{{ confirmation.confirm_field }}"
                value="{{ confirmation.confirm_value }}">
         {% comment %}
-        Warning rather than error: the act is allowed, and this asks whether it
-        was meant. The body is the position and the aside is the permission —
+        Never an error: the act is allowed, and this asks whether it was meant
+        or which way to record it. The body is the position and the aside is the permission —
         two lines, because they answer different questions.
         {% endcomment %}
-        <c-ui.alert variant="warning" title="{{ confirmation.heading }}">
+        <c-ui.alert variant="{{ confirmation.variant }}"
+                    title="{{ confirmation.heading }}">
             <p>{{ confirmation.body }}</p>
             {% if confirmation.aside %}
                 <p class="mt-1">
@@ -63,6 +64,9 @@ the view re-derives the click from the listing and trusts none of it.
         {% if confirmation.facts %}
             {# The same tally the Visit Trading Post card draws. #}
             <c-n26.tally :facts="confirmation.facts" class="max-w-sm" />
+        {% endif %}
+        {% if confirmation.checkbox %}
+            {% include "n26/includes/confirm_checkbox.html" with checkbox=confirmation.checkbox %}
         {% endif %}
     </c-n26.form-page>
 {% endblock content %}

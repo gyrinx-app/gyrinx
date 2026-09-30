@@ -73,6 +73,21 @@ class Aside:
 
 
 @dataclass(frozen=True)
+class Checkbox:
+    """A tick box the confirming post carries, for a choice the act asks.
+
+    Drawn unticked unless ``checked``; an unticked box posts nothing, so
+    the view reads its absence as the default.
+    """
+
+    name: str
+    value: str
+    label: str
+    description: str = ""
+    checked: bool = False
+
+
+@dataclass(frozen=True)
 class Confirmation:
     """An act that will go ahead, once the reader says they meant it.
 
@@ -80,6 +95,10 @@ class Confirmation:
     the first post went to, so the click is read once, in one place.
     ``cancel_url`` is where saying no lands, which is the page the click
     came from.
+
+    ``checkbox`` is a choice asked alongside the yes, where the act has
+    one. ``variant`` is the alert's: warning where the act may not have
+    been meant, info where it only needs a choice made.
     """
 
     title: str
@@ -94,18 +113,23 @@ class Confirmation:
     carry: tuple[tuple[str, str], ...] = ()
     confirm_field: str = CONFIRM_FIELD
     confirm_value: str = ""
+    checkbox: Checkbox | None = None
+    variant: str = "warning"
 
 
-def carried(post):
+def carried(post, *, leave_out=()):
     """Every field of a submission, ready to be re-emitted as hidden inputs.
 
     Repeated names are kept repeated — a row's ticked parts arrive as
     several values under one name, and a confirmation that collapsed
     them would buy a different thing from the one it described.
+
+    ``leave_out`` names the fields the confirmation draws itself, so a
+    tick box is not also carried as a hidden copy that outvotes it.
     """
     return tuple(
         (name, value)
         for name in post.keys()
-        if name not in _NOT_CARRIED
+        if name not in _NOT_CARRIED and name not in leave_out
         for value in post.getlist(name)
     )
