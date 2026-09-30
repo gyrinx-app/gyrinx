@@ -10,7 +10,8 @@ from django.test import override_settings
 from django.urls import reverse
 
 from gyrinx.debug_login import (
-    DEBUG_AGENT_LOGIN_ERROR,
+    AGENT_ACCOUNT_CONFLICT_ERROR,
+    AGENT_USERNAME_ERROR,
 )
 
 _debug_settings = {"DEBUG": True, "INTERNAL_IPS": []}
@@ -56,9 +57,32 @@ def test_agent_login_refuses_existing_allowed_superuser_without_changing_it(clie
 
     superuser.refresh_from_db()
     assert response.status_code == 400
+    assert response.content.decode() == AGENT_ACCOUNT_CONFLICT_ERROR
     assert superuser.check_password("keep-this-password") is True
     assert superuser.email == "owner@example.com"
     assert superuser.is_superuser is True
+
+
+@override_settings(**_debug_settings)
+@pytest.mark.django_db
+def test_agent_login_refuses_existing_non_staff_user(client):
+    rival = get_user_model().objects.create_user(
+        username="agent-rival",
+        email="rival@example.com",
+        password="keep-this-password",
+    )
+
+    response = client.get(
+        reverse("debug_agent_login"),
+        _login_params("agent-rival"),
+    )
+
+    rival.refresh_from_db()
+    assert response.status_code == 400
+    assert response.content.decode() == AGENT_ACCOUNT_CONFLICT_ERROR
+    assert rival.is_staff is False
+    assert rival.check_password("keep-this-password") is True
+    assert rival.email == "rival@example.com"
 
 
 @override_settings(**_debug_settings)
@@ -70,7 +94,7 @@ def test_agent_login_rejects_overlong_username(client):
 
     assert response.status_code == 400
     assert response.headers["Content-Type"] == "text/plain; charset=utf-8"
-    assert response.content.decode() == DEBUG_AGENT_LOGIN_ERROR
+    assert response.content.decode() == AGENT_USERNAME_ERROR
     assert get_user_model().objects.filter(username=username).exists() is False
 
 
@@ -80,7 +104,7 @@ def test_agent_login_rejects_invalid_username(client):
     response = client.get(reverse("debug_agent_login"), {"user": "reviewer"})
 
     assert response.status_code == 400
-    assert response.content.decode() == DEBUG_AGENT_LOGIN_ERROR
+    assert response.content.decode() == AGENT_USERNAME_ERROR
 
 
 @override_settings(DEBUG=False)
