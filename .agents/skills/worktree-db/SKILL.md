@@ -134,6 +134,20 @@ out of shared memory` during `django_db_setup`. CI applies the same tuning to
 the service-container Postgres in `.github/workflows/test.yaml`, and
 `docker-compose.yml` did the same for the old Docker postgres.
 
+On a shared cluster that already has that setting, the same error during
+schema creation means another worktree is creating tables at the same time.
+Wait for those workers to finish, then rebuild only this worktree's test
+databases. Do not edit the shared `postgresql.conf`.
+
+```bash
+.codex/run.sh pytest -n 0 --create-db --reuse-db <paths>
+# or, from this worktree:
+.venv/bin/python -m pytest -n 0 --create-db --reuse-db <paths>
+```
+
+`pyproject.toml` already passes `--nomigrations`. Prefer `-n 4` for the next
+run while other agents are still testing.
+
 ## Template Workflow
 
 1. **Initial setup** (once per machine): `./scripts/setup-local-postgres.sh`
