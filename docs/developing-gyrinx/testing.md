@@ -102,7 +102,7 @@ On a shared Postgres cluster, prefer `-n 4` while another agent is testing.
 tables. Wait, then rebuild only this worktree's test databases:
 
 ```bash
-.venv/bin/python -m pytest -n 0 --create-db --reuse-db <paths>
+.venv/bin/python -m pytest -n 0 --create-db <paths>
 ```
 
 Do not raise the lock limit again. A machine whose cluster is still on the

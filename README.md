@@ -207,14 +207,6 @@ cluster (required for pytest-xdist parallel syncdb), and a hook in
 `.venv/bin/activate` that exports the per-worktree `DB_NAME` / `DB_CONFIG` /
 `DJANGO_PORT` so `pytest` and `manage` target the right database.
 
-If tests still fail with `out of shared memory` while another checkout is
-running pytest, the cluster is already tuned. Wait for that run, then rebuild
-only this worktree's test databases:
-
-```bash
-.venv/bin/python -m pytest -n 0 --create-db --reuse-db <paths>
-```
-
 > [!IMPORTANT]
 > Re-run `source .venv/bin/activate` after switching worktrees. The hook
 > reads `git rev-parse --show-toplevel` at activation time, not on every

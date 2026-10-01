@@ -140,9 +140,9 @@ Wait for those workers to finish, then rebuild only this worktree's test
 databases. Do not edit the shared `postgresql.conf`.
 
 ```bash
-.codex/run.sh pytest -n 0 --create-db --reuse-db <paths>
+.codex/run.sh pytest -n 0 --create-db <paths>
 # or, from this worktree:
-.venv/bin/python -m pytest -n 0 --create-db --reuse-db <paths>
+.venv/bin/python -m pytest -n 0 --create-db <paths>
 ```
 
 `pyproject.toml` already passes `--nomigrations`. Prefer `-n 4` for the next

@@ -73,8 +73,8 @@ artifacts when the IDE Canvas surface is unavailable.
   Postgres lock table while another agent has a test run active. If schema
   creation then reports `out of shared memory`, wait for the other run and
   rebuild only this worktree's test databases with
-  `.venv/bin/python -m pytest -n 0 --create-db --reuse-db <paths>`
-  (Codex: `.codex/run.sh pytest -n 0 --create-db --reuse-db <paths>`).
+  `.venv/bin/python -m pytest -n 0 --create-db <paths>`
+  (Codex: `.codex/run.sh pytest -n 0 --create-db <paths>`).
   Leave `max_locks_per_transaction` alone when the cluster is already tuned.
 - Format with `./scripts/fmt.sh`.
 - Build SCSS with `npm run css`; never commit generated CSS under
