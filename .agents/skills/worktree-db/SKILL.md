@@ -136,17 +136,10 @@ the service-container Postgres in `.github/workflows/test.yaml`, and
 
 On a shared cluster that already has that setting, the same error during
 schema creation means another worktree is creating tables at the same time.
-Wait for those workers to finish, then rebuild only this worktree's test
-databases. Do not edit the shared `postgresql.conf`.
-
-```bash
-.codex/run.sh pytest -n 0 --create-db <paths>
-# or, from this worktree:
-.venv/bin/python -m pytest -n 0 --create-db <paths>
-```
-
-`pyproject.toml` already passes `--nomigrations`. Prefer `-n 4` for the next
-run while other agents are still testing.
+Wait for those workers to finish, then rerun with `-n 4`. Without
+`--reuse-db` each run drops and recreates its own test databases, so a run
+that failed part-way leaves nothing to clean up. Do not edit the shared
+`postgresql.conf`.
 
 ## Template Workflow
 

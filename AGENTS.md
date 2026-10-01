@@ -71,11 +71,10 @@ artifacts when the IDE Canvas surface is unavailable.
   conftest exits if it detects that mismatch. Add `-n 0 -s <test>` when
   debugging print output, and use `-n 4` rather than saturating the shared
   Postgres lock table while another agent has a test run active. If schema
-  creation then reports `out of shared memory`, wait for the other run and
-  rebuild only this worktree's test databases with
-  `.venv/bin/python -m pytest -n 0 --create-db <paths>`
-  (Codex: `.codex/run.sh pytest -n 0 --create-db <paths>`).
-  Leave `max_locks_per_transaction` alone when the cluster is already tuned.
+  creation then reports `out of shared memory`, wait for the other run to
+  finish and rerun with `-n 4`. Each run recreates its test databases, so no
+  cleanup is needed. Leave `max_locks_per_transaction` alone when the cluster
+  is already tuned.
 - Format with `./scripts/fmt.sh`.
 - Build SCSS with `npm run css`; never commit generated CSS under
   `n23/core/static/core/css/`.

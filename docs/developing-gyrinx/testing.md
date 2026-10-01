@@ -99,11 +99,9 @@ names — wait for the first to finish, then run one suite.
 On a shared Postgres cluster, prefer `-n 4` while another agent is testing.
 `out of shared memory` during schema creation, on a cluster that already has
 `max_locks_per_transaction = 256`, means those other workers are still creating
-tables. Wait, then rebuild only this worktree's test databases:
-
-```bash
-.venv/bin/python -m pytest -n 0 --create-db <paths>
-```
+tables. Wait for them to finish, then rerun with `-n 4`. Without `--reuse-db`
+each run drops and recreates its own test databases, so a run that failed
+part-way leaves nothing to clean up.
 
 Do not raise the lock limit again. A machine whose cluster is still on the
 default of 64 needs `./scripts/setup-local-postgres.sh` instead; that script
