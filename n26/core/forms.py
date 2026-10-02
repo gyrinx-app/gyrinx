@@ -1014,7 +1014,13 @@ class TableEntryForm(forms.Form):
 class CampaignRollForm(forms.Form):
     """A generated or physical roll, attributed only within its campaign."""
 
-    request_key = forms.UUIDField(widget=forms.HiddenInput)
+    request_key = forms.UUIDField(
+        widget=forms.HiddenInput,
+        error_messages={
+            "invalid": "This form is not recognised. Reload this page and try again.",
+            "required": "Reload this page before rolling.",
+        },
+    )
     reason = forms.CharField(max_length=200)
     dice = forms.ChoiceField(initial="d6", widget=forms.RadioSelect)
     source = forms.ChoiceField(

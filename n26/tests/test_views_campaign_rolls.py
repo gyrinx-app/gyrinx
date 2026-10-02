@@ -165,6 +165,20 @@ class TestRecordingPages:
         assert not CampaignRoll.objects.exists()
         assert not campaign.events.filter(kind=CampaignEvent.Kind.DICE_ROLLED).exists()
 
+    @pytest.mark.parametrize("key", ["", "not-a-uuid"])
+    def test_invalid_request_keys_offer_reload_guidance(self, client, campaign, key):
+        response = client.post(record_url(campaign), payload(request_key=key))
+        assert response.status_code == 200
+        assert "Reload this page" in response.content.decode()
+        assert not CampaignRoll.objects.exists()
+        fresh = client.get(record_url(campaign))
+        response = client.post(
+            record_url(campaign),
+            payload(request_key=str(fresh.context["form"]["request_key"].value())),
+        )
+        assert response.status_code == 302
+        assert CampaignRoll.objects.count() == 1
+
     def test_retrying_generated_rolls_returns_the_saved_result(
         self, client, campaign, monkeypatch
     ):
@@ -211,6 +225,35 @@ class TestRecordingPages:
             ).status_code
             == 404
         )
+
+    def test_changing_and_clearing_notes_preserves_each_change_in_the_log(
+        self, client, campaign, player
+    ):
+        client.post(
+            record_url(campaign), payload(source="manual", rolled="4", modifier="2")
+        )
+        roll = CampaignRoll.objects.get()
+        notes = ["Rare item available.", "Rare item bought.", ""]
+        for note in notes:
+            assert client.post(roll_url(roll), {"outcome": note}).status_code == 302
+        assert client.post(roll_url(roll), {"outcome": ""}).status_code == 302
+        roll.refresh_from_db()
+        assert (roll.rolled, roll.modifier, roll.total, roll.outcome) == (4, 2, 6, "")
+        assert (
+            list(
+                campaign.events.filter(kind=CampaignEvent.Kind.DICE_ROLL_NOTED)
+                .order_by("created", "pk")
+                .values_list("note", flat=True)
+            )
+            == notes
+        )
+        assert campaign.events.filter(kind=CampaignEvent.Kind.DICE_ROLLED).count() == 1
+        body = client.get(
+            reverse("n26-campaign-log", args=[campaign.pk])
+        ).content.decode()
+        assert "Rare item available." in body
+        assert "Rare item bought." in body
+        assert "cleared the outcome note for Rare trade" in body
 
     def test_related_choices_are_scoped_and_preserved(
         self, client, campaign, player, gang_type, campaign_type

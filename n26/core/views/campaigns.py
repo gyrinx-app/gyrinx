@@ -1058,7 +1058,7 @@ def add_battle(request, pk):
             except Refusal as exc:
                 form.add_error(None, str(exc))
             else:
-                messages.success(request, "Battle added.")
+                messages.success(request, "Battle recorded.")
                 return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
     else:
         form = BattleForm(playing=playing)
