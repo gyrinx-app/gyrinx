@@ -163,12 +163,21 @@ test("server field errors are attached to the name input", () => {
     expect(screen.getByText("A model needs a name.")).toBeTruthy();
 });
 
-
 test("accepts the response before htmx removes the outer host", async () => {
     const source = document.getElementById("n26-rename-dialog-host")!;
-    vi.stubGlobal("htmx", { ajax: vi.fn(async () => {
-        source.dispatchEvent(new CustomEvent("htmx:beforeOnLoad", {detail: {xhr: {getResponseHeader: () => props.cancelUrl}}}));
-        source.remove();
-    }) });
-    await expect(saveRenameDialog(source, props, "150")).resolves.toBeUndefined();
+    vi.stubGlobal("htmx", {
+        ajax: vi.fn(async () => {
+            source.dispatchEvent(
+                new CustomEvent("htmx:beforeOnLoad", {
+                    detail: {
+                        xhr: { getResponseHeader: () => props.cancelUrl },
+                    },
+                }),
+            );
+            source.remove();
+        }),
+    });
+    await expect(
+        saveRenameDialog(source, props, "150"),
+    ).resolves.toBeUndefined();
 });

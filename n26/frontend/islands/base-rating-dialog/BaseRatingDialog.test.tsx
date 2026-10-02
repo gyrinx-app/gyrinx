@@ -229,12 +229,21 @@ test("field and operation errors remain visible and associated with the input", 
     );
 });
 
-
 test("accepts the response before htmx removes the outer host", async () => {
     const source = document.getElementById("n26-rating-dialog-host")!;
-    vi.stubGlobal("htmx", { ajax: vi.fn(async () => {
-        source.dispatchEvent(new CustomEvent("htmx:beforeOnLoad", {detail: {xhr: {getResponseHeader: () => props.cancelUrl}}}));
-        source.remove();
-    }) });
-    await expect(saveBaseRatingDialog(source, props, "150", false)).resolves.toBeUndefined();
+    vi.stubGlobal("htmx", {
+        ajax: vi.fn(async () => {
+            source.dispatchEvent(
+                new CustomEvent("htmx:beforeOnLoad", {
+                    detail: {
+                        xhr: { getResponseHeader: () => props.cancelUrl },
+                    },
+                }),
+            );
+            source.remove();
+        }),
+    });
+    await expect(
+        saveBaseRatingDialog(source, props, "150", false),
+    ).resolves.toBeUndefined();
 });
