@@ -219,6 +219,7 @@ def reading_sentences(modifiers):
     # these are listed the way card.py lists its deep paths — without
     # them a page of placements fetches one collection per row.
     paths = [
+        "hides_categories__categories",
         "places_category__section__collection",
         "offers_choice__from_section__collection",
     ]

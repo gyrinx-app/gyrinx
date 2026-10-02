@@ -461,6 +461,18 @@ def _says_offers_choice(effect, parts):
     return said, hint
 
 
+@_renders("hides_categories")
+def _says_hides_categories(effect, parts):
+    who = parts.who
+    categories = ", ".join(category.name for category in effect.categories.all())
+    return (
+        f"{categories} equipment is hidden from {effect.collection} "
+        f"for {who.asked}{_while(who)}.",
+        "Other lists and Unrestricted still offer the equipment. "
+        "Equipment already owned stays on the model's card.",
+    )
+
+
 @_renders("places_category")
 def _says_places_category(effect, parts):
     who = parts.who

@@ -404,6 +404,7 @@ def _build_registry():
         HasSubtypes,
         HasTraits,
         Hidden,
+        HidesCategories,
         InCategories,
         Interstitial,
         InterstitialSlot,
@@ -738,6 +739,20 @@ def _build_registry():
                 "you name instead of their entry's own."
             ),
             example=("A fighter selected as Outcast Leader sorts with the Leaders."),
+        ),
+        Spec(
+            authoring.ef_hides_categories,
+            {
+                "collection": One(
+                    model=Collection, source=(HidesCategories, "collection")
+                ),
+                "categories": Many(
+                    model=Category, source=(HidesCategories, "categories")
+                ),
+            },
+            label="Hides equipment categories",
+            blurb="Hide selected categories from one equipment list for the model.",
+            example="A profile hides Heavy Weapons from its gang's equipment list.",
         ),
         Spec(
             authoring.ef_places,

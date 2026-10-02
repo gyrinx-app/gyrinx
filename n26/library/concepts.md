@@ -203,6 +203,13 @@ Both print on the card under their own headings. They arrive built in, given by 
 
 See [Collections](/n26/authoring/docs/collections/) for how to create equipment lists, hire lists and skill access.
 
+A profile can hide categories from one equipment list with the **Hides
+equipment categories** modifier effect. Select the collection and categories,
+and target the model. Several modifiers combine their hidden categories.
+Other lists, the gang stash and **Unrestricted** still offer the equipment;
+anything already owned stays on the model's card. Removing the modifier's
+source restores the categories it hid.
+
 One field of its own: **prices its entries** — turned off for a menu, where nothing is for sale and the entries are simply choices.
 
 On the hire screen, a collection of fighters is grouped according to its default section:

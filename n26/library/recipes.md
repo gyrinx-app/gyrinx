@@ -459,7 +459,7 @@ The saw still shows on the list for everyone. It is marked for the
 fighters the list does not offer it to, and an owner can still buy it
 for them. Nothing is blocked. The list states the restriction.
 
-A restriction can go in three places:
+A restriction can go in four places:
 
 - **On the entry**, as above, when one list restricts one of its items.
 - **On the item**, when the restriction is true wherever the item is
@@ -470,6 +470,12 @@ A restriction can go in three places:
   rather than restricting items one at a time. Create the collection
   and give it to those models with a modifier. Every item in it is then
   offered only to them, with nothing to restrict.
+- **On the profile**, when models sharing a list should see different
+  categories. Add a modifier targeting the model, choose **Hides equipment
+  categories**, then select the equipment list and categories to hide.
+  Other lists still offer those categories. The player can use
+  **Unrestricted** for an exception, and equipment already owned stays
+  on the model's card.
 
 ## A model with a rolled statline
 

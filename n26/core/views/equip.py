@@ -542,10 +542,11 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
     reports on, and a second implementation of "which list is the reader
     on" would let the two quietly disagree.
     """
-    from n26.core.access import collections_for, gang_collections
+    from n26.core.access import collections_for, gang_collections, hidden_categories_for
     from n26.core.browse import (
         all_gear,
         browse,
+        narrow,
         priced_from,
         usability_for,
         with_use_notes,
@@ -601,7 +602,10 @@ def _screen(gang, miniature=None, list_param="", budgets=True, *, include_staged
         else:
             chosen = chosen_from(collections)
             view = (
-                browse(chosen, include_staged=include_staged)
+                narrow(
+                    browse(chosen, include_staged=include_staged),
+                    exclude_categories=hidden_categories_for(chosen, computed),
+                )
                 if chosen is not None
                 else None
             )
