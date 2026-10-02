@@ -105,7 +105,12 @@
                                             <a href="{% url 'designsystem:component' c.slug %}"
                                                {% if component.slug == c.slug %}aria-current="page" data-current{% endif %}
                                                class="flex items-center justify-between gap-2 rounded-control px-3 py-1.5 hover:bg-ink-500/10 {% if component.slug == c.slug %}{{ current }}{% endif %}">
-                                                <span>{{ c.slug }}</span>
+                                                <span class="flex min-w-0 items-center gap-1.5">
+                                                    <span class="truncate">{{ c.slug }}</span>
+                                                    {% if c.uses_react %}
+                                                        {% include "designsystem/_react_mark.html" with size="size-3" %}
+                                                    {% endif %}
+                                                </span>
                                                 {% if c.parts %}
                                                     <span class="text-[10px] text-muted">+{{ c.parts|length }}</span>
                                                 {% endif %}
