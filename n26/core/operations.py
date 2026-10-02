@@ -1684,6 +1684,8 @@ class Operation:
 
     def _clone_ledger(self, source, clone, *, neutral=False, rating_override=0):
         """Give a cloned assignment a fresh opening and its rating override."""
+        from n26.core.cloning import CLONED_RATING_NOTE_PREFIX
+
         entry = getattr(source, "ledger_entry", None)
         values = (
             {
@@ -1733,7 +1735,7 @@ class Operation:
                 clone,
                 LedgerEvent.Kind.RATING_SET,
                 rating_delta=delta,
-                note=f"Base rating {baseline}¢ → {baseline + delta}¢",
+                note=f"{CLONED_RATING_NOTE_PREFIX}{baseline}|{baseline + delta}",
             )
             baseline += delta
             rating_override -= delta

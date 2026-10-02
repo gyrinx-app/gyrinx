@@ -851,6 +851,14 @@ class TestCloningRatingOverrides:
         assert entry.rating_without_override == 100
         receipt = read_rating_receipt(clone)
         assert receipt.override_delta == rating - 100
+        acts = build_history(destination, viewer=gang.owner)
+        clone_acts = [act for act in acts if act.miniature_pk == str(clone.pk)]
+        if kind == "model":
+            assert len(clone_acts) == 1
+            assert clone_acts[0].rating == rating + 20
+        else:
+            assert clone_acts == []
+            assert len(acts) == 1
         credits = destination.credits
         assert_reconciled(destination)
         if rating == -(2**31) + 1:
@@ -871,4 +879,35 @@ class TestCloningRatingOverrides:
         assert clone.membership.ledger_entry.rating_contribution == 100
         assert clone.membership.ledger_entry.rating_without_override == 100
         assert destination.credits == credits
+        assert any(
+            act.miniature_pk == str(clone.pk)
+            and "reset" in "".join(span.text for span in act.spans)
+            for act in build_history(destination, viewer=gang.owner)
+        )
         assert_reconciled(destination)
+
+    def test_copied_overrides_do_not_consume_campaign_pages_or_counts(
+        self, gang, vex, campaign_type
+    ):
+        from n26.core.history import campaign_history, campaign_history_size, latest
+        from n26.tests.sandbox.actions import found_campaign, join_campaign
+
+        campaign = found_campaign("Dust Falls", campaign_type, owner=gang.owner)
+        join_campaign(gang, campaign)
+        with operation(gang, actor=gang.owner) as op:
+            op.set_base_rating(vex, 150)
+        before = campaign_history_size(campaign)
+        with operation(gang, actor=gang.owner) as op:
+            clone = op.clone_miniature(vex)
+        expected = latest(gang, limit=1, viewer=gang.owner)
+        assert len(expected) == 1
+        assert expected[0].miniature_pk == str(clone.pk)
+        assert expected[0].rating == 170
+        for limit in [None, 1, 2]:
+            acts = campaign_history(campaign, viewer=gang.owner, limit=limit)
+            cloned = [act for act in acts if act.miniature_pk == str(clone.pk)]
+            assert len(cloned) == 1
+            assert cloned[0].rating == 170
+            assert "cloned" in "".join(span.text for span in cloned[0].spans)
+        assert campaign_history_size(campaign) == before + 1
+        assert_reconciled(gang)
