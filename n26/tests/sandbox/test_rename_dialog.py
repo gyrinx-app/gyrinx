@@ -9,7 +9,14 @@ from django.urls import reverse
 
 from n26.core.models import LedgerEvent
 from n26.core.reconcile import assert_reconciled
-from n26.tests.sandbox.actions import found_gang, hire_with_option
+from n26.library.models import Skill
+from n26.tests.sandbox.actions import (
+    create_category,
+    create_collection,
+    create_skill,
+    found_gang,
+    hire_with_option,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -91,6 +98,30 @@ class TestTheNameDialog:
         event = vex.ledger_events.get(kind=LedgerEvent.Kind.RENAMED)
         assert event.actor == vex.gang.owner
         assert event.note == "Vex → Karn"
+        assert_reconciled(vex.gang)
+
+    def test_an_empty_skills_tab_keeps_name_independent_copy_after_rename(
+        self, client, vex
+    ):
+        category = create_category("Skills", "Agility")
+        create_skill("Catfall", category=category)
+        create_collection("Skills & Powers", contains=[Skill])
+        client.force_login(vex.gang.owner)
+        page = client.get(edit_url(vex), {"skills": "their-sets"})
+        skills = BeautifulSoup(page.content, "html.parser").find(id="n26-skills-box")
+        assert skills is not None
+        assert (
+            "No skill set has been put in a tier for this model." in skills.get_text()
+        )
+        assert "Vex" not in skills.get_text()
+        response = client.post(
+            rename_url(vex), {"name": "Karn"}, HTTP_HX_REQUEST="true"
+        )
+        assert response.status_code == 200
+        updates = BeautifulSoup(response.content, "html.parser")
+        assert updates.find(id="n26-skills-box") is None
+        assert "Karn" in updates.find(id=f"n26-model-name-{vex.pk}").get_text()
+        assert "Vex" not in skills.get_text()
         assert_reconciled(vex.gang)
 
     def test_no_change_closes_the_dialog_without_an_extra_event(self, client, vex):

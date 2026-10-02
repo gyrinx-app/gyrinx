@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from n26.core.history import build as build_history
-from n26.core.models import LedgerEvent, Miniature
+from n26.core.models import Assignment, LedgerEvent, Miniature
 from n26.core.operations import Refusal, operation
 from n26.core.rating import read_rating_receipt
 from n26.core.reconcile import assert_reconciled
@@ -368,6 +368,65 @@ class TestSavingBaseRating:
             op.set_status(vex, Status.ACTIVE)
         vex.refresh_from_db()
         assert vex.rating == 170
+        assert_reconciled(gang)
+
+
+class TestRatingSettlement:
+    @pytest.mark.parametrize("overflow", ["model", "gang", "stash"])
+    def test_a_later_purchase_that_overflows_rating_rolls_back(
+        self, gang, vex, make_profile, overflow
+    ):
+        holder = vex
+        if overflow == "stash":
+            holder = gang.stash
+            with operation(gang, actor=gang.owner) as op:
+                op.assign(create_wargear("Stored gear"), stash=holder, rating=2**31 - 1)
+        else:
+            base = 2**31 - 21
+            if overflow == "gang":
+                holder = hire_with_option(
+                    gang,
+                    make_profile("Extra", price=100),
+                    "Extra",
+                    paid=100,
+                    rating=100,
+                )
+                base -= 100
+            with operation(gang, actor=gang.owner) as op:
+                op.set_base_rating(vex, base)
+        gear = create_wargear("Extra gear", price=1)
+        credits = gang.credits
+        events = gang.ledger_events.count()
+        with pytest.raises(Refusal, match="resulting rating"):
+            buy(holder, thing=gear)
+        gang.refresh_from_db()
+        vex.refresh_from_db()
+        holder.refresh_from_db()
+        assert gang.credits == credits
+        assert gang.ledger_events.count() == events
+        assert not Assignment.objects.filter(gang_root=gang, wargear=gear).exists()
+        assert_reconciled(gang)
+
+    def test_a_dead_model_cannot_be_reactivated_after_the_gang_rating_grows(
+        self, gang, vex, make_profile
+    ):
+        with operation(gang, actor=gang.owner) as op:
+            op.set_status(vex, Status.DEAD)
+        with operation(gang, actor=gang.owner) as op:
+            op.set_base_rating(vex, 2**31 - 21)
+        hire_with_option(
+            gang, make_profile("Extra", price=100), "Extra", paid=100, rating=100
+        )
+        events = gang.ledger_events.count()
+        with pytest.raises(Refusal, match="resulting rating"):
+            with operation(gang, actor=gang.owner) as op:
+                op.set_status(vex, Status.ACTIVE)
+        gang.refresh_from_db()
+        vex.refresh_from_db()
+        assert vex.status == Status.DEAD
+        assert vex.rating == 0
+        assert gang.rating == 100
+        assert gang.ledger_events.count() == events
         assert_reconciled(gang)
 
 

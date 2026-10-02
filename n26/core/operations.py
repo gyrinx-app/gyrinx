@@ -3085,12 +3085,22 @@ class Operation:
     def settle(self):
         """Rewrite the pinned numbers this operation disturbed.
 
-        This is also where an overspend is refused: raising here unwinds
-        the whole operation's transaction, so a too-expensive hire leaves
-        nothing half-written behind.
+        Rating overflow and overspend are refused here so the whole
+        transaction unwinds, including assignments, payments and events.
         """
+
+        def repin_rating(thing):
+            rating = thing.recompute_rating()
+            if not -(2**31) <= rating < 2**31:
+                raise Refusal(
+                    "You cannot make this change. The resulting rating is outside "
+                    "the range -2147483648¢ to 2147483647¢."
+                )
+            thing.rating = rating
+            thing.save(update_fields=["rating", "modified"])
+
         for miniature in self._miniatures.values():
-            miniature.repin_rating()
+            repin_rating(miniature)
         if self.gang is not None:
             # What the gang read about its own open activities is dropped
             # here as well as at each writer: the instance goes on being
@@ -3099,8 +3109,8 @@ class Operation:
             self.gang.forget_open_activities()
             stash = getattr(self.gang, "stash", None)
             if stash is not None:
-                stash.repin_rating()
-            self.gang.repin_rating()
+                repin_rating(stash)
+            repin_rating(self.gang)
             remaining = self.gang.recompute_credits()
             if remaining is not None and remaining < 0:
                 raise NotEnoughCredits(self.gang, shortfall=-remaining)
