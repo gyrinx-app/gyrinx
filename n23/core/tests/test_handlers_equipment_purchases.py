@@ -23,6 +23,146 @@ from n23.models import FighterCategoryChoices
 pytestmark = pytest.mark.core
 
 
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    "purchase_type", ["equipment", "accessory", "profile", "upgrade"]
+)
+def test_purchase_racing_death_uses_shared_lock_order(
+    user,
+    list_with_campaign,
+    content_fighter,
+    stash_fighter_type,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_with_accessory,
+    make_weapon_with_profile,
+    make_equipment_with_upgrades,
+    monkeypatch,
+    purchase_type,
+):
+    import threading
+    import time
+
+    from django.db import connection
+
+    from n23.core.handlers.fighter.kill import handle_fighter_kill
+    from n23.core.models.list import List
+    from n23.core.tests.test_balance_sheet import (
+        assert_reconciles,
+        buy_equipment,
+        fresh,
+        hire_fighter,
+    )
+    from n23.core.tests.test_task_chaos_concurrency import _run_concurrently
+
+    lst = list_with_campaign
+    lst.create_action(
+        user=user,
+        action_type=ListActionType.UPDATE_CREDITS,
+        credits_before=0,
+        credits_delta=1000,
+        description="Starting credits",
+    )
+    lst.apply_credit_delta(1000)
+    make_equipment("Race category seed", cost=0, category="Race weapons")
+    fighter = hire_fighter(user, lst, content_fighter)
+    stash = make_list_fighter(lst, "Stash", content_fighter=stash_fighter_type)
+    if purchase_type == "equipment":
+        equipment = make_equipment("Race gear", cost=15)
+        component = None
+        assignment = ListFighterEquipmentAssignment.objects.create(
+            list_fighter=fighter,
+            content_equipment=equipment,
+        )
+    else:
+        factory, cost_key = {
+            "accessory": (make_weapon_with_accessory, "accessory_cost"),
+            "profile": (make_weapon_with_profile, "profile_cost"),
+            "upgrade": (make_equipment_with_upgrades, "upgrade_cost"),
+        }[purchase_type]
+        equipment, component = factory(cost=20, **{cost_key: 15})
+        buy_equipment(user, lst, fighter, equipment)
+        assignment = fighter.listfighterequipmentassignment_set.get()
+
+    credits_before = fresh(lst).credits_current
+    rating_after_purchase = fresh(fighter).cost_int() + (
+        0 if purchase_type == "equipment" else 15
+    )
+    expected_stash = rating_after_purchase - content_fighter.cost_for_house(
+        lst.content_house
+    )
+    money_spent = threading.Event()
+    confirmation_attempted = threading.Event()
+    confirmation_pid = []
+    original_spend = List.spend_credits
+    roles = iter(["purchase", "confirm"])
+    deaths = []
+
+    def pause_after_spending(self, *args, **kwargs):
+        result = original_spend(self, *args, **kwargs)
+        money_spent.set()
+        assert confirmation_attempted.wait(timeout=5)
+        # Wait for a real PostgreSQL lock wait, so both lock orders are tested
+        # at the point where the purchase holds its gang row.
+        with connection.cursor() as cursor:
+            for _ in range(100):
+                cursor.execute(
+                    "SELECT pg_backend_pid() = ANY(pg_blocking_pids(%s))",
+                    [confirmation_pid[0]],
+                )
+                if cursor.fetchone()[0]:
+                    break
+                time.sleep(0.02)
+            else:
+                pytest.fail("Confirmation did not wait for the purchase")
+        return result
+
+    def announce_confirmation(execute, sql, params, many, context):
+        if "FOR NO KEY UPDATE" in sql and f'"{ListFighter._meta.db_table}"' in sql:
+            confirmation_attempted.set()
+        return execute(sql, params, many, context)
+
+    monkeypatch.setattr(List, "spend_credits", pause_after_spending)
+
+    def purchase_or_confirm():
+        if next(roles) == "purchase":
+            kwargs = dict(
+                user=user,
+                lst=fresh(lst),
+                fighter=fresh(fighter),
+                assignment=fresh(assignment),
+            )
+            if purchase_type == "equipment":
+                handle_equipment_purchase(**kwargs)
+            elif purchase_type == "accessory":
+                handle_accessory_purchase(**kwargs, accessory=component)
+            elif purchase_type == "profile":
+                handle_weapon_profile_purchase(**kwargs, profile=component)
+            else:
+                handle_equipment_upgrade(**kwargs, new_upgrades=[component])
+        else:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_backend_pid()")
+                confirmation_pid.append(cursor.fetchone()[0])
+            assert money_spent.wait(timeout=5)
+            with connection.execute_wrapper(announce_confirmation):
+                deaths.append(
+                    handle_fighter_kill(
+                        user=user, lst=fresh(lst), fighter=fresh(fighter)
+                    )
+                )
+
+    _run_concurrently(purchase_or_confirm)
+
+    assert deaths[0].fighter_cost_before == rating_after_purchase
+    assert fresh(fighter).is_dead
+    assert fresh(fighter).rating_current == fresh(lst).rating_current == 0
+    assert fresh(lst).credits_current == credits_before - 15
+    assert fresh(stash).rating_current == fresh(lst).stash_current == expected_stash
+    assert stash.listfighterequipmentassignment_set.count() == 1
+    assert_reconciles(lst)
+
+
 @pytest.mark.django_db
 def test_handle_equipment_purchase_campaign_mode(
     user,

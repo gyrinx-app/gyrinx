@@ -178,7 +178,8 @@ def _apply(request, lst, fighters, resources, form):
         already_dead = {
             fighter.pk
             for fighter in fighters
-            if fighter.injury_state == ListFighter.DEAD
+            if (cd.get(f"initial_state_{fighter.pk}") or fighter.injury_state)
+            == ListFighter.DEAD
         }
         # Credits and earlier fighters can hold the list lock until commit.
         # Lock the whole roster first, then discard pre-lock fighter snapshots.

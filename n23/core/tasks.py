@@ -238,6 +238,7 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
         ListFighter,
         _materialise_child_fighter_defaults,
     )
+    from n23.core.models.list.locking import lock_lists_for_fighter_write
     from n23.core.models.pack import CustomContentPackItem
 
     try:
@@ -303,7 +304,10 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
                 # duplicate child fighter. Locking the list serialises the
                 # deliveries, so the second sees the first's committed
                 # materialisation and skips (created_total == 0 below).
-                lst = List.objects.select_for_update().get(pk=list_id)
+                lock_lists_for_fighter_write(list_ids=[list_id])
+                lst = List.objects.select_for_update(of=("self",), no_key=True).get(
+                    pk=list_id
+                )
 
                 created_total = 0
                 for fighter in fighters:

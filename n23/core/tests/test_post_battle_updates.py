@@ -431,6 +431,63 @@ def test_post_battle_existing_dead_fighter_can_still_gain_xp(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("dead_before_get", [False, True])
+def test_post_battle_round_trips_state_to_skip_stale_browser_updates(
+    client,
+    user,
+    list_with_campaign,
+    content_fighter,
+    dead_before_get,
+):
+    from n23.core.handlers.fighter.kill import handle_fighter_kill
+    from n23.core.models.action import ListActionType
+    from n23.core.tests.test_balance_sheet import assert_reconciles, fresh, hire_fighter
+
+    lst = list_with_campaign
+    lst.create_action(
+        user=user,
+        action_type=ListActionType.UPDATE_CREDITS,
+        credits_before=0,
+        credits_delta=1000,
+        description="Starting credits",
+    )
+    lst.apply_credit_delta(1000)
+    fighter = hire_fighter(user, lst, content_fighter)
+    counter = ContentCounter.objects.create(name="Race counter")
+    counter.restricted_to_fighters.add(content_fighter)
+    if dead_before_get:
+        handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter))
+    client.force_login(user)
+    url = reverse("core:list-post-battle", args=[lst.pk])
+    response = client.get(url)
+    assert response.status_code == 200
+    hidden = BeautifulSoup(response.content, "html.parser").select(
+        'input[type="hidden"][name]'
+    )
+    data = {field["name"]: field.get("value", "") for field in hidden}
+    assert data[f"initial_state_{fighter.pk}"] == (
+        ListFighter.DEAD if dead_before_get else ListFighter.ACTIVE
+    )
+    if not dead_before_get:
+        handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter))
+    action_count = lst.actions.count()
+    data[f"xp_{fighter.pk}"] = "3"
+    data[f"counter_{fighter.pk}_{counter.pk}"] = "2"
+
+    response = client.post(url, data)
+
+    assert response.status_code == 302
+    assert fresh(fighter).is_dead
+    assert fresh(fighter).xp_current == (3 if dead_before_get else 0)
+    value = ListFighterCounter.objects.filter(fighter=fighter, counter=counter).first()
+    assert (value.value if value else 0) == (2 if dead_before_get else 0)
+    if not dead_before_get:
+        assert lst.actions.count() == action_count
+    assert fresh(fighter).rating_current == fresh(lst).rating_current == 0
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
 def test_post_battle_locked_roster_reload_has_flat_query_growth(
     rf, user, list_with_campaign, content_fighter, make_list_fighter
 ):

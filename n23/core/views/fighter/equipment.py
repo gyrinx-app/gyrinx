@@ -66,6 +66,16 @@ from n23.core.views import make_query_params_str
 from n23.core.views.list.common import get_clean_list_or_404
 
 
+def _equipment_list_or_404(request, model_or_queryset, id):
+    # Acquire the shared locks before forms save assignments or linked fighters.
+    return get_clean_list_or_404(
+        model_or_queryset,
+        id=id,
+        owner=request.user,
+        for_update=request.method == "POST",
+    )
+
+
 @login_required
 @transaction.atomic
 def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
@@ -93,7 +103,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
     :template:`core/list_fighter_weapons_edit.html` or :template:`core/list_fighter_gear_edit.html`
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = _equipment_list_or_404(request, List, id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -673,9 +683,7 @@ def edit_list_fighter_assign_cost(
 
     :template:`core/list_fighter_assign_cost_edit.html`
     """
-    lst = get_clean_list_or_404(
-        List.objects.with_related_data(), id=id, owner=request.user
-    )
+    lst = _equipment_list_or_404(request, List.objects.with_related_data(), id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -764,7 +772,7 @@ def delete_list_fighter_assign(
 
     :template:`core/list_fighter_assign_delete_confirm.html`
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = _equipment_list_or_404(request, List, id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -846,7 +854,7 @@ def delete_list_fighter_gear_upgrade(
 
     :template:`core/list_fighter_assign_upgrade_delete_confirm.html`
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = _equipment_list_or_404(request, List, id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -940,7 +948,7 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     :template:`core/list_fighter_weapons_accessories_edit.html`
 
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = _equipment_list_or_404(request, List, id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1106,7 +1114,7 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
     :template:`core/list_fighter_weapon_edit.html`
 
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = _equipment_list_or_404(request, List, id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1247,7 +1255,7 @@ def delete_list_fighter_weapon_profile(request, id, fighter_id, assign_id, profi
     :template:`core/list_fighter_weapon_profile_delete.html`
 
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = _equipment_list_or_404(request, List, id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1324,7 +1332,7 @@ def delete_list_fighter_weapon_accessory(
 
     :template:`core/list_fighter_weapons_accessory_delete.html`
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = _equipment_list_or_404(request, List, id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1419,7 +1427,7 @@ def edit_list_fighter_weapon_upgrade(
 
     :template:`core/list_fighter_assign_upgrade_edit.html`
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = _equipment_list_or_404(request, List, id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1499,7 +1507,7 @@ def disable_list_fighter_default_assign(
 
     :template:`core/list_fighter_assign_disable.html`
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = _equipment_list_or_404(request, List, id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1553,7 +1561,7 @@ def convert_list_fighter_default_assign(
     **Template**
     :template:`core/list_fighter_assign_convert.html`
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+    lst = _equipment_list_or_404(request, List, id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1607,9 +1615,7 @@ def reassign_list_fighter_equipment(
 
     :template:`core/list_fighter_assign_reassign.html`
     """
-    lst = get_clean_list_or_404(
-        List.objects.with_related_data(), id=id, owner=request.user
-    )
+    lst = _equipment_list_or_404(request, List.objects.with_related_data(), id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,
@@ -1706,9 +1712,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
 
     :template:`core/list_fighter_equipment_sell.html`
     """
-    lst = get_clean_list_or_404(
-        List.objects.with_related_data(), id=id, owner=request.user
-    )
+    lst = _equipment_list_or_404(request, List.objects.with_related_data(), id)
     fighter = get_object_or_404(
         ListFighter.objects.with_related_data(),
         id=fighter_id,

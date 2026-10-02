@@ -170,6 +170,13 @@ class PostBattleUpdatesForm(forms.Form):
         for fighter in self.fighters:
             pk = fighter.pk
 
+            self.fields[f"initial_state_{pk}"] = forms.ChoiceField(
+                required=False,
+                choices=ListFighter.INJURY_STATE_CHOICES,
+                initial=fighter.injury_state,
+                widget=forms.HiddenInput,
+            )
+
             self.fields[f"xp_{pk}"] = forms.IntegerField(
                 required=False,
                 min_value=1,

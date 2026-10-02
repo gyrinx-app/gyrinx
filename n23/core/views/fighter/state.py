@@ -405,7 +405,7 @@ def list_fighter_add_injury(request, id, fighter_id):
                     outcome = (
                         f"Death of {fighter.name} awaits confirmation."
                         if new_state == ListFighter.DEAD
-                        else f"{fighter.name} was put into {fighter_state_display}."
+                        else f"{fighter.name} was put into {fighter_state_display}"
                     )
 
                     CampaignAction.objects.create(
