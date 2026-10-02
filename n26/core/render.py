@@ -630,6 +630,10 @@ class ChoiceLine:
     #: True when carried kit owns an explicit tier ladder. Its control keeps
     #: the specific "Choose tier" label after a tier is held.
     is_tier_ladder: bool = False
+    #: True for a choice whose slot type is marked as a lasting effect.
+    #: Most models carry one, so a card away from the model's own screens
+    #: draws it only once something has been chosen.
+    is_lasting_effect: bool = False
     #: Dismissed choices are kept off the model card. The model's Edit page
     #: and the gang's Dismissed choices tab offer Restore instead of Choose.
     dismissed: bool = False
@@ -1995,6 +1999,7 @@ def _choice_line(slot, host):
         is_full=slot.is_full,
         takes_several=slot.max_picks > 1,
         is_tier_ladder=is_tier_ladder(slot),
+        is_lasting_effect=is_lasting_effect(slot),
         key=slot_key(slot, host),
         provenance=Provenance(
             source=slot.source,
@@ -2081,6 +2086,28 @@ def is_tier_ladder(slot):
     from n26.library.models import Slot
 
     return getattr(getattr(slot, "slot", None), "mode", None) == Slot.Mode.TIER_LADDER
+
+
+def is_lasting_effect(slot):
+    """Whether a computed slot's type is marked as a lasting effect."""
+    stored = getattr(slot, "slot", None)
+    return stored is not None and stored.slot_type.is_lasting_effect
+
+
+def hide_open_lasting_effects(holder):
+    """Take the lasting-effect choices with nothing chosen off a card.
+
+    Most models carry one, so on a roster an empty one is a row on
+    nearly every card saying nothing. A choice holding a result stays: that is
+    an injury the model has. The model's own screens draw the open
+    choice, which is where one is recorded.
+    """
+    for lines in holder.question_lists():
+        lines[:] = [
+            line
+            for line in lines
+            if not (line.is_lasting_effect and not line.is_resolved)
+        ]
 
 
 def gear_home(slot, gear_by_key):
@@ -2525,6 +2552,7 @@ def build_model_card(
     collapse_repeats=True,
     brought_in=None,
     rank_summaries=None,
+    open_lasting_effects=False,
 ):
     """Everything needed to draw one model's card.
 
@@ -2552,6 +2580,11 @@ def build_model_card(
     omitted, a standalone card reads its effective tables and thresholds in
     two library queries if it has ranks. Pass ``()`` when rank display is
     intentionally excluded, such as an effect-only comparison.
+
+    ``open_lasting_effects`` keeps a lasting-effect choice that holds
+    nothing yet. Only the model's own screens ask for it: that is where
+    an injury is recorded, and everywhere else it would be an empty row
+    on every card.
     """
     if card is None:
         card = build_card(miniature, with_statlines=True, assignment_set=assignment_set)
@@ -2586,6 +2619,8 @@ def build_model_card(
         founding_budget=budget is not None,
         status=miniature.status,
     )
+    if not open_lasting_effects:
+        hide_open_lasting_effects(rendered)
     if computed is not None:
         from n26.core.access import actions_for
 
