@@ -12,7 +12,7 @@ Edit because they do not hold the rename dialog host.
                  size="xs"
                  class="ms-1 -mt-0.5 px-1! align-middle"
                  id="n26-name-pencil-{{ miniature.pk }}"
-                 href="{% url 'n26-edit-fighter' miniature.pk %}?rename={{ miniature.pk }}"
+                 href="{{ rename_dialog_href }}"
                  hx-get="{{ rename_dialog_href }}"
                  hx-swap="none"
                  aria-label="Rename {{ miniature.name }}"

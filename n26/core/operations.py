@@ -665,8 +665,9 @@ class Operation:
         resetting = rating is None
         if resetting:
             rating = entry.rating_without_override
-        if not isinstance(rating, int) or not -(2**31) <= rating < 2**31:
-            raise Refusal("Enter a whole number between -2147483648 and 2147483647.")
+        # A refund negates this contribution in an integer ledger delta.
+        if not isinstance(rating, int) or not -(2**31) < rating < 2**31:
+            raise Refusal("Enter a whole number between -2147483647 and 2147483647.")
         before = entry.rating_contribution
         if rating == before:
             return False
@@ -1887,6 +1888,12 @@ class Operation:
         if delta:
             entry = getattr(carrier, "ledger_entry", None)
             if entry is not None:
+                entry.refresh_from_db()
+                if not -(2**31) < entry.rating_contribution + delta < 2**31:
+                    raise Refusal(
+                        "You cannot take this option. The resulting base rating is outside "
+                        "the range -2147483647¢ to 2147483647¢."
+                    )
                 entry.paid += delta
                 entry.list_price += delta
                 entry.rating_contribution += delta

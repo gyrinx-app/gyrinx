@@ -1044,16 +1044,18 @@ def rename_fighter(request, pk):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import RenameFighterForm
     from n26.core.operations import operation
+    from n26.core.views.edit import dialog_url, edit_dialog_addresses
     from n26.core.views.htmx import is_htmx, with_toasts
     from n26.core.views.permissions import _own_miniature_or_404
 
     miniature = _own_miniature_or_404(request, pk)
     # The model's own page carries the rename pencil; the sheet still
     # draws the dialog when ``?rename=`` names a member. The act lands
-    # back on whichever asked. ``?back=edit`` is a named place, never a
-    # URL, so there is nothing here for an open redirect to ride.
+    # back on whichever asked. Edit-page state is rebuilt from its allowed
+    # query parameters, and the sheet remains a fixed destination.
     if request.GET.get("back") == "edit":
-        back_url = reverse("n26-edit-fighter", args=[miniature.pk])
+        addresses = edit_dialog_addresses(miniature, request.GET.get("at"))
+        back_url = addresses.back
     else:
         back_url = reverse("n26-gang", args=[miniature.membership.gang_id])
     partial = request.GET.get("back") == "edit" and is_htmx(request)
@@ -1070,14 +1072,14 @@ def rename_fighter(request, pk):
                 "oob": True,
             },
         )
-        response["HX-Replace-Url"] = f"{back_url}?rename={miniature.pk}"
+        response["HX-Replace-Url"] = dialog_url(back_url, rename=miniature.pk)
         return response
     if request.method != "POST":
-        return redirect(f"{back_url}?rename={miniature.pk}")
+        return redirect(dialog_url(back_url, rename=miniature.pk))
 
     if not form.is_valid():
         messages.error(request, "A model needs a name.")
-        return redirect(f"{back_url}?rename={miniature.pk}")
+        return redirect(dialog_url(back_url, rename=miniature.pk))
 
     was = miniature.name
     name = form.cleaned_data["name"]
@@ -1101,11 +1103,11 @@ def rename_fighter(request, pk):
                 "fighter_switcher": fighter_switcher(
                     miniature.gang, miniature, route="n26-edit-fighter"
                 ),
-                "rating_href": reverse("n26-base-rating", args=[miniature.pk]),
+                "rating_href": addresses.rating,
                 "rating_breakdown": read_rating_receipt(miniature).popover_props(
                     miniature.name
                 ),
-                "rename_href": f"{reverse('n26-rename-fighter', args=[miniature.pk])}?back=edit",
+                "rename_href": addresses.rename,
                 "trade_points_href": trade_points_href(miniature.gang, request.user),
                 "credits_href": credits_href(miniature.gang, request.user),
                 "profile_name": str(miniature.membership.profile)
@@ -1123,18 +1125,22 @@ def rename_dialog_props(request, miniature, form=None):
     from django.middleware.csrf import get_token
 
     from n26.core.forms import RenameFighterForm
+    from n26.core.views.edit import edit_dialog_addresses
 
     form = (
         form
         if form is not None
         else RenameFighterForm(initial={"name": miniature.name})
     )
+    addresses = edit_dialog_addresses(
+        miniature, request.GET.get("at") or request.get_full_path()
+    )
     return {
         "name": miniature.name,
         "value": str(form["name"].value() or ""),
         "errors": list(form["name"].errors),
-        "actionUrl": f"{reverse('n26-rename-fighter', args=[miniature.pk])}?back=edit",
-        "cancelUrl": reverse("n26-edit-fighter", args=[miniature.pk]),
+        "actionUrl": addresses.rename,
+        "cancelUrl": addresses.back,
         "csrfToken": get_token(request),
         "returnFocusId": f"n26-name-pencil-{miniature.pk}",
     }

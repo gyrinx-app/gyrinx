@@ -1,6 +1,7 @@
 """Owners edit the hire's rating while equipment and advancements keep adding."""
 
 import json
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
 from bs4 import BeautifulSoup
@@ -16,12 +17,14 @@ from n26.core.render import build_model_card
 from n26.core.status import Status
 from n26.tests.sandbox.actions import (
     buy,
+    create_default_set,
     create_rule,
     create_wargear,
     create_weapon,
     found_gang,
     give_weapon,
     hire_with_option,
+    offer_option,
 )
 
 pytestmark = pytest.mark.django_db
@@ -304,9 +307,7 @@ class TestSavingBaseRating:
         assert gang.ledger_events.filter(kind=LedgerEvent.Kind.RATING_SET).count() == 1
         assert_reconciled(gang)
 
-    @pytest.mark.parametrize(
-        "rating", ["", "1.5", "text", str(2**31), str(-(2**31) - 1)]
-    )
+    @pytest.mark.parametrize("rating", ["", "1.5", "text", str(2**31), str(-(2**31))])
     def test_invalid_values_show_errors_without_writing(
         self, client, gang, vex, rating
     ):
@@ -322,7 +323,7 @@ class TestSavingBaseRating:
     def test_a_change_larger_than_a_ledger_delta_is_refused(self, gang, vex):
         with pytest.raises(Refusal, match="too large"):
             with operation(gang, actor=gang.owner) as op:
-                op.set_base_rating(vex, -(2**31))
+                op.set_base_rating(vex, -(2**31) + 1)
         assert_reconciled(gang)
 
     @pytest.mark.parametrize("overflow", ["model", "gang"])
@@ -372,6 +373,61 @@ class TestSavingBaseRating:
 
 
 class TestRatingSettlement:
+    def test_the_lowest_accepted_override_can_still_be_refunded(
+        self, gang, make_profile
+    ):
+        model = hire_with_option(gang, make_profile("Ganger", price=100), "Vex")
+        with operation(gang, actor=gang.owner) as op:
+            op.set_base_rating(model, -(2**31) + 100)
+        with pytest.raises(Refusal, match="Enter a whole number"):
+            with operation(gang, actor=gang.owner) as op:
+                op.set_base_rating(model, -(2**31))
+        with operation(gang, actor=gang.owner) as op:
+            op.set_base_rating(model, -(2**31) + 1)
+        with operation(gang, actor=gang.owner) as op:
+            op.refund(model.membership)
+        gang.refresh_from_db()
+        assert gang.rating == 0
+        assert gang.credits == 1000
+        refunded = gang.ledger_events.get(kind=LedgerEvent.Kind.REFUNDED)
+        assert refunded.rating_delta == 2**31 - 1
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("direction", [1, -1])
+    def test_an_option_cannot_push_an_override_past_the_refundable_range(
+        self, gang, make_profile, direction
+    ):
+        profile = make_profile("Ganger", price=100)
+        standard = create_default_set("Standard", price=0)
+        upgrade = create_default_set("Upgrade", price=1)
+        offer_option(profile, "Standard", default_set=standard, position=0)
+        offer_option(profile, "Upgrade", default_set=upgrade, position=1)
+        model = hire_with_option(
+            gang, profile, "Vex", option=standard if direction == 1 else upgrade
+        )
+        boundary = direction * (2**31 - 1)
+        if direction == -1:
+            with operation(gang, actor=gang.owner) as op:
+                op.set_base_rating(model, -(2**31) + 101)
+        with operation(gang, actor=gang.owner) as op:
+            op.set_base_rating(model, boundary)
+        credits = gang.credits
+        events = gang.ledger_events.count()
+        with pytest.raises(Refusal, match="resulting base rating"):
+            with operation(gang, actor=gang.owner) as op:
+                op.rechoose(
+                    model.membership, option=upgrade if direction == 1 else standard
+                )
+        gang.refresh_from_db()
+        model.membership.ledger_entry.refresh_from_db()
+        assert model.membership.ledger_entry.rating_contribution == boundary
+        assert gang.credits == credits
+        assert gang.ledger_events.count() == events
+        assert model.membership.chosen_options.get().default_set == (
+            standard if direction == 1 else upgrade
+        )
+        assert_reconciled(gang)
+
     @pytest.mark.parametrize("overflow", ["model", "gang", "stash"])
     def test_a_later_purchase_that_overflows_rating_rolls_back(
         self, gang, vex, make_profile, overflow
@@ -642,3 +698,64 @@ class TestRatingPermissions:
                 op.set_base_rating(vex, 150)
         assert_reconciled(gang)
         assert_reconciled(other)
+
+
+class TestDialogPageState:
+    @pytest.mark.parametrize("dialog", ["rating", "rename"])
+    def test_open_errors_cancel_reload_and_save_keep_the_edit_page_state(
+        self, client, gang, vex, dialog
+    ):
+        client.force_login(gang.owner)
+        back = f"{edit_url(vex)}?skills=all-sets&dismissed=show"
+        page = client.get(back)
+        soup = BeautifulSoup(page.content, "html.parser")
+        label = "Override Vex's base rating" if dialog == "rating" else "Rename Vex"
+        pencil = soup.find("a", attrs={"aria-label": label})
+        endpoint = pencil["hx-get"]
+        assert parse_qs(urlsplit(endpoint).query)["at"] == [back]
+        opened = client.get(endpoint, HTTP_HX_REQUEST="true")
+        props = opened.context[f"{dialog}_dialog"]
+        assert props["cancelUrl"] == back
+        assert props["actionUrl"] == endpoint
+        opened_url = opened["HX-Replace-Url"]
+        assert parse_qs(urlsplit(opened_url).query) == {
+            "skills": ["all-sets"],
+            "dismissed": ["show"],
+            dialog: ["1" if dialog == "rating" else str(vex.pk)],
+        }
+        reloaded = client.get(opened_url)
+        assert reloaded.context[f"{dialog}_dialog"]["cancelUrl"] == back
+        invalid = {"rating": "1.5"} if dialog == "rating" else {"name": " "}
+        refused = client.post(endpoint, invalid, HTTP_HX_REQUEST="true")
+        assert refused.context[f"{dialog}_dialog"]["cancelUrl"] == back
+        assert refused["HX-Replace-Url"] == opened_url
+        values = {"rating": 150} if dialog == "rating" else {"name": "Karn"}
+        saved = client.post(endpoint, values, HTTP_HX_REQUEST="true")
+        assert saved["HX-Replace-Url"] == back
+        updated = BeautifulSoup(saved.content, "html.parser")
+        pencil = updated.find(id=f"n26-rating-pencil-{vex.pk}")
+        assert parse_qs(urlsplit(pencil["hx-get"]).query)["at"] == [back]
+        if dialog == "rename":
+            pencil = updated.find(id=f"n26-name-pencil-{vex.pk}")
+            assert parse_qs(urlsplit(pencil["hx-get"]).query)["at"] == [back]
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("dialog", ["rating", "rename"])
+    @pytest.mark.parametrize(
+        "at",
+        ["https://example.com/elsewhere", "/n26/fighters/other/edit/?skills=all-sets"],
+    )
+    def test_unrecognised_return_pages_fall_back_to_this_models_edit_page(
+        self, client, gang, vex, dialog, at
+    ):
+        client.force_login(gang.owner)
+        endpoint = (
+            rating_url(vex) + "?" + urlencode({"at": at})
+            if dialog == "rating"
+            else reverse("n26-rename-fighter", args=[vex.pk])
+            + "?"
+            + urlencode({"back": "edit", "at": at})
+        )
+        response = client.get(endpoint, HTTP_HX_REQUEST="true")
+        assert response.context[f"{dialog}_dialog"]["cancelUrl"] == edit_url(vex)

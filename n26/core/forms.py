@@ -192,7 +192,7 @@ class EditGangForm(forms.Form):
 class BaseRatingForm(forms.Form):
     rating = forms.IntegerField(
         label="Base rating",
-        min_value=-(2**31),
+        min_value=-(2**31) + 1,
         max_value=2**31 - 1,
         help_text="Equipment and advancements add to this figure. Credits paid stay the same.",
     )

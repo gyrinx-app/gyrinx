@@ -333,10 +333,9 @@ def link_model_card(
     # Options sends card actions to Edit; dismissal_at retains the screen
     # actually showing this card.
     if dismissal_at.split("?")[0] == reverse("n26-edit-fighter", args=[miniature.pk]):
-        card.base_rating_href = reverse("n26-base-rating", args=[miniature.pk])
-        card.rename_href = (
-            f"{reverse('n26-rename-fighter', args=[miniature.pk])}?back=edit"
-        )
+        addresses = edit_dialog_addresses(miniature, dismissal_at)
+        card.base_rating_href = addresses.rating
+        card.rename_href = addresses.rename
     return card
 
 
@@ -414,6 +413,36 @@ def card_screen(miniature, back):
     if kept:
         address = f"{address}?{urlencode(kept)}"
     return address, (address if screen.hosts_dialogs else edit)
+
+
+class EditDialogAddresses(NamedTuple):
+    back: str
+    rating: str
+    rename: str
+
+
+def edit_dialog_addresses(miniature, at=None):
+    """Keep the model's validated Edit-page state through either dialog."""
+    from urllib.parse import urlencode
+
+    edit = reverse("n26-edit-fighter", args=[miniature.pk])
+    back, _ = card_screen(miniature, at)
+    if back.split("?")[0] != edit:
+        back = edit
+    state = {"at": back} if back != edit else {}
+    rating = reverse("n26-base-rating", args=[miniature.pk])
+    if state:
+        rating = f"{rating}?{urlencode(state)}"
+    rename = reverse("n26-rename-fighter", args=[miniature.pk])
+    return EditDialogAddresses(
+        back, rating, f"{rename}?{urlencode({'back': 'edit', **state})}"
+    )
+
+
+def dialog_url(back, **state):
+    from urllib.parse import urlencode
+
+    return f"{back}{'&' if '?' in back else '?'}{urlencode(state)}"
 
 
 def _dismissal_holders(miniature, card):
@@ -542,7 +571,8 @@ def base_rating(request, pk):
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.gang
-    back = reverse("n26-edit-fighter", args=[miniature.pk])
+    addresses = edit_dialog_addresses(miniature, request.GET.get("at"))
+    back = addresses.back
     form = BaseRatingForm(
         request.POST if request.method == "POST" else None,
         initial={"rating": miniature.membership.ledger_entry.rating_contribution},
@@ -578,7 +608,7 @@ def base_rating(request, pk):
                         "miniature": miniature,
                         "gang": gang,
                         "summary": summarise_roster(roster(gang)),
-                        "rating_href": reverse("n26-base-rating", args=[miniature.pk]),
+                        "rating_href": addresses.rating,
                         "rating_breakdown": read_rating_receipt(
                             miniature
                         ).popover_props(miniature.name),
@@ -598,7 +628,7 @@ def base_rating(request, pk):
                 "oob": True,
             },
         )
-        response["HX-Replace-Url"] = f"{back}?rating=1"
+        response["HX-Replace-Url"] = dialog_url(back, rating=1)
         return response
     return render(
         request,
@@ -626,13 +656,16 @@ def _base_rating_dialog(request, miniature, form=None):
     field = form["rating"]
     entry = miniature.membership.ledger_entry
     default_rating = entry.rating_without_override
+    addresses = edit_dialog_addresses(
+        miniature, request.GET.get("at") or request.get_full_path()
+    )
     return {
         "value": str(field.value() if field.value() is not None else ""),
         "errors": list(field.errors),
         "formErrors": list(form.non_field_errors()),
         "description": str(field.help_text),
-        "actionUrl": reverse("n26-base-rating", args=[miniature.pk]),
-        "cancelUrl": reverse("n26-edit-fighter", args=[miniature.pk]),
+        "actionUrl": addresses.rating,
+        "cancelUrl": addresses.back,
         "csrfToken": get_token(request),
         "returnFocusId": f"n26-rating-pencil-{miniature.pk}",
         "defaultRating": default_rating,
