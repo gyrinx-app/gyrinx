@@ -761,3 +761,59 @@ class TestDialogPageState:
         )
         response = client.get(endpoint, HTTP_HX_REQUEST="true")
         assert response.context[f"{dialog}_dialog"]["cancelUrl"] == edit_url(vex)
+
+    @pytest.mark.parametrize("dialog", ["rating", "rename"])
+    def test_a_tab_switch_takes_precedence_over_the_pencils_captured_state(
+        self, client, gang, vex, dialog
+    ):
+        client.force_login(gang.owner)
+        page = client.get(edit_url(vex), {"skills": "their-sets"})
+        label = "Override Vex's base rating" if dialog == "rating" else "Rename Vex"
+        pencil = BeautifulSoup(page.content, "html.parser").find(
+            "a", attrs={"aria-label": label}
+        )
+        endpoint = pencil["hx-get"]
+        back = f"{edit_url(vex)}?skills=all-sets"
+        switched = client.get(back, HTTP_HX_REQUEST="true")
+        assert switched["HX-Replace-Url"] == back
+        assert "n26-model-card-host" not in switched.content.decode()
+        headers = {
+            "HTTP_HX_REQUEST": "true",
+            "HTTP_HX_CURRENT_URL": f"http://testserver{back}",
+        }
+        opened = client.get(endpoint, **headers)
+        assert opened.context[f"{dialog}_dialog"]["cancelUrl"] == back
+        assert opened["HX-Replace-Url"].startswith(back + "&")
+        values = {"rating": 150} if dialog == "rating" else {"name": "Karn"}
+        saved = client.post(endpoint, values, **headers)
+        assert saved["HX-Replace-Url"] == back
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("act", ["save", "remove-override", "invalid"])
+    def test_the_standalone_rating_form_retains_its_return_state(
+        self, client, gang, vex, act
+    ):
+        client.force_login(gang.owner)
+        back = f"{edit_url(vex)}?skills=all-sets&dismissed=show"
+        endpoint = rating_url(vex) + "?" + urlencode({"at": back})
+        response = client.get(endpoint)
+        form = BeautifulSoup(response.content, "html.parser").find("form")
+        assert form["action"] == endpoint
+        values = {
+            "rating": "1.5" if act == "invalid" else "150",
+            "act": act,
+        }
+        saved = client.post(form["action"], values)
+        if act == "invalid":
+            assert saved.status_code == 200
+            assert saved.context["back"] == back
+            assert (
+                BeautifulSoup(saved.content, "html.parser").find("form")["action"]
+                == endpoint
+            )
+        else:
+            assert saved.status_code == 302
+            assert saved.url == back
+        gang.refresh_from_db()
+        assert_reconciled(gang)

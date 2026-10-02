@@ -1044,7 +1044,7 @@ def rename_fighter(request, pk):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import RenameFighterForm
     from n26.core.operations import operation
-    from n26.core.views.edit import dialog_url, edit_dialog_addresses
+    from n26.core.views.edit import dialog_url, request_edit_dialog_addresses
     from n26.core.views.htmx import is_htmx, with_toasts
     from n26.core.views.permissions import _own_miniature_or_404
 
@@ -1054,7 +1054,7 @@ def rename_fighter(request, pk):
     # back on whichever asked. Edit-page state is rebuilt from its allowed
     # query parameters, and the sheet remains a fixed destination.
     if request.GET.get("back") == "edit":
-        addresses = edit_dialog_addresses(miniature, request.GET.get("at"))
+        addresses = request_edit_dialog_addresses(request, miniature)
         back_url = addresses.back
     else:
         back_url = reverse("n26-gang", args=[miniature.membership.gang_id])
@@ -1125,16 +1125,14 @@ def rename_dialog_props(request, miniature, form=None):
     from django.middleware.csrf import get_token
 
     from n26.core.forms import RenameFighterForm
-    from n26.core.views.edit import edit_dialog_addresses
+    from n26.core.views.edit import request_edit_dialog_addresses
 
     form = (
         form
         if form is not None
         else RenameFighterForm(initial={"name": miniature.name})
     )
-    addresses = edit_dialog_addresses(
-        miniature, request.GET.get("at") or request.get_full_path()
-    )
+    addresses = request_edit_dialog_addresses(request, miniature)
     return {
         "name": miniature.name,
         "value": str(form["name"].value() or ""),

@@ -9,7 +9,7 @@
     {% include "n26/_nav.html" with here="gangs" %}
 {% endblock nav_items %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-base-rating' miniature.pk %}"
+    <c-n26.form-page action="{{ request.get_full_path }}"
                      title="Override base rating"
                      :form="form"
                      submit_label="Save"
@@ -41,7 +41,7 @@
             <c-ui.input id="base-rating"
                         name="rating"
                         type="number"
-                        min="-2147483648"
+                        min="-2147483647"
                         max="2147483647"
                         step="1"
                         required

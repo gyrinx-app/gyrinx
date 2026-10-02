@@ -84,7 +84,7 @@ export function BaseRatingDialog(
                     type="number"
                     required
                     autoFocus
-                    min={-2147483648}
+                    min={-2147483647}
                     max={2147483647}
                     step={1}
                     value={value}

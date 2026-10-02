@@ -445,6 +445,15 @@ def dialog_url(back, **state):
     return f"{back}{'&' if '?' in back else '?'}{urlencode(state)}"
 
 
+def request_edit_dialog_addresses(request, miniature):
+    return edit_dialog_addresses(
+        miniature,
+        request.headers.get("HX-Current-URL")
+        or request.GET.get("at")
+        or request.get_full_path(),
+    )
+
+
 def _dismissal_holders(miniature, card):
     """Only live models collect dismissed choices for their Edit page."""
     from n26.core.status import Status
@@ -571,7 +580,7 @@ def base_rating(request, pk):
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.gang
-    addresses = edit_dialog_addresses(miniature, request.GET.get("at"))
+    addresses = request_edit_dialog_addresses(request, miniature)
     back = addresses.back
     form = BaseRatingForm(
         request.POST if request.method == "POST" else None,
@@ -656,9 +665,7 @@ def _base_rating_dialog(request, miniature, form=None):
     field = form["rating"]
     entry = miniature.membership.ledger_entry
     default_rating = entry.rating_without_override
-    addresses = edit_dialog_addresses(
-        miniature, request.GET.get("at") or request.get_full_path()
-    )
+    addresses = request_edit_dialog_addresses(request, miniature)
     return {
         "value": str(field.value() if field.value() is not None else ""),
         "errors": list(field.errors),
