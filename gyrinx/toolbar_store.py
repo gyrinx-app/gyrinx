@@ -23,6 +23,8 @@ because ``debug_toolbar.store`` imports a model, so it cannot be imported while
 apps are still loading.
 """
 
+import threading
+
 from debug_toolbar.store import (
     DebugToolbarJSONEncoder,
     MemoryStore,
@@ -58,21 +60,31 @@ class Unserialized:
 
 
 class LazyMemoryStore(MemoryStore):
+    # Held while saving and while keeping a read's JSON, so a read that finishes
+    # encoding after a newer save never replaces it. runserver is threaded.
+    lock = threading.Lock()
+
     @classmethod
     def save_panel(cls, request_id, panel_id, data=None):
-        cls.set(request_id)
-        cls._request_store[request_id][panel_id] = Unserialized(detach(data))
+        snapshot = Unserialized(detach(data))
+        with cls.lock:
+            cls.set(request_id)
+            cls._request_store[request_id][panel_id] = snapshot
 
     @classmethod
     def serialized(cls, request_id, panel_id):
         """The JSON for one panel, encoding it now if nothing has read it yet."""
         stored = cls._request_store[request_id][panel_id]
-        if isinstance(stored, Unserialized):
-            stored = serialize(stored.data)
-            # The entry may have been evicted while it was being encoded.
-            if request_id in cls._request_store:
-                cls._request_store[request_id][panel_id] = stored
-        return stored
+        if not isinstance(stored, Unserialized):
+            return stored
+        encoded = serialize(stored.data)
+        # Encoding runs outside the lock. Keep the JSON only if nothing saved a
+        # newer snapshot, or evicted the request, in the meantime.
+        with cls.lock:
+            panels = cls._request_store.get(request_id)
+            if panels is not None and panels.get(panel_id) is stored:
+                panels[panel_id] = encoded
+        return encoded
 
     @classmethod
     def panel(cls, request_id, panel_id):

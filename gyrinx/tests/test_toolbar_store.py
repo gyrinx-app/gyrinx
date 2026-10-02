@@ -77,6 +77,29 @@ def test_a_change_after_saving_does_not_reach_the_reader(request_id):
     }
 
 
+def test_a_read_finishing_after_a_newer_save_keeps_the_newer_save(
+    request_id, monkeypatch
+):
+    """A read keeps its JSON only if its snapshot is still the latest one."""
+    from gyrinx import toolbar_store
+
+    original_serialize = toolbar_store.serialize
+
+    def serialize_while_another_thread_saves(data):
+        LazyMemoryStore.save_panel(request_id, "SQLPanel", {"count": 2})
+        return original_serialize(data)
+
+    LazyMemoryStore.save_panel(request_id, "SQLPanel", {"count": 1})
+    monkeypatch.setattr(
+        toolbar_store, "serialize", serialize_while_another_thread_saves
+    )
+
+    assert LazyMemoryStore.panel(request_id, "SQLPanel") == {"count": 1}
+
+    monkeypatch.undo()
+    assert LazyMemoryStore.panel(request_id, "SQLPanel") == {"count": 2}
+
+
 def test_all_panels_read_back_for_one_request(request_id):
     LazyMemoryStore.save_panel(request_id, "SQLPanel", {"a": 1})
     LazyMemoryStore.save_panel(request_id, "HistoryPanel", {"b": (2, 3)})
