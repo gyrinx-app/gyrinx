@@ -1447,7 +1447,7 @@ def _one_campaign_act(e, viewer):
         spans=spans,
         category=category,
         note=e.note if e.kind == CampaignEvent.Kind.DICE_ROLL_NOTED else "",
-        gang_pk=e.roll.gang_id if e.roll_id else None,
+        gang_pk=str(e.roll.gang_id) if e.roll_id and e.roll.gang_id else "",
         gang_name=e.roll.gang.name if e.roll_id and e.roll.gang_id else "",
     )
 

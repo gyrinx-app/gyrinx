@@ -12,6 +12,7 @@ from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
+from n26.core.history import campaign_history
 from n26.core.models import Battle, CampaignEvent, CampaignRoll, LedgerEvent
 from n26.core.operations import Refusal
 from n26.flags import CAMPAIGNS
@@ -222,6 +223,7 @@ class TestRecordingPages:
         assert (
             campaign.events.filter(kind=CampaignEvent.Kind.DICE_ROLL_NOTED).count() == 1
         )
+        assert all(act.gang_pk == "" for act in campaign_history(campaign))
         for route in ["n26-campaign", "n26-campaign-log"]:
             body = client.get(reverse(route, args=[campaign.pk])).content.decode()
             assert "D6: 4 + 2 = 6" in body
@@ -496,3 +498,7 @@ class TestCampaignLogQueries:
             response = client.get(url)
         assert response.status_code == 200
         assert len(after) <= len(before)
+        if route == "n26-campaign":
+            assert {
+                act.gang_pk for act in response.context["acts"] if act.gang_name
+            } == {str(gang.pk)}

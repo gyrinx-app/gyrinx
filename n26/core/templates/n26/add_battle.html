@@ -18,7 +18,7 @@
     {% endif %}
     <c-n26.form-page :action="action_url"
                      title="{% if battle %}Edit battle{% else %}Record a battle{% endif %}"
-                     lead="{% if not battle %}Add the battle before you play, then choose crews from its page. The arbitrator records the outcome after the game.{% endif %}"
+                     lead="{% if not battle %}Record the battle before you play, then choose crews from its page. The arbitrator records the outcome after the game.{% endif %}"
                      :form="form"
                      submit_label="{% if battle %}Save changes{% else %}Record battle{% endif %}"
                      :cancel_url="cancel_url">
