@@ -414,6 +414,7 @@ def _create_content_cost_change_actions(instance, before_snapshots=None, old_cos
     from n23.core.cost.pin_sweep import rewrite_pinned_amounts_for_list
     from n23.core.models.action import ListAction, ListActionType
     from n23.core.models.list import List
+    from n23.core.models.list.locking import lock_lists_for_fighter_write
     from n23.core.tasks import refresh_list_facts
 
     # Find affected lists based on the model type. The rewrite domain also
@@ -445,8 +446,9 @@ def _create_content_cost_change_actions(instance, before_snapshots=None, old_cos
                 # create an action and both apply_credit_delta — double-charging
                 # campaign credits. The lock serialises concurrent deliveries so
                 # the second one sees the first's committed action/amounts and
-                # skips. Mirrors reconcile_list's select_for_update pattern.
-                lst = List.objects.select_for_update().get(id=list_id)
+                # skips. Lock the roster first to match fighter writes.
+                lock_lists_for_fighter_write(list_ids=[list_id])
+                lst = List.objects.get(id=list_id)
 
                 # Rewrite pinned amounts FIRST (#1826 §4.7 ordering): any
                 # recompute — the facts_from_db below or a later lazy

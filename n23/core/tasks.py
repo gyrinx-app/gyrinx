@@ -120,11 +120,18 @@ def refresh_list_facts(list_id: str):
     Enqueued (on commit) by List.set_dirty, so a list that goes dirty heals
     in the background instead of waiting to be viewed.
     """
+    from django.db import transaction
+
     from n23.core.models import List
+    from n23.core.models.list.locking import lock_lists_for_fighter_write
 
     try:
-        lst: List = List.objects.with_related_data(with_fighters=True).get(pk=list_id)
-        lst.facts_from_db(update=True)
+        with transaction.atomic():
+            lock_lists_for_fighter_write(list_ids=[list_id])
+            lst: List = List.objects.with_related_data(with_fighters=True).get(
+                pk=list_id
+            )
+            lst.facts_from_db(update=True)
         logger.info(f"Refreshed facts for list {list_id}")
     except List.DoesNotExist:
         logger.warning(f"List {list_id} not found for facts refresh")

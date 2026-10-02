@@ -27,6 +27,7 @@ from n23.core.models.list import (
     List,
     ListFighterEquipmentAssignment,
 )
+from n23.core.models.list.locking import lock_lists_for_fighter_write
 from n23.models import format_cost_display
 
 
@@ -68,12 +69,8 @@ def reconcile_list(lst, user=None, rebuild_fighters=True) -> ReconcileResult:
     fixed but no record — there is no chain to keep continuous.
     """
     with transaction.atomic():
-        # Locked for the duration: serializes concurrent reconciles (and
-        # admin double-clicks) against each other. User flows don't lock the
-        # list, so a request landing mid-reconcile can still chain off the
-        # same head — the window is short and per-list, a re-run repairs it,
-        # and the ops command advises quiet-hours running.
-        fresh = List.objects.select_for_update().get(pk=lst.pk)
+        lock_lists_for_fighter_write(list_ids=[lst.pk])
+        fresh = List.objects.get(pk=lst.pk)
         rating_before = fresh.rating_current
         stash_before = fresh.stash_current
 
