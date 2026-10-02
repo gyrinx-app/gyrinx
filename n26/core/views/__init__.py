@@ -61,7 +61,7 @@ from n26.core.views.choose import choose, dismiss_offer, restore_offer
 from n26.core.views.cloning import clone_fighter, clone_gang
 from n26.core.views.credits import gang_credits
 from n26.core.views.crews import crew_sheet, edit_crew
-from n26.core.views.edit import edit_fighter
+from n26.core.views.edit import base_rating, edit_fighter
 from n26.core.views.equip import equip, equip_gang
 from n26.core.views.gangs import (
     clean_house,
@@ -162,6 +162,7 @@ __all__ = [
     "remove_battle",
     "remove_gang",
     "remove_player",
+    "base_rating",
     "edit_fighter",
     "edit_gang",
     "equip",

@@ -10,6 +10,7 @@ Those slots sit outside the underline, so only the default slot is underlined.
     </c-n26.link>
 
 No href draws a span. Tone and underline do not apply on that branch.
+underline="dashed" marks text that opens an explanation.
 An unknown tone or underline key adds no class and does not error.
 The default slot is trusted HTML because strip would otherwise escape it.
 Put colour on tone, not on class. A text-muted class over the default leaves two equal utilities fighting, settled by the order Tailwind emits.
@@ -32,6 +33,7 @@ Strip the default slot. Newlines around it would sit inside the underline span a
     :underline_classes="{
         'hover': 'no-underline hover:underline focus-visible:underline underline-offset-2',
         'always': 'underline underline-offset-2',
+        'dashed': 'underline decoration-dashed underline-offset-4',
         'none': 'no-underline',
     }"
 />{# No href draws a span. Tone and underline are skipped. #}{% if href %}<a href="{{ href }}" {{ attrs }} class="no-underline transition-colors {{ tone_classes|get_item:tone }} {{ class }}">{{ leading }}{# Underline wraps the words only, so marks on either side stay clear of it. #}<span class="{{ underline_classes|get_item:underline }}">{{ slot.strip|safe }}</span>{{ trailing }}</a>{% else %}<span {{ attrs }} class="{{ class }}">{{ leading }}{{ slot.strip|safe }}{{ trailing }}</span>{% endif %}

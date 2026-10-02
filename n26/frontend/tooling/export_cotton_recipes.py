@@ -582,6 +582,28 @@ def pick_list_recipe():
     }
 
 
+def dialog_recipe():
+    dialog, form, header, title, lead, actions = attributes(
+        '<c-n26.dialog title="Title" lead="Lead" action="/" cancel_url="/" submit_label="Save">Content</c-n26.dialog>',
+        "dialog",
+        "form",
+        "div",
+        "h2",
+        "p",
+        "div",
+    )
+    promoted = re.search(r"'([^']*)': promoted", dialog.get(":class", ""))
+    if promoted is None:
+        raise ValueError("Cotton dialog's modal class changed")
+    return {
+        "root": f"{_without(class_name(dialog), 'static', 'm-0')} {promoted[1]}",
+        "form": class_name(form),
+        "header": class_name(header),
+        "title": class_name(title),
+        "lead": class_name(lead),
+    }
+
+
 def recipes():
     from n26.core.icons import resolve
 
@@ -629,6 +651,7 @@ def recipes():
     ) != tuple(field):
         raise ValueError("Cotton toggle field no longer reuses the block field recipe")
     return {
+        "dialog": dialog_recipe(),
         "button": {
             variant: classes(
                 f'<c-ui.button variant="{variant}">Save</c-ui.button>', "button"
@@ -669,8 +692,19 @@ def recipes():
         },
         "switch": switch_recipe(),
         "formActions": classes("<c-n26.form-actions />", "div")[0],
+        "ratingBaseline": classes(
+            '<c-n26.rating-baseline rating="100" />', "div", "span", "span"
+        ),
+        "ratingReceipt": classes(
+            "<c-n26.rating-receipt />", "dl", "div", "dt", "dd", "div", "dt", "dd"
+        ),
         "table": classes("<c-ui.table />", "div", "table"),
         "link": classes('<c-n26.link href="/">Name</c-n26.link>', "a", "span"),
+        "explanationTrigger": classes(
+            '<c-n26.link href="/" tone="current" underline="dashed">Rating</c-n26.link>',
+            "a",
+            "span",
+        ),
         "badge": classes(
             '<c-ui.badge color="amber" size="sm">Staged</c-ui.badge>', "span"
         )[0],

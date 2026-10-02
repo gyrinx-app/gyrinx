@@ -23,7 +23,8 @@ Named slots use .strip because a cotton slot of newlines is not empty.
 {% load navigation %}
 
 <div class="flex flex-col gap-3 {{ class }}">
-    <c-n26.page-header title="{{ miniature.name }}" lead="{{ lead }}">
+    <c-n26.page-header lead="{{ lead }}">
+        <c-slot name="title"><span id="n26-model-title-{{ miniature.pk }}">{{ miniature.name }}</span></c-slot>
         {% if switcher.strip %}
             <c-slot name="trailing">{{ switcher }}</c-slot>
         {% endif %}

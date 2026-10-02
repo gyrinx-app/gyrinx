@@ -1044,6 +1044,7 @@ def rename_fighter(request, pk):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import RenameFighterForm
     from n26.core.operations import operation
+    from n26.core.views.htmx import is_htmx, with_toasts
     from n26.core.views.permissions import _own_miniature_or_404
 
     miniature = _own_miniature_or_404(request, pk)
@@ -1055,23 +1056,88 @@ def rename_fighter(request, pk):
         back_url = reverse("n26-edit-fighter", args=[miniature.pk])
     else:
         back_url = reverse("n26-gang", args=[miniature.membership.gang_id])
+    partial = request.GET.get("back") == "edit" and is_htmx(request)
+    form = RenameFighterForm(
+        request.POST if request.method == "POST" else None,
+        initial={"name": miniature.name},
+    )
+    if partial and (request.method != "POST" or not form.is_valid()):
+        response = render(
+            request,
+            "n26/includes/rename_dialog.html",
+            {
+                "rename_dialog": rename_dialog_props(request, miniature, form),
+                "oob": True,
+            },
+        )
+        response["HX-Replace-Url"] = f"{back_url}?rename={miniature.pk}"
+        return response
     if request.method != "POST":
         return redirect(f"{back_url}?rename={miniature.pk}")
 
-    form = RenameFighterForm(request.POST)
     if not form.is_valid():
         messages.error(request, "A model needs a name.")
         return redirect(f"{back_url}?rename={miniature.pk}")
 
     was = miniature.name
     name = form.cleaned_data["name"]
-    if name == was:
-        return redirect(back_url)
-    with operation(miniature.membership.gang, actor=request.user) as op:
-        op.rename(miniature, name)
-    record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, renamed_from=was)
-    messages.success(request, f"Renamed {was} to {miniature.name}.")
+    if name != was:
+        with operation(miniature.membership.gang, actor=request.user) as op:
+            op.rename(miniature, name)
+        record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, renamed_from=was)
+        messages.success(request, f"Renamed {was} to {miniature.name}.")
+    if partial:
+        from n26.core.navigation import fighter_switcher
+        from n26.core.rating import read_rating_receipt
+        from n26.core.render import roster, summarise_roster
+
+        response = render(
+            request,
+            "n26/includes/rename_saved.html",
+            {
+                "miniature": miniature,
+                "gang": miniature.gang,
+                "summary": summarise_roster(roster(miniature.gang)),
+                "fighter_switcher": fighter_switcher(
+                    miniature.gang, miniature, route="n26-edit-fighter"
+                ),
+                "rating_href": reverse("n26-base-rating", args=[miniature.pk]),
+                "rating_breakdown": read_rating_receipt(miniature).popover_props(
+                    miniature.name
+                ),
+                "rename_href": f"{reverse('n26-rename-fighter', args=[miniature.pk])}?back=edit",
+                "trade_points_href": trade_points_href(miniature.gang, request.user),
+                "credits_href": credits_href(miniature.gang, request.user),
+                "profile_name": str(miniature.membership.profile)
+                if miniature.membership.profile
+                else "",
+            },
+        )
+        response["HX-Replace-Url"] = back_url
+        return with_toasts(request, response)
     return redirect(back_url)
+
+
+def rename_dialog_props(request, miniature, form=None):
+    """The owner's name draft, with server validation and fixed destinations."""
+    from django.middleware.csrf import get_token
+
+    from n26.core.forms import RenameFighterForm
+
+    form = (
+        form
+        if form is not None
+        else RenameFighterForm(initial={"name": miniature.name})
+    )
+    return {
+        "name": miniature.name,
+        "value": str(form["name"].value() or ""),
+        "errors": list(form["name"].errors),
+        "actionUrl": f"{reverse('n26-rename-fighter', args=[miniature.pk])}?back=edit",
+        "cancelUrl": reverse("n26-edit-fighter", args=[miniature.pk]),
+        "csrfToken": get_token(request),
+        "returnFocusId": f"n26-name-pencil-{miniature.pk}",
+    }
 
 
 @login_required

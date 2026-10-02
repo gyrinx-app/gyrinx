@@ -606,6 +606,15 @@ class TestCompletingAndCorrecting:
         assert record.state == ActionRecord.State.COMPLETED
         assert advancement.gang.recompute_credits() == credits
 
+        from n26.core.rating import read_rating_receipt
+
+        receipt = read_rating_receipt(advancement.fighter)
+        assert ("Advancements", 5) in [
+            (line.label, line.rating) for line in receipt.contributions
+        ]
+        advancement.fighter.refresh_from_db()
+        assert receipt.total == advancement.fighter.rating
+
         corrected_skill = _choose_result(
             client,
             advancement,

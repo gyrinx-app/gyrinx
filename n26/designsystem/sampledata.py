@@ -839,7 +839,19 @@ def roster_summary():
 
 
 def context():
+    from n26.core.rating import RatingContribution, RatingReceipt
+
     return {
+        "rating_receipt_demo": RatingReceipt(
+            100,
+            30,
+            (
+                RatingContribution("Weapons", 25),
+                RatingContribution("Gear", 20),
+                RatingContribution("Advancements", 10),
+            ),
+            185,
+        ),
         "augmentation_flow_steps": (
             FlowStep("Choice", complete=True),
             FlowStep("Item and tier", complete=True),

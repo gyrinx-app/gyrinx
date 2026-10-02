@@ -1,0 +1,6 @@
+{% load react %}
+<div id="n26-rating-dialog-host" {% if oob %}hx-swap-oob="true"{% endif %}>
+    {% if rating_dialog %}
+        {% react_island "base-rating-dialog" rating_dialog %}
+    {% endif %}
+</div>

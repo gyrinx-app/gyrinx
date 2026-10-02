@@ -189,6 +189,15 @@ class EditGangForm(forms.Form):
         return budget
 
 
+class BaseRatingForm(forms.Form):
+    rating = forms.IntegerField(
+        label="Base rating",
+        min_value=-(2**31),
+        max_value=2**31 - 1,
+        help_text="Equipment and advancements add to this figure. Credits paid stay the same.",
+    )
+
+
 class HireFighterForm(forms.Form):
     """The one real field on the hire screen.
 

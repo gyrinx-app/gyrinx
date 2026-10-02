@@ -38,12 +38,15 @@ export function HelpPopover({
     label,
     tone = "help",
     cta,
+    triggerContent,
     children,
 }: {
     label: string;
     tone?: keyof typeof TONES;
     /** A link under the explanation, for what the reader can do next. */
     cta?: { label: string; href: string };
+    /** Text that opens the explanation, with a dashed underline. */
+    triggerContent?: ReactNode;
     children: ReactNode;
 }) {
     const look = TONES[tone];
@@ -168,22 +171,30 @@ export function HelpPopover({
                 aria-expanded={open}
                 aria-controls={panelId}
                 onClick={onClick}
-                className={look.button}
+                className={
+                    triggerContent ? cotton.explanationTrigger[0] : look.button
+                }
             >
-                <svg
-                    className={look.svg}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                >
-                    {cotton.icons[look.icon].map(({ tag, attrs }, key) =>
-                        createElement(tag, { ...attrs, key }),
-                    )}
-                </svg>
+                {triggerContent ? (
+                    <span className={cotton.explanationTrigger[1]}>
+                        {triggerContent}
+                    </span>
+                ) : (
+                    <svg
+                        className={look.svg}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                    >
+                        {cotton.icons[look.icon].map(({ tag, attrs }, key) =>
+                            createElement(tag, { ...attrs, key }),
+                        )}
+                    </svg>
+                )}
             </button>
             {open && (
                 <div
@@ -192,7 +203,7 @@ export function HelpPopover({
                     role="dialog"
                     aria-label={label}
                     tabIndex={-1}
-                    className={`${cotton.popover.panel} fixed z-50 space-y-2 font-normal`}
+                    className={`${cotton.popover.panel} fixed z-50 space-y-2 whitespace-normal font-normal`}
                     style={panelStyle}
                 >
                     {children}

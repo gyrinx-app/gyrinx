@@ -330,6 +330,13 @@ def link_model_card(
     link_skills(card, among=model_collections() if among is None else among)
     link_counters(card, back=back)
     link_possession_actions(card, host, refunds=not gang.credits_unlimited)
+    # Options sends card actions to Edit; dismissal_at retains the screen
+    # actually showing this card.
+    if dismissal_at.split("?")[0] == reverse("n26-edit-fighter", args=[miniature.pk]):
+        card.base_rating_href = reverse("n26-base-rating", args=[miniature.pk])
+        card.rename_href = (
+            f"{reverse('n26-rename-fighter', args=[miniature.pk])}?back=edit"
+        )
     return card
 
 
@@ -523,6 +530,114 @@ def render_card_update(request, miniature, at):
         },
     )
     return with_toasts(request, response)
+
+
+@login_required
+def base_rating(request, pk):
+    """The owner can change a live model's base rating."""
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.forms import BaseRatingForm
+    from n26.core.operations import Refusal, operation
+    from n26.core.views.htmx import is_htmx, with_toasts
+
+    miniature = _own_miniature_or_404(request, pk)
+    gang = miniature.gang
+    back = reverse("n26-edit-fighter", args=[miniature.pk])
+    form = BaseRatingForm(
+        request.POST if request.method == "POST" else None,
+        initial={"rating": miniature.membership.ledger_entry.rating_contribution},
+    )
+    removing = request.POST.get("act") == "remove-override"
+    if request.method == "POST" and (removing or form.is_valid()):
+        try:
+            with operation(gang, actor=request.user) as op:
+                changed = op.set_base_rating(
+                    miniature, None if removing else form.cleaned_data["rating"]
+                )
+        except Refusal as refusal:
+            form.add_error(None, str(refusal))
+        else:
+            if changed:
+                record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, rating=True)
+            messages.success(
+                request,
+                ("Base rating override removed." if removing else "Base rating saved.")
+                if changed
+                else "Nothing changed.",
+            )
+            if is_htmx(request):
+                from n26.core.rating import read_rating_receipt
+                from n26.core.render import roster, summarise_roster
+
+                miniature.refresh_from_db()
+                gang.refresh_from_db()
+                response = render(
+                    request,
+                    "n26/includes/base_rating_saved.html",
+                    {
+                        "miniature": miniature,
+                        "gang": gang,
+                        "summary": summarise_roster(roster(gang)),
+                        "rating_href": reverse("n26-base-rating", args=[miniature.pk]),
+                        "rating_breakdown": read_rating_receipt(
+                            miniature
+                        ).popover_props(miniature.name),
+                        "trade_points_href": trade_points_href(gang, request.user),
+                        "credits_href": credits_href(gang, request.user),
+                    },
+                )
+                response["HX-Replace-Url"] = back
+                return with_toasts(request, response)
+            return redirect(back)
+    if is_htmx(request):
+        response = render(
+            request,
+            "n26/includes/base_rating_dialog.html",
+            {
+                "rating_dialog": _base_rating_dialog(request, miniature, form),
+                "oob": True,
+            },
+        )
+        response["HX-Replace-Url"] = f"{back}?rating=1"
+        return response
+    return render(
+        request,
+        "n26/base_rating.html",
+        {
+            "miniature": miniature,
+            "gang": gang,
+            "form": form,
+            "back": back,
+            "default_rating": miniature.membership.ledger_entry.rating_without_override,
+        },
+    )
+
+
+def _base_rating_dialog(request, miniature, form=None):
+    """Only the editable hire contribution, never the total card rating."""
+    from django.middleware.csrf import get_token
+
+    from n26.core.forms import BaseRatingForm
+
+    if form is None:
+        form = BaseRatingForm(
+            initial={"rating": miniature.membership.ledger_entry.rating_contribution}
+        )
+    field = form["rating"]
+    entry = miniature.membership.ledger_entry
+    default_rating = entry.rating_without_override
+    return {
+        "value": str(field.value() if field.value() is not None else ""),
+        "errors": list(field.errors),
+        "formErrors": list(form.non_field_errors()),
+        "description": str(field.help_text),
+        "actionUrl": reverse("n26-base-rating", args=[miniature.pk]),
+        "cancelUrl": reverse("n26-edit-fighter", args=[miniature.pk]),
+        "csrfToken": get_token(request),
+        "returnFocusId": f"n26-rating-pencil-{miniature.pk}",
+        "defaultRating": default_rating,
+        "hasOverride": entry.rating_contribution != default_rating,
+    }
 
 
 @login_required
@@ -814,6 +929,8 @@ def edit_fighter(request, pk):
     host = EquipHost.fighter(gang, own, miniature, at)
 
     renaming = _fighter_named(request, gang, "rename")
+    from n26.core.views.gangs import rename_dialog_props
+
     # One question at a time: a URL naming a rename and a sale draws
     # the rename, because two open modals is not a state the page can
     # mean. Accessorise is drawn per-weapon on the equip page; here
@@ -916,6 +1033,9 @@ def edit_fighter(request, pk):
         "n26/fighter_edit.html",
         {
             "miniature": miniature,
+            "rating_dialog": _base_rating_dialog(request, miniature)
+            if request.GET.get("rating") == "1" and not renaming
+            else None,
             "gang": gang,
             "card": card,
             "progression": progression,
@@ -977,6 +1097,9 @@ def edit_fighter(request, pk):
             "rule_more": rule_more,
             "rule_edits_dirty": rule_edits_dirty,
             "renaming": renaming,
+            "rename_dialog": rename_dialog_props(request, renaming)
+            if renaming
+            else None,
             "dialog": dialog,
             # The crop spec the picture box stamps onto the browser's
             # dialog — handed from the same constants the server crops

@@ -135,6 +135,18 @@ class LedgerEntry(Base):
         """
         return self.assignment.assignable
 
+    @property
+    def rating_without_override(self):
+        """The contribution with manual rating changes removed.
+
+        Hire options and later option changes remain part of this figure.
+        The recorded deltas preserve it even after several overrides.
+        """
+        overrides = self.assignment.ledger_events.filter(
+            kind__in=[LedgerEvent.Kind.RATING_SET, LedgerEvent.Kind.RATING_RESET]
+        ).aggregate(total=models.Sum("rating_delta", default=0))["total"]
+        return self.rating_contribution - overrides
+
 
 class LedgerEvent(Base):
     """One append-only record of a change, with who made it.
@@ -182,6 +194,8 @@ class LedgerEvent(Base):
         IMAGE_CLEARED = "image_cleared", "Picture removed"
         STAT_SET = "stat_set", "Characteristic set"
         STAT_CLEARED = "stat_cleared", "Characteristic cleared"
+        RATING_SET = "rating_set", "Base rating changed"
+        RATING_RESET = "rating_reset", "Base rating reset"
         # A clone's entries open from a snapshot rather than from purchases
         # replayed against today's library. Assignment-level records keep the
         # ledger fold honest; one standalone record tells the visible act.

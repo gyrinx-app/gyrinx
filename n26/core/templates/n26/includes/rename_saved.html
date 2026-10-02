@@ -1,0 +1,21 @@
+<title>{{ miniature.name }} | Gyrinx</title>
+<span id="n26-model-name-{{ miniature.pk }}" hx-swap-oob="true">
+    {{ miniature.name }}{% include "n26/includes/model_name_action.html" %}
+</span>
+<div id="n26-model-profile-name-{{ miniature.pk }}"
+     class="text-sm text-muted"
+     hx-swap-oob="true">{% if profile_name and profile_name != miniature.name %}{{ profile_name }}{% endif %}</div>
+<span id="n26-model-title-{{ miniature.pk }}" hx-swap-oob="true">{{ miniature.name }}</span>
+<span id="n26-model-breadcrumb-{{ miniature.pk }}" hx-swap-oob="true">{{ miniature.name }}</span>
+<c-n26.quick-switcher.of :switcher="fighter_switcher"
+                         hotkey="r"
+                         id="n26-fighter-switcher"
+                         hx-swap-oob="true" />
+<c-n26.gang-figures :gang="gang"
+                    :summary="summary"
+                    id="n26-gang-figures"
+                    trade_points_href="{{ trade_points_href }}"
+                    credits_href="{{ credits_href }}"
+                    hx-swap-oob="true" />
+{% include "n26/includes/model_rating.html" with rating_id=miniature.pk rating=miniature.rating rating_name=miniature.name rating_oob=True mode="edit" htmx=True %}
+<div id="n26-rename-dialog-host" hx-swap-oob="true"></div>

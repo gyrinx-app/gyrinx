@@ -651,6 +651,38 @@ class Operation:
         self._campaign = None
         return membership
 
+    def set_base_rating(self, miniature, rating):
+        """Change the hire's rating contribution, preserving its payment.
+
+        Reload the membership under the gang lock so repeated saves compare
+        against the current contribution and emit no duplicate event.
+        Passing None removes the override and keeps any hire option changes.
+        """
+        membership = _under_the_lock(miniature.membership)
+        if membership.archived or membership.gang_root_id != self.gang.pk:
+            raise Refusal("You cannot change this model's base rating.")
+        entry = membership.ledger_entry
+        resetting = rating is None
+        if resetting:
+            rating = entry.rating_without_override
+        if not isinstance(rating, int) or not -(2**31) <= rating < 2**31:
+            raise Refusal("Enter a whole number between -2147483648 and 2147483647.")
+        before = entry.rating_contribution
+        if rating == before:
+            return False
+        if not -(2**31) <= rating - before < 2**31:
+            raise Refusal("This rating change is too large. Enter a smaller change.")
+        entry.rating_contribution = rating
+        entry.save(update_fields=["rating_contribution", "modified"])
+        self.event(
+            membership,
+            LedgerEvent.Kind.RATING_RESET if resetting else LedgerEvent.Kind.RATING_SET,
+            rating_delta=rating - before,
+            note=f"Base rating {before}¢ → {rating}¢",
+        )
+        self.touched(miniature)
+        return True
+
     def rename(self, miniature, name):
         """Give one model a new name, and say so in the history.
 

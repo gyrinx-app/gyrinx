@@ -65,6 +65,8 @@ PERSONAL = {
     Kind.IMAGE_CLEARED,
     Kind.STAT_SET,
     Kind.STAT_CLEARED,
+    Kind.RATING_SET,
+    Kind.RATING_RESET,
 }
 
 
@@ -804,6 +806,10 @@ def _tell(e, row, alive):
             return (Span("sold "), thing), "credits"
         case Kind.REPRICED:
             return (Span("the price of "), thing, Span(" changed")), "credits"
+        case Kind.RATING_SET:
+            return (Span("changed "), at, Span("'s base rating")), "model"
+        case Kind.RATING_RESET:
+            return (Span("reset "), at, Span("'s base rating")), "model"
         case Kind.AMENDED:
             return (Span("changed "), thing), "credits"
         case Kind.MOVED:

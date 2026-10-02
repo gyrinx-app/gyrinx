@@ -1,0 +1,56 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% block head_title %}Override base rating — {{ miniature.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="gangs" %}
+{% endblock nav_items %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-base-rating' miniature.pk %}"
+                     title="Override base rating"
+                     :form="form"
+                     submit_label="Save"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ miniature.name }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Override base rating
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.rating-baseline :rating="default_rating" />
+        <c-slot name="actions">
+            <c-ui.button type="submit" name="act" value="remove-override" formnovalidate>
+                Remove Override
+            </c-ui.button>
+        </c-slot>
+        <c-ui.field label="Base rating *"
+                    description="{{ form.rating.help_text }}"
+                    error="x"
+                    :form="form"
+                    name="rating"
+                    for="base-rating">
+            <c-ui.input id="base-rating"
+                        name="rating"
+                        type="number"
+                        min="-2147483648"
+                        max="2147483647"
+                        step="1"
+                        required
+                        autofocus="autofocus"
+                        value="{{ form.rating.value|default_if_none:'' }}">
+                <c-slot name="right_addon">
+                    <span class="text-sm text-muted">¢</span>
+                </c-slot>
+            </c-ui.input>
+        </c-ui.field>
+    </c-n26.form-page>
+{% endblock content %}
