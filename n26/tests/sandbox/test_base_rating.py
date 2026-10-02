@@ -324,6 +324,28 @@ class TestSavingBaseRating:
                 op.set_base_rating(vex, -(2**31))
         assert_reconciled(gang)
 
+    @pytest.mark.parametrize("overflow", ["model", "gang"])
+    def test_a_base_rating_that_overflows_a_total_is_refused_without_writing(
+        self, client, gang, vex, make_profile, overflow
+    ):
+        rating = 2**31 - 1
+        if overflow == "gang":
+            hire_with_option(
+                gang, make_profile("Extra", price=100), "Extra", paid=100, rating=100
+            )
+            rating -= 20
+        client.force_login(gang.owner)
+        response = client.post(
+            rating_url(vex), {"rating": rating}, HTTP_HX_REQUEST="true"
+        )
+        assert response.status_code == 200
+        assert "too large" in response.context["rating_dialog"]["formErrors"][0]
+        assert not gang.ledger_events.filter(kind=LedgerEvent.Kind.RATING_SET).exists()
+        vex.refresh_from_db()
+        assert vex.rating == 120
+        assert vex.membership.ledger_entry.rating_contribution == 100
+        assert_reconciled(gang)
+
 
 class TestRatingOverrideMarker:
     def test_marker_uses_the_recorded_rating_and_keeps_equipment_separate(

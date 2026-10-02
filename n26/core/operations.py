@@ -674,6 +674,16 @@ class Operation:
             raise Refusal("This rating change is too large. Enter a smaller change.")
         entry.rating_contribution = rating
         entry.save(update_fields=["rating_contribution", "modified"])
+        from n26.core.reconcile import sum_rating
+
+        totals = (
+            sum_rating(miniature_root=miniature),
+            self.gang.recompute_rating(),
+        )
+        if any(not -(2**31) <= total < 2**31 for total in totals):
+            raise Refusal(
+                "This would make the model or gang rating too large. Enter a smaller rating."
+            )
         self.event(
             membership,
             LedgerEvent.Kind.RATING_RESET if resetting else LedgerEvent.Kind.RATING_SET,
