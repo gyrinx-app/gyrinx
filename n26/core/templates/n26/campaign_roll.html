@@ -1,6 +1,6 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
-{% block head_title %}Dice roll recorded{% endblock %}
+{% block head_title %}{{ roll.reason }}{% endblock %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -12,11 +12,15 @@
     {% url 'n26-campaign-roll' campaign.pk roll.pk as action_url %}
     {% url 'n26-campaign' campaign.pk as cancel_url %}
     <c-n26.form-page :action="action_url"
-                     title="Dice roll recorded"
-                     lead="{{ roll.reason }}"
+                     title="{{ roll.reason }}"
+                     lead="Dice roll recorded"
                      :form="form"
                      :cancel_url="cancel_url"
                      cancel_label="Done">
+        <c-slot name="leading">
+            <c-n26.icon name="dice-5"
+                        class="mr-2 inline-block size-6 align-text-bottom sm:size-7" />
+        </c-slot>
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>

@@ -75,6 +75,9 @@ class TestRecordingPages:
         assert response.status_code == 200
         assert "Log a dice roll" in response.content.decode()
         assert 'name="request_key"' in response.content.decode()
+        assert response.context["roll_source"]["source"] == "generated"
+        assert response.context["roll_source"]["rolled"] == ""
+        assert response.context["roll_source"]["sourceErrors"] == []
         assert "<dialog" not in response.content.decode()
         assert (
             "Log a dice roll"
@@ -162,6 +165,13 @@ class TestRecordingPages:
         )
         assert response.status_code == 200
         assert response.context["form"].errors
+        assert response.context["roll_source"]["source"] == fields.get(
+            "source", "manual"
+        )
+        assert response.context["roll_source"]["rolled"] == fields.get("rolled", "")
+        assert response.context["roll_source"]["rolledErrors"] == list(
+            response.context["form"]["rolled"].errors
+        )
         assert not CampaignRoll.objects.exists()
         assert not campaign.events.filter(kind=CampaignEvent.Kind.DICE_ROLLED).exists()
 

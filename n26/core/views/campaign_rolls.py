@@ -30,8 +30,24 @@ def record_campaign_roll(request, pk):
             form.add_error(None, str(exc))
         else:
             return redirect("n26-campaign-roll", pk=campaign.pk, roll_pk=roll.pk)
+    rolled = form["rolled"].value()
     return render(
-        request, "n26/record_campaign_roll.html", {"campaign": campaign, "form": form}
+        request,
+        "n26/record_campaign_roll.html",
+        {
+            "campaign": campaign,
+            "form": form,
+            "roll_source": {
+                "source": form["source"].value() or "",
+                "rolled": "" if rolled is None else str(rolled),
+                "choices": [
+                    {"value": value, "label": label}
+                    for value, label in form.fields["source"].choices
+                ],
+                "sourceErrors": list(form["source"].errors),
+                "rolledErrors": list(form["rolled"].errors),
+            },
+        },
     )
 
 

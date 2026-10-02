@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
+{% load navigation react %}
 {% block head_title %}Log a dice roll{% endblock %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
@@ -53,27 +53,7 @@
                 </div>
                 <p class="mt-2 text-sm text-muted">D66 uses two D6s, one for tens and one for units.</p>
             </c-ui.field>
-            <c-ui.field label="How to roll *" :form="form" name="source" error="x">
-                <div class="flex flex-wrap gap-3">
-                    {% for choice in form.source %}
-                        <label for="{{ choice.id_for_label }}"
-                               class="flex min-h-11 items-center gap-3 rounded-lg border border-box-border px-4">{{ choice.tag }} {{ choice.choice_label }}</label>
-                    {% endfor %}
-                </div>
-            </c-ui.field>
-            <c-ui.field label="Physical result"
-                        :form="form"
-                        name="rolled"
-                        error="x"
-                        for="roll-result">
-                <c-ui.input id="roll-result"
-                            name="rolled"
-                            type="number"
-                            min="1"
-                            max="66"
-                            value="{{ form.rolled.value|default_if_none:'' }}" />
-                <p class="mt-2 text-sm text-muted">Enter your dice result when using physical dice. Leave blank when you select Roll here.</p>
-            </c-ui.field>
+            {% react_island "campaign-roll-source" roll_source %}
             <c-ui.field label="Modifier"
                         :form="form"
                         name="modifier"
