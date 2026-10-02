@@ -147,6 +147,8 @@ class CampaignEvent(Base):
         BUDGET_SET = "budget_set", "Budget set"
         SUMMARY_EDITED = "summary_edited", "Summary edited"
         ARCHIVED = "archived", "Archived"
+        DICE_ROLLED = "dice_rolled", "Dice rolled"
+        DICE_ROLL_NOTED = "dice_roll_noted", "Dice roll noted"
         BATTLE_RECORDED = "battle_recorded", "Battle recorded"
         BATTLE_EDITED = "battle_edited", "Battle edited"
         BATTLE_REMOVED = "battle_removed", "Battle removed"
@@ -212,6 +214,13 @@ class CampaignEvent(Base):
         null=True,
         blank=True,
         related_name="+",
+    )
+    roll = models.ForeignKey(
+        "n26.CampaignRoll",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="events",
     )
     #: What changed, where the kind alone cannot say it: "1000 → 1200" for a
     #: budget, the two names for a rename. Figures are stored bare and given

@@ -95,6 +95,7 @@ def addresses(campaign):
         f"/n26/campaigns/{campaign.pk}/gangs/add/",
         f"/n26/campaigns/{campaign.pk}/players/add/",
         f"/n26/campaigns/{campaign.pk}/battles/new/",
+        f"/n26/campaigns/{campaign.pk}/rolls/new/",
     ]
 
 
@@ -1492,7 +1493,7 @@ class TestAPlayerBringingTheirOwnGang:
         assert response.context["may_add_gang"] is True
         assert f"/n26/campaigns/{theirs.pk}/gangs/add/" in response.content.decode()
 
-    def test_adding_a_gang_is_the_only_thing_they_gain(
+    def test_recording_does_not_grant_campaign_management(
         self, client, theirs, mine, open_to_everyone
     ):
         """The page stopped offering its controls from one flag, so what a
@@ -1503,7 +1504,6 @@ class TestAPlayerBringingTheirOwnGang:
             f"/n26/campaigns/{theirs.pk}/edit/",
             f"/n26/campaigns/{theirs.pk}/archive/",
             f"/n26/campaigns/{theirs.pk}/players/add/",
-            f"/n26/campaigns/{theirs.pk}/battles/new/",
         ):
             assert address not in drawn, address
 
@@ -1516,7 +1516,6 @@ class TestAPlayerBringingTheirOwnGang:
             f"/n26/campaigns/{theirs.pk}/edit/",
             f"/n26/campaigns/{theirs.pk}/archive/",
             f"/n26/campaigns/{theirs.pk}/players/add/",
-            f"/n26/campaigns/{theirs.pk}/battles/new/",
         ):
             assert client.get(address).status_code == 404, address
 

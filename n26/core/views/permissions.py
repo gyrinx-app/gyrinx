@@ -435,3 +435,12 @@ def _own_miniature_or_404(request, pk):
     # gang's figures — so it is handed over to the gang that draws it.
     miniature.gang.hold_open_visit(miniature.open_visit_points)
     return miniature
+
+
+def _recording_campaign_or_404(request, pk, *, with_owner_badge=True):
+    from n26.core.campaign_permissions import may_record_campaign
+
+    campaign = _any_campaign_or_404(request, pk, with_owner_badge=with_owner_badge)
+    if not may_record_campaign(campaign, request.user):
+        raise Http404("No such campaign")
+    return campaign

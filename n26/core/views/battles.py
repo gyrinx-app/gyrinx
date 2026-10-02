@@ -13,7 +13,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from n26.core.battle_permissions import may_record_gang
 from n26.core.campaigns import battle_stake, campaign_operation
 from n26.core.forms import BattleForm
-from n26.core.models import Battle, BattleCrew, CampaignEvent, Gang, PostBattleReport
+from n26.core.models import (
+    Battle,
+    BattleCrew,
+    CampaignEvent,
+    CampaignRoll,
+    Gang,
+    PostBattleReport,
+)
 from n26.core.operations import Refusal
 from n26.core.views.campaigns import _badge_a_redrawn_page
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
@@ -122,7 +129,11 @@ def battle(request, pk, battle_pk):
             "recorded": recorded,
             "stake": battle_stake(found, request.user),
             "yours": campaign.owner_id == request.user.pk,
-            "has_history": bool(crews or reports) or found.gang_events.exists(),
+            "has_history": (
+                bool(crews or reports)
+                or found.gang_events.exists()
+                or CampaignRoll.objects.filter(battle=found).exists()
+            ),
         },
     )
 

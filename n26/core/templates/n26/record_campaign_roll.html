@@ -1,0 +1,90 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation react %}
+{% block head_title %}Log a dice roll{% endblock %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    {% url 'n26-campaign-record-roll' campaign.pk as action_url %}
+    {% url 'n26-campaign' campaign.pk as cancel_url %}
+    <c-n26.form-page :action="action_url"
+                     title="Log a dice roll"
+                     lead="Roll here or record physical dice. Add an outcome note after saving the result."
+                     :form="form"
+                     submit_label="Record roll"
+                     :cancel_url="cancel_url">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ cancel_url }}">
+                    {{ campaign.name }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Log a dice roll
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {{ form.request_key }}
+        <c-ui.error :form="form" name="request_key" />
+        <c-n26.form-section title="The roll">
+            <c-ui.field label="Reason *"
+                        :form="form"
+                        name="reason"
+                        error="x"
+                        for="roll-reason">
+                <c-ui.input id="roll-reason"
+                            name="reason"
+                            maxlength="200"
+                            required
+                            value="{{ form.reason.value|default:'' }}"
+                            placeholder="e.g. Rare trade availability" />
+            </c-ui.field>
+            <c-n26.radio-cards label="Dice *" :form="form" name="dice" min="6.5rem">
+                {% for choice in dice_choices %}
+                    <c-n26.radio-cards.card name="dice"
+                                            value="{{ choice.value }}"
+                                            label="{{ choice.label }}"
+                                            :checked="choice.checked" />
+                {% endfor %}
+            </c-n26.radio-cards>
+            <p class="text-sm text-muted">D66 uses two D6s, one for tens and one for units.</p>
+            {% react_island "campaign-roll-source" roll_source %}
+            <c-ui.field label="Modifier"
+                        :form="form"
+                        name="modifier"
+                        error="x"
+                        for="roll-modifier">
+                <c-ui.input id="roll-modifier"
+                            name="modifier"
+                            type="number"
+                            value="{{ form.modifier.value|default_if_none:'' }}"
+                            placeholder="0" />
+                <p class="mt-2 text-sm text-muted">A positive or negative whole number. Leave blank for no modifier.</p>
+            </c-ui.field>
+        </c-n26.form-section>
+        <c-n26.form-section title="Related to"
+                            description="Optionally link this roll to a gang or battle in this campaign.">
+            <c-ui.field label="Gang" :form="form" name="gang" error="x" for="roll-gang">
+                <c-ui.select.native id="roll-gang" name="gang" placeholder="">
+                    {% for value, label in form.fields.gang.choices %}
+                        <option value="{{ value }}"
+                                {% if value|stringformat:'s' == form.gang.value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </c-ui.select.native>
+            </c-ui.field>
+            <c-ui.field label="Battle" :form="form" name="battle" error="x" for="roll-battle">
+                <c-ui.select.native id="roll-battle" name="battle" placeholder="">
+                    {% for value, label in form.fields.battle.choices %}
+                        <option value="{{ value }}"
+                                {% if value|stringformat:'s' == form.battle.value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </c-ui.select.native>
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock %}
