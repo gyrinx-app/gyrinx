@@ -1024,6 +1024,7 @@ def build_modifier_index(assignables, max_depth=3):
         # queries once per slot or placement.
         "offers_choice__of_kind",
         "places_category__category",
+        "hides_categories__collection",
         "places_category__section__collection",
         "requires_companions__for_each",
         "requires_companions__of",
@@ -1040,6 +1041,7 @@ def build_modifier_index(assignables, max_depth=3):
     #: select_related — without these a scope's narrowing costs a query
     #: per card to learn who it reaches.
     also_prefetch = (
+        "hides_categories__categories",
         "targets_miniature__has_subtypes__subtypes",
         "targets_miniature__is_profile__profiles",
         "targets_miniature__is_profile_type__profile_types",

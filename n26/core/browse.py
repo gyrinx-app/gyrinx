@@ -956,6 +956,7 @@ def narrow(
     kinds=None,
     include_exclusive=True,
     without_warnings=False,
+    exclude_categories=(),
     name=None,
 ):
     """A custom view of a collection: the same sections, fewer things in them.
@@ -967,6 +968,8 @@ def narrow(
     ``credits`` and ``trade_points`` are inclusive ``(low, high)`` bounds;
     ``None`` at either end leaves it open, and either argument may be
     omitted entirely. ``categories`` and ``sections`` name what to keep.
+
+    ``exclude_categories`` names categories to hide.
 
     Categories are matched as **objects, not names**: a category name is
     only unique within its section (the rulebook has Primitive Weapons
@@ -992,11 +995,14 @@ def narrow(
     re-deriving headings from the taxonomy would quietly hand back
     "Skills" instead. Empty categories and sections fall away.
     """
+    hidden_categories = set(exclude_categories)
     wanted_categories = _as_set(categories)
     wanted_sections = _as_set(sections)
 
     def keeps(line):
         home = getattr(line.thing, "category", None)
+        if home in hidden_categories:
+            return False
         if wanted_categories is not None and home not in wanted_categories:
             return False
         if kinds is not None and not isinstance(line.thing, kinds):

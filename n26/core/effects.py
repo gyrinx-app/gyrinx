@@ -275,6 +275,16 @@ class ChoiceSlot:
 
 
 @dataclass(frozen=True)
+class HiddenCategories:
+    """Categories hidden from one collection, with their modifier's source."""
+
+    collection: object
+    categories: tuple
+    source: str
+    source_kind: str
+
+
+@dataclass(frozen=True)
 class CategoryPlacement:
     """Where one category sits for this fighter, and who put it there.
 
@@ -607,6 +617,7 @@ class ComputedCard:
     #: Where skill sets and power families sit for this fighter — see
     #: ``CategoryPlacement``.
     placements: list[CategoryPlacement] = field(default_factory=list)
+    hidden_categories: list[HiddenCategories] = field(default_factory=list)
     stat_changes: list[StatChange] = field(default_factory=list)
     #: What modifiers add to counters this card reads. Kept apart from
     #: the stored values so a reading can state both and neither is
@@ -727,6 +738,7 @@ def compute(card, index):
         ChangesStat,
         ContributesToCounter,
         DrawsPick,
+        HidesCategories,
         OffersChoice,
         PlacesCategory,
         RemovesAssignable,
@@ -783,6 +795,7 @@ def compute(card, index):
         AllowsAtMost: 6,
         ContributesToCounter: 7,
         DrawsPick: 8,
+        HidesCategories: 9,
     }
 
     def steps_for(
@@ -1136,6 +1149,17 @@ def compute(card, index):
                             step.outcome = "skipped"
                             continue
                         drawn.append((step.node, step))
+                    elif isinstance(effect, HidesCategories):
+                        hidden = HiddenCategories(
+                            collection=effect.collection,
+                            categories=tuple(effect.categories.all()),
+                            source=label,
+                            source_kind=label_kind,
+                        )
+                        computed.hidden_categories.append(hidden)
+                        log.applied.append(
+                            _Applied(source_key, computed, "hidden_categories", hidden)
+                        )
                     elif isinstance(effect, PlacesCategory):
                         category = _placed_category(effect, step.node, by_cause)
                         if category is None:

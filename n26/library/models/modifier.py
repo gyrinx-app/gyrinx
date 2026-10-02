@@ -48,6 +48,7 @@ COMPUTED_EFFECT_FIELDS = (
     "removes_assignable",
     "changes_stat",
     "changes_category",
+    "hides_categories",
     "offers_choice",
     "places_category",
     "draws_pick",
@@ -1890,6 +1891,39 @@ class ChangesCategory(models.Model):
         return target_kind == MODEL
 
 
+class HidesCategories(models.Model):
+    """Hides selected categories from a collection when equipping a model.
+
+    Other collections and the Unrestricted view remain available. Equipment
+    already held by the model stays on its card.
+    """
+
+    is_stored = False
+
+    collection = models.ForeignKey(
+        "library.Collection",
+        on_delete=models.PROTECT,
+        related_name="+",
+        help_text="The equipment list these categories are hidden from.",
+    )
+    categories = models.ManyToManyField(
+        "library.Category",
+        related_name="+",
+        help_text="The categories to hide from this list for the model.",
+    )
+
+    class Meta:
+        verbose_name = "hides categories"
+        verbose_name_plural = "hides categories"
+
+    def __str__(self):
+        names = ", ".join(category.name for category in self.categories.all())
+        return f"hides {names} from {self.collection}"
+
+    def accepts(self, target_kind):
+        return target_kind == MODEL
+
+
 class ChangesStat(models.Model):
     """Shifts or sets one characteristic.
 
@@ -2033,6 +2067,13 @@ class Modifier(Content):
     )
     changes_category = models.OneToOneField(
         ChangesCategory,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="modifier",
+    )
+    hides_categories = models.OneToOneField(
+        HidesCategories,
         on_delete=models.CASCADE,
         null=True,
         blank=True,

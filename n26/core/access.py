@@ -162,6 +162,16 @@ def collections_for(miniature, card=None, computed=None):
     return _collections_on(card, computed, miniature.gang)
 
 
+def hidden_categories_for(collection, computed):
+    """Combine active restrictions on this collection without querying."""
+    return {
+        category
+        for hidden in computed.hidden_categories
+        if hidden.collection.pk == collection.pk
+        for category in hidden.categories
+    }
+
+
 def gang_collections(gang, card=None, computed=None):
     """Every collection the gang itself carries: assigned to it, or granted.
 

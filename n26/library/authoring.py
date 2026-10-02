@@ -2726,6 +2726,19 @@ def ef_changes_category(category):
 
 
 @guarded_write
+def ef_hides_categories(collection, categories):
+    """Hide categories from one equipment list for the targeted model."""
+    from n26.library.models import HidesCategories
+
+    categories = list(categories)
+    if not categories:
+        raise ValueError("Select at least one category to hide.")
+    effect = HidesCategories.objects.create(collection=collection)
+    effect.categories.set(categories)
+    return effect
+
+
+@guarded_write
 def ef_places(category, section):
     """For the bearer, that set sits under this section of its
     collection — ``ef_places(powers, skills_primary)``."""
