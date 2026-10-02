@@ -383,9 +383,13 @@ def list_fighter_add_injury(request, id, fighter_id):
                     owner=lst.owner,
                 )
 
-                # Update fighter state
-                fighter.injury_state = form.cleaned_data["fighter_state"]
-                fighter.save()
+                new_state = form.cleaned_data["fighter_state"]
+                # Keep the live state until death is confirmed. The kill handler
+                # measures the fighter's rating before zeroing it; saving DEAD
+                # here would make that measurement zero and strand the cache.
+                if new_state != ListFighter.DEAD:
+                    fighter.injury_state = new_state
+                    fighter.save()
 
                 # Log to campaign action
                 if lst.campaign:
@@ -398,7 +402,11 @@ def list_fighter_add_injury(request, id, fighter_id):
                     fighter_state_display = dict(ListFighter.INJURY_STATE_CHOICES)[
                         fighter.injury_state
                     ]
-                    outcome = f"{fighter.name} was put into {fighter_state_display}"
+                    outcome = (
+                        f"Death of {fighter.name} awaits confirmation."
+                        if new_state == ListFighter.DEAD
+                        else f"{fighter.name} was put into {fighter_state_display}"
+                    )
 
                     CampaignAction.objects.create(
                         user=request.user,
@@ -425,11 +433,11 @@ def list_fighter_add_injury(request, id, fighter_id):
                 )
 
             messages.success(
-                request, f"Added injury '{injury.injury.name}' to {fighter.name}"
+                request, f"Added injury '{injury.injury.name}' to {fighter.name}."
             )
 
-            # If fighter state is dead, redirect to kill confirmation
-            if form.cleaned_data["fighter_state"] == ListFighter.DEAD:
+            # A requested death is applied by the kill confirmation.
+            if new_state == ListFighter.DEAD:
                 return HttpResponseRedirect(
                     reverse("core:list-fighter-kill", args=(lst.id, fighter.id))
                 )

@@ -79,6 +79,67 @@ def test_reconcile_absorbs_hidden_drift_into_the_ledger(tracked_list, user):
 
 
 @pytest.mark.django_db
+def test_reconcile_task_repairs_rating_left_by_premature_death(
+    tracked_list, user, stash_fighter_type, make_list_fighter, task_queue
+):
+    from gyrinx.maintenance.models import Backfill
+    from gyrinx.site.models import Notification
+    from n23.core.handlers.fighter.kill import handle_fighter_kill
+    from n23.core.maintenance.operations import Operation
+    from n23.core.tasks import reconcile_all_lists
+
+    lst, fighter, _, _ = tracked_list
+    stash = make_list_fighter(lst, "Stash", content_fighter=stash_fighter_type)
+    fighter_rating = fresh(fighter).rating_current
+    rating_before = fresh(lst).rating_current
+    credits_before = fresh(lst).credits_current
+
+    # Reproduce the old Add injury flow: it saved DEAD before the kill handler
+    # measured the live cost, so the death booked a zero rating reduction.
+    ListFighter.objects.filter(pk=fighter.pk).update(injury_state=ListFighter.DEAD)
+    result = handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter))
+    assert result.fighter_cost_before == 0
+    assert fresh(fighter).rating_current == fighter_rating
+    assert fresh(lst).rating_current == rating_before
+    assert fresh(fighter).dirty is False
+    assert fresh(lst).dirty is False
+    assert fresh_sheet(lst).reconcile()
+    stash_rating = fresh(stash).rating_current
+    record = Backfill.objects.create(
+        operation=Operation.RECONCILE_LISTS,
+        triggered_by=user,
+        list_id_scope=lst.pk,
+        status=Backfill.Status.RUNNING,
+    )
+
+    with task_queue.capture():
+        reconcile_all_lists.enqueue(
+            backfill_id=str(record.pk), user_id=user.pk, list_id=str(lst.pk)
+        )
+    task_queue.deliver_all()
+
+    assert fresh(fighter).rating_current == 0
+    assert fresh(lst).rating_current == rating_before - fighter_rating
+    assert fresh(lst).credits_current == credits_before
+    assert fresh(stash).rating_current == fresh(lst).stash_current == stash_rating
+    action = fresh(lst).latest_action
+    assert action.action_type == ListActionType.RECONCILE
+    assert action.rating_delta == -fighter_rating
+    assert action.credits_delta == 0
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.DONE
+    assert record.summary["per_list"][0]["audit_action_id"] == str(action.pk)
+    assert_reconciles(lst)
+
+    actions_before = ListAction.objects.filter(list=lst).count()
+    notifications_before = Notification.objects.count()
+    task_queue.redeliver_last()
+    assert ListAction.objects.filter(list=lst).count() == actions_before
+    assert Notification.objects.count() == notifications_before
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
 def test_reconcile_absorbs_real_computed_movement(tracked_list, user):
     """When live resolution genuinely disagrees with the ledger head (an
     unpinned row's price changed under it), RECONCILE books the difference."""

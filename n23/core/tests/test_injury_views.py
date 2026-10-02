@@ -11,6 +11,11 @@ from n23.content.models import (
 )
 from n23.core.models.campaign import Campaign, CampaignAction
 from n23.core.models.list import List, ListFighter, ListFighterInjury
+from n23.core.tests.test_balance_sheet import (
+    assert_reconciles,
+    buy_equipment,
+    hire_fighter,
+)
 from n23.models import FighterCategoryChoices
 
 
@@ -442,16 +447,128 @@ def test_add_injury_with_dead_state_redirects_to_kill():
     assert fighter_injury.injury == injury
     assert fighter_injury.notes == "Mortal wound"
 
-    # Check fighter state was updated to dead
+    # Death is applied by the kill confirmation, after measuring the live rating.
     fighter.refresh_from_db()
-    assert fighter.injury_state == ListFighter.DEAD
+    assert fighter.injury_state == ListFighter.ACTIVE
 
     # Check campaign action was logged
     action = CampaignAction.objects.last()
     assert action.campaign == campaign
     assert f"{fighter.name} suffered {injury.name}" in action.description
     assert "Mortal wound" in action.description
-    assert "was put into Dead" in action.outcome
+    assert action.outcome == f"Death of {fighter.name} awaits confirmation."
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("initial_state", [ListFighter.ACTIVE, ListFighter.RECOVERY])
+@pytest.mark.parametrize("actor_role", ["gang_owner", "campaign_owner", "shared_admin"])
+def test_fatal_injury_preserves_rating_until_kill_confirmation(
+    client,
+    user,
+    list_with_campaign,
+    content_fighter,
+    stash_fighter_type,
+    make_list_fighter,
+    make_equipment,
+    make_user,
+    initial_state,
+    actor_role,
+):
+    from n23.core.models.action import ListActionType
+
+    lst = list_with_campaign
+    lst.apply_credit_delta(1000)
+    lst.create_action(
+        user=user,
+        action_type=ListActionType.UPDATE_CREDITS,
+        credits_before=0,
+        credits_delta=1000,
+        description="Starting credits",
+    )
+    fighter = hire_fighter(user, lst, content_fighter)
+    stash = make_list_fighter(lst, "Stash", content_fighter=stash_fighter_type)
+    buy_equipment(user, lst, fighter, make_equipment("Sword", cost=20))
+    buy_equipment(user, lst, fighter, make_equipment("Autopistol", cost=5))
+    ListFighter.objects.filter(pk=fighter.pk).update(injury_state=initial_state)
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+    rating_before = lst.rating_current
+    fighter_rating_before = fighter.rating_current
+    credits_before = lst.credits_current
+    injury = ContentInjury.objects.create(
+        name="Fatal test injury", phase=ContentInjuryDefaultOutcome.DEAD
+    )
+    actor = user
+    if actor_role != "gang_owner":
+        actor = make_user(actor_role, "testpass")
+        if actor_role == "campaign_owner":
+            lst.campaign.owner = actor
+            lst.campaign.save(update_fields=["owner"])
+        else:
+            lst.campaign.admins.add(actor)
+    client.force_login(actor)
+
+    response = client.post(
+        reverse("core:list-fighter-injury-add", args=[lst.pk, fighter.pk]),
+        {"injury": injury.pk, "fighter_state": ListFighter.DEAD},
+    )
+    kill_url = reverse("core:list-fighter-kill", args=[lst.pk, fighter.pk])
+    assert response.status_code == 302
+    assert response.url == kill_url
+    fighter.refresh_from_db()
+    lst.refresh_from_db()
+    assert fighter.injury_state == initial_state
+    assert fighter.rating_current == fighter_rating_before
+    assert lst.rating_current == rating_before
+    assert fighter.listfighterequipmentassignment_set.count() == 2
+    assert fighter.injuries.filter(injury=injury).exists()
+    injury_action = CampaignAction.objects.filter(list=lst).latest("created")
+    assert injury_action.outcome == f"Death of {fighter.name} awaits confirmation."
+    assert_reconciles(lst)
+
+    # Viewing or leaving the confirmation page must preserve the live fighter.
+    assert client.get(kill_url).status_code == 200
+    fighter.refresh_from_db()
+    assert fighter.injury_state == initial_state
+
+    assert client.post(kill_url).status_code == 302
+    fighter = ListFighter.objects.with_related_data().get(pk=fighter.pk)
+    stash.refresh_from_db()
+    lst.refresh_from_db()
+    assert fighter.injury_state == ListFighter.DEAD
+    assert fighter.cost_override == 0
+    assert fighter.rating_current == fighter.cost_int() == 0
+    assert lst.rating_current == rating_before - fighter_rating_before
+    assert lst.credits_current == credits_before
+    assert stash.rating_current == lst.stash_current == 25
+    assert fighter.listfighterequipmentassignment_set.count() == 0
+    assert stash.listfighterequipmentassignment_set.count() == 2
+    assert lst.latest_action.rating_delta == -fighter_rating_before
+    assert lst.latest_action.user == actor
+    assert fighter.owner == stash.owner == user
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("method", ["get", "post"])
+def test_death_confirmation_rejects_other_campaign_player(
+    client, user, make_user, make_list, list_with_campaign, make_list_fighter, method
+):
+    lst = list_with_campaign
+    fighter = make_list_fighter(lst, "Other player's fighter")
+    other_player = make_user("other_player", "testpass")
+    make_list(
+        "Other player's gang",
+        owner=other_player,
+        campaign=lst.campaign,
+        status=List.CAMPAIGN_MODE,
+    )
+    client.force_login(other_player)
+    url = reverse("core:list-fighter-kill", args=[lst.pk, fighter.pk])
+    assert getattr(client, method)(url).status_code == 404
+    fighter.refresh_from_db()
+    assert fighter.injury_state == ListFighter.ACTIVE
+    assert fighter.owner == user
 
 
 @pytest.fixture
