@@ -10,8 +10,10 @@ from gyrinx.toolbar_store import LazyMemoryStore, Unserialized
 
 
 class NotJSON:
+    label = "not json"
+
     def __str__(self):
-        return "not json"
+        return self.label
 
 
 def sample_stats():
@@ -58,6 +60,21 @@ def test_the_last_recorded_stats_are_the_ones_read(request_id):
     LazyMemoryStore.save_panel(request_id, "SQLPanel", stats)
 
     assert LazyMemoryStore.panel(request_id, "SQLPanel") == {"count": 2}
+
+
+def test_a_change_after_saving_does_not_reach_the_reader(request_id):
+    """The store keeps what was saved, as MemoryStore's save-time JSON does."""
+    named = NotJSON()
+    query = {"sql": "SELECT 1", "params": ["a"], "object": named}
+    LazyMemoryStore.save_panel(request_id, "SQLPanel", {"queries": [query]})
+
+    query["sql"] = "SELECT 2"
+    query["params"].append("b")
+    named.label = "changed"
+
+    assert LazyMemoryStore.panel(request_id, "SQLPanel") == {
+        "queries": [{"sql": "SELECT 1", "params": ["a"], "object": "not json"}]
+    }
 
 
 def test_all_panels_read_back_for_one_request(request_id):

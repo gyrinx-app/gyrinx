@@ -25,7 +25,7 @@ COTTON_STRICT_COMPONENTS = True
 # Cotton's autoconfig substitutes its own template loader chain, wrapped in
 # Django's cached.Loader. Swapping in this subclass lets the autoconfig do its
 # work and then adjusts the caching, per CACHE_TEMPLATES and
-# CACHE_MISSING_TEMPLATES below. The rewrite has to happen from an app config
+# WATCH_TEMPLATE_DIRECTORIES below. The rewrite has to happen from an app config
 # because the autoconfig runs after settings and overwrites anything declared
 # here. See gyrinx/cotton_dev.py.
 if "django_cotton" not in INSTALLED_APPS:
@@ -69,10 +69,11 @@ _UNDER_PYTEST = "pytest" in sys.modules
 CACHE_TEMPLATES = _UNDER_PYTEST or os.getenv("GYRINX_CACHE_TEMPLATES") != "False"
 
 # The autoreloader ignores a template file that did not exist when the server
-# started, so the dev server must not remember a template as missing: writing a
-# new component into a page before creating its file would otherwise leave the
-# page broken until a restart. The suite never creates templates mid-run.
-CACHE_MISSING_TEMPLATES = _UNDER_PYTEST
+# started, so the dev server also resets the loaders when a file appears in, or
+# leaves, a template directory: a new component, or a new override of a template
+# that already loaded from elsewhere, shows on the next request. The suite never
+# creates templates mid-run.
+WATCH_TEMPLATE_DIRECTORIES = not _UNDER_PYTEST
 
 # Start the debug toolbar hidden. The toolbar remembers open/closed in the
 # browser's localStorage, so a fresh browser profile (every agent-driven session

@@ -3,9 +3,9 @@
 django-cotton's autoconfig wraps the chain in Django's ``cached.Loader``. The dev
 server keeps a cached loader, because Django's template autoreload watches every
 template directory and resets the loaders when a template file changes, so an
-edit still reaches the next request without a restart. Development substitutes
-``gyrinx.cotton_dev.DevCottonConfig``, which swaps in a cached loader that never
-remembers a missing template: the autoreloader ignores newly created files.
+edit still reaches the next request without a restart. The autoreloader ignores
+newly created files, so ``gyrinx.cotton_dev.DevCottonConfig`` also resets the
+loaders when a file appears in, or leaves, a template directory.
 
 ``GYRINX_CACHE_TEMPLATES=False`` takes the cached loader out altogether, for a
 process with no autoreloader that must still see template edits.
@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 from django.apps import apps
 from django.core.exceptions import ImproperlyConfigured
-from django.template import Context, Engine, TemplateDoesNotExist, engines
+from django.template import TemplateDoesNotExist, engines
 from django.template.autoreload import get_template_directories, template_changed
 from django.template.loader import get_template
 from django.test import override_settings
@@ -31,9 +31,7 @@ from django.test import override_settings
 from gyrinx.cotton_dev import (
     CACHED_LOADER,
     COTTON_LOADER,
-    DEV_CACHED_LOADER,
-    CachedLoader,
-    stop_caching_missing_templates,
+    TemplateDirectoryWatch,
     uncached_loaders,
     unwrap_cached_template_loader,
 )
@@ -83,6 +81,7 @@ def probe_dev_settings(**env):
         "  'settings_loaders': settings.TEMPLATES[0]['OPTIONS']['loaders'],"
         "  'engine_loaders': engines['django'].engine.loaders,"
         "  'cache_templates': settings.CACHE_TEMPLATES,"
+        "  'watch': settings.WATCH_TEMPLATE_DIRECTORIES,"
         "}))"
     )
     proc = subprocess.run(  # noqa: S603
@@ -109,7 +108,8 @@ def test_the_dev_server_keeps_the_cached_loader():
     probed = probe_dev_settings(GYRINX_CACHE_TEMPLATES="")
 
     assert probed["cache_templates"] is True
-    assert flatten(probed["engine_loaders"])[:2] == [DEV_CACHED_LOADER, COTTON_LOADER]
+    assert probed["watch"] is True
+    assert flatten(probed["engine_loaders"])[:2] == [CACHED_LOADER, COTTON_LOADER]
 
 
 def test_the_dev_server_can_read_templates_fresh():
@@ -153,37 +153,63 @@ def test_editing_a_template_resets_the_cached_loader(template_name):
     assert get_template(template_name).template is not before
 
 
-def test_a_template_created_after_a_miss_is_found(tmp_path):
-    """The dev loader caches what it finds, never what it could not find."""
-    engine = Engine(
-        dirs=[str(tmp_path)],
-        loaders=[(DEV_CACHED_LOADER, [FILESYSTEM_LOADER])],
-    )
-    (loader,) = engine.template_loaders
-    assert isinstance(loader, CachedLoader)
+@pytest.fixture
+def two_template_dirs(tmp_path):
+    """A cached engine reading a higher- then a lower-priority directory."""
+    high, low = tmp_path / "high", tmp_path / "low"
+    high.mkdir()
+    low.mkdir()
+    config = [
+        {
+            "BACKEND": "django.template.backends.django.DjangoTemplates",
+            "DIRS": [str(high), str(low)],
+            "OPTIONS": {"loaders": [(CACHED_LOADER, [FILESYSTEM_LOADER])]},
+        }
+    ]
+    with override_settings(TEMPLATES=config):
+        yield high, low, TemplateDirectoryWatch(roots=[high, low])
 
+
+def render(name):
+    return get_template(name).render({})
+
+
+def test_a_new_override_shows_once_its_directory_changes(two_template_dirs):
+    """An override created after the template cached shows on the next request."""
+    high, low, watch = two_template_dirs
+    (low / "page.html").write_text("from low")
+    watch()
+    assert render("page.html") == "from low"
+
+    (high / "page.html").write_text("from high")
+    # Without the watch the cached loader keeps serving the old match.
+    assert render("page.html") == "from low"
+
+    watch()
+    assert render("page.html") == "from high"
+
+
+def test_a_template_created_after_a_miss_is_found(two_template_dirs):
+    high, _low, watch = two_template_dirs
+    watch()
     with pytest.raises(TemplateDoesNotExist):
-        engine.get_template("new.html")
+        render("new.html")
 
-    (tmp_path / "new.html").write_text("made after the miss")
+    (high / "new.html").write_text("made after the miss")
+    watch()
 
-    found = engine.get_template("new.html")
-    assert found.render(Context()) == "made after the miss"
-    assert engine.get_template("new.html") is found
+    assert render("new.html") == "made after the miss"
 
 
-def test_stopping_caching_misses_keeps_cottons_chain():
-    with override_settings(TEMPLATES=engine_config(COTTON_CACHED_CHAIN)):
-        stop_caching_missing_templates()
+def test_an_unchanged_directory_keeps_the_cache(two_template_dirs):
+    _high, low, watch = two_template_dirs
+    (low / "page.html").write_text("cached")
+    watch()
+    before = get_template("page.html").template
 
-        from django.conf import settings
+    watch()
 
-        assert settings.TEMPLATES[0]["OPTIONS"]["loaders"] == [
-            (
-                DEV_CACHED_LOADER,
-                [COTTON_LOADER, FILESYSTEM_LOADER, APP_DIRECTORIES_LOADER],
-            )
-        ]
+    assert get_template("page.html").template is before
 
 
 def test_cotton_is_still_installed_under_its_own_name():

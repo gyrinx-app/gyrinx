@@ -13,28 +13,28 @@ so a future cotton version that changes the chain is followed rather than
 silently contradicted.
 
 The dev server keeps the cached loader. runserver's autoreloader tells Django's
-template autoreload (``django/template/autoreload.py``) about every edit under a
-template directory, and that resets the loaders. A file that did not exist when
-the server started is the exception: the autoreloader ignores new files. The
-cached loader also remembers templates it could not find, so a component written
-into a page before its file existed would stay missing until a restart.
-Development therefore swaps in ``CachedLoader`` below, which caches only the
-templates it finds. That is the ``CACHE_MISSING_TEMPLATES`` setting's call.
+template autoreload (``django/template/autoreload.py``) about every edit to a file
+under a template directory, and that resets the loaders. It ignores files that
+did not exist when it started, though, so a new template would never reach the
+cache: not a component written into a page before its file existed, and not an
+override of a template that had already loaded from a lower-priority directory.
+``TemplateDirectoryWatch`` below covers that. Adding, removing or renaming a file
+changes its directory's modification time, so before each request it checks
+those times and resets the loaders when one has moved. That is the
+``WATCH_TEMPLATE_DIRECTORIES`` setting's call.
 
 ``CACHE_TEMPLATES`` set to false takes the cached loader out altogether, for a
 process with no autoreloader. Production and the test suite keep Django's own
 cached loader.
 """
 
+import os
 from contextlib import suppress
 
 from django.core.exceptions import ImproperlyConfigured
-from django.template import TemplateDoesNotExist
-from django.template.loaders import cached
 from django_cotton.apps import LoaderAppConfig
 
 CACHED_LOADER = "django.template.loaders.cached.Loader"
-DEV_CACHED_LOADER = "gyrinx.cotton_dev.CachedLoader"
 COTTON_LOADER = "django_cotton.cotton_loader.Loader"
 
 
@@ -98,33 +98,51 @@ def unwrap_cached_template_loader():
     reset_engines()
 
 
-class CachedLoader(cached.Loader):
-    """Django's cached loader, minus the memory of templates it could not find."""
+class TemplateDirectoryWatch:
+    """Resets the template loaders when a file is added to, or leaves, a template directory.
 
-    def get_template(self, template_name, skip=None):
-        try:
-            return super().get_template(template_name, skip)
-        except TemplateDoesNotExist:
-            self.get_template_cache.pop(self.cache_key(template_name, skip), None)
-            raise
+    Connected to ``request_started``. Checking costs one ``stat`` per directory
+    under the template roots, a few hundred in this project, well under a
+    millisecond. Edits to existing files are left to Django's own template
+    autoreload: they do not change a directory's modification time.
+    """
 
+    def __init__(self, roots=None):
+        self.roots = roots
+        self.mtimes = None
 
-def stop_caching_missing_templates():
-    """Swap ``CachedLoader`` in for the cached loader of every engine, in place."""
-    from django.conf import settings
+    def directories(self):
+        if self.roots is not None:
+            return self.roots
+        from django.template.autoreload import get_template_directories
 
-    for template_config in settings.TEMPLATES:
-        options = template_config.get("OPTIONS") or {}
-        options["loaders"] = [
-            (DEV_CACHED_LOADER, *loader[1:])
-            if isinstance(loader, (list, tuple))
-            and loader
-            and loader[0] == CACHED_LOADER
-            else loader
-            for loader in options.get("loaders") or []
-        ]
+        return get_template_directories()
 
-    reset_engines()
+    def snapshot(self):
+        mtimes = {}
+        for root in self.directories():
+            for path, _subdirectories, _files in os.walk(root):
+                with suppress(OSError):
+                    mtimes[path] = os.stat(path).st_mtime_ns
+        return mtimes
+
+    def changed(self):
+        for path, mtime in self.mtimes.items():
+            try:
+                if os.stat(path).st_mtime_ns != mtime:
+                    return True
+            except OSError:
+                return True
+        return False
+
+    def __call__(self, **kwargs):
+        if self.mtimes is None:
+            self.mtimes = self.snapshot()
+        elif self.changed():
+            from django.template.autoreload import reset_loaders
+
+            reset_loaders()
+            self.mtimes = self.snapshot()
 
 
 def reset_engines():
@@ -142,13 +160,19 @@ def reset_engines():
 class DevCottonConfig(LoaderAppConfig):
     """django-cotton's autoconfig, with the cached loader adjusted for editing."""
 
+    template_directory_watch = TemplateDirectoryWatch()
+
     def ready(self):
         from django.conf import settings
+        from django.core.signals import request_started
 
         super().ready()
         # Default to leaving the caching as cotton built it: this only changes it
         # where settings have explicitly asked.
         if not getattr(settings, "CACHE_TEMPLATES", True):
             unwrap_cached_template_loader()
-        elif not getattr(settings, "CACHE_MISSING_TEMPLATES", True):
-            stop_caching_missing_templates()
+        elif getattr(settings, "WATCH_TEMPLATE_DIRECTORIES", False):
+            request_started.connect(
+                self.template_directory_watch,
+                dispatch_uid="gyrinx.cotton_dev.template_directory_watch",
+            )

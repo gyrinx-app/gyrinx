@@ -64,7 +64,30 @@ def test_a_stack_trace_with_locals_is_left_to_the_toolbar():
 
     assert trace[-1][2] == "test_a_stack_trace_with_locals_is_left_to_the_toolbar"
     assert trace[-1][4] is not None
-    assert memoised.frame_cache == {}
+    assert memoised.frame_caches == {}
+
+
+def test_changing_the_hidden_modules_changes_the_trace():
+    """A frame hidden for one list of modules is shown for another, on one recorder."""
+    original, _ = toolbar_originals()
+    memoised = toolbar_utils._StackTraceRecorder()
+    hide_tests = (*HIDDEN, __name__)
+
+    expected_hidden, expected_shown, hidden, shown, hidden_again = [
+        recorder.get_stack_trace(excluded_modules=modules)
+        for recorder, modules in (
+            (original(), hide_tests),
+            (original(), HIDDEN),
+            (memoised, hide_tests),
+            (memoised, HIDDEN),
+            (memoised, hide_tests),
+        )
+    ]
+
+    assert hidden == expected_hidden
+    assert shown == expected_shown
+    assert hidden_again == expected_hidden
+    assert hidden != shown
 
 
 def test_a_memoised_template_context_matches_the_toolbars_own():

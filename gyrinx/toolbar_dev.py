@@ -12,10 +12,11 @@ The SQL and cache panels then render each trace to HTML, frame by frame.
 All three computations are pure for a given input, so this module memoises them
 and leaves the output unchanged:
 
-- A stack frame's entry depends only on its code object and line number. The
-  recorder below remembers each one for the rest of the request, so a frame
-  shared by hundreds of traces is resolved once. The toolbar throws its recorder
-  away at the end of every request, and this cache goes with it.
+- A stack frame's entry depends only on its code object, its line number and the
+  modules the toolbar hides. The recorder below remembers each one for the rest
+  of the request, so a frame shared by hundreds of traces is resolved once. The
+  toolbar throws its recorder away at the end of every request, and this cache
+  goes with it.
 - A template line's context depends only on the template and the token's
   position in it. That is remembered per template object, and the entry dies
   with the template. When a template file changes, Django's template autoreload
@@ -47,7 +48,9 @@ def memoised_stack_trace_recorder(base):
     class MemoisedStackTraceRecorder(base):
         def __init__(self):
             super().__init__()
-            self.frame_cache = {}
+            # One frame cache per list of hidden modules, because whether a
+            # frame is left out of the trace depends on that list.
+            self.frame_caches = {}
             self.module_globals_cache = {}
 
         def get_stack_trace(
@@ -64,7 +67,9 @@ def memoised_stack_trace_recorder(base):
                 )
 
             trace = []
-            frame_cache = self.frame_cache
+            frame_cache = self.frame_caches.setdefault(
+                tuple(excluded_modules or ()), {}
+            )
             skip += 1  # Skip the frame for this method.
             for frame in _stack_frames(skip=skip):
                 key = (frame.f_code, frame.f_lineno)
