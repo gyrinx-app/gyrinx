@@ -44,15 +44,15 @@
                             value="{{ form.reason.value|default:'' }}"
                             placeholder="e.g. Rare trade availability" />
             </c-ui.field>
-            <c-ui.field label="Dice *" :form="form" name="dice" error="x">
-                <div class="flex flex-wrap gap-3">
-                    {% for choice in form.dice %}
-                        <label for="{{ choice.id_for_label }}"
-                               class="flex min-h-11 items-center gap-3 rounded-lg border border-box-border px-4">{{ choice.tag }} {{ choice.choice_label }}</label>
-                    {% endfor %}
-                </div>
-                <p class="mt-2 text-sm text-muted">D66 uses two D6s, one for tens and one for units.</p>
-            </c-ui.field>
+            <c-n26.radio-cards label="Dice *" :form="form" name="dice" min="6.5rem">
+                {% for choice in dice_choices %}
+                    <c-n26.radio-cards.card name="dice"
+                                            value="{{ choice.value }}"
+                                            label="{{ choice.label }}"
+                                            :checked="choice.checked" />
+                {% endfor %}
+            </c-n26.radio-cards>
+            <p class="text-sm text-muted">D66 uses two D6s, one for tens and one for units.</p>
             {% react_island "campaign-roll-source" roll_source %}
             <c-ui.field label="Modifier"
                         :form="form"

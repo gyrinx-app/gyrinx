@@ -33,7 +33,7 @@
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <div class="rounded-xl border border-box-border bg-box px-6 py-5">
+        <div class="rounded-box border border-box-border bg-box px-6 py-5">
             <p class="text-sm text-muted">Result · {{ roll.get_source_display }}</p>
             <p class="mt-2 text-4xl font-semibold tabular-nums">{{ roll.total }}</p>
             <p class="mt-2 text-base tabular-nums">{{ roll.calculation }}</p>

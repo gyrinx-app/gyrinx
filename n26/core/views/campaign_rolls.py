@@ -37,6 +37,14 @@ def record_campaign_roll(request, pk):
         {
             "campaign": campaign,
             "form": form,
+            "dice_choices": [
+                {
+                    "value": value,
+                    "label": label,
+                    "checked": value == form["dice"].value(),
+                }
+                for value, label in form.fields["dice"].choices
+            ],
             "roll_source": {
                 "source": form["source"].value() or "",
                 "rolled": "" if rolled is None else str(rolled),
