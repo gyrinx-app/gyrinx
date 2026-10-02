@@ -461,6 +461,7 @@ def test_add_injury_with_dead_state_redirects_to_kill():
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("initial_state", [ListFighter.ACTIVE, ListFighter.RECOVERY])
+@pytest.mark.parametrize("actor_role", ["gang_owner", "campaign_owner", "shared_admin"])
 def test_fatal_injury_preserves_rating_until_kill_confirmation(
     client,
     user,
@@ -469,7 +470,9 @@ def test_fatal_injury_preserves_rating_until_kill_confirmation(
     stash_fighter_type,
     make_list_fighter,
     make_equipment,
+    make_user,
     initial_state,
+    actor_role,
 ):
     from n23.core.models.action import ListActionType
 
@@ -495,7 +498,15 @@ def test_fatal_injury_preserves_rating_until_kill_confirmation(
     injury = ContentInjury.objects.create(
         name="Fatal test injury", phase=ContentInjuryDefaultOutcome.DEAD
     )
-    client.force_login(user)
+    actor = user
+    if actor_role != "gang_owner":
+        actor = make_user(actor_role, "testpass")
+        if actor_role == "campaign_owner":
+            lst.campaign.owner = actor
+            lst.campaign.save(update_fields=["owner"])
+        else:
+            lst.campaign.admins.add(actor)
+    client.force_login(actor)
 
     response = client.post(
         reverse("core:list-fighter-injury-add", args=[lst.pk, fighter.pk]),
@@ -533,7 +544,31 @@ def test_fatal_injury_preserves_rating_until_kill_confirmation(
     assert fighter.listfighterequipmentassignment_set.count() == 0
     assert stash.listfighterequipmentassignment_set.count() == 2
     assert lst.latest_action.rating_delta == -fighter_rating_before
+    assert lst.latest_action.user == actor
+    assert fighter.owner == stash.owner == user
     assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("method", ["get", "post"])
+def test_death_confirmation_rejects_other_campaign_player(
+    client, user, make_user, make_list, list_with_campaign, make_list_fighter, method
+):
+    lst = list_with_campaign
+    fighter = make_list_fighter(lst, "Other player's fighter")
+    other_player = make_user("other_player", "testpass")
+    make_list(
+        "Other player's gang",
+        owner=other_player,
+        campaign=lst.campaign,
+        status=List.CAMPAIGN_MODE,
+    )
+    client.force_login(other_player)
+    url = reverse("core:list-fighter-kill", args=[lst.pk, fighter.pk])
+    assert getattr(client, method)(url).status_code == 404
+    fighter.refresh_from_db()
+    assert fighter.injury_state == ListFighter.ACTIVE
+    assert fighter.owner == user
 
 
 @pytest.fixture

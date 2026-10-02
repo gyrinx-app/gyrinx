@@ -26,6 +26,7 @@ from n23.core.handlers.fighter import (
     handle_fighter_resurrect,
 )
 from n23.core.models.list import List, ListFighter
+from n23.core.views.fighter.permissions import get_list_and_fighter
 from n23.core.views.list.common import get_clean_list_or_404
 
 
@@ -432,13 +433,7 @@ def kill_list_fighter(request, id, fighter_id):
 
     :template:`core/list_fighter_kill.html`
     """
-    lst = get_clean_list_or_404(List, id=id, owner=request.user)
-    fighter = get_object_or_404(
-        ListFighter.objects.with_related_data(),
-        id=fighter_id,
-        list=lst,
-        owner=lst.owner,
-    )
+    lst, fighter, _ = get_list_and_fighter(request, id, fighter_id)
 
     # Only allow killing fighters in campaign mode
     if not lst.is_campaign_mode:
