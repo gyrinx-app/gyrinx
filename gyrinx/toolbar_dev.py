@@ -133,7 +133,7 @@ def memoised_get_template_context(original):
 def memoised_render_stacktrace(original):
     """Wrap the toolbar's ``render_stacktrace`` so each frame's HTML is built once."""
     from debug_toolbar import settings as dt_settings
-    from django.utils.safestring import mark_safe
+    from django.utils.safestring import SafeString
 
     @functools.lru_cache(maxsize=8192)
     def render_frame(frame):
@@ -142,10 +142,15 @@ def memoised_render_stacktrace(original):
     def render_stacktrace(trace):
         if dt_settings.get_config()["ENABLE_STACKTRACES_LOCALS"]:
             return original(trace)
+        # Each frame comes back from the toolbar's own renderer already safe, and
+        # safe strings stay safe when added together.
+        html = SafeString()
         try:
-            return mark_safe("".join(render_frame(tuple(frame)) for frame in trace))
+            for frame in trace:
+                html += render_frame(tuple(frame))
         except TypeError:  # An entry that cannot be hashed.
             return original(trace)
+        return html
 
     render_stacktrace.__wrapped__ = original
     return render_stacktrace
