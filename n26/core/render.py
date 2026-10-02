@@ -1136,7 +1136,6 @@ class ModelCard:
     #: Actions the roster flags: an earned use, an unfinished draft, or an
     #: affordable counter price. The gang view fills these for the owner only.
     action_names: tuple[str, ...] = ()
-    action_colour: str = ""
     #: Authored standing in each effective rank table. A roster supplies these
     #: in one batch; a standalone card derives its own without writing history.
     rank_summaries: tuple[RankSummary, ...] = ()

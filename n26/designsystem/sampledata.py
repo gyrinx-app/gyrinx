@@ -2381,7 +2381,6 @@ def model_card_actions_waiting():
     return model_card_as(
         "actions-waiting",
         action_names=("Advancement", "Suit Evolution"),
-        action_colour="violet",
     )
 
 

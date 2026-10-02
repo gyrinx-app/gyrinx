@@ -1,15 +1,14 @@
-{% load humanize theme %}
+{% load humanize %}
 <div id="n26-action-panels" {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
     {% if action_panels %}
-        <c-ui.card padding="sm">
+        <c-ui.card padding="none">
             <div class="divide-y divide-box-border">
                 {% for panel in action_panels %}
-                    <section class="space-y-3 py-4 first:pt-0 last:pb-0"
-                             aria-labelledby="n26-action-{{ panel.action_id }}-title">
-                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <section aria-labelledby="n26-action-{{ panel.action_id }}-title">
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3{% if panel.flagged %} border-b border-box-border bg-red-50 dark:bg-red-950/20{% endif %}">
                             <div class="flex items-center gap-1.5">
                                 {% if panel.flagged %}
-                                    <span style="color: {{ action_colour|css_color }}">
+                                    <span class="text-red-600 dark:text-red-400">
                                         <c-n26.icon name="circle-fading-arrow-up"
                                                     class="size-4"
                                                     stroke_width="2"
@@ -40,7 +39,7 @@
                                 {% endfor %}
                             {% endif %}
                         </div>
-                        <div class="space-y-2 text-sm">
+                        <div class="space-y-2 text-sm px-4 pb-4 pt-3">
                             <p class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-muted">
                                 <span>{{ panel.timing|capfirst }}</span>
                                 {% if panel.available_uses %}<span>{{ panel.available_uses }} use{{ panel.available_uses|pluralize }} available</span>{% endif %}
