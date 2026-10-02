@@ -817,3 +817,58 @@ class TestDialogPageState:
             assert saved.url == back
         gang.refresh_from_db()
         assert_reconciled(gang)
+
+
+class TestCloningRatingOverrides:
+    @pytest.mark.parametrize("kind", ["model", "gang"])
+    @pytest.mark.parametrize("rating", [150, -100, -(2**31) + 1])
+    def test_a_clone_keeps_the_override_baseline_and_can_reset_it(
+        self, gang, vex, make_profile, kind, rating
+    ):
+        from n26.core.operations import clone_gang
+
+        if rating == -(2**31) + 1:
+            with operation(gang, actor=gang.owner) as op:
+                op.set_base_rating(vex, -100)
+            hire_with_option(
+                gang, make_profile("Balancer", price=0), "Balancer", rating=2**31 - 1
+            )
+            with operation(gang, actor=gang.owner) as op:
+                op.set_base_rating(vex, -(2**31) + 100)
+        with operation(gang, actor=gang.owner) as op:
+            op.set_base_rating(vex, rating)
+        if kind == "model":
+            with operation(gang, actor=gang.owner) as op:
+                clone = op.clone_miniature(vex)
+            destination = gang
+        else:
+            destination = clone_gang(
+                gang, name="Copy", owner=gang.owner, actor=gang.owner
+            )
+            clone = Miniature.objects.get(membership__gang=destination, name="Vex")
+        entry = clone.membership.ledger_entry
+        assert entry.rating_contribution == rating
+        assert entry.rating_without_override == 100
+        receipt = read_rating_receipt(clone)
+        assert receipt.override_delta == rating - 100
+        credits = destination.credits
+        assert_reconciled(destination)
+        if rating == -(2**31) + 1:
+            if kind == "gang":
+                balancer = Miniature.objects.get(
+                    membership__gang=destination, name="Balancer"
+                )
+                with operation(destination, actor=gang.owner) as op:
+                    op.set_base_rating(balancer, 2**31 - 201)
+            # One integer event cannot cover the whole trip back to the baseline.
+            with operation(destination, actor=gang.owner) as op:
+                op.set_base_rating(clone, 0)
+        with operation(destination, actor=gang.owner) as op:
+            op.set_base_rating(clone, None)
+        clone.refresh_from_db()
+        destination.refresh_from_db()
+        assert clone.rating == 120
+        assert clone.membership.ledger_entry.rating_contribution == 100
+        assert clone.membership.ledger_entry.rating_without_override == 100
+        assert destination.credits == credits
+        assert_reconciled(destination)

@@ -39,6 +39,19 @@ def edit_url(vex):
 
 
 class TestTheNameDialog:
+    def test_another_models_rename_parameter_cannot_open_over_this_edit_page(
+        self, client, vex
+    ):
+        other = hire_with_option(vex.gang, vex.membership.profile, "Mara")
+        client.force_login(vex.gang.owner)
+        response = client.get(edit_url(vex), {"rename": str(other.pk)})
+        assert response.status_code == 200
+        assert response.context["rename_dialog"] is None
+        assert response.context["renaming"] is None
+        assert response.context["miniature"].pk == vex.pk
+        assert response.context["card"].name == "Vex"
+        assert "Save characteristics" in response.content.decode()
+
     def test_the_edit_pencil_fetches_only_the_dialog(self, client, vex):
         client.force_login(vex.gang.owner)
         page = client.get(edit_url(vex))

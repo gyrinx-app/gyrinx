@@ -969,6 +969,8 @@ def edit_fighter(request, pk):
     host = EquipHost.fighter(gang, own, miniature, at)
 
     renaming = _fighter_named(request, gang, "rename")
+    if renaming is not None and renaming.pk != miniature.pk:
+        renaming = None
     from n26.core.views.gangs import rename_dialog_props
 
     # One question at a time: a URL naming a rename and a sale draws

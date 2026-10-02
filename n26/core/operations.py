@@ -33,6 +33,7 @@ from functools import cached_property
 from uuid import uuid4
 
 from django.db import transaction
+from django.db.models import Sum
 
 from n26.core.models import (
     Assignment,
@@ -1442,6 +1443,15 @@ class Operation:
         assignment_map = {}
         miniature_map = {}
         memberships = {model.membership_id for model in plan.miniatures}
+        rating_overrides = dict(
+            LedgerEvent.objects.filter(
+                assignment_id__in=memberships,
+                kind__in=[LedgerEvent.Kind.RATING_SET, LedgerEvent.Kind.RATING_RESET],
+            )
+            .values("assignment_id")
+            .annotate(total=Sum("rating_delta"))
+            .values_list("assignment_id", "total")
+        )
         planned = {assignment.pk for assignment in plan.assignments}
         preserving_external_anchors = plan.source_gang.pk == self.gang.pk
 
@@ -1559,7 +1569,12 @@ class Operation:
             if not is_guard and source.miniature_root_id in miniature_map:
                 clone.miniature_root = miniature_map[source.miniature_root_id]
             clone.save()
-            self._clone_ledger(source, clone, neutral=source.pk in plan.neutral)
+            self._clone_ledger(
+                source,
+                clone,
+                neutral=source.pk in plan.neutral,
+                rating_override=rating_overrides.get(source.pk, 0),
+            )
 
             role = getattr(source, "profile_role", None)
             if role is not None:
@@ -1667,8 +1682,8 @@ class Operation:
             archived_at=_now() if is_archived else None,
         )
 
-    def _clone_ledger(self, source, clone, *, neutral=False):
-        """Give a cloned assignment one fresh opening that reconciles."""
+    def _clone_ledger(self, source, clone, *, neutral=False, rating_override=0):
+        """Give a cloned assignment a fresh opening and its rating override."""
         entry = getattr(source, "ledger_entry", None)
         values = (
             {
@@ -1695,14 +1710,33 @@ class Operation:
                 "note": "",
             }
         )
+        if neutral:
+            rating_override = 0
+        baseline = values["rating_contribution"] - rating_override
+        if not -(2**31) <= baseline < 2**31:
+            raise Refusal(
+                "You cannot clone this model. Its base rating without an override "
+                "is outside the supported range."
+            )
         LedgerEntry.objects.create(assignment=clone, **values)
         self.event(
             clone,
             LedgerEvent.Kind.CLONED,
             credits_delta=values["paid"],
             trade_points_delta=values["trade_points"],
-            rating_delta=values["rating_contribution"],
+            rating_delta=baseline,
         )
+        # The difference between two integer contributions can need several deltas.
+        while rating_override:
+            delta = max(-(2**31), min(2**31 - 1, rating_override))
+            self.event(
+                clone,
+                LedgerEvent.Kind.RATING_SET,
+                rating_delta=delta,
+                note=f"Base rating {baseline}¢ → {baseline + delta}¢",
+            )
+            baseline += delta
+            rating_override -= delta
 
     def hire(self, profile, model_name, paid=None, owner=None, option=None, **kwargs):
         """Hire a model: a gang-hosted assignment naming a profile.
