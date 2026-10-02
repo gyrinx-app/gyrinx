@@ -6,6 +6,8 @@ import {
     type BaseRatingDialogProps,
 } from "./BaseRatingDialog";
 
+import { saveBaseRatingDialog } from "./entry";
+
 const props: BaseRatingDialogProps = {
     value: "100",
     errors: [],
@@ -17,6 +19,17 @@ const props: BaseRatingDialogProps = {
     csrfToken: "token",
     defaultRating: 100,
     hasOverride: false,
+};
+
+const viewProps = {
+    ...props,
+    onSave: (value: string, removing: boolean) =>
+        saveBaseRatingDialog(
+            document.getElementById("n26-rating-dialog-host"),
+            props,
+            value,
+            removing,
+        ),
 };
 
 beforeEach(() => {
@@ -45,14 +58,14 @@ afterEach(() => {
 test("opens with the base rating and sends the draft through htmx with CSRF", async () => {
     const ajax = vi.fn().mockImplementation(async () => {
         document.getElementById("n26-rating-dialog-host")!.dispatchEvent(
-            new CustomEvent("htmx:afterRequest", {
+            new CustomEvent("htmx:beforeOnLoad", {
                 detail: { xhr: { getResponseHeader: () => props.cancelUrl } },
             }),
         );
     });
     vi.stubGlobal("htmx", { ajax });
     const user = userEvent.setup();
-    render(<BaseRatingDialog {...props} />);
+    render(<BaseRatingDialog {...viewProps} />);
     expect(
         screen.getByRole("dialog", { name: "Override base rating" }),
     ).toBeTruthy();
@@ -78,7 +91,7 @@ test("blocks duplicate saves and dismissal while a request is pending", async ()
     );
     vi.stubGlobal("htmx", { ajax });
     const user = userEvent.setup();
-    render(<BaseRatingDialog {...props} />);
+    render(<BaseRatingDialog {...viewProps} />);
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(
         (screen.getByRole("button", { name: "Saving…" }) as HTMLButtonElement)
@@ -102,7 +115,7 @@ test("a failed request preserves the draft and allows retry", async () => {
         ajax: vi.fn().mockRejectedValue(new Error("Offline")),
     });
     const user = userEvent.setup();
-    render(<BaseRatingDialog {...props} />);
+    render(<BaseRatingDialog {...viewProps} />);
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByRole("alert")).toHaveProperty(
         "textContent",
@@ -120,7 +133,7 @@ test("a failed request preserves the draft and allows retry", async () => {
 test("a login or CSRF redirect does not silently appear to save", async () => {
     vi.stubGlobal("htmx", { ajax: vi.fn().mockResolvedValue(undefined) });
     const user = userEvent.setup();
-    render(<BaseRatingDialog {...props} />);
+    render(<BaseRatingDialog {...viewProps} />);
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(
@@ -133,14 +146,14 @@ test("a login or CSRF redirect does not silently appear to save", async () => {
 test("shows the unmodified contribution and removes the saved override despite an invalid draft", async () => {
     const ajax = vi.fn().mockImplementation(async () => {
         document.getElementById("n26-rating-dialog-host")!.dispatchEvent(
-            new CustomEvent("htmx:afterRequest", {
+            new CustomEvent("htmx:beforeOnLoad", {
                 detail: { xhr: { getResponseHeader: () => props.cancelUrl } },
             }),
         );
     });
     vi.stubGlobal("htmx", { ajax });
     const user = userEvent.setup();
-    render(<BaseRatingDialog {...props} value="150" hasOverride />);
+    render(<BaseRatingDialog {...viewProps} value="150" hasOverride />);
     expect(screen.getByText("Without an override")).toBeTruthy();
     expect(screen.getByText("100¢")).toBeTruthy();
     const buttons = screen
@@ -163,7 +176,7 @@ test("shows the unmodified contribution and removes the saved override despite a
 });
 
 test("removal is disabled when there is no saved override", () => {
-    render(<BaseRatingDialog {...props} />);
+    render(<BaseRatingDialog {...viewProps} />);
     expect(
         (
             screen.getByRole("button", {
@@ -181,7 +194,7 @@ test.each(["Cancel", "Escape"])(
         document.body.append(previous);
         previous.focus();
         const user = userEvent.setup();
-        render(<BaseRatingDialog {...props} />);
+        render(<BaseRatingDialog {...viewProps} />);
         if (action === "Cancel")
             await user.click(screen.getByRole("button", { name: "Cancel" }));
         else
@@ -199,7 +212,7 @@ test.each(["Cancel", "Escape"])(
 test("field and operation errors remain visible and associated with the input", () => {
     render(
         <BaseRatingDialog
-            {...props}
+            {...viewProps}
             errors={["Enter a whole number."]}
             formErrors={["This rating change is too large."]}
         />,
@@ -214,4 +227,14 @@ test("field and operation errors remain visible and associated with the input", 
     expect(screen.getByRole("alert").textContent).toBe(
         "This rating change is too large.",
     );
+});
+
+
+test("accepts the response before htmx removes the outer host", async () => {
+    const source = document.getElementById("n26-rating-dialog-host")!;
+    vi.stubGlobal("htmx", { ajax: vi.fn(async () => {
+        source.dispatchEvent(new CustomEvent("htmx:beforeOnLoad", {detail: {xhr: {getResponseHeader: () => props.cancelUrl}}}));
+        source.remove();
+    }) });
+    await expect(saveBaseRatingDialog(source, props, "150", false)).resolves.toBeUndefined();
 });

@@ -10,18 +10,9 @@ export type RenameDialogProps = {
     csrfToken: string;
     returnFocusId: string;
 };
-type Htmx = {
-    ajax: (
-        method: string,
-        url: string,
-        options: {
-            source: HTMLElement;
-            swap: string;
-            values: Record<string, string>;
-        },
-    ) => Promise<unknown>;
-};
-export function RenameDialog(props: RenameDialogProps) {
+export function RenameDialog(
+    props: RenameDialogProps & { onSave: (value: string) => Promise<void> },
+) {
     const id = useId();
     const [value, setValue] = useState(props.value);
     const [pending, setPending] = useState(false);
@@ -47,36 +38,7 @@ export function RenameDialog(props: RenameDialogProps) {
                 setPending(true);
                 setError("");
                 try {
-                    const htmx = (window as Window & { htmx?: Htmx }).htmx;
-                    const source = document.getElementById(
-                        "n26-rename-dialog-host",
-                    );
-                    if (!htmx || !source) throw new Error("Unavailable");
-                    let answered = false;
-                    const received = (event: Event) => {
-                        answered =
-                            (
-                                event as CustomEvent<{ xhr: XMLHttpRequest }>
-                            ).detail.xhr.getResponseHeader("HX-Replace-Url") !==
-                            null;
-                    };
-                    source.addEventListener("htmx:afterRequest", received);
-                    try {
-                        await htmx.ajax("POST", props.actionUrl, {
-                            source,
-                            swap: "none",
-                            values: {
-                                name: value,
-                                csrfmiddlewaretoken: props.csrfToken,
-                            },
-                        });
-                        if (!answered) throw new Error("Unexpected response");
-                    } finally {
-                        source.removeEventListener(
-                            "htmx:afterRequest",
-                            received,
-                        );
-                    }
+                    await props.onSave(value);
                 } catch {
                     setError("The name could not be saved. Try again.");
                 } finally {

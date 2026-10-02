@@ -97,6 +97,6 @@ def build_rating_receipt(assignments, *, status=""):
 
 def read_rating_receipt(miniature):
     """One narrow assignment read for a receipt refreshed after an edit."""
-    from n26.core.card import rating_rows
+    from n26.core.card import rating_assignments
 
-    return build_rating_receipt(rating_rows(miniature), status=miniature.status)
+    return build_rating_receipt(rating_assignments(miniature), status=miniature.status)

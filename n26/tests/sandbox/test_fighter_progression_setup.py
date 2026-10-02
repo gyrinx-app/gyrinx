@@ -11,6 +11,8 @@ from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
 from n26.core.models import ActionAllowance, ActionRecord, Assignment, LedgerEvent
 from n26.core.operations import Refusal, operation
+from n26.core.rating import read_rating_receipt
+from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_model_card
 from n26.library import authoring as a
 from n26.library.fighter_action_setup import (
@@ -987,6 +989,8 @@ class TestPromotions:
             row = member if target == "member" else extra
             setattr(row, field, True)
             row.save()
+        bonus_pick = promotion.slot.picklist.available_members().get().pickable
+        a.revise(bonus_pick, rating_contribution=10)
         promotion.full_clean()
         existing_skill = Skill.objects.get(name="Clamber")
         with operation(progression.gang, actor=progression.owner) as op:
@@ -1022,7 +1026,17 @@ class TestPromotions:
             "Champion"
         }
         record.refresh_from_db()
-        assert record.advancement_selection.promotion_assignment_id
+        selection = record.advancement_selection
+        assert selection.promotion_assignment.rating == 10
+        receipt = read_rating_receipt(progression.fighter)
+        assert [(line.label, line.rating) for line in receipt.contributions] == [
+            ("Advancements", selection.pick_assignment.rating + 10)
+        ]
+        progression.fighter.refresh_from_db()
+        assert receipt.total == progression.fighter.rating
+        assert build_model_card(progression.fighter).rating_receipt == receipt
+        progression.gang.refresh_from_db()
+        assert_reconciled(progression.gang)
         assert "Inspiring" in {
             str(row.thing) for row in _computed(progression.fighter).skills
         }

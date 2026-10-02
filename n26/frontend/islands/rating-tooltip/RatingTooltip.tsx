@@ -19,8 +19,8 @@ export function RatingTooltip({
         <HelpPopover
             label={
                 receipt
-                    ? `${name}'s rating breakdown`
-                    : `${name}'s rating includes a base rating override`
+                    ? `${name}'s rating: ${rating}¢. Rating breakdown`
+                    : `${name}'s rating: ${rating}¢. Includes a base rating override`
             }
             triggerContent={`${rating}¢`}
         >

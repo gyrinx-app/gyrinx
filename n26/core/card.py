@@ -459,7 +459,7 @@ def _flat_rows(**filters):
     ledger entry and the table is narrow. The assignable an assignment
     names is loaded afterwards, in narrow passes — see ``hydrate_rows``.
     """
-    from django.db.models import Case, Exists, OuterRef, Subquery, Sum, When
+    from django.db.models import Case, Exists, OuterRef, Q, Subquery, Sum, When
     from django.db.models.functions import Coalesce
 
     from n26.core.models import AdvancementSelection, LedgerEvent
@@ -479,7 +479,10 @@ def _flat_rows(**filters):
         .select_related("ledger_entry")
         .annotate(
             rating_from_advancement=Exists(
-                AdvancementSelection.objects.filter(pick_assignment_id=OuterRef("pk"))
+                AdvancementSelection.objects.filter(
+                    Q(pick_assignment_id=OuterRef("pk"))
+                    | Q(promotion_assignment_id=OuterRef("pk"))
+                )
             ),
             base_rating_override_delta=Case(
                 When(
@@ -494,7 +497,7 @@ def _flat_rows(**filters):
     )
 
 
-def rating_rows(miniature):
+def rating_assignments(miniature):
     """Recorded rating contributions without loading the library content."""
     return _flat_rows(miniature_root=miniature, removes=False)
 

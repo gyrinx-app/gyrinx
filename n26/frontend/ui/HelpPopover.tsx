@@ -172,7 +172,9 @@ export function HelpPopover({
                 aria-controls={panelId}
                 onClick={onClick}
                 className={
-                    triggerContent ? cotton.explanationTrigger[0] : look.button
+                    triggerContent
+                        ? `${cotton.explanationTrigger[0]} focus-ring`
+                        : look.button
                 }
             >
                 {triggerContent ? (

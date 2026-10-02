@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { RenameDialog, type RenameDialogProps } from "./RenameDialog";
 
+import { saveRenameDialog } from "./entry";
+
 const props: RenameDialogProps = {
     name: "Vex",
     value: "Vex",
@@ -12,6 +14,16 @@ const props: RenameDialogProps = {
     csrfToken: "token",
     returnFocusId: "pencil",
 };
+const viewProps = {
+    ...props,
+    onSave: (value: string) =>
+        saveRenameDialog(
+            document.getElementById("n26-rename-dialog-host"),
+            props,
+            value,
+        ),
+};
+
 beforeEach(() => {
     Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
         configurable: true,
@@ -42,7 +54,7 @@ afterEach(() => {
 test("opens with the name and posts the edited draft with CSRF", async () => {
     const ajax = vi.fn().mockImplementation(async () => {
         document.getElementById("n26-rename-dialog-host")!.dispatchEvent(
-            new CustomEvent("htmx:afterRequest", {
+            new CustomEvent("htmx:beforeOnLoad", {
                 detail: {
                     xhr: { getResponseHeader: () => props.cancelUrl },
                 },
@@ -51,7 +63,7 @@ test("opens with the name and posts the edited draft with CSRF", async () => {
     });
     vi.stubGlobal("htmx", { ajax });
     const user = userEvent.setup();
-    render(<RenameDialog {...props} />);
+    render(<RenameDialog {...viewProps} />);
     const input = screen.getByRole("textbox", { name: "Name" });
     expect((input as HTMLInputElement).value).toBe("Vex");
     await user.clear(input);
@@ -72,7 +84,7 @@ test.each(["Cancel", "Escape"])(
         const ajax = vi.fn();
         vi.stubGlobal("htmx", { ajax });
         const user = userEvent.setup();
-        render(<RenameDialog {...props} />);
+        render(<RenameDialog {...viewProps} />);
         if (action === "Cancel")
             await user.click(screen.getByRole("button", { name: "Cancel" }));
         else
@@ -96,7 +108,7 @@ test("disables duplicate saves and dismissal while pending", async () => {
     );
     vi.stubGlobal("htmx", { ajax });
     const user = userEvent.setup();
-    render(<RenameDialog {...props} />);
+    render(<RenameDialog {...viewProps} />);
     await user.click(screen.getByRole("button", { name: "Save" }));
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
     fireEvent(
@@ -123,7 +135,7 @@ test.each(["offline", "session"])(
                     : vi.fn().mockResolvedValue(undefined),
         });
         const user = userEvent.setup();
-        render(<RenameDialog {...props} />);
+        render(<RenameDialog {...viewProps} />);
         await user.click(screen.getByRole("button", { name: "Save" }));
         expect(await screen.findByRole("alert")).toHaveProperty(
             "textContent",
@@ -140,7 +152,7 @@ test.each(["offline", "session"])(
 test("server field errors are attached to the name input", () => {
     render(
         <RenameDialog
-            {...props}
+            {...viewProps}
             value=" "
             errors={["A model needs a name."]}
         />,
@@ -149,4 +161,14 @@ test("server field errors are attached to the name input", () => {
         "true",
     );
     expect(screen.getByText("A model needs a name.")).toBeTruthy();
+});
+
+
+test("accepts the response before htmx removes the outer host", async () => {
+    const source = document.getElementById("n26-rename-dialog-host")!;
+    vi.stubGlobal("htmx", { ajax: vi.fn(async () => {
+        source.dispatchEvent(new CustomEvent("htmx:beforeOnLoad", {detail: {xhr: {getResponseHeader: () => props.cancelUrl}}}));
+        source.remove();
+    }) });
+    await expect(saveRenameDialog(source, props, "150")).resolves.toBeUndefined();
 });

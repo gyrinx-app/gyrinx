@@ -22,19 +22,11 @@ export type BaseRatingDialogProps = {
     hasOverride: boolean;
 };
 
-type Htmx = {
-    ajax: (
-        method: string,
-        url: string,
-        options: {
-            source: HTMLElement;
-            swap: string;
-            values: Record<string, string>;
-        },
-    ) => Promise<unknown>;
-};
-
-export function BaseRatingDialog(props: BaseRatingDialogProps) {
+export function BaseRatingDialog(
+    props: BaseRatingDialogProps & {
+        onSave: (value: string, removing: boolean) => Promise<void>;
+    },
+) {
     const id = useId();
     const [value, setValue] = useState(props.value);
     const [pending, setPending] = useState(false);
@@ -51,33 +43,7 @@ export function BaseRatingDialog(props: BaseRatingDialogProps) {
         setPending(true);
         setError("");
         try {
-            const htmx = (window as Window & { htmx?: Htmx }).htmx;
-            const source = document.getElementById("n26-rating-dialog-host");
-            if (!htmx || !source) throw new Error("Unavailable");
-            let answered = false;
-            const received = (event: Event) => {
-                const detail = (event as CustomEvent<{ xhr: XMLHttpRequest }>)
-                    .detail;
-                answered =
-                    detail.xhr.getResponseHeader("HX-Replace-Url") !== null;
-            };
-            source.addEventListener("htmx:afterRequest", received);
-            // htmx owns the outer hosts, never React's dialog children.
-            try {
-                await htmx.ajax("POST", props.actionUrl, {
-                    source,
-                    swap: "none",
-                    values: {
-                        rating: value,
-                        csrfmiddlewaretoken: props.csrfToken,
-                        ...(removing ? { act: "remove-override" } : {}),
-                    },
-                });
-                // Login and CSRF redirects may become 200 responses to XHR.
-                if (!answered) throw new Error("Unexpected response");
-            } finally {
-                source.removeEventListener("htmx:afterRequest", received);
-            }
+            await props.onSave(value, removing);
         } catch {
             setError("The rating could not be saved. Try again.");
         } finally {

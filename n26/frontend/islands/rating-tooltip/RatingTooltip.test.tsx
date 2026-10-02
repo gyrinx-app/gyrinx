@@ -15,7 +15,7 @@ function setup() {
         </>,
     );
     return screen.getByRole("button", {
-        name: "Vex's rating includes a base rating override",
+        name: "Vex's rating: 170¢. Includes a base rating override",
     });
 }
 
@@ -42,7 +42,7 @@ describe("RatingTooltip", () => {
                 />,
             );
             const trigger = screen.getByRole("button", {
-                name: "Vex's rating breakdown",
+                name: `Vex's rating: ${total}¢. Rating breakdown`,
             });
             expect(trigger.firstElementChild!.className).toContain(
                 "decoration-dashed",
@@ -68,6 +68,7 @@ describe("RatingTooltip", () => {
     it("marks the total with a dashed underline and explains the two base ratings on click", () => {
         const trigger = setup();
         expect(trigger.textContent).toBe("170¢");
+        expect(trigger.className).toContain("focus-ring");
         expect(trigger.firstElementChild!.className).toContain(
             "decoration-dashed",
         );
