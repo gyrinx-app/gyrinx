@@ -27,8 +27,12 @@ marketing/AI-tell list, and the word-ban table. Judge every string against it.
 
 ## Scope
 
-By default, review the branch diff (`git diff main...HEAD` plus uncommitted
-changes). The caller may name files or a different range instead. Within that
+By default, review the branch diff (`git diff origin/main...HEAD` plus
+uncommitted changes). Fetch first when `origin/main` may be old. A local
+`main` that has not been fast-forwarded includes already-merged files, and
+the pass reviews the wrong change. `gh pr diff <number>` is the same
+comparison GitHub shows. The caller may name files or a different range
+instead. Within that
 scope, find every string a person reads: template text and component props
 (`title=`, `label=`, `submit_label=`, `lead=`, `empty=`, `placeholder=`),
 form `label`/`help_text`, `messages.*` calls, `verbose_name`, choices labels,

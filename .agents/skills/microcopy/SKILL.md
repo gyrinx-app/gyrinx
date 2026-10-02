@@ -204,5 +204,8 @@ a nice turn, a pause to decode — rewrite it until there is nothing to notice.
 
 `scripts/check_microcopy.py` warns (never blocks) about the greppable subset
 of these rules; run it over changed files, or let the PostToolUse hook do it.
+`--diff` compares `origin/main...HEAD` when that ref exists. A local `main`
+that has not been fast-forwarded includes already-merged files.
 For a full pass over a diff, run the **copywriter** agent
-(`.claude/agents/copywriter.md`).
+(`.claude/agents/copywriter.md`). Fetch, then diff `origin/main`, or use
+`gh pr diff <number>`.
