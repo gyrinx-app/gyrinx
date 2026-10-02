@@ -17,6 +17,86 @@ pytestmark = pytest.mark.core
 # ===== Kill Handler Tests =====
 
 
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_death_confirmations_apply_once(
+    user,
+    make_user,
+    make_list,
+    campaign,
+    content_fighter,
+    stash_fighter_type,
+    make_list_fighter,
+    make_equipment,
+    monkeypatch,
+):
+    import threading
+
+    from n23.core.models.list import List
+    from n23.core.tests.test_balance_sheet import (
+        assert_reconciles,
+        buy_equipment,
+        fresh,
+        hire_fighter,
+    )
+    from n23.core.tests.test_task_chaos_concurrency import _run_concurrently
+
+    lst = make_list(
+        "Concurrent confirmations", campaign=campaign, status=List.CAMPAIGN_MODE
+    )
+    lst.create_action(
+        user=user,
+        action_type=ListActionType.UPDATE_CREDITS,
+        credits_before=0,
+        credits_delta=1000,
+        description="Starting credits",
+    )
+    lst.apply_credit_delta(1000)
+    fighter = hire_fighter(user, lst, content_fighter)
+    stash = make_list_fighter(lst, "Stash", content_fighter=stash_fighter_type)
+    buy_equipment(user, lst, fighter, make_equipment("Lasgun", cost=15))
+    admin = make_user("death-admin", "testpass")
+    campaign.admins.add(admin)
+    actors = iter([user, admin])
+    credits_before = fresh(lst).credits_current
+    action_count = lst.actions.count()
+    barrier = threading.Barrier(2)
+    original_cost = ListFighter.cost_int
+
+    def synchronized_cost(self):
+        amount = original_cost(self)
+        if self.pk == fighter.pk:
+            try:
+                barrier.wait(timeout=2)
+            except threading.BrokenBarrierError:
+                # With the lock, the second confirmation cannot reach cost
+                # measurement until the first commits, then sees DEAD.
+                pass
+        return amount
+
+    monkeypatch.setattr(ListFighter, "cost_int", synchronized_cost)
+    results = []
+
+    def confirm():
+        results.append(
+            handle_fighter_kill(
+                user=next(actors),
+                lst=fresh(lst),
+                fighter=fresh(fighter),
+            )
+        )
+
+    _run_concurrently(confirm)
+    monkeypatch.setattr(ListFighter, "cost_int", original_cost)
+    assert sum(result is not None for result in results) == 1
+    assert fresh(fighter).injury_state == ListFighter.DEAD
+    assert fresh(fighter).rating_current == fresh(lst).rating_current == 0
+    assert fresh(lst).credits_current == credits_before
+    assert fresh(stash).rating_current == fresh(lst).stash_current == 15
+    assert stash.listfighterequipmentassignment_set.count() == 1
+    assert lst.actions.count() == action_count + 1
+    assert_reconciles(lst)
+
+
 @pytest.mark.django_db
 def test_handle_fighter_kill_basic(user, list_with_campaign, content_fighter):
     """Test killing a fighter creates correct actions and reduces rating."""

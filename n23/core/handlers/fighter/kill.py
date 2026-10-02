@@ -37,7 +37,7 @@ def handle_fighter_kill(
     lst: List,
     fighter: ListFighter,
     battle=None,
-) -> FighterKillResult:
+) -> FighterKillResult | None:
     """
     Handle fighter death in campaign mode.
 
@@ -72,17 +72,32 @@ def handle_fighter_kill(
             battle's timeline.
 
     Returns:
-        FighterKillResult with all operation details
+        FighterKillResult with all operation details, or None if already dead.
 
     Raises:
         ValueError: If fighter is stash or list is not in campaign mode
     """
+    # Serialize confirmations and refresh snapshots taken before the lock.
+    # NO KEY UPDATE allows concurrent injury/history rows to reference these
+    # objects without holding conflicting foreign-key locks.
+    lst.refresh_from_db(
+        from_queryset=List.objects.select_for_update(of=("self",), no_key=True)
+    )
+    fighter.refresh_from_db(
+        from_queryset=ListFighter.objects.filter(list=lst).select_for_update(
+            of=("self",), no_key=True
+        )
+    )
+
     # Validate preconditions
     if not lst.is_campaign_mode:
         raise ValueError("Fighters can only be killed in campaign mode")
 
     if fighter.is_stash:
         raise ValueError("Cannot kill the stash")
+
+    if fighter.injury_state == ListFighter.DEAD:
+        return None
 
     # Capture BEFORE values for ListAction
     rating_before = lst.rating_current

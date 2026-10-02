@@ -548,6 +548,14 @@ def test_fatal_injury_preserves_rating_until_kill_confirmation(
     assert fighter.owner == stash.owner == user
     assert_reconciles(lst)
 
+    actions_before = lst.actions.count()
+    campaign_actions_before = CampaignAction.objects.filter(list=lst).count()
+    assert client.post(kill_url).status_code == 302
+    assert lst.actions.count() == actions_before
+    assert CampaignAction.objects.filter(list=lst).count() == campaign_actions_before
+    assert stash.listfighterequipmentassignment_set.count() == 2
+    assert_reconciles(lst)
+
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("method", ["get", "post"])
