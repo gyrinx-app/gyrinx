@@ -444,7 +444,6 @@ class TestSuitEvolutionForms:
         response = client.get(url)
         model = response.context["sheet"].models[0]
         assert model.action_names == ("Suit Evolution",)
-        assert model.action_colour == "blue"
         card = BeautifulSoup(response.content, "html.parser").find(
             id=f"model-{hunt.fighter.pk}"
         )
@@ -453,7 +452,12 @@ class TestSuitEvolutionForms:
             href=f"{reverse('n26-edit-fighter', args=[hunt.fighter.pk])}#actions",
         )
         assert mark["aria-label"] == "Actions waiting: Suit Evolution"
-        assert "var(--color-blue-500)" in mark.find("span")["style"]
+        assert "text-red-600" in mark.find("span")["class"]
+        strip = card.parent.find("a", class_="bg-red-50")
+        assert strip is not None
+        assert strip["href"] == mark["href"]
+        assert "Suit Evolution" in strip.get_text()
+        assert "Available" in strip.get_text()
         edit = reverse("n26-edit-fighter", args=[hunt.fighter.pk])
 
         def edit_mark():
@@ -467,11 +471,22 @@ class TestSuitEvolutionForms:
 
         with operation(hunt.gang, actor=hunt.owner) as op:
             op.tally(hunt.kills, -3)
-        assert client.get(url).context["sheet"].models[0].action_names == ()
+        roster = client.get(url)
+        assert roster.context["sheet"].models[0].action_names == ()
+        assert not BeautifulSoup(roster.content, "html.parser").find(
+            "a", class_="bg-red-50"
+        )
         assert edit_mark() is None
 
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            op.tally(hunt.kills, 3)
+        assert edit_mark() is not None
         client.logout()
-        assert client.get(url).context["sheet"].models[0].action_names == ()
+        roster = client.get(url)
+        assert roster.context["sheet"].models[0].action_names == ()
+        assert not BeautifulSoup(roster.content, "html.parser").find(
+            "a", class_="bg-red-50"
+        )
 
     def test_a_credits_only_action_is_never_marked(self, client, hunt):
         """Maintenance is always there to buy, so it stays on Edit alone."""
@@ -494,38 +509,33 @@ class TestSuitEvolutionForms:
         panels = BeautifulSoup(page.content, "html.parser").find(id="n26-action-panels")
         assert panels.find("a", attrs={"aria-label": "Start Suit Maintenance flow"})
         assert panels.find("svg", attrs={"aria-label": "Waiting"}) is None
+        assert panels.find(class_="bg-red-50") is None
 
-    def test_the_mark_takes_the_gang_colour(self, client, hunt):
-        hunt.gang.colour = "red"
-        hunt.gang.save(update_fields=["colour"])
-        start(client, hunt, hunt.clear)
-        response = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
-        assert response.context["sheet"].models[0].action_colour == "red"
-        edit = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
-        assert edit.context["action_colour"] == "red"
-        assert [panel.flagged for panel in edit.context["action_panels"]] == [True]
-
-    def test_edit_marks_the_waiting_panel_in_the_gang_colour(self, client, hunt):
+    @pytest.mark.parametrize(
+        "colour",
+        ["", "blue", "red", "red; background-image: url(https://example.com/x)"],
+    )
+    def test_available_actions_share_a_red_mark_independent_of_gang_colour(
+        self, client, hunt, colour
+    ):
         from bs4 import BeautifulSoup
 
-        hunt.gang.colour = "red"
+        hunt.gang.colour = colour
         hunt.gang.save(update_fields=["colour"])
         start(client, hunt, hunt.clear)
+        roster = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
+        card = BeautifulSoup(roster.content, "html.parser").find(
+            id=f"model-{hunt.fighter.pk}"
+        )
+        mark = card.find("a", attrs={"aria-label": "Actions waiting: Suit Evolution"})
+        assert "text-red-600" in mark.find("span")["class"]
         page = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
         panels = BeautifulSoup(page.content, "html.parser").find(id="n26-action-panels")
         mark = panels.find("svg", attrs={"aria-label": "Waiting"})
-
         assert mark is not None
-        assert "var(--color-red-500)" in mark.parent["style"]
-
-    def test_the_mark_draws_only_a_palette_colour(self, client, hunt):
-        hunt.gang.colour = "red; background-image: url(https://example.com/x)"
-        hunt.gang.save(update_fields=["colour"])
-        start(client, hunt, hunt.clear)
-        response = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
-        assert response.context["sheet"].models[0].action_colour == "blue"
-        edit = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
-        assert edit.context["action_colour"] == "blue"
+        assert "text-red-600" in mark.parent["class"]
+        assert panels.find(class_="bg-red-50") is not None
+        assert [panel.flagged for panel in page.context["action_panels"]] == [True]
 
     def test_a_started_flow_stays_on_the_roster_when_tracking_is_paused(
         self, client, hunt, counter_tracking

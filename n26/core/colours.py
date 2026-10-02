@@ -25,8 +25,3 @@ GANG_COLOURS = (
     "pink",
     "rose",
 )
-
-
-def palette_colour(value):
-    """The value when it is one of the gang colours, otherwise empty."""
-    return value if value in GANG_COLOURS else ""

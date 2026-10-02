@@ -2376,12 +2376,10 @@ def model_card_founding():
 
 
 def model_card_actions_waiting():
-    """The sample card on its owner's roster with actions waiting: an
-    earned use and an unfinished draft, marked in the gang's colour."""
+    """An owner's roster card with a red icon and named available-action strip."""
     return model_card_as(
         "actions-waiting",
         action_names=("Advancement", "Suit Evolution"),
-        action_colour="violet",
     )
 
 

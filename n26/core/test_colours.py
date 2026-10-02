@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
 
-from n26.core.colours import GANG_COLOURS, palette_colour
+from n26.core.colours import GANG_COLOURS
 from n26.core.templatetags.theme import css_color
 
 
@@ -36,12 +36,6 @@ def test_a_theme_name_or_a_colour_literal_is_drawn(value, drawn):
 )
 def test_anything_else_is_transparent(value):
     assert css_color(value) == "transparent"
-
-
-def test_only_a_gang_colour_passes_the_palette():
-    assert palette_colour("teal") == "teal"
-    assert palette_colour("accent") == ""
-    assert palette_colour("#8d9900") == ""
 
 
 @pytest.mark.django_db
