@@ -24,14 +24,15 @@ def test_branch_diff_base_prefers_origin_main():
 
 
 def test_changed_files_diffs_against_origin_main_when_present(monkeypatch):
+    """CI's checkout may have no origin/main ref, so the ref check is stubbed."""
     calls = []
-    real_run = subprocess.run
 
-    def spy(args, **kwargs):
+    def fake_run(args, **kwargs):
         calls.append(list(args))
-        return real_run(args, **kwargs)
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
 
-    monkeypatch.setattr("scripts.check_microcopy.subprocess.run", spy)
+    monkeypatch.setattr("scripts.check_microcopy._ref_exists", lambda ref: True)
+    monkeypatch.setattr("scripts.check_microcopy.subprocess.run", fake_run)
     changed_files()
     three_dot = [
         call
