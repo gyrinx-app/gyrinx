@@ -839,14 +839,12 @@ def test_correction_moves_the_result_and_retains_original_history(
     assert original_pick.archived
     assert selection.item_assignment == second
     assert selection.new_pick.pickable == second_tier
-    from n26.core.tier_choices import highest_earned_level
-    from n26.core.views.choose import find_slot
+    from n26.core.tier_choices import earned_slot_ids
 
     first_slot = Assignment.objects.get(
         caused_by=first, slot__slot_type=augmentation, archived=False
     )
-    first_key = f"{action_record.fighter.pk}:{first_slot.pk}:{first_slot.slot_id}"
-    assert highest_earned_level(find_slot(action_record.gang, first_key)) == 0
+    assert str(first_slot.pk) not in earned_slot_ids([first_slot.pk])
     amendments = list(
         action_record.ledger_events.filter(kind=LedgerEvent.Kind.AMENDED).order_by(
             "created"
