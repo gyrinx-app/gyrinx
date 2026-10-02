@@ -1499,7 +1499,7 @@ def _tell_campaign(e):
         case kinds.DICE_ROLLED | kinds.DICE_ROLL_NOTED:
             if not e.roll_id:
                 text = (
-                    "added an outcome note to a dice roll"
+                    "updated an outcome note for a dice roll"
                     if e.kind == kinds.DICE_ROLL_NOTED
                     else "recorded a dice roll"
                 )
@@ -1507,7 +1507,9 @@ def _tell_campaign(e):
             roll = e.roll
             href = reverse("n26-campaign-roll", args=[e.campaign_id, roll.pk])
             if e.kind == kinds.DICE_ROLL_NOTED:
-                verb = "added an outcome note" if e.note else "cleared the outcome note"
+                verb = (
+                    "updated an outcome note" if e.note else "cleared the outcome note"
+                )
                 return (Span(f"{verb} for {roll.reason}", href),), "campaign"
             spans = [
                 Span(
