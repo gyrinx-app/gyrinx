@@ -1,15 +1,17 @@
-"""The development template loader chain serves templates from disk.
+"""How development loads templates: cached, and reset when a template changes.
 
-django-cotton's autoconfig wraps the chain in Django's ``cached.Loader``, which
-holds compiled templates for the life of the process — so in development a
-template edit shows nothing until a restart, and since a template-only edit
-touches no ``.py`` file, the autoreloader doesn't fire either. Development
-substitutes ``gyrinx.cotton_dev.UncachedCottonConfig``, which lets the autoconfig
-build its chain and then takes the cached loader back out.
+django-cotton's autoconfig wraps the chain in Django's ``cached.Loader``. The dev
+server keeps a cached loader, because Django's template autoreload watches every
+template directory and resets the loaders when a template file changes, so an
+edit still reaches the next request without a restart. Development substitutes
+``gyrinx.cotton_dev.DevCottonConfig``, which swaps in a cached loader that never
+remembers a missing template: the autoreloader ignores newly created files.
 
-The suite itself keeps the cached loader (``CACHE_TEMPLATES``), so the live
-settings these tests run under are *not* the dev server's. The end-to-end
-assertion is therefore made in a subprocess, against a real ``django.setup()``.
+``GYRINX_CACHE_TEMPLATES=False`` takes the cached loader out altogether, for a
+process with no autoreloader that must still see template edits.
+
+The suite keeps Django's own cached loader, so the dev server's settings are
+probed in a subprocess, against a real ``django.setup()``.
 """
 
 import json
@@ -21,11 +23,17 @@ from pathlib import Path
 import pytest
 from django.apps import apps
 from django.core.exceptions import ImproperlyConfigured
+from django.template import Context, Engine, TemplateDoesNotExist, engines
+from django.template.autoreload import get_template_directories, template_changed
+from django.template.loader import get_template
 from django.test import override_settings
 
 from gyrinx.cotton_dev import (
     CACHED_LOADER,
     COTTON_LOADER,
+    DEV_CACHED_LOADER,
+    CachedLoader,
+    stop_caching_missing_templates,
     uncached_loaders,
     unwrap_cached_template_loader,
 )
@@ -65,12 +73,8 @@ def engine_config(loaders):
     ]
 
 
-def test_the_dev_server_gets_no_cached_loader():
-    """The whole point: a template edit has to reach the next request.
-
-    Run out of process because the suite runs with CACHE_TEMPLATES on, so the
-    live settings here are not the ones the dev server boots with.
-    """
+def probe_dev_settings(**env):
+    """The template settings ``gyrinx.settings_dev`` boots with, outside pytest."""
     probe = (
         "import django, json; django.setup();"
         "from django.conf import settings;"
@@ -91,12 +95,26 @@ def test_the_dev_server_gets_no_cached_loader():
             "PYTHONPATH": str(REPO_ROOT),
             "DJANGO_SETTINGS_MODULE": "gyrinx.settings_dev",
             "TRACING_MODE": "off",
+            **env,
         },
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
     line = next(ln for ln in proc.stdout.splitlines() if ln.startswith("PROBE"))
-    probed = json.loads(line.removeprefix("PROBE"))
+    return json.loads(line.removeprefix("PROBE"))
+
+
+def test_the_dev_server_keeps_the_cached_loader():
+    """Compiled templates survive between requests; autoreload clears them."""
+    probed = probe_dev_settings(GYRINX_CACHE_TEMPLATES="")
+
+    assert probed["cache_templates"] is True
+    assert flatten(probed["engine_loaders"])[:2] == [DEV_CACHED_LOADER, COTTON_LOADER]
+
+
+def test_the_dev_server_can_read_templates_fresh():
+    """GYRINX_CACHE_TEMPLATES=False takes the cached loader out, cotton first."""
+    probed = probe_dev_settings(GYRINX_CACHE_TEMPLATES="False")
 
     assert probed["cache_templates"] is False
     assert CACHED_LOADER not in flatten(probed["settings_loaders"])
@@ -106,6 +124,66 @@ def test_the_dev_server_gets_no_cached_loader():
     assert probed["engine_loaders"].index(FILESYSTEM_LOADER) < probed[
         "engine_loaders"
     ].index(APP_DIRECTORIES_LOADER)
+
+
+@pytest.mark.parametrize(
+    "template_name",
+    [
+        # A plain app template, and a cotton component from an app directory.
+        "core/list.html",
+        "cotton/ui/button.html",
+    ],
+)
+def test_editing_a_template_resets_the_cached_loader(template_name):
+    """What keeps template edits live under runserver with the cache on.
+
+    runserver's autoreloader watches the directories this returns and sends
+    file_changed for each edit. Django's template_changed handler then resets
+    every loader, so the next render compiles the file again.
+    """
+    assert flatten(engines["django"].engine.loaders)[0] == CACHED_LOADER
+
+    before = get_template(template_name).template
+    path = Path(before.origin.name)
+
+    assert any(directory in path.parents for directory in get_template_directories())
+    assert get_template(template_name).template is before
+
+    assert template_changed(sender=None, file_path=path) is True
+    assert get_template(template_name).template is not before
+
+
+def test_a_template_created_after_a_miss_is_found(tmp_path):
+    """The dev loader caches what it finds, never what it could not find."""
+    engine = Engine(
+        dirs=[str(tmp_path)],
+        loaders=[(DEV_CACHED_LOADER, [FILESYSTEM_LOADER])],
+    )
+    (loader,) = engine.template_loaders
+    assert isinstance(loader, CachedLoader)
+
+    with pytest.raises(TemplateDoesNotExist):
+        engine.get_template("new.html")
+
+    (tmp_path / "new.html").write_text("made after the miss")
+
+    found = engine.get_template("new.html")
+    assert found.render(Context()) == "made after the miss"
+    assert engine.get_template("new.html") is found
+
+
+def test_stopping_caching_misses_keeps_cottons_chain():
+    with override_settings(TEMPLATES=engine_config(COTTON_CACHED_CHAIN)):
+        stop_caching_missing_templates()
+
+        from django.conf import settings
+
+        assert settings.TEMPLATES[0]["OPTIONS"]["loaders"] == [
+            (
+                DEV_CACHED_LOADER,
+                [COTTON_LOADER, FILESYSTEM_LOADER, APP_DIRECTORIES_LOADER],
+            )
+        ]
 
 
 def test_cotton_is_still_installed_under_its_own_name():

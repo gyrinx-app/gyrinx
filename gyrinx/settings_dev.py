@@ -23,20 +23,29 @@ WHITENOISE_AUTOREFRESH = True
 COTTON_STRICT_COMPONENTS = True
 
 # Cotton's autoconfig substitutes its own template loader chain, wrapped in
-# Django's cached.Loader — which Django would have left out under DEBUG had it
-# built the chain itself. Swapping in this subclass lets the autoconfig do its
-# work and then takes the caching back out, per CACHE_TEMPLATES below. The rewrite
-# has to happen from an app config because the autoconfig runs after settings and
-# overwrites anything declared here. See gyrinx/cotton_dev.py.
+# Django's cached.Loader. Swapping in this subclass lets the autoconfig do its
+# work and then adjusts the caching, per CACHE_TEMPLATES and
+# CACHE_MISSING_TEMPLATES below. The rewrite has to happen from an app config
+# because the autoconfig runs after settings and overwrites anything declared
+# here. See gyrinx/cotton_dev.py.
 if "django_cotton" not in INSTALLED_APPS:
     raise ImproperlyConfigured(
         "Expected 'django_cotton' in INSTALLED_APPS so development could swap in "
-        "gyrinx.cotton_dev.UncachedCottonConfig; it isn't there."
+        "gyrinx.cotton_dev.DevCottonConfig; it isn't there."
     )
-INSTALLED_APPS = [
-    "gyrinx.cotton_dev.UncachedCottonConfig" if app == "django_cotton" else app
-    for app in INSTALLED_APPS
-]
+# Same trick for the debug toolbar: its own app config, plus memoised per-query
+# bookkeeping that would otherwise cost more CPU than rendering the page. See
+# gyrinx/toolbar_dev.py.
+if "debug_toolbar" not in INSTALLED_APPS:
+    raise ImproperlyConfigured(
+        "Expected 'debug_toolbar' in INSTALLED_APPS so development could swap in "
+        "gyrinx.toolbar_dev.ToolbarDevConfig; it isn't there."
+    )
+_DEV_APP_CONFIGS = {
+    "django_cotton": "gyrinx.cotton_dev.DevCottonConfig",
+    "debug_toolbar": "gyrinx.toolbar_dev.ToolbarDevConfig",
+}
+INSTALLED_APPS = [_DEV_APP_CONFIGS.get(app, app) for app in INSTALLED_APPS]
 
 # pytest is always imported before Django settings load when any pytest launcher
 # is driving the process (plain pytest, pytest-xdist workers, ptw, IDE runners,
@@ -48,18 +57,33 @@ INSTALLED_APPS = [
 # values for the whole suite.
 _UNDER_PYTEST = "pytest" in sys.modules
 
-# Serve templates from disk, so editing one shows on the next request instead of
-# on the next restart — and a template-only edit touches no .py file, so the
-# autoreloader is no help. The suite is the exception: nothing edits a template
-# mid-run, the same templates render thousands of times, and reading them fresh
-# costs the template-heavy suites about a quarter of their CPU time.
-CACHE_TEMPLATES = _UNDER_PYTEST
+# Keep compiled templates between requests. Under runserver, editing a template
+# still shows on the next request without a restart: Django's template autoreload
+# (django/template/autoreload.py) watches every template directory, including
+# cotton's, and resets the loaders when a template file changes. Reading templates
+# fresh instead costs the dev server about a fifth of its CPU on a template-heavy
+# page, and the template-heavy suites about a quarter of theirs.
+#
+# Set GYRINX_CACHE_TEMPLATES=False to read every template from disk on every
+# request, for a process with no autoreloader that must see template edits.
+CACHE_TEMPLATES = _UNDER_PYTEST or os.getenv("GYRINX_CACHE_TEMPLATES") != "False"
+
+# The autoreloader ignores a template file that did not exist when the server
+# started, so the dev server must not remember a template as missing: writing a
+# new component into a page before creating its file would otherwise leave the
+# page broken until a restart. The suite never creates templates mid-run.
+CACHE_MISSING_TEMPLATES = _UNDER_PYTEST
 
 # Start the debug toolbar hidden. The toolbar remembers open/closed in the
 # browser's localStorage, so a fresh browser profile (every agent-driven session
 # and every new worktree port) otherwise opens with the panel expanded over the
 # page. The "DjDT" tab still sits in the corner to open it.
-DEBUG_TOOLBAR_CONFIG = {"SHOW_COLLAPSED": True}
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_COLLAPSED": True,
+    # Encode each panel's data for the History panel when it is first read, not
+    # as every request ends. See gyrinx/toolbar_store.py.
+    "TOOLBAR_STORE_CLASS": "gyrinx.toolbar_store.LazyMemoryStore",
+}
 
 # Disable debug toolbar in tests - prevents 'djdt' namespace errors when tests
 # use @override_settings(DEBUG=True). pytest-xdist workers set RUN_MAIN env var.
