@@ -7,6 +7,7 @@ from django.db import transaction
 from gyrinx.tracing import traced
 from n23.core.cost.pinning import pin_assignment
 from n23.core.cost.propagation import Delta, propagate_from_fighter
+from n23.core.handlers.fighter.locking import lock_list_fighters
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import (
@@ -77,15 +78,9 @@ def handle_fighter_kill(
     Raises:
         ValueError: If fighter is stash or list is not in campaign mode
     """
-    # Lock the fighter before its list, matching fighter-cost propagation.
-    # Refresh snapshots taken before the lock to serialize confirmations.
-    # NO KEY UPDATE allows concurrent injury/history rows to reference these
-    # objects without holding conflicting foreign-key locks.
-    fighter.refresh_from_db(
-        from_queryset=ListFighter.objects.filter(list=lst).select_for_update(
-            of=("self",), no_key=True
-        )
-    )
+    # Match the bulk editor's lock order, including the destination stash.
+    lock_list_fighters(lst=lst)
+    fighter.refresh_from_db(from_queryset=ListFighter.objects.filter(list=lst))
     lst.refresh_from_db(
         from_queryset=List.objects.select_for_update(of=("self",), no_key=True)
     )

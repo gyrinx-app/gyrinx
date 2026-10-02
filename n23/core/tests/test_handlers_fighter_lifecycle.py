@@ -99,7 +99,7 @@ def test_concurrent_death_confirmations_apply_once(
 
 @pytest.mark.django_db(transaction=True)
 def test_death_confirmation_waits_for_fighter_cost_mutation(
-    user, list_with_campaign, content_fighter, monkeypatch
+    user, list_with_campaign, content_fighter
 ):
     import threading
 
@@ -123,7 +123,6 @@ def test_death_confirmation_waits_for_fighter_cost_mutation(
     cost_before = fresh(fighter).cost_int()
     mutation_saved = threading.Event()
     death_lock_attempted = threading.Event()
-    original_refresh = ListFighter.refresh_from_db
 
     def pause_after_fighter_update(execute, sql, params, many, context):
         result = execute(sql, params, many, context)
@@ -136,12 +135,11 @@ def test_death_confirmation_waits_for_fighter_cost_mutation(
             assert death_lock_attempted.wait(timeout=5)
         return result
 
-    def announce_death_lock(self, *args, **kwargs):
-        if self.pk == fighter.pk and kwargs.get("from_queryset") is not None:
+    def announce_death_lock(execute, sql, params, many, context):
+        if "FOR NO KEY UPDATE" in sql and f'"{ListFighter._meta.db_table}"' in sql:
             death_lock_attempted.set()
-        return original_refresh(self, *args, **kwargs)
+        return execute(sql, params, many, context)
 
-    monkeypatch.setattr(ListFighter, "refresh_from_db", announce_death_lock)
     roles = iter(["advance", "kill"])
     deaths = []
 
@@ -159,9 +157,12 @@ def test_death_confirmation_waits_for_fighter_cost_mutation(
                 )
         else:
             assert mutation_saved.wait(timeout=5)
-            deaths.append(
-                handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter))
-            )
+            with connection.execute_wrapper(announce_death_lock):
+                deaths.append(
+                    handle_fighter_kill(
+                        user=user, lst=fresh(lst), fighter=fresh(fighter)
+                    )
+                )
 
     _run_concurrently(mutate_or_kill)
 

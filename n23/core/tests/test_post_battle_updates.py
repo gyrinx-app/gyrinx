@@ -244,6 +244,227 @@ def test_handle_fighter_adjust_counter(user, list_with_campaign, make_list_fight
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("payload", ["nonfatal_first", "state_override", "xp"])
+def test_post_battle_skips_stale_updates_to_newly_dead_fighter(
+    rf, user, list_with_campaign, content_fighter, payload, monkeypatch
+):
+    from n23.core.handlers.fighter.kill import handle_fighter_kill
+    from n23.core.models.action import ListActionType
+    from n23.core.tests.test_balance_sheet import assert_reconciles, fresh, hire_fighter
+    from n23.core.views.list import post_battle
+
+    lst = list_with_campaign
+    lst.create_action(
+        user=user,
+        action_type=ListActionType.UPDATE_CREDITS,
+        credits_before=0,
+        credits_delta=1000,
+        description="Starting credits",
+    )
+    lst.apply_credit_delta(1000)
+    fighter = hire_fighter(user, lst, content_fighter)
+    stale_fighter = fresh(fighter)
+    data = {}
+    if payload == "nonfatal_first":
+        recovery = ContentInjury.objects.create(
+            name="Spinal Injury", phase=ContentInjuryDefaultOutcome.RECOVERY
+        )
+        fatal = ContentInjury.objects.create(
+            name="Critical", phase=ContentInjuryDefaultOutcome.DEAD
+        )
+        data[f"injury_{fighter.pk}"] = [recovery, fatal]
+    elif payload == "state_override":
+        data[f"state_{fighter.pk}"] = ListFighter.RECOVERY
+    else:
+        data[f"xp_{fighter.pk}"] = 3
+    handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter))
+    action_count = lst.actions.count()
+    log_event = Mock()
+    monkeypatch.setattr(post_battle, "log_event", log_event)
+    request = rf.post("/")
+    request.user = user
+
+    summary = post_battle._apply(
+        request, lst, [stale_fighter], [], SimpleNamespace(cleaned_data=data)
+    )
+
+    assert not summary.changed
+    assert summary.kills == 0
+    log_event.assert_not_called()
+    assert fresh(fighter).is_dead
+    assert fresh(fighter).cost_override == 0
+    assert fresh(fighter).rating_current == fresh(lst).rating_current == 0
+    assert fresh(fighter).xp_current == stale_fighter.xp_current
+    assert ListFighterInjury.objects.filter(fighter=fighter).count() == 0
+    assert lst.actions.count() == action_count
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("two_deaths", [False, True])
+def test_post_battle_credits_and_deaths_race_with_confirmation(
+    rf,
+    user,
+    list_with_campaign,
+    content_fighter,
+    stash_fighter_type,
+    make_list_fighter,
+    make_equipment,
+    two_deaths,
+):
+    import threading
+
+    from django.db import connection
+
+    from n23.core.handlers.fighter.kill import handle_fighter_kill
+    from n23.core.models.action import ListActionType
+    from n23.core.tests.test_balance_sheet import (
+        assert_reconciles,
+        buy_equipment,
+        fresh,
+        hire_fighter,
+    )
+    from n23.core.tests.test_task_chaos_concurrency import _run_concurrently
+    from n23.core.views.list import post_battle
+
+    lst = list_with_campaign
+    lst.create_action(
+        user=user,
+        action_type=ListActionType.UPDATE_CREDITS,
+        credits_before=0,
+        credits_delta=1000,
+        description="Starting credits",
+    )
+    lst.apply_credit_delta(1000)
+    fighters = [
+        hire_fighter(user, lst, content_fighter, name=f"F{i}") for i in range(2)
+    ]
+    stash = make_list_fighter(lst, "Stash", content_fighter=stash_fighter_type)
+    equipment = make_equipment("Race Lasgun", cost=15)
+    for fighter in fighters:
+        buy_equipment(user, lst, fighter, equipment)
+    credits_before = fresh(lst).credits_current
+    live_rating = fresh(fighters[0]).rating_current
+    raced_fighter = fighters[1]
+    data = {"credits_gained": 25, f"state_{raced_fighter.pk}": ListFighter.DEAD}
+    if two_deaths:
+        data[f"state_{fighters[0].pk}"] = ListFighter.DEAD
+    confirmation_locked = threading.Event()
+    bulk_lock_attempted = threading.Event()
+    roles = iter(["confirm", "bulk"])
+    summaries = []
+
+    def fighter_lock_sql(sql):
+        return "FOR NO KEY UPDATE" in sql and f'"{ListFighter._meta.db_table}"' in sql
+
+    def hold_confirmation_lock(execute, sql, params, many, context):
+        result = execute(sql, params, many, context)
+        if fighter_lock_sql(sql) and not confirmation_locked.is_set():
+            confirmation_locked.set()
+            assert bulk_lock_attempted.wait(timeout=5)
+        return result
+
+    def announce_bulk_lock(execute, sql, params, many, context):
+        if fighter_lock_sql(sql):
+            bulk_lock_attempted.set()
+        return execute(sql, params, many, context)
+
+    def confirm_or_submit():
+        if next(roles) == "confirm":
+            with connection.execute_wrapper(hold_confirmation_lock):
+                handle_fighter_kill(
+                    user=user, lst=fresh(lst), fighter=fresh(raced_fighter)
+                )
+        else:
+            stale_fighters = [fresh(fighter) for fighter in fighters]
+            assert confirmation_locked.wait(timeout=5)
+            request = rf.post("/")
+            request.user = user
+            with connection.execute_wrapper(announce_bulk_lock):
+                summaries.append(
+                    post_battle._apply(
+                        request,
+                        fresh(lst),
+                        stale_fighters,
+                        [],
+                        SimpleNamespace(cleaned_data=data),
+                    )
+                )
+
+    _run_concurrently(confirm_or_submit)
+
+    deaths = 2 if two_deaths else 1
+    assert summaries[0].kills == deaths - 1
+    assert summaries[0].credits == 25
+    assert fresh(lst).credits_current == credits_before + 25
+    assert fresh(lst).rating_current == (0 if two_deaths else live_rating)
+    assert fresh(stash).rating_current == fresh(lst).stash_current == deaths * 15
+    assert stash.listfighterequipmentassignment_set.count() == deaths
+    assert (
+        CampaignAction.objects.filter(
+            list=lst, description__startswith="Death:"
+        ).count()
+        == deaths
+    )
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_post_battle_existing_dead_fighter_can_still_gain_xp(
+    client, user, list_with_campaign, make_list_fighter
+):
+    fighter = make_list_fighter(list_with_campaign, "Corpse", cost_override=0)
+    fighter.injury_state = ListFighter.DEAD
+    fighter.save()
+    client.force_login(user)
+
+    response = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.pk]),
+        {f"xp_{fighter.pk}": "3"},
+    )
+
+    assert response.status_code == 302
+    fighter.refresh_from_db()
+    assert fighter.is_dead
+    assert fighter.xp_current == 3
+    assert fighter.cost_int() == fighter.rating_current == 0
+
+
+@pytest.mark.django_db
+def test_post_battle_locked_roster_reload_has_flat_query_growth(
+    rf, user, list_with_campaign, content_fighter, make_list_fighter
+):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from n23.core.views.list import post_battle
+
+    counter = ContentCounter.objects.create(name="Race counter")
+    counter.restricted_to_fighters.add(content_fighter)
+    make_list_fighter(list_with_campaign, "F1", content_fighter=content_fighter)
+    request = rf.post("/")
+    request.user = user
+
+    def measure():
+        fighters = post_battle._post_battle_fighters(list_with_campaign)
+        with CaptureQueriesContext(connection) as queries:
+            summary = post_battle._apply(
+                request,
+                list_with_campaign,
+                fighters,
+                [],
+                SimpleNamespace(cleaned_data={}),
+            )
+        assert not summary.changed
+        return len(queries)
+
+    baseline = measure()
+    for i in range(2, 7):
+        make_list_fighter(list_with_campaign, f"F{i}", content_fighter=content_fighter)
+    assert measure() <= baseline
+
+
+@pytest.mark.django_db
 def test_post_battle_requires_campaign_mode(client, user, make_list):
     client.force_login(user)
     lst = make_list("Building Gang")  # LIST_BUILDING by default
