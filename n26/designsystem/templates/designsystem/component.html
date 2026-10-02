@@ -5,7 +5,15 @@
     <div class="mx-auto max-w-4xl">
         <header class="mb-8">
             <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">{{ component.group }}</div>
-            <h1 class="break-all font-mono text-2xl font-semibold sm:text-3xl">&lt;{{ component.tag }}&gt;</h1>
+            <h1 class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span class="break-all font-mono text-2xl font-semibold sm:text-3xl">&lt;{{ component.tag }}&gt;</span>
+                {% if component.uses_react %}
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-2.5 py-0.5 font-sans text-xs font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
+                        {% include "designsystem/_react_mark.html" with size="size-3.5" decorative=True %}
+                        React
+                    </span>
+                {% endif %}
+            </h1>
             {# A view needs a way out of the gallery: this page's own sidebar and heading decide the layout at phone width before the view does. #}
             {% if component.group == "Views" %}
                 <p class="mt-2 text-sm">

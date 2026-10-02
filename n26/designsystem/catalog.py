@@ -56,6 +56,18 @@ class Component:
         return demos_for(self.slug)
 
     @property
+    def uses_react(self) -> bool:
+        """Whether this component, or one of its parts, now renders through React.
+
+        Read from the templates, so a component counts once its template mounts
+        an island and stops counting if that is taken out again.
+        """
+        return any(
+            introspect.mounts_react(template)
+            for template in (self.template, *(part.template for part in self.parts))
+        )
+
+    @property
     def search_term(self) -> str:
         """What the sidebar filter matches against."""
         return f"{self.slug} {self.tag} {self.group}".lower()
