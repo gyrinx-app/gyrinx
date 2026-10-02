@@ -115,25 +115,10 @@ a reader who cannot find one is told where it went.
                                           suffix="¢"
                                           at_max_label="Any" />
                     {% endif %}
-                    {% comment %}
-                    The switch can be worked two ways and each says so
-                    differently. Its button calls the factory, which moves
-                    the switch and dispatches checkedChange without writing
-                    the hidden box until afterwards — so that path is a turn
-                    over, not a value to read. Clicking the label is the
-                    browser working the box directly: it fires an ordinary
-                    change and never reaches the factory, so nothing is
-                    dispatched and the box already holds the answer.
-
-                    Listening for one alone leaves the switch and the list
-                    disagreeing. The dashed spelling with the camel modifier
-                    is what matches a dispatched checkedChange, an attribute
-                    being lowercased by the parser.
-                    {% endcomment %}
+                    {# change fires for a click on the switch or its words, with the box already set. #}
                     <c-n26.toggle label="Hide gangs already in a campaign"
                                   :checked="True"
-                                  @change="hidePlaying = $event.target.checked"
-                                  @checked-change.camel="hidePlaying = !hidePlaying" />
+                                  @change="hidePlaying = $event.target.checked" />
                 </c-n26.action-bar>
                 {% comment %}
                 The written figure is every gang, which is what a reader with

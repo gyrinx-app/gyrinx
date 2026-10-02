@@ -56,6 +56,18 @@ class Component:
         return demos_for(self.slug)
 
     @property
+    def uses_react(self) -> bool:
+        """Whether this component, or one of its parts, now renders through React.
+
+        Read from the templates, so a component counts once its template mounts
+        an island and stops counting if that is taken out again.
+        """
+        return any(
+            introspect.mounts_react(template)
+            for template in (self.template, *(part.template for part in self.parts))
+        )
+
+    @property
     def search_term(self) -> str:
         """What the sidebar filter matches against."""
         return f"{self.slug} {self.tag} {self.group}".lower()
@@ -405,7 +417,6 @@ GROUPS: list[Group] = [
                     "An on/off toggle, standalone or as a settings line with the "
                     "label on the left."
                 ),
-                needs=(ALPINE, KIT_JS),
                 notes=(
                     ":inline uses the field's toggle variant: the label sits left "
                     "and the switch is pushed to the far right of a full-width "
@@ -1348,16 +1359,15 @@ GROUPS: list[Group] = [
                 tag="c-n26.toggle",
                 template="n26/toggle.html",
                 summary="A switch with its label beside it, sized to its content.",
-                needs=(ALPINE, KIT_JS),
                 notes=(
                     "Use it in a toolbar, where the kit switch does not fit: "
                     "c-ui.switch stacks its label above the control, and :inline "
                     "pushes the switch to the far right of a full-width line. The "
                     "wrapping <label> does the work: it toggles the hidden checkbox "
                     "with no extra JavaScript, and becomes the switch's accessible "
-                    "name. Clicking the switch dispatches checkedChange while "
-                    "clicking the text fires change, so listen for both if another "
-                    "control must stay in step."
+                    "name. change fires for every click, on the switch or the "
+                    "text, so listen for change and read the checkbox's checked "
+                    "state if another control must stay in step."
                 ),
             ),
             Component(

@@ -1,0 +1,53 @@
+{% comment %}
+<c-ui.switch.face> — The switch as the server draws it, before React mounts.
+
+The class strings here are the ones the React track copies. A size or a colour changes here.
+checked, disabled and accent are booleans. The checkbox carries checked when the switch starts on, so a form posted with scripting off still says what the server drew.
+{% endcomment %}
+
+<c-vars
+    name=""
+    class=""
+    value="on"
+    id=""
+    :disabled="False"
+    :checked="False"
+    :accent="True"
+    size="md"
+    :size_classes="{
+        'xs': 'h-4 w-7',
+        'sm': 'h-5 w-9',
+        'md': 'h-6 w-11',
+        'lg': 'h-7 w-14',
+        'xl': 'h-8 w-16',
+        '2xl': 'h-9 w-[4.5rem]'
+    }"
+    :indicator_classes="{
+        'xs': 'h-3 w-3',
+        'sm': 'h-4 w-4',
+        'md': 'h-5 w-5',
+        'lg': 'h-6 w-6',
+        'xl': 'h-7 w-7',
+        '2xl': 'h-8 w-8'
+    }"
+/>
+
+<div class="inline-flex items-center"
+     data-track-transition="transition-colors"
+     data-thumb-transition="transition-transform">
+    <input type="checkbox"
+           name="{{ name }}"
+           value="{{ value }}"
+           {% if id %}id="{{ id }}"{% endif %}
+           class="sr-only"
+           {% if disabled %}disabled{% endif %}
+           {% if checked %}checked{% endif %}
+           {{ attrs }} />
+    <button type="button"
+            role="switch"
+            aria-checked="{% if checked %}true{% else %}false{% endif %}"
+            {% if disabled %}disabled{% endif %}
+            class="relative inline-flex items-center rounded-full focus-ring {{ size_classes|get_item:size }} {% if disabled %}opacity-50 cursor-not-allowed{% else %}cursor-pointer{% endif %} {{ class }} {% if checked %}{% if accent %}bg-accent{% else %}bg-[var(--color-accent-muted,currentColor)]{% endif %}{% else %}bg-ink-200 dark:bg-ink-700{% endif %}">
+        <span class="inline-block transform rounded-full bg-white dark:bg-ink-900 shadow-lg {{ indicator_classes|get_item:size }} {% if size == 'xs' %}{% if checked %}translate-x-[0.875rem]{% else %}translate-x-0.5{% endif %}{% elif size == 'sm' %}{% if checked %}translate-x-[1.125rem]{% else %}translate-x-0.5{% endif %}{% elif size == 'lg' %}{% if checked %}translate-x-[1.875rem]{% else %}translate-x-0.5{% endif %}{% elif size == 'xl' %}{% if checked %}translate-x-[2.125rem]{% else %}translate-x-0.5{% endif %}{% elif size == '2xl' %}{% if checked %}translate-x-[2.375rem]{% else %}translate-x-0.5{% endif %}{% else %}{% if checked %}translate-x-[1.375rem]{% else %}translate-x-0.5{% endif %}{% endif %}"></span>
+    </button>
+</div>

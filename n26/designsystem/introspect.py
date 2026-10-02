@@ -246,6 +246,52 @@ def api_for(relative: str) -> ComponentApi | None:
     return _read(relative)
 
 
+_REACT_TAG = re.compile(r"\{%\s*react_(?:island|host)\b")
+_COTTON_TAG = re.compile(r"<c-([\w.-]+)")
+
+
+def _tag_template(tag: str) -> str:
+    """``ui.switch.impl`` -> ``switch/impl``; ``n26.pick-list.box`` -> ``n26/pick_list/box``."""
+    name = tag.removeprefix("ui.")
+    return name.replace(".", "/").replace("-", "_")
+
+
+@cache
+def _mounts_react(relative: str) -> bool:
+    path = next(
+        (root / relative for root in ROOTS if (root / relative).is_file()), None
+    )
+    if path is None:
+        return False
+    source = path.read_text()
+    if _REACT_TAG.search(source):
+        return True
+    # A component's island can sit in one of its own sub-templates, such as
+    # switch/index.html drawing <c-ui.switch.impl>. Follow those, and only
+    # those, so the walk stays inside this component's folder.
+    # n26/ holds every n26 component side by side, so it is not one
+    # component's folder.
+    parent = relative.rsplit("/", 1)[0] if "/" in relative else ""
+    if parent in ("", "n26"):
+        return False
+    folder = parent + "/"
+    for tag in _COTTON_TAG.findall(source):
+        stem = _tag_template(tag)
+        if not stem.startswith(folder):
+            continue
+        for candidate in (f"{stem}.html", f"{stem}/index.html"):
+            if candidate != relative and _mounts_react(candidate):
+                return True
+    return False
+
+
+def mounts_react(relative: str) -> bool:
+    """Whether the template that renders ``relative`` mounts a React island."""
+    if settings.DEBUG:
+        _mounts_react.cache_clear()
+    return _mounts_react(relative)
+
+
 def kit_version() -> str:
     from importlib.metadata import PackageNotFoundError, version
 

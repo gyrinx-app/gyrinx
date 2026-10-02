@@ -19,6 +19,9 @@ def test_form_recipes_keep_the_cotton_controls_and_toggle_layout():
     assert "focus-ring" in form["input"]["control"]
     assert form["switch"]["trackChecked"] == "bg-accent"
     assert form["switch"]["thumbChecked"] == "translate-x-[1.375rem]"
+    assert form["switch"]["sizes"]["sm"]["track"] == "h-5 w-9"
+    assert "accent-muted" in form["switch"]["trackCheckedMuted"]
+    assert "cursor-not-allowed" in form["switch"]["disabled"]
     assert "justify-between" in form["field"]["toggleRow"]
     assert "shrink-0" in form["field"]["toggleControl"]
 

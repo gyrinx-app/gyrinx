@@ -122,8 +122,9 @@ class TestTheMenuIsBackedBySpecs:
         throws on init, leaving a control that never reflects what it
         is bound to and posts whatever the browser left in it."""
         body = client.get(f"/n26/authoring/{kind}/new/").content.decode()
-        assert "switchInput(false, none)" not in body
-        assert "switchInput(false, None)" not in body
+        assert "switchInput" not in body
+        for props in form_switches(body):
+            assert props["checked"] is True or props["checked"] is False
 
     @pytest.mark.parametrize(
         "kind", sorted(k for k in LEAF_KINDS if k not in NESTED_KINDS), ids=str
@@ -623,7 +624,7 @@ class TestEditingOne:
         weapon = create_weapon("Handbow", price=15, is_exclusive=True)
         body = client.get(f"/n26/authoring/weapon/{weapon.pk}/").content.decode()
 
-        assert "switchInput(false, true)" in body
+        assert form_switch(body, "edit-is_exclusive")["checked"] is True
 
     def test_an_exclusive_weapon_stays_exclusive(self, author, client, default_pack):
         from n26.library.authoring import create_weapon
@@ -834,7 +835,7 @@ class TestSections:
         page = f"/n26/authoring/category/{home.pk}/"
         body = client.get(page).content.decode()
         assert 'name="edit-draws_its_own_row"' in body
-        assert "switchInput(false, true)" not in body  # drawn off, as stored
+        assert form_switch(body, "edit-draws_its_own_row")["checked"] is False
 
         edit = {
             "act": "edit",
@@ -850,7 +851,7 @@ class TestSections:
         # author saving an unrelated change would clear the flag and
         # never know.
         body = client.get(page).content.decode()
-        assert "switchInput(false, true)" in body
+        assert form_switch(body, "edit-draws_its_own_row")["checked"] is True
 
         # Unticking is the direction that loses an author's work, so it
         # is held as well as ticking: an absent box on an edit means off.
@@ -2393,6 +2394,21 @@ def row_printing(body, words):
 
 # The bar's quick switcher is an island on every page; the page's own is any other.
 PAGE_ISLAND = "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
+
+
+def form_switches(body):
+    """Every form switch the page handed to React, in document order."""
+    soup = BeautifulSoup(body, "html.parser")
+    return [
+        json.loads(soup.find(id=host["data-react-props"]).string)
+        for host in soup.select("[data-react-module*='/form-switch-']")
+    ]
+
+
+def form_switch(body, name):
+    matches = [props for props in form_switches(body) if props["name"] == name]
+    assert matches, f"No form switch named {name}"
+    return matches[0]
 
 
 def island_props(body, module=None, name=None):
@@ -6514,7 +6530,7 @@ class TestAGangTypeThatCannotBeFounded:
         body = client.get("/n26/authoring/gang-type/new/").content.decode()
 
         assert 'name="foundable"' in body
-        assert "switchInput(false, true)" in body
+        assert form_switch(body, "foundable")["checked"] is True
 
     def test_a_type_made_with_the_switch_off_cannot_be_founded(
         self, author, client, default_pack
@@ -6544,7 +6560,7 @@ class TestAGangTypeThatCannotBeFounded:
 
         def switches_on(row):
             body = client.get(f"/n26/authoring/gang-type/{row.pk}/").content.decode()
-            return body.count("switchInput(false, true)")
+            return sum(props["checked"] for props in form_switches(body))
 
         assert switches_on(on) == switches_on(off) + 1
 

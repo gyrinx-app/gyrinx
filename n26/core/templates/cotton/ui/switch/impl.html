@@ -1,100 +1,34 @@
 {% comment %}
-<c-ui.switch.impl> — The hidden checkbox and visible switch track.
+<c-ui.switch.impl> — The checkbox that posts, and the track drawn over it.
 
-This is the implementation file. attrs land on the checkbox so id and form fields submit. class lands on the visible button.
-Pass checked and disabled as booleans. None becomes the identifier none, and Alpine throws on init.
-x-model on the checkbox reflects both ways. Do not bind the checkbox with x-bind=input. That leaves it checked and posts the opposite of the track.
-Do not add the .boolean modifier. That casts a string, and switchOn is already a boolean.
-The checked attribute must stay in the markup when the switch starts on. Until Alpine runs, the form posts only what the server drew.
-The ready flag delays colour and thumb transitions so a checked switch does not animate on first paint.
+React owns the track once the page has loaded. The checkbox underneath is what a form posts before that, and the only control a browser with scripting off can post. It carries checked when the switch starts on.
+
+checked and disabled are booleans. None and the string false are off, so a blank field cannot be handed to the script as the word none.
+
+Only id reaches the checkbox. Any other attribute passed to c-ui.switch is dropped, because React draws its own checkbox from these props.
+
+Pressing the track dispatches checkedChange and then change. Clicking the label only fires change. A parent that listens for either one still hears the path it already used.
 {% endcomment %}
 
+{% load form_switch react %}
 <c-vars
     name=""
     class=""
     value="on"
+    id=""
     :disabled="False"
     :checked="False"
     :accent="True"
     size="md"
-    :size_classes="{
-        'xs': 'h-4 w-7',
-        'sm': 'h-5 w-9',
-        'md': 'h-6 w-11',
-        'lg': 'h-7 w-14',
-        'xl': 'h-8 w-16',
-        '2xl': 'h-9 w-[4.5rem]'
-    }"
-    :indicator_classes="{
-        'xs': 'h-3 w-3',
-        'sm': 'h-4 w-4',
-        'md': 'h-5 w-5',
-        'lg': 'h-6 w-6',
-        'xl': 'h-7 w-7',
-        '2xl': 'h-8 w-8'
-    }"
 />
-
-<div x-data='switchInput({{ disabled|lower }}, {{ checked|lower }})' class="inline-flex items-center">
-    <input
-        type="checkbox"
-        name="{{ name }}"
-        value="{{ value }}"
-        {% if disabled %}disabled{% endif %}
-        {% if checked|lower == "true" %}checked{% endif %}
-        {{ attrs }}
-        class="sr-only"
-        x-ref="input"
-        x-model="switchOn"
-        :disabled="disabled"
-    />
-
-    <button
-        type="button"
-        role="switch"
-        x-bind="trigger"
-        class="relative inline-flex items-center rounded-full focus-ring
-               {{ size_classes|get_item:size }}
-               {% if disabled %}opacity-50 cursor-not-allowed{% else %}cursor-pointer{% endif %}
-               {{ class }}"
-        {# ready is set next tick so the thumb does not slide from off on load. #}
-        :class="{
-            'transition-colors': ready,
-            {% if accent %}
-            'bg-accent': switchOn,
-            {% else %}
-            'bg-[var(--color-accent-muted,currentColor)]': switchOn,
-            {% endif %}
-            'bg-ink-200 dark:bg-ink-700': !switchOn
-        }"
-    >
-        <span
-            class="inline-block transform rounded-full bg-white dark:bg-ink-900 shadow-lg
-                   {{ indicator_classes|get_item:size }}"
-            {# Thumb offsets must match the track widths above. Change one, change the other. #}
-            :class="{
-                'transition-transform': ready,
-
-                {% if size == 'xs' %}
-                'translate-x-[0.875rem]': switchOn,
-                'translate-x-0.5': !switchOn
-                {% elif size == 'sm' %}
-                'translate-x-[1.125rem]': switchOn,
-                'translate-x-0.5': !switchOn
-                {% elif size == 'lg' %}
-                'translate-x-[1.875rem]': switchOn,
-                'translate-x-0.5': !switchOn
-                {% elif size == 'xl' %}
-                'translate-x-[2.125rem]': switchOn,
-                'translate-x-0.5': !switchOn
-                {% elif size == '2xl' %}
-                'translate-x-[2.375rem]': switchOn,
-                'translate-x-0.5': !switchOn
-                {% else %}
-                'translate-x-[1.375rem]': switchOn,
-                'translate-x-0.5': !switchOn
-                {% endif %}
-            }"
-        ></span>
-    </button>
-</div>
+{% form_switch_props name=name value=value checked=checked disabled=disabled accent=accent size=size css_class=class input_id=id as props_ %}
+{% react_host "form-switch" props_ class="inline-flex items-center" %}
+    <c-ui.switch.face name="{{ props_.name }}"
+                      value="{{ props_.value }}"
+                      size="{{ props_.size }}"
+                      class="{{ props_.className }}"
+                      id="{{ props_.id }}"
+                      :checked="props_.checked"
+                      :disabled="props_.disabled"
+                      :accent="props_.accent" />
+{% endreact_host %}

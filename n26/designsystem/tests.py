@@ -32,6 +32,54 @@ def reader(client):
     return client
 
 
+class TestTheReactMarks:
+    """A component that renders through a React island says so, in the
+    sidebar and in its page title, and one that does not stays unmarked."""
+
+    def test_components_are_marked_from_their_templates(self):
+        from n26.designsystem import catalog
+
+        react = {c.slug for c in catalog.COMPONENTS if c.uses_react}
+        # quick-switcher's island is in one of its parts, not its main file;
+        # switch's is in switch/impl.html, which only its index draws.
+        assert {"filter-select", "pick-list", "quick-switcher", "switch"} <= react
+        # These sit beside React components in the shared n26/ folder.
+        assert "tab-links" not in react
+        assert "model-header" not in react
+
+    def test_a_sub_template_in_the_components_own_folder_counts(
+        self, tmp_path, monkeypatch
+    ):
+        from n26.designsystem import introspect
+
+        (tmp_path / "widget").mkdir()
+        (tmp_path / "widget" / "index.html").write_text("<c-ui.widget.impl />")
+        (tmp_path / "widget" / "impl.html").write_text(
+            '{% react_host "widget" props %}{% endreact_host %}'
+        )
+        (tmp_path / "plain.html").write_text("<c-ui.widget.impl />")
+        monkeypatch.setattr(introspect, "ROOTS", (tmp_path,))
+        introspect._mounts_react.cache_clear()
+        try:
+            assert introspect.mounts_react("widget/index.html")
+            # Outside the widget's folder, the same tag is not followed.
+            assert not introspect.mounts_react("plain.html")
+        finally:
+            introspect._mounts_react.cache_clear()
+
+    def test_the_sidebar_and_title_show_the_mark(self, reader):
+        react_page = reader.get("/n26/design/c/pick-list/").content.decode()
+        plain_page = reader.get("/n26/design/c/button/").content.decode()
+
+        # Every gallery page carries the sidebar, so both show the marks
+        # for the React components listed there.
+        assert 'aria-label="Uses React"' in plain_page
+        title = re.search(r"<h1.*?</h1>", react_page, re.S).group(0)
+        assert "React" in title
+        plain_title = re.search(r"<h1.*?</h1>", plain_page, re.S).group(0)
+        assert "React" not in plain_title
+
+
 class TestReactDemo:
     """Staff can compare React and Cotton without seeded library content."""
 
