@@ -6,9 +6,8 @@ label so they are not drawn twice.
 
 Call-site attributes sit on the wrapping label.
 
-Clicking the kit button dispatches checkedChange and does not fire change.
-Clicking the text fires change and does not dispatch.
-Listen for both if the value must stay in sync.
+change fires for every click, on the switch or the text. Read $event.target.checked from it.
+Clicking the switch also dispatches checkedChange first. Do not flip a value on checkedChange as well, or it moves twice.
 Pass empty label and class to the switch. A missing c-var falls through to this component's own label and class.
 The wrapping label associates the text with the hidden checkbox, so the words toggle it and become the accessible name.
 {% endcomment %}

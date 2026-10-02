@@ -1353,9 +1353,9 @@ GROUPS: list[Group] = [
                     "pushes the switch to the far right of a full-width line. The "
                     "wrapping <label> does the work: it toggles the hidden checkbox "
                     "with no extra JavaScript, and becomes the switch's accessible "
-                    "name. Clicking the switch dispatches checkedChange while "
-                    "clicking the text fires change, so listen for both if another "
-                    "control must stay in step."
+                    "name. change fires for every click, on the switch or the "
+                    "text, so listen for change and read the checkbox's checked "
+                    "state if another control must stay in step."
                 ),
             ),
             Component(
