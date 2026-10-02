@@ -697,6 +697,34 @@ class Operation:
         )
         return miniature
 
+    def release_capture(self, miniature, note=""):
+        """Take away a Captured result the Escape table has not settled.
+
+        A capture is resolved by one Escape roll. A model the owner takes
+        out of Captured by hand before that roll is no longer captured, so
+        the result goes, and the Escape choice it gave goes with it.
+
+        A result whose Escape roll has been recorded stays: the roll is
+        what moved the model on, and the two together are the record of
+        it. Other lasting effects are never touched. Recognised by what the
+        result does — puts the model into Captured — never by its name.
+        Returns the results removed.
+        """
+        from n26.core.models import Assignment
+
+        unsettled = [
+            captured
+            for captured in Assignment.objects.filter(
+                miniature=miniature,
+                archived=False,
+                pickable__modifiers__op_sets_status__status=Status.CAPTURED,
+            ).distinct()
+            if not captured.picks.filter(archived=False).exists()
+        ]
+        for captured in unsettled:
+            self.remove(captured, note=note)
+        return unsettled
+
     def transfer(self, to, credits, note="", about=None):
         """Pay another gang: credits leave this one and arrive at ``to``.
 

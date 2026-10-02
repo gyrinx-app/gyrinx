@@ -42,6 +42,13 @@ offers the reader's other campaigns.
                     </c-ui.breadcrumbs.item>
                 </c-ui.breadcrumbs>
             </c-slot>
+            {% if may_record %}
+                <c-slot name="actions">
+                    <c-ui.button size="sm"
+                                 variant="primary"
+                                 href="{% url 'n26-campaign-record-roll' campaign.pk %}"><c-n26.icon name="dice-5" class="size-4" /> Log a dice roll</c-ui.button>
+                </c-slot>
+            {% endif %}
         </c-n26.page-header>
         {% if days %}
             <ol class="flex flex-col gap-5">
@@ -64,7 +71,7 @@ offers the reader's other campaigns.
                                             {% for span in act.spans %}{% if span.href %}<c-n26.link href="{{ span.href }}" tone="current">{{ span.text }}</c-n26.link>{% else %}{{ span.text }}{% endif %}{% endfor %}
                                         </p>
                                         {% if act.gang_name %}<p class="text-sm text-muted">{{ act.gang_name }}</p>{% endif %}
-                                        {% if act.note %}<p class="text-sm text-muted">{{ act.note }}</p>{% endif %}
+                                        {% if act.note %}<p class="text-sm whitespace-pre-line text-muted">{{ act.note }}</p>{% endif %}
                                         {% if act.subs %}
                                             <ul class="mt-0.5 text-sm text-muted">
                                                 {% for sub in act.subs %}

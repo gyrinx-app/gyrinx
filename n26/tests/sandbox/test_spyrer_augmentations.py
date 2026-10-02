@@ -860,15 +860,15 @@ class TestAuthoredPickerCopy:
         assert_reconciled(gang)
 
 
-class TestTierLaddersNeedAnAction:
-    """The ordinary choice page cannot grant an augmentation tier."""
+class TestManualTierChoices:
+    """Owners can set any authored tier without running a paid action."""
 
     def picker(self, gang, orrus):
         ladder = ladder_of(orrus, "Bolt launchers")
         key = f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
         return reverse("n26-choose", args=[gang.pk, key])
 
-    def test_the_edit_page_shows_the_ladder_without_a_choice_link(
+    def test_an_empty_ladder_has_a_chooser_beside_dismiss(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
         client.force_login(owner)
@@ -876,38 +876,76 @@ class TestTierLaddersNeedAnAction:
 
         page = client.get(edit).content.decode()
 
-        assert self.picker(gang, orrus) not in page
+        assert self.picker(gang, orrus) in page
+        assert "Choose tier" in page
 
-    def test_direct_get_and_post_cannot_grant_or_replace_a_tier(
-        self, client, owner, gang, orrus, bolt_launcher_tiers
+    @pytest.mark.parametrize("starting_tier", [None, "Tier 1"])
+    def test_every_tier_is_available_as_a_manual_choice(
+        self, client, owner, gang, orrus, bolt_launcher_tiers, starting_tier
     ):
+        from n26.core.models import ActionRecord, LedgerEvent
+
+        if starting_tier:
+            climb(orrus, "Bolt launchers", bolt_launcher_tiers[starting_tier])
         client.force_login(owner)
         picker = self.picker(gang, orrus)
+        page = client.get(picker)
+        assert page.status_code == 200
+        for tier in bolt_launcher_tiers.values():
+            assert option_key(tier) in page.content.decode()
+        gang.refresh_from_db()
+        before = (gang.rating, gang.credits)
+        events_before = LedgerEvent.objects.filter(gang=gang).count()
 
-        assert client.get(picker).status_code == 404
-        assert (
-            client.post(
-                picker, {"thing": option_key(bolt_launcher_tiers["Tier 2"])}
-            ).status_code
-            == 404
-        )
+        for tier_name in ("Tier 3", "Tier 1", "Tier 2"):
+            assert (
+                client.post(
+                    picker, {"thing": option_key(bolt_launcher_tiers[tier_name])}
+                ).status_code
+                == 302
+            )
+            assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == [
+                tier_name
+            ]
+            assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "2"
+            assert stat_of(gun_of(orrus, "Bolt launchers"), "AP") == (
+                "-1" if tier_name == "Tier 1" else "-2"
+            )
+            assert ("Rapid Fire (2)" in traits_of(gun_of(orrus, "Bolt launchers"))) == (
+                tier_name == "Tier 3"
+            )
+        assert client.post(picker, {"thing": "none"}).status_code == 302
+        assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "1"
         assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == [None]
-
-        climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
-        page = client.get(picker).content.decode()
-        assert "Tier 1" in page
-        assert "Tier 2" not in page
-        assert (
-            client.post(
-                picker, {"thing": option_key(bolt_launcher_tiers["Tier 2"])}
-            ).status_code
-            == 302
-        )
-        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 1"]
-        assert stat_of(gun_of(orrus, "Bolt launchers"), "L") == "2"
+        gang.refresh_from_db()
+        assert (gang.rating, gang.credits) == before
+        assert not ActionRecord.objects.filter(gang=gang).exists()
+        assert LedgerEvent.objects.filter(gang=gang).count() > events_before
         assert_reconciled(gang)
 
-    def test_switching_among_earned_tiers_keeps_action_history(
+    def test_a_rig_can_be_set_straight_to_its_highest_tier(
+        self, client, owner, gang, orrus, jakara_rig
+    ):
+        rig, tiers = jakara_rig
+        worn = buy(orrus, thing=rig, paid=0)
+        ladder = choice_behind(orrus, worn)
+        key = f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
+        client.force_login(owner)
+        picker = reverse("n26-choose", args=[gang.pk, key])
+        assert (
+            picker
+            in client.get(reverse("n26-edit-fighter", args=[orrus.pk])).content.decode()
+        )
+        assert (
+            client.post(picker, {"thing": option_key(tiers["Tier 2"])}).status_code
+            == 302
+        )
+        drawn, _ = card_for(orrus)
+        assert drawn.statline.get("S").value == "4"
+        assert drawn.statline.get("A").value == "2"
+        assert_reconciled(gang)
+
+    def test_switching_to_an_unearned_tier_keeps_action_history(
         self, client, owner, gang, spyrer, orrus, bolt_launcher_tiers
     ):
         from uuid import uuid4
@@ -934,6 +972,13 @@ class TestTierLaddersNeedAnAction:
         )
         client.force_login(owner)
         picker = self.picker(gang, orrus)
+        assert (
+            client.post(
+                picker, {"thing": option_key(bolt_launcher_tiers["Tier 3"])}
+            ).status_code
+            == 302
+        )
+        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 3"]
 
         assert (
             client.post(
@@ -1031,7 +1076,7 @@ class TestDismissingTheLadderFromTheSheet:
         assert dismiss in client.get(edit).content.decode()
         assert "Augmentation: &mdash;" not in client.get(sheet).content.decode()
 
-    def test_a_dismissed_ladder_cannot_be_chosen_from_the_ordinary_page(
+    def test_choosing_a_tier_restores_a_dismissed_ladder(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
         from n26.core.models import DismissedOffer
@@ -1046,6 +1091,7 @@ class TestDismissingTheLadderFromTheSheet:
             {"thing": option_key(bolt_launcher_tiers["Tier 1"])},
         )
 
-        assert reply.status_code == 404
-        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == [None]
-        assert DismissedOffer.objects.filter(gang=gang, slot_key=key).exists()
+        assert reply.status_code == 302
+        assert [c.chosen for c in gun_of(orrus, "Bolt launchers").choices] == ["Tier 1"]
+        assert not DismissedOffer.objects.filter(gang=gang, slot_key=key).exists()
+        assert_reconciled(gang)

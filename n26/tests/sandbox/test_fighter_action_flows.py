@@ -608,7 +608,7 @@ class TestSuitEvolutionForms:
         assert "Hunting rig" in name_line.get_text(" ", strip=True)
         assert "flex-wrap" in name_line.get("class", [])
         assert menu in name_line.descendants
-        assert "Choose tier" not in name_line.get_text(" ", strip=True)
+        assert "Choose tier" in name_line.get_text(" ", strip=True)
         assert "Rig augmentation" not in name_line.get_text(" ", strip=True)
 
     def test_credit_prices_use_the_credit_unit(self, client, hunt):

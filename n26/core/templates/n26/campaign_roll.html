@@ -1,0 +1,64 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% block head_title %}{{ roll.reason }}{% endblock %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    {% url 'n26-campaign-roll' campaign.pk roll.pk as action_url %}
+    {% url 'n26-campaign' campaign.pk as cancel_url %}
+    <c-n26.form-page :action="action_url"
+                     title="{{ roll.reason }}"
+                     lead="Dice roll recorded"
+                     :form="form"
+                     :cancel_url="cancel_url"
+                     cancel_label="Done">
+        <c-slot name="leading">
+            <c-n26.icon name="dice-5"
+                        class="mr-2 inline-block size-6 align-text-bottom sm:size-7" />
+        </c-slot>
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ cancel_url }}">
+                    {{ campaign.name }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Dice roll
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-ui.card variant="outline" padding="md">
+            <p class="text-sm text-muted">Result · {{ roll.get_source_display }}</p>
+            <p class="mt-2 text-4xl font-semibold tabular-nums">{{ roll.total }}</p>
+            <p class="mt-2 text-base tabular-nums">{{ roll.calculation }}</p>
+            {% if roll.gang %}<p class="mt-2 text-sm text-muted">Gang: {{ roll.gang.name }}</p>{% endif %}
+            {% if roll.battle %}<p class="mt-2 text-sm text-muted">Battle: <c-n26.link href="{% url 'n26-battle' campaign.pk roll.battle.pk %}">{{ roll.battle.title }}</c-n26.link></p>{% endif %}
+        </c-ui.card>
+        {% if may_note %}
+            <c-n26.form-section title="Outcome note"
+                                description="Optionally describe what the result means. The dice result is already saved.">
+                <c-ui.field label="Note" :form="form" name="outcome" error="x" for="roll-outcome">
+                    {# Keep formatting whitespace out of the saved note. #}
+                    {# djlint:off #}
+                    <c-ui.textarea.impl id="roll-outcome" name="outcome" rows="4" maxlength="512">{{ form.outcome.value|default:'' }}</c-ui.textarea.impl>
+                    {# djlint:on #}
+                </c-ui.field>
+            </c-n26.form-section>
+            <c-slot name="actions">
+                <c-ui.button type="submit" variant="success">
+                    Save note
+                </c-ui.button>
+            </c-slot>
+        {% elif roll.outcome %}
+            <c-n26.form-section title="Outcome note">
+                <p class="whitespace-pre-line">{{ roll.outcome }}</p>
+            </c-n26.form-section>
+        {% endif %}
+    </c-n26.form-page>
+{% endblock %}

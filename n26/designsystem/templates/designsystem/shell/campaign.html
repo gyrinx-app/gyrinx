@@ -51,6 +51,9 @@ be judged side by side.
                 <c-ui.button size="sm" variant="default" href="#">
                     Edit
                 </c-ui.button>
+                <c-ui.button size="sm" variant="default" href="#" aria-label="Log a dice roll">
+                    <c-n26.icon name="dice-5" class="size-4" />
+                </c-ui.button>
                 <c-ui.dropdown>
                     <c-slot name="trigger">
                         <c-ui.button size="sm" variant="default" aria-label="More actions">
@@ -61,10 +64,19 @@ be judged side by side.
                         </c-ui.button>
                     </c-slot>
                     <c-ui.dropdown.item href="#">
+                        View log
+                    </c-ui.dropdown.item>
+                    <c-ui.dropdown.item href="#">
                         Archive campaign
                     </c-ui.dropdown.item>
                 </c-ui.dropdown>
             </c-n26.button-group>
+        </c-slot>
+        <c-slot name="log_actions">
+            <c-ui.button size="sm" variant="default" href="#">
+                <c-n26.icon name="dice-5" class="size-4" />
+                Log a dice roll
+            </c-ui.button>
         </c-slot>
         <c-slot name="gangs_actions">
             <c-ui.button size="sm" variant="primary" href="#">
@@ -78,7 +90,7 @@ be judged side by side.
         </c-slot>
         <c-slot name="battles_actions">
             <c-ui.button size="sm" variant="primary" href="#">
-                Add battle
+                Record a battle
             </c-ui.button>
         </c-slot>
         <c-slot name="players">

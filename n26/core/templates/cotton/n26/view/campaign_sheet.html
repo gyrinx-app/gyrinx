@@ -36,6 +36,7 @@ log_count may be markup: the campaign page passes a host that a roll update redr
     log=""
     log_count=""
     log_href=""
+    log_actions=""
     class=""
 />
 {% load richtext %}
@@ -119,9 +120,10 @@ log_count may be markup: the campaign page passes a host that a roll update redr
 
     <c-n26.section id="log" title="Log">
         {% if log_count.strip %}<c-slot name="count">{{ log_count }}</c-slot>{% endif %}
-        {% if log_href %}
+        {% if log_href or log_actions.strip %}
             <c-slot name="actions">
-                <c-ui.button size="sm" variant="default" href="{{ log_href }}">Full log</c-ui.button>
+                {{ log_actions }}
+                {% if log_href %}<c-ui.button size="sm" variant="default" href="{{ log_href }}">Full log</c-ui.button>{% endif %}
             </c-slot>
         {% endif %}
         {{ log }}

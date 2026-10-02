@@ -20,7 +20,7 @@ from n26.core.effects import compute
 from n26.core.models import LedgerEvent, Miniature
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
-from n26.core.render import option_key
+from n26.core.render import build_model_card, option_key
 from n26.core.status import Status
 from n26.library.models import Picklist, Slot
 from n26.library.standard_content import STANDARD_CONTENT
@@ -260,3 +260,142 @@ class TestThePage:
         page = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
         assert "Captured" in page
         assert ">Escape<" in page
+
+
+def lasting_rows(card):
+    return [line for line in card.row_questions if line.is_lasting_effect]
+
+
+class TestLastingEffectRowsOnTheCard:
+    """Every model carries a lasting-effect choice. A card away from the
+    model's own screens draws it only once something has been chosen."""
+
+    def test_an_unaffected_card_has_no_lasting_effect_row(self, gang, krago, tables):
+        card = build_model_card(krago, computed=computed_for(krago))
+        assert lasting_rows(card) == []
+
+    def test_the_models_own_screens_keep_the_open_choice(self, gang, krago, tables):
+        card = build_model_card(
+            krago, computed=computed_for(krago), open_lasting_effects=True
+        )
+        assert [line.kind_label for line in lasting_rows(card)] == ["Lasting Injuries"]
+
+    def test_an_injury_the_model_has_stays_on_the_card(self, gang, krago, tables):
+        add_result(krago, "Lasting Injuries", tables["injury"], "Eye Injury")
+        card = build_model_card(krago, computed=computed_for(krago))
+        assert [line.chosen for line in lasting_rows(card)] == ["Eye Injury"]
+
+    def test_the_escape_row_is_not_a_lasting_effect(self, gang, krago, tables):
+        add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
+        card = build_model_card(krago, computed=computed_for(krago))
+        assert "Escape" in [line.kind_label for line in card.row_questions]
+
+    def test_the_sheet_leaves_it_off_and_edit_offers_it(
+        self, client, owner, gang, krago, tables
+    ):
+        admit_to_founding(owner)
+        client.force_login(owner)
+        sheet = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Lasting Injuries" not in sheet
+        edit = client.get(reverse("n26-edit-fighter", args=[krago.pk]))
+        assert "Lasting Injuries" in edit.content.decode()
+
+
+def held_names(miniature):
+    from n26.core.models import Assignment
+
+    return sorted(
+        Assignment.objects.filter(
+            miniature=miniature, archived=False, pickable__isnull=False
+        ).values_list("pickable__name", flat=True)
+    )
+
+
+class TestLeavingCapturedByHand:
+    """Captured only sets up the Escape roll. A model the owner takes out
+    of Captured before that roll is no longer captured, so the result and
+    its Escape choice go; once the roll is recorded, both stay."""
+
+    @pytest.fixture(autouse=True)
+    def admitted(self, owner):
+        admit_to_founding(owner)
+
+    def mark(self, client, owner, miniature, status):
+        client.force_login(owner)
+        return client.post(
+            reverse("n26-mark-fighter", args=[miniature.pk]), {"status": status}
+        )
+
+    def test_the_unrolled_capture_goes_with_its_escape_row(
+        self, client, owner, gang, krago, tables
+    ):
+        add_result(krago, "Lasting Injuries", tables["injury"], "Eye Injury")
+        add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
+        self.mark(client, owner, krago, "active")
+        assert fresh(krago).status == Status.ACTIVE
+        assert held_names(krago) == ["Eye Injury"]
+        assert choice_of(krago, "Escape") is None
+        assert_reconciled(gang)
+
+    def test_the_history_keeps_the_capture_and_its_removal(
+        self, client, owner, gang, krago, tables
+    ):
+        add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
+        self.mark(client, owner, krago, "recovery")
+        kinds = list(
+            LedgerEvent.objects.filter(gang=gang)
+            .order_by("created", "id")
+            .values_list("kind", flat=True)
+        )
+        assert LedgerEvent.Kind.GRANTED in kinds
+        assert kinds[-2:] == [LedgerEvent.Kind.REMOVED, LedgerEvent.Kind.STATUS_SET]
+
+    def test_a_rolled_capture_stays(self, client, owner, gang, krago, tables):
+        add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
+        add_result(krago, "Escape", tables["escape"], "Ransomed")
+        # The Escape result moved the model on; put it back in Captured
+        # so marking it Active goes through the release.
+        with operation(gang, actor=owner) as op:
+            op.set_status(krago, Status.CAPTURED)
+        self.mark(client, owner, krago, "active")
+        assert fresh(krago).status == Status.ACTIVE
+        assert held_names(krago) == ["Captured", "Ransomed"]
+
+    def test_something_else_the_capture_brought_is_not_an_escape_result(
+        self, client, owner, gang, krago, tables
+    ):
+        from n26.tests.sandbox.actions import (
+            assign,
+            create_pickable,
+            create_slot_type,
+        )
+
+        captured = add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
+        brand = create_pickable("Brand", create_slot_type("Mark"))
+        assign(brand, miniature=krago, caused_by=captured)
+        self.mark(client, owner, krago, "active")
+        assert held_names(krago) == []
+        assert choice_of(krago, "Escape") is None
+
+    @pytest.mark.parametrize("status", ["ransomed", "dead"])
+    def test_an_outcome_of_the_capture_keeps_it(
+        self, client, owner, gang, krago, tables, status
+    ):
+        add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
+        self.mark(client, owner, krago, status)
+        assert held_names(krago) == ["Captured"]
+
+    def test_only_a_captured_model_is_released(
+        self, client, owner, gang, krago, tables
+    ):
+        add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
+        with operation(gang, actor=owner) as op:
+            op.set_status(krago, Status.RECOVERY)
+        self.mark(client, owner, krago, "active")
+        assert held_names(krago) == ["Captured"]
+
+    def test_a_vehicle_is_released_too(self, client, owner, gang, rig, tables):
+        add_result(rig, "Lasting Damage", tables["damage"], "Captured")
+        self.mark(client, owner, rig, "active")
+        assert held_names(rig) == []
+        assert choice_of(rig, "Escape") is None

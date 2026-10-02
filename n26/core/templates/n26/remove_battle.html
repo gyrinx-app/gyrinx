@@ -36,8 +36,8 @@ act.
         {% csrf_token %}
         <input type="hidden" name="revision" value="{{ battle.revision }}">
         {% if has_history %}
-            <c-ui.alert variant="warning" title="This battle has saved gang records">
-                You can edit its details, but cannot remove it. Saved crews, post-battle reports and recorded gang history keep their link to this battle.
+            <c-ui.alert variant="warning" title="This battle has saved records">
+                You can edit its details, but cannot remove it. Saved crews, post-battle reports, dice rolls and recorded gang history keep their link to this battle.
             </c-ui.alert>
         {% else %}
             <c-ui.alert variant="warning" title="Remove this battle from {{ campaign.name }}">

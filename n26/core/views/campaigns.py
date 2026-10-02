@@ -14,7 +14,11 @@ from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
+from n26.core.views.permissions import (
+    _any_campaign_or_404,
+    _own_campaign_or_404,
+    _recording_campaign_or_404,
+)
 from n26.flags import CAMPAIGNS, requires_flag
 from n26.library.staged import sees_staged
 
@@ -179,10 +183,8 @@ def campaign(request, pk):
 
     An arbitrator can send the address round the table, and everybody who
     opens it reads the same campaign — the same facts, the same gangs, the
-    same battles, the same log. What the page withholds from a reader who
-    does not arbitrate it is every control, and not a disabled one either:
-    the acts belong to the arbitrator, so for anybody else they are simply
-    not there.
+    same battles, the same log. Accepted players can record battles and
+    dice rolls. Campaign management remains with the arbitrator.
 
     Who the address reaches is the decorators' answer rather than this
     one's: signed in, and inside the campaigns feature. A reader outside
@@ -257,6 +259,7 @@ def campaign(request, pk):
             # A player at the table brings their own gangs; the arbitrator
             # brings anybody's. Both reach the same screen.
             "may_add_gang": yours or at_the_table,
+            "may_record": yours or at_the_table,
             "players": players,
             "battles": battles,
             "acts": acts,
@@ -720,12 +723,14 @@ def campaign_log(request, pk):
     where the rest are read. It opens for whoever the campaign's page opens
     for — the arbitrator and the people they sent the address to — because
     the log is the same story the page tells, told in full. Nothing here
-    changes anything, so nobody is offered a control.
+    changes anything. Accepted players and the arbitrator can open the
+    dice recording page from here.
 
     Paged, because a campaign played for a year has more acts than one
     page wants, and every act is built before the page is cut: acts fold
     what rode with them, so they cannot be counted or cut by row.
     """
+    from n26.core.campaign_permissions import may_record_campaign
     from n26.core.history import campaign_history, load_actor_badges
     from n26.core.views.gangs import _pages
     from n26.core.views.history import by_day
@@ -746,6 +751,7 @@ def campaign_log(request, pk):
         "n26/campaign_log.html",
         {
             "campaign": found,
+            "may_record": may_record_campaign(found, request.user),
             "days": by_day(page.object_list),
             "total": total,
             "pages": _pages(request, page) if page.paginator.num_pages > 1 else None,
@@ -1038,7 +1044,9 @@ def add_battle(request, pk):
     from n26.core.forms import BattleForm
     from n26.core.operations import Refusal
 
-    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    found = _recording_campaign_or_404(
+        request, pk, with_owner_badge=request.method == "GET"
+    )
     playing = _playing(found)
 
     if request.method == "POST":
@@ -1050,7 +1058,7 @@ def add_battle(request, pk):
             except Refusal as exc:
                 form.add_error(None, str(exc))
             else:
-                messages.success(request, "Battle added.")
+                messages.success(request, "Battle recorded.")
                 return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
     else:
         form = BattleForm(playing=playing)
@@ -1068,6 +1076,7 @@ def add_battle(request, pk):
 def remove_battle(request, pk, battle_pk):
     """The question at its own address, then the act."""
     from n26.core.campaigns import campaign_operation
+    from n26.core.models import CampaignRoll
     from n26.core.operations import Refusal
     from n26.core.views.battles import battle_or_404
 
@@ -1103,6 +1112,7 @@ def remove_battle(request, pk, battle_pk):
                 battle.gang_events.exists()
                 or battle.crews.exists()
                 or battle.reports.exists()
+                or CampaignRoll.objects.filter(battle=battle).exists()
             ),
         },
     )

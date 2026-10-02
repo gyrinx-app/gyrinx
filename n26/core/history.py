@@ -1294,7 +1294,9 @@ def _campaign_own_acts(campaign, viewer, limit=None):
     # unbounded read is the whole history, paged afterwards, and the join
     # would widen every row for the page's worth drawn. What a page still
     # lacks, ``load_actor_badges`` reads once it is cut.
-    events = campaign.events.select_related("actor", "battle", "about_user")
+    events = campaign.events.select_related(
+        "actor", "battle", "about_user", "roll", "roll__gang", "roll__battle"
+    )
     if limit is not None:
         events = events.select_related("actor__profile")
     # Newest first while the database is doing the cutting, so a limit takes
@@ -1444,6 +1446,9 @@ def _one_campaign_act(e, viewer):
         actor_user=_actor_user(e, viewer),
         spans=spans,
         category=category,
+        note=e.note if e.kind == CampaignEvent.Kind.DICE_ROLL_NOTED else "",
+        gang_pk=str(e.roll.gang_id) if e.roll_id and e.roll.gang_id else "",
+        gang_name=e.roll.gang.name if e.roll_id and e.roll.gang_id else "",
     )
 
 
@@ -1491,6 +1496,35 @@ def _tell_campaign(e):
                 case kinds.INVITE_DECLINED:
                     return (Span("declined the invitation"),), "campaign"
             return (Span(f"removed {who} from the campaign"),), "campaign"
+        case kinds.DICE_ROLLED | kinds.DICE_ROLL_NOTED:
+            if not e.roll_id:
+                text = (
+                    "updated an outcome note for a dice roll"
+                    if e.kind == kinds.DICE_ROLL_NOTED
+                    else "recorded a dice roll"
+                )
+                return (Span(text),), "campaign"
+            roll = e.roll
+            href = reverse("n26-campaign-roll", args=[e.campaign_id, roll.pk])
+            if e.kind == kinds.DICE_ROLL_NOTED:
+                verb = (
+                    "updated an outcome note" if e.note else "cleared the outcome note"
+                )
+                return (Span(f"{verb} for {roll.reason}", href),), "campaign"
+            spans = [
+                Span(
+                    f"recorded {roll.calculation} ({roll.get_source_display()}) for {roll.reason}",
+                    href,
+                )
+            ]
+            if roll.battle_id:
+                spans.append(
+                    Span(
+                        f" in {roll.battle.title}",
+                        reverse("n26-battle", args=[e.campaign_id, roll.battle_id]),
+                    )
+                )
+            return tuple(spans), "campaign"
         case kinds.BATTLE_RECORDED:
             href = (
                 reverse("n26-battle", args=[e.campaign_id, e.battle_id])

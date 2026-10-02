@@ -1009,3 +1009,71 @@ class TableEntryForm(forms.Form):
             if roll is not None and roll not in faces:
                 self.add_error(name, f"You cannot roll {roll} on a {dice.label}.")
         return cleaned
+
+
+class CampaignRollForm(forms.Form):
+    """A generated or physical roll, attributed only within its campaign."""
+
+    request_key = forms.UUIDField(
+        widget=forms.HiddenInput,
+        error_messages={
+            "invalid": "This form is not recognised. Reload this page and try again.",
+            "required": "Reload this page before rolling.",
+        },
+    )
+    reason = forms.CharField(max_length=200)
+    dice = forms.ChoiceField(initial="d6", widget=forms.RadioSelect)
+    source = forms.ChoiceField(
+        choices=[("generated", "Roll here"), ("manual", "Use physical dice")],
+        initial="generated",
+        widget=forms.RadioSelect,
+    )
+    rolled = forms.IntegerField(required=False, min_value=1, max_value=66)
+    modifier = forms.IntegerField(
+        required=False, min_value=-2147483648, max_value=2147483647
+    )
+    gang = forms.ModelChoiceField(
+        queryset=None, required=False, empty_label="No related gang"
+    )
+    battle = forms.ModelChoiceField(
+        queryset=None, required=False, empty_label="No related battle"
+    )
+
+    def __init__(self, *args, campaign, **kwargs):
+        from uuid import uuid4
+
+        from n26.core.models import CampaignRoll, Gang
+
+        super().__init__(*args, **kwargs)
+        self.fields["dice"].choices = CampaignRoll.Dice.choices
+        self.fields["request_key"].initial = uuid4()
+        self.fields["gang"].queryset = Gang.objects.filter(
+            campaign_memberships__campaign=campaign,
+            campaign_memberships__left__isnull=True,
+            archived=False,
+        ).order_by("name")
+        self.fields["battle"].queryset = campaign.battles.order_by("-date", "-created")
+
+    def clean(self):
+        from n26.core.models import CampaignRoll
+        from n26.library.models import Dice
+
+        cleaned = super().clean()
+        cleaned["modifier"] = cleaned.get("modifier") or 0
+        if cleaned.get("source") == CampaignRoll.Source.MANUAL:
+            if cleaned.get("dice") and cleaned.get("rolled") not in Dice.rolls(
+                cleaned["dice"]
+            ):
+                message = (
+                    "Enter a D66 result with both digits from 1 to 6."
+                    if cleaned["dice"] == "d66"
+                    else f"Enter a {cleaned['dice'].upper()} result from 1 to {3 if cleaned['dice'] == 'd3' else 6}."
+                )
+                self.add_error("rolled", message)
+        elif cleaned.get("rolled") is not None:
+            self.add_error("rolled", "Leave the physical result blank to roll here.")
+        return cleaned
+
+
+class CampaignRollOutcomeForm(forms.Form):
+    outcome = forms.CharField(max_length=512, required=False, widget=forms.Textarea)

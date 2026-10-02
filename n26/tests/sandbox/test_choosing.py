@@ -1217,10 +1217,7 @@ class TestTheXBesideAnOpenOffer:
                 "a",
                 href=lambda href, prefix=line.href: href and href.startswith(prefix),
             )
-            if line.is_tier_ladder:
-                assert link is None
-            else:
-                assert link is not None
+            assert link is not None
             assert "py-0!" not in form.find("button")["class"]
         page = BeautifulSoup(sheet_body(client, gang), "html.parser")
         form = page.find(
