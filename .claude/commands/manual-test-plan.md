@@ -24,7 +24,9 @@ Analyze the recent code changes and generate a manual test plan that can be exec
    fetched upstream. A local `main` that has not been fast-forwarded lists
    files that already merged.
 
-!`git diff origin/main --name-only | head -20`
+!`git diff origin/main...HEAD --name-only | head -20`
+
+!`git diff HEAD --name-only | head -20`
 
 !`git log origin/main..HEAD --oneline | head -10`
 

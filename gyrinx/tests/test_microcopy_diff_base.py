@@ -66,7 +66,7 @@ def test_review_instructions_name_origin_main():
     assert "git diff origin/main...HEAD" in agents
     assert "git diff origin/main...HEAD" in copywriter
     assert "git diff main...HEAD" not in copywriter
-    assert "git diff origin/main --name-only" in plan
+    assert "git diff origin/main...HEAD --name-only" in plan
     assert "git log origin/main..HEAD" in plan
     assert "git diff main --name-only" not in plan
     assert "git log main..HEAD" not in plan
