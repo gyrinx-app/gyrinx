@@ -88,10 +88,8 @@ class _Found:
 def link_slots(gang, *holders, back="", dismiss_back=None):
     """Point every choice slot on these structures at its picker.
 
-    A slot's address is already on the line. Tier ladders also check recorded
-    earnings in two queries for all holders, so an unearned tier has no picker
-    link. A slot with no address keeps an empty href and draws as a fact with
-    nothing to click — which is right for a card depicting nobody.
+    A slot with no address keeps an empty href and has nothing to click,
+    as on a card depicting nobody.
 
     ``back`` is the screen the card is drawn on, carried on every link
     so the picker returns the reader there once the choice is settled
@@ -112,17 +110,9 @@ def link_slots(gang, *holders, back="", dismiss_back=None):
     """
     from n26.core.owned import with_query
     from n26.core.status import Status
-    from n26.core.tier_choices import earned_slot_ids
 
     if dismiss_back is None:
         dismiss_back = back
-    tier_lines = [
-        line
-        for holder in holders
-        for line in [*holder.questions, *getattr(holder, "dismissed_choices", ())]
-        if line.is_tier_ladder and line.key
-    ]
-    earned_ids = earned_slot_ids({line.key.split(":")[1] for line in tier_lines})
     for holder in holders:
         # A dead model's dismissed offers are never shown on any screen
         # (``settle_dismissed`` hides them on the sheet, which draws the
@@ -139,12 +129,9 @@ def link_slots(gang, *holders, back="", dismiss_back=None):
                 # and every screen draws it as a fact; a settled choice
                 # keeps its link, since clicking it is how it is changed.
                 continue
-            if not line.is_tier_ladder or (
-                line.is_resolved or line.key.split(":")[1] in earned_ids
-            ):
-                line.href = reverse("n26-choose", args=[gang.pk, line.key])
-                if back:
-                    line.href = with_query(line.href, **{"return": back})
+            line.href = reverse("n26-choose", args=[gang.pk, line.key])
+            if back:
+                line.href = with_query(line.href, **{"return": back})
             if dead:
                 continue
             # Only the owner's structures come through here, so the way
@@ -504,21 +491,15 @@ def choose(request, pk, slot):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
-    from n26.core.render import build_choice_offer, is_tier_ladder
-    from n26.core.tier_choices import earned_offer, highest_earned_level
+    from n26.core.render import build_choice_offer
 
     gang = _own_gang_or_404(request, pk)
     found = find_slot(gang, slot)
-    highest = highest_earned_level(found) if is_tier_ladder(found.slot) else None
-    if highest == 0:
-        raise Http404("No augmentation tier has been earned for this item.")
     # The list is built for this reader: staged picks are on it only for
     # somebody who may see staged content, and the click below and the
     # roll panel are read against the same list.
     shown = sees_staged(request.user)
     offer = build_choice_offer(found.slot, found.computed, include_staged=shown)
-    if highest is not None:
-        offer = earned_offer(offer, found, highest)
     # Where the reader came from, forwarded by the link that opened this
     # page and carried through the form, so settling the choice lands
     # them back on the screen they were reading. Only this site's own
@@ -758,38 +739,7 @@ def _write_pick(op, request, gang, slot_key, found, offer, wanted, *, dropped=""
     none: the standing pick is taken back and nothing is written.
     """
     from n26.core.operations import Refusal
-    from n26.core.render import NONE_KEY, is_tier_ladder
-    from n26.core.tier_choices import highest_earned_level
-
-    if is_tier_ladder(found.slot):
-        fresh = find_slot(gang, slot_key)
-        highest = highest_earned_level(fresh)
-        if highest == 0:
-            raise Refusal("This item has no earned augmentation tier to select.")
-        if wanted != NONE_KEY:
-            from n26.library.models import PicklistMember
-
-            chosen_option = next(
-                (
-                    option
-                    for group in offer.groups
-                    for option in group.options
-                    if option.key == wanted
-                ),
-                None,
-            )
-            if chosen_option is None or chosen_option.thing is None:
-                raise NotOnTheList
-            level = (
-                PicklistMember.objects.filter(
-                    picklist_id=fresh.slot.slot.picklist_id,
-                    pickable=chosen_option.thing,
-                )
-                .values_list("level", flat=True)
-                .first()
-            )
-            if level is None or level > highest:
-                raise Refusal("This item has not earned that augmentation tier.")
+    from n26.core.render import NONE_KEY
 
     rolled_on = _roll_posted(request, gang, found)
     if wanted == NONE_KEY and not dropped:
