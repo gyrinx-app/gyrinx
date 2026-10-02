@@ -20,7 +20,6 @@ from n23.core.cost.propagation import (
     propagate_from_assignment,
     propagate_from_fighter,
 )
-from n23.core.handlers.fighter.locking import prepare_equipment_write
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import (
@@ -102,9 +101,6 @@ def handle_equipment_sale(
     """
     from django.core.exceptions import ValidationError
 
-    fighter, assignment = prepare_equipment_write(
-        lst=lst, fighter=fighter, assignment=assignment
-    )
     # Validate fighter is a stash fighter
     if not fighter.is_stash:
         raise ValidationError("Equipment can only be sold from stash fighters")

@@ -21,7 +21,6 @@ from n23.core.cost.propagation import (
     propagate_from_assignment,
     propagate_from_fighter,
 )
-from n23.core.handlers.fighter.locking import lock_list_for_fighter_write
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import (
@@ -85,7 +84,6 @@ def handle_vehicle_purchase(
     Raises:
         ValidationError: If the purchase cannot be completed (e.g., insufficient credits)
     """
-    lock_list_for_fighter_write(lst=lst)
     # Calculate total cost
     vehicle_cost = vehicle_fighter.cost_for_house(lst.content_house)
     crew_cost = crew_fighter.cost_for_house(lst.content_house) if crew_fighter else 0

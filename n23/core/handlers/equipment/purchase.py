@@ -20,7 +20,6 @@ from n23.content.models import (
 from n23.core.cost.pinning import pin_assignment
 from n23.core.cost.propagation import Delta, propagate_from_assignment
 from n23.core.handlers.equipment.deltas import component_delta
-from n23.core.handlers.fighter.locking import prepare_equipment_write
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import (
@@ -105,9 +104,8 @@ def handle_equipment_purchase(
     Raises:
         ValidationError: If the purchase cannot be completed (e.g., insufficient credits)
     """
-    fighter, assignment = prepare_equipment_write(
-        lst=lst, fighter=fighter, assignment=assignment
-    )
+    # Refetch to get the full cost including profiles, accessories, and upgrades
+    assignment.refresh_from_db()
     # Acquisition writes the receipt (#1826 Phase 7): pin the base and every
     # component at their resolved prices. Value-neutral — the cost_int()
     # below reads back exactly the amounts just pinned.
@@ -207,9 +205,6 @@ def handle_accessory_purchase(
     Raises:
         ValidationError: If the purchase cannot be completed (e.g., insufficient credits)
     """
-    fighter, assignment = prepare_equipment_write(
-        lst=lst, fighter=fighter, assignment=assignment
-    )
     # Calculate the cost of this accessory
     accessory_cost = assignment.accessory_cost_int(accessory)
 
@@ -306,9 +301,6 @@ def handle_weapon_profile_purchase(
     Raises:
         ValidationError: If the purchase cannot be completed (e.g., insufficient credits)
     """
-    fighter, assignment = prepare_equipment_write(
-        lst=lst, fighter=fighter, assignment=assignment
-    )
     # Calculate the cost of this profile
     virtual_profile = VirtualWeaponProfile(profile=profile)
     profile_cost = assignment.profile_cost_int(virtual_profile)
@@ -405,9 +397,6 @@ def handle_equipment_upgrade(
     Raises:
         ValidationError: If the purchase cannot be completed (e.g., insufficient credits)
     """
-    fighter, assignment = prepare_equipment_write(
-        lst=lst, fighter=fighter, assignment=assignment
-    )
     # Get current upgrades cost
     old_upgrade_cost = assignment.upgrade_cost_int()
 

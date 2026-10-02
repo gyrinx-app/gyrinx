@@ -21,7 +21,6 @@ from n23.core.handlers.fighter import (
 )
 from n23.core.handlers.fighter.capture import handle_fighter_capture
 from n23.core.handlers.fighter.kill import handle_fighter_kill
-from n23.core.handlers.fighter.locking import lock_list_fighters
 from n23.core.handlers.list import handle_credits_modification
 from n23.core.models.battle import Battle
 from n23.core.models.campaign import (
@@ -174,24 +173,6 @@ def _apply(request, lst, fighters, resources, form):
     summary = _ApplySummary()
 
     with transaction.atomic():
-        fighter_ids = {fighter.pk for fighter in fighters}
-        already_dead = {
-            fighter.pk
-            for fighter in fighters
-            if (cd.get(f"initial_state_{fighter.pk}") or fighter.injury_state)
-            == ListFighter.DEAD
-        }
-        # Credits and earlier fighters can hold the list lock until commit.
-        # Lock the whole roster first, then discard pre-lock fighter snapshots.
-        lock_list_fighters(lst=lst)
-        lst.refresh_from_db(
-            from_queryset=List.objects.select_for_update(of=("self",), no_key=True)
-        )
-        fighters = [
-            fighter
-            for fighter in _post_battle_fighters(lst)
-            if fighter.pk in fighter_ids
-        ]
         credits = cd.get("credits_gained")
         if credits:
             result = handle_credits_modification(
@@ -268,11 +249,6 @@ def _apply(request, lst, fighters, resources, form):
             fighter.list = lst
             pk = fighter.pk
 
-            if fighter.injury_state == ListFighter.DEAD and pk not in already_dead:
-                if cd.get(f"captured_by_{pk}"):
-                    summary.capture_skipped_names.append(fighter.name)
-                continue
-
             xp = cd.get(f"xp_{pk}")
             if xp:
                 handle_fighter_add_xp(
@@ -290,11 +266,6 @@ def _apply(request, lst, fighters, resources, form):
                     battle=battle,
                 ):
                     summary.counters += 1
-
-            # Already-dead rows can record XP/counters, but cannot be injured,
-            # revived or captured through this editor.
-            if fighter.injury_state == ListFighter.DEAD:
-                continue
 
             killed_now = False
             for injury in cd.get(f"injury_{pk}") or ():
@@ -322,7 +293,6 @@ def _apply(request, lst, fighters, resources, form):
                 if result.killed:
                     summary.kills += 1
                     summary.killed_names.append(fighter.name)
-                if result.outcome_state == ListFighter.DEAD:
                     killed_now = True
                     # A dead fighter can't take further injuries.
                     break
@@ -334,24 +304,22 @@ def _apply(request, lst, fighters, resources, form):
                 if new_state == ListFighter.DEAD:
                     # Full kill logic: equipment -> stash, cost 0, rating
                     # propagation — same as a fatal injury.
-                    result = handle_fighter_kill(
+                    handle_fighter_kill(
                         user=user, lst=lst, fighter=fighter, battle=battle
                     )
-                    if result is not None:
-                        log_event(
-                            user=user,
-                            noun=EventNoun.LIST_FIGHTER,
-                            verb=EventVerb.DELETE,
-                            object=fighter,
-                            request=request,
-                            fighter_name=fighter.name,
-                            list_id=str(lst.id),
-                            list_name=lst.name,
-                            action="killed",
-                        )
-                        summary.kills += 1
-                        summary.killed_names.append(fighter.name)
-                        summary.states += 1
+                    log_event(
+                        user=user,
+                        noun=EventNoun.LIST_FIGHTER,
+                        verb=EventVerb.DELETE,
+                        object=fighter,
+                        request=request,
+                        fighter_name=fighter.name,
+                        list_id=str(lst.id),
+                        list_name=lst.name,
+                        action="killed",
+                    )
+                    summary.kills += 1
+                    summary.killed_names.append(fighter.name)
                     killed_now = True
                 else:
                     old_state = fighter.get_injury_state_display()
@@ -384,7 +352,7 @@ def _apply(request, lst, fighters, resources, form):
                         list_name=lst.name,
                         injury_state=new_state,
                     )
-                    summary.states += 1
+                summary.states += 1
 
             capturing_list = cd.get(f"captured_by_{pk}")
             if capturing_list:

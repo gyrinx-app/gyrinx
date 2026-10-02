@@ -18,7 +18,6 @@ from n23.core.cost.propagation import (
     propagate_from_fighter,
     propagate_to_list,
 )
-from n23.core.handlers.fighter.locking import prepare_equipment_write
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import (
@@ -77,10 +76,6 @@ def handle_equipment_reassignment(
         Equipment reassignment does not cost credits - credits_delta is always 0.
         However, rating and stash may change depending on fighter types.
     """
-    from_fighter, assignment = prepare_equipment_write(
-        lst=lst, fighter=from_fighter, assignment=assignment
-    )
-    to_fighter = ListFighter.objects.get(pk=to_fighter.pk, list=lst)
     # Capture BEFORE values for the ListAction ahead of any propagation —
     # propagation writes the list-level cache, so reading these later would
     # capture post-move values and corrupt the action's baseline.

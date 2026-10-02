@@ -453,12 +453,6 @@ def kill_list_fighter(request, id, fighter_id):
             fighter=fighter,
         )
 
-        if result is None:
-            messages.info(request, f"{fighter.name} is already dead.")
-            return HttpResponseRedirect(
-                reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
-            )
-
         # Log the fighter kill event
         log_event(
             user=request.user,

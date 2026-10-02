@@ -25,7 +25,6 @@ from n23.core.cost.propagation import (
     propagate_to_list,
 )
 from n23.core.handlers.equipment.deltas import component_delta
-from n23.core.handlers.fighter.locking import prepare_equipment_write
 from n23.core.handlers.refund import calculate_refund_credits
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import (
@@ -91,9 +90,6 @@ def handle_equipment_removal(
     Returns:
         EquipmentRemovalResult with removal details
     """
-    fighter, assignment = prepare_equipment_write(
-        lst=lst, fighter=fighter, assignment=assignment
-    )
     # Capture BEFORE values for ListAction
     rating_before = lst.rating_current
     stash_before = lst.stash_current
@@ -226,9 +222,6 @@ def handle_equipment_component_removal(
     Raises:
         ValueError: If component_type is not recognized
     """
-    fighter, assignment = prepare_equipment_write(
-        lst=lst, fighter=fighter, assignment=assignment
-    )
     # Capture BEFORE values for ListAction
     rating_before = lst.rating_current
     stash_before = lst.stash_current

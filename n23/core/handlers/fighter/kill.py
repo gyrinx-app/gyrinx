@@ -7,7 +7,6 @@ from django.db import transaction
 from gyrinx.tracing import traced
 from n23.core.cost.pinning import pin_assignment
 from n23.core.cost.propagation import Delta, propagate_from_fighter
-from n23.core.handlers.fighter.locking import lock_list_fighters
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import (
@@ -38,7 +37,7 @@ def handle_fighter_kill(
     lst: List,
     fighter: ListFighter,
     battle=None,
-) -> FighterKillResult | None:
+) -> FighterKillResult:
     """
     Handle fighter death in campaign mode.
 
@@ -73,27 +72,17 @@ def handle_fighter_kill(
             battle's timeline.
 
     Returns:
-        FighterKillResult with all operation details, or None if already dead.
+        FighterKillResult with all operation details
 
     Raises:
         ValueError: If fighter is stash or list is not in campaign mode
     """
-    # Match the bulk editor's lock order, including the destination stash.
-    lock_list_fighters(lst=lst)
-    fighter.refresh_from_db(from_queryset=ListFighter.objects.filter(list=lst))
-    lst.refresh_from_db(
-        from_queryset=List.objects.select_for_update(of=("self",), no_key=True)
-    )
-
     # Validate preconditions
     if not lst.is_campaign_mode:
         raise ValueError("Fighters can only be killed in campaign mode")
 
     if fighter.is_stash:
         raise ValueError("Cannot kill the stash")
-
-    if fighter.injury_state == ListFighter.DEAD:
-        return None
 
     # Capture BEFORE values for ListAction
     rating_before = lst.rating_current

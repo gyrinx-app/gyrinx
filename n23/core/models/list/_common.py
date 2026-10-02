@@ -1,7 +1,6 @@
 import logging
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
 
 from n23.models import FighterCategoryChoices
 
@@ -56,7 +55,6 @@ def preferred_equipment_list_override(overrides, list_fighter):
     return rows[0]
 
 
-@transaction.atomic
 def bulk_mark_assignments_dirty(assignments) -> None:
     """Mark a set of assignments, their fighters, and those fighters' lists dirty.
 
@@ -74,20 +72,17 @@ def bulk_mark_assignments_dirty(assignments) -> None:
     """
     from n23.core.models.list.fighter import ListFighter
     from n23.core.models.list.list import List
-    from n23.core.models.list.locking import lock_lists_for_fighter_write
 
     # Capture ids before any UPDATE so the membership snapshots are stable.
     fighter_ids = set(assignments.values_list("list_fighter_id", flat=True))
     list_ids = set(
         ListFighter.objects.filter(pk__in=fighter_ids).values_list("list_id", flat=True)
     )
-    lock_lists_for_fighter_write(list_ids=list_ids)
     assignments.update(dirty=True)
     ListFighter.objects.filter(pk__in=fighter_ids).update(dirty=True)
     List.objects.filter(pk__in=list_ids).update(dirty=True)
 
 
-@transaction.atomic
 def bulk_mark_fighters_dirty(fighters) -> None:
     """Mark a set of fighters and their lists dirty.
 
@@ -99,12 +94,10 @@ def bulk_mark_fighters_dirty(fighters) -> None:
     """
     from n23.core.models.list.fighter import ListFighter
     from n23.core.models.list.list import List
-    from n23.core.models.list.locking import lock_lists_for_fighter_write
 
     fighter_ids = set(fighters.values_list("pk", flat=True))
     list_ids = set(
         ListFighter.objects.filter(pk__in=fighter_ids).values_list("list_id", flat=True)
     )
-    lock_lists_for_fighter_write(list_ids=list_ids)
     ListFighter.objects.filter(pk__in=fighter_ids).update(dirty=True)
     List.objects.filter(pk__in=list_ids).update(dirty=True)

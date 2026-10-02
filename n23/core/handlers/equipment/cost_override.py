@@ -6,7 +6,6 @@ from django.db import transaction
 
 from gyrinx.tracing import traced
 from n23.core.cost.propagation import Delta, propagate_from_assignment
-from n23.core.handlers.fighter.locking import prepare_equipment_write
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import (
     List,
@@ -121,9 +120,6 @@ def handle_equipment_cost_override(
     if old_total_cost_override == new_total_cost_override:
         return None
 
-    fighter, assignment = prepare_equipment_write(
-        lst=lst, fighter=fighter, assignment=assignment
-    )
     # Capture before values for ListAction
     rating_before = lst.rating_current
     stash_before = lst.stash_current

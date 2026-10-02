@@ -94,13 +94,11 @@ def test_reconcile_task_repairs_rating_left_by_premature_death(
     rating_before = fresh(lst).rating_current
     credits_before = fresh(lst).credits_current
 
-    # Reproduce the old fatal-injury result: gear moved, but death booked a
-    # zero rating reduction and left clean fighter and gang caches unchanged.
+    # Reproduce the old Add injury flow: it saved DEAD before the kill handler
+    # measured the live cost, so the death booked a zero rating reduction.
+    ListFighter.objects.filter(pk=fighter.pk).update(injury_state=ListFighter.DEAD)
     result = handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter))
-    ListFighter.objects.filter(pk=fighter.pk).update(rating_current=fighter_rating)
-    List.objects.filter(pk=lst.pk).update(rating_current=rating_before)
-    ListAction.objects.filter(pk=result.list_action.pk).update(rating_delta=0)
-    assert fresh(lst).latest_action.rating_delta == 0
+    assert result.fighter_cost_before == 0
     assert fresh(fighter).rating_current == fighter_rating
     assert fresh(lst).rating_current == rating_before
     assert fresh(fighter).dirty is False

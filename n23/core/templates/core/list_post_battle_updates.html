@@ -14,7 +14,6 @@
         </p>
         <form method="post">
             {% csrf_token %}
-            {% for field in form.hidden_fields %}{{ field }}{% endfor %}
             {% if rows %}
                 <div class="vstack gap-4">
                     {% if form.non_field_errors %}

@@ -14,7 +14,6 @@ from gyrinx.analytics.models import EventVerb, log_event
 from n23.core.events import EventNoun
 from n23.core.forms.list import AddInjuryForm, EditFighterStateForm
 from n23.core.handlers.fighter import handle_fighter_resurrect
-from n23.core.handlers.fighter.locking import lock_list_for_fighter_write
 from n23.core.models.list import List, ListFighter, ListFighterInjury
 from n23.core.views.fighter.permissions import arbitrator_q
 from n23.core.views.list.common import get_clean_list_or_404
@@ -376,21 +375,6 @@ def list_fighter_add_injury(request, id, fighter_id):
         form = AddInjuryForm(request.POST, fighter=fighter)
         if form.is_valid():
             with transaction.atomic():
-                lock_list_for_fighter_write(lst=lst)
-                fighter = get_object_or_404(
-                    ListFighter.objects.with_related_data(),
-                    pk=fighter.pk,
-                    list=lst,
-                    owner=lst.owner,
-                )
-                if fighter.injury_state == ListFighter.DEAD:
-                    messages.info(request, f"{fighter.name} is already dead.")
-                    return HttpResponseRedirect(
-                        reverse(
-                            "core:list-fighter-injuries-edit", args=(lst.id, fighter.id)
-                        )
-                    )
-
                 injury = ListFighterInjury.objects.create_with_user(
                     user=request.user,
                     fighter=fighter,

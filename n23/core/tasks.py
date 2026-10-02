@@ -120,18 +120,11 @@ def refresh_list_facts(list_id: str):
     Enqueued (on commit) by List.set_dirty, so a list that goes dirty heals
     in the background instead of waiting to be viewed.
     """
-    from django.db import transaction
-
     from n23.core.models import List
-    from n23.core.models.list.locking import lock_lists_for_fighter_write
 
     try:
-        with transaction.atomic():
-            lock_lists_for_fighter_write(list_ids=[list_id])
-            lst: List = List.objects.with_related_data(with_fighters=True).get(
-                pk=list_id
-            )
-            lst.facts_from_db(update=True)
+        lst: List = List.objects.with_related_data(with_fighters=True).get(pk=list_id)
+        lst.facts_from_db(update=True)
         logger.info(f"Refreshed facts for list {list_id}")
     except List.DoesNotExist:
         logger.warning(f"List {list_id} not found for facts refresh")
@@ -245,7 +238,6 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
         ListFighter,
         _materialise_child_fighter_defaults,
     )
-    from n23.core.models.list.locking import lock_lists_for_fighter_write
     from n23.core.models.pack import CustomContentPackItem
 
     try:
@@ -311,10 +303,7 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
                 # duplicate child fighter. Locking the list serialises the
                 # deliveries, so the second sees the first's committed
                 # materialisation and skips (created_total == 0 below).
-                lock_lists_for_fighter_write(list_ids=[list_id])
-                lst = List.objects.select_for_update(of=("self",), no_key=True).get(
-                    pk=list_id
-                )
+                lst = List.objects.select_for_update().get(pk=list_id)
 
                 created_total = 0
                 for fighter in fighters:
