@@ -40,8 +40,9 @@ class TestTheReactMarks:
         from n26.designsystem import catalog
 
         react = {c.slug for c in catalog.COMPONENTS if c.uses_react}
-        # quick-switcher's island is in one of its parts, not its main file.
-        assert {"filter-select", "pick-list", "quick-switcher"} <= react
+        # quick-switcher's island is in one of its parts, not its main file;
+        # switch's is in switch/impl.html, which only its index draws.
+        assert {"filter-select", "pick-list", "quick-switcher", "switch"} <= react
         # These sit beside React components in the shared n26/ folder.
         assert "tab-links" not in react
         assert "model-header" not in react
