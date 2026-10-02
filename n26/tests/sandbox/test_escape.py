@@ -353,6 +353,10 @@ class TestLeavingCapturedByHand:
     def test_a_rolled_capture_stays(self, client, owner, gang, krago, tables):
         add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
         add_result(krago, "Escape", tables["escape"], "Ransomed")
+        # The Escape result moved the model on; put it back in Captured
+        # so marking it Active goes through the release.
+        with operation(gang, actor=owner) as op:
+            op.set_status(krago, Status.CAPTURED)
         self.mark(client, owner, krago, "active")
         assert fresh(krago).status == Status.ACTIVE
         assert held_names(krago) == ["Captured", "Ransomed"]
