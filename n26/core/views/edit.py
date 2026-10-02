@@ -318,6 +318,7 @@ def link_model_card(
         computed=computed,
         collapse_repeats=False,
         rank_summaries=rank_summaries,
+        open_lasting_effects=True,
     )
     dismissal_at = back if dismissal_at is None else dismissal_at
     settle_dismissed(

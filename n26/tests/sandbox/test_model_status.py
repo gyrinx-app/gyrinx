@@ -449,7 +449,7 @@ class TestThePage:
         page = client.get(sheet).content.decode()
         # Krago is named in the square's history as well, so the card is
         # looked for after the heading rather than by first mention.
-        heading = page.index(">Dead<")
+        heading = page.index(">Dead/Destroyed<")
         assert page.index("Nix") < heading
         assert "Krago" in page[heading:]
 

@@ -318,7 +318,7 @@ class TestCrewForms:
         cards = document.select(".n26-card-tabs")
         assert len(cards) == 2
         assert "Grievous Wound" in cards[0].get_text()
-        assert "None" in cards[1].stripped_strings
+        assert "Lasting injuries" not in cards[1].get_text()
         for card in cards:
             assert not card.select("a[href], form")
             assert not {"Add", "Choose", "Dismiss", "Restore"}.intersection(
