@@ -119,8 +119,11 @@ class TemplateDirectoryWatch:
         return get_template_directories()
 
     def snapshot(self):
+        """Each directory's modification time, or None for a root that is missing."""
         mtimes = {}
         for root in self.directories():
+            # A missing root is recorded too, so that creating it counts as a change.
+            mtimes[os.fspath(root)] = None
             for path, _subdirectories, _files in os.walk(root):
                 with suppress(OSError):
                     mtimes[path] = os.stat(path).st_mtime_ns
@@ -129,9 +132,10 @@ class TemplateDirectoryWatch:
     def changed(self):
         for path, mtime in self.mtimes.items():
             try:
-                if os.stat(path).st_mtime_ns != mtime:
-                    return True
+                current = os.stat(path).st_mtime_ns
             except OSError:
+                current = None
+            if current != mtime:
                 return True
         return False
 

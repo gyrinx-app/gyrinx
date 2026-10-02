@@ -201,6 +201,19 @@ def test_a_template_created_after_a_miss_is_found(two_template_dirs):
     assert render("new.html") == "made after the miss"
 
 
+def test_a_template_root_created_later_is_noticed(tmp_path):
+    """A root missing at the snapshot still counts once it appears."""
+    missing = tmp_path / "later"
+    watch = TemplateDirectoryWatch(roots=[missing])
+    watch()
+    assert not watch.changed()
+
+    missing.mkdir()
+    (missing / "new.html").write_text("made later")
+
+    assert watch.changed()
+
+
 def test_an_unchanged_directory_keeps_the_cache(two_template_dirs):
     _high, low, watch = two_template_dirs
     (low / "page.html").write_text("cached")
