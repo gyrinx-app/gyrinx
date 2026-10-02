@@ -9,7 +9,7 @@ word can be legitimate in context (a rulebook name, a test asserting the old
 string).
 
     scripts/check_microcopy.py FILE [FILE...]   # scan named files
-    scripts/check_microcopy.py --diff           # files changed vs main + untracked
+    scripts/check_microcopy.py --diff           # files changed vs origin/main + untracked
     scripts/check_microcopy.py --hook           # PostToolUse hook: JSON on stdin
 
 Exit codes: 0 always in CLI modes. In --hook mode, exit 2 when there are
@@ -245,10 +245,34 @@ def hook_findings(payload):
     return findings
 
 
+def branch_diff_base(origin_main_exists):
+    """Three-dot diffs use the last fetched upstream.
+
+    A local ``main`` that was never fast-forwarded makes ``main...HEAD``
+    list weeks of already-merged files. ``origin/main`` is that upstream.
+    A checkout with no origin remote falls back to ``main``.
+    """
+    if origin_main_exists:
+        return "origin/main"
+    return "main"
+
+
+def _ref_exists(ref):
+    result = subprocess.run(  # nosec B607 — fixed argv; git resolved from PATH like every repo tool
+        ["git", "rev-parse", "--verify", "--quiet", ref],
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+        check=False,
+    )
+    return result.returncode == 0
+
+
 def changed_files():
+    base = branch_diff_base(_ref_exists("origin/main"))
     names = []
     for args in (
-        ["git", "diff", "--name-only", "main...HEAD"],
+        ["git", "diff", "--name-only", f"{base}...HEAD"],
         ["git", "diff", "--name-only", "HEAD"],
         ["git", "ls-files", "--others", "--exclude-standard"],
     ):
