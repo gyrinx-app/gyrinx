@@ -1,6 +1,6 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
-{% block head_title %}{% if battle %}Edit {{ battle.title }}{% else %}Add a battle{% endif %}{% endblock %}
+{% block head_title %}{% if battle %}Edit {{ battle.title }}{% else %}Record a battle{% endif %}{% endblock %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -17,17 +17,17 @@
         {% url 'n26-campaign' campaign.pk as cancel_url %}
     {% endif %}
     <c-n26.form-page :action="action_url"
-                     title="{% if battle %}Edit battle{% else %}Add a battle{% endif %}"
-                     lead="{% if not battle %}Add the battle before you play, then choose crews from its page. Record the outcome after the game by editing the battle.{% endif %}"
+                     title="{% if battle %}Edit battle{% else %}Record a battle{% endif %}"
+                     lead="{% if not battle %}Add the battle before you play, then choose crews from its page. The arbitrator records the outcome after the game.{% endif %}"
                      :form="form"
-                     submit_label="{% if battle %}Save changes{% else %}Add battle{% endif %}"
+                     submit_label="{% if battle %}Save changes{% else %}Record battle{% endif %}"
                      :cancel_url="cancel_url">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
                 {% if battle %}<c-ui.breadcrumbs.item href="{{ cancel_url }}">{{ battle.title }}</c-ui.breadcrumbs.item>{% endif %}
-                <c-ui.breadcrumbs.item :current="True">{% if battle %}Edit{% else %}Add a battle{% endif %}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">{% if battle %}Edit{% else %}Record a battle{% endif %}</c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}

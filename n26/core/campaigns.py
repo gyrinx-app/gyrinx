@@ -68,7 +68,7 @@ class CampaignOperation:
         #: was written together stays recognisable as one submit.
         self.batch = uuid4()
 
-    def event(self, kind, note="", battle=None, about_user=None):
+    def event(self, kind, note="", battle=None, about_user=None, roll=None):
         """Append to the log. Nothing already written is ever altered."""
         return CampaignEvent.objects.create(
             campaign=self.campaign,
@@ -76,6 +76,7 @@ class CampaignOperation:
             actor=self.actor,
             battle=battle,
             about_user=about_user,
+            roll=roll,
             note=note[: CampaignEvent.NOTE_LENGTH],
             batch=self.batch,
         )
@@ -312,6 +313,7 @@ class CampaignOperation:
         """Record a battle without applying rewards or changing any gang."""
         from n26.core.models import Battle
 
+        self._require_recorder()
         scenario, gangs, winners = self._battle_details(
             scenario=scenario, result=result, gangs=gangs, winners=winners
         )
@@ -326,6 +328,125 @@ class CampaignOperation:
             note=f"{scenario} on {date.isoformat()}",
         )
         return battle
+
+    def _require_recorder(self):
+        from n26.core.campaign_permissions import may_record_campaign
+        from n26.core.operations import Refusal
+
+        if not may_record_campaign(self.campaign, self.actor):
+            raise Refusal(
+                "Only the arbitrator and accepted players can record battles and dice rolls."
+            )
+
+    def record_roll(
+        self,
+        *,
+        request_key,
+        reason,
+        dice,
+        source,
+        modifier=0,
+        rolled=None,
+        gang=None,
+        battle=None,
+        rng=None,
+    ):
+        """Save one result per submission, including when a POST is retried.
+
+        The campaign lock serialises recording with player removal. Check
+        the key before generating, so a retry never rerolls.
+        """
+        from uuid import UUID
+
+        from n26.core.models import Battle, CampaignMembership, CampaignRoll
+        from n26.core.operations import Refusal
+        from n26.library.models import Dice
+
+        self._require_recorder()
+        try:
+            request_key = UUID(str(request_key))
+        except ValueError, TypeError, AttributeError:
+            raise Refusal("Reload the page before recording this roll.") from None
+        prior = CampaignRoll.objects.filter(
+            campaign=self.campaign, request_key=request_key
+        ).first()
+        if prior is not None:
+            if prior.actor_id != self.actor.pk:
+                raise Refusal("Reload the page before recording this roll.")
+            return prior
+        reason = reason.strip()
+        if not reason or len(reason) > 200:
+            raise Refusal("Enter a reason of up to 200 characters.")
+        if dice not in CampaignRoll.Dice.values:
+            raise Refusal("Select D3, D6 or D66.")
+        if source not in CampaignRoll.Source.values:
+            raise Refusal("Select how to roll the dice.")
+        if type(modifier) is not int or not -2147483648 <= modifier <= 2147483647:
+            raise Refusal(
+                "Enter a whole-number modifier between −2147483648 and 2147483647."
+            )
+        if (
+            gang is not None
+            and not CampaignMembership.objects.filter(
+                campaign=self.campaign,
+                gang=gang,
+                left__isnull=True,
+                gang__archived=False,
+            ).exists()
+        ):
+            raise Refusal("Select a gang currently in this campaign.")
+        if (
+            battle is not None
+            and not Battle.objects.filter(pk=battle.pk, campaign=self.campaign).exists()
+        ):
+            raise Refusal("Select a battle from this campaign.")
+        if source == CampaignRoll.Source.MANUAL:
+            if type(rolled) is not int or rolled not in Dice.rolls(dice):
+                raise Refusal("Enter a valid result for the selected dice.")
+        else:
+            if rolled is not None:
+                raise Refusal("Leave the physical result blank to roll here.")
+            rolled = Dice.roll(dice, rng=rng)
+        roll = CampaignRoll.objects.create(
+            campaign=self.campaign,
+            actor=self.actor,
+            request_key=request_key,
+            reason=reason,
+            dice=dice,
+            source=source,
+            rolled=rolled,
+            modifier=modifier,
+            gang=gang,
+            battle=battle,
+        )
+        self.event(CampaignEvent.Kind.DICE_ROLLED, roll=roll, battle=battle)
+        return roll
+
+    def note_roll(self, roll, outcome):
+        """Update the recorder's note, preserving previous notes in the log."""
+        from n26.core.models import CampaignRoll
+        from n26.core.operations import Refusal
+
+        self._require_recorder()
+        roll = CampaignRoll.objects.filter(
+            pk=roll.pk, campaign=self.campaign, actor=self.actor
+        ).first()
+        if roll is None:
+            raise Refusal("You can only add notes to your own dice rolls.")
+        outcome = outcome.strip()
+        if len(outcome) > CampaignEvent.NOTE_LENGTH:
+            raise Refusal("Enter an outcome note of up to 512 characters.")
+        if roll.outcome == outcome:
+            return roll
+        roll.outcome = outcome
+        roll.save(update_fields=["outcome", "modified"])
+        self.event(
+            CampaignEvent.Kind.DICE_ROLL_NOTED,
+            roll=roll,
+            battle=roll.battle,
+            note=outcome,
+        )
+        return roll
 
     def edit_battle(
         self,

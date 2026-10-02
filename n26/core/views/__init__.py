@@ -21,6 +21,7 @@ from n26.core.views.assignment_sets import (
     remove_model_card,
 )
 from n26.core.views.battles import battle, edit_battle
+from n26.core.views.campaign_rolls import campaign_roll, record_campaign_roll
 from n26.core.views.campaigns import (
     add_asset,
     add_asset_type,
@@ -122,6 +123,8 @@ __all__ = [
     "accessorise_assignment",
     "campaign",
     "campaign_log",
+    "campaign_roll",
+    "record_campaign_roll",
     "campaigns",
     "changelog",
     "changelog_entry",

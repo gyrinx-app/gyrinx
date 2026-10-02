@@ -29,6 +29,16 @@ urlpatterns = [
     # After campaigns/new/, which would otherwise resolve "new" as an id.
     path("campaigns/<str:pk>/", views.campaign, name="n26-campaign"),
     # The whole log; the campaign's page draws only the newest acts.
+    path(
+        "campaigns/<str:pk>/rolls/new/",
+        views.record_campaign_roll,
+        name="n26-campaign-record-roll",
+    ),
+    path(
+        "campaigns/<str:pk>/rolls/<str:roll_pk>/",
+        views.campaign_roll,
+        name="n26-campaign-roll",
+    ),
     path("campaigns/<str:pk>/log/", views.campaign_log, name="n26-campaign-log"),
     path(
         "campaigns/<str:pk>/edit/",
