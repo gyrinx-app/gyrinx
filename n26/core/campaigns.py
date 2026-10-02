@@ -645,6 +645,7 @@ class CampaignOperation:
 
     def remove_battle(self, battle, *, revision):
         """Remove an unused battle; attributed gang history keeps its occasion."""
+        from n26.core.models import CampaignRoll
         from n26.core.operations import Refusal
 
         battle = self._locked_battle(battle)
@@ -652,6 +653,8 @@ class CampaignOperation:
             raise Refusal("This battle changed. Reload it before removing it.")
         if battle.gang_events.exists():
             raise Refusal("You cannot remove a battle with recorded gang history.")
+        if CampaignRoll.objects.filter(battle=battle).exists():
+            raise Refusal("You cannot remove a battle with recorded dice rolls.")
         if battle.reports.exists() or battle.crews.exists():
             raise Refusal(
                 "You cannot remove a battle with a saved crew or post-battle report."

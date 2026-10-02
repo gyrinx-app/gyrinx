@@ -255,6 +255,46 @@ class TestRecordingPages:
         assert "Rare item bought." in body
         assert "cleared the outcome note for Rare trade" in body
 
+    def test_roll_attribution_prevents_battle_removal_after_confirmation(
+        self, client, campaign, player
+    ):
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            battle = act.record_battle(date(2026, 10, 2), scenario="Stand-off")
+        remove = reverse("n26-campaign-remove-battle", args=[campaign.pk, battle.pk])
+        detail = reverse("n26-battle", args=[campaign.pk, battle.pk])
+        client.force_login(campaign.owner)
+        assert not client.get(remove).context["has_history"]
+        with campaign_operation(campaign, actor=player) as act:
+            roll = act.record_roll(
+                request_key=uuid4(),
+                reason="Trade",
+                dice="d6",
+                source="generated",
+                battle=battle,
+            )
+        assert client.get(remove).context["has_history"]
+        assert remove not in client.get(detail).content.decode()
+        response = client.post(remove, {"revision": battle.revision}, follow=True)
+        assert (
+            "You cannot remove a battle with recorded dice rolls."
+            in response.content.decode()
+        )
+        with pytest.raises(Refusal, match="recorded dice rolls"):
+            with campaign_operation(campaign, actor=campaign.owner) as act:
+                act.remove_battle(battle, revision=battle.revision)
+        roll.refresh_from_db()
+        assert roll.battle_id == battle.pk
+        assert Battle.objects.filter(pk=battle.pk).exists()
+        assert not campaign.events.filter(
+            kind=CampaignEvent.Kind.BATTLE_REMOVED
+        ).exists()
+        assert (
+            str(battle.pk)
+            in client.get(
+                reverse("n26-campaign-log", args=[campaign.pk])
+            ).content.decode()
+        )
+
     def test_related_choices_are_scoped_and_preserved(
         self, client, campaign, player, gang_type, campaign_type
     ):
@@ -399,7 +439,15 @@ class TestOperationGuards:
 
 
 class TestCampaignLogQueries:
-    @pytest.mark.parametrize("route", ["n26-campaign", "n26-campaign-log"])
+    @pytest.mark.parametrize(
+        "route",
+        [
+            "n26-campaign",
+            "n26-campaign-log",
+            "n26-battle",
+            "n26-campaign-remove-battle",
+        ],
+    )
     def test_more_attributed_rolls_add_no_queries(
         self, client, campaign, player, gang_type, route
     ):
@@ -422,7 +470,12 @@ class TestCampaignLogQueries:
                     battle=battle,
                 )
 
-        url = reverse(route, args=[campaign.pk])
+        args = (
+            [campaign.pk, battle.pk]
+            if route in ("n26-battle", "n26-campaign-remove-battle")
+            else [campaign.pk]
+        )
+        url = reverse(route, args=args)
         add_roll()
         client.get(url)
         with CaptureQueriesContext(connection) as before:

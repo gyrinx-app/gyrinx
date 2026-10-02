@@ -1076,6 +1076,7 @@ def add_battle(request, pk):
 def remove_battle(request, pk, battle_pk):
     """The question at its own address, then the act."""
     from n26.core.campaigns import campaign_operation
+    from n26.core.models import CampaignRoll
     from n26.core.operations import Refusal
     from n26.core.views.battles import battle_or_404
 
@@ -1111,6 +1112,7 @@ def remove_battle(request, pk, battle_pk):
                 battle.gang_events.exists()
                 or battle.crews.exists()
                 or battle.reports.exists()
+                or CampaignRoll.objects.filter(battle=battle).exists()
             ),
         },
     )

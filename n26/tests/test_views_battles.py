@@ -537,7 +537,7 @@ class TestBattlePages:
         response = client.get(url)
         assert response.status_code == 200
         assert 'type="submit"' not in response.content.decode()
-        assert "This battle has saved gang records" in response.content.decode()
+        assert "This battle has saved records" in response.content.decode()
         assert "cannot remove it" in response.content.decode()
         response = client.post(url, {"revision": battle.revision}, follow=True)
         assert "cannot remove a battle with a saved crew" in response.content.decode()
