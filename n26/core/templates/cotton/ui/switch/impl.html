@@ -5,6 +5,8 @@ React owns the track once the page has loaded. The checkbox underneath is what a
 
 checked and disabled are booleans. None and the string false are off, so a blank field cannot be handed to the script as the word none.
 
+Only id reaches the checkbox. Any other attribute passed to c-ui.switch is dropped, because React draws its own checkbox from these props.
+
 Pressing the track dispatches checkedChange and then change. Clicking the label only fires change. A parent that listens for either one still hears the path it already used.
 {% endcomment %}
 
