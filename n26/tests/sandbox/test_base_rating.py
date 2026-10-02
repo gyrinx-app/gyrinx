@@ -13,6 +13,7 @@ from n26.core.operations import Refusal, operation
 from n26.core.rating import read_rating_receipt
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_model_card
+from n26.core.status import Status
 from n26.tests.sandbox.actions import (
     buy,
     create_rule,
@@ -325,9 +326,12 @@ class TestSavingBaseRating:
         assert_reconciled(gang)
 
     @pytest.mark.parametrize("overflow", ["model", "gang"])
+    @pytest.mark.parametrize("status", [Status.ACTIVE, Status.DEAD])
     def test_a_base_rating_that_overflows_a_total_is_refused_without_writing(
-        self, client, gang, vex, make_profile, overflow
+        self, client, gang, vex, make_profile, overflow, status
     ):
+        with operation(gang, actor=gang.owner) as op:
+            op.set_status(vex, status)
         rating = 2**31 - 1
         if overflow == "gang":
             hire_with_option(
@@ -342,8 +346,28 @@ class TestSavingBaseRating:
         assert "too large" in response.context["rating_dialog"]["formErrors"][0]
         assert not gang.ledger_events.filter(kind=LedgerEvent.Kind.RATING_SET).exists()
         vex.refresh_from_db()
-        assert vex.rating == 120
+        assert vex.rating == (0 if status == Status.DEAD else 120)
         assert vex.membership.ledger_entry.rating_contribution == 100
+        assert_reconciled(gang)
+
+        with operation(gang, actor=gang.owner) as op:
+            op.set_status(vex, Status.ACTIVE)
+        vex.refresh_from_db()
+        assert vex.rating == 120
+        assert_reconciled(gang)
+
+    def test_a_safe_override_on_a_dead_model_is_kept_when_reactivated(self, gang, vex):
+        with operation(gang, actor=gang.owner) as op:
+            op.set_status(vex, Status.DEAD)
+        with operation(gang, actor=gang.owner) as op:
+            op.set_base_rating(vex, 150)
+        vex.refresh_from_db()
+        assert vex.rating == 0
+        assert_reconciled(gang)
+        with operation(gang, actor=gang.owner) as op:
+            op.set_status(vex, Status.ACTIVE)
+        vex.refresh_from_db()
+        assert vex.rating == 170
         assert_reconciled(gang)
 
 

@@ -676,9 +676,12 @@ class Operation:
         entry.save(update_fields=["rating_contribution", "modified"])
         from n26.core.reconcile import sum_rating
 
+        underlying = sum_rating(miniature_root=miniature, include_dead=True)
+        counted = sum_rating(miniature_root=miniature)
+        # A dead model can return to Active; its underlying total must fit then too.
         totals = (
-            sum_rating(miniature_root=miniature),
-            self.gang.recompute_rating(),
+            underlying,
+            self.gang.recompute_rating() + underlying - counted,
         )
         if any(not -(2**31) <= total < 2**31 for total in totals):
             raise Refusal(
