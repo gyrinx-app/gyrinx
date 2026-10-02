@@ -10,6 +10,7 @@ one ledger event per change.
 """
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
@@ -425,7 +426,15 @@ class TestMovingOneWithoutReloading:
 
         page = client.post(self.address(yolanda), {"change": "1"}, **self.HTMX)
 
-        assert f"?rename={yolanda.pk}" in page.content.decode()
+        pencil = BeautifulSoup(page.content, "html.parser").find(
+            "a", attrs={"aria-label": "Rename Yolanda"}
+        )
+        assert pencil is not None
+        opened = client.get(pencil["href"])
+        assert opened.status_code == 302
+        assert opened.url == (
+            f"{reverse('n26-edit-fighter', args=[yolanda.pk])}?rename={yolanda.pk}"
+        )
 
     def test_the_card_it_sends_back_still_offers_sell(self, client, gang, queen):
         """The redrawn card is edit mode's, and edit mode's card carries

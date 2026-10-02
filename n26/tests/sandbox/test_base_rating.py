@@ -718,6 +718,8 @@ class TestDialogPageState:
         assert props["cancelUrl"] == back
         assert props["actionUrl"] == endpoint
         opened_url = opened["HX-Replace-Url"]
+        if dialog == "rename":
+            assert client.get(pencil["href"]).url == opened_url
         assert parse_qs(urlsplit(opened_url).query) == {
             "skills": ["all-sets"],
             "dismissed": ["show"],
