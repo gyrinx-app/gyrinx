@@ -293,6 +293,7 @@ def _apply(request, lst, fighters, resources, form):
                 if result.killed:
                     summary.kills += 1
                     summary.killed_names.append(fighter.name)
+                if result.outcome_state == ListFighter.DEAD:
                     killed_now = True
                     # A dead fighter can't take further injuries.
                     break
@@ -304,22 +305,24 @@ def _apply(request, lst, fighters, resources, form):
                 if new_state == ListFighter.DEAD:
                     # Full kill logic: equipment -> stash, cost 0, rating
                     # propagation — same as a fatal injury.
-                    handle_fighter_kill(
+                    result = handle_fighter_kill(
                         user=user, lst=lst, fighter=fighter, battle=battle
                     )
-                    log_event(
-                        user=user,
-                        noun=EventNoun.LIST_FIGHTER,
-                        verb=EventVerb.DELETE,
-                        object=fighter,
-                        request=request,
-                        fighter_name=fighter.name,
-                        list_id=str(lst.id),
-                        list_name=lst.name,
-                        action="killed",
-                    )
-                    summary.kills += 1
-                    summary.killed_names.append(fighter.name)
+                    if result is not None:
+                        log_event(
+                            user=user,
+                            noun=EventNoun.LIST_FIGHTER,
+                            verb=EventVerb.DELETE,
+                            object=fighter,
+                            request=request,
+                            fighter_name=fighter.name,
+                            list_id=str(lst.id),
+                            list_name=lst.name,
+                            action="killed",
+                        )
+                        summary.kills += 1
+                        summary.killed_names.append(fighter.name)
+                        summary.states += 1
                     killed_now = True
                 else:
                     old_state = fighter.get_injury_state_display()
@@ -352,7 +355,7 @@ def _apply(request, lst, fighters, resources, form):
                         list_name=lst.name,
                         injury_state=new_state,
                     )
-                summary.states += 1
+                    summary.states += 1
 
             capturing_list = cd.get(f"captured_by_{pk}")
             if capturing_list:

@@ -1,3 +1,6 @@
+from types import SimpleNamespace
+from unittest.mock import Mock
+
 import pytest
 from bs4 import BeautifulSoup
 from django.core.exceptions import ValidationError
@@ -109,6 +112,102 @@ def test_handle_fighter_add_injury_dead_routes_through_kill(
     assert fighter.is_dead is True
     # The kill handler zeroes the fighter's cost.
     assert fighter.cost_int() == 0
+
+
+@pytest.mark.django_db
+def test_fatal_injury_does_not_report_an_already_completed_death(
+    user, list_with_campaign, make_list_fighter
+):
+    from n23.core.handlers.fighter.kill import handle_fighter_kill
+    from n23.core.models.action import ListAction
+
+    fighter = make_list_fighter(list_with_campaign, "F1")
+    stale_fighter = ListFighter.objects.get(pk=fighter.pk)
+    injury = ContentInjury.objects.create(
+        name="Critical", phase=ContentInjuryDefaultOutcome.DEAD
+    )
+    handle_fighter_kill(user=user, lst=list_with_campaign, fighter=fighter)
+    action_count = ListAction.objects.filter(list=list_with_campaign).count()
+
+    result = handle_fighter_add_injury(user=user, fighter=stale_fighter, injury=injury)
+
+    assert result.killed is False
+    assert result.outcome_state == ListFighter.DEAD
+    assert result.fighter.injury_state == ListFighter.DEAD
+    assert ListFighterInjury.objects.filter(fighter=fighter).count() == 1
+    assert ListAction.objects.filter(list=list_with_campaign).count() == action_count
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("death_source", ["injury", "state"])
+def test_post_battle_does_not_report_death_completed_by_another_request(
+    rf,
+    user,
+    list_with_campaign,
+    make_list,
+    make_list_fighter,
+    monkeypatch,
+    death_source,
+):
+    from n23.core.handlers.fighter import injury as injury_handler
+    from n23.core.handlers.fighter.kill import handle_fighter_kill
+    from n23.core.models.list import CapturedFighter, List
+    from n23.core.views.list import post_battle
+
+    fighter = make_list_fighter(list_with_campaign, "Doomed")
+    rivals = make_list(
+        "Rivals", status=List.CAMPAIGN_MODE, campaign=list_with_campaign.campaign
+    )
+    data = {f"captured_by_{fighter.pk}": rivals}
+    if death_source == "injury":
+        fatal = ContentInjury.objects.create(
+            name="Critical", phase=ContentInjuryDefaultOutcome.DEAD
+        )
+        recovery = ContentInjury.objects.create(
+            name="Spinal Injury", phase=ContentInjuryDefaultOutcome.RECOVERY
+        )
+        data[f"injury_{fighter.pk}"] = [fatal, recovery]
+        data[f"state_{fighter.pk}"] = ListFighter.ACTIVE
+        target = injury_handler
+    else:
+        data[f"state_{fighter.pk}"] = ListFighter.DEAD
+        target = post_battle
+
+    def death_completed_before_lock(**kwargs):
+        # Another request finishes after the form loads the live fighter.
+        handle_fighter_kill(
+            user=user,
+            lst=List.objects.get(pk=list_with_campaign.pk),
+            fighter=ListFighter.objects.get(pk=fighter.pk),
+        )
+        return handle_fighter_kill(**kwargs)
+
+    monkeypatch.setattr(target, "handle_fighter_kill", death_completed_before_lock)
+    log_event = Mock()
+    monkeypatch.setattr(post_battle, "log_event", log_event)
+    request = rf.post("/")
+    request.user = user
+
+    summary = post_battle._apply(
+        request, list_with_campaign, [fighter], [], SimpleNamespace(cleaned_data=data)
+    )
+
+    fighter.refresh_from_db()
+    assert fighter.is_dead
+    assert summary.kills == 0
+    assert summary.killed_names == []
+    assert summary.states == 0
+    assert summary.injuries == (1 if death_source == "injury" else 0)
+    assert summary.capture_skipped_names == [fighter.name]
+    assert not CapturedFighter.objects.filter(fighter=fighter).exists()
+    assert ListFighterInjury.objects.filter(fighter=fighter).count() == summary.injuries
+    assert all(call.kwargs["action"] != "killed" for call in log_event.call_args_list)
+    assert (
+        CampaignAction.objects.filter(
+            list=list_with_campaign, description__contains="was killed"
+        ).count()
+        == 1
+    )
 
 
 @pytest.mark.django_db

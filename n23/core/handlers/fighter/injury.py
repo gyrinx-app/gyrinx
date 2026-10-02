@@ -90,8 +90,10 @@ def handle_fighter_add_injury(
     if outcome == ContentInjuryDefaultOutcome.DEAD:
         # Full kill logic: equipment -> stash, cost 0, rating propagation. Pass
         # the battle so the death CampaignAction also lands on its timeline.
-        handle_fighter_kill(user=user, lst=lst, fighter=fighter, battle=battle)
-        killed = True
+        kill_result = handle_fighter_kill(
+            user=user, lst=lst, fighter=fighter, battle=battle
+        )
+        killed = kill_result is not None
         final_state = ListFighter.DEAD
     elif outcome and outcome != ContentInjuryDefaultOutcome.NO_CHANGE:
         fighter.injury_state = outcome
