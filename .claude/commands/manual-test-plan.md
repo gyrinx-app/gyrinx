@@ -20,11 +20,13 @@ Claude for Chrome CANNOT:
 
 Analyze the recent code changes and generate a manual test plan that can be executed in a browser.
 
-1. First, check what has changed:
+1. First, check what has changed. These compare `origin/main`, the last
+   fetched upstream. A local `main` that has not been fast-forwarded lists
+   files that already merged.
 
-!`git diff main --name-only | head -20`
+!`git diff origin/main --name-only | head -20`
 
-!`git log main..HEAD --oneline | head -10`
+!`git log origin/main..HEAD --oneline | head -10`
 
 2. Next, review the changed files to understand the modifications.
 

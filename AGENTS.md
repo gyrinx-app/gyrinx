@@ -170,6 +170,12 @@ pytest `FAILURES` excerpt.
 
 ## Git and reporting
 
+Compare a branch with `origin/main`. Fetch, then
+`git diff origin/main...HEAD`, or use `gh pr diff <number>`. A local `main`
+that has not been fast-forwarded makes `git diff main...HEAD` include weeks
+of already-merged files. `scripts/check_microcopy.py --diff` uses
+`origin/main` when that ref exists.
+
 Read [`.github/COMMIT_STYLE.md`](.github/COMMIT_STYLE.md) before committing or
 opening a PR. Give commit and PR titles a conventional prefix and name the
 affected component or path. Mark completed work ready for review unless the
