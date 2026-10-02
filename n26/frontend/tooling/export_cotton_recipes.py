@@ -72,52 +72,159 @@ def input_recipe():
     return {"root": root, "control": control}
 
 
-def switch_recipe():
+def _switch_face(size="md", checked=False, accent=True, disabled=False):
+    parts = ['<c-ui.switch.face name="example"', f' size="{size}"']
+    if checked:
+        parts.append(' :checked="True"')
+    if not accent:
+        parts.append(' :accent="False"')
+    if disabled:
+        parts.append(' :disabled="True"')
+    parts.append(" />")
     root, control, track, thumb = attributes(
-        '<c-ui.switch name="example" />', "div", "input", "button", "span"
+        "".join(parts), "div", "input", "button", "span"
     )
+    return root, control, class_name(track), class_name(thumb)
 
-    def states(attrs, prefix, expected):
-        found = tuple(re.findall(r"'([^']+)'\s*:", attrs.get(":class", "")))
+
+def _without(full, *removed):
+    skip = set()
+    for classes in removed:
+        skip.update(classes.split())
+    return " ".join(token for token in full.split() if token not in skip)
+
+
+def switch_recipe():
+    """Class strings from the server-drawn switch face, per size and state."""
+    sizes = ("xs", "sm", "md", "lg", "xl", "2xl")
+    root, control, _, _ = _switch_face()
+    tracks = {}
+    thumbs = {}
+    for size in sizes:
+        _, _, tracks[size], thumbs[size] = _switch_face(size=size)
+        _, _, on_track, on_thumb = _switch_face(size=size, checked=True)
+        tracks[f"{size}-on"] = on_track
+        thumbs[f"{size}-on"] = on_thumb
+    _, _, muted, _ = _switch_face(checked=True, accent=False)
+    _, _, disabled, _ = _switch_face(disabled=True)
+
+    def expect(found, expected, label):
         if found != expected:
-            raise ValueError(f"Cotton switch state classes changed: {found}")
-        return dict(
-            zip(
-                (
-                    f"{prefix}Transition",
-                    f"{prefix}Checked",
-                    f"{prefix}Unchecked",
-                ),
-                found,
-                strict=True,
-            )
-        )
+            raise ValueError(f"Cotton switch {label} classes changed: {found}")
+        return found
 
-    track_states = states(
-        track,
-        "track",
-        (
-            "transition-colors",
-            "bg-accent",
-            "bg-ink-200 dark:bg-ink-700",
-        ),
+    track_checked = expect(
+        _without(tracks["md-on"], tracks["md"]), "bg-accent", "checked track"
     )
-    thumb_states = states(
-        thumb,
-        "thumb",
-        (
-            "transition-transform",
-            "translate-x-[1.375rem]",
+    track_unchecked = expect(
+        _without(tracks["md"], tracks["md-on"]),
+        "bg-ink-200 dark:bg-ink-700",
+        "unchecked track",
+    )
+    track_muted = expect(
+        _without(muted, tracks["md-on"]),
+        "bg-[var(--color-accent-muted,currentColor)]",
+        "muted track",
+    )
+    enabled = expect(_without(tracks["md"], disabled), "cursor-pointer", "enabled")
+    disabled_classes = expect(
+        _without(disabled, tracks["md"]),
+        "opacity-50 cursor-not-allowed",
+        "disabled",
+    )
+    expected_tracks = {
+        "xs": "h-4 w-7",
+        "sm": "h-5 w-9",
+        "md": "h-6 w-11",
+        "lg": "h-7 w-14",
+        "xl": "h-8 w-16",
+        "2xl": "h-9 w-[4.5rem]",
+    }
+    expected_thumbs = {
+        "xs": "h-3 w-3",
+        "sm": "h-4 w-4",
+        "md": "h-5 w-5",
+        "lg": "h-6 w-6",
+        "xl": "h-7 w-7",
+        "2xl": "h-8 w-8",
+    }
+    size_recipes = {}
+    for size in sizes:
+        # md is the baseline the other sizes are diffed against, so its own
+        # difference is empty. The tokens still have to be on the rendered face.
+        if size == "md":
+            track = expected_tracks["md"]
+            thumb = expected_thumbs["md"]
+            if track not in tracks["md"] or thumb not in thumbs["md"]:
+                raise ValueError(
+                    "Cotton switch md size classes changed: "
+                    f"{tracks['md']} / {thumbs['md']}"
+                )
+        else:
+            track = expect(
+                _without(tracks[size], tracks["md"]),
+                expected_tracks[size],
+                f"{size} track",
+            )
+            thumb = expect(
+                _without(thumbs[size], thumbs["md"]),
+                expected_thumbs[size],
+                f"{size} thumb",
+            )
+        on = expect(
+            _without(thumbs[f"{size}-on"], thumbs[size]),
+            {
+                "xs": "translate-x-[0.875rem]",
+                "sm": "translate-x-[1.125rem]",
+                "md": "translate-x-[1.375rem]",
+                "lg": "translate-x-[1.875rem]",
+                "xl": "translate-x-[2.125rem]",
+                "2xl": "translate-x-[2.375rem]",
+            }[size],
+            f"{size} thumb on",
+        )
+        off = expect(
+            _without(thumbs[size], thumbs[f"{size}-on"]),
             "translate-x-0.5",
-        ),
-    )
+            f"{size} thumb off",
+        )
+        size_recipes[size] = {"track": track, "thumb": thumb, "on": on, "off": off}
+
+    track_transition = root.get("data-track-transition")
+    thumb_transition = root.get("data-thumb-transition")
+    if (track_transition, thumb_transition) != (
+        "transition-colors",
+        "transition-transform",
+    ):
+        raise ValueError(
+            f"Cotton switch transitions changed: {track_transition}, {thumb_transition}"
+        )
+    if control.get("type") != "checkbox" or class_name(control) != "sr-only":
+        raise ValueError("Cotton switch checkbox changed")
     return {
         "root": class_name(root),
         "control": class_name(control),
-        "track": class_name(track),
-        "thumb": class_name(thumb),
-        **track_states,
-        **thumb_states,
+        "track": _without(
+            tracks["md"],
+            "h-6 w-11",
+            enabled,
+            disabled_classes,
+            track_unchecked,
+            track_checked,
+        ),
+        "thumb": _without(
+            thumbs["md"], "h-5 w-5", "translate-x-0.5", size_recipes["md"]["on"]
+        ),
+        "trackTransition": track_transition,
+        "trackChecked": track_checked,
+        "trackCheckedMuted": track_muted,
+        "trackUnchecked": track_unchecked,
+        "thumbTransition": thumb_transition,
+        "thumbChecked": size_recipes["md"]["on"],
+        "thumbUnchecked": size_recipes["md"]["off"],
+        "enabled": enabled,
+        "disabled": disabled_classes,
+        "sizes": size_recipes,
     }
 
 

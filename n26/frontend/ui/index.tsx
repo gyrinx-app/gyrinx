@@ -3,8 +3,11 @@ import {
     createContext,
     createElement,
     useContext,
+    useEffect,
     useId,
+    useLayoutEffect,
     useRef,
+    useState,
     type ComponentProps,
     type ReactNode,
 } from "react";
@@ -186,43 +189,125 @@ export function Switch({
     checked,
     onCheckedChange,
     label,
+    value = "on",
+    disabled = false,
+    accent = true,
+    size = "md",
+    className = "",
+    embedded = false,
 }: {
     id?: string;
     name: string;
     checked: boolean;
     onCheckedChange: (checked: boolean) => void;
     label: string;
+    value?: string;
+    disabled?: boolean;
+    accent?: boolean;
+    size?: keyof typeof cotton.switch.sizes;
+    className?: string;
+    /** Posts through a real checkbox and keeps the cotton switch's two events. */
+    embedded?: boolean;
 }) {
-    const field = useFieldControl(id);
+    const field = useFieldControl(embedded ? undefined : id);
+    const inputRef = useRef<HTMLInputElement>(null);
     const recipe = cotton.switch;
+    const sizeRecipe = recipe.sizes[size] ?? recipe.sizes.md;
+    const [ready, setReady] = useState(false);
+    const [named, setNamed] = useState(label);
+    const [labelledBy, setLabelledBy] = useState<string | undefined>();
+    useEffect(() => {
+        const frame = requestAnimationFrame(() => setReady(true));
+        return () => cancelAnimationFrame(frame);
+    }, []);
+    useLayoutEffect(() => {
+        if (!embedded) return;
+        const associated = inputRef.current?.labels?.[0];
+        const text = accessibleLabelText(associated);
+        if (text) setNamed(text);
+        setLabelledBy(associated?.id || undefined);
+    }, [embedded]);
+
+    function accessibleLabelText(element: HTMLElement | null | undefined) {
+        if (!element) return "";
+        // The island's props script sits inside a wrapping label. textContent
+        // would announce that JSON as the switch's name.
+        const copy = element.cloneNode(true) as HTMLElement;
+        copy.querySelectorAll("script, style").forEach((node) => node.remove());
+        return (copy.textContent ?? "").replace(/\s+/g, " ").trim();
+    }
+
+    function press() {
+        if (disabled) return;
+        const next = !checked;
+        const input = inputRef.current;
+        if (embedded && input) {
+            // checkedChange reaches a parent before the box shows the new
+            // value. change then reports that value. A label click only
+            // fires change, via the handler below.
+            input.dispatchEvent(
+                new CustomEvent("checkedChange", { bubbles: true }),
+            );
+            input.checked = next;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        onCheckedChange(next);
+    }
+
+    const trackState = !checked
+        ? recipe.trackUnchecked
+        : accent
+          ? recipe.trackChecked
+          : recipe.trackCheckedMuted;
     return (
         <div className={recipe.root}>
             <input
+                ref={inputRef}
+                id={embedded ? id : undefined}
                 type="checkbox"
                 name={name}
-                value="on"
+                value={value}
                 checked={checked}
-                readOnly
+                disabled={disabled}
+                readOnly={embedded ? undefined : true}
                 tabIndex={-1}
-                aria-hidden="true"
+                aria-hidden={embedded ? undefined : true}
                 className={recipe.control}
+                onChange={(event) => {
+                    if (!embedded || disabled) return;
+                    onCheckedChange(event.currentTarget.checked);
+                }}
             />
             <button
-                id={field.id}
+                id={embedded ? undefined : field.id}
                 type="button"
                 role="switch"
                 aria-checked={checked}
-                aria-label={label}
-                aria-describedby={field.describedBy}
-                onClick={() => onCheckedChange(!checked)}
-                className={`${recipe.track} ${recipe.trackTransition} ${
-                    checked ? recipe.trackChecked : recipe.trackUnchecked
-                }`}
+                aria-label={named || undefined}
+                aria-labelledby={embedded ? labelledBy : undefined}
+                aria-describedby={embedded ? undefined : field.describedBy}
+                disabled={disabled}
+                onClick={press}
+                className={[
+                    recipe.track,
+                    sizeRecipe.track,
+                    disabled ? recipe.disabled : recipe.enabled,
+                    ready ? recipe.trackTransition : "",
+                    trackState,
+                    className,
+                ]
+                    .filter(Boolean)
+                    .join(" ")}
             >
                 <span
-                    className={`${recipe.thumb} ${recipe.thumbTransition} ${
-                        checked ? recipe.thumbChecked : recipe.thumbUnchecked
-                    }`}
+                    className={[
+                        recipe.thumb,
+                        sizeRecipe.thumb,
+                        ready ? recipe.thumbTransition : "",
+                        checked ? sizeRecipe.on : sizeRecipe.off,
+                    ]
+                        .filter(Boolean)
+                        .join(" ")}
                 />
             </button>
         </div>

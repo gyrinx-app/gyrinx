@@ -405,7 +405,6 @@ GROUPS: list[Group] = [
                     "An on/off toggle, standalone or as a settings line with the "
                     "label on the left."
                 ),
-                needs=(ALPINE, KIT_JS),
                 notes=(
                     ":inline uses the field's toggle variant: the label sits left "
                     "and the switch is pushed to the far right of a full-width "
@@ -1348,7 +1347,6 @@ GROUPS: list[Group] = [
                 tag="c-n26.toggle",
                 template="n26/toggle.html",
                 summary="A switch with its label beside it, sized to its content.",
-                needs=(ALPINE, KIT_JS),
                 notes=(
                     "Use it in a toolbar, where the kit switch does not fit: "
                     "c-ui.switch stacks its label above the control, and :inline "
