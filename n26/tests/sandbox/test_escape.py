@@ -357,6 +357,30 @@ class TestLeavingCapturedByHand:
         assert fresh(krago).status == Status.ACTIVE
         assert held_names(krago) == ["Captured", "Ransomed"]
 
+    def test_something_else_the_capture_brought_is_not_an_escape_result(
+        self, client, owner, gang, krago, tables
+    ):
+        from n26.tests.sandbox.actions import (
+            assign,
+            create_pickable,
+            create_slot_type,
+        )
+
+        captured = add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
+        brand = create_pickable("Brand", create_slot_type("Mark"))
+        assign(brand, miniature=krago, caused_by=captured)
+        self.mark(client, owner, krago, "active")
+        assert held_names(krago) == []
+        assert choice_of(krago, "Escape") is None
+
+    @pytest.mark.parametrize("status", ["ransomed", "dead"])
+    def test_an_outcome_of_the_capture_keeps_it(
+        self, client, owner, gang, krago, tables, status
+    ):
+        add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
+        self.mark(client, owner, krago, status)
+        assert held_names(krago) == ["Captured"]
+
     def test_only_a_captured_model_is_released(
         self, client, owner, gang, krago, tables
     ):

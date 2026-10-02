@@ -719,7 +719,7 @@ class Operation:
                 archived=False,
                 pickable__modifiers__op_sets_status__status=Status.CAPTURED,
             ).distinct()
-            if not captured.caused.filter(archived=False).exists()
+            if not captured.picks.filter(archived=False).exists()
         ]
         for captured in unsettled:
             self.remove(captured, note=note)

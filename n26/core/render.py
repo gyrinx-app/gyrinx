@@ -630,9 +630,9 @@ class ChoiceLine:
     #: True when carried kit owns an explicit tier ladder. Its control keeps
     #: the specific "Choose tier" label after a tier is held.
     is_tier_ladder: bool = False
-    #: True for a lasting injury or lasting damage choice. Every model has
-    #: one, so a card away from the model's own screens draws it only once
-    #: something has been chosen.
+    #: True for a choice whose slot type is marked as a lasting effect.
+    #: Most models carry one, so a card away from the model's own screens
+    #: draws it only once something has been chosen.
     is_lasting_effect: bool = False
     #: Dismissed choices are kept off the model card. The model's Edit page
     #: and the gang's Dismissed choices tab offer Restore instead of Choose.
@@ -2089,7 +2089,7 @@ def is_tier_ladder(slot):
 
 
 def is_lasting_effect(slot):
-    """Whether a computed slot is a lasting injury or lasting damage choice."""
+    """Whether a computed slot's type is marked as a lasting effect."""
     stored = getattr(slot, "slot", None)
     return stored is not None and stored.slot_type.is_lasting_effect
 
@@ -2097,8 +2097,8 @@ def is_lasting_effect(slot):
 def hide_open_lasting_effects(holder):
     """Take the lasting-effect choices with nothing chosen off a card.
 
-    Every model carries one, so on a roster an empty one is a row on
-    every card saying nothing. A choice holding a result stays: that is
+    Most models carry one, so on a roster an empty one is a row on
+    nearly every card saying nothing. A choice holding a result stays: that is
     an injury the model has. The model's own screens draw the open
     choice, which is where one is recorded.
     """
