@@ -97,6 +97,81 @@ def test_concurrent_death_confirmations_apply_once(
     assert_reconciles(lst)
 
 
+@pytest.mark.django_db(transaction=True)
+def test_death_confirmation_waits_for_fighter_cost_mutation(
+    user, list_with_campaign, content_fighter, monkeypatch
+):
+    import threading
+
+    from django.db import connection
+
+    from n23.core.handlers.fighter import advancement as advancement_handler
+    from n23.core.models.list import ListFighterAdvancement
+    from n23.core.tests.test_balance_sheet import assert_reconciles, fresh, hire_fighter
+    from n23.core.tests.test_task_chaos_concurrency import _run_concurrently
+
+    lst = list_with_campaign
+    lst.create_action(
+        user=user,
+        action_type=ListActionType.UPDATE_CREDITS,
+        credits_before=0,
+        credits_delta=1000,
+        description="Starting credits",
+    )
+    lst.apply_credit_delta(1000)
+    fighter = hire_fighter(user, lst, content_fighter)
+    cost_before = fresh(fighter).cost_int()
+    mutation_saved = threading.Event()
+    death_lock_attempted = threading.Event()
+    original_refresh = ListFighter.refresh_from_db
+
+    def pause_after_fighter_update(execute, sql, params, many, context):
+        result = execute(sql, params, many, context)
+        if (
+            sql.startswith(f'UPDATE "{ListFighter._meta.db_table}" SET')
+            and not mutation_saved.is_set()
+        ):
+            # Hold the fighter row before post-save touches its parent list.
+            mutation_saved.set()
+            assert death_lock_attempted.wait(timeout=5)
+        return result
+
+    def announce_death_lock(self, *args, **kwargs):
+        if self.pk == fighter.pk and kwargs.get("from_queryset") is not None:
+            death_lock_attempted.set()
+        return original_refresh(self, *args, **kwargs)
+
+    monkeypatch.setattr(ListFighter, "refresh_from_db", announce_death_lock)
+    roles = iter(["advance", "kill"])
+    deaths = []
+
+    def mutate_or_kill():
+        if next(roles) == "advance":
+            with connection.execute_wrapper(pause_after_fighter_update):
+                advancement_handler.handle_fighter_advancement(
+                    user=user,
+                    fighter=fresh(fighter),
+                    advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+                    xp_cost=0,
+                    cost_increase=10,
+                    advancement_choice="stat_weapon_skill",
+                    stat_increased="weapon_skill",
+                )
+        else:
+            assert mutation_saved.wait(timeout=5)
+            deaths.append(
+                handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter))
+            )
+
+    _run_concurrently(mutate_or_kill)
+
+    assert len(deaths) == 1
+    assert deaths[0].fighter_cost_before == cost_before + 10
+    assert fresh(fighter).is_dead
+    assert fresh(fighter).rating_current == fresh(lst).rating_current == 0
+    assert_reconciles(lst)
+
+
 @pytest.mark.django_db
 def test_handle_fighter_kill_basic(user, list_with_campaign, content_fighter):
     """Test killing a fighter creates correct actions and reduces rating."""

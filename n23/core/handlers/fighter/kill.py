@@ -77,16 +77,17 @@ def handle_fighter_kill(
     Raises:
         ValueError: If fighter is stash or list is not in campaign mode
     """
-    # Serialize confirmations and refresh snapshots taken before the lock.
+    # Lock the fighter before its list, matching fighter-cost propagation.
+    # Refresh snapshots taken before the lock to serialize confirmations.
     # NO KEY UPDATE allows concurrent injury/history rows to reference these
     # objects without holding conflicting foreign-key locks.
-    lst.refresh_from_db(
-        from_queryset=List.objects.select_for_update(of=("self",), no_key=True)
-    )
     fighter.refresh_from_db(
         from_queryset=ListFighter.objects.filter(list=lst).select_for_update(
             of=("self",), no_key=True
         )
+    )
+    lst.refresh_from_db(
+        from_queryset=List.objects.select_for_update(of=("self",), no_key=True)
     )
 
     # Validate preconditions
