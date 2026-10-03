@@ -33,7 +33,7 @@ so a campaign never exists without them::
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from django.db import transaction
 from django.utils import timezone
@@ -718,6 +718,28 @@ class CampaignOperation:
         campaign_asset = self._keep(asset, name)
         self.event(CampaignEvent.Kind.ASSET_ADDED, note=str(campaign_asset))
         return campaign_asset
+
+    def add_assets(self, assets, *, name="", request_key):
+        """Add a selection once, under the campaign lock.
+
+        The request mark is recorded with the events, so a retry cannot add
+        another copy even after the first holdings have moved or gone.
+        """
+        from n26.core.operations import Refusal
+
+        if not isinstance(request_key, UUID):
+            raise ValueError("An asset batch requires a UUID request mark.")
+        assets = list(assets)
+        if not assets:
+            raise ValueError("An asset batch requires a selection.")
+        if len(assets) > 1 and name:
+            raise Refusal("Select one asset to give it a name in this campaign.")
+        if self.campaign.events.filter(batch=request_key).exists():
+            return False
+        self.batch = request_key
+        for asset in assets:
+            self.add_asset(asset, name=name)
+        return True
 
     def _keep(self, asset, name=""):
         """The campaign asset itself, held by nobody. Written by the two
