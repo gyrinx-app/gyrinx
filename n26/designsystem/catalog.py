@@ -2841,7 +2841,8 @@ GROUPS: list[Group] = [
                     "slot has to be filled, or Cotton draws the page's own Hire "
                     "controls beside the title. Put the switcher in trailing, not "
                     "leading: leading sits inside the h1 and is read as part of "
-                    "the page name. Pass activities_square only for the owner."
+                    "the page name. Pass activities_square only for the owner. "
+                    "The notice slot holds guidance below the header."
                 ),
             ),
             Component(

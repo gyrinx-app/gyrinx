@@ -72,6 +72,8 @@ places — the same pattern a gang's screens use for their siblings.
                                              :type_icon="gang.gang_type.artwork"
                                              colour="{{ gang.colour }}"
                                              :sheet="gang"
+                                             campaign_name="{{ gang.campaign_name }}"
+                                             campaign_href="{{ gang.campaign_href }}"
                                              owner="{% if show_owners %}{{ gang.owner.username }}{% endif %}"
                                              href="{% url 'n26-gang' gang.pk %}" />
             {% endfor %}
