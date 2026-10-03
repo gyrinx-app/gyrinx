@@ -4,13 +4,6 @@ import { Button } from "../../ui";
 export type PreviewDisplay = {
     rows: { label: string; value: string }[];
     models: { id: string; name: string; lines: string[]; error: string }[];
-    territory: {
-        name: string;
-        heading: string;
-        outcome: string;
-        currentHolder: string;
-        note: string;
-    } | null;
 };
 type PreviewState = "ready" | "updating" | "failed";
 
@@ -86,28 +79,6 @@ export function PostBattlePreview(initial: PreviewDisplay) {
                     ))}
                 </ul>
             </div>
-            {preview.territory && (
-                <section
-                    className="mt-4 border-t border-box-border pt-4"
-                    aria-label={preview.territory.heading}
-                >
-                    <h3 className="font-semibold">
-                        {preview.territory.heading}
-                    </h3>
-                    <p className="mt-2 font-medium">{preview.territory.name}</p>
-                    <p className="text-sm text-muted">
-                        {preview.territory.outcome}
-                    </p>
-                    {preview.territory.currentHolder && (
-                        <p className="text-sm text-muted">
-                            {preview.territory.currentHolder}
-                        </p>
-                    )}
-                    <p className="mt-2 text-xs text-muted">
-                        {preview.territory.note}
-                    </p>
-                </section>
-            )}
             <Button
                 type="submit"
                 name="intent"

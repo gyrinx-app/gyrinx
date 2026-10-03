@@ -85,16 +85,6 @@
                 {% endif %}
             {% endfor %}
         </ul>
-        {% if preview.territory %}
-            <section class="mt-4 border-t border-box-border pt-4"
-                     aria-label="{{ preview.territory.heading }}">
-                <h3 class="font-semibold">{{ preview.territory.heading }}</h3>
-                <p class="mt-2 font-medium">{{ preview.territory.name }}</p>
-                <p class="text-sm text-muted">{{ preview.territory.outcome }}</p>
-                {% if preview.territory.currentHolder %}<p class="text-sm text-muted">{{ preview.territory.currentHolder }}</p>{% endif %}
-                <p class="mt-2 text-xs text-muted">{{ preview.territory.note }}</p>
-            </section>
-        {% endif %}
         <c-ui.button type="submit" name="intent" value="check" class="mt-4 w-full">
             Check changes
         </c-ui.button>

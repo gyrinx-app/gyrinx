@@ -81,8 +81,15 @@ so the id must stay put.
             </p>
         </div>
     </div>
-    {% if stake %}
-        {% include "n26/includes/battle_stake.html" %}
+    {% if territory %}
+        <div class="space-y-1" data-battle-stake>
+            <h3 class="text-base font-semibold">{{ territory.heading }}</h3>
+            <p class="text-sm">
+                <span class="font-semibold">{{ territory.name }}</span> · {{ territory.outcome }}
+            </p>
+            {% if territory.currentHolder %}<p class="text-sm text-muted">{{ territory.currentHolder }}</p>{% endif %}
+            <p class="text-sm text-muted">{{ territory.note }}</p>
+        </div>
     {% endif %}
     {% if mission.counter_rows %}
         <div class="space-y-3">

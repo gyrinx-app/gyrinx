@@ -785,7 +785,7 @@ def xp_toolbar(models):
     )
 
 
-def preview_display(plan, models, *, territory=None):
+def preview_display(plan, models):
     """JSON-safe preview from the same computed facts used to apply the report."""
     rows = [{"label": "Credits from this battle", "value": plan.total_text}]
     if plan.change_text:
@@ -851,7 +851,7 @@ def preview_display(plan, models, *, territory=None):
                 "error": model.result.status_conflict,
             }
         )
-    return {"rows": rows, "models": changed, "territory": territory}
+    return {"rows": rows, "models": changed}
 
 
 def toolbar_display(models):

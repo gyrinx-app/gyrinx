@@ -2792,7 +2792,8 @@ class TestLivePreview:
         result = client.post(
             editor_url(report), html_fields(page, intent="autosave")
         ).json()
-        assert result["preview"]["territory"] is None
+        assert "territory" not in result["preview"]
+        assert page.context["territory"] is None
 
     def test_recorded_territory_is_attributed_and_never_replayed(
         self, client, table, feature
@@ -2828,11 +2829,17 @@ class TestLivePreview:
         page = client.get(editor_url(report))
         data = html_fields(page, intent="autosave")
         result = client.post(editor_url(report), data).json()
-        assert result["preview"]["territory"]["name"] == "Sump Gate"
-        assert (
-            result["preview"]["territory"]["outcome"]
-            == "Moved from Ashen Choir to Rust Kings."
-        )
+        assert "territory" not in result["preview"]
+        section = mission(page)
+        assert section.find(attrs={"data-battle-stake": True}) is not None
+        assert "Sump Gate" in section.get_text()
+        assert "Moved from Ashen Choir to Rust Kings." in section.get_text()
+        assert "Already applied." in section.get_text()
+        soup = BeautifulSoup(page.content, "html.parser")
+        summary = soup.find(id="post-battle-summary")
+        assert "Sump Gate" not in summary.get_text()
+        assert summary.find(attrs={"data-battle-stake": True}) is None
+        assert "territory" not in page.context["preview"]
         assert LedgerEvent.objects.count() == before
         applied = client.post(
             editor_url(report), awards(client.get(editor_url(report)), table)
@@ -2847,10 +2854,10 @@ class TestLivePreview:
         page = client.get(editor_url(report))
         # Corrections retain the historical winner separately from today's holder.
         assert (
-            page.context["preview"]["territory"]["outcome"]
+            page.context["territory"]["outcome"]
             == "Moved from Ashen Choir to Rust Kings."
         )
-        assert "Ashen Choir" in page.context["preview"]["territory"]["currentHolder"]
+        assert "Ashen Choir" in page.context["territory"]["currentHolder"]
 
     def test_autosave_query_count_does_not_grow_with_roster(
         self, client, table, feature
@@ -2892,7 +2899,9 @@ class TestLivePreview:
                 stake_awarded_to=None,
             )
         report = start(client, table)
-        preview = client.get(editor_url(report)).context["preview"]
-        assert preview["territory"]["heading"] == "Battle stake"
-        assert preview["territory"]["outcome"] == "Outcome not recorded."
-        assert "arbitrator records" in preview["territory"]["note"]
+        page = client.get(editor_url(report))
+        territory = page.context["territory"]
+        assert territory["outcome"] == "Outcome not recorded."
+        assert "arbitrator records" in territory["note"]
+        assert "Already applied." not in mission(page).get_text()
+        assert "territory" not in page.context["preview"]

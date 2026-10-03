@@ -373,18 +373,16 @@ def post_battle_editor(request, pk):
             outcome = stake.outcome
         territory = {
             "name": stake.name,
-            "heading": "Battle stake"
-            if report.battle.result == report.battle.Result.NOT_RECORDED
-            else "Recorded with battle",
+            "heading": stake.label,
             "outcome": outcome,
             "currentHolder": stake.held_by,
             "note": (
                 "The campaign’s arbitrator records this outcome on Edit battle."
                 if report.battle.result == report.battle.Result.NOT_RECORDED
-                else "This outcome is already recorded. Applying these results does not repeat it."
+                else "Already applied."
             ),
         }
-    preview = preview_display(plan, models, territory=territory)
+    preview = preview_display(plan, models)
     if posted and intent == "autosave":
         return JsonResponse(
             {
@@ -405,7 +403,7 @@ def post_battle_editor(request, pk):
         "mission": mission_results(
             plan, payload, refresh_url=request.path, show_errors=show_errors
         ),
-        "stake": stake,
+        "territory": territory,
         "preview": preview,
         "toolbar_props": toolbar_display(models),
         "xp_toolbar": xp_toolbar(models),
