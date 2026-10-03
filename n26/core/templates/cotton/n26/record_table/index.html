@@ -1,12 +1,9 @@
 {% comment %}
 <c-n26.record-table> — Filters gang or campaign listings as you type and by type.
 
-Child listings must sit in the default slot so they share this Alpine scope.
-Each child must call register on init. Without that, the count stays at zero.
-The type filter listens only for filter-apply events named type.
-Pass query as an expression. Written as an attribute, a quote is escaped twice and comes back as an entity.
-Live typing only hides listings already on the page.
-Submitting the search asks the server for listings this page did not render.
+Child listings expose data-record-row facets for the controls; only this table's rows are filtered.
+React owns the search and type controls. The listing markup stays server-rendered.
+Live typing only hides listings already on the page. Submitting Search asks the server for more.
 Anything in filters asks the server and reloads.
 The listings wrapper is a query container. A gang listing's wide layout keys off that, not the viewport.
 {% endcomment %}
@@ -14,53 +11,27 @@ The listings wrapper is a query container. A gang listing's wide layout keys off
 <c-vars :type_options="[]" noun="gangs" singular="gang" action="" query="" empty=""
         filters="" :total="None" :shown="None" class="" />
 
-<div x-data="{
-        rows: [],
-        query: {{ query|json_dumps }},
-        {# The server already applied this query. Live filtering starts only once the box differs. #}
-        answered: {{ query|lower|json_dumps }},
-
-        {# null means no filter yet. An empty list is every type unticked and shows nothing. #}
-        types: null,
-        register(facets) { this.rows.push(facets) },
-        matches(facets) {
-            if (this.types !== null && !this.types.includes(facets.type)) return false;
-            const q = this.query.trim().toLowerCase();
-
-            if (!q || q === this.answered) return true;
-            return facets.search.includes(q);
-        },
-        get shown() { return this.rows.filter(f => this.matches(f)).length },
-     }"
-
-     @filter-apply.window="if ($event.detail.name === 'type') types = $event.detail.values"
-     class="flex flex-col gap-3 {{ class }}">
-
-    <c-n26.search-bar :live="True" model="query" :action="action"
-                      :value="query" placeholder="Search {{ noun }}" />
-
-    {% if type_options|length > 1 or filters %}
-        <div class="flex flex-wrap items-center gap-2">
-            {% if type_options|length > 1 %}
-                <c-n26.filter-menu label="Type" name="type" :options="type_options" />
-            {% endif %}
-            {{ filters }}
-        </div>
-    {% endif %}
+{% load record_tables react %}
+{% record_table_controls action query noun singular type_options as controls %}
+<div data-record-table class="flex flex-col gap-3 {{ class }}">
+    {% react_host "record-table-controls" controls %}
+        <c-n26.search-bar :action="action" :value="query" placeholder="Search {{ noun }}" />
+    {% endreact_host %}
+    {% if filters %}<div class="flex flex-wrap items-center gap-2">{{ filters }}</div>{% endif %}
 
     <p class="text-sm text-muted">
-        <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100" x-text="shown">{{ shown }}</span>
+        <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100" data-record-count>{{ shown }}</span>
 
         {% if total %}
             of {{ total }} {{ noun }}
         {% else %}
-            <span x-text="shown === 1 ? {{ singular|json_dumps }} : {{ noun|json_dumps }}">{{ noun }}</span>
+            <span data-record-noun>{{ noun }}</span>
         {% endif %}
     </p>
 
     <div class="@container divide-y divide-box-border border-y border-box-border">{{ slot }}</div>
 
     {% if empty %}
-        <p x-show="shown === 0" x-cloak class="py-6 text-center text-sm text-muted">{{ empty }}</p>
+        <p data-record-empty hidden class="py-6 text-center text-sm text-muted">{{ empty }}</p>
     {% endif %}
 </div>
