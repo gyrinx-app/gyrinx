@@ -874,6 +874,9 @@ def context():
             FlowStep("Review", current=True),
             FlowStep("Completed"),
         ),
+        "campaign_counter_adjustable": CounterLine(
+            name="Meat", value=5, tallied=2, href="#", back="#", adjust_href="#"
+        ),
         "counter_payment_figures": PaymentFigures("Kill Count", "8", "4", "4"),
         "credit_payment_figures": PaymentFigures("", "430¢", "100¢", "330¢"),
         "sample_action_panels": (
