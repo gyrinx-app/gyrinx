@@ -422,7 +422,7 @@ def test_a_page_number_past_the_end_lands_on_the_last_one(client, tester, make_g
 def test_the_count_says_how_many_are_on_the_page_without_script(
     client, tester, make_gang
 ):
-    """The live count is Alpine's; the number it replaces has to be
+    """The live count replaces a server count that has to be
     right on its own."""
     make_gang("The Ashen Choir")
     make_gang("The Bad Girls")
@@ -430,7 +430,7 @@ def test_the_count_says_how_many_are_on_the_page_without_script(
     client.force_login(tester)
     body = client.get(reverse("n26-gangs")).content.decode()
 
-    assert 'x-text="shown">2</span>' in body
+    assert "data-record-count>2</span>" in body
 
 
 @pytest.fixture
