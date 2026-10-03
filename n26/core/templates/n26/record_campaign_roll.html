@@ -13,7 +13,7 @@
     {% url 'n26-campaign' campaign.pk as cancel_url %}
     <c-n26.form-page :action="action_url"
                      title="Log a dice roll"
-                     lead="Roll here or record physical dice. Add an outcome note after saving the result."
+                     lead="Generate a roll or record a result you already rolled. Add an outcome note after saving."
                      :form="form"
                      submit_label="Record roll"
                      :cancel_url="cancel_url">
