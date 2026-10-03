@@ -94,6 +94,9 @@ export function Button({
     );
 }
 
+export type ButtonLinkSize = keyof typeof cotton.buttonLinkBySize;
+export type ButtonLinkVariant = keyof typeof cotton.buttonLinkBySize.md;
+
 export function ButtonLink({
     variant = "default",
     size = "md",
@@ -101,8 +104,8 @@ export function ButtonLink({
     ...props
 }: ComponentProps<"a"> & {
     href: string;
-    variant?: keyof typeof cotton.buttonLinkBySize.md;
-    size?: keyof typeof cotton.buttonLinkBySize;
+    variant?: ButtonLinkVariant;
+    size?: ButtonLinkSize;
 }) {
     return (
         <a
