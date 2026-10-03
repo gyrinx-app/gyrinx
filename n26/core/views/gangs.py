@@ -1804,10 +1804,8 @@ def delete_gang(request, pk):
     goes, so nothing in the campaign points at a gang nobody can open. The
     page names the campaign so the owner knows before they click.
     """
-    from django.db import transaction
-
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.campaigns import campaign_operation
+    from n26.core.campaigns import archive_gang
     from n26.core.models import CampaignMembership, Miniature
 
     gang = _own_gang_or_404(request, pk)
@@ -1817,11 +1815,7 @@ def delete_gang(request, pk):
         .first()
     )
     if request.method == "POST":
-        with transaction.atomic():
-            if playing is not None:
-                with campaign_operation(playing.campaign, actor=request.user) as act:
-                    act.remove_gang(playing)
-            gang.archive()
+        archive_gang(gang, actor=request.user)
         # Recorded as a deletion, which is what the player did. That the gang
         # survives is how the ledger stays true, not something they asked for.
         record(request, N26Noun.GANG, EventVerb.DELETE, gang)

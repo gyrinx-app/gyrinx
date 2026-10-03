@@ -586,6 +586,12 @@ class Operation:
         from n26.core.models import CampaignMembership
 
         gang = self.gang
+        # Read under the gang's line: a gang deleted since the form was
+        # drawn joins nothing.
+        if type(gang).objects.filter(pk=gang.pk, archived=True).exists():
+            raise Refusal(
+                f"{gang.name} has been deleted, so it cannot join a campaign."
+            )
         open_now = CampaignMembership.objects.filter(
             gang=gang, left__isnull=True
         ).select_related("campaign")
@@ -671,6 +677,21 @@ class Operation:
         self.event(None, LedgerEvent.Kind.LEFT_CAMPAIGN)
         self._campaign = None
         return membership
+
+    def archive_gang(self):
+        """Delete this operation's gang the way the app deletes: archive it.
+
+        Written as an update of the two columns rather than a save of the
+        instance, so totals this operation has just rewritten are not put
+        back to what the caller loaded.
+        """
+        now = _now()
+        type(self.gang).objects.filter(pk=self.gang.pk).update(
+            archived=True, archived_at=now
+        )
+        self.gang.archived = True
+        self.gang.archived_at = now
+        return self.gang
 
     def set_base_rating(self, miniature, rating):
         """Change the hire's rating contribution, preserving its payment.
