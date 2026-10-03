@@ -138,10 +138,9 @@ GROUPS: list[Group] = [
                     "A share control that opens the device's share sheet, or copies "
                     "the link."
                 ),
-                needs=(ALPINE,),
                 notes=(
                     "url is the href of a real link, so the control still navigates "
-                    "with no script. Alpine takes the click and calls "
+                    "with no script. React takes the click and calls "
                     "navigator.share where the browser has it, and "
                     "navigator.clipboard.writeText otherwise, then shows the message "
                     "for a few seconds. The clipboard API needs a secure origin, so "
