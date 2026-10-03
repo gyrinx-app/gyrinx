@@ -229,7 +229,6 @@ describe("live preview versions", () => {
         const preview = {
             rows: [{ label: "Reputation", value: "5 → 8" }],
             models: [],
-            territory: null,
         };
         await editAndAutosave(
             Response.json({
@@ -241,10 +240,59 @@ describe("live preview versions", () => {
             }),
         );
         expect(form.elements.review.value).toBe("new");
+        expect(JSON.parse(form.dataset.previewSnapshot)).toEqual(preview);
         expect(updates.mock.calls.at(-1)[0].detail).toEqual({
             state: "ready",
             preview,
         });
+    });
+
+    it("applies corrected XP to named fields before marking the preview ready", async () => {
+        form.insertAdjacentHTML(
+            "beforeend",
+            '<input type="hidden" name="model-one-xp" value="2">',
+        );
+        await editAndAutosave(
+            Response.json({
+                revision: 5,
+                generation: 6,
+                saved: "12:30",
+                corrections: { "model-one-xp": "" },
+            }),
+        );
+        expect(form.elements.namedItem("model-one-xp").value).toBe("");
+        expect(form.dataset.previewState).toBe("ready");
+    });
+
+    it("retains newer XP edits when an older correction arrives", async () => {
+        form.insertAdjacentHTML(
+            "beforeend",
+            '<input name="model-one-xp" value="2">',
+        );
+        let finish;
+        fetch.mockReturnValueOnce(
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+        );
+        form.elements.credits.dispatchEvent(
+            new Event("input", { bubbles: true }),
+        );
+        await vi.advanceTimersByTimeAsync(900);
+        const xp = form.elements.namedItem("model-one-xp");
+        xp.value = "3";
+        xp.dispatchEvent(new Event("input", { bubbles: true }));
+        finish(
+            Response.json({
+                revision: 5,
+                generation: 6,
+                saved: "12:30",
+                corrections: { "model-one-xp": "" },
+            }),
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        expect(xp.value).toBe("3");
+        expect(form.dataset.previewState).toBe("updating");
     });
 
     it("does not display an older response while newer input awaits saving", async () => {

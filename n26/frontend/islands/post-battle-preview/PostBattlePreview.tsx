@@ -2,13 +2,19 @@ import { useEffect, useState } from "react";
 import { Button, Icon } from "../../ui";
 
 export type PreviewDisplay = {
-    rows: { label: string; value: string }[];
+    rows: { id: string; label: string; value: string }[];
     models: { id: string; name: string; lines: string[]; error: string }[];
 };
 type PreviewState = "ready" | "updating" | "failed";
 
 export function PostBattlePreview(initial: PreviewDisplay) {
-    const [preview, setPreview] = useState(initial);
+    const latest = () => {
+        const cached =
+            document.getElementById("post-battle-form")?.dataset
+                .previewSnapshot;
+        return cached ? (JSON.parse(cached) as PreviewDisplay) : initial;
+    };
+    const [preview, setPreview] = useState(latest);
     const [state, setState] = useState<PreviewState>(
         () =>
             (document.getElementById("post-battle-form")?.dataset
@@ -27,6 +33,8 @@ export function PostBattlePreview(initial: PreviewDisplay) {
             setState(detail.state);
         };
         form?.addEventListener("post-battle:preview", update);
+        setPreview(latest());
+        setState((form?.dataset.previewState as PreviewState) || "ready");
         return () => form?.removeEventListener("post-battle:preview", update);
     }, []);
     return (
@@ -41,7 +49,7 @@ export function PostBattlePreview(initial: PreviewDisplay) {
                 <dl className="mt-4 space-y-3 text-sm">
                     {preview.rows.map((row) => (
                         <div
-                            key={row.label}
+                            key={row.id}
                             className="flex justify-between gap-3"
                         >
                             <dt>{row.label}</dt>
@@ -101,7 +109,7 @@ export function PostBattlePreview(initial: PreviewDisplay) {
                         ? "Updating preview…"
                         : state === "failed"
                           ? "Preview is out of date. Use Save draft to retry."
-                          : "Preview up to date"}
+                          : "Preview up to date."}
                 </span>
             </p>
         </>

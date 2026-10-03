@@ -792,13 +792,24 @@ def xp_toolbar(models):
 
 def preview_display(plan, models):
     """JSON-safe preview from the same computed facts used to apply the report."""
-    rows = [{"label": "Credits from this battle", "value": plan.total_text}]
+    rows = [
+        {
+            "id": "credits-total",
+            "label": "Credits from this battle",
+            "value": plan.total_text,
+        }
+    ]
     if plan.change_text:
         rows.append(
-            {"label": "Change from the last version", "value": plan.change_text}
+            {
+                "id": "credits-change",
+                "label": "Change from the last version",
+                "value": plan.change_text,
+            }
         )
     rows.append(
         {
+            "id": "credits-balance",
             "label": "Credits balance"
             if plan.credits_before is not None
             else "Credits budget",
@@ -809,6 +820,7 @@ def preview_display(plan, models):
     )
     rows.extend(
         {
+            "id": f"gang-counter:{change.assignment_id}",
             "label": f"{change.after - change.before:+d} {change.name}",
             "value": f"{change.before} → {change.after}",
         }

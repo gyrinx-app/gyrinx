@@ -24,6 +24,7 @@
 
     const preview = (state, display) => {
         form.dataset.previewState = state;
+        if (display) form.dataset.previewSnapshot = JSON.stringify(display);
         form.dispatchEvent(
             new CustomEvent("post-battle:preview", {
                 detail: { state, ...(display ? { preview: display } : {}) },
@@ -54,6 +55,18 @@
                 form.elements.generation.value = result.generation;
                 if (result.review && form.elements.review)
                     form.elements.review.value = result.review;
+                if (!dirty) {
+                    for (const [name, value] of Object.entries(
+                        result.corrections || {},
+                    )) {
+                        const field = form.elements.namedItem(name);
+                        if (field) field.value = value;
+                    }
+                    redrawXpToolbar();
+                    form.dispatchEvent(
+                        new Event("post-battle:fields-corrected"),
+                    );
+                }
                 preview(
                     dirty ? "updating" : "ready",
                     dirty ? null : result.preview,
@@ -245,6 +258,7 @@
     let carried = new Map();
     let restore = null;
     form.addEventListener("htmx:beforeRequest", (event) => {
+        delete form.dataset.previewSnapshot;
         window.clearTimeout(timer);
         dirty = false;
         const target = event.detail.target;

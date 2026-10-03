@@ -2729,6 +2729,8 @@ class TestModelResultEdges:
 
 
 class TestLivePreview:
+    """Live previews match saved drafts without applying gameplay changes."""
+
     def test_autosave_previews_counters_without_applying_them(
         self, client, table, feature, reputation, kills
     ):
@@ -2746,7 +2748,11 @@ class TestLivePreview:
         response = client.post(editor_url(report), data)
         assert response.status_code == 200
         result = response.json()
-        assert {"label": "+3 Reputation", "value": "5 → 8"} in result["preview"]["rows"]
+        assert {
+            "id": f"gang-counter:{reputation.pk}",
+            "label": "+3 Reputation",
+            "value": "5 → 8",
+        } in result["preview"]["rows"]
         assert any(
             "+1 Kill Count (2 → 3)" in line
             for model in result["preview"]["models"]
@@ -2760,6 +2766,44 @@ class TestLivePreview:
         again = client.post(editor_url(report), data).json()
         assert again["preview"] == result["preview"]
         assert LedgerEvent.objects.count() == before
+
+    def test_autosave_corrects_removed_xp_before_saving_and_returns_matching_fields(
+        self, client, table, feature
+    ):
+        from n26.core.post_battle import preview_report
+
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        data = awards(page, table, intent="autosave")
+        model = table.models[0]
+        xp = Assignment.objects.get(
+            miniature_root=model, counter__isnull=False, archived=False
+        )
+        with operation(table.gang, actor=table.owner) as op:
+            op.remove(xp)
+        saved = client.post(editor_url(report), data)
+        assert saved.status_code == 200
+        result = saved.json()
+        field = f"model-{model.pk}-xp"
+        assert result["corrections"] == {field: ""}
+        report.refresh_from_db()
+        assert (
+            next(m for m in report.draft["models"] if m["id"] == str(model.pk))["xp"]
+            == ""
+        )
+        assert result["review"] == preview_report(report, actor=table.owner).review
+        data.update(result["corrections"])
+        data.update(
+            intent="apply",
+            revision=result["revision"],
+            generation=result["generation"],
+            review=result["review"],
+        )
+        applied = client.post(editor_url(report), data)
+        assert applied.status_code == 302
+        xp.refresh_from_db()
+        assert xp.archived
+        assert CounterValue.objects.get(assignment=xp).value == 0
 
     def test_mark_all_attended_keeps_xp_and_confirmation_independent(
         self, client, table, feature
@@ -2799,8 +2843,9 @@ class TestLivePreview:
         assert "territory" not in result["preview"]
         assert page.context["territory"] is None
 
+    @pytest.mark.parametrize("result", ["winners", "not_recorded"])
     def test_recorded_territory_is_attributed_and_never_replayed(
-        self, client, table, feature
+        self, client, table, feature, result
     ):
         from n26.library.models import AssetType
 
@@ -2821,8 +2866,8 @@ class TestLivePreview:
                 scenario="Stand-off",
                 date=table.battle.date,
                 gangs=[table.gang, other],
-                result="winners",
-                winners=[other],
+                result=result,
+                winners=[other] if result == "winners" else [],
                 revision=table.battle.revision,
                 stake=token,
                 stake_awarded_to=other,

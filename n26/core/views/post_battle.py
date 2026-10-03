@@ -265,6 +265,8 @@ def post_battle_editor(request, pk):
     version = ReportVersionForm(request.POST if posted else None)
     refresh = None
     mission = False
+    plan = None
+    corrections = {}
     if posted:
         payload = posted_payload(request.POST)
         intent = request.POST.get("intent", "save")
@@ -290,6 +292,21 @@ def post_battle_editor(request, pk):
                     if intent.startswith("xp-step:")
                     else frozenset(),
                 )
+                if intent == "autosave":
+                    plan = preview_report(report, actor=request.user, payload=payload)
+                    entered_xp = {
+                        m["id"]: str(m.get("xp") or "") for m in payload["models"]
+                    }
+                    payload, changed = keep_recorded_xp(payload, plan)
+                    if changed:
+                        corrections = {
+                            f"model-{m['id']}-xp": str(m.get("xp") or "")
+                            for m in payload["models"]
+                            if str(m.get("xp") or "") != entered_xp[m["id"]]
+                        }
+                        plan = preview_report(
+                            report, actor=request.user, payload=payload
+                        )
                 report = save_draft(
                     report,
                     actor=request.user,
@@ -340,7 +357,8 @@ def post_battle_editor(request, pk):
             return HttpResponse(
                 " ".join(errors), status=status, content_type="text/plain"
             )
-    plan = preview_report(report, actor=request.user, payload=payload)
+    if plan is None:
+        plan = preview_report(report, actor=request.user, payload=payload)
     payload, changed = keep_recorded_xp(payload, plan)
     if changed:
         plan = preview_report(report, actor=request.user, payload=payload)
@@ -357,9 +375,25 @@ def post_battle_editor(request, pk):
     }
     version = ReportVersionForm(initial=values)
     models = editor_models(plan, payload, refresh_url=request.path)
+    preview = preview_display(plan, models)
+    if posted and intent == "autosave":
+        return JsonResponse(
+            {
+                "revision": report.draft_revision,
+                "generation": str(report.generation),
+                "review": plan.review,
+                "saved": timezone.localtime(report.modified).strftime("%H:%M:%S"),
+                "preview": preview,
+                "corrections": corrections,
+            }
+        )
     stake = battle_stake(report.battle, request.user)
     territory = None
     if stake:
+        applied = (
+            bool(report.battle.stake_transfer_mark)
+            or report.battle.result != report.battle.Result.NOT_RECORDED
+        )
         if report.battle.stake_transfer_mark:
             source = stake_came_from(report.battle)
             outcome = (
@@ -376,24 +410,13 @@ def post_battle_editor(request, pk):
             "heading": stake.label,
             "outcome": outcome,
             "currentHolder": stake.held_by,
-            "applied": report.battle.result != report.battle.Result.NOT_RECORDED,
+            "applied": applied,
             "note": (
                 "The campaign’s arbitrator records this outcome on Edit battle."
-                if report.battle.result == report.battle.Result.NOT_RECORDED
+                if not applied
                 else "Already applied."
             ),
         }
-    preview = preview_display(plan, models)
-    if posted and intent == "autosave":
-        return JsonResponse(
-            {
-                "revision": report.draft_revision,
-                "generation": str(report.generation),
-                "review": plan.review,
-                "saved": timezone.localtime(report.modified).strftime("%H:%M:%S"),
-                "preview": preview,
-            }
-        )
     context = {
         "report": report,
         "gang": report.gang,

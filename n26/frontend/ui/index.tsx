@@ -695,14 +695,15 @@ export function StagedBadge() {
 export function ActionBar({
     children,
     trailing,
-}: {
-    children: ReactNode;
-    trailing: ReactNode;
+    className = "",
+    ...props
+}: ComponentProps<"div"> & {
+    trailing?: ReactNode;
 }) {
     return (
-        <div className={`${cotton.actionBar[0]} mb-3`}>
+        <div {...props} className={`${cotton.actionBar[0]} mb-3 ${className}`}>
             {children}
-            <div className={cotton.actionBar[1]}>{trailing}</div>
+            {trailing && <div className={cotton.actionBar[1]}>{trailing}</div>}
         </div>
     );
 }

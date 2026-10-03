@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button } from "../../ui";
+import { ActionBar, Button } from "../../ui";
 
 export type ToolbarProps = {
     countOne: string;
@@ -39,9 +39,11 @@ export function PostBattleToolbar(props: ToolbarProps) {
         const form = document.getElementById("post-battle-form");
         const update = () => setState(selection());
         form?.addEventListener("input", update);
+        form?.addEventListener("post-battle:fields-corrected", update);
         form?.addEventListener("htmx:afterSwap", update);
         return () => {
             form?.removeEventListener("input", update);
+            form?.removeEventListener("post-battle:fields-corrected", update);
             form?.removeEventListener("htmx:afterSwap", update);
         };
     }, []);
@@ -57,8 +59,8 @@ export function PostBattleToolbar(props: ToolbarProps) {
             }),
         );
     return (
-        <div
-            className="flex flex-wrap items-center gap-2 border border-box-border bg-ink-100 p-3 dark:bg-ink-900"
+        <ActionBar
+            className="border border-box-border bg-ink-100 p-3 dark:bg-ink-900"
             data-xp-toolbar
         >
             <p
@@ -88,6 +90,6 @@ export function PostBattleToolbar(props: ToolbarProps) {
             >
                 +1 XP
             </Button>
-        </div>
+        </ActionBar>
     );
 }
