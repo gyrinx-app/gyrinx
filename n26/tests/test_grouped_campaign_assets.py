@@ -152,3 +152,52 @@ def test_repeated_campaign_possessions_are_grouped_too(grouped):
         if group.label == "Settlements"
     )
     assert group.names == "Settlement (x2)"
+
+
+def test_campaign_choices_appear_once_in_text_and_stay_dismissed_on_print(
+    client, grouped
+):
+    from n26.core.campaigns import campaign_operation
+    from n26.core.views.choose import link_slots
+
+    gang, campaign, _, _ = grouped
+    with campaign_operation(campaign, actor=campaign.owner) as op:
+        label = op.add_label("League division", ["Upper", "Lower"])
+    from n26.core.operations import operation
+
+    membership = campaign.memberships.get(gang=gang, left__isnull=True)
+    with operation(gang, actor=gang.owner) as op:
+        op.assign(label, gang=gang, caused_by=membership.additions_carrier, paid=0)
+    sheet = render_gang(gang)
+    assert gang_to_text(gang).count("League division:") == 1
+    link_slots(gang, sheet)
+    choice = next(
+        choice
+        for choice in sheet.campaign.choices
+        if choice.kind_label == "League division"
+    )
+    assert client.post(choice.dismiss_href).status_code == 302
+    assert (
+        "League division"
+        not in client.get(reverse("n26-print", args=[gang.pk])).content.decode()
+    )
+
+
+def test_a_campaign_print_with_only_one_side_uses_one_column():
+    from django.template import Context, Template
+
+    from n26.core.render import CampaignAssetLine, CampaignBlock
+
+    campaign = CampaignBlock(
+        name="Dust Falls",
+        campaign_id="campaign",
+        holdings=[CampaignAssetLine("Territory", "Shop", type_plural="Territories")],
+    )
+    rendered = Template('{% include "n26/print_gang.html" %}').render(
+        Context({"campaign": campaign})
+    )
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(rendered, "html.parser")
+    card = soup.find(string="Dust Falls").find_parent(class_="n26-print-card")
+    assert len(card.select(".n26-print-column")) == 1

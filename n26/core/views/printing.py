@@ -75,7 +75,12 @@ def _print_rows(
     from n26.core.models import Assignment, DismissedOffer
     from n26.core.printing import detail_columns
     from n26.core.progression import progression_summaries
-    from n26.core.render import build_campaign_block, build_model_card, hide_dismissed
+    from n26.core.render import (
+        build_campaign_block,
+        build_model_card,
+        hide_dismissed,
+        hide_dismissed_choices,
+    )
 
     selection = None
     if weapon_ids is not None:
@@ -109,6 +114,8 @@ def _print_rows(
     # What the owner has dismissed stays off the paper too: one query
     # for the whole print.
     dismissed = DismissedOffer.keys_for(gang)
+    if campaign is not None:
+        hide_dismissed_choices(dismissed, campaign.choices)
 
     rows = []
     for miniature in miniatures:
