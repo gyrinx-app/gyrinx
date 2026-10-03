@@ -76,6 +76,36 @@
                     </c-n26.print.columns>
                 </c-n26.print.card>
             {% endif %}
+            {% if campaign %}
+                <c-n26.print.card title="{{ campaign.name }}">
+                    <c-n26.print.columns>
+                        <c-n26.print.column>
+                            {% for group in campaign.asset_groups %}
+                                <c-n26.print.entry label="{{ group.label }}">
+                                    {{ group.names }}
+                                </c-n26.print.entry>
+                            {% endfor %}
+                            {% for line in campaign.other_lines %}
+                                <c-n26.print.entry label="{{ line.type_label }}">
+                                    {{ line.name }}
+                                </c-n26.print.entry>
+                            {% endfor %}
+                        </c-n26.print.column>
+                        <c-n26.print.column>
+                            {% for counter in campaign.counters %}
+                                <c-n26.print.entry label="{{ counter.name }}">
+                                    {{ counter.value }}
+                                </c-n26.print.entry>
+                            {% endfor %}
+                            {% for choice in campaign.choices %}
+                                <c-n26.print.entry label="{{ choice.kind_label }}">
+                                    {{ choice.chosen|default:'—' }}
+                                </c-n26.print.entry>
+                            {% endfor %}
+                        </c-n26.print.column>
+                    </c-n26.print.columns>
+                </c-n26.print.card>
+            {% endif %}
             {% if include_notes and gang.notes and not crew_sheet %}
                 <c-n26.print.card title="Notes">
                     {{ gang.notes|safe_rich_text }}
