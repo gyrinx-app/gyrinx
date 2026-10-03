@@ -899,9 +899,9 @@ def add_gang(request, pk):
     """
     from django.http import Http404
 
-    from n26.core.campaigns import over_budget
+    from n26.core.campaigns import campaign_operation, over_budget
     from n26.core.forms import BringGangForm
-    from n26.core.operations import Refusal, operation
+    from n26.core.operations import Refusal
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     arbitrating = found.owner_id == getattr(request.user, "id", None)
@@ -915,8 +915,8 @@ def add_gang(request, pk):
         if form.is_valid():
             gang = form.cleaned_data["gang"]
             try:
-                with operation(gang, actor=request.user) as op:
-                    op.join_campaign(found)
+                with campaign_operation(found, actor=request.user) as act:
+                    act.add_gang(gang)
             except Refusal as refused:
                 messages.error(request, str(refused))
             else:
