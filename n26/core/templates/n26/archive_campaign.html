@@ -42,16 +42,18 @@ already went wrong, and nothing has yet.
         {% csrf_token %}
         {% comment %}
         What is true, and only what is true. The campaign stops being anywhere
-        the arbitrator can reach it and archiving cannot be undone — so the
-        wording says both of those and stops. It says plainly that the gangs
-        are untouched, because a reader archiving a campaign has every reason
-        to fear otherwise, and a campaign has never owned them.
+        the arbitrator can reach it and archiving cannot be undone. Every gang
+        still playing is taken out first and loses what the campaign gave it,
+        as removing it would; the gang itself stays with its owner.
         {% endcomment %}
         <c-ui.alert variant="warning" title="You cannot undo this">
             Archiving takes {{ campaign.name }} out of your campaigns. It stops
             appearing in your list and its pages stop opening. Its records are
-            not deleted, but you cannot bring the campaign back. No gang is
-            changed: every gang stays with its owner.
+            not deleted, but you cannot bring the campaign back. Every gang in
+            it is removed from the campaign first and loses what the campaign
+            gave it, such as its Settlement, counters, labels and the assets it
+            holds. Each gang keeps its models, gear and credits, and stays with
+            its owner.
         </c-ui.alert>
     </c-n26.form-page>
 {% endblock content %}

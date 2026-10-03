@@ -825,7 +825,7 @@ class TestALabel:
         assert render_campaign(campaign).gangs[0].labels == [""]
         assert_reconciled(gang)
 
-    def test_a_previous_campaigns_same_named_label_keeps_its_own_answer(
+    def test_a_previous_campaigns_same_named_label_does_not_answer_the_new_one(
         self, campaign, core, arbitrator, gang_type, player, propagating, task_queue
     ):
         other = found_campaign("The Long Descent", core, owner=arbitrator)
@@ -851,10 +851,11 @@ class TestALabel:
             Pickable.objects.get(pack=campaign.pack, name="Nomads"),
         )
         assert render_campaign(campaign).gangs[0].labels == ["Nomads"]
+        # Leaving the first campaign took its label and the pick with it.
         gang_sheet = render_gang(gang)
-        assert [line.chosen for line in gang_sheet.choices] == ["Guild"]
+        assert [line.chosen for line in gang_sheet.choices] == []
         assert [line.chosen for line in gang_sheet.campaign.choices] == ["Nomads"]
-        assert [line.chosen for line in gang_sheet.questions] == ["Guild", "Nomads"]
+        assert [line.chosen for line in gang_sheet.questions] == ["Nomads"]
         assert_reconciled(gang)
 
     def test_it_writes_the_four_rows_into_the_pack(self, campaign):

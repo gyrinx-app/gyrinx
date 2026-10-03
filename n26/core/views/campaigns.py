@@ -284,6 +284,11 @@ def _fill_addresses(sheet, campaign, *, yours):
             line.yours or (yours and not campaign.archived)
         ):
             line.credits_href = reverse("n26-gang-credits", args=[line.gang_id])
+        # The arbitrator may take any gang out, and an owner their own.
+        if yours or line.yours:
+            line.remove_href = reverse(
+                "n26-campaign-remove-gang", args=[campaign.pk, line.gang_id]
+            )
         # The arbitrator may move a campaign counter on any gang in the
         # campaign, and a gang's owner their own — the same act the gang
         # sheet offers, posted from here and landing back here.
@@ -894,9 +899,9 @@ def add_gang(request, pk):
     """
     from django.http import Http404
 
-    from n26.core.campaigns import over_budget
+    from n26.core.campaigns import campaign_operation, over_budget
     from n26.core.forms import BringGangForm
-    from n26.core.operations import Refusal, operation
+    from n26.core.operations import Refusal
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     arbitrating = found.owner_id == getattr(request.user, "id", None)
@@ -910,8 +915,8 @@ def add_gang(request, pk):
         if form.is_valid():
             gang = form.cleaned_data["gang"]
             try:
-                with operation(gang, actor=request.user) as op:
-                    op.join_campaign(found)
+                with campaign_operation(found, actor=request.user) as act:
+                    act.add_gang(gang)
             except Refusal as refused:
                 messages.error(request, str(refused))
             else:
@@ -985,26 +990,27 @@ def add_gang(request, pk):
 @requires_flag(CAMPAIGNS)
 @login_required
 def remove_gang(request, pk, gang_pk):
-    """Taking a gang out of a campaign, which is not offered.
+    """The question at its own address, then the act.
 
     A gang that joins is given the campaign's types and everything they
-    bring, so leaving has to return all of it — the carriers, the
-    Settlement, the counters, every asset the gang holds — and until it
-    does, a gang that left would keep what the campaign gave it. Nothing
-    on the campaign's page leads here, and a reader who reaches the address
-    anyway is told the same thing in words and sent back.
+    bring, so taking it out gives all of it back — the carriers, the
+    Settlement, the counters, the label picks, every asset the gang holds
+    (``CampaignOperation.remove_gang``). The page lists what goes, read
+    off the gangs table's own line for the gang, so the reader sees the
+    same facts the campaign page shows.
 
-    The 404 rules are the ones the act will have: the gang must be playing
-    this campaign, and the reader must arbitrate it or own the gang. A gang
-    key that is not a key at all is a bad link, not a server error.
+    The arbitrator may take out any gang; a gang's owner may take out
+    their own. Anybody else is told there is nothing here, as is a reader
+    asking after a gang not playing this campaign. A gang key that is not
+    a key at all is a bad link, not a server error.
     """
     from django.core.exceptions import ValidationError
     from django.http import Http404
 
+    from n26.core.campaigns import campaign_operation
     from n26.core.models import CampaignMembership
 
-    # Acts and leaves; nothing here names anybody.
-    found = _any_campaign_or_404(request, pk, with_owner_badge=False)
+    found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     try:
         membership = get_object_or_404(
             CampaignMembership.objects.select_related("gang"),
@@ -1014,16 +1020,65 @@ def remove_gang(request, pk, gang_pk):
         )
     except ValidationError:
         raise Http404("No such gang in this campaign") from None
-    reading = getattr(request.user, "id", None)
-    if found.owner_id != reading and membership.gang.owner_id != reading:
+    if not may_remove_gang(found, membership.gang, request.user):
         raise Http404("No such gang in this campaign")
+    gang = membership.gang
 
-    messages.error(
+    if request.method == "POST":
+        with campaign_operation(found, actor=request.user) as act:
+            removed = act.remove_gang(membership)
+        if removed is None:
+            messages.error(request, f"{gang.name} is not in {found.name}.")
+        else:
+            messages.success(request, f"Removed {gang.name} from {found.name}.")
+        # The top of the page, not the gangs table, so the message is in view.
+        return redirect("n26-campaign", pk=found.pk)
+
+    losing, returning = _what_the_gang_loses(found, gang)
+    return render(
         request,
-        f"{membership.gang.name} cannot leave {found.name}. Taking a gang "
-        "out of a campaign is not available yet.",
+        "n26/remove_gang_from_campaign.html",
+        {
+            "campaign": found,
+            "gang": gang,
+            "losing": losing,
+            "returning": returning,
+        },
     )
-    return redirect("n26-campaign", pk=found.pk)
+
+
+def may_remove_gang(campaign, gang, user):
+    """Whether this reader may take this gang out of this campaign: the
+    campaign's arbitrator, or the gang's owner."""
+    reading = getattr(user, "id", None)
+    return reading is not None and reading in (campaign.owner_id, gang.owner_id)
+
+
+def _what_the_gang_loses(campaign, gang):
+    """What taking the gang out removes from it, and which of the
+    campaign's assets it holds go back unheld.
+
+    Read off the gangs table's line for the gang, so the page lists the
+    same facts the campaign page shows: each counter with its value, each
+    label with its pick, each possession. Empty values are left out,
+    since nothing is lost there.
+    """
+    from n26.core.render import render_campaign
+
+    sheet = render_campaign(campaign, with_owner_badges=False)
+    line = next(line for line in sheet.gangs if line.gang_id == str(gang.pk))
+    losing = []
+    returning = []
+    for column, names in zip(sheet.asset_types, line.assets, strict=True):
+        for name in names:
+            (returning if column.holding else losing).append((column.label, name))
+    for name, counter in zip(sheet.counter_columns, line.counters, strict=True):
+        if counter is not None:
+            losing.append((name, counter.value))
+    for name, pick in zip(sheet.label_columns, line.labels, strict=True):
+        if pick:
+            losing.append((name, pick))
+    return losing, returning
 
 
 def _playing(campaign):

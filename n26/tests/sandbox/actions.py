@@ -460,6 +460,27 @@ def unassign_asset(campaign_asset, actor=None):
         return act.unassign(campaign_asset)
 
 
+def remove_from_campaign(gang, campaign, actor=None):
+    """Take a gang out of a campaign, as the campaign page's Remove from
+    campaign does: campaign line first, then the gang's."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.models import CampaignMembership
+
+    membership = CampaignMembership.objects.get(
+        campaign=campaign, gang=gang, left__isnull=True
+    )
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.remove_gang(membership)
+
+
+def archive_campaign(campaign, actor=None):
+    """Archive a campaign, taking every gang out first."""
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=actor or campaign.owner) as act:
+        return act.archive()
+
+
 def remove_asset(campaign_asset, actor=None):
     """Remove an asset nobody holds from its campaign."""
     from n26.core.campaigns import campaign_operation
