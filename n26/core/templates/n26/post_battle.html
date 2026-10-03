@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load static %}
+{% load static react %}
 {% block head_title %}Post-battle · {{ gang.name }}{% endblock %}
 {% block nav_items %}
     {% include "n26/_nav.html" with here="campaigns" %}
@@ -32,37 +32,42 @@
                         <h2 id="models-heading" class="text-lg font-semibold">Model results</h2>
                         <p class="mt-1 text-sm text-muted">Tick the models that took part. Unused reinforcements do not earn XP for taking part.</p>
                     </div>
-                    <c-n26.action-bar class="sticky top-[var(--n26-sticky-top)] z-10 border border-box-border bg-ink-100 p-3 dark:bg-ink-900"
-                                      data-xp-toolbar>
-                        <div class="mr-auto" role="status" aria-live="polite">
-                            <p class="text-sm font-semibold"
-                               data-xp-count
-                               data-one="{{ xp_toolbar.count_one }}"
-                               data-many="{{ xp_toolbar.count_many }}">{{ xp_toolbar.count_label }}</p>
-                        </div>
-                        <div class="flex shrink-0 gap-2">
-                            <c-ui.button type="submit"
-                                         name="intent"
-                                         value="xp-step:-1"
-                                         aria-label="{{ xp_toolbar.minus_label }}"
-                                         data-xp-step="-1"
-                                         data-one="{{ xp_toolbar.minus_one }}"
-                                         data-many="{{ xp_toolbar.minus_many }}"
-                                         :attrs="xp_toolbar.minus_attrs">
-                                −1 XP
-                            </c-ui.button>
-                            <c-ui.button type="submit"
-                                         name="intent"
-                                         value="xp-step:+1"
-                                         aria-label="{{ xp_toolbar.plus_label }}"
-                                         data-xp-step="+1"
-                                         data-one="{{ xp_toolbar.plus_one }}"
-                                         data-many="{{ xp_toolbar.plus_many }}"
-                                         :attrs="xp_toolbar.plus_attrs">
-                                +1 XP
-                            </c-ui.button>
-                        </div>
-                    </c-n26.action-bar>
+                    {% react_host "post-battle-toolbar" toolbar_props class="sticky top-[var(--n26-sticky-top)] z-10" %}
+                        <c-n26.action-bar class="sticky top-[var(--n26-sticky-top)] z-10 border border-box-border bg-ink-100 p-3 dark:bg-ink-900"
+                                          data-xp-toolbar>
+                            <div class="mr-auto w-full sm:w-auto" role="status" aria-live="polite">
+                                <p class="text-sm font-semibold"
+                                   data-xp-count
+                                   data-one="{{ xp_toolbar.count_one }}"
+                                   data-many="{{ xp_toolbar.count_many }}">{{ xp_toolbar.count_label }}</p>
+                            </div>
+                            <div class="flex shrink-0 flex-wrap gap-2">
+                                <c-ui.button type="submit" name="intent" value="attend-all">
+                                    Mark all attended
+                                </c-ui.button>
+                                <c-ui.button type="submit"
+                                             name="intent"
+                                             value="xp-step:-1"
+                                             aria-label="{{ xp_toolbar.minus_label }}"
+                                             data-xp-step="-1"
+                                             data-one="{{ xp_toolbar.minus_one }}"
+                                             data-many="{{ xp_toolbar.minus_many }}"
+                                             :attrs="xp_toolbar.minus_attrs">
+                                    −1 XP
+                                </c-ui.button>
+                                <c-ui.button type="submit"
+                                             name="intent"
+                                             value="xp-step:+1"
+                                             aria-label="{{ xp_toolbar.plus_label }}"
+                                             data-xp-step="+1"
+                                             data-one="{{ xp_toolbar.plus_one }}"
+                                             data-many="{{ xp_toolbar.plus_many }}"
+                                             :attrs="xp_toolbar.plus_attrs">
+                                    +1 XP
+                                </c-ui.button>
+                            </div>
+                        </c-n26.action-bar>
+                    {% endreact_host %}
                     <div class="space-y-4">
                         {% for model in models %}
                             {% include "n26/includes/post_battle_model.html" %}

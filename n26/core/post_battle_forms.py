@@ -129,7 +129,10 @@ def change_draft(payload, intent, *, xp_eligible=frozenset()):
     """Server-side form actions alter pending values, never the gang."""
     payload = normalise(payload)
     payload.pop("bulk_undo", None)
-    if intent == "add-credit-line":
+    if intent == "attend-all":
+        for model in payload["models"]:
+            model["participated"] = True
+    elif intent == "add-credit-line":
         if len(payload["credit_lines"]) < MAX_CREDIT_LINES:
             payload["credit_lines"].append(
                 {"id": str(uuid4()), "amount": "", "reason": ""}
@@ -238,6 +241,7 @@ class ReportModel:
     refresh_url: str = ""
     counter_rows: list = field(default_factory=list)
     note: str = ""
+    profile_name: str = ""
 
     @property
     def refresh_attrs(self):
@@ -438,6 +442,7 @@ def editor_models(plan, payload, refresh_url=""):
             ReportModel(
                 id=model_id,
                 name=model.name,
+                profile_name=model.profile_name,
                 prefix=f"model-{model_id}",
                 result=model,
                 participated=bool(values.get("participated", model.participated)),
@@ -778,3 +783,84 @@ def xp_toolbar(models):
         minus_disabled=all(entered(model) <= 0 for model in eligible),
         plus_disabled=not eligible,
     )
+
+
+def preview_display(plan, models, *, territory=None):
+    """JSON-safe preview from the same computed facts used to apply the report."""
+    rows = [{"label": "Credits from this battle", "value": plan.total_text}]
+    if plan.change_text:
+        rows.append(
+            {"label": "Change from the last version", "value": plan.change_text}
+        )
+    rows.append(
+        {
+            "label": "Credits balance"
+            if plan.credits_before is not None
+            else "Credits budget",
+            "value": f"{plan.credits_before} → {plan.credits_after}¢"
+            if plan.credits_before is not None
+            else "This gang does not track a credits budget.",
+        }
+    )
+    rows.extend(
+        {"label": change.name, "value": f"{change.before} → {change.after}"}
+        for change in plan.moving_gang_counters
+    )
+    changed = []
+    for model in models:
+        if not model.changes:
+            continue
+        lines = []
+        if model.xp_changes:
+            if model.result.xp_change:
+                lines.append(f"{model.result.xp_change:+d} XP")
+            lines.append(
+                f"XP total: {model.result.xp_before} → {model.result.xp_after}"
+            )
+        lines.extend(
+            f"{change.name}: {change.before} → {change.after} ({parts})"
+            for change, parts in model.summary_counters
+        )
+        lines.extend(effect.name for effect in model.named_effects)
+        if model.status_changes and not model.result.status_conflict:
+            lines.append(f"Final status: {model.final_status_label}")
+            if model.ends_in_recovery:
+                lines.append("Stays In Recovery until the end of the campaign cycle.")
+        if model.result.equipment_changed:
+            verb = (
+                "Moves to the stash"
+                if model.result.equipment_disposition == "stash"
+                else "Marked lost"
+            )
+            lines.append(
+                f"{verb}: {', '.join(model.result.equipment_affected_names) or 'No equipment'}."
+            )
+            if model.result.equipment_exclusions:
+                lines.append(
+                    f"Stays with the model: {', '.join(model.result.equipment_exclusions)}."
+                )
+        elif model.result.equipment_ignored:
+            lines.append("Equipment stays with the model.")
+        if model.result.note_appends:
+            lines.append(f"Adds a note to {model.name}'s notes.")
+        changed.append(
+            {
+                "id": model.id,
+                "name": model.name,
+                "lines": lines,
+                "error": model.result.status_conflict,
+            }
+        )
+    return {"rows": rows, "models": changed, "territory": territory}
+
+
+def toolbar_display(models):
+    toolbar = xp_toolbar(models)
+    return {
+        "countOne": toolbar.count_one,
+        "countMany": toolbar.count_many,
+        "plusOne": toolbar.plus_one,
+        "plusMany": toolbar.plus_many,
+        "minusOne": toolbar.minus_one,
+        "minusMany": toolbar.minus_many,
+    }

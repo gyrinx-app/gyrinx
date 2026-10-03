@@ -2722,3 +2722,177 @@ class TestModelResultEdges:
             assert not plan.valid
             assert any("You cannot correct the change to" in e for e in plan.errors)
         assert not report.revisions.exists()
+
+
+class TestLivePreview:
+    def test_autosave_previews_counters_without_applying_them(
+        self, client, table, feature, reputation, kills
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        data = html_fields(
+            page,
+            intent="autosave",
+            **{
+                f"gang-counter-{reputation.pk}": "3",
+                f"model-{table.models[0].pk}-counter-{kills.pk}": "1",
+            },
+        )
+        before = LedgerEvent.objects.count()
+        response = client.post(editor_url(report), data)
+        assert response.status_code == 200
+        result = response.json()
+        assert {"label": "Reputation", "value": "5 → 8"} in result["preview"]["rows"]
+        assert any(
+            "Kill Count: 2 → 3" in line
+            for model in result["preview"]["models"]
+            for line in model["lines"]
+        )
+        assert result["review"]
+        assert CounterValue.objects.get(assignment=reputation).value == 5
+        assert CounterValue.objects.get(assignment=kills).value == 2
+        assert LedgerEvent.objects.count() == before
+        data.update(revision=result["revision"], generation=result["generation"])
+        again = client.post(editor_url(report), data).json()
+        assert again["preview"] == result["preview"]
+        assert LedgerEvent.objects.count() == before
+
+    def test_mark_all_attended_keeps_xp_and_confirmation_independent(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        marked = client.post(editor_url(report), html_fields(page, intent="attend-all"))
+        assert marked.status_code == 200
+        report.refresh_from_db()
+        assert all(model["participated"] for model in report.draft["models"])
+        assert not report.draft["participation_confirmed"]
+        assert all(not model["xp"] for model in report.draft["models"])
+        data = html_fields(marked, intent="autosave")
+        data.pop(f"model-{table.models[1].pk}-participated")
+        assert client.post(editor_url(report), data).status_code == 200
+        report.refresh_from_db()
+        assert [model["participated"] for model in report.draft["models"]] == [
+            True,
+            False,
+        ]
+
+    def test_model_profile_caption_and_standalone_preview(self, client, table, feature):
+        report = start(client, table, standalone=True)
+        page = client.get(editor_url(report))
+        assert all(row.profile_name == "Ganger" for row in page.context["models"])
+        assert (
+            module(page, table.models[0])
+            .find("h3")
+            .find_parent()
+            .find("p")
+            .get_text(strip=True)
+            == "Ganger"
+        )
+        result = client.post(
+            editor_url(report), html_fields(page, intent="autosave")
+        ).json()
+        assert result["preview"]["territory"] is None
+
+    def test_recorded_territory_is_attributed_and_never_replayed(
+        self, client, table, feature
+    ):
+        from n26.library.models import AssetType
+
+        other = open_founding(
+            found_gang(
+                "Rust Kings", table.gang.gang_type, owner=table.owner, budget=1000
+            )
+        )
+        join_campaign(other, table.campaign)
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            kind = act.add_asset_type(
+                "Territory", AssetType.Ownership.HOLDING, "Territories"
+            )
+            token = act.add_asset(act.create_asset(kind, "Sump Gate"))
+            act.assign(token, table.gang.campaign_memberships.get(left__isnull=True))
+            act.edit_battle(
+                table.battle,
+                scenario="Stand-off",
+                date=table.battle.date,
+                gangs=[table.gang, other],
+                result="winners",
+                winners=[other],
+                revision=table.battle.revision,
+                stake=token,
+                stake_awarded_to=other,
+            )
+        table.battle.refresh_from_db()
+        report = start(client, table)
+        before = LedgerEvent.objects.count()
+        page = client.get(editor_url(report))
+        data = html_fields(page, intent="autosave")
+        result = client.post(editor_url(report), data).json()
+        assert result["preview"]["territory"]["name"] == "Sump Gate"
+        assert (
+            result["preview"]["territory"]["outcome"]
+            == "Moved from Ashen Choir to Rust Kings."
+        )
+        assert LedgerEvent.objects.count() == before
+        applied = client.post(
+            editor_url(report), awards(client.get(editor_url(report)), table)
+        )
+        assert applied.status_code == 302
+        token.refresh_from_db()
+        assert token.holder.gang_id == other.pk
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            act.unassign(token)
+            act.assign(token, table.gang.campaign_memberships.get(left__isnull=True))
+        client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+        page = client.get(editor_url(report))
+        # Corrections retain the historical winner separately from today's holder.
+        assert (
+            page.context["preview"]["territory"]["outcome"]
+            == "Moved from Ashen Choir to Rust Kings."
+        )
+        assert "Ashen Choir" in page.context["preview"]["territory"]["currentHolder"]
+
+    def test_autosave_query_count_does_not_grow_with_roster(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+
+        def count():
+            page = client.get(editor_url(report))
+            with CaptureQueriesContext(connection) as queries:
+                response = client.post(
+                    editor_url(report), html_fields(page, intent="autosave")
+                )
+                assert response.status_code == 200
+            return len(queries)
+
+        small = count()
+        for name in ("Ash", "Flare", "Coal"):
+            hire(table.gang, table.models[0].membership.profile, name)
+        assert count() <= small
+
+    def test_unrecorded_stake_does_not_claim_a_transfer(self, client, table, feature):
+        from n26.library.models import AssetType
+
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            kind = act.add_asset_type(
+                "Territory", AssetType.Ownership.HOLDING, "Territories"
+            )
+            token = act.add_asset(act.create_asset(kind, "Unresolved Gate"))
+            act.assign(token, table.gang.campaign_memberships.get(left__isnull=True))
+            act.edit_battle(
+                table.battle,
+                scenario="Stand-off",
+                date=table.battle.date,
+                gangs=[table.gang],
+                result="not_recorded",
+                winners=[],
+                revision=table.battle.revision,
+                stake=token,
+                stake_awarded_to=None,
+            )
+        report = start(client, table)
+        preview = client.get(editor_url(report)).context["preview"]
+        assert preview["territory"]["heading"] == "Battle stake"
+        assert preview["territory"]["outcome"] == "Outcome not recorded."
+        assert "arbitrator records" in preview["territory"]["note"]

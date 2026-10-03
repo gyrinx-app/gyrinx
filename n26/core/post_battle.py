@@ -107,6 +107,7 @@ class ModelResult:
     xp_award_assignment_id: str | None = None
     xp_recorded: int = 0
     is_vehicle: bool = False
+    profile_name: str = ""
     effect_slots: list[EffectSlot] = field(default_factory=list)
     effects: list[EffectResult] = field(default_factory=list)
     final_status: str = ""
@@ -1232,6 +1233,7 @@ def preview_report(report, *, actor, payload=None):
             xp_award_assignment_id=xp_source,
             xp_recorded=before.get("xp", 0),
             is_vehicle=vehicle,
+            profile_name=str(primary) if primary else "",
             errors=model_errors,
             participated=raw.get("participated") is True,
         )

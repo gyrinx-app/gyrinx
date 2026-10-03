@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from n26.core.campaigns import battle_stake
+from n26.core.campaigns import battle_stake, stake_came_from
 from n26.core.models import (
     Battle,
     BattleCrew,
@@ -30,10 +30,12 @@ from n26.core.post_battle_forms import (
     keep_recorded_xp,
     mission_results,
     posted_payload,
+    preview_display,
     receipt_mission,
     receipt_models,
     refreshed_model,
     refreshes_mission,
+    toolbar_display,
     xp_toolbar,
 )
 from n26.core.views.battles import battle_or_404
@@ -295,16 +297,6 @@ def post_battle_editor(request, pk):
                     revision=version_data["revision"],
                     payload=payload,
                 )
-                if intent == "autosave":
-                    return JsonResponse(
-                        {
-                            "revision": report.draft_revision,
-                            "generation": str(report.generation),
-                            "saved": timezone.localtime(report.modified).strftime(
-                                "%H:%M:%S"
-                            ),
-                        }
-                    )
                 if intent == "apply":
                     applied = apply_report(
                         report,
@@ -340,7 +332,7 @@ def post_battle_editor(request, pk):
             ]
             show_errors = True
             status = 400
-        if intent == "autosave":
+        if intent == "autosave" and errors:
             return JsonResponse({"error": " ".join(errors)}, status=status)
         if (refresh or mission) and errors:
             # htmx leaves the page as it is on an error, so every entry
@@ -365,6 +357,44 @@ def post_battle_editor(request, pk):
     }
     version = ReportVersionForm(initial=values)
     models = editor_models(plan, payload, refresh_url=request.path)
+    stake = battle_stake(report.battle, request.user)
+    territory = None
+    if stake:
+        if report.battle.stake_transfer_mark:
+            source = stake_came_from(report.battle)
+            outcome = (
+                f"Moved from {source.name} to {stake.awarded_to}."
+                if source
+                else f"Moved to {stake.awarded_to}."
+            )
+        elif report.battle.result == report.battle.Result.NOT_RECORDED:
+            outcome = "Outcome not recorded."
+        else:
+            outcome = stake.outcome
+        territory = {
+            "name": stake.name,
+            "heading": "Battle stake"
+            if report.battle.result == report.battle.Result.NOT_RECORDED
+            else "Recorded with battle",
+            "outcome": outcome,
+            "currentHolder": stake.held_by,
+            "note": (
+                "The campaign’s arbitrator records this outcome on Edit battle."
+                if report.battle.result == report.battle.Result.NOT_RECORDED
+                else "This outcome is already recorded. Applying these results does not repeat it."
+            ),
+        }
+    preview = preview_display(plan, models, territory=territory)
+    if posted and intent == "autosave":
+        return JsonResponse(
+            {
+                "revision": report.draft_revision,
+                "generation": str(report.generation),
+                "review": plan.review,
+                "saved": timezone.localtime(report.modified).strftime("%H:%M:%S"),
+                "preview": preview,
+            }
+        )
     context = {
         "report": report,
         "gang": report.gang,
@@ -375,7 +405,9 @@ def post_battle_editor(request, pk):
         "mission": mission_results(
             plan, payload, refresh_url=request.path, show_errors=show_errors
         ),
-        "stake": battle_stake(report.battle, request.user),
+        "stake": stake,
+        "preview": preview,
+        "toolbar_props": toolbar_display(models),
         "xp_toolbar": xp_toolbar(models),
         "version_form": version,
         "errors": errors,

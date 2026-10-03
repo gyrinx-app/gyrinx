@@ -22,6 +22,15 @@
     let refreshing = null;
     let refreshed = null;
 
+    const preview = (state, display) => {
+        form.dataset.previewState = state;
+        form.dispatchEvent(
+            new CustomEvent("post-battle:preview", {
+                detail: { state, ...(display ? { preview: display } : {}) },
+            }),
+        );
+    };
+
     const save = async () => {
         if (saving || waiting || submitting || failed || !dirty) return;
         if (refreshing) return;
@@ -43,6 +52,12 @@
                     );
                 form.elements.revision.value = result.revision;
                 form.elements.generation.value = result.generation;
+                if (result.review && form.elements.review)
+                    form.elements.review.value = result.review;
+                preview(
+                    dirty ? "updating" : "ready",
+                    dirty ? null : result.preview,
+                );
                 status.textContent = dirty
                     ? "Unsaved changes"
                     : `Draft saved ${result.saved}`;
@@ -50,6 +65,7 @@
             .catch((error) => {
                 failed = true;
                 dirty = true;
+                preview("failed");
                 status.textContent = `${error.message} Your entries are still here. Use Save draft to retry.`;
             })
             .finally(() => {
@@ -69,7 +85,7 @@
         );
     const redrawXpToolbar = () => {
         const toolbar = form.querySelector("[data-xp-toolbar]");
-        if (!toolbar) return;
+        if (!toolbar || toolbar.closest("[data-react-module]")) return;
         const selected = [
             ...form.querySelectorAll("input[data-xp-participant]:checked"),
         ];
@@ -95,11 +111,7 @@
 
     // −1 XP and +1 XP change the ticked models' XP here, like typing
     // would, and the autosave keeps it. Without scripts they post the form.
-    form.addEventListener("click", (event) => {
-        const button = event.target.closest?.("button[data-xp-step]");
-        if (!button || !form.contains(button)) return;
-        event.preventDefault();
-        const step = button.dataset.xpStep === "-1" ? -1 : 1;
+    const stepXp = (step) => {
         for (const box of form.querySelectorAll(
             "input[data-xp-participant]:checked",
         )) {
@@ -111,6 +123,24 @@
             if (!Number.isInteger(number)) continue;
             input.value = String(Math.max(0, number + step));
             input.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+    };
+    form.addEventListener("click", (event) => {
+        const button = event.target.closest?.("button[data-xp-step]");
+        if (!button || !form.contains(button)) return;
+        event.preventDefault();
+        stepXp(button.dataset.xpStep === "-1" ? -1 : 1);
+    });
+    form.addEventListener("post-battle:bulk-action", (event) => {
+        const intent = event.detail.intent;
+        if (intent === "attend-all") {
+            for (const box of form.querySelectorAll(
+                "input[data-xp-participant]",
+            ))
+                box.checked = true;
+            form.dispatchEvent(new Event("input", { bubbles: true }));
+        } else if (intent === "xp-step:+1" || intent === "xp-step:-1") {
+            stepXp(intent.endsWith("-1") ? -1 : 1);
         }
     });
 
@@ -230,6 +260,7 @@
         carried = new Map();
         restore = null;
         status.textContent = "Saving draft…";
+        preview("updating");
         refreshing = new Promise((resolve) => {
             refreshed = resolve;
         });
@@ -291,6 +322,7 @@
             const message =
                 event.detail.xhr?.responseText || "Draft could not be saved.";
             status.textContent = `${message} Your entries are still here. Use Save draft to retry.`;
+            preview("failed");
         }
         refreshed?.();
         refreshing = null;
@@ -298,6 +330,7 @@
         sent = new Map();
         redrawXpToolbar();
         redrawMission();
+        preview(failed ? "failed" : dirty ? "updating" : "ready");
         // Entries typed elsewhere while the update was in flight were not
         // in it. The server's "Draft saved" line would be wrong about them.
         if (dirty && !failed) {
@@ -311,6 +344,7 @@
         redrawXpToolbar();
         redrawMission();
         dirty = true;
+        preview(failed ? "failed" : "updating");
         window.clearTimeout(timer);
         if (!failed) {
             status.textContent = "Unsaved changes";
@@ -324,6 +358,29 @@
             return;
         }
         window.clearTimeout(timer);
+        if (event.submitter?.value === "apply" && failed) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            status.textContent =
+                "Preview is out of date. Use Save draft to retry before applying results.";
+            return;
+        }
+        if (
+            event.submitter?.value === "apply" &&
+            dirty &&
+            !saving &&
+            !refreshing
+        ) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            const button = event.submitter;
+            const work = save();
+            waiting = true;
+            await work;
+            waiting = false;
+            if (!failed) form.requestSubmit(button);
+            return;
+        }
         if (saving || refreshing) {
             event.preventDefault();
             event.stopImmediatePropagation();
