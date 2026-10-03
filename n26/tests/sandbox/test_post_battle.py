@@ -1918,3 +1918,50 @@ def test_unrelated_non_lasting_choices_are_not_post_battle_results(
     assert all(
         offered.label != "Release result" for offered in plan.models[0].effect_slots
     )
+
+
+@pytest.mark.parametrize("new_occurrence", [False, True])
+def test_an_applied_escape_can_be_replaced_in_a_correction(
+    report, owner, model, gang, capture_content, new_occurrence
+):
+    captured, slot, escaped = capture_content
+    ransomed = create_pickable(
+        "Paid release",
+        slot.slot_type,
+        effects=[(targets_model(), op_sets_status(Status.RANSOMED))],
+    )
+    add_picklist_member(slot.picklist, ransomed)
+    injury = effect_for(report, owner, captured)
+    report = save(
+        report, owner, payload_for(model, effects=[injury], status=Status.CAPTURED)
+    )
+    report = start_correction(apply(report, owner).report, actor=owner)
+    escape = effect_for(report, owner, escaped)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"].append(escape)
+    payload["models"][0]["status"] = Status.RECOVERY
+    report = save(report, owner, payload)
+    report = start_correction(apply(report, owner).report, actor=owner)
+    payload = deepcopy(report.draft)
+    replacement = escape | {"pick": str(ransomed.pk)}
+    if new_occurrence:
+        replacement["id"] = str(uuid4())
+    payload["models"][0]["effects"] = [injury, replacement]
+    payload["models"][0]["status"] = Status.RANSOMED
+    before = LedgerEvent.objects.count()
+    assert preview_report(report, actor=owner, payload=payload).valid
+    assert LedgerEvent.objects.count() == before
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.RANSOMED
+    assert Assignment.objects.filter(
+        miniature=model, pickable=ransomed, archived=False
+    ).exists()
+    assert Assignment.objects.filter(
+        miniature=model, pickable=captured, archived=False
+    ).exists()
+    assert not Assignment.objects.filter(
+        miniature=model, pickable=escaped, archived=False
+    ).exists()
+    assert_reconciled(gang)

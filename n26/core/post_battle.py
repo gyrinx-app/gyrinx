@@ -1242,19 +1242,24 @@ def preview_report(report, *, actor, payload=None):
         for slot in computed.choices:
             if slot.slot is None or slot.slot.assigned_to == Slot.WillBeAssignedTo.GANG:
                 continue
-            capture_choice = miniature.status == Status.CAPTURED and any(
-                isinstance(modifier.effect, OpSetsStatus)
-                and modifier.effect.status == Status.CAPTURED
-                for modifier, _ in index.for_thing(slot.anchor.assignable)
-            )
-            if not slot.slot.slot_type.is_lasting_effect and not capture_choice:
-                continue
             anchor = slot.anchor.assignment
             if anchor is None:
                 anchor = assignments.get(str(slot.anchor.key))
             if anchor is None:
                 continue
             key = f"{anchor.pk}:{slot.slot.pk}"
+            capture_choice = (
+                miniature.status == Status.CAPTURED
+                or any(
+                    effect.get("slot") == key for effect in before.get("effects", [])
+                )
+            ) and any(
+                isinstance(modifier.effect, OpSetsStatus)
+                and modifier.effect.status == Status.CAPTURED
+                for modifier, _ in index.for_thing(slot.anchor.assignable)
+            )
+            if not slot.slot.slot_type.is_lasting_effect and not capture_choice:
+                continue
             cache_key = str(slot.slot.pk)
             if cache_key not in choices_cache:
                 choices_cache[cache_key] = _options(replace(slot, picks=[]), computed)
