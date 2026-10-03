@@ -60,7 +60,7 @@ Roll is primary because it begins a form. The other controls do not.
                 {% for entry in table.entries %}
                     <tr>
                         <td class="min-w-40">
-                            <span class="font-semibold text-ink-900 dark:text-ink-100">{{ entry.name }}</span>
+                            <c-n26.link href="{{ entry.href }}" tone="current" class="font-semibold">{{ entry.name }}</c-n26.link>
                             {% if entry.asset_name %}<span class="block text-xs text-muted">{{ entry.asset_name }}</span>{% endif %}
                         </td>
                         <td class="text-right tabular-nums whitespace-nowrap">
