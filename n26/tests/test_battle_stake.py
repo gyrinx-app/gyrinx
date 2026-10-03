@@ -424,7 +424,9 @@ class TestBothReportsAgree:
             url = reverse("n26-post-battle-editor", args=[report.pk])
             editor = client.get(url)
             text = stake_text(editor)
-            assert "Old Ruins · Goes to Rust Kings" in text
+            assert "Old Ruins" in text
+            assert "Moved from Ashen Choir to Rust Kings" in text
+            assert "Already applied" in text
             assert "Held by Bystanders" in text
             applied = client.post(
                 url,
