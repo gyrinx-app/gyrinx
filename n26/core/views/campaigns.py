@@ -244,6 +244,11 @@ def campaign(request, pk):
     # Read once and asked twice: the page draws the players, and whether
     # this reader is one of them decides what it offers them.
     players = list(_players(found))
+    invitations = [
+        player for player in players if player.user_id == reading and player.waiting
+    ]
+    for invitation in invitations:
+        invitation.campaign = found
     at_the_table = any(
         player.user_id == reading and player.state == accepted for player in players
     )
@@ -261,6 +266,7 @@ def campaign(request, pk):
             "may_add_gang": yours or at_the_table,
             "may_record": yours or at_the_table,
             "players": players,
+            "invitations": invitations,
             "battles": battles,
             "acts": acts,
             "more_acts": more_acts,
@@ -2352,7 +2358,6 @@ def answer_invitation(request, pk):
             campaign__pk=pk,
             campaign__archived=False,
             user=request.user,
-            state=CampaignParticipant.State.INVITED,
         )
     except ValidationError as malformed:
         raise Http404("No such campaign") from malformed
@@ -2366,16 +2371,25 @@ def answer_invitation(request, pk):
 
     accepted = answer == "accept"
     with campaign_operation(campaign, actor=request.user) as act:
-        act.answer_invitation(request.user, accepted)
+        answered = act.answer_invitation(request.user, accepted)
 
-    messages.success(
+    # The operation serialises answers. A stale form may arrive after another
+    # answer, so the destination and message must reflect the stored result.
+    player.refresh_from_db(fields=["state"])
+    if player.state == CampaignParticipant.State.ACCEPTED:
+        messages.success(
+            request,
+            f"You joined {campaign.name}."
+            if answered
+            else f"You have already joined {campaign.name}.",
+        )
+        return redirect("n26-campaign", pk=campaign.pk)
+    messages.info(
         request,
-        f"You joined {campaign.name}."
-        if accepted
-        else f"You declined {campaign.name}.",
+        f"You declined {campaign.name}."
+        if answered
+        else f"You have already declined {campaign.name}.",
     )
-    # Answered from the campaigns list or the home page, and a reader should
-    # land back where they were rather than somewhere this view chose.
     return _safe_redirect(
         request, request.POST.get("next", ""), fallback_url=reverse("n26-campaigns")
     )
