@@ -10,8 +10,7 @@
 {% endblock %}
 {% block content %}
     <div class="max-w-3xl space-y-8">
-        <c-n26.page-header title="{{ details.name }}"
-                           lead="{{ details.kind }}{% if details.library_name %} · {{ details.library_name }}{% endif %}">
+        <c-n26.page-header title="{{ details.name }}">
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
                     <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
@@ -31,6 +30,20 @@
         </c-n26.page-header>
         <c-n26.form-section title="Details">
             <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                    <dt class="text-sm text-muted">Asset type</dt>
+                    <dd class="mt-1 font-semibold">
+                        {{ details.kind }}
+                    </dd>
+                </div>
+                {% if details.library_name %}
+                    <div>
+                        <dt class="text-sm text-muted">Catalogue entry</dt>
+                        <dd class="mt-1 font-semibold">
+                            {{ details.library_name }}
+                        </dd>
+                    </div>
+                {% endif %}
                 <div><dt class="text-sm text-muted">Held by</dt><dd class="mt-1 font-semibold">{% if details.holder %}<c-n26.link href="{{ details.holder_href }}">{{ details.holder }}</c-n26.link>{% else %}Unclaimed{% endif %}</dd></div>
                 <div>
                     <dt class="text-sm text-muted">Income</dt>

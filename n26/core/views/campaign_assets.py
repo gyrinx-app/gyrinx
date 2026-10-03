@@ -9,7 +9,12 @@ from django.views.decorators.http import require_GET
 
 from n26.core.history import asset_ownership_history
 from n26.core.models import Battle
-from n26.core.render import boon_said
+from n26.core.render import (
+    CampaignAssetAction,
+    CampaignAssetBattle,
+    CampaignAssetDetails,
+    boon_said,
+)
 from n26.core.views.campaigns import _campaign_asset_or_404, _holding_owner
 from n26.core.views.gangs import _pages
 from n26.core.views.permissions import _any_campaign_or_404
@@ -36,11 +41,11 @@ def asset_detail(request, pk, asset_pk):
 
     def action(label, route, danger=False):
         actions.append(
-            {
-                "label": label,
-                "href": reverse(route, args=[campaign.pk, holding.pk]),
-                "variant": "danger" if danger else "default",
-            }
+            CampaignAssetAction(
+                label=label,
+                href=reverse(route, args=[campaign.pk, holding.pk]),
+                variant="danger" if danger else "default",
+            )
         )
 
     if may_release:
@@ -65,16 +70,16 @@ def asset_detail(request, pk, asset_pk):
                 gang.name for gang in battle.winners.all()
             )
         battles.append(
-            {
-                "title": battle.title,
-                "date": battle.date,
-                "href": reverse("n26-battle", args=[campaign.pk, battle.pk]),
-                "gangs": ", ".join(gang.name for gang in battle.gangs.all()),
-                "outcome": outcome,
-                "transferred_to": battle.stake_awarded_to.name
+            CampaignAssetBattle(
+                title=battle.title,
+                date=battle.date,
+                href=reverse("n26-battle", args=[campaign.pk, battle.pk]),
+                gangs=", ".join(gang.name for gang in battle.gangs.all()),
+                outcome=outcome,
+                transferred_to=battle.stake_awarded_to.name
                 if battle.stake_transfer_mark and battle.stake_awarded_to_id
                 else "",
-            }
+            )
         )
     history = list(reversed(asset_ownership_history(holding)))
     page = Paginator(history, 50).get_page(request.GET.get("page"))
@@ -83,18 +88,18 @@ def asset_detail(request, pk, asset_pk):
         "n26/campaign_asset.html",
         {
             "campaign": campaign,
-            "details": {
-                "name": str(holding),
-                "library_name": holding.asset.name if holding.name else "",
-                "kind": holding.asset.asset_type.label_singular,
-                "created": holding.created,
-                "income": income_of(holding.asset),
-                "boons": [boon_said(modifier) for modifier in boons_of(holding.asset)],
-                "holder": holding.holder.gang.name if held else "",
-                "holder_href": reverse("n26-gang", args=[holding.holder.gang_id])
+            "details": CampaignAssetDetails(
+                name=str(holding),
+                library_name=holding.asset.name if holding.name else "",
+                kind=holding.asset.asset_type.label_singular,
+                created=holding.created,
+                income=income_of(holding.asset),
+                boons=[boon_said(modifier) for modifier in boons_of(holding.asset)],
+                holder=holding.holder.gang.name if held else "",
+                holder_href=reverse("n26-gang", args=[holding.holder.gang_id])
                 if held
                 else "",
-            },
+            ),
             "actions": actions,
             "battles": battles,
             "history": page.object_list,

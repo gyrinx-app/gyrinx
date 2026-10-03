@@ -73,9 +73,9 @@ def test_details_show_the_holding_name_income_boons_holder_and_creation_time_wit
     before = LedgerEvent.objects.count()
     response = client.get(address(campaign, holding))
     assert response.status_code == 200
-    assert response.context["details"]["income"] == 30
-    assert response.context["details"]["boons"] == ["Salvage."]
-    assert response.context["details"]["holder"] == first.gang.name
+    assert response.context["details"].income == 30
+    assert response.context["details"].boons == ["Salvage."]
+    assert response.context["details"].holder == first.gang.name
     html = response.content.decode()
     assert "Ruins by the sump" in html and "Old Ruins" in html
     assert "Added to the campaign" in html
@@ -115,7 +115,7 @@ def test_held_actions_follow_existing_owner_and_arbitrator_permissions(
     )
     client.force_login(viewer)
     response = client.get(address(campaign, holding))
-    assert {action["label"] for action in response.context["actions"]} == labels
+    assert {action.label for action in response.context["actions"]} == labels
 
 
 def test_unclaimed_asset_offers_assign_remove_only_to_arbitrator(client, setup):
@@ -123,8 +123,8 @@ def test_unclaimed_asset_offers_assign_remove_only_to_arbitrator(client, setup):
     with campaign_operation(campaign, actor=arbitrator) as op:
         op.unassign(holding)
     response = client.get(address(campaign, holding))
-    assert response.context["details"]["holder"] == ""
-    assert {action["label"] for action in response.context["actions"]} == {
+    assert response.context["details"].holder == ""
+    assert {action.label for action in response.context["actions"]} == {
         "Assign",
         "Remove",
     }
@@ -180,10 +180,10 @@ def test_staked_battles_show_results_and_recorded_transfer_without_moving_again(
     before = LedgerEvent.objects.count()
     response = client.get(address(campaign, holding))
     row = response.context["battles"][0]
-    assert row["href"] == reverse("n26-battle", args=[campaign.pk, battle.pk])
-    assert row["outcome"] == "Winners: Ash Vipers"
-    assert row["transferred_to"] == "Ash Vipers"
-    assert response.context["details"]["holder"] == "Ash Vipers"
+    assert row.href == reverse("n26-battle", args=[campaign.pk, battle.pk])
+    assert row.outcome == "Winners: Ash Vipers"
+    assert row.transferred_to == "Ash Vipers"
+    assert response.context["details"].holder == "Ash Vipers"
     assert LedgerEvent.objects.count() == before
 
 
@@ -229,7 +229,7 @@ def test_more_battles_boons_and_ownership_changes_do_not_add_queries(client, set
     with CaptureQueriesContext(connection) as many:
         response = client.get(path)
     assert len(response.context["battles"]) == 9
-    assert len(response.context["details"]["boons"]) == 9
+    assert len(response.context["details"].boons) == 9
     assert len(many) <= len(few)
 
 
@@ -247,3 +247,16 @@ def test_ownership_history_pages_complete_transfers_instead_of_individual_ledger
     page_two = client.get(address(campaign, holding), {"page": 2})
     assert len(page_two.context["history"]) == 1
     assert "went to Rust Kings" in page_two.content.decode()
+
+
+def test_static_asset_creation_and_roll_routes_remain_reachable():
+    from django.urls import resolve
+
+    assert (
+        resolve("/n26/campaigns/example/assets/new/").url_name
+        == "n26-campaign-new-asset"
+    )
+    assert (
+        resolve("/n26/campaigns/example/assets/roll/").url_name
+        == "n26-campaign-roll-asset"
+    )

@@ -11,6 +11,7 @@ number of queries regardless of how many models or how much kit — see
 """
 
 from dataclasses import dataclass, field, replace
+from datetime import date, datetime
 
 from django.utils.text import capfirst
 
@@ -4478,3 +4479,32 @@ def build_ledger(gang):
     return LedgerView(
         gang=gang.name, starting_credits=gang.starting_credits, lines=lines
     )
+
+
+@dataclass(frozen=True)
+class CampaignAssetDetails:
+    name: str
+    library_name: str
+    kind: str
+    created: datetime
+    income: int
+    boons: list[str]
+    holder: str
+    holder_href: str
+
+
+@dataclass(frozen=True)
+class CampaignAssetAction:
+    label: str
+    href: str
+    variant: str
+
+
+@dataclass(frozen=True)
+class CampaignAssetBattle:
+    title: str
+    date: date
+    href: str
+    gangs: str
+    outcome: str
+    transferred_to: str
