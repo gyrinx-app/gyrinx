@@ -128,6 +128,10 @@ class Act:
     #: own history leaves these empty: there is only ever the one.
     gang_pk: str = ""
     gang_name: str = ""
+    #: Filter identity for ownership acts, whose sentence omits the actor.
+    actor_pk: int | None = None
+    #: A transfer concerns both gangs even though it draws no gang subtitle.
+    related_gang_pks: tuple[str, ...] = ()
 
     @property
     def search(self):
@@ -645,6 +649,7 @@ def _clean_house_as_one(standing, viewer, alive):
         when=first.created,
         actor=_actor(first, viewer),
         actor_user=_actor_user(first, viewer),
+        actor_pk=first.actor_id,
         spans=(
             Span("cleaned house — "),
             Span(f"{len(subs)} {models} back from Recovery"),
@@ -666,6 +671,7 @@ def _edits_as_one(standing, viewer, alive):
         when=first.created,
         actor=_actor(first, viewer),
         actor_user=_actor_user(first, viewer),
+        actor_pk=first.actor_id,
         spans=(Span(f"{verb} what "), _model_span(model, alive), Span(" is")),
         subs=subs,
         category="model",
@@ -698,6 +704,7 @@ def _one_act(e, row, viewer, alive):
         when=e.created,
         actor=actor,
         actor_user=_actor_user(e, viewer) if actor else None,
+        actor_pk=e.actor_id,
         spans=spans,
         credits=-e.credits_delta,
         trade_points=-e.trade_points_delta,
@@ -1474,7 +1481,14 @@ def _holding_acts(events):
             spans = (Span(f"{_gang_named(lost)} lost "), name)
         yield (
             (first.created, str(first.pk)),
-            Act(when=first.created, actor="", spans=spans, category="gang"),
+            Act(
+                when=first.created,
+                actor="",
+                spans=spans,
+                category="gang",
+                actor_pk=first.actor_id,
+                related_gang_pks=tuple(dict.fromkeys(str(e.gang_id) for e in marked)),
+            ),
         )
 
 
@@ -1488,6 +1502,7 @@ def _one_campaign_act(e, viewer):
         when=e.created,
         actor=_actor(e, viewer),
         actor_user=_actor_user(e, viewer),
+        actor_pk=e.actor_id,
         spans=spans,
         category=category,
         note=e.note if e.kind == CampaignEvent.Kind.DICE_ROLL_NOTED else "",

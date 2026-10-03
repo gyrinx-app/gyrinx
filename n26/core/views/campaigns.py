@@ -777,11 +777,12 @@ def campaign_log(request, pk):
     from n26.core.campaign_permissions import may_record_campaign
     from n26.core.history import campaign_history, load_actor_badges
     from n26.core.views.gangs import _pages
-    from n26.core.views.history import by_day
+    from n26.core.views.history import by_day, filter_campaign_acts
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=True)
     acts = campaign_history(found, viewer=request.user)
     total = len(acts)
+    filters, acts, narrowed = filter_campaign_acts(request, acts)
     # Newest first before paging, so page one is the latest screenful
     # rather than the founding.
     page = Paginator(list(reversed(acts)), LOG_PER_PAGE).get_page(
@@ -797,6 +798,9 @@ def campaign_log(request, pk):
             "campaign": found,
             "may_record": may_record_campaign(found, request.user),
             "days": by_day(page.object_list),
+            "filters": filters,
+            "narrowed": narrowed,
+            "matched": len(acts),
             "total": total,
             "pages": _pages(request, page) if page.paginator.num_pages > 1 else None,
         },
