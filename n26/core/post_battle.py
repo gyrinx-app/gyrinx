@@ -1240,11 +1240,14 @@ def preview_report(report, *, actor, payload=None):
         plan.models.append(result)
         eligible = {}
         for slot in computed.choices:
-            if (
-                slot.slot is None
-                or not slot.slot.slot_type.is_lasting_effect
-                or slot.slot.assigned_to == Slot.WillBeAssignedTo.GANG
-            ):
+            if slot.slot is None or slot.slot.assigned_to == Slot.WillBeAssignedTo.GANG:
+                continue
+            capture_choice = miniature.status == Status.CAPTURED and any(
+                isinstance(modifier.effect, OpSetsStatus)
+                and modifier.effect.status == Status.CAPTURED
+                for modifier, _ in index.for_thing(slot.anchor.assignable)
+            )
+            if not slot.slot.slot_type.is_lasting_effect and not capture_choice:
                 continue
             anchor = slot.anchor.assignment
             if anchor is None:
