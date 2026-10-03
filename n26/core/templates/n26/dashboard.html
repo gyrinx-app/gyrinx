@@ -69,6 +69,8 @@ places — the same pattern a gang's screens use for their siblings.
                                                  :type_icon="gang.gang_type.artwork"
                                                  colour="{{ gang.colour }}"
                                                  :sheet="gang"
+                                                 campaign_name="{{ gang.campaign_name }}"
+                                                 campaign_href="{{ gang.campaign_href }}"
                                                  href="{% url 'n26-gang' gang.pk %}" />
                 {% endfor %}
             </c-n26.record-table>

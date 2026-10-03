@@ -42,6 +42,14 @@ that said it twice would be spending the width the name needs.
                            owner_href="{% url 'n26-dashboard' %}"
                            owner_flair_label="{{ owner_badge.description }}"
                            gangs_href="{% url 'n26-dashboard' %}">
+        {% if unlimited_in_campaign %}
+            <c-slot name="notice">
+                <c-ui.alert variant="info" title="Unlimited credits">
+                    <p>This gang's credit balance is not tracked. Joining a campaign does not change its credits budget.</p>
+                    <p class="mt-2"><c-n26.link href="{% url 'n26-edit-gang' gang.pk %}#starting-credits">Review credits budget</c-n26.link> to start tracking credits. The budget must cover what the gang is already worth; the remaining amount becomes credits in hand.</p>
+                </c-ui.alert>
+            </c-slot>
+        {% endif %}
         {% comment %}
         The reader's other gangs, beside the name of this one — the same rows
         the bar offers, off the same memo, so the two cost one query between
