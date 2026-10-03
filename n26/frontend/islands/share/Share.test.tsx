@@ -70,7 +70,7 @@ describe("Share", () => {
         );
         expect(screen.getByText("Share").className).toContain("hidden");
         expect(screen.getByText("Share").className).toContain("sm:inline");
-        expect(screen.queryByRole("status")).toBeNull();
+        expect(screen.getByRole("status").textContent).toBe("");
     });
 
     it("opens the share sheet with the link's absolute href", () => {
@@ -85,7 +85,7 @@ describe("Share", () => {
         expect(share).toHaveBeenCalledWith({ url: link.href });
         expect(link.href).toMatch(/^https?:\/\//);
         expect(writeText).not.toHaveBeenCalled();
-        expect(screen.queryByRole("status")).toBeNull();
+        expect(screen.getByRole("status").textContent).toBe("");
     });
 
     it("leaves a modified click or a new-window link to the browser", () => {
@@ -115,7 +115,7 @@ describe("Share", () => {
         fireEvent.click(link);
         await vi.waitFor(() => expect(share).toHaveBeenCalled());
         expect(writeText).not.toHaveBeenCalled();
-        expect(screen.queryByRole("status")).toBeNull();
+        expect(screen.getByRole("status").textContent).toBe("");
     });
 
     it("copies the absolute link when the share sheet fails", async () => {
@@ -157,7 +157,7 @@ describe("Share", () => {
         const link = renderShare();
 
         fireEvent.click(link);
-        expect(await screen.findByRole("status")).not.toBeNull();
+        expect(await screen.findByText("Link copied.")).not.toBeNull();
         expect(share).not.toHaveBeenCalled();
         expect(writeText).toHaveBeenCalledWith(link.href);
     });
@@ -173,7 +173,7 @@ describe("Share", () => {
 
         fireEvent.click(link);
         await vi.waitFor(() => expect(assign).toHaveBeenCalledWith(link.href));
-        expect(screen.queryByRole("status")).toBeNull();
+        expect(screen.getByRole("status").textContent).toBe("");
     });
 
     it("follows the link when the clipboard is missing", () => {
@@ -203,20 +203,20 @@ describe("Share", () => {
         const link = renderShare();
 
         fireEvent.click(link);
-        expect(screen.getByRole("status")).not.toBeNull();
+        expect(screen.getByRole("status").textContent).toBe("Link copied.");
 
         act(() => {
             vi.advanceTimersByTime(3999);
         });
-        expect(screen.getByRole("status")).not.toBeNull();
+        expect(screen.getByRole("status").textContent).toBe("Link copied.");
         fireEvent.click(link);
         act(() => {
             vi.advanceTimersByTime(3999);
         });
-        expect(screen.getByRole("status")).not.toBeNull();
+        expect(screen.getByRole("status").textContent).toBe("Link copied.");
         act(() => {
             vi.advanceTimersByTime(1);
         });
-        expect(screen.queryByRole("status")).toBeNull();
+        expect(screen.getByRole("status").textContent).toBe("");
     });
 });

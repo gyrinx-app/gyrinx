@@ -109,11 +109,13 @@ export function Share({ url, message, size, variant }: ShareProps) {
                 <Icon name="share-2" className="size-3.5" strokeWidth={1.7} />
                 <span className="hidden sm:inline">Share</span>
             </ButtonLink>
-            {copied && (
-                <span role="status" className="text-xs text-muted">
-                    {message}
-                </span>
-            )}
+            {/* Mounted from the start so a reader announces the text when it appears. */}
+            <span
+                role="status"
+                className={copied ? "text-xs text-muted" : "sr-only"}
+            >
+                {copied ? message : ""}
+            </span>
         </>
     );
 }
