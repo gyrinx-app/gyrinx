@@ -13,7 +13,7 @@ export function CampaignRollSource(props: CampaignRollSourceProps) {
     const id = useId();
     const [source, setSource] = useState(props.source);
     const [rolled, setRolled] = useState(props.rolled);
-    const physical = source === "manual";
+    const manual = source === "manual";
     return (
         <div className="space-y-5">
             <RadioCards
@@ -33,9 +33,8 @@ export function CampaignRollSource(props: CampaignRollSourceProps) {
                 ))}
             </RadioCards>
             <Field
-                label="Physical result"
+                label="Result if already rolled"
                 htmlFor={id}
-                description="Enter the result of your physical dice."
                 errors={props.rolledErrors}
             >
                 <Input
@@ -45,8 +44,8 @@ export function CampaignRollSource(props: CampaignRollSourceProps) {
                     min={1}
                     max={66}
                     inputMode="numeric"
-                    disabled={!physical}
-                    required={physical}
+                    disabled={!manual}
+                    required={manual}
                     value={rolled}
                     onChange={(event) => setRolled(event.target.value)}
                 />
