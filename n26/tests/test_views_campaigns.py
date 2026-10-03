@@ -894,7 +894,7 @@ class TestTheRollOfGangs:
         assert response.status_code == 200
         assert "The Ashen Choir loses what the campaign gave it" in drawn
         assert "Removed from The Ashen Choir" in drawn
-        assert re.search(r"<dt[^>]*>Infamy</dt>\s*<dd[^>]*>2</dd>", drawn)
+        assert re.search(r"<dt[^>]*>Infamy</dt>\s*<dd[^>]*>\s*2\s*</dd>", drawn)
         assert CampaignMembership.objects.get(gang=gang).playing
 
     def test_the_post_takes_the_gang_out_and_returns_its_things(

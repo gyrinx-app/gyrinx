@@ -119,7 +119,7 @@ class TestLeaving:
         # The pick for the label goes with the label.
         assert not live(gang).filter(pickable__name="Outlaw").exists()
         assert render_gang(gang).campaign is None
-        assert render_gang(gang).choices == []
+        assert render_gang(gang).questions == []
         assert_reconciled(gang)
 
     def test_the_held_asset_goes_back_unheld(
@@ -202,7 +202,7 @@ class TestLeaving:
 
         assert live(gang).filter(asset__name="Settlement").count() == 1
         assert reputation_counter(gang).counter_value.value == 0
-        (choice,) = render_gang(gang).choices
+        (choice,) = render_gang(gang).campaign.choices
         assert not choice.chosen
         assert_reconciled(gang)
 
