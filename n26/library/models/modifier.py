@@ -1681,8 +1681,8 @@ class OpAddsMiniature(models.Model):
     membership is ledgered at full list price with a full discount: the
     entry says what the pet is worth and that nothing was paid for it here.
 
-    A campaign holding recruits the model when granted to a gang. That
-    recruit stays with the gang after it loses the holding.
+    When a gang gains a campaign holding with this effect, a new model joins
+    the gang. The model stays with the gang after the holding is lost.
     """
 
     is_stored = True

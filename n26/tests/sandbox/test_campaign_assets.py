@@ -642,6 +642,15 @@ class TestRecruitBoons:
         )
         assert recruit.membership.caused_by_id is None
         assert recruit.membership.ledger_entry.paid == 0
+        from n26.core import history
+
+        acts = history.build(gang)
+        granted = next(
+            act
+            for act in acts
+            if profile.name in "".join(span.text for span in act.spans)
+        )
+        assert "Old Ruins" in granted.note
         assign_asset(token, gang)
         assert (
             Miniature.objects.filter(
