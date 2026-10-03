@@ -479,7 +479,7 @@ class Operation:
             self._run_stored_effects(assignment, assignable)
         return assignment
 
-    def _run_stored_effects(self, assignment, assignable):
+    def _run_stored_effects(self, assignment, assignable, *, trigger="assign"):
         """Execute anything this assignable writes rather than computes.
 
         Each effect owns its own ``perform``, the way each scope owns its
@@ -493,9 +493,28 @@ class Operation:
             for modifier in modifiers.all():
                 effect = modifier.effect
                 if effect is not None and getattr(effect, "is_stored", False):
-                    effect.perform(self, assignment)
+                    # A holding has no assignment to cascade from. Effects
+                    # opt into its grant trigger with their own lifetime rule.
+                    perform = (
+                        getattr(effect, "perform_grant", None)
+                        if trigger == "grant"
+                        else effect.perform
+                    )
+                    if perform is not None:
+                        perform(self, assignment)
         finally:
             self._effect_depth -= 1
+
+    def gain_asset(self, holding, **deltas):
+        """Record a campaign holding's arrival and run its grant boons.
+
+        The campaign operation has already set the holder under its lock.
+        A repeated assignment to the same holder never reaches this trigger.
+        """
+        if self.gang is None or holding.holder.gang_id != self.gang.pk:
+            raise ValueError("The holding must have arrived at this operation's gang.")
+        self.event(holding, LedgerEvent.Kind.GAINED, note=str(holding), **deltas)
+        self._run_stored_effects(holding, holding.asset, trigger="grant")
 
     def event(self, about, kind, **deltas):
         """Append to the log. Nothing already written is ever altered.
