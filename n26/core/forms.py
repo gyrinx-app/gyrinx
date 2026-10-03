@@ -736,7 +736,7 @@ class BattleForm(forms.Form):
 
 
 class AddAssetForm(forms.Form):
-    """An asset to add to a campaign.
+    """Assets to add to a campaign.
 
     The assets offered are the ones the campaign deals in — those of the
     Holding asset types of its type and of its own additions — so the form
@@ -745,14 +745,15 @@ class AddAssetForm(forms.Form):
     a queryset built without one would accept anything.
     """
 
-    asset = forms.ModelChoiceField(
+    asset = forms.ModelMultipleChoiceField(
         queryset=None,
-        label="Asset",
+        label="Assets",
         error_messages={
             "invalid_choice": "That asset is not one this campaign deals in.",
-            "required": "Select an asset to add.",
+            "required": "Select one or more assets to add.",
         },
     )
+    request_key = forms.UUIDField(required=False)
     name = forms.CharField(
         required=False,
         max_length=200,
@@ -763,6 +764,21 @@ class AddAssetForm(forms.Form):
     def __init__(self, *args, offered, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["asset"].queryset = offered
+        from uuid import uuid4
+
+        self.fields["request_key"].initial = uuid4
+
+    def clean(self):
+        from uuid import uuid4
+
+        data = super().clean()
+        data["request_key"] = data.get("request_key") or uuid4()
+        assets = data.get("asset")
+        if assets is not None and len(assets) > 1 and data.get("name"):
+            self.add_error(
+                "name", "Select one asset to give it a name in this campaign."
+            )
+        return data
 
 
 class AssignAssetForm(forms.Form):
@@ -948,6 +964,40 @@ class RollAssetForm(forms.Form):
 
     def clean_table(self):
         return self.cleaned_data.get("table") or self.only_table
+
+
+class PoolRollForm(RollAssetForm):
+    """Generate several unclaimed assets from one selected table."""
+
+    count = forms.IntegerField(
+        required=True,
+        min_value=1,
+        max_value=100,
+        label="Number to roll",
+        help_text="Choose how many to add to the unclaimed pool, up to 100 at a time.",
+        initial=1,
+    )
+    request_key = forms.UUIDField(required=False)
+
+    def __init__(self, *args, **kwargs):
+        from uuid import uuid4
+
+        super().__init__(*args, **kwargs)
+        # Missing quantity is the single-roll request contract. An explicit
+        # blank remains a required error.
+        if self.is_bound and "count" not in self.data:
+            self.data = self.data.copy()
+            self.data["count"] = 1
+        self.fields["request_key"].initial = uuid4
+
+    def clean(self):
+        from uuid import uuid4
+
+        data = super().clean()
+        data["request_key"] = data.get("request_key") or uuid4()
+        if (data.get("count") or 0) > 1 and data.get("rolled") is not None:
+            self.add_error("rolled", "Set the number to 1 to use your own roll.")
+        return data
 
 
 class OpenTablesForm(forms.Form):

@@ -407,6 +407,28 @@ class TestTheAssetsOnTheCampaignPage:
         assert reverse("n26-campaign", args=[campaign.pk]) in body
         assert reverse("n26-campaign", args=[campaign.pk]) + "#assets" in body
 
+    def test_a_rolled_holding_keeps_its_income_and_boons(
+        self, client, campaign, old_ruins, arbitrator
+    ):
+        from n26.core.campaigns import campaign_operation
+        from n26.core.render import render_campaign
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            table = act.create_table(
+                old_ruins.asset_type, "Review territory table", "d3"
+            )
+            act.add_table_entry(table, old_ruins, roll_low=1, roll_high=3)
+            roll = act.roll_asset(table, rolled=1)
+        (entry,) = render_campaign(campaign).assets[0].entries
+        assert entry.campaign_asset_id == str(roll.campaign_asset.pk)
+        assert entry.income == 30
+        assert any("Reputation" in boon for boon in entry.boons)
+        assert any("Salvage" in boon for boon in entry.boons)
+        client.force_login(arbitrator)
+        html = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
+        assert "30¢" in html
+        assert "Salvage" in html
+
     def test_the_page_lists_held_and_unclaimed_by_asset_type(
         self, client, campaign_assets, gang, campaign, arbitrator
     ):
@@ -431,7 +453,7 @@ class TestTheAssetsOnTheCampaignPage:
             )
             in body
         )
-        assert "Add territory" in body
+        assert "Add territories" in body
         assert "1 held, 1 unclaimed" in body
 
     def test_a_player_reads_the_assets_without_the_controls(
@@ -447,7 +469,7 @@ class TestTheAssetsOnTheCampaignPage:
             )
             not in body
         )
-        assert "Add territory" not in body
+        assert "Add territories" not in body
 
     def test_the_arbitrator_adds_an_asset(
         self, client, campaign, old_ruins, arbitrator
@@ -475,14 +497,14 @@ class TestTheAssetsOnTheCampaignPage:
         address = reverse("n26-campaign-add-asset", args=[campaign.pk])
 
         body = client.get(f"{address}?type={old_ruins.asset_type_id}").content.decode()
-        assert "Add a territory" in body
+        assert "Add territories" in body
         assert "Old Ruins" in body
         assert "Protection" not in body
 
         other = create_campaign_type("Law & Misrule")
         turf = add_asset_type(other, "Turf", "pooled")
         body = client.get(f"{address}?type={turf.pk}").content.decode()
-        assert "Add an asset" in body
+        assert "Add assets" in body
         assert "Old Ruins" in body
         assert "Protection" in body
 
