@@ -5,17 +5,14 @@
     <c-slot name="empty">
         No gangs match that. Try a shorter search.
     </c-slot>
-    <c-n26.record-table.gang-row name="Rust Kings"
-                                 type="Goliath"
-                                 href="#gang"
-                                 campaign_name="Dust Falls"
-                                 campaign_href="#campaign" />
     {% for gang in dashboard_gangs %}
         <c-n26.record-table.gang-row name="{{ gang.name }}"
                                      type="{{ gang.type }}"
                                      :type_icon="gang.type_icon"
                                      colour="{{ gang.colour }}"
                                      :sheet="gang.sheet"
+                                     campaign_name="{% if forloop.first %}Dust Falls{% endif %}"
+                                     campaign_href="{% if forloop.first %}#campaign{% endif %}"
                                      href="#"
                                      print_href="#" />
     {% endfor %}
