@@ -1362,6 +1362,8 @@ def add_asset(request, pk):
                 for asset in assets
             ],
             "selection": {
+                "label": f"Select {noun}",
+                "invalid": bool(form["asset"].errors),
                 "options": assets,
                 "selected": list(submitted),
                 "name": form["name"].value() or "",

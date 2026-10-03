@@ -4,6 +4,8 @@ import { Button, CheckboxCard, Field, Input } from "../../ui";
 type Option = { value: string; label: string; description: string };
 export type AssetSelectionProps = {
     options: Option[];
+    label?: string;
+    invalid?: boolean;
     selected: string[];
     name: string;
     nameErrors: string[];
@@ -11,6 +13,8 @@ export type AssetSelectionProps = {
 
 export function AssetSelection({
     options,
+    label = "Assets",
+    invalid = false,
     selected: initial,
     name: initialName,
     nameErrors,
@@ -65,27 +69,33 @@ export function AssetSelection({
                     onChange={(event) => setName(event.target.value)}
                 />
             </Field>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {options.map((item) => (
-                    <div key={item.value}>
-                        <CheckboxCard
-                            checked={selected.includes(item.value)}
-                            onCheckedChange={(checked) =>
-                                choose(item.value, checked)
-                            }
-                            label={item.label}
-                            description={item.description}
-                        />
-                        {selected.includes(item.value) && (
-                            <input
-                                type="hidden"
-                                name="asset"
-                                value={item.value}
+            <fieldset
+                aria-describedby="campaign-assets-help campaign-assets-errors"
+                aria-invalid={invalid || undefined}
+            >
+                <legend className="sr-only">{label}</legend>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {options.map((item) => (
+                        <div key={item.value}>
+                            <CheckboxCard
+                                checked={selected.includes(item.value)}
+                                onCheckedChange={(checked) =>
+                                    choose(item.value, checked)
+                                }
+                                label={item.label}
+                                description={item.description}
                             />
-                        )}
-                    </div>
-                ))}
-            </div>
+                            {selected.includes(item.value) && (
+                                <input
+                                    type="hidden"
+                                    name="asset"
+                                    value={item.value}
+                                />
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </fieldset>
         </div>
     );
 }

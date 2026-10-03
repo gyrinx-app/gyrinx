@@ -56,3 +56,21 @@ describe("Campaign asset selection", () => {
         expect(data().get("name")).toBe("Eastern market");
     });
 });
+
+it("names the asset group and associates server help and errors", () => {
+    render(
+        <AssetSelection
+            options={options}
+            selected={[]}
+            name=""
+            nameErrors={[]}
+            label="Select territories"
+            invalid
+        />,
+    );
+    const group = screen.getByRole("group", { name: "Select territories" });
+    expect(group.getAttribute("aria-describedby")).toBe(
+        "campaign-assets-help campaign-assets-errors",
+    );
+    expect(group.getAttribute("aria-invalid")).toBe("true");
+});

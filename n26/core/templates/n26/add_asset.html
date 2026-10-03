@@ -50,14 +50,21 @@ and enables the optional name only for a single selection.
                value="{{ form.request_key.value|default:'' }}">
         {% if assets %}
             <c-n26.form-section title="Select {{ adding }}">
-                <p class="text-sm text-muted">Select one or more. Each will be added unclaimed.</p>
-                <c-ui.error :form="form" name="asset" />
+                <p id="campaign-assets-help"
+                   class="text-sm text-muted">Select one or more. Each will be added unclaimed.</p>
+                <div id="campaign-assets-errors">
+                    <c-ui.error :form="form" name="asset" />
+                </div>
                 {% react_host "campaign-asset-selection" selection %}
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        {% for option in fallback_options %}
-                            <c-n26.pick-list.box :option="option" name="asset" />
-                        {% endfor %}
-                    </div>
+                    <fieldset aria-describedby="campaign-assets-help campaign-assets-errors"
+                              {% if form.asset.errors %}aria-invalid="true"{% endif %}>
+                        <legend class="sr-only">Select {{ adding }}</legend>
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            {% for option in fallback_options %}
+                                <c-n26.pick-list.box :option="option" name="asset" />
+                            {% endfor %}
+                        </div>
+                    </fieldset>
                     <c-ui.field error="x"
                                 label="Name in this campaign"
                                 description="Optional. Select one asset to use a name."
