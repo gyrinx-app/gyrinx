@@ -1814,3 +1814,154 @@ def test_a_correction_leaves_an_unchanged_gang_counter_off_the_receipt(
     )
     saved = apply(report, owner)
     assert saved.receipt["gang_counters"] == []
+
+
+@pytest.fixture
+def capture_content(content):
+    kind = create_slot_type("Release result")
+    escaped = create_pickable(
+        "Back to the gang",
+        kind,
+        effects=[(targets_model(), op_sets_status(Status.RECOVERY))],
+    )
+    table = create_picklist("Release table", kind, members=[escaped])
+    slot = create_slot("Release", kind, table, min_picks=0, max_picks=1)
+    captured = create_pickable(
+        "Taken prisoner",
+        content["kind"],
+        effects=[
+            (targets_model(), op_sets_status(Status.CAPTURED)),
+            (targets_model(), ef_adds(slot)),
+        ],
+    )
+    add_picklist_member(content["table"], captured)
+    return captured, slot, escaped
+
+
+def test_pending_escape_can_be_added_to_the_same_battles_report(
+    gang, owner, model, battle, capture_content
+):
+    captured, escape_slot, escaped = capture_content
+    report = start_report(gang, actor=owner, battle=battle, request_key=uuid4())
+    plan = preview_report(report, actor=owner)
+    injury_key = plan.models[0].effect_slots[0].key
+    injury = {"id": str(uuid4()), "slot": injury_key, "pick": str(captured.pk)}
+    report = save(
+        report, owner, payload_for(model, effects=[injury], status=Status.CAPTURED)
+    )
+    applied = apply(report, owner)
+    assert model.__class__.objects.get(pk=model.pk).status == Status.CAPTURED
+    report = start_correction(applied.report, actor=owner)
+    before_events = LedgerEvent.objects.count()
+    plan = preview_report(report, actor=owner)
+    assert LedgerEvent.objects.count() == before_events
+    offered = next(
+        slot for slot in plan.models[0].effect_slots if slot.label == "Release result"
+    )
+    result = {"id": str(uuid4()), "slot": offered.key, "pick": str(escaped.pk)}
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"].append(result)
+    payload["models"][0]["status"] = Status.RECOVERY
+    report = save(report, owner, payload)
+    applied = apply(report, owner)
+    assert model.__class__.objects.get(pk=model.pk).status == Status.RECOVERY
+    picked = Assignment.objects.get(miniature=model, pickable=escaped, archived=False)
+    assert picked.chosen_for.pickable_id == captured.pk
+    assert picked.chosen_for_slot_id == escape_slot.pk
+    assert picked.chosen_for.archived is False
+    report = start_correction(applied.report, actor=owner)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"] = [
+        effect
+        for effect in payload["models"][0]["effects"]
+        if effect["id"] != result["id"]
+    ]
+    payload["models"][0]["status"] = Status.CAPTURED
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.CAPTURED
+    assert not Assignment.objects.filter(
+        miniature=model, pickable=escaped, archived=False
+    ).exists()
+    assert Assignment.objects.filter(
+        miniature=model, pickable=captured, archived=False
+    ).exists()
+    assert_reconciled(gang)
+
+
+def test_pending_escape_preserves_choice_limit(report, owner, model, capture_content):
+    captured, _, escaped = capture_content
+    injury = effect_for(report, owner, captured)
+    report = save(
+        report, owner, payload_for(model, effects=[injury], status=Status.CAPTURED)
+    )
+    applied = apply(report, owner)
+    report = start_correction(applied.report, actor=owner)
+    offered = effect_for(report, owner, escaped)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"].extend([offered, offered | {"id": str(uuid4())}])
+    payload["models"][0]["status"] = Status.RECOVERY
+    report = save(report, owner, payload)
+    plan = preview_report(report, actor=owner)
+    assert not plan.valid
+    assert any("no space" in error for error in plan.errors), plan.errors
+    assert not Assignment.objects.filter(miniature=model, pickable=escaped).exists()
+
+
+def test_unrelated_non_lasting_choices_are_not_post_battle_results(
+    report, owner, model, capture_content
+):
+    _, slot, _ = capture_content
+    assign(slot, miniature=model)
+    plan = preview_report(report, actor=owner)
+    assert all(
+        offered.label != "Release result" for offered in plan.models[0].effect_slots
+    )
+
+
+@pytest.mark.parametrize("new_occurrence", [False, True])
+def test_an_applied_escape_can_be_replaced_in_a_correction(
+    report, owner, model, gang, capture_content, new_occurrence
+):
+    captured, slot, escaped = capture_content
+    ransomed = create_pickable(
+        "Paid release",
+        slot.slot_type,
+        effects=[(targets_model(), op_sets_status(Status.RANSOMED))],
+    )
+    add_picklist_member(slot.picklist, ransomed)
+    injury = effect_for(report, owner, captured)
+    report = save(
+        report, owner, payload_for(model, effects=[injury], status=Status.CAPTURED)
+    )
+    report = start_correction(apply(report, owner).report, actor=owner)
+    escape = effect_for(report, owner, escaped)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"].append(escape)
+    payload["models"][0]["status"] = Status.RECOVERY
+    report = save(report, owner, payload)
+    report = start_correction(apply(report, owner).report, actor=owner)
+    payload = deepcopy(report.draft)
+    replacement = escape | {"pick": str(ransomed.pk)}
+    if new_occurrence:
+        replacement["id"] = str(uuid4())
+    payload["models"][0]["effects"] = [injury, replacement]
+    payload["models"][0]["status"] = Status.RANSOMED
+    before = LedgerEvent.objects.count()
+    assert preview_report(report, actor=owner, payload=payload).valid
+    assert LedgerEvent.objects.count() == before
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.RANSOMED
+    assert Assignment.objects.filter(
+        miniature=model, pickable=ransomed, archived=False
+    ).exists()
+    assert Assignment.objects.filter(
+        miniature=model, pickable=captured, archived=False
+    ).exists()
+    assert not Assignment.objects.filter(
+        miniature=model, pickable=escaped, archived=False
+    ).exists()
+    assert_reconciled(gang)
