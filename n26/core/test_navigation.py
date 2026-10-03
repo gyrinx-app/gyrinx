@@ -154,6 +154,23 @@ class TestThePlaces:
             "Ingest",
         ]
 
+    def test_campaigns_are_listed_when_the_feature_is_open(
+        self, tester, django_assert_num_queries
+    ):
+        with django_assert_num_queries(0):
+            switcher = places_switcher(
+                request_for(tester), here="campaigns", campaigns_open=True
+            )
+        assert [item.label for item in switcher.items] == [
+            "Home",
+            "Gangs",
+            "Campaigns",
+            "Help",
+        ]
+        assert switcher.label == "Campaigns"
+        assert switcher.href == reverse("n26-campaigns")
+        assert [item.label for item in switcher.items if item.current] == ["Campaigns"]
+
     def test_the_guides_are_one_of_the_places(self, tester):
         """A written-out path rather than a reversed route: the guides are
         flatpages, addressed by the URL they are stored under."""
