@@ -458,8 +458,8 @@ class CampaignForm(forms.Form):
         widget=RichText(mce_attrs=CAMPAIGN_SUMMARY_CONFIG),
         help_text=(
             "What this campaign is, and anything the players have agreed. "
-            "Shown at the top of the campaign's page. Use the image button to insert "
-            "a public image URL. Pasting or uploading image files is not supported."
+            "Shown at the top of the campaign's page. Paste an image, upload one "
+            "with the image button, or enter a public image URL."
         ),
     )
 
@@ -472,8 +472,7 @@ class CampaignForm(forms.Form):
             for source in images.sources
         ):
             raise forms.ValidationError(
-                "Pasted image files cannot be saved. Use the image button to "
-                "insert a public image URL, or remove the image."
+                "Finish uploading each image before saving, or remove it."
             )
         return summary
 

@@ -2,6 +2,8 @@
 
 from tinymce.widgets import TinyMCE
 
+from gyrinx.widgets import TINYMCE_UPLOAD_CONFIG
+
 
 class RichText(TinyMCE):
     """A rich text field, configured in ``settings.TINYMCE_DEFAULT_CONFIG``.
@@ -12,10 +14,9 @@ class RichText(TinyMCE):
     and it is somewhere to hang per-field overrides later.
 
     The main gyrinx app's equivalent, ``TinyMCEWithUpload``, also carries an
-    image upload handler pointed at ``/tinymce/upload/``. That is left out here:
-    this sandbox has no media storage or upload endpoint, and a broken upload
-    button would be worse than none. The link and image plugins still work for
-    URLs.
+    image upload handler pointed at ``/tinymce/upload/``. Campaign summaries
+    opt into that shared handler. Other fields retain their existing URL-only
+    image controls.
 
     Remember ``{{ form.media }}``. The editor is inert without it — the widget
     only renders a textarea carrying its config in a data attribute, and the
@@ -36,9 +37,10 @@ class RichText(TinyMCE):
         super().__init__(attrs=attrs, mce_attrs=mce_attrs, **kwargs)
 
 
-# A campaign summary needs links, tables and URL images without changing the
+# A campaign summary needs links, tables and uploaded images without changing the
 # controls offered by gang notes or library descriptions.
 CAMPAIGN_SUMMARY_CONFIG = {
+    **TINYMCE_UPLOAD_CONFIG,
     "plugins": "autoresize autolink image link lists table",
     "toolbar": (
         "undo redo | blocks | bold italic underline | bullist numlist | "
@@ -48,8 +50,6 @@ CAMPAIGN_SUMMARY_CONFIG = {
     "image_dimensions": False,
     "object_resizing": False,
     "content_style": "img { max-width: 100%; height: auto; }",
-    # Without an upload handler, pasted files remain data/blob addresses that
-    # cannot survive the saved page's protocol allowlist.
-    "paste_data_images": False,
-    "paste_block_drop": True,
+    "paste_data_images": True,
+    "paste_block_drop": False,
 }
