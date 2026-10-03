@@ -32,7 +32,7 @@ Starting rolls fetch with hx-swap none so a dialog opens.
     {% for gang in sheet.gangs %}
         <tbody class="border-b border-box-border last:border-b-0 max-md:block max-md:py-3">
             <tr class="border-b-0! max-md:ml-6 max-md:grid max-md:grid-cols-3">
-                <th scope="rowgroup" class="w-64 min-w-48 max-w-64 align-top font-normal! whitespace-normal! max-md:col-span-3 max-md:-ml-6 max-md:w-auto max-md:min-w-0 max-md:max-w-none">
+                <th scope="rowgroup" class="w-64 min-w-48 max-w-64 align-top font-normal! whitespace-normal! [overflow-wrap:anywhere] max-md:col-span-3 max-md:-ml-6 max-md:w-auto max-md:min-w-0 max-md:max-w-none">
                     <div class="flex flex-col">
                         <span class="font-semibold text-ink-900 dark:text-ink-100">
                             <c-n26.link href="{{ gang.href }}" tone="current">
@@ -68,7 +68,7 @@ Starting rolls fetch with hx-swap none so a dialog opens.
                 </td>
                 {% for line in gang.counters %}
                     <td class="text-right tabular-nums whitespace-nowrap max-md:block max-md:text-left">
-                        <span class="block text-xs font-medium text-muted md:hidden">{{ sheet.counter_columns|get_item:forloop.counter0 }}</span>
+                        <span class="block text-xs font-medium text-muted whitespace-normal [overflow-wrap:anywhere] md:hidden">{{ sheet.counter_columns|get_item:forloop.counter0 }}</span>
                         {# None means this gang does not carry that counter. A blank cell would look like a failed number. #}
                         {% if line is None %}
                             <span class="text-muted">&mdash;</span>
