@@ -18,6 +18,7 @@ list of its own. See design/campaign-assets.md.
 """
 
 import pytest
+from bs4 import BeautifulSoup
 from django.apps import apps
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -25,12 +26,13 @@ from django.urls import reverse
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.history import build, campaign_history
 from n26.core.models import CampaignEvent, LedgerEvent
-from n26.core.operations import Refusal
+from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
 from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
 from n26.library.authoring import (
     add_asset_type,
+    add_built_in,
     create_asset,
     create_campaign_type,
     create_counter,
@@ -692,6 +694,169 @@ class TestALabel:
     pickables, a picklist and a gang-hosted slot, all in the campaign's
     pack and built into the additions."""
 
+    @pytest.fixture
+    def gang_faction(self, gang_type):
+        kind = create_slot_type("Faction")
+        option = create_pickable("Guild", kind)
+        options = create_picklist("House factions", kind, members=[option])
+        slot = create_slot(
+            "House faction", kind, options, label="Faction", position=100
+        )
+        add_built_in(gang_type, slot)
+        return slot, option
+
+    def test_a_gang_choice_with_the_same_name_does_not_answer_the_label(
+        self, campaign, gang_type, player, gang_faction
+    ):
+        house_slot, house_option = gang_faction
+        label = add_campaign_label(campaign, "Faction", ["Nomads"])
+        gang = found_gang("The Ashen Choir", gang_type, owner=player)
+        join_campaign(gang, campaign)
+        choose(gang.assignments.get(slot=house_slot, archived=False), house_option)
+
+        sheet = render_campaign(campaign)
+        assert sheet.label_columns == ["Faction"]
+        assert sheet.gangs[0].labels == [""]
+
+        option = Pickable.objects.get(pack=campaign.pack, name="Nomads")
+        choose(gang.assignments.get(slot=label, archived=False), option)
+        assert render_campaign(campaign).gangs[0].labels == ["Nomads"]
+        gang_sheet = render_gang(gang)
+        assert [line.chosen for line in gang_sheet.choices] == ["Guild"]
+        assert [line.chosen for line in gang_sheet.campaign.choices] == ["Nomads"]
+        assert [line.chosen for line in gang_sheet.questions] == ["Guild", "Nomads"]
+        from n26.core.capture import gang_state
+        from n26.core.render_text import render_gang_sheet
+
+        captured = gang_state(gang)
+        assert captured["choices"] == [("Faction", "Guild")]
+        assert captured["campaign"]["choices"] == [("Faction", "Nomads")]
+        text = render_gang_sheet(gang_sheet)
+        assert "Faction: Guild" in text and "Faction: Nomads" in text
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("owner", (True, False))
+    @pytest.mark.parametrize("answered", (True, False))
+    def test_the_gang_page_groups_campaign_questions_and_preserves_controls(
+        self, client, campaign, gang_type, player, gang_faction, owner, answered
+    ):
+        house_slot, house_option = gang_faction
+        label = add_campaign_label(campaign, "Faction", ["Nomads"])
+        gang = found_gang("The Ashen Choir", gang_type, owner=player)
+        join_campaign(gang, campaign)
+        choose(gang.assignments.get(slot=house_slot, archived=False), house_option)
+        if answered:
+            choose(
+                gang.assignments.get(slot=label, archived=False),
+                Pickable.objects.get(pack=campaign.pack, name="Nomads"),
+            )
+        if owner:
+            client.force_login(player)
+        response = client.get(reverse("n26-gang", args=[gang.pk]))
+        assert response.status_code == 200
+        sheet = response.context["sheet"]
+        (house,) = sheet.choices
+        (question,) = sheet.campaign.choices
+        assert bool(house.href) == bool(question.href) == owner
+        page = BeautifulSoup(response.content, "html.parser")
+        details = next(
+            dl for dl in page.find_all("dl") if campaign.name in dl.get_text()
+        )
+        rows = list(details.find_all("div", recursive=False))
+        heading = next(
+            i for i, row in enumerate(rows) if campaign.name in row.get_text()
+        )
+        faction_rows = [
+            i for i, row in enumerate(rows) if row.find("dt", string="Faction")
+        ]
+        assert len(faction_rows) == 2
+        assert faction_rows[0] < heading < faction_rows[1]
+        campaign_row = rows[faction_rows[1]]
+        assert (
+            "Nomads" if answered else "Choose" if owner else "—"
+        ) in campaign_row.get_text()
+        assert bool(campaign_row.find("a")) == owner
+        dismiss = reverse("n26-dismiss-offer", args=[gang.pk, question.key])
+        assert bool(campaign_row.find("form", action=dismiss)) == (
+            owner and not answered
+        )
+
+    def test_a_campaign_question_can_be_dismissed_and_restored(
+        self, client, campaign, gang_type, player
+    ):
+        add_campaign_label(campaign, "Faction", ["Nomads"])
+        gang = found_gang("The Ashen Choir", gang_type, owner=player)
+        join_campaign(gang, campaign)
+        (question,) = render_gang(gang).campaign.choices
+        page = reverse("n26-gang", args=[gang.pk])
+        client.force_login(player)
+        assert (
+            client.post(
+                reverse("n26-dismiss-offer", args=[gang.pk, question.key])
+            ).status_code
+            == 302
+        )
+        response = client.get(page)
+        assert response.context["sheet"].campaign.choices == []
+        assert (
+            BeautifulSoup(response.content, "html.parser").find("dt", string="Faction")
+            is None
+        )
+        assert (
+            client.post(
+                reverse("n26-restore-offer", args=[gang.pk, question.key])
+            ).status_code
+            == 302
+        )
+        (restored,) = client.get(page).context["sheet"].campaign.choices
+        assert restored.key == question.key
+        assert restored.href
+
+    def test_a_label_awaiting_propagation_never_reads_a_gang_choice(
+        self, campaign, gang_type, player, gang_faction
+    ):
+        house_slot, house_option = gang_faction
+        gang = found_gang("The Ashen Choir", gang_type, owner=player)
+        join_campaign(gang, campaign)
+        choose(gang.assignments.get(slot=house_slot, archived=False), house_option)
+        label = add_campaign_label(campaign, "Faction", ["Nomads"])
+
+        assert not gang.assignments.filter(slot=label, archived=False).exists()
+        assert render_campaign(campaign).gangs[0].labels == [""]
+        assert_reconciled(gang)
+
+    def test_a_previous_campaigns_same_named_label_keeps_its_own_answer(
+        self, campaign, core, arbitrator, gang_type, player, propagating, task_queue
+    ):
+        other = found_campaign("The Long Descent", core, owner=arbitrator)
+        other_label = add_campaign_label(other, "Faction", ["Guild"])
+        gang = found_gang("The Ashen Choir", gang_type, owner=player)
+        join_campaign(gang, other)
+        choose(
+            gang.assignments.get(slot=other_label, archived=False),
+            Pickable.objects.get(pack=other.pack, name="Guild"),
+        )
+        assert render_campaign(other).gangs[0].labels == ["Guild"]
+        with operation(gang, actor=player) as op:
+            op.leave_campaign()
+        join_campaign(gang, campaign)
+        with task_queue.capture():
+            own_label = add_campaign_label(campaign, "Faction", ["Nomads"])
+
+        assert render_campaign(campaign).gangs[0].labels == [""]
+        task_queue.deliver_all()
+
+        choose(
+            gang.assignments.get(slot=own_label, archived=False),
+            Pickable.objects.get(pack=campaign.pack, name="Nomads"),
+        )
+        assert render_campaign(campaign).gangs[0].labels == ["Nomads"]
+        gang_sheet = render_gang(gang)
+        assert [line.chosen for line in gang_sheet.choices] == ["Guild"]
+        assert [line.chosen for line in gang_sheet.campaign.choices] == ["Nomads"]
+        assert [line.chosen for line in gang_sheet.questions] == ["Guild", "Nomads"]
+        assert_reconciled(gang)
+
     def test_it_writes_the_four_rows_into_the_pack(self, campaign):
         slot = add_campaign_label(campaign, "Alignment", ["Law Abiding", "Outlaw"])
         pack = campaign.pack
@@ -732,7 +897,9 @@ class TestALabel:
         join_campaign(late, campaign)
 
         for member in (gang, late):
-            (choice,) = render_gang(member).choices
+            gang_sheet = render_gang(member)
+            assert gang_sheet.choices == []
+            (choice,) = gang_sheet.campaign.choices
             assert choice.kind_label == "Alignment"
             assert not choice.chosen
 
@@ -740,7 +907,7 @@ class TestALabel:
         outlaw = Pickable.objects.get(pack=campaign.pack, name="Outlaw")
         choose(asked, outlaw)
 
-        (choice,) = render_gang(gang).choices
+        (choice,) = render_gang(gang).campaign.choices
         assert choice.chosen == "Outlaw"
         # The label is a column of the gangs table, filled with each
         # gang's pick and a dash where a gang has not picked yet.

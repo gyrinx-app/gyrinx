@@ -2230,7 +2230,7 @@ GROUPS: list[Group] = [
                 tag="c-n26.campaign-block",
                 template="n26/campaign_block.html",
                 summary=(
-                    "A gang's campaign assets and holdings, as detail-list lines."
+                    "A gang's campaign choices, assets and counters under its campaign name."
                 ),
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
