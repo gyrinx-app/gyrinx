@@ -315,7 +315,7 @@ A ready-to-use job prompt:
 > Alpine code and lower the baseline. Run Python and React tests, typechecking
 > and the production build; check the real UI at phone and desktop widths in
 > both themes. Open one reviewable PR with the changed interaction, test
-> results and useful UI evidence. Do not change domain rules, add broad APIs,
+> results and useful UI evidence. Do not change domain rules, add any API or endpoint,
 > merge, deploy, or work around missing access. If every remaining candidate
 > needs one of the deferred owners, report that dependency and make no PR.
 
