@@ -1287,15 +1287,28 @@ def add_asset(request, pk):
         form = AddAssetForm(request.POST, offered=offered)
         if form.is_valid():
             with campaign_operation(found, actor=request.user) as act:
-                campaign_asset = act.add_asset(
-                    form.cleaned_data["asset"], name=form.cleaned_data["name"]
+                made = act.add_assets(
+                    form.cleaned_data["asset"],
+                    name=form.cleaned_data["name"],
+                    request_key=form.cleaned_data["request_key"],
                 )
-            messages.success(request, f"Added {campaign_asset}.")
+            if not made:
+                messages.info(request, "That selection was already added.")
+            elif len(form.cleaned_data["asset"]) == 1:
+                chosen = form.cleaned_data["asset"][0]
+                messages.success(
+                    request, f"Added {form.cleaned_data['name'] or str(chosen)}."
+                )
+            else:
+                label = asset_type.plural.lower() if asset_type else "assets"
+                messages.success(
+                    request, f"Added {len(form.cleaned_data['asset'])} {label}."
+                )
             return redirect(_assets_anchor(found))
     else:
         form = AddAssetForm(offered=offered)
 
-    submitted = str(form["asset"].value() or "")
+    submitted = set(form["asset"].value() or [])
 
     def card(asset):
         # The asset type and income under the name; a redisplay after a
@@ -1303,20 +1316,16 @@ def add_asset(request, pk):
         income = income_of(asset)
         return {
             "value": str(asset.pk),
-            "label": asset.name,
+            "label": str(asset),
             "description": (
                 f"{asset.asset_type}, income {income}¢"
                 if income
                 else str(asset.asset_type)
             ),
-            "checked": str(asset.pk) == submitted,
+            "checked": str(asset.pk) in submitted,
         }
 
-    # The asset type's own word for what is being added, with its article,
-    # for the title: "Add a territory", "Add an asset". The article follows
-    # the word's first letter, since the label is the author's to choose.
-    noun = asset_type.label_singular.lower() if asset_type else "asset"
-    article = "an" if noun[:1] in "aeiou" else "a"
+    noun = asset_type.plural.lower() if asset_type else "assets"
     assets = [card(asset) for asset in with_income(offered)]
     has_holding_type = (
         asset_type is not None
@@ -1339,10 +1348,25 @@ def add_asset(request, pk):
             "form": form,
             "campaign": found,
             "asset_type": asset_type,
-            "adding": f"{article} {noun}",
+            "adding": noun,
             "back": _assets_anchor(found),
             # Drawn as cards, one per asset.
             "assets": assets,
+            "fallback_options": [
+                {
+                    "key": asset["value"],
+                    "name": asset["label"],
+                    "detail": asset["description"],
+                    "is_current": asset["checked"],
+                }
+                for asset in assets
+            ],
+            "selection": {
+                "options": assets,
+                "selected": list(submitted),
+                "name": form["name"].value() or "",
+                "nameErrors": list(form["name"].errors),
+            },
             "empty_next_href": empty_next_href,
             "empty_next_label": "Create asset"
             if has_holding_type

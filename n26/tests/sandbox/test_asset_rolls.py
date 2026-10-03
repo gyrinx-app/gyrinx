@@ -708,7 +708,7 @@ class TestThePages:
         assert "Roll territory" in page
         assert page.count("Roll starting territory") == 2
         assert "Tables" in page
-        assert "Add territory" in page
+        assert "Add territories" in page
 
         client.force_login(owner)
         page = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
