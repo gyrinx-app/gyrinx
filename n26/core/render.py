@@ -1639,6 +1639,72 @@ class CampaignGangLine:
     #: Whether the reader owns this gang — what decides which of the
     #: table's controls are theirs.
     yours: bool = False
+    #: How many value columns the gangs table draws — rating, credits,
+    #: wealth and one per counter — so the details under the gang can be
+    #: laid one to a column. Set by the sheet, as are the two lists of
+    #: headings below.
+    detail_width: int = 0
+
+    @property
+    def detail_rows(self):
+        """The labels, assets and starting rolls under this gang, as rows of
+        cells that line up with the value columns above them.
+
+        Read when the table is drawn, after the view has filled the roll
+        addresses: a roll the reader may not make has no address and takes
+        no cell. A gang with more details than columns runs on to another
+        row.
+        """
+        details = [
+            *(
+                GangDetail(label=name, text=pick)
+                for name, pick in zip(self.label_names, self.labels, strict=True)
+            ),
+            *(
+                GangDetail(label=plural, text=", ".join(names))
+                for plural, names in zip(self.asset_names, self.assets, strict=True)
+            ),
+            *(
+                GangDetail(label="Actions", roll=roll)
+                for roll in self.starting_rolls
+                if roll.href
+            ),
+        ]
+        width = max(self.detail_width, 1)
+        return [
+            GangDetailRow(
+                details=details[start : start + width],
+                # The cells left empty to the end of the row, the actions
+                # column included.
+                pad=width - len(details[start : start + width]) + 1,
+            )
+            for start in range(0, len(details), width)
+        ]
+
+    #: The headings of ``labels`` and ``assets``, in the same order: the
+    #: sheet's label columns and its asset types' plural names.
+    label_names: list[str] = field(default_factory=list)
+    asset_names: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class GangDetail:
+    """One cell under a gang on the campaign's gangs table: a label's pick,
+    the assets of one type, or a starting roll. Empty text is drawn as a
+    dash."""
+
+    label: str
+    text: str = ""
+    roll: StartingRoll | None = None
+
+
+@dataclass(frozen=True)
+class GangDetailRow:
+    """One row of details under a gang, at most one per value column, and
+    how many cells are left to fill out the row."""
+
+    details: list[GangDetail]
+    pad: int
 
 
 @dataclass
@@ -1811,6 +1877,15 @@ class CampaignSheet:
     #: campaign of this many players: three each. Players, not gangs, since
     #: the rules count people at the table; the arbitrator is not one.
     territories_to_generate: int = 0
+
+    def __post_init__(self):
+        # Each gang line lays its details out under the value columns, so
+        # it needs the column count and the headings its labels and assets
+        # are read under. Set here, once, so every sheet built has them.
+        for line in self.gangs:
+            line.detail_width = 3 + len(self.counter_columns)
+            line.label_names = self.label_columns
+            line.asset_names = [asset_type.plural for asset_type in self.asset_types]
 
     @property
     def gang_count(self):

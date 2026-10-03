@@ -5,8 +5,9 @@ Lay counters, labels, and assets by position against the sheet's column lists, n
 A missing counter is None. Draw it as a dash, not a blank.
 Unlimited credits also draw as a dash.
 Every empty value is a dash, never a blank. A blank cell looks like a failed number.
-Each gang has a numeric line, followed by one indented grid of labels, assets, and actions.
-The detail grid has two columns on wide screens and one on phones.
+Each gang has a numeric line, followed by rows of labels, assets, and actions.
+Each detail takes one cell under a value column, so it lines up with the figures above. More details than columns run on to another row. The line lays them out.
+On phones the details stack.
 Name whose gang it is under the type. A campaign table holds several people's gangs.
 Credits link to Manage credits only where the line has credits_href. The view fills it as it does counter hrefs.
 Counter controls appear only where the line has an href. The view fills that for the arbitrator, and for a gang's owner on their own.
@@ -102,56 +103,35 @@ The menu uses strategy fixed so the table's scroll wrapper does not clip it. On 
                     {% endif %}
                 </td>
             </tr>
-            {% if gang.labels or gang.assets or gang.starting_rolls %}
-                <tr class="border-b-0! max-md:block">
+            {% for row in gang.detail_rows %}
+                <tr class="border-b-0! max-md:ml-6 max-md:block">
                     <td class="max-md:hidden"></td>
-                    <td colspan="{{ sheet.counter_columns|length|add:4 }}" class="pt-0! max-md:ml-6 max-md:block">
-                        <dl class="grid grid-cols-1 gap-x-6 gap-y-2 lg:grid-cols-2">
-                            {% for pick in gang.labels %}
-                                <div class="min-w-0">
-                                    <dt class="text-xs font-medium text-muted">{{ sheet.label_columns|get_item:forloop.counter0 }}</dt>
-                                    <dd class="whitespace-normal break-words">
-                                        {% if pick %}{{ pick }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
-                                    </dd>
-                                </div>
-                            {% endfor %}
-                            {% for names in gang.assets %}
-                                <div class="min-w-0">
-                                    <dt class="text-xs font-medium text-muted">{% with asset_type=sheet.asset_types|get_item:forloop.counter0 %}{{ asset_type.plural }}{% endwith %}</dt>
-                                    <dd class="whitespace-normal break-words">
-                                        {% if names %}
-                                            {% for name in names %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}
-                                        {% else %}
-                                            <span class="text-muted">&mdash;</span>
-                                        {% endif %}
-                                    </dd>
-                                </div>
-                            {% endfor %}
-                            {% for roll in gang.starting_rolls %}
-                                {% if roll.href %}
-                                    <div class="min-w-0">
-                                        <dt class="text-xs font-medium text-muted">Actions</dt>
-                                        <dd>
-                                            {# The response opens a dialog. Swapping this fetch would replace the table. #}
-                                            <c-ui.button size="sm"
-                                                         variant="text"
-                                                         class="py-0!"
-                                                         href="{{ roll.href }}"
-                                                         hx-get="{{ roll.href }}"
-                                                         hx-swap="none">
-                                                <span class="flex items-center gap-1">
-                                                    {{ roll.label }}
-                                                    <c-n26.icon name="arrow-right" class="size-3.5" />
-                                                </span>
-                                            </c-ui.button>
-                                        </dd>
-                                    </div>
-                                {% endif %}
-                            {% endfor %}
-                        </dl>
-                    </td>
+                    {% for detail in row.details %}
+                        <td class="pt-0! align-top whitespace-normal! break-words max-md:block max-md:pb-2!">
+                            <div class="text-xs font-medium text-muted">{{ detail.label }}</div>
+                            {% if detail.roll %}
+                                {# The response opens a dialog. Swapping this fetch would replace the table. #}
+                                <c-ui.button size="sm"
+                                             variant="text"
+                                             class="py-0!"
+                                             href="{{ detail.roll.href }}"
+                                             hx-get="{{ detail.roll.href }}"
+                                             hx-swap="none">
+                                    <span class="flex items-center gap-1">
+                                        {{ detail.roll.label }}
+                                        <c-n26.icon name="arrow-right" class="size-3.5" />
+                                    </span>
+                                </c-ui.button>
+                            {% elif detail.text %}
+                                <div>{{ detail.text }}</div>
+                            {% else %}
+                                <div class="text-muted">&mdash;</div>
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                    <td colspan="{{ row.pad }}" class="max-md:hidden"></td>
                 </tr>
-            {% endif %}
+            {% endfor %}
         </tbody>
     {% endfor %}
 </c-ui.table>
