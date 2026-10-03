@@ -1318,16 +1318,49 @@ class CampaignOperation:
         _own_table(self.campaign, entry.table)
         remove_asset_table_entry(entry)
 
-    def archive(self):
-        """Take the campaign off the arbitrator's list, and say so.
+    def remove_gang(self, membership):
+        """Take one gang out of this campaign, and give back everything the
+        campaign gave it (``Operation.leave_campaign``).
 
-        Nothing is destroyed, so the log keeps reading: what a campaign
-        recorded stays true whether or not it is still on show.
+        The campaign's line is held already; the gang's is taken inside it,
+        the order every writer to a campaign asset uses. A membership that
+        has closed since the page was read is left as it is, and the caller
+        gets None back.
+        """
+        from n26.core.models import CampaignMembership
+        from n26.core.operations import operation
+
+        if membership.campaign_id != self.campaign.pk:
+            raise ValueError(f"{membership} is not in {self.campaign}.")
+        membership = (
+            CampaignMembership.objects.select_related("gang")
+            .filter(pk=membership.pk, left__isnull=True)
+            .first()
+        )
+        if membership is None:
+            return None
+        with operation(membership.gang, actor=self.actor) as op:
+            return op.leave_campaign()
+
+    def archive(self):
+        """Take every gang out, then take the campaign off the arbitrator's
+        list, and say so.
+
+        Each gang leaves as it would on its own, giving back everything
+        the campaign gave it, so no gang keeps a Settlement or a territory
+        from a campaign nobody can open. The campaign's pack is archived
+        with it. Nothing is destroyed, so the log keeps reading: what a
+        campaign recorded stays true whether or not it is still on show.
         """
         campaign = self.campaign
         if campaign.archived:
             return campaign
+        for membership in campaign.memberships.filter(left__isnull=True).order_by(
+            "created"
+        ):
+            self.remove_gang(membership)
         campaign.archive()
+        campaign.pack.archive()
         self.event(CampaignEvent.Kind.ARCHIVED)
         return campaign
 
