@@ -28,8 +28,8 @@ sits beside Continue and goes on without writing anything.
         <c-n26.page-header title="Choices for {{ gang.name }}">
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
-                    <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">
-                        <c-n26.user-link :user="user" href="{% url 'n26-dashboard' %}" tone="current" />
+                    <c-ui.breadcrumbs.item>
+                        <c-n26.user-link :user="user" tone="current" />
                     </c-ui.breadcrumbs.item>
                     <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">
                         {{ gang.name }}
