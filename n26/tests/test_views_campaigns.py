@@ -516,6 +516,19 @@ class TestArchiving:
         assert campaign.archived is True
         assert Campaign.objects.filter(pk=campaign.pk).exists()
 
+    def test_archiving_takes_every_gang_out_first(
+        self, client, campaign, gang_type, open_to_everyone
+    ):
+        player = User.objects.create_user("player")
+        gang = found_gang("The Ashen Choir", gang_type, owner=player)
+        seat(campaign, player)
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+
+        client.post(f"/n26/campaigns/{campaign.pk}/archive/")
+        membership = CampaignMembership.objects.get(gang=gang)
+        assert not membership.playing
+        assert membership.type_carrier.archived
+
     def test_a_deleted_campaign_stops_opening(self, client, campaign, open_to_everyone):
         client.post(f"/n26/campaigns/{campaign.pk}/archive/")
         assert client.get(f"/n26/campaigns/{campaign.pk}/").status_code == 404
@@ -863,23 +876,51 @@ class TestTheRollOfGangs:
         assert membership.additions_carrier.assignable == campaign.additions
         assert membership.type_carrier.gang == gang
 
-    def test_the_page_offers_no_way_to_take_a_gang_out(
+    def test_the_arbitrator_is_offered_remove_on_every_gang(
         self, client, campaign, gang, open_to_everyone
     ):
-        """A gang that left would keep what the campaign gave it, so until
-        leaving returns everything the control is not drawn."""
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
-        assert f"/gangs/{gang.pk}/remove/" not in self.page(client, campaign)
+        assert f"/gangs/{gang.pk}/remove/" in self.page(client, campaign)
 
-    def test_the_remove_address_refuses_in_words_and_changes_nothing(
+    def test_the_question_lists_what_goes_and_changes_nothing(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        from n26.tests.sandbox.actions import add_campaign_counter
+
+        add_campaign_counter(campaign, "Infamy", opening=2)
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        response = client.get(f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/")
+        drawn = response.content.decode()
+        assert response.status_code == 200
+        assert "The Ashen Choir loses what the campaign gave it" in drawn
+        assert "Removed from The Ashen Choir" in drawn
+        assert re.search(r"<dt[^>]*>Infamy</dt>\s*<dd[^>]*>2</dd>", drawn)
+        assert CampaignMembership.objects.get(gang=gang).playing
+
+    def test_the_post_takes_the_gang_out_and_returns_its_things(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        response = client.post(
+            f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/", follow=True
+        )
+        assert "Removed The Ashen Choir from Dust Falls." in response.content.decode()
+        membership = CampaignMembership.objects.get(gang=gang)
+        assert not membership.playing
+        assert membership.type_carrier.archived
+        assert membership.additions_carrier.archived
+        assert not gang.assignments.filter(
+            archived=False, campaign_type__isnull=False
+        ).exists()
+
+    def test_a_second_post_says_the_gang_is_not_in_the_campaign(
         self, client, campaign, gang, open_to_everyone
     ):
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
         address = f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/"
-        for send in (client.get, client.post):
-            response = send(address, follow=True)
-            assert "cannot leave Dust Falls" in response.content.decode()
-            assert CampaignMembership.objects.get(gang=gang).playing
+        client.post(address)
+        # A stale page: the membership has closed, so there is nothing here.
+        assert client.post(address).status_code == 404
 
     def test_removing_a_gang_that_is_not_playing_answers_404(
         self, client, campaign, gang, open_to_everyone
@@ -1516,20 +1557,17 @@ class TestAPlayerBringingTheirOwnGang:
         ):
             assert client.get(address).status_code == 404, address
 
-    def test_they_cannot_take_their_own_gang_back_out_yet(
+    def test_they_can_take_their_own_gang_out(
         self, client, theirs, mine, open_to_everyone
     ):
-        """Joining gave the gang the campaign's types and what they bring,
-        and leaving is not offered until it can return all of it: no
-        control is drawn, and the address refuses in words."""
         self.accept_and_bring(client, theirs, mine)
         drawn = client.get(f"/n26/campaigns/{theirs.pk}/").content.decode()
         remove = f"/n26/campaigns/{theirs.pk}/gangs/{mine.pk}/remove/"
-        assert remove not in drawn
+        assert remove in drawn
 
-        response = client.post(remove, follow=True)
-        assert "cannot leave" in response.content.decode()
-        assert CampaignMembership.objects.filter(
+        assert client.get(remove).status_code == 200
+        client.post(remove)
+        assert not CampaignMembership.objects.filter(
             campaign=theirs, gang=mine, left__isnull=True
         ).exists()
 
@@ -1544,6 +1582,7 @@ class TestAPlayerBringingTheirOwnGang:
             op.join_campaign(theirs)
 
         remove = f"/n26/campaigns/{theirs.pk}/gangs/{not_theirs.pk}/remove/"
+        assert remove not in client.get(f"/n26/campaigns/{theirs.pk}/").content.decode()
         assert client.get(remove).status_code == 404
         client.post(remove)
         assert CampaignMembership.objects.filter(

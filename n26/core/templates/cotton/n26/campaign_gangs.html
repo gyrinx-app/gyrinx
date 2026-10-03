@@ -14,6 +14,7 @@ On phones the gang heading, figures, and details stack within the viewport.
 At wider widths the kit table wrapper scrolls any extra numeric columns.
 Over budget is amber, not orange. Orange is what a waiting invitation wears on the same page.
 Starting rolls fetch with hx-swap none so a dialog opens.
+Remove from campaign appears only where the line has remove_href. The view fills it for the arbitrator, and for a gang's owner on their own.
 {% endcomment %}
 
 <c-vars :sheet="None" class="" />
@@ -79,7 +80,7 @@ Starting rolls fetch with hx-swap none so a dialog opens.
                     </td>
                 {% endfor %}
             </tr>
-            {% if gang.labels or gang.assets or gang.starting_rolls %}
+            {% if gang.labels or gang.assets or gang.starting_rolls or gang.remove_href %}
                 <tr class="border-b-0! max-md:block">
                     <td class="max-md:hidden"></td>
                     <td colspan="{{ sheet.counter_columns|length|add:3 }}" class="pt-0! max-md:ml-6 max-md:block">
@@ -125,6 +126,16 @@ Starting rolls fetch with hx-swap none so a dialog opens.
                                     </div>
                                 {% endif %}
                             {% endfor %}
+                            {% if gang.remove_href %}
+                                <div class="min-w-0">
+                                    <dt class="text-xs font-medium text-muted">Actions</dt>
+                                    <dd>
+                                        <c-ui.button size="sm" variant="text" class="py-0!" href="{{ gang.remove_href }}">
+                                            Remove from campaign
+                                        </c-ui.button>
+                                    </dd>
+                                </div>
+                            {% endif %}
                         </dl>
                     </td>
                 </tr>

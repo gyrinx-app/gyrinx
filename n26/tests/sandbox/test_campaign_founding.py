@@ -390,7 +390,7 @@ class TestEditingTheTypeReachesMemberGangs:
 
 
 class TestTheLeaveRoute:
-    """Not offered: a gang that left would keep what the campaign gave it."""
+    """Taking a gang out gives back everything its carriers brought."""
 
     @pytest.fixture
     def open_to_everyone(self):
@@ -400,19 +400,17 @@ class TestTheLeaveRoute:
             slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
         )
 
-    def test_it_refuses_in_words_and_changes_nothing(
+    def test_it_removes_what_the_carriers_brought(
         self, client, membership, gang, campaign, arbitrator, open_to_everyone
     ):
         client.force_login(arbitrator)
         address = reverse("n26-campaign-remove-gang", args=[campaign.pk, gang.pk])
         response = client.post(address, follow=True)
-        assert "cannot leave Dust Falls" in response.content.decode()
-        assert CampaignMembership.objects.get(gang=gang).playing
-        assert caused_by(membership.type_carrier) == [
-            ("Income", 0),
-            ("Reputation", 0),
-            ("Settlement", None),
-        ]
+        assert "Removed" in response.content.decode()
+        assert not CampaignMembership.objects.get(gang=gang).playing
+        assert not Assignment.objects.filter(
+            caused_by=membership.type_carrier, archived=False
+        ).exists()
 
 
 class TestGivingExistingCampaignsTheirPacks:
