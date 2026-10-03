@@ -1680,6 +1680,9 @@ class OpAddsMiniature(models.Model):
     The pet's own price is carried by the wargear that brought it, so its
     membership is ledgered at full list price with a full discount: the
     entry says what the pet is worth and that nothing was paid for it here.
+
+    A campaign holding recruits the model when granted to a gang. That
+    recruit stays with the gang after it loses the holding.
     """
 
     is_stored = True
@@ -1706,6 +1709,13 @@ class OpAddsMiniature(models.Model):
 
     def perform(self, operation, assignment):
         """Hire the model, free, caused by the purchase that brought it."""
+        return self._hire(operation, caused_by=assignment)
+
+    def perform_grant(self, operation, holding):
+        """A recruit belongs to the gang after the holding is lost."""
+        return self._hire(operation, note=f"Recruited from {holding}.")
+
+    def _hire(self, operation, caused_by=None, note=""):
         from n26.core.models import Reason
 
         price = self.profile.price
@@ -1717,7 +1727,8 @@ class OpAddsMiniature(models.Model):
             discount=price,
             rating=0,
             reason=Reason.GRANTED,
-            caused_by=assignment,
+            caused_by=caused_by,
+            note=note,
         )
 
 
