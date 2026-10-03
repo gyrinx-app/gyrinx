@@ -5,10 +5,10 @@
             <div class="divide-y divide-box-border">
                 {% for panel in action_panels %}
                     <section aria-labelledby="n26-action-{{ panel.action_id }}-title">
-                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3{% if panel.flagged %} border-b border-box-border bg-red-50 dark:bg-red-950/20{% endif %}">
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3{% if panel.flagged %} border-b border-box-border bg-blue-50 dark:bg-blue-950/20{% endif %}">
                             <div class="flex items-center gap-1.5">
                                 {% if panel.flagged %}
-                                    <span class="text-red-600 dark:text-red-400">
+                                    <span class="text-blue-600 dark:text-blue-400">
                                         <c-n26.icon name="circle-fading-arrow-up"
                                                     class="size-4"
                                                     stroke_width="2"

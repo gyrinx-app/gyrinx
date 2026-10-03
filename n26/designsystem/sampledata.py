@@ -2388,7 +2388,8 @@ def model_card_founding():
 
 
 def model_card_actions_waiting():
-    """An owner's roster card with a red icon and named available-action strip."""
+    """An owner's roster card with several actions available, so its strip
+    says so instead of naming them."""
     return model_card_as(
         "actions-waiting",
         action_names=("Advancement", "Suit Evolution"),

@@ -155,19 +155,6 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                                 <c-slot name="content">Model cards</c-slot>
                             </c-ui.tooltip>
                         {% endif %}
-                        {% if mode == 'gang' and card.action_names %}
-                            <c-ui.tooltip size="sm">
-                                <c-ui.button size="xs"
-                                             variant="ghost" :compact="True"
-                                             href="{% url 'n26-edit-fighter' card.id %}#actions"
-                                             aria-label="Actions waiting: {{ card.action_names|join:', ' }}">
-                                    <span class="n26-icon-only text-red-600 dark:text-red-400">
-                                        <c-n26.icon name="circle-fading-arrow-up" class="size-4" stroke_width="2" />
-                                    </span>
-                                </c-ui.button>
-                                <c-slot name="content">Actions waiting: {{ card.action_names|join:", " }}</c-slot>
-                            </c-ui.tooltip>
-                        {% endif %}
                         {{ actions }}
                     </div>
                 {% endif %}
@@ -177,11 +164,15 @@ status_hx needs the host in n26/includes/status_dialogs.html.
 
     {% if mode == 'gang' and card.action_names %}
         <a href="{% url 'n26-edit-fighter' card.id %}#actions"
-           class="flex items-center gap-2 border-b border-box-border bg-red-50 px-4 py-2 text-sm text-ink-900 hover:bg-red-100/70 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-red-950/20 dark:text-ink-100 dark:hover:bg-red-950/35"
+           class="flex items-center gap-2 border-b border-box-border bg-blue-50 px-4 py-2 text-sm text-ink-900 hover:bg-blue-100/70 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-blue-950/20 dark:text-ink-100 dark:hover:bg-blue-950/35"
            aria-label="Actions available for {{ card.name }}: {{ card.action_names|join:', ' }}">
-            <c-n26.icon name="circle-fading-arrow-up" class="size-4 shrink-0 text-red-600 dark:text-red-400" />
-            <span class="min-w-0 flex-1 font-medium">{{ card.action_names|join:", " }}</span>
-            <span class="text-xs text-muted">Available</span>
+            <c-n26.icon name="circle-fading-arrow-up" class="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
+            {% if card.action_names|length > 1 %}
+                <span class="min-w-0 flex-1 font-medium">Multiple actions available</span>
+            {% else %}
+                <span class="min-w-0 flex-1 font-medium">{{ card.action_names.0 }}</span>
+                <span class="text-xs text-muted">Available</span>
+            {% endif %}
             <c-n26.icon name="arrow-right" class="size-3.5 shrink-0" />
         </a>
     {% endif %}

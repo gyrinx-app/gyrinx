@@ -447,15 +447,11 @@ class TestSuitEvolutionForms:
         card = BeautifulSoup(response.content, "html.parser").find(
             id=f"model-{hunt.fighter.pk}"
         )
-        mark = card.find(
-            "a",
-            href=f"{reverse('n26-edit-fighter', args=[hunt.fighter.pk])}#actions",
-        )
-        assert mark["aria-label"] == "Actions waiting: Suit Evolution"
-        assert "text-red-600" in mark.find("span")["class"]
-        strip = card.parent.find("a", class_="bg-red-50")
-        assert strip is not None
-        assert strip["href"] == mark["href"]
+        href = f"{reverse('n26-edit-fighter', args=[hunt.fighter.pk])}#actions"
+        links = card.parent.find_all("a", href=href)
+        assert len(links) == 1
+        strip = links[0]
+        assert "bg-blue-50" in strip["class"]
         assert "Suit Evolution" in strip.get_text()
         assert "Available" in strip.get_text()
         edit = reverse("n26-edit-fighter", args=[hunt.fighter.pk])
@@ -474,7 +470,7 @@ class TestSuitEvolutionForms:
         roster = client.get(url)
         assert roster.context["sheet"].models[0].action_names == ()
         assert not BeautifulSoup(roster.content, "html.parser").find(
-            "a", class_="bg-red-50"
+            "a", class_="bg-blue-50"
         )
         assert edit_mark() is None
 
@@ -485,7 +481,7 @@ class TestSuitEvolutionForms:
         roster = client.get(url)
         assert roster.context["sheet"].models[0].action_names == ()
         assert not BeautifulSoup(roster.content, "html.parser").find(
-            "a", class_="bg-red-50"
+            "a", class_="bg-blue-50"
         )
 
     def test_a_credits_only_action_is_never_marked(self, client, hunt):
@@ -509,13 +505,33 @@ class TestSuitEvolutionForms:
         panels = BeautifulSoup(page.content, "html.parser").find(id="n26-action-panels")
         assert panels.find("a", attrs={"aria-label": "Start Suit Maintenance flow"})
         assert panels.find("svg", attrs={"aria-label": "Waiting"}) is None
-        assert panels.find(class_="bg-red-50") is None
+        assert panels.find(class_="bg-blue-50") is None
+
+    def test_several_available_actions_share_one_strip(self, client, hunt, monkeypatch):
+        from bs4 import BeautifulSoup
+
+        monkeypatch.setattr(
+            "n26.core.action_flow.available_action_names",
+            lambda gang, cards, **kwargs: {
+                card.id: ("Advancement", "Suit Evolution") for card in cards
+            },
+        )
+        client.force_login(hunt.owner)
+        roster = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
+        card = BeautifulSoup(roster.content, "html.parser").find(
+            id=f"model-{hunt.fighter.pk}"
+        )
+        href = f"{reverse('n26-edit-fighter', args=[hunt.fighter.pk])}#actions"
+        links = card.parent.find_all("a", href=href)
+        assert len(links) == 1
+        assert " ".join(links[0].get_text().split()) == "Multiple actions available"
+        assert links[0]["aria-label"].endswith(": Advancement, Suit Evolution")
 
     @pytest.mark.parametrize(
         "colour",
         ["", "blue", "red", "red; background-image: url(https://example.com/x)"],
     )
-    def test_available_actions_share_a_red_mark_independent_of_gang_colour(
+    def test_available_actions_share_a_blue_mark_independent_of_gang_colour(
         self, client, hunt, colour
     ):
         from bs4 import BeautifulSoup
@@ -527,14 +543,14 @@ class TestSuitEvolutionForms:
         card = BeautifulSoup(roster.content, "html.parser").find(
             id=f"model-{hunt.fighter.pk}"
         )
-        mark = card.find("a", attrs={"aria-label": "Actions waiting: Suit Evolution"})
-        assert "text-red-600" in mark.find("span")["class"]
+        strip = card.parent.find("a", class_="bg-blue-50")
+        assert "text-blue-600" in strip.find("svg")["class"]
         page = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
         panels = BeautifulSoup(page.content, "html.parser").find(id="n26-action-panels")
         mark = panels.find("svg", attrs={"aria-label": "Waiting"})
         assert mark is not None
-        assert "text-red-600" in mark.parent["class"]
-        assert panels.find(class_="bg-red-50") is not None
+        assert "text-blue-600" in mark.parent["class"]
+        assert panels.find(class_="bg-blue-50") is not None
         assert [panel.flagged for panel in page.context["action_panels"]] == [True]
 
     def test_a_started_flow_stays_on_the_roster_when_tracking_is_paused(
