@@ -4,6 +4,7 @@
 The roll control fetches with hx-swap none so the response opens a dialog, not a new table.
 Without JS it is a plain link.
 Draw a control only when the structure carries its address. A reader with none sees no controls, not disabled ones.
+Position the Actions header so its hidden label stays inside the scrolling table.
 Roll is primary because it begins a form. The other controls do not.
 {% endcomment %}
 
@@ -52,7 +53,7 @@ Roll is primary because it begins a form. The other controls do not.
                     <th scope="col" class="text-right">Income</th>
                     <th scope="col">Boons</th>
                     <th scope="col">Held by</th>
-                    <th scope="col"><span class="sr-only">Actions</span></th>
+                    <th scope="col" class="relative"><span class="sr-only">Actions</span></th>
                 </tr>
             </thead>
             <tbody>
