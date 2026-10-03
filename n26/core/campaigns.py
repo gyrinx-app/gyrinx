@@ -405,7 +405,7 @@ class CampaignOperation:
                 raise Refusal("Enter a valid result for the selected dice.")
         else:
             if rolled is not None:
-                raise Refusal("Leave the physical result blank to roll here.")
+                raise Refusal("Leave the result blank to generate a roll.")
             rolled = Dice.roll(dice, rng=rng)
         roll = CampaignRoll.objects.create(
             campaign=self.campaign,
