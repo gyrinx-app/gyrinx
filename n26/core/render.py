@@ -3952,7 +3952,6 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
     from n26.core.effects import compute, counter_readings
     from n26.core.models import CampaignMembership, CampaignParticipant
-    from n26.core.render import GANG_SLOT_HOST, choice_lines
     from n26.library.income import boons_of, income_of
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.references import reading_sentences
@@ -4030,12 +4029,12 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
             )
             if table.dice
         ]
-        # What the gang has picked for each choice it is asked, by the
-        # choice's label. A label is a gang-level slot the arbitrator built
-        # in, so the gang's own choices are where its pick is read.
+        # Each campaign label reads its own slot's answer. Other gang or
+        # campaign choices may share its display name.
         picks[membership.pk] = {
-            line.kind_label: line.chosen or ""
-            for line in choice_lines(computed, host=GANG_SLOT_HOST)
+            choice.slot.pk: choice.chosen_name or ""
+            for choice in computed.choices
+            if choice.slot is not None
         }
 
     # A table another campaign's arbitrator created stays on a gang that
@@ -4070,7 +4069,8 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     # the gangs until the propagation pass runs, and a heading with dashes
     # under it says so where a missing column would say nothing. Every
     # label is a column the same way.
-    added_counters, label_columns = _arbitrators_additions(campaign)
+    added_counters, label_slots = _arbitrators_additions(campaign)
+    label_columns = [slot.choice_label for slot in label_slots]
     for name in added_counters:
         if name not in names:
             counter_columns.append(name)
@@ -4104,7 +4104,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
                 colour=gang.colour,
                 over_budget=over_budget(campaign, gang),
                 counters=[readings_by_name.get(name) for name in counter_columns],
-                labels=[picks[membership.pk].get(name, "") for name in label_columns],
+                labels=[picks[membership.pk].get(slot.pk, "") for slot in label_slots],
                 assets=assets,
                 starting_rolls=_starting_rolls(asset_types, held_tables[membership.pk]),
                 yours=gang.owner_id == reading,
@@ -4250,9 +4250,10 @@ def _starting_rolls(asset_types, held):
 
 
 def _arbitrators_additions(campaign):
-    """The names of the counters and the labels the arbitrator has built
-    into this campaign, each in the order they were added. One query, and
-    none for a campaign nothing has been added to."""
+    """Counter names and label slots built into this campaign, in added order.
+
+    One query, and none for a campaign nothing has been added to.
+    """
     from django.db.models import Q
 
     built_ins = campaign.additions.built_ins
@@ -4265,7 +4266,7 @@ def _arbitrators_additions(campaign):
         .order_by("position")
     )
     counters = [str(member.counter) for member in members if member.counter_id]
-    labels = [member.slot.choice_label for member in members if member.slot_id]
+    labels = [member.slot for member in members if member.slot_id]
     return counters, labels
 
 
