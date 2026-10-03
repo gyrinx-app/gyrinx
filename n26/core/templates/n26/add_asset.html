@@ -58,7 +58,8 @@ and enables the optional name only for a single selection.
                             <c-n26.pick-list.box :option="option" name="asset" />
                         {% endfor %}
                     </div>
-                    <c-ui.field label="Name in this campaign"
+                    <c-ui.field error="x"
+                                label="Name in this campaign"
                                 description="Optional. Select one asset to use a name."
                                 :form="form"
                                 name="name"
