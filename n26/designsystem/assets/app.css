@@ -1611,31 +1611,6 @@
     z-index: 1;
 }
 
-/* A button's elevation, taken from the same token as an input's — unlayered for
- * the same reason as the group above.
- *
- * The kit gives its `default` variant Tailwind's bare `shadow`, which in v4
- * compiles to a hardcoded literal rather than a theme lookup. So the one raised
- * button in the set had an elevation nothing could reach: the theming panel's
- * --shadow-input moved every form field and left the button where it was, and a
- * button sitting next to an input drifted further apart the more you themed.
- *
- * A bordered button and a text input are the same kind of object — a raised
- * control on the page surface — so they take the same token, and the panel now
- * moves both together.
- *
- * Setting --tw-shadow rather than box-shadow is deliberate. Tailwind composes
- * box-shadow from several variables (inset, ring, shadow); replacing the whole
- * declaration would drop the others on the floor, and a button that lost its
- * ring the moment it was themed would be a worse bug than the one being fixed.
- *
- * Keyed on the two classes together, because `.shadow` alone is a utility
- * anything may carry and `rounded-button` is what makes this a button. Layer
- * order, not specificity, is what beats the utility — hence no @layer here. */
-:is(button, a).rounded-button.shadow {
-    --tw-shadow: var(--shadow-input);
-}
-
 /* A solid header, not a translucent one.
  *
  * The kit's navbar is bg-white/80 with a backdrop blur, which is right for a bar
@@ -1652,35 +1627,6 @@
  * of pinning itself to one palette. */
 .n26-site-nav {
     background-color: var(--color-ink-900);
-}
-
-/* And the same elevation for the filled variants the kit gives no shadow at all.
- *
- * Only `default` carries the `shadow` utility, so the rule above could reach one
- * button in six: a primary sitting beside a default was flat next to a raised
- * one, and the theming panel's shadow control appeared to do nothing to it. The
- * fix has to *add* a box-shadow rather than re-point a variable, because on a
- * button with no shadow utility --tw-shadow is a variable nothing reads.
- *
- * Hence the whole composition, written out as Tailwind writes it. Every one of
- * those variables is registered with @property and an initial value of
- * transparent, so naming them here costs nothing on a button that has no ring —
- * and keeps the ring when it does, which is the thing a bare `box-shadow:
- * var(--shadow-input)` would have thrown away.
- *
- * Listed by fill rather than by :not(.bg-transparent): the outlined variants
- * carry no background class at all, so a negative match would raise an outlined
- * text button — which is a link with padding and should stay flat. */
-:is(button, a).rounded-button:is(
-        .bg-accent,
-        .bg-green-700,
-        .bg-red-500,
-        .bg-ink-100
-    ) {
-    --tw-shadow: var(--shadow-input);
-    box-shadow:
-        var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
-        var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
 }
 
 /* The selected segment of a segmented radio or checkbox group — unlayered for
