@@ -94,7 +94,7 @@ def dashboard(request):
         request,
         "n26/dashboard.html",
         {
-            **_record_table_context(request),
+            **_record_table_context(request, campaigns_open=campaigns_open),
             "changelog": changelog_entries()[:5],
             "changelog_tag": CHANGELOG_TAG,
             "campaigns_open": campaigns_open,
@@ -133,7 +133,7 @@ def gangs(request):
     )
 
 
-def _record_table_context(request, everyone=False, per_page=None):
+def _record_table_context(request, everyone=False, per_page=None, campaigns_open=None):
     """The rows and facets <c-n26.record-table> needs: gangs — the
     viewer's own, or everybody's — narrowed by ``?q=`` when there is
     one, and the types present among what survives.
@@ -191,7 +191,9 @@ def _record_table_context(request, everyone=False, per_page=None):
     campaigns = {}
     from n26.flags import CAMPAIGNS, enabled
 
-    if found and enabled(CAMPAIGNS, request.user):
+    if campaigns_open is None:
+        campaigns_open = enabled(CAMPAIGNS, request.user)
+    if found and campaigns_open:
         campaigns = {
             membership.gang_id: membership.campaign
             for membership in CampaignMembership.objects.filter(
