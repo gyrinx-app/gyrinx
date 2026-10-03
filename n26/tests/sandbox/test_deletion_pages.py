@@ -86,13 +86,16 @@ class TestARowsDeletePage:
         self, author, client, default_pack, test_type, test_fighter, test_weapon
     ):
         from n26.library.authoring import create_campaign_type
-        from n26.tests.sandbox.actions import found_campaign, join_campaign
+        from n26.tests.sandbox.actions import (
+            found_campaign,
+            join_campaign_after_deletion,
+        )
 
         staged_type = create_campaign_type("Test campaign type", staged=True)
         mine = checked_by(author, test_type, test_fighter, test_weapon, "Mine")
         found_campaign("Rehearsal", staged_type, owner=author)
         campaign = found_campaign("Rehearsal", staged_type, owner=author)
-        join_campaign(mine, campaign)
+        join_campaign_after_deletion(mine, campaign)
 
         body = client.get(delete_page(staged_type, "campaign-type")).content.decode()
 
