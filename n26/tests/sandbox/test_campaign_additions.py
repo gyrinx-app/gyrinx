@@ -423,6 +423,22 @@ class TestAnAsset:
         ]
         assert entry.held
 
+    @pytest.mark.parametrize("name", ["", "The drowned sump"])
+    def test_annotated_holdings_keep_their_display_name_on_the_gang_and_history(
+        self, campaign, core, gang, name
+    ):
+        territory = core.asset_types.get(label_singular="Territory")
+        made = create_campaign_asset(
+            campaign, territory, "Sump Hole", annotation="flooded"
+        )
+        assign_asset(add_asset(campaign, made, name=name), gang)
+        expected = name or "Sump Hole (flooded)"
+
+        assert [line.name for line in render_gang(gang).campaign.holdings] == [expected]
+        assert expected in sentences(campaign_history(campaign))[-1]
+        assert expected in sentences(build(gang))[-1]
+        assert_reconciled(gang)
+
     def test_it_can_be_under_the_arbitrators_own_asset_type(self, campaign):
         racket = add_campaign_asset_type(campaign, "Racket")
         made = create_campaign_asset(campaign, racket, "Protection", income=10)

@@ -677,7 +677,7 @@ class TestThePages:
         assert "Add racket" not in page
 
         # With a rolled table of Rackets the control appears, in the type's
-        # word; the three-per-player line is the Territory rule and is not
+        # word; the three-per-gang line is the Territory rule and is not
         # asserted of Rackets.
         rackets = create_asset_table("Rackets", racket, dice="d6")
         add_asset_table_entry(

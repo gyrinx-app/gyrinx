@@ -238,7 +238,7 @@ def campaign(request, pk):
         # Asked for a dialog that cannot be drawn — a stale or withdrawn
         # question — so the whole page is served, and it names everybody.
         load_owner_badges(found.owner, *(line.owner for line in sheet.gangs))
-    _fill_addresses(sheet, found, yours=yours)
+    _fill_addresses(sheet, found, yours=yours, viewer=request.user)
     acts, more_acts = _recent_acts(found, request.user)
     battles = found.battles.prefetch_related("gangs", "winners")[:BATTLES_ON_THE_PAGE]
     # Read once and asked twice: the page draws the players, and whether
@@ -269,7 +269,7 @@ def campaign(request, pk):
     )
 
 
-def _fill_addresses(sheet, campaign, *, yours):
+def _fill_addresses(sheet, campaign, *, yours, viewer):
     """Put the addresses on a campaign sheet. The structure says who may
     act; only the view knows where each act is asked, so the same filling
     serves the page and the partial update a roll delivers."""
@@ -297,13 +297,10 @@ def _fill_addresses(sheet, campaign, *, yours):
                 if counter is not None and counter.assignment_id:
                     counter.href = reverse("n26-tally", args=[counter.assignment_id])
                     counter.back = here + "#gangs"
-    addable_types = set()
     if yours:
         addable_types = {
             str(pk)
-            for pk in _holding_assets(
-                campaign, include_staged=sees_staged(campaign.owner)
-            )
+            for pk in _holding_assets(campaign, include_staged=sees_staged(viewer))
             .values_list("asset_type_id", flat=True)
             .distinct()
         }
@@ -513,7 +510,7 @@ def _campaign_update(request, campaign):
     from n26.core.views.htmx import with_toasts
 
     sheet = render_campaign(campaign, viewer=request.user)
-    _fill_addresses(sheet, campaign, yours=True)
+    _fill_addresses(sheet, campaign, yours=True, viewer=request.user)
     acts, more_acts = _recent_acts(campaign, request.user)
     response = render(
         request,

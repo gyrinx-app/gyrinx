@@ -1873,9 +1873,7 @@ class CampaignSheet:
     #: Where the arbitrator opens and writes asset tables. Empty for a
     #: reader who may not.
     tables_href: str = ""
-    #: How many territories the rules have the arbitrator generate for a
-    #: campaign of this many players: three each. Players, not gangs, since
-    #: the rules count people at the table; the arbitrator is not one.
+    #: Suggested unclaimed pool: three territories per active gang.
     territories_to_generate: int = 0
 
     def __post_init__(self):
