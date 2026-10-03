@@ -140,6 +140,11 @@ urlpatterns = [
         views.transfer_asset,
         name="n26-campaign-asset-transfer",
     ),
+    path(
+        "campaigns/<str:pk>/assets/<str:asset_pk>/",
+        views.asset_detail,
+        name="n26-campaign-asset",
+    ),
     # What the arbitrator adds: content written into the campaign's own
     # pack and onto its own campaign type. One page per kind of thing.
     path(

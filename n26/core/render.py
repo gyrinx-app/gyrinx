@@ -1795,6 +1795,8 @@ class CampaignAssetEntry:
     #: asset; the holding gang's owner hands over something they hold.
     transfer_label: str = "Transfer"
     remove_href: str = ""
+    #: Read-only details of this exact campaign holding.
+    href: str = ""
 
 
 @dataclass

@@ -1012,7 +1012,7 @@ def _about_a_holding(e):
 
 
 def _holding_name(e):
-    """The asset an event is about, linked to the campaign's assets while
+    """The asset an event is about, linked to its detail page while
     it still stands. One removed from the campaign since is named from the
     note, which kept the name for exactly this: the line still says what
     the gang gained or lost."""
@@ -1021,7 +1021,9 @@ def _holding_name(e):
         return Span(e.note or "an asset")
     return Span(
         str(campaign_asset),
-        reverse("n26-campaign", args=[campaign_asset.campaign_id]) + "#assets",
+        reverse(
+            "n26-campaign-asset", args=[campaign_asset.campaign_id, campaign_asset.pk]
+        ),
     )
 
 
@@ -1232,6 +1234,24 @@ def _model_span(model, alive):
     if model.pk not in alive:
         return Span(str(model))
     return Span(str(model), reverse("n26-equip", args=[model.pk]))
+
+
+def asset_ownership_history(campaign_asset):
+    """Recorded ownership changes for this exact holding, oldest first.
+
+    Pool-add events did not store the holding's identity. They are not
+    guessed from names, which can be shared by several territories.
+    """
+    events = (
+        LedgerEvent.objects.filter(
+            campaign=campaign_asset.campaign,
+            campaign_asset=campaign_asset,
+            kind__in=(Kind.GAINED, Kind.LOST),
+        )
+        .select_related("gang", "campaign_asset__asset__asset_type")
+        .order_by("created", "id")
+    )
+    return [act for _, act in _holding_acts(events)]
 
 
 def campaign_history(campaign, viewer=None, limit=None):

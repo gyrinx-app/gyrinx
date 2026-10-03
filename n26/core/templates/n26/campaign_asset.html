@@ -1,0 +1,96 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% block head_title %}{{ details.name }}{% endblock %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <div class="max-w-3xl space-y-8">
+        <c-n26.page-header title="{{ details.name }}"
+                           lead="{{ details.kind }}{% if details.library_name %} · {{ details.library_name }}{% endif %}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}#assets">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        {{ details.name }}
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+            {% if actions %}
+                <c-slot name="actions">
+                    {% for action in actions %}<c-ui.button size="sm"
+             variant="{{ action.variant }}"
+             href="{{ action.href }}">{{ action.label }}</c-ui.button>{% endfor %}
+                </c-slot>
+            {% endif %}
+        </c-n26.page-header>
+        <c-n26.form-section title="Details">
+            <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div><dt class="text-sm text-muted">Held by</dt><dd class="mt-1 font-semibold">{% if details.holder %}<c-n26.link href="{{ details.holder_href }}">{{ details.holder }}</c-n26.link>{% else %}Unclaimed{% endif %}</dd></div>
+                <div>
+                    <dt class="text-sm text-muted">Income</dt>
+                    <dd class="mt-1 font-semibold tabular-nums">
+                        {{ details.income }}¢
+                    </dd>
+                </div>
+            </dl>
+            {% if details.boons %}
+                <div>
+                    <h3 class="text-sm font-medium text-muted">Boons</h3>
+                    <ul class="mt-1 space-y-1">
+                        {% for boon in details.boons %}<li>{{ boon }}</li>{% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+            <p class="text-sm text-muted">Added to the campaign {{ details.created|date:"j M Y, H:i" }}.</p>
+        </c-n26.form-section>
+        <c-n26.form-section title="Battles staked in">
+            <ul class="divide-y divide-box-border">
+                {% for battle in battles %}
+                    <li class="py-3 first:pt-0">
+                        <c-n26.link href="{{ battle.href }}" class="font-semibold">
+                            {{ battle.title }}
+                        </c-n26.link>
+                        <p class="mt-1 text-sm text-muted">{{ battle.date|date:"j M Y" }} · {{ battle.gangs }}</p>
+                        <p class="mt-1 text-sm">{{ battle.outcome }}</p>
+                        {% if battle.transferred_to %}<p class="mt-1 text-sm text-muted">Transfer recorded to {{ battle.transferred_to }}.</p>{% endif %}
+                    </li>
+{% empty %}<li class="text-sm text-muted">This {{ details.kind|lower }} has not been staked in a battle.</li>{% endfor %}
+    </ul>
+    </c-n26.form-section>
+    <c-n26.form-section title="Ownership history">
+        <ol class="divide-y divide-box-border">
+            {% for act in history %}
+                <li class="flex flex-col gap-1 py-3 first:pt-0 sm:flex-row sm:gap-4">
+                    <time datetime="{{ act.when|date:'c' }}"
+                          class="shrink-0 text-sm text-muted">{{ act.when|date:"j M Y, H:i" }}</time>
+                    <p class="min-w-0 text-sm">{% for span in act.spans %}{{ span.text }}{% endfor %}</p>
+                </li>
+{% empty %}<li class="text-sm text-muted">No ownership changes recorded.</li>{% endfor %}
+    </ol>
+    {% if pages %}
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <c-ui.pagination>
+                {% if pages.previous %}
+                    <c-ui.pagination.prev href="{{ pages.previous }}" />
+                {% else %}
+                    <c-ui.pagination.prev :disabled="True" />
+                {% endif %}
+                {% for number in pages.numbers %}{% if number.elided %}<c-ui.pagination.ellipsis />{% else %}<c-ui.pagination.item href="{{ number.href }}" :current="number.current">{{ number.label }}</c-ui.pagination.item>{% endif %}{% endfor %}
+                {% if pages.next %}
+                    <c-ui.pagination.next href="{{ pages.next }}" />
+                {% else %}
+                    <c-ui.pagination.next :disabled="True" />
+                {% endif %}
+            </c-ui.pagination>
+            <p class="text-sm text-muted">Page {{ pages.number }} of {{ pages.of }} · {{ total }} changes</p>
+        </div>
+    {% endif %}
+    </c-n26.form-section>
+    </div>
+{% endblock %}
