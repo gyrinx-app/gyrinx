@@ -23,7 +23,7 @@ class PublicGang:
 
 def _person(pk):
     return get_object_or_404(
-        User.objects.select_related("profile").prefetch_related("badge_grants"),
+        User.objects.all(),
         pk=pk,
         is_active=True,
     )
