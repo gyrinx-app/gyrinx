@@ -1,59 +1,51 @@
 {% comment %}
-<c-n26.site.announcement> — Site-wide announcement bar with optional CTA, extra action, and dismiss.
+<c-n26.site.announcement> — Site-wide announcement bar with optional CTA and dismiss.
 
 Print CSS in app.css hides this bar.
 Tone is a data-tone attribute, so background, border, and ink stay in step.
 Pass none to hide the icon. An empty icon draws the tone's default.
 A CTA needs both cta_text and cta_url.
-Dismiss only hides this visit unless on_dismiss persists it. Pass an empty dismissible to keep the bar.
-The action slot is extra controls, typically a form.
+Dismiss hides the bar for this visit. dismiss_url posts banner_id so the server can remember it.
 Do not add role=status. That announces on change, and this bar is already on the page at load.
-Do not add x-cloak. The bar starts visible, and x-cloak would hide it then drop it in.
-Keep action outside the message span. The browser closes a span around a form.
+The message is the default slot. Keep a form out of that slot: the browser would close the span around it.
 {% endcomment %}
 
+{% load announcement react %}
 <c-vars
     tone="info"
     icon=""
+    message=""
     cta_text=""
     cta_url=""
-    action=""
     dismissible="1"
-    on_dismiss=""
+    dismiss_url=""
+    banner_id=""
+    id=""
     class=""
 />
-
-<aside {{ attrs }}
-       x-data="{ shown: true }"
-       x-show="shown"
+{% announcement_props tone=tone icon=icon message=message slot=slot cta_text=cta_text cta_url=cta_url dismissible=dismissible dismiss_url=dismiss_url banner_id=banner_id csrf_token=csrf_token element_id=id css_class=class as props_ %}
+{% react_host "announcement" props_ class="contents" %}
+<aside {% if id %}id="{{ id }}"{% endif %}
        class="n26-announcement {{ class }}"
        data-tone="{{ tone }}"
        aria-label="Site announcement">
     <div class="n26-site-container n26-announcement-row">
-
-        {# none hides the icon. Empty falls through to the tone. #}
         {% if icon != "none" %}
             <c-n26.icon
                 name="{% if icon %}{{ icon }}{% elif tone == 'success' %}circle-check{% elif tone == 'warning' or tone == 'danger' %}triangle-alert{% else %}info{% endif %}"
                 class="size-5 shrink-0" />
         {% endif %}
-
         <div class="n26-announcement-message">
-            <span>{{ slot }}</span>
+            <span>{% if message %}{{ message }}{% else %}{{ slot }}{% endif %}</span>
             {% if cta_text and cta_url %}
                 <a href="{{ cta_url }}" class="n26-announcement-cta focus-ring">
                     {{ cta_text }}
                     <c-n26.icon name="arrow-right" class="size-4" stroke_width="2" />
                 </a>
             {% endif %}
-
-            {% if action %}{{ action }}{% endif %}
         </div>
-
         {% if dismissible %}
-            {# Local hide only. Persist with on_dismiss. #}
             <button type="button"
-                    @click="shown = false{% if on_dismiss %}; {{ on_dismiss }}{% endif %}"
                     class="n26-announcement-dismiss focus-ring"
                     aria-label="Dismiss announcement">
                 <c-n26.icon name="x" class="size-4" stroke_width="2" />
@@ -61,3 +53,4 @@ Keep action outside the message span. The browser closes a span around a form.
         {% endif %}
     </div>
 </aside>
+{% endreact_host %}

@@ -1326,11 +1326,15 @@ class TestTheSiteBanner:
         rendered data-tone="primary", which no rule matches, so the bar
         silently kept the default blue — right by luck, and wrong the
         moment the colour was secondary or dark."""
+        from django.urls import reverse
+
         live_banner(colour="primary")
 
         body = client.get("/n26/").content.decode()
         assert 'data-tone="info"' in body
         assert 'data-tone="primary"' not in body
+        assert reverse("core:dismiss-banner") in body
+        assert 'x-show="shown"' not in body
 
     def test_a_colourless_banner_still_gets_a_tone(
         self, tester, client, default_pack, live_banner
@@ -1407,7 +1411,7 @@ class TestTheSiteBanner:
         banner at all, so a bar closed in either edition stays closed in
         both.
 
-        The close button is an Alpine expression rather than a form, so
+        The close button posts from the island rather than a form, so
         the request under test is read out of the page and made here —
         a shell that says nothing has nothing to read.
         """
@@ -1421,13 +1425,12 @@ class TestTheSiteBanner:
         body = client.get("/n26/").content.decode()
         assert "N26 support is coming." in body
 
-        bar = announcement_bar(body)
         dismiss_url = reverse("core:dismiss-banner")
-        assert dismiss_url in bar
-        # The id the expression posts, not merely the one in the wrapper's
+        assert dismiss_url in body
+        # The id the island posts, not merely the one in the wrapper's
         # own id attribute.
         assert re.search(
-            rf"{re.escape(dismiss_url)}.*{re.escape(str(banner.id))}", bar, re.S
+            rf"{re.escape(dismiss_url)}.*{re.escape(str(banner.id))}", body, re.S
         )
 
         dismissed = client.post(
