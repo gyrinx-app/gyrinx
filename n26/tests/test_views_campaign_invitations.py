@@ -132,6 +132,34 @@ class TestAnsweringAnInvitation:
             == "/n26/campaigns/"
         )
 
+    def test_an_invitation_withdrawn_since_the_form_opened_has_a_clear_result(
+        self, client, invitation, monkeypatch
+    ):
+        from n26.core.campaigns import CampaignOperation
+
+        original = CampaignOperation.answer_invitation
+
+        def withdraw_then_answer(op, user, accepted):
+            op.remove_player(
+                CampaignParticipant.objects.get(campaign=op.campaign, user=user)
+            )
+            return original(op, user, accepted)
+
+        monkeypatch.setattr(
+            CampaignOperation, "answer_invitation", withdraw_then_answer
+        )
+        response = answer(client, invitation, "accept")
+        assert response.status_code == 302
+        assert response["Location"] == "/n26/campaigns/"
+        assert (
+            "This invitation is no longer available."
+            in client.get(response["Location"]).content.decode()
+        )
+        assert not CampaignParticipant.objects.filter(pk=invitation.pk).exists()
+        assert not invitation.campaign.events.filter(
+            kind=CampaignEvent.Kind.INVITE_ACCEPTED
+        ).exists()
+
     def test_an_archived_campaign_cannot_be_joined(self, client, invitation):
         with campaign_operation(
             invitation.campaign, actor=invitation.campaign.owner

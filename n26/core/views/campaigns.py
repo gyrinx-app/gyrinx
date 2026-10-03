@@ -2372,11 +2372,17 @@ def answer_invitation(request, pk):
     accepted = answer == "accept"
     with campaign_operation(campaign, actor=request.user) as act:
         answered = act.answer_invitation(request.user, accepted)
-
-    # The operation serialises answers. A stale form may arrive after another
-    # answer, so the destination and message must reflect the stored result.
-    player.refresh_from_db(fields=["state"])
-    if player.state == CampaignParticipant.State.ACCEPTED:
+        # Read the stored result while the campaign lock still excludes
+        # removal. A stale form may refer to an invitation already withdrawn.
+        state = (
+            CampaignParticipant.objects.filter(pk=player.pk)
+            .values_list("state", flat=True)
+            .first()
+        )
+    if state is None:
+        messages.info(request, "This invitation is no longer available.")
+        return redirect("n26-campaigns")
+    if state == CampaignParticipant.State.ACCEPTED:
         messages.success(
             request,
             f"You joined {campaign.name}."
