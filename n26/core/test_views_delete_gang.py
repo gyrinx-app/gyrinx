@@ -341,3 +341,61 @@ class TestWhatIsLeftAlone:
         gang.refresh_from_db()
         assert (gang.rating, gang.credits) == (rating, credits)
         assert_reconciled(gang)
+
+
+class TestAGangInACampaign:
+    """A gang still playing a campaign is named as such before the click,
+    and taken out of the campaign before it is archived, so the campaign
+    keeps no holder nobody can open."""
+
+    @pytest.fixture
+    def campaign(self, campaign_type):
+        from n26.tests.sandbox.actions import found_campaign
+
+        return found_campaign(
+            "Dust Falls", campaign_type, owner=User.objects.create_user("arbitrator")
+        )
+
+    @pytest.fixture
+    def playing(self, gang, campaign):
+        from n26.tests.sandbox.actions import join_campaign
+
+        return join_campaign(gang, campaign)
+
+    def test_the_page_names_the_campaign(
+        self, client, tester, gang, playing, delete_url
+    ):
+        client.force_login(tester)
+        body = client.get(delete_url).content.decode()
+        assert "The Ashen Choir is in Dust Falls" in body
+        assert "Deleting removes The Ashen Choir from Dust Falls first." in body
+
+    def test_a_gang_in_no_campaign_is_not_warned(
+        self, client, tester, gang, delete_url
+    ):
+        client.force_login(tester)
+        assert "Deleting removes" not in client.get(delete_url).content.decode()
+
+    def test_reading_the_page_leaves_the_gang_playing(
+        self, client, tester, gang, playing, delete_url
+    ):
+        client.force_login(tester)
+        client.get(delete_url)
+        playing.refresh_from_db()
+        assert playing.playing
+
+    def test_deleting_takes_the_gang_out_first(
+        self, client, tester, gang, playing, delete_url
+    ):
+        client.force_login(tester)
+        client.post(delete_url)
+
+        gang.refresh_from_db()
+        playing.refresh_from_db()
+        assert gang.archived
+        assert not playing.playing
+        assert playing.type_carrier.archived
+        assert not Assignment.objects.filter(
+            gang=gang, archived=False, campaign_type__isnull=False
+        ).exists()
+        assert_reconciled(gang)

@@ -1797,13 +1797,31 @@ def delete_gang(request, pk):
     The confirmation counts the roster because the name alone is a weak
     thing to check a decision against, and a reader with two gangs of
     similar names deserves a second fact.
+
+    A gang still playing a campaign is taken out of it first, in the same
+    transaction, as the campaign's own Remove from campaign does: the
+    assets it holds go back to the campaign and what the campaign gave it
+    goes, so nothing in the campaign points at a gang nobody can open. The
+    page names the campaign so the owner knows before they click.
     """
+    from django.db import transaction
+
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.models import Miniature
+    from n26.core.campaigns import campaign_operation
+    from n26.core.models import CampaignMembership, Miniature
 
     gang = _own_gang_or_404(request, pk)
+    playing = (
+        CampaignMembership.objects.filter(gang=gang, left__isnull=True)
+        .select_related("campaign")
+        .first()
+    )
     if request.method == "POST":
-        gang.archive()
+        with transaction.atomic():
+            if playing is not None:
+                with campaign_operation(playing.campaign, actor=request.user) as act:
+                    act.remove_gang(playing)
+            gang.archive()
         # Recorded as a deletion, which is what the player did. That the gang
         # survives is how the ledger stays true, not something they asked for.
         record(request, N26Noun.GANG, EventVerb.DELETE, gang)
@@ -1815,6 +1833,7 @@ def delete_gang(request, pk):
         "n26/delete_gang.html",
         {
             "gang": gang,
+            "campaign": playing.campaign if playing else None,
             # Live memberships only: a fighter already off the roster is
             # not one of the things this click takes away.
             "roster": Miniature.objects.filter(

@@ -71,5 +71,14 @@ that said it twice would be spending the width the name needs.
             equip pages and its print setup stop opening. Its fighters and
             everything they carry go with it. You will not be able to bring it back.
         </c-ui.alert>
+        {% if campaign %}
+            <c-ui.alert variant="warning"
+                        title="{{ gang.name }} is in {{ campaign.name }}"
+                        class="mt-4">
+                Deleting removes {{ gang.name }} from {{ campaign.name }} first. It loses
+                what the campaign gave it, and the assets it holds go back to the
+                campaign. The campaign's log records that it left.
+            </c-ui.alert>
+        {% endif %}
     </c-n26.form-page>
 {% endblock content %}
