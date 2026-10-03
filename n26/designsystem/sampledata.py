@@ -2248,6 +2248,7 @@ def gang_sheet():
         campaign=CampaignBlock(
             name="Dust Falls",
             campaign_id="dust-falls",
+            choices=[ChoiceLine(kind_label="Faction", chosen="Nomads", href="#")],
             # Addressed, as they are for a reader inside the campaigns
             # feature. Empty is the other state: the name and the holding
             # draw as text.

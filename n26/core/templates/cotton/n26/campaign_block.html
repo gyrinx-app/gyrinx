@@ -9,6 +9,7 @@ Must sit inside a detail list. It emits a heading and facts, not its own list.
 
 Holdings link to the campaign's assets, not to the holding itself.
 They are held, never owned, and add nothing to the gang's rating.
+Campaign choices sit under the campaign heading and use the usual picker controls.
 Counter controls render only when the counter has an href.
 The view fills a counter href for the gang's owner and for nobody else.
 Do not build campaign links from a URL name here.
@@ -22,6 +23,7 @@ class lands on every heading and fact. There is no container of its own to put i
     <c-n26.detail-list.heading class="{{ class }}">
         <c-n26.link href="{{ campaign.href }}" tone="current">{{ campaign.name }}</c-n26.link>
     </c-n26.detail-list.heading>
+    <c-n26.choice-slots :choices="campaign.choices" class="{{ class }}" />
     {% for line in campaign.lines %}
         <c-n26.detail-list.row label="{{ line.type_label }}" :editable="False" class="{{ class }}">
             {% spaceless %}

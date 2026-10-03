@@ -169,6 +169,7 @@ def gang_state(gang):
         "campaign": (
             {
                 "name": sheet.campaign.name,
+                "choices": _choices(sheet.campaign.choices),
                 "lines": _assets(sheet.campaign.lines),
                 "counters": sorted(
                     (str(counter.name), str(counter.value))

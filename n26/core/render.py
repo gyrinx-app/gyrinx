@@ -1461,8 +1461,9 @@ class CampaignBlock:
     Everything in ``lines`` is caused by one of the membership's two
     carriers — the campaign's shared type and its additions — and names
     that carrier as its source, the way any granted line does. The
-    counters carry their standing values, and are drawn as ordinary
-    counter rows so a campaign's Reputation reads as any counter the gang
+    choices come from those same carriers. The counters carry their
+    standing values, and are drawn as ordinary counter rows so a
+    campaign's Reputation reads as any counter the gang
     keeps. Nothing here is the gang's own: it arrived with the campaign
     and leaves with it, which is why the sheet keeps it apart from the
     gang's own rows and counters.
@@ -1481,6 +1482,7 @@ class CampaignBlock:
     lines: list[CampaignAssetLine] = field(default_factory=list)
     counters: list[CounterLine] = field(default_factory=list)
     holdings: list[CampaignAssetLine] = field(default_factory=list)
+    choices: list[ChoiceLine] = field(default_factory=list)
     #: Where the campaign's name and its holdings lead — the campaign
     #: page, and its assets section — filled in by whoever knows both the
     #: URL space and who may open them, as a counter's own href is. Empty
@@ -1567,20 +1569,22 @@ class GangSheet:
 
     @property
     def questions(self):
-        """Every question this sheet draws — the gang's own, one strip of
-        them.
+        """Every question this sheet draws, including its campaign's.
 
         Named to match a card's, so anything that has business with a
         holder's open questions — pointing them at their pickers, counting
         them — asks the two shapes the same way and cannot be told about
         one list and not another.
         """
-        return self.choices
+        return [choice for choices in self.question_lists() for choice in choices]
 
     def question_lists(self):
-        """The list the gang's questions live in, as a card hands over
-        its own — see ``ModelCard.question_lists``."""
-        return [self.choices]
+        """The lists holding the gang and campaign questions, for linking
+        and dismissal — see ``ModelCard.question_lists``."""
+        lists = [self.choices]
+        if self.campaign is not None:
+            lists.append(self.campaign.choices)
+        return lists
 
 
 @dataclass
@@ -3829,6 +3833,16 @@ def render_gang(
     campaign = _campaign_block(
         gang_card, membership, campaign_keys, readings, index=index
     )
+    # Questions follow the same carrier ownership as campaign possessions
+    # and counters. Names may be shared with the gang's own questions or
+    # a previous campaign's retained answers.
+    choices = []
+    for slot in gang_computed.choices if gang_computed else ():
+        line = _choice_line(slot, GANG_SLOT_HOST)
+        if campaign is not None and getattr(slot.anchor, "key", None) in campaign_keys:
+            campaign.choices.append(line)
+        else:
+            choices.append(line)
     # What each model still has of the Trade Points its books give it to
     # spend as it joins. Off the fold that has just been worked out, plus
     # one sum of what the whole roster has spent — never a query a
@@ -3856,7 +3870,7 @@ def render_gang(
         colour=gang.colour,
         rows=gang_rows,
         rules=gang_rules,
-        choices=choice_lines(gang_computed, host=GANG_SLOT_HOST),
+        choices=choices,
         # Only the ones a reader is shown: a counter the author marked
         # undrawn is there for conditions to check. What the campaign
         # brought has already been taken out, to be drawn under its name.

@@ -171,7 +171,7 @@ def render_gang_sheet(sheet):
         lines.append(f"Rules: {names}")
     for counter in sheet.counters:
         lines.append(f"{counter.name}: {counter.value}")
-    for choice in sheet.choices:
+    for choice in sheet.questions:
         chosen = choice.chosen if choice.is_resolved else "— (not chosen)"
         if choice.is_resolved and not choice.is_full:
             chosen = f"{chosen} (add)"
