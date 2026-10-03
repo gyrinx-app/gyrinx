@@ -25,7 +25,7 @@ from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.history import build, campaign_history
-from n26.core.models import CampaignEvent, LedgerEvent
+from n26.core.models import CampaignAsset, CampaignEvent, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
@@ -1005,13 +1005,56 @@ class TestTheArbitratorsControlsOnThePage:
             {
                 "asset_type": str(territory.pk),
                 "name": "Sump Hole",
-                "annotation": "",
+                "annotation": "flooded",
                 "income": "15",
             },
         )
         assert response.status_code == 302
         made = Asset.objects.get(name="Sump Hole")
         assert made.pack == campaign.pack and made.income == 15
+        holding = CampaignAsset.objects.get(campaign=campaign, asset=made)
+        assert holding.holder is None
+        sheet = render_campaign(campaign)
+        (entry,) = next(
+            table for table in sheet.assets if table.asset_type_id == str(territory.pk)
+        ).entries
+        assert entry.name == "Sump Hole (flooded)"
+        assert entry.income == 15
+        html = client.get(response["Location"]).content.decode()
+        assert "Sump Hole (flooded)" in html
+        assert "15¢" in html
+
+    def test_the_campaign_hides_add_until_a_holding_is_available(
+        self, client, arbitrator
+    ):
+        basic = create_campaign_type("Empty holdings")
+        kind = add_asset_type(basic, "Cache", AssetType.Ownership.HOLDING)
+        campaign = found_campaign("New table", basic, owner=arbitrator)
+        client.force_login(arbitrator)
+        url = reverse("n26-campaign", args=[campaign.pk])
+        add = reverse("n26-campaign-add-asset", args=[campaign.pk]) + f"?type={kind.pk}"
+        assert add not in client.get(url).content.decode()
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.create_asset(kind, "Sump cache")
+        assert add in client.get(url).content.decode()
+
+    def test_an_empty_asset_catalogue_offers_a_next_step_instead_of_a_submit(
+        self, client, arbitrator
+    ):
+        basic = create_campaign_type("Empty campaign")
+        campaign = found_campaign("New table", basic, owner=arbitrator)
+        client.force_login(arbitrator)
+        response = client.get(reverse("n26-campaign-add-asset", args=[campaign.pk]))
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert "Nothing to add" in soup.get_text()
+        assert soup.select('button[type="submit"]') == []
+        assert (
+            reverse("n26-campaign-add-asset-type", args=[campaign.pk])
+            in response.content.decode()
+        )
+        assert soup.select('input[name="name"]') == []
 
     def test_a_refusal_lands_on_the_form(self, client, campaign):
         add_campaign_counter(campaign, "Meat")

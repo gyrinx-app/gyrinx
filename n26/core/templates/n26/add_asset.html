@@ -27,7 +27,7 @@ posts with no script and a redisplay after a failed submit keeps the pick.
                      title="Add {{ adding }}"
                      lead="It stays unclaimed until you assign it to a gang."
                      :form="form"
-                     submit_label="Add"
+                     submit_label="{% if assets %}Add{% endif %}"
                      cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -65,21 +65,28 @@ posts with no script and a redisplay after a failed submit keeps the pick.
                     {% else %}
                         This campaign has no assets that one gang holds at a time yet.
                     {% endif %}
+                    <p class="mt-2">
+                        <c-n26.link href="{{ empty_next_href }}">
+                            {{ empty_next_label }}
+                        </c-n26.link>
+                    </p>
                 </c-ui.alert>
             {% endif %}
         </c-n26.form-section>
-        <c-n26.form-section title="In this campaign">
-            <c-ui.field label="Name in this campaign"
-                        description="Optional. Leave blank to use the asset's own name."
-                        error="x"
-                        :form="form"
-                        name="name"
-                        for="asset-name">
-                <c-ui.input id="asset-name"
+        {% if assets %}
+            <c-n26.form-section title="In this campaign">
+                <c-ui.field label="Name in this campaign"
+                            description="Optional. Leave blank to use the asset's own name."
+                            error="x"
+                            :form="form"
                             name="name"
-                            autocomplete="off"
-                            value="{{ form.name.value|default:'' }}" />
-            </c-ui.field>
-        </c-n26.form-section>
+                            for="asset-name">
+                    <c-ui.input id="asset-name"
+                                name="name"
+                                autocomplete="off"
+                                value="{{ form.name.value|default:'' }}" />
+                </c-ui.field>
+            </c-n26.form-section>
+        {% endif %}
     </c-n26.form-page>
 {% endblock content %}

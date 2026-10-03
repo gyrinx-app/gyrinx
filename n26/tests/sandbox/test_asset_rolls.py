@@ -2,7 +2,7 @@
 
 The core rulebook's two rolls (design/house-and-territory-tables.md): the
 Arbitrator generates the campaign's pool of territories by rolling on the
-Territory table, three per player, and the same territory may come up more
+Territory table, three per gang, and the same territory may come up more
 than once; each gang's starting territory is rolled for the gang directly,
 on the Territory table or on a table of its own House. Both rolls read the
 same fact — who holds the table. The campaign holds the tables built into
@@ -674,7 +674,7 @@ class TestThePages:
         client.force_login(arbitrator)
         page = client.get(reverse("n26-campaign", args=[quiet.pk])).content.decode()
         assert "Roll racket" not in page
-        assert "Add racket" in page
+        assert "Add racket" not in page
 
         # With a rolled table of Rackets the control appears, in the type's
         # word; the three-per-player line is the Territory rule and is not
@@ -688,7 +688,7 @@ class TestThePages:
         ).content.decode()
         assert "Roll racket" in page
         assert "The rolled racket will be added to the campaign as unclaimed." in page
-        assert "three per player" not in page
+        assert "three per gang" not in page
 
     def test_a_malformed_gang_key_is_a_bad_link(
         self, client, campaign, territory, arbitrator
@@ -716,11 +716,20 @@ class TestThePages:
         assert "Roll starting territory" not in page
         assert "?roll=" not in page
 
-    def test_the_pool_dialog_counts_three_per_player(
-        self, client, campaign, territory, selection_table, arbitrator
+    def test_the_pool_dialog_counts_three_per_gang(
+        self,
+        client,
+        campaign,
+        territory,
+        selection_table,
+        arbitrator,
+        slag_kings,
+        wild_cats,
     ):
         from n26.core.campaigns import campaign_operation
 
+        third = found_gang("Third gang", slag_kings.gang_type, owner=slag_kings.owner)
+        join_campaign(third, campaign, actor=arbitrator)
         for name in ("one", "two"):
             with campaign_operation(campaign, actor=arbitrator) as act:
                 player = act.invite(User.objects.create_user(name))
@@ -729,7 +738,7 @@ class TestThePages:
         client.force_login(arbitrator)
         address = reverse("n26-campaign", args=[campaign.pk]) + f"?roll={territory.pk}"
         page = client.get(address).content.decode()
-        assert "The rules generate three per player: 6 for this campaign." in page
+        assert "The rules generate three per gang: 9 for this campaign." in page
         assert "Roll territory" in page
         assert f'name="table" value="{selection_table.pk}"' in page
 

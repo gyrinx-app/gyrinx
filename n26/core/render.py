@@ -4042,7 +4042,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     )
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
     from n26.core.effects import compute, counter_readings
-    from n26.core.models import CampaignMembership, CampaignParticipant
+    from n26.core.models import CampaignMembership
     from n26.library.income import boons_of, income_of
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.references import reading_sentences
@@ -4227,7 +4227,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
             CampaignAssetEntry(
                 campaign_asset_id=str(campaign_asset.pk),
                 name=str(campaign_asset),
-                asset_name=campaign_asset.asset.name if campaign_asset.name else "",
+                asset_name=str(campaign_asset.asset) if campaign_asset.name else "",
                 income=income_of(campaign_asset.asset),
                 boons=[
                     boon_said(modifier) for modifier in boons_of(campaign_asset.asset)
@@ -4261,16 +4261,13 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         ],
         assets=list(tables.values()),
         battles_fought=campaign.battles.count(),
-        territories_to_generate=TERRITORIES_PER_PLAYER
-        * campaign.participants.filter(
-            state=CampaignParticipant.State.ACCEPTED
-        ).count(),
+        territories_to_generate=TERRITORIES_PER_GANG * len(memberships),
     )
 
 
-#: How many territories the rules generate for each player at the table
+#: How many territories the rules generate for each gang
 #: when a campaign is set up.
-TERRITORIES_PER_PLAYER = 3
+TERRITORIES_PER_GANG = 3
 
 
 def boon_said(modifier):
