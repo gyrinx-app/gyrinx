@@ -46,7 +46,12 @@ offers the reader's other campaigns.
                 <c-slot name="actions">
                     <c-ui.button size="sm"
                                  variant="primary"
-                                 href="{% url 'n26-campaign-record-roll' campaign.pk %}"><c-n26.icon name="dice-5" class="size-4" /> Log a dice roll</c-ui.button>
+                                 href="{% url 'n26-campaign-record-roll' campaign.pk %}">
+                        <span class="flex items-center gap-2">
+                            <c-n26.icon name="dice-5" class="size-4" />
+                            Log a dice roll
+                        </span>
+                    </c-ui.button>
                 </c-slot>
             {% endif %}
         </c-n26.page-header>

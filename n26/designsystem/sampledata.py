@@ -2780,7 +2780,7 @@ def campaign_sheet():
         add_counter_href="#",
         add_label_href="#",
         counter_columns=["Reputation", "Income", "Meat"],
-        label_columns=["Alignment"],
+        label_columns=["Alignment", "Campaign objective"],
         asset_types=CAMPAIGN_ASSET_TYPES,
         gangs=[
             CampaignGangLine(
@@ -2819,7 +2819,7 @@ def campaign_sheet():
                         back="#",
                     ),
                 ],
-                labels=["Outlaw"],
+                labels=["Outlaw", "Control the trade routes through the eastern sump"],
                 assets=[["Settlement"], ["Toll Crossing"]],
                 href="#",
             ),
@@ -2851,7 +2851,7 @@ def campaign_sheet():
                     ),
                     None,
                 ],
-                labels=[""],
+                labels=["", ""],
                 assets=[["Settlement"], []],
                 href="#",
             ),
@@ -2890,7 +2890,7 @@ def campaign_sheet():
                         back="#",
                     ),
                 ],
-                labels=["Law Abiding"],
+                labels=["Law Abiding", "Hold the lower sump"],
                 assets=[["Settlement"], ["Old Ruins", "Old Ruins by the sump"]],
                 starting_rolls=[
                     StartingRoll(
