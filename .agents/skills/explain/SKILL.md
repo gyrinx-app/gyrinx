@@ -1,4 +1,5 @@
 ---
+name: explain
 description: |
   Generate a structured technical explanation of the current branch's work.
   Useful for PR descriptions, handoff notes, or getting your bearings on a branch.
