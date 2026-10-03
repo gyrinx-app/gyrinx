@@ -431,6 +431,24 @@ class TestCaptureControlsAgree:
         assert held_names(miniature) == ["Taken prisoner"]
         assert_reconciled(gang)
 
+    def test_an_old_resolved_capture_does_not_block_the_next_escape(
+        self, client, owner, gang, krago, tables
+    ):
+        add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
+        add_result(krago, "Escape", tables["escape"], "Daring Escape")
+        with operation(gang, actor=owner) as op:
+            op.set_status(krago, Status.CAPTURED)
+        response = client.post(
+            reverse("n26-mark-fighter", args=[krago.pk]), {"status": "captured"}
+        )
+        assert response.status_code == 302
+        assert held_names(krago).count("Captured") == 2
+        assert any(
+            slot.kind_label == "Escape" and not slot.picks
+            for slot in computed_for(krago).choices
+        )
+        assert_reconciled(gang)
+
     def test_a_lasting_injury_pick_returns_to_the_model_card(
         self, client, gang, krago, tables
     ):

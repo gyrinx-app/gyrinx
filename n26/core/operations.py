@@ -797,7 +797,10 @@ class Operation:
                 miniature=miniature,
                 archived=False,
                 pickable__modifiers__op_sets_status__status=Status.CAPTURED,
-            ).exists()
+                chosen_for_slot__slot_type__is_lasting_effect=True,
+            )
+            .exclude(picks__archived=False)
+            .exists()
         ):
             return miniature
         card = build_card(miniature)
