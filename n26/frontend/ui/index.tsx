@@ -96,16 +96,18 @@ export function Button({
 
 export function ButtonLink({
     variant = "default",
+    size = "md",
     className = "",
     ...props
 }: ComponentProps<"a"> & {
     href: string;
-    variant?: keyof typeof cotton.buttonLink;
+    variant?: keyof typeof cotton.buttonLinkBySize.md;
+    size?: keyof typeof cotton.buttonLinkBySize;
 }) {
     return (
         <a
             {...props}
-            className={`${cotton.buttonLink[variant]} ${className}`}
+            className={`${cotton.buttonLinkBySize[size][variant]} ${className}`}
         />
     );
 }
@@ -711,9 +713,11 @@ export function ActionBar({
 export function Icon({
     name,
     className = "size-4",
+    strokeWidth,
 }: {
     name: keyof typeof cotton.icons;
     className?: string;
+    strokeWidth?: number;
 }) {
     return (
         <svg
@@ -721,7 +725,7 @@ export function Icon({
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth={name === "search" ? 1.5 : 2}
+            strokeWidth={strokeWidth ?? (name === "search" ? 1.5 : 2)}
             strokeLinecap="round"
             strokeLinejoin="round"
             aria-hidden="true"

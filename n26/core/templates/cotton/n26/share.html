@@ -2,8 +2,10 @@
 <c-n26.share> — a share control that copies the URL, or opens the system share sheet.
 
 url is the href of a real link, so the control still goes there when script does not run.
+React takes a plain click and calls navigator.share where the browser has it.
+If the share sheet is missing or fails for a reason other than AbortError, it copies the link.
 If clipboard is missing or the copy fails, the browser navigates to the URL instead.
-AbortError from the share sheet is ignored. Any other failure falls back to copy.
+AbortError from the share sheet is ignored.
 Pass a path. The button shares the link's own href, which the browser has already made absolute.
 The word Share is hidden below sm. Keep the aria-label so a reader who cannot see the icon still hears the name.
 The padding overrides keep this 20px tall so it can sit on the breadcrumb row.
@@ -12,6 +14,7 @@ Lay the contents out on the button itself. A wrapper around them adds a line box
 Change the size prop and these measurements need doing again.
 {% endcomment %}
 
+{% load react share %}
 <c-vars
     url=""
     message="Link copied."
@@ -19,44 +22,13 @@ Change the size prop and these measurements need doing again.
     variant="ghost"
     class=""
 />
-
-<span class="inline-flex items-center gap-2 {{ class }}"
-      x-data="{
-          copied: false,
-          timer: null,
-          showCopiedMessage() {
-              this.copied = true;
-              clearTimeout(this.timer);
-              this.timer = setTimeout(() => { this.copied = false; }, 4000);
-          },
-          clicked(event) {
-              // A modified or non-primary click, or a link aimed at another
-              // window, is the browser's to handle: open in a new tab, and so on.
-              const link = event.currentTarget;
-              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-              if (link.target && link.target !== '_self') return;
-              event.preventDefault();
-              this.share(link.href);
-          },
-          share(url) {
-              const copy = () => {
-                  if (!navigator.clipboard) { window.location.assign(url); return; }
-                  navigator.clipboard.writeText(url).then(() => this.showCopiedMessage(), () => window.location.assign(url));
-              };
-              const notAborted = (err) => { if (err.name !== 'AbortError') copy(); };
-              if (navigator.share && (!navigator.canShare || navigator.canShare({ url }))) {
-                  try { navigator.share({ url }).catch(notAborted); } catch (err) { notAborted(err); }
-              } else {
-                  copy();
-              }
-          }
-      }">
+{% share_props url=url message=message size=size variant=variant as props_ %}
+{% share_host_class class as host_class %}
+{% react_host "share" props_ class=host_class %}
     <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ url }}"
                  aria-label="Share"
-                 class="!inline-flex min-h-5 items-center gap-1.5 !py-px"
-                 @click="clicked($event)">
+                 class="!inline-flex min-h-5 items-center gap-1.5 !py-px">
         <c-n26.icon name="share-2" class="size-3.5" />
         <span class="hidden sm:inline">Share</span>
     </c-ui.button>
-    <span x-cloak x-show="copied" role="status" class="text-xs text-muted">{{ message }}</span>
-</span>
+{% endreact_host %}

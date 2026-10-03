@@ -42,7 +42,13 @@ class TestTheReactMarks:
         react = {c.slug for c in catalog.COMPONENTS if c.uses_react}
         # quick-switcher's island is in one of its parts, not its main file;
         # switch's is in switch/impl.html, which only its index draws.
-        assert {"filter-select", "pick-list", "quick-switcher", "switch"} <= react
+        assert {
+            "filter-select",
+            "pick-list",
+            "quick-switcher",
+            "share",
+            "switch",
+        } <= react
         # These sit beside React components in the shared n26/ folder.
         assert "tab-links" not in react
         assert "model-header" not in react
@@ -137,7 +143,8 @@ class TestTheSharePage:
 
     def test_the_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/share/").content.decode()
-        assert "clicked($event)" in page
+        assert "data-react-fallback" in page
+        assert 'aria-label="Share"' in page
         assert "This gang is unlisted" in page
 
 

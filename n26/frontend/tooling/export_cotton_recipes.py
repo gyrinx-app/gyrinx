@@ -604,8 +604,41 @@ def dialog_recipe():
     }
 
 
+def button_link_by_size():
+    """Link-button classes for every cotton size, including the text variants.
+
+    A caller can pass any size and variant the cotton button accepts, including
+    extra-small. The text variants drop horizontal padding, so they are part of
+    the set rather than a separate recipe.
+    """
+    sizes = ("xs", "sm", "md", "lg", "xl", "2xl")
+    variants = (
+        "default",
+        "primary",
+        "success",
+        "danger",
+        "ghost",
+        "subtle",
+        "text",
+        "text-danger",
+    )
+    return {
+        size: {
+            variant: classes(
+                f'<c-ui.button href="/" variant="{variant}" size="{size}">'
+                "Cancel</c-ui.button>",
+                "a",
+            )[0]
+            for variant in variants
+        }
+        for size in sizes
+    }
+
+
 def recipes():
     from n26.core.icons import resolve
+
+    button_link_by_size_recipes = button_link_by_size()
 
     search = classes(
         '<c-n26.search-bar :live="True" model="query" />',
@@ -666,12 +699,10 @@ def recipes():
             for variant in button_variants
         },
         "buttonLink": {
-            variant: classes(
-                f'<c-ui.button href="/" variant="{variant}">Cancel</c-ui.button>',
-                "a",
-            )[0]
+            variant: button_link_by_size_recipes["md"][variant]
             for variant in button_variants
         },
+        "buttonLinkBySize": button_link_by_size_recipes,
         "checkboxCard": checkbox_card_recipe(),
         "callout": callout_recipe(),
         "radioCards": radio_cards_recipe(),
@@ -739,6 +770,7 @@ def recipes():
             ]
             for name in (
                 "search",
+                "share-2",
                 "x",
                 "chevron-down",
                 "info",
