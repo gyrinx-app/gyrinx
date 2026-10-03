@@ -892,7 +892,7 @@ class TestTheRollOfGangs:
         response = client.get(f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/")
         drawn = response.content.decode()
         assert response.status_code == 200
-        assert "The Ashen Choir loses what the campaign gave it" in drawn
+        assert "The Ashen Choir will lose campaign data" in drawn
         assert "Removed from The Ashen Choir" in drawn
         assert re.search(r"<dt[^>]*>Infamy</dt>\s*<dd[^>]*>\s*2\s*</dd>", drawn)
         assert CampaignMembership.objects.get(gang=gang).playing
@@ -912,6 +912,14 @@ class TestTheRollOfGangs:
         assert not gang.assignments.filter(
             archived=False, campaign_type__isnull=False
         ).exists()
+
+    def test_the_post_lands_at_the_top_of_the_campaign_page(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        """No fragment: the message bar is at the top, so the reader starts there."""
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        response = client.post(f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/")
+        assert response["Location"] == f"/n26/campaigns/{campaign.pk}/"
 
     def test_a_second_post_says_the_gang_is_not_in_the_campaign(
         self, client, campaign, gang, open_to_everyone

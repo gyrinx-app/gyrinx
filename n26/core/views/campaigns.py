@@ -1031,7 +1031,8 @@ def remove_gang(request, pk, gang_pk):
             messages.error(request, f"{gang.name} is not in {found.name}.")
         else:
             messages.success(request, f"Removed {gang.name} from {found.name}.")
-        return redirect(_gangs_anchor(found))
+        # The top of the page, not the gangs table, so the message is in view.
+        return redirect("n26-campaign", pk=found.pk)
 
     losing, returning = _what_the_gang_loses(found, gang)
     return render(
