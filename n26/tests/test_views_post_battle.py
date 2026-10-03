@@ -363,7 +363,7 @@ class TestReportLayout:
             ),
         )
         document = BeautifulSoup(response.content, "html.parser")
-        assert "XP total: 0 → 2" in document.find("aside").get_text()
+        assert "+2 XP (0 → 2)" in document.find("aside").get_text()
 
     def test_summary_shows_xp_removed_with_a_lasting_effect(
         self, client, table, feature
@@ -393,7 +393,7 @@ class TestReportLayout:
             ),
         )
         document = BeautifulSoup(response.content, "html.parser")
-        assert "XP total: 2 → 0" in document.find("aside").get_text()
+        assert "-2 XP (2 → 0)" in document.find("aside").get_text()
         assert xp_value(model) == 2
 
 
@@ -2069,7 +2069,7 @@ class TestWhatTheSummaryAndReceiptList:
         )
 
         text = summary_text(checked)
-        assert "Cinder +1 XP XP total: 0 → 1" in text
+        assert "Cinder +1 XP (0 → 1)" in text
         assert "Ember" not in text
         assert "XP adjustment" not in text
         assert "Final status" not in text
@@ -2234,6 +2234,10 @@ class TestMissionResults:
         section = mission(page)
         assert section.find("h2").get_text(strip=True) == "Mission results"
         assert "Gang results" not in page.content.decode()
+        assert (
+            section.find(id="add-credit-line").get_text(strip=True)
+            == "Add credit source"
+        )
         (first,) = credit_line_ids(page)
         added = mission_step(client, report, page, "add-credit-line")
         assert added.status_code == 200
@@ -2267,7 +2271,7 @@ class TestMissionResults:
             },
         )
         checked = client.post(editor_url(report), fields)
-        assert "Credits from this battle: +55¢" in " ".join(
+        assert "Credits from this battle +55¢" in " ".join(
             mission(checked).get_text(" ", strip=True).split()
         )
         applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
@@ -2297,7 +2301,7 @@ class TestMissionResults:
         cells = [
             cell.get_text(strip=True) for cell in row.find_parent("tr").find_all("td")
         ]
-        assert cells[0] == "5" and cells[-1] == "6"
+        assert cells[1] == "5" and cells[-1] == "6"
         assert "From results" not in mission(stepped).get_text()
         report.refresh_from_db()
         assert report.draft["gang_counters"] == {key: "1"}
@@ -2412,7 +2416,7 @@ class TestMissionResultsAddUp:
         cells = [
             cell.get_text(strip=True) for cell in field.find_parent("tr").find_all("td")
         ]
-        assert (cells[0], field["value"], cells[-1]) == ("5", "2", "7")
+        assert (cells[1], field["value"], cells[-1]) == ("5", "2", "7")
         assert "Before" in mission(page).find("thead").get_text()
 
     def test_a_negative_amount_is_refused_by_its_field(self, client, table, feature):
@@ -2433,7 +2437,7 @@ class TestMissionResultsAddUp:
         assert field["aria-invalid"] == "true"
         error = mission(checked).find(id=field["aria-describedby"])
         assert "Enter a whole number from 0 to 1,000,000" in error.get_text()
-        assert "Credits from this battle: +0¢" in " ".join(
+        assert "Credits from this battle +0¢" in " ".join(
             mission(checked).get_text(" ", strip=True).split()
         )
 
@@ -2516,7 +2520,7 @@ class TestModelCounters:
         cells = [
             cell.get_text(strip=True) for cell in field.find_parent("tr").find_all("td")
         ]
-        assert cells[0] == "2" and cells[-1] == "3"
+        assert cells[1] == "2" and cells[-1] == "3"
         report.refresh_from_db()
         assert report.draft["models"][0]["counters"] == {key: "1"}
 
@@ -2551,7 +2555,7 @@ class TestModelCounters:
             .get_text(" ", strip=True)
             .split()
         )
-        assert "Kill Count: 2 → 3 (+1 entered)" in summary
+        assert "+1 Kill Count (2 → 3)" in summary
         applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
         assert applied.status_code == 302
         assert CounterValue.objects.get(assignment=kills).value == 3
@@ -2596,7 +2600,7 @@ class TestModelCounters:
             cell.get_text(strip=True) for cell in entry.find_parent("tr").find_all("td")
         ]
         # Before, the entered change and what the kept result adds make After.
-        assert (cells[0], entry["value"], cells[2], cells[-1]) == ("2", "1", "+1", "4")
+        assert (cells[1], entry["value"], cells[2], cells[-1]) == ("2", "1", "+1", "4")
         assert "From results" in box.find("thead").get_text()
 
     def test_a_correction_applies_after_a_changed_counter_is_removed(
@@ -2742,9 +2746,9 @@ class TestLivePreview:
         response = client.post(editor_url(report), data)
         assert response.status_code == 200
         result = response.json()
-        assert {"label": "Reputation", "value": "5 → 8"} in result["preview"]["rows"]
+        assert {"label": "+3 Reputation", "value": "5 → 8"} in result["preview"]["rows"]
         assert any(
-            "Kill Count: 2 → 3" in line
+            "+1 Kill Count (2 → 3)" in line
             for model in result["preview"]["models"]
             for line in model["lines"]
         )

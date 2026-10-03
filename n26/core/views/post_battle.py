@@ -376,6 +376,7 @@ def post_battle_editor(request, pk):
             "heading": stake.label,
             "outcome": outcome,
             "currentHolder": stake.held_by,
+            "applied": report.battle.result != report.battle.Result.NOT_RECORDED,
             "note": (
                 "The campaign’s arbitrator records this outcome on Edit battle."
                 if report.battle.result == report.battle.Result.NOT_RECORDED

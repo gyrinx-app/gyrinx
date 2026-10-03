@@ -330,12 +330,17 @@ class ReportModel:
         return f"What happens to {self.name}'s equipment"
 
     @property
-    def summary_counters(self):
-        """The counters this report moves, with where each change came from."""
-        return [
-            (change, counter_parts(change.delta, change.effect))
+    def summary_awards(self):
+        """Pending counter changes, using the same format for XP and other counters."""
+        awards = []
+        if self.xp_changes:
+            before, after = self.result.xp_before, self.result.xp_after
+            awards.append(f"{after - before:+d} XP ({before} → {after})")
+        awards.extend(
+            f"{change.after - change.before:+d} {change.name} ({change.before} → {change.after})"
             for change in self.result.moving_counters
-        ]
+        )
+        return awards
 
     @property
     def show_counter_effects(self):
@@ -504,7 +509,7 @@ class CreditRow:
 
     @property
     def remove_label(self):
-        return f"Remove line of credits {self.number}"
+        return f"Remove credit source {self.number}"
 
     def _error_attrs(self, name, errors):
         if not errors:
@@ -803,24 +808,17 @@ def preview_display(plan, models):
         }
     )
     rows.extend(
-        {"label": change.name, "value": f"{change.before} → {change.after}"}
+        {
+            "label": f"{change.after - change.before:+d} {change.name}",
+            "value": f"{change.before} → {change.after}",
+        }
         for change in plan.moving_gang_counters
     )
     changed = []
     for model in models:
         if not model.changes:
             continue
-        lines = []
-        if model.xp_changes:
-            if model.result.xp_change:
-                lines.append(f"{model.result.xp_change:+d} XP")
-            lines.append(
-                f"XP total: {model.result.xp_before} → {model.result.xp_after}"
-            )
-        lines.extend(
-            f"{change.name}: {change.before} → {change.after} ({parts})"
-            for change, parts in model.summary_counters
-        )
+        lines = list(model.summary_awards)
         lines.extend(effect.name for effect in model.named_effects)
         if model.status_changes and not model.result.status_conflict:
             lines.append(f"Final status: {model.final_status_label}")

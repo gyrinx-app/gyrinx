@@ -15,13 +15,27 @@ so the id must stay put.
         <h2 class="text-lg font-semibold">Mission results</h2>
         <p class="mt-1 text-sm text-muted">Enter the credits the gang gained and any change to its counters.</p>
     </div>
+    {% if territory %}
+        <section class="space-y-2 border border-box-border bg-ink-100 p-4 dark:bg-ink-900"
+                 aria-labelledby="territory-result-heading"
+                 data-battle-stake>
+            <h3 id="territory-result-heading" class="text-sm font-medium text-muted">{{ territory.heading }}</h3>
+            <p class="text-xl font-semibold">{{ territory.name }}</p>
+            <p class="text-sm">{{ territory.outcome }}</p>
+            {% if territory.currentHolder %}<p class="text-sm text-muted">{{ territory.currentHolder }}</p>{% endif %}
+            <p class="flex items-center gap-2 text-xs text-muted">
+                {% if territory.applied %}<c-n26.icon name="check-check" class="size-4 shrink-0" />{% endif %}
+                {{ territory.note }}
+            </p>
+        </section>
+    {% endif %}
     <div class="space-y-3">
-        <h3 id="credits-heading" class="text-base font-semibold">Credits</h3>
+        <h3 id="credits-heading" class="text-lg font-semibold">Credits</h3>
         <ul class="space-y-3" aria-labelledby="credits-heading">
             {% for line in mission.credit_rows %}
-                <li class="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 border-b border-box-border pb-3 last:border-0 last:pb-0 sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:border-0 sm:pb-0">
+                <li class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-box-border pb-3 last:border-0 last:pb-0 sm:grid-cols-[8rem_minmax(0,1fr)_auto]">
                     <input type="hidden" name="credit_line" value="{{ line.id }}">
-                    <c-ui.field label="Amount" for="{{ line.prefix }}-amount">
+                    <c-ui.field label="Amount" for="{{ line.prefix }}-amount" class="text-sm">
                         <c-ui.input id="{{ line.prefix }}-amount"
                                     name="{{ line.prefix }}-amount"
                                     type="number"
@@ -38,7 +52,7 @@ so the id must stay put.
                     </c-ui.field>
                     <c-ui.field label="Reason"
                                 for="{{ line.prefix }}-reason"
-                                class="col-span-2 sm:col-span-1">
+                                class="col-span-2 text-sm sm:col-span-1">
                         <c-ui.input id="{{ line.prefix }}-reason"
                                     name="{{ line.prefix }}-reason"
                                     maxlength="255"
@@ -54,12 +68,11 @@ so the id must stay put.
                     <c-ui.button type="submit"
                                  name="intent"
                                  value="remove-credit-line:{{ line.id }}"
-                                 variant="ghost"
                                  size="sm"
                                  aria-label="{{ line.remove_label }}"
-                                 class="col-start-2 row-start-1 sm:col-start-3 sm:mb-1"
+                                 class="col-start-2 row-start-1 mt-6 h-12 sm:col-start-3"
                                  :attrs="mission.button_attrs">
-                        Remove
+                        <c-n26.icon name="x" class="size-4" />
                     </c-ui.button>
                 </li>
             {% endfor %}
@@ -72,28 +85,21 @@ so the id must stay put.
                              value="add-credit-line"
                              size="sm"
                              :attrs="mission.button_attrs">
-                    Add credits
+                    <span class="inline-flex items-center gap-2">
+                        <c-n26.icon name="plus" class="size-4" />
+                        Add credit source
+                    </span>
                 </c-ui.button>
             {% endif %}
-            <p class="ml-auto text-sm">
-                Credits from this battle: <span class="font-semibold tabular-nums"
-       data-credit-total>{{ mission.total_text }}</span>
-            </p>
+        </div>
+        <div class="flex items-baseline justify-between gap-3 border-t border-box-border pt-3 text-sm">
+            <p class="text-muted">Credits from this battle</p>
+            <p class="text-lg font-semibold tabular-nums" data-credit-total>{{ mission.total_text }}</p>
         </div>
     </div>
-    {% if territory %}
-        <div class="space-y-1" data-battle-stake>
-            <h3 class="text-base font-semibold">{{ territory.heading }}</h3>
-            <p class="text-sm">
-                <span class="font-semibold">{{ territory.name }}</span> · {{ territory.outcome }}
-            </p>
-            {% if territory.currentHolder %}<p class="text-sm text-muted">{{ territory.currentHolder }}</p>{% endif %}
-            <p class="text-sm text-muted">{{ territory.note }}</p>
-        </div>
-    {% endif %}
     {% if mission.counter_rows %}
         <div class="space-y-3">
-            <h3 id="gang-counters-heading" class="text-base font-semibold">Gang counters</h3>
+            <h3 id="gang-counters-heading" class="text-lg font-semibold">Gang counters</h3>
             {% include "n26/includes/post_battle_counters.html" with rows=mission.counter_rows show_effects=mission.show_effects heading_id="gang-counters-heading" %}
         </div>
     {% endif %}

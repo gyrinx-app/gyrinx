@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button } from "../../ui";
+import { Button, Icon } from "../../ui";
 
 export type PreviewDisplay = {
     rows: { label: string; value: string }[];
@@ -35,19 +35,7 @@ export function PostBattlePreview(initial: PreviewDisplay) {
                 Changes to apply
             </h2>
             <p className="mt-2 text-sm text-muted">
-                The preview updates as you edit. Nothing changes until you apply
-                the results.
-            </p>
-            <p
-                className="mt-2 text-sm text-muted"
-                role="status"
-                aria-live="polite"
-            >
-                {state === "updating"
-                    ? "Updating preview…"
-                    : state === "failed"
-                      ? "Preview is out of date. Use Save draft to retry."
-                      : "Preview up to date"}
+                These changes take effect when you apply the results.
             </p>
             <div aria-busy={state === "updating"}>
                 <dl className="mt-4 space-y-3 text-sm">
@@ -57,7 +45,9 @@ export function PostBattlePreview(initial: PreviewDisplay) {
                             className="flex justify-between gap-3"
                         >
                             <dt>{row.label}</dt>
-                            <dd className="tabular-nums">{row.value}</dd>
+                            <dd className="shrink-0 text-right tabular-nums">
+                                {row.value}
+                            </dd>
                         </div>
                     ))}
                 </dl>
@@ -66,7 +56,7 @@ export function PostBattlePreview(initial: PreviewDisplay) {
                         <li key={model.id}>
                             <p className="font-medium">{model.name}</p>
                             {model.lines.map((line, i) => (
-                                <p key={i} className="text-muted">
+                                <p key={i} className="text-muted tabular-nums">
                                     {line}
                                 </p>
                             ))}
@@ -87,6 +77,33 @@ export function PostBattlePreview(initial: PreviewDisplay) {
             >
                 Check changes
             </Button>
+            <p
+                className="mt-4 flex items-start gap-2 border-t border-box-border pt-3 text-xs text-muted"
+                role="status"
+                aria-live="polite"
+            >
+                <Icon
+                    name={
+                        state === "updating"
+                            ? "loader-circle"
+                            : state === "failed"
+                              ? "triangle-alert"
+                              : "check-check"
+                    }
+                    className={
+                        state === "updating"
+                            ? "size-4 shrink-0 motion-safe:animate-spin"
+                            : "size-4 shrink-0"
+                    }
+                />
+                <span>
+                    {state === "updating"
+                        ? "Updating preview…"
+                        : state === "failed"
+                          ? "Preview is out of date. Use Save draft to retry."
+                          : "Preview up to date"}
+                </span>
+            </p>
         </>
     );
 }
