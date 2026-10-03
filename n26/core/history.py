@@ -343,8 +343,11 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
     # A campaign's types arrive on the gang in the act of joining it. They
     # have no cause of their own to ride, so they ride the joining, and
     # what they bring rides them: one act, "added the gang to Dust Falls",
-    # with the types and their built-ins beneath it.
+    # with the types and their built-ins beneath it. Leaving takes them
+    # away the same way: "took the gang out of Dust Falls", with what went
+    # beneath it.
     joined = any(e.kind == Kind.JOINED_CAMPAIGN for e in cluster)
+    left = any(e.kind == Kind.LEFT_CAMPAIGN for e in cluster)
     standing = []
     waiting = []
     for e in cluster:
@@ -371,16 +374,19 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
         ride = _rides(e, row)
         if (
             ride is None
-            and e.kind == Kind.GRANTED
+            and e.kind in {Kind.GRANTED, Kind.REMOVED}
             and row is not None
             and row.campaign_type_id is not None
         ):
-            # A campaign type only ever arrives with the joining. Told
-            # apart from it — the joining outside the window being read —
-            # the grant has no act to ride and draws no line, since a line
-            # of its own would name a type no page names.
-            if joined:
+            # A campaign type only ever arrives with the joining and goes
+            # with the leaving. Told apart from them — the act outside the
+            # window being read — the record has no act to ride and draws
+            # no line, since a line of its own would name a type no page
+            # names.
+            if e.kind == Kind.GRANTED and joined:
                 waiting.append((e, row, _THE_JOINING))
+            elif e.kind == Kind.REMOVED and left:
+                waiting.append((e, row, _THE_LEAVING))
             continue
         if ride is not None:
             if ride in here:
@@ -429,6 +435,8 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
             acts.append(act)
             if e.kind == Kind.JOINED_CAMPAIGN:
                 local[_THE_JOINING] = act
+            elif e.kind == Kind.LEFT_CAMPAIGN:
+                local[_THE_LEAVING] = act
             if row is not None:
                 local[row.pk] = act
                 if e.kind in {Kind.PURCHASED, Kind.ADDED, Kind.GRANTED}:
@@ -529,6 +537,8 @@ def _caught_up_acts(caught_up, sources, alive):
 #: types granted in the same act can find it the way a rider finds its
 #: ride. Never an assignment's key, which is what every other entry is.
 _THE_JOINING = object()
+#: The same for the leaving, which the campaign types removed with it ride.
+_THE_LEAVING = object()
 
 
 def _roll_key(event_pk):

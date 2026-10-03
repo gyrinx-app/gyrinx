@@ -31,6 +31,7 @@ from n26.tests.sandbox.actions import (
     give_weapon,
     hire,
     join_campaign,
+    join_campaign_after_deletion,
     modifier,
     targets_model,
 )
@@ -202,7 +203,7 @@ class TestNamingTheTestGangs:
         mine = check_with(author, test_type, test_fighter, test_weapon, "Mine")
         theirs = found_gang("Theirs", create_gang_type("Escher"), owner=player)
         campaign = found_campaign("Dust Falls", campaign_type, owner=author)
-        join_campaign(mine, campaign)
+        join_campaign_after_deletion(mine, campaign)
         join_campaign(theirs, campaign)
 
         plan = plan_deletion([test_type, test_fighter])
@@ -215,7 +216,7 @@ class TestNamingTheTestGangs:
     ):
         mine = check_with(author, test_type, test_fighter, test_weapon, "Mine")
         campaign = found_campaign("Rehearsal", campaign_type, owner=author)
-        join_campaign(mine, campaign)
+        join_campaign_after_deletion(mine, campaign)
 
         plan = plan_deletion([test_type, test_fighter])
 
@@ -252,7 +253,7 @@ class TestNamingTheTestGangs:
         staged_type = create_campaign_type("Test campaign type", staged=True)
         mine = check_with(author, test_type, test_fighter, test_weapon, "Mine")
         campaign = found_campaign("Rehearsal", staged_type, owner=author)
-        join_campaign(mine, campaign)
+        join_campaign_after_deletion(mine, campaign)
 
         plan = plan_deletion([staged_type])
 

@@ -1318,16 +1318,65 @@ class CampaignOperation:
         _own_table(self.campaign, entry.table)
         remove_asset_table_entry(entry)
 
-    def archive(self):
-        """Take the campaign off the arbitrator's list, and say so.
+    def add_gang(self, gang):
+        """Put a gang into this campaign (``Operation.join_campaign``).
 
-        Nothing is destroyed, so the log keeps reading: what a campaign
-        recorded stays true whether or not it is still on show.
+        The campaign's line is held already, so archiving, which takes
+        every gang out under the same line, cannot run between the check
+        and the join. An archived campaign takes no gangs.
+        """
+        from n26.core.operations import Refusal, operation
+
+        if self.campaign.archived:
+            raise Refusal(f"{self.campaign.name} is archived, so no gang can join it.")
+        with operation(gang, actor=self.actor) as op:
+            return op.join_campaign(self.campaign)
+
+    def remove_gang(self, membership):
+        """Take one gang out of this campaign, and give back everything the
+        campaign gave it (``Operation.leave_campaign``).
+
+        The campaign's line is held already; the gang's is taken inside it,
+        the order every writer to a campaign asset uses. A membership that
+        has closed since the page was read is left as it is, and the caller
+        gets None back.
+        """
+        from n26.core.models import CampaignMembership
+        from n26.core.operations import operation
+
+        if membership.campaign_id != self.campaign.pk:
+            raise ValueError(f"{membership} is not in {self.campaign}.")
+        membership = (
+            CampaignMembership.objects.select_related("gang")
+            .filter(pk=membership.pk, left__isnull=True)
+            .first()
+        )
+        if membership is None:
+            return None
+        with operation(membership.gang, actor=self.actor) as op:
+            return op.leave_campaign()
+
+    def archive(self):
+        """Take every gang out, then take the campaign off the arbitrator's
+        list, and say so.
+
+        Each gang leaves as it would on its own, giving back everything
+        the campaign gave it, so no gang keeps a Settlement or a territory
+        from a campaign nobody can open. The campaign's pack is archived
+        with it. Nothing is destroyed, so the log keeps reading: what a
+        campaign recorded stays true whether or not it is still on show.
         """
         campaign = self.campaign
         if campaign.archived:
             return campaign
+        # Each gang's line stays held until the archive commits, so they are
+        # taken in key order, the order every multi-gang operation uses.
+        for membership in campaign.memberships.filter(left__isnull=True).order_by(
+            "gang_id"
+        ):
+            self.remove_gang(membership)
         campaign.archive()
+        campaign.pack.archive()
         self.event(CampaignEvent.Kind.ARCHIVED)
         return campaign
 
@@ -1676,6 +1725,43 @@ def over_budget(campaign, gang):
     budget is about. A campaign with no budget is never over it.
     """
     return campaign.budget is not None and gang.wealth > campaign.budget
+
+
+def archive_gang(gang, actor=None):
+    """Delete a gang, taking it out of its campaign first.
+
+    The gang's campaign is read before any line is held, so it is read
+    again under them: the campaign's line, then the gang's, the order
+    every writer to both uses. If what was read has changed, it is read
+    once more. The gang is archived under its own line, and a join checks
+    for that under the same line, so no gang joins a campaign after it is
+    deleted.
+    """
+    from n26.core.models import CampaignMembership
+    from n26.core.operations import operation
+
+    def open_membership():
+        return (
+            CampaignMembership.objects.filter(gang=gang, left__isnull=True)
+            .select_related("campaign")
+            .first()
+        )
+
+    while True:
+        read = open_membership()
+        with transaction.atomic():
+            if read is None:
+                with operation(gang, actor=actor) as op:
+                    if open_membership() is not None:
+                        continue
+                    return op.archive_gang()
+            with campaign_operation(read.campaign, actor=actor):
+                with operation(gang, actor=actor) as op:
+                    now = open_membership()
+                    if now is None or now.pk != read.pk:
+                        continue
+                    op.leave_campaign()
+                    return op.archive_gang()
 
 
 @contextmanager

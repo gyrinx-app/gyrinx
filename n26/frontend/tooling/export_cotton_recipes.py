@@ -775,6 +775,8 @@ def recipes():
                 "chevron-down",
                 "info",
                 "check",
+                "check-check",
+                "loader-circle",
                 "circle-question-mark",
                 "triangle-alert",
             )

@@ -586,6 +586,12 @@ class Operation:
         from n26.core.models import CampaignMembership
 
         gang = self.gang
+        # Read under the gang's line: a gang deleted since the form was
+        # drawn joins nothing.
+        if type(gang).objects.filter(pk=gang.pk, archived=True).exists():
+            raise Refusal(
+                f"{gang.name} has been deleted, so it cannot join a campaign."
+            )
         open_now = CampaignMembership.objects.filter(
             gang=gang, left__isnull=True
         ).select_related("campaign")
@@ -625,17 +631,28 @@ class Operation:
         return carrier
 
     def leave_campaign(self):
-        """Take this operation's gang out of whatever campaign it is playing.
+        """Take this operation's gang out of whatever campaign it is playing,
+        and give back everything the campaign gave it.
+
+        Every asset the gang holds goes back to the campaign unheld, with a
+        journal-only LOST event each, as unassigning one writes. Both
+        carriers are removed, and with them everything they brought: the
+        Settlement, the campaign's counters, the picks for its labels.
+        Nothing campaign-related stays on the gang but its history.
 
         Leaving closes the membership rather than deleting it: what a gang did
         while it was in a campaign stays true, and the campaign's log keeps
         reading. A gang playing nothing leaves nothing, and records nothing.
+
+        Every writer to a campaign asset holds the campaign's line before
+        the gang's, so a caller outside a test runs this inside
+        ``CampaignOperation.remove_gang``, which takes them in that order.
         """
         from n26.core.models import CampaignMembership
 
         membership = (
             CampaignMembership.objects.filter(gang=self.gang, left__isnull=True)
-            .select_related("campaign")
+            .select_related("campaign", "type_carrier", "additions_carrier")
             .first()
         )
         if membership is None:
@@ -643,14 +660,38 @@ class Operation:
 
         # Settled before the membership closes: what this operation is asked
         # about the gang's campaign is answered by looking for an open
-        # membership, and in a moment there will not be one — so the event
-        # that records the leaving would not be able to name what was left.
+        # membership, and in a moment there will not be one — so the events
+        # that record the leaving would not be able to name what was left.
         self._campaign = membership.campaign
+        for campaign_asset in membership.held.select_related("asset").order_by(
+            "created"
+        ):
+            campaign_asset.holder = None
+            campaign_asset.save(update_fields=["holder", "modified"])
+            self.event(campaign_asset, LedgerEvent.Kind.LOST, note=str(campaign_asset))
+        for carrier in (membership.type_carrier, membership.additions_carrier):
+            if carrier is not None:
+                self.remove(carrier)
         membership.left = _now()
         membership.save(update_fields=["left", "modified"])
         self.event(None, LedgerEvent.Kind.LEFT_CAMPAIGN)
         self._campaign = None
         return membership
+
+    def archive_gang(self):
+        """Delete this operation's gang the way the app deletes: archive it.
+
+        Written as an update of the two columns rather than a save of the
+        instance, so totals this operation has just rewritten are not put
+        back to what the caller loaded.
+        """
+        now = _now()
+        type(self.gang).objects.filter(pk=self.gang.pk).update(
+            archived=True, archived_at=now
+        )
+        self.gang.archived = True
+        self.gang.archived_at = now
+        return self.gang
 
     def set_base_rating(self, miniature, rating):
         """Change the hire's rating contribution, preserving its payment.

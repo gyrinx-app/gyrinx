@@ -5,15 +5,15 @@ it is typed, and the -1/+1 buttons redraw the section. A counter a result
 creates has no change to enter, only what the result adds.
 {% endcomment %}
 <div class="overflow-x-auto">
-    <table class="w-full text-sm" aria-labelledby="{{ heading_id }}">
+    <table class="text-sm" aria-labelledby="{{ heading_id }}">
         <thead>
             <tr class="border-b border-box-border text-left text-muted">
-                <th scope="col" class="py-2 pr-3 font-medium">Counter</th>
+                <th scope="col" class="py-2 pr-4 font-medium">Counter</th>
+                <th scope="col" class="py-2 pr-4 font-medium">Change</th>
                 <th scope="col"
-                    class="hidden py-2 pr-3 text-right font-medium sm:table-cell">Before</th>
-                <th scope="col" class="py-2 pr-3 font-medium">Change</th>
+                    class="hidden py-2 pr-4 text-right font-medium sm:table-cell">Before</th>
                 {% if show_effects %}
-                    <th scope="col" class="py-2 pr-3 text-right font-medium">From results</th>
+                    <th scope="col" class="py-2 pr-4 text-right font-medium">From results</th>
                 {% endif %}
                 <th scope="col" class="py-2 text-right font-medium">After</th>
             </tr>
@@ -21,7 +21,7 @@ creates has no change to enter, only what the result adds.
         <tbody>
             {% for row in rows %}
                 <tr class="border-b border-box-border">
-                    <th scope="row" class="py-2 pr-3 text-left font-medium">
+                    <th scope="row" class="py-2 pr-4 text-left font-medium">
                         {% if row.editable %}
                             <label for="{{ row.prefix }}">{{ row.change.name }}</label>
                         {% else %}
@@ -29,8 +29,7 @@ creates has no change to enter, only what the result adds.
                         {% endif %}
                         <span class="block text-xs font-normal text-muted tabular-nums sm:hidden">Before {{ row.start }}</span>
                     </th>
-                    <td class="hidden py-2 pr-3 text-right tabular-nums sm:table-cell">{{ row.start }}</td>
-                    <td class="py-2 pr-3">
+                    <td class="py-2 pr-4">
                         {% if not row.editable %}
                             <span class="text-muted">New</span>
                         {% else %}
@@ -70,8 +69,9 @@ creates has no change to enter, only what the result adds.
                             </div>
                         {% endif %}
                     </td>
+                    <td class="hidden py-2 pr-4 text-right tabular-nums sm:table-cell">{{ row.start }}</td>
                     {% if show_effects %}
-                        <td class="py-2 pr-3 text-right tabular-nums">{{ row.change.from_results|stringformat:'+d' }}</td>
+                        <td class="py-2 pr-4 text-right tabular-nums">{{ row.change.from_results|stringformat:'+d' }}</td>
                     {% endif %}
                     <td {% if row.editable %}id="{{ row.prefix }}-after"{% endif %}
                         class="py-2 text-right font-semibold tabular-nums"
