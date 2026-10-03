@@ -2,7 +2,7 @@
 
 from tinymce.widgets import TinyMCE
 
-from gyrinx.widgets import TINYMCE_UPLOAD_CONFIG
+from n26.uploads import TINYMCE_UPLOAD_CONFIG
 
 
 class RichText(TinyMCE):
