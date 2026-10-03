@@ -294,7 +294,7 @@ def test_cotton_is_wired_up():
     from django.conf import settings
 
     # The app registry, not the INSTALLED_APPS strings: development names cotton
-    # through its own AppConfig subclass to drop the cached template loader
+    # through its own AppConfig subclass to adjust the cached template loader
     # (gyrinx/cotton_dev.py). Same app, same name, different entry.
     assert apps.is_installed("django_cotton")
     builtins = settings.TEMPLATES[0]["OPTIONS"].get("builtins", [])
