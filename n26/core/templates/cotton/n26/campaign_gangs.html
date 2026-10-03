@@ -14,7 +14,8 @@ On phones the gang heading, figures, and details stack within the viewport.
 At wider widths the kit table wrapper scrolls any extra numeric columns.
 Over budget is amber, not orange. Orange is what a waiting invitation wears on the same page.
 Starting rolls fetch with hx-swap none so a dialog opens.
-Remove from campaign appears only where the line has remove_href. The view fills it for the arbitrator, and for a gang's owner on their own.
+The last column has no heading. It holds a menu only where the line has remove_href, which the view fills for the arbitrator, and for a gang's owner on their own.
+The menu uses strategy fixed so the table's scroll wrapper does not clip it. On phones it shares the first grid row with the gang name.
 {% endcomment %}
 
 <c-vars :sheet="None" class="" />
@@ -28,12 +29,13 @@ Remove from campaign appears only where the line has remove_href. The view fills
             <th scope="col" class="text-right">Credits</th>
             <th scope="col" class="text-right">Wealth</th>
             {% for name in sheet.counter_columns %}<th scope="col" class="text-right">{{ name }}</th>{% endfor %}
+            <th scope="col" class="w-0"><span class="sr-only">Actions</span></th>
         </tr>
     </thead>
     {% for gang in sheet.gangs %}
         <tbody class="border-b border-box-border last:border-b-0 max-md:block max-md:py-3">
             <tr class="border-b-0! max-md:ml-6 max-md:grid max-md:grid-cols-3">
-                <th scope="rowgroup" class="w-64 min-w-48 max-w-64 align-top font-normal! whitespace-normal! [overflow-wrap:anywhere] max-md:col-span-3 max-md:-ml-6 max-md:w-auto max-md:min-w-0 max-md:max-w-none">
+                <th scope="rowgroup" class="w-64 min-w-48 max-w-64 align-top font-normal! whitespace-normal! [overflow-wrap:anywhere] max-md:col-span-2 max-md:-ml-6 max-md:w-auto max-md:min-w-0 max-md:max-w-none">
                     <div class="flex flex-col">
                         <span class="font-semibold text-ink-900 dark:text-ink-100">
                             <c-n26.link href="{{ gang.href }}" tone="current">
@@ -79,11 +81,33 @@ Remove from campaign appears only where the line has remove_href. The view fills
                         {% endif %}
                     </td>
                 {% endfor %}
+                <td class="w-0 text-right align-top max-md:col-start-3 max-md:row-start-1 max-md:block max-md:w-auto max-md:justify-self-end">
+                    {% if gang.remove_href %}
+                        <c-ui.dropdown align="end" min_width="12rem" strategy="fixed">
+                            <c-slot name="trigger">
+                                <c-ui.button size="sm"
+                                             class="px-1.5!"
+                                             aria-label="Actions for {{ gang.name }}"
+                                             title="Actions for {{ gang.name }}"
+                                             aria-haspopup="menu"
+                                             ::aria-expanded="dropdownMenu">
+                                    <span class="n26-icon-only">
+                                        <c-n26.icon name="chevron-down"
+                                                    class="size-3 transition-transform"
+                                                    stroke_width="2.5"
+                                                    ::class="{ 'rotate-180': dropdownMenu }" />
+                                    </span>
+                                </c-ui.button>
+                            </c-slot>
+                            <c-ui.dropdown.item href="{{ gang.remove_href }}" variant="danger">Remove from campaign</c-ui.dropdown.item>
+                        </c-ui.dropdown>
+                    {% endif %}
+                </td>
             </tr>
-            {% if gang.labels or gang.assets or gang.starting_rolls or gang.remove_href %}
+            {% if gang.labels or gang.assets or gang.starting_rolls %}
                 <tr class="border-b-0! max-md:block">
                     <td class="max-md:hidden"></td>
-                    <td colspan="{{ sheet.counter_columns|length|add:3 }}" class="pt-0! max-md:ml-6 max-md:block">
+                    <td colspan="{{ sheet.counter_columns|length|add:4 }}" class="pt-0! max-md:ml-6 max-md:block">
                         <dl class="grid grid-cols-1 gap-x-6 gap-y-2 lg:grid-cols-2">
                             {% for pick in gang.labels %}
                                 <div class="min-w-0">
@@ -126,16 +150,6 @@ Remove from campaign appears only where the line has remove_href. The view fills
                                     </div>
                                 {% endif %}
                             {% endfor %}
-                            {% if gang.remove_href %}
-                                <div class="min-w-0">
-                                    <dt class="text-xs font-medium text-muted">Actions</dt>
-                                    <dd>
-                                        <c-ui.button size="sm" variant="text" class="py-0!" href="{{ gang.remove_href }}">
-                                            Remove from campaign
-                                        </c-ui.button>
-                                    </dd>
-                                </div>
-                            {% endif %}
                         </dl>
                     </td>
                 </tr>
