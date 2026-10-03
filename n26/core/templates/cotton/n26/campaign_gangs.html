@@ -25,10 +25,10 @@ The menu uses strategy fixed so the table's scroll wrapper does not clip it. On 
     <thead class="max-md:hidden">
         <tr>
             <th scope="col" class="w-64">Gang</th>
-            <th scope="col" class="text-right">Rating</th>
-            <th scope="col" class="text-right">Credits</th>
-            <th scope="col" class="text-right">Wealth</th>
-            {% for name in sheet.counter_columns %}<th scope="col" class="text-right">{{ name }}</th>{% endfor %}
+            <th scope="col">Rating</th>
+            <th scope="col">Credits</th>
+            <th scope="col">Wealth</th>
+            {% for name in sheet.counter_columns %}<th scope="col">{{ name }}</th>{% endfor %}
             <th scope="col" class="w-0"><span class="sr-only">Actions</span></th>
         </tr>
     </thead>
@@ -51,11 +51,11 @@ The menu uses strategy fixed so the table's scroll wrapper does not clip it. On 
                         {% endif %}
                     </div>
                 </th>
-                <td class="text-right tabular-nums whitespace-nowrap max-md:block max-md:text-left">
+                <td class="tabular-nums whitespace-nowrap max-md:block">
                     <span class="block text-xs font-medium text-muted md:hidden">Rating</span>
                     {{ gang.rating }}¢
                 </td>
-                <td class="text-right tabular-nums whitespace-nowrap max-md:block max-md:text-left">
+                <td class="tabular-nums whitespace-nowrap max-md:block">
                     <span class="block text-xs font-medium text-muted md:hidden">Credits</span>
                     {% if gang.credits_unlimited %}
                         <span class="text-muted">&mdash;</span>
@@ -65,12 +65,12 @@ The menu uses strategy fixed so the table's scroll wrapper does not clip it. On 
                         {{ gang.credits }}¢
                     {% endif %}
                 </td>
-                <td class="text-right tabular-nums whitespace-nowrap max-md:block max-md:text-left">
+                <td class="tabular-nums whitespace-nowrap max-md:block">
                     <span class="block text-xs font-medium text-muted md:hidden">Wealth</span>
                     {{ gang.wealth }}¢
                 </td>
                 {% for line in gang.counters %}
-                    <td class="text-right tabular-nums whitespace-nowrap max-md:block max-md:text-left">
+                    <td class="tabular-nums whitespace-nowrap max-md:block">
                         <span class="block text-xs font-medium text-muted whitespace-normal [overflow-wrap:anywhere] md:hidden">{{ sheet.counter_columns|get_item:forloop.counter0 }}</span>
                         {# None means this gang does not carry that counter. A blank cell would look like a failed number. #}
                         {% if line is None %}
