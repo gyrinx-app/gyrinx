@@ -1369,7 +1369,8 @@ def tally_counter(request, pk):
             request.POST if request.method == "POST" else None,
             maximum=MOST_A_TALLY_MOVES,
         )
-        if request.method == "GET" or not form.is_valid():
+
+        def adjustment_page():
             from n26.core.models import CounterValue
 
             value = (
@@ -1391,6 +1392,9 @@ def tally_counter(request, pk):
                     "maximum": MOST_A_TALLY_MOVES,
                 },
             )
+
+        if request.method == "GET" or not form.is_valid():
+            return adjustment_page()
         change = form.cleaned_data["change"]
     else:
         try:
@@ -1407,8 +1411,24 @@ def tally_counter(request, pk):
 
     try:
         with operation(gang, actor=request.user) as op:
+            if adjusting and change < 0:
+                from n26.core.models import CounterValue
+
+                value = (
+                    CounterValue.objects.filter(assignment=assignment)
+                    .values_list("value", flat=True)
+                    .first()
+                    or 0
+                )
+                if value == 0:
+                    raise Refusal(
+                        "This counter is already 0. Enter a positive amount to increase it."
+                    )
             standing = op.tally(assignment, change)
     except Refusal as refusal:
+        if adjusting:
+            form.add_error("change", str(refusal))
+            return adjustment_page()
         messages.error(request, str(refusal))
         if is_htmx(request):
             # Nothing moved, so nothing on the page is redrawn; the

@@ -160,3 +160,16 @@ def test_campaign_and_owner_roster_offer_amount_links_but_readers_do_not(client,
         "Adjust Meat"
         not in client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
     )
+
+
+def test_removing_from_zero_shows_an_error_without_recording_an_empty_change(
+    client, setup
+):
+    _, _, _, gang, held = setup
+    assert client.post(address(held), {"adjust": 1, "change": -2}).status_code == 302
+    before = events(held).count()
+    response = client.post(address(held), {"adjust": 1, "change": -5})
+    assert response.status_code == 200
+    assert "already 0" in response.context["form"].errors["change"][0]
+    assert events(held).count() == before
+    assert (reading(gang).value, reading(gang).tallied) == (3, 0)
