@@ -444,7 +444,7 @@ class TestTheAssetsOnTheCampaignPage:
             )
             in body
         )
-        assert "Add territory" in body
+        assert "Add territories" in body
         assert "1 held, 1 unclaimed" in body
 
     def test_a_player_reads_the_assets_without_the_controls(
@@ -460,7 +460,7 @@ class TestTheAssetsOnTheCampaignPage:
             )
             not in body
         )
-        assert "Add territory" not in body
+        assert "Add territories" not in body
 
     def test_the_arbitrator_adds_an_asset(
         self, client, campaign, old_ruins, arbitrator
@@ -488,14 +488,14 @@ class TestTheAssetsOnTheCampaignPage:
         address = reverse("n26-campaign-add-asset", args=[campaign.pk])
 
         body = client.get(f"{address}?type={old_ruins.asset_type_id}").content.decode()
-        assert "Add a territory" in body
+        assert "Add territories" in body
         assert "Old Ruins" in body
         assert "Protection" not in body
 
         other = create_campaign_type("Law & Misrule")
         turf = add_asset_type(other, "Turf", "pooled")
         body = client.get(f"{address}?type={turf.pk}").content.decode()
-        assert "Add an asset" in body
+        assert "Add assets" in body
         assert "Old Ruins" in body
         assert "Protection" in body
 
