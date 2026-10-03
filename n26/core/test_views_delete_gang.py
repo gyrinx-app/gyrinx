@@ -341,3 +341,112 @@ class TestWhatIsLeftAlone:
         gang.refresh_from_db()
         assert (gang.rating, gang.credits) == (rating, credits)
         assert_reconciled(gang)
+
+
+class TestAGangInACampaign:
+    """A gang still playing a campaign is named as such before the click,
+    and taken out of the campaign before it is archived, so the campaign
+    keeps no holder nobody can open."""
+
+    @pytest.fixture
+    def campaign(self, campaign_type):
+        from n26.tests.sandbox.actions import found_campaign
+
+        return found_campaign(
+            "Dust Falls", campaign_type, owner=User.objects.create_user("arbitrator")
+        )
+
+    @pytest.fixture
+    def playing(self, gang, campaign):
+        from n26.tests.sandbox.actions import join_campaign
+
+        return join_campaign(gang, campaign)
+
+    def test_the_page_names_the_campaign(
+        self, client, tester, gang, playing, delete_url
+    ):
+        client.force_login(tester)
+        body = client.get(delete_url).content.decode()
+        assert "The Ashen Choir is in Dust Falls" in body
+        assert "Deleting removes The Ashen Choir from Dust Falls first." in body
+
+    def test_a_gang_in_no_campaign_is_not_warned(
+        self, client, tester, gang, delete_url
+    ):
+        client.force_login(tester)
+        assert "Deleting removes" not in client.get(delete_url).content.decode()
+
+    def test_reading_the_page_leaves_the_gang_playing(
+        self, client, tester, gang, playing, delete_url
+    ):
+        client.force_login(tester)
+        client.get(delete_url)
+        playing.refresh_from_db()
+        assert playing.playing
+
+    def test_deleting_takes_the_gang_out_first(
+        self, client, tester, gang, playing, delete_url
+    ):
+        client.force_login(tester)
+        client.post(delete_url)
+
+        gang.refresh_from_db()
+        playing.refresh_from_db()
+        assert gang.archived
+        assert not playing.playing
+        assert playing.type_carrier.archived
+        assert not Assignment.objects.filter(
+            gang=gang, archived=False, campaign_type__isnull=False
+        ).exists()
+        assert_reconciled(gang)
+
+
+class TestArchivingUnderTheLocks:
+    """``archive_gang`` reads the gang's campaign again under the locks, and
+    writes only the archived columns."""
+
+    @pytest.fixture
+    def campaign(self, campaign_type):
+        from n26.tests.sandbox.actions import found_campaign
+
+        return found_campaign(
+            "Dust Falls", campaign_type, owner=User.objects.create_user("arbitrator")
+        )
+
+    def test_a_stale_copy_does_not_put_old_totals_back(self, tester, gang, ganger):
+        from n26.core.campaigns import archive_gang
+
+        stale = Gang.objects.get(pk=gang.pk)
+        with operation(gang, actor=tester) as op:
+            op.hire(ganger, "Vex")
+        hired = Gang.objects.get(pk=gang.pk).rating
+        assert hired != stale.rating
+
+        archive_gang(stale, actor=tester)
+        gang.refresh_from_db()
+        assert gang.archived
+        assert gang.rating == hired
+        assert_reconciled(gang)
+
+    def test_a_gang_that_joined_after_the_page_was_read_is_taken_out(
+        self, tester, gang, campaign
+    ):
+        """The page was drawn with no campaign; the gang joined before the
+        click. The membership is found under the locks and closed."""
+        from n26.core.campaigns import archive_gang
+        from n26.core.models import CampaignMembership
+        from n26.tests.sandbox.actions import join_campaign
+
+        join_campaign(gang, campaign)
+        archive_gang(gang, actor=tester)
+        assert not CampaignMembership.objects.get(gang=gang).playing
+
+    def test_a_deleted_gang_cannot_join(self, tester, gang, campaign):
+        from n26.core.campaigns import campaign_operation
+        from n26.core.operations import Refusal
+
+        stale = Gang.objects.get(pk=gang.pk)
+        Gang.objects.filter(pk=gang.pk).update(archived=True)
+        with pytest.raises(Refusal, match="has been deleted"):
+            with campaign_operation(campaign, actor=campaign.owner) as act:
+                act.add_gang(stale)
