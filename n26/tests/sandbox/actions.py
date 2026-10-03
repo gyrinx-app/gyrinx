@@ -218,6 +218,19 @@ def join_campaign(gang, campaign, actor=None):
         return op.join_campaign(campaign)
 
 
+def join_campaign_after_deletion(gang, campaign, actor=None):
+    """Leave a deleted gang playing a campaign, as deleting a gang did
+    before it took the gang out of its campaign first. Joining refuses a
+    deleted gang, so the gang joins and is then deleted again."""
+    from n26.core.models import Gang
+
+    Gang.objects.filter(pk=gang.pk).update(archived=False)
+    gang.refresh_from_db()
+    membership = join_campaign(gang, campaign, actor=actor)
+    gang.archive()
+    return membership
+
+
 def open_founding(gang, actor=None):
     """Start the gang's Spend built-in TP action, as its owner does from the
     Actions square. A new gang does not have it open."""

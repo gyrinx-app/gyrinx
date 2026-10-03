@@ -421,10 +421,11 @@ class TestSomebodyElsesCampaign:
 
     def test_it_can_be_shared(self, client, arbitrator, theirs, open_to_everyone):
         """The one control every reader gets: a link to the page itself,
-        which Alpine turns into the share sheet or the clipboard."""
+        which React turns into the share sheet or the clipboard."""
         drawn = client.get(f"/n26/campaigns/{theirs.pk}/").content.decode()
         assert f'href="/n26/campaigns/{theirs.pk}/"' in drawn
-        assert "clicked($event)" in drawn
+        assert 'aria-label="Share"' in drawn
+        assert "data-react-fallback" in drawn
         assert "Link copied." in drawn
 
     def test_the_shared_address_reads_for_whoever_is_signed_in(
@@ -444,7 +445,7 @@ class TestSomebodyElsesCampaign:
         drawn = response.content.decode()
         assert "Not Yours" in drawn
         assert f'href="/n26/campaigns/{theirs.pk}/"' in drawn
-        assert "clicked($event)" in drawn
+        assert 'aria-label="Share"' in drawn
 
     def test_the_edit_page_has_no_share_button(
         self, client, arbitrator, campaign, open_to_everyone

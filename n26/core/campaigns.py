@@ -1727,6 +1727,43 @@ def over_budget(campaign, gang):
     return campaign.budget is not None and gang.wealth > campaign.budget
 
 
+def archive_gang(gang, actor=None):
+    """Delete a gang, taking it out of its campaign first.
+
+    The gang's campaign is read before any line is held, so it is read
+    again under them: the campaign's line, then the gang's, the order
+    every writer to both uses. If what was read has changed, it is read
+    once more. The gang is archived under its own line, and a join checks
+    for that under the same line, so no gang joins a campaign after it is
+    deleted.
+    """
+    from n26.core.models import CampaignMembership
+    from n26.core.operations import operation
+
+    def open_membership():
+        return (
+            CampaignMembership.objects.filter(gang=gang, left__isnull=True)
+            .select_related("campaign")
+            .first()
+        )
+
+    while True:
+        read = open_membership()
+        with transaction.atomic():
+            if read is None:
+                with operation(gang, actor=actor) as op:
+                    if open_membership() is not None:
+                        continue
+                    return op.archive_gang()
+            with campaign_operation(read.campaign, actor=actor):
+                with operation(gang, actor=actor) as op:
+                    now = open_membership()
+                    if now is None or now.pk != read.pk:
+                        continue
+                    op.leave_campaign()
+                    return op.archive_gang()
+
+
 @contextmanager
 def campaign_operation(campaign, actor=None):
     """One transaction, under the campaign's own line.
