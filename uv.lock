@@ -286,15 +286,15 @@ wheels = [
 
 [[package]]
 name = "django-allauth"
-version = "65.19.4"
+version = "65.19.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asgiref" },
     { name = "django" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c2/2c/4c7a046f363396093d825df208d1b621ec9591ac30ea4657c26cda5f549c/django_allauth-65.19.4.tar.gz", hash = "sha256:7ea5f0057f91fa25f9ca7814f84aed63a66096b43df073fbdf1ef0167bc92f1d", size = 2293509, upload-time = "2026-09-17T13:29:20.775Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/03/0d/ca8cc8244849299160c433b7738a3f318eaad1967761083b44b0b2bee80c/django_allauth-65.19.5.tar.gz", hash = "sha256:03fdb1431e8cecd55071e6c3a3006f2fe1a45b916ee2bf5d14ed0fdadea3b7e5", size = 2294382, upload-time = "2026-09-28T19:45:56.88Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/53/04/7e47e7f33c25f1edbc5d5278fc4cdf1875399eecdcb36b5588c53550f770/django_allauth-65.19.4-py3-none-any.whl", hash = "sha256:a4f13476ad460ab1098af6be41ae72ed1d07498dd4514e05b9daef09a6c1cabd", size = 2075786, upload-time = "2026-09-17T13:27:51.745Z" },
+    { url = "https://files.pythonhosted.org/packages/32/c5/6500f20404c8fe31ef328ffd4f165f0517c7cb8c189cf2f91c7b6f9ae687/django_allauth-65.19.5-py3-none-any.whl", hash = "sha256:eda48d77cd790d2e60862993fe19e59ff2e18c6be8aa490d407e0ee1108dd385", size = 2076097, upload-time = "2026-09-28T19:45:54.025Z" },
 ]
 
 [[package]]
@@ -311,15 +311,15 @@ wheels = [
 
 [[package]]
 name = "django-cotton-ui"
-version = "0.3.3"
+version = "0.3.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
     { name = "django-cotton" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a9/1f/b6d7a98ab5d5aa02a9359fce73926b9deecd7ef68111e12da11a7dcbdb9a/django_cotton_ui-0.3.3.tar.gz", hash = "sha256:8c856758be574abfaad266b6157626d2b9c003d9961b2b33d49dd54b021a64bc", size = 173130, upload-time = "2026-09-14T10:59:20.124Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/23/a4/3d3ecb0329135f2ee0257b83e89be7850559fcac5098ec8f13fb503ed1a2/django_cotton_ui-0.3.4.tar.gz", hash = "sha256:32b76f6a95ad3f54352d06e8393f67f91287ad8ace2739e22df7342d330bdd9e", size = 173677, upload-time = "2026-09-27T12:37:04.403Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f3/f8/7c74d6096be4dd993fbd0a5b07ef15a87e92deaa2c1db83f17aa128f2a15/django_cotton_ui-0.3.3-py3-none-any.whl", hash = "sha256:c8854b8c0d6b8dbed1acc83f4729bb7573243de79d21ab0e3f1c16f93ca90636", size = 214367, upload-time = "2026-09-14T10:59:21.534Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/9c/78c90439489f48793e29bb4593f1a708b374a37b98d3ef47913482b795c5/django_cotton_ui-0.3.4-py3-none-any.whl", hash = "sha256:19c0c7b80907fc7a79cee961087550dd1c2b3d203a82ef6f4797db42be6ed093", size = 214900, upload-time = "2026-09-27T12:37:05.386Z" },
 ]
 
 [[package]]
@@ -539,11 +539,11 @@ wheels = [
 
 [[package]]
 name = "filelock"
-version = "4.0.1"
+version = "4.0.7"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6f/38/88cd6eda96c40594a1e3da7d8b40f04bc40ace5a6aef9ac5cb407540f173/filelock-4.0.1.tar.gz", hash = "sha256:fdefc3f3e87716d855ae2b732c1cfd521dd99799ef2b4d00e8c0d4dcdc7cc94b", size = 238888, upload-time = "2026-09-19T01:08:15.958Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/35/f5/14097cca69f53794270d8c7970b48321636302affe3154c7e0ba114eeff9/filelock-4.0.7.tar.gz", hash = "sha256:da5915714a70b55d167fdc7e251ad91302b0a36816fb574dfafae8f4f2c9bb21", size = 248489, upload-time = "2026-09-29T23:04:05.995Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/29/33/af0635ab07fe83b1788a1dbe370ff3e226062495a998335cb18a1cac81aa/filelock-4.0.1-py3-none-any.whl", hash = "sha256:481a321a27bef441e23c53371c6abc8d7d16e26b97090074ba44f7538a3fd55a", size = 106219, upload-time = "2026-09-19T01:08:14.49Z" },
+    { url = "https://files.pythonhosted.org/packages/06/cf/1731c0dd182ee35f80a39e63afb3d03056ea0dd561b7498932b10b2e34d9/filelock-4.0.7-py3-none-any.whl", hash = "sha256:a93c4d93269b339a6af4848342c7e940d0f9928ad95eff64764699e5f1bf8a6a", size = 109242, upload-time = "2026-09-29T23:04:04.696Z" },
 ]
 
 [[package]]
@@ -946,9 +946,9 @@ requires-dist = [
     { name = "click", specifier = "==8.5.0" },
     { name = "defusedxml", specifier = "==0.7.1" },
     { name = "django", specifier = "==6.0.7" },
-    { name = "django-allauth", specifier = "==65.19.4" },
+    { name = "django-allauth", specifier = "==65.19.5" },
     { name = "django-cotton", specifier = "==2.7.2" },
-    { name = "django-cotton-ui", specifier = "==0.3.3" },
+    { name = "django-cotton-ui", specifier = "==0.3.4" },
     { name = "django-csp", specifier = "==4.0" },
     { name = "django-debug-toolbar", specifier = "==8.0.0" },
     { name = "django-extensions", specifier = "==4.1" },
@@ -961,7 +961,7 @@ requires-dist = [
     { name = "djlint", specifier = "==1.46.3" },
     { name = "docutils", specifier = "==0.23" },
     { name = "fido2", specifier = "==2.2.1" },
-    { name = "filelock", specifier = "==4.0.1" },
+    { name = "filelock", specifier = "==4.0.7" },
     { name = "google-cloud-logging", specifier = "==3.16.3" },
     { name = "google-cloud-pubsub", specifier = "==2.41.0" },
     { name = "google-cloud-scheduler", specifier = "==2.20.0" },
@@ -971,7 +971,7 @@ requires-dist = [
     { name = "lucide", specifier = "==1.1.4" },
     { name = "markdown-it-py", specifier = ">=4.2.0" },
     { name = "nbstripout", specifier = "==0.9.1" },
-    { name = "nodeenv", specifier = "==1.10.0" },
+    { name = "nodeenv", specifier = "==1.11.0" },
     { name = "opentelemetry-exporter-gcp-trace", specifier = "==1.15.0" },
     { name = "opentelemetry-instrumentation-asgi", specifier = "==0.65b0" },
     { name = "opentelemetry-instrumentation-django", specifier = "==0.65b0" },
@@ -1004,7 +1004,7 @@ requires-dist = [
     { name = "simpleeval", specifier = "==1.0.8" },
     { name = "sqlparse", specifier = "==0.6.0" },
     { name = "urllib3", specifier = ">=2.8.0" },
-    { name = "virtualenv", specifier = ">=21.11.0" },
+    { name = "virtualenv", specifier = ">=21.14.1" },
     { name = "whitenoise", specifier = "==6.12.0" },
 ]
 
@@ -1214,11 +1214,11 @@ wheels = [
 
 [[package]]
 name = "nodeenv"
-version = "1.10.0"
+version = "1.11.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/24/bf/d1bda4f6168e0b2e9e5958945e01910052158313224ada5ce1fb2e1113b8/nodeenv-1.10.0.tar.gz", hash = "sha256:996c191ad80897d076bdfba80a41994c2b47c68e224c542b48feba42ba00f8bb", size = 55611, upload-time = "2025-12-20T14:08:54.006Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9a/8e/105de02c1322cfada6d9710d9146ef8026419d433c9d08359a2d35805811/nodeenv-1.11.0.tar.gz", hash = "sha256:3ce8fe5b71d16e8af7039ca65257354100bc772965d6bc549070649e53b1b146", size = 99301, upload-time = "2026-09-26T11:29:21.367Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/88/b2/d0896bdcdc8d28a7fc5717c305f1a861c26e18c05047949fb371034d98bd/nodeenv-1.10.0-py2.py3-none-any.whl", hash = "sha256:5bb13e3eed2923615535339b3c620e76779af4cb4c6a90deccc9e36b274d3827", size = 23438, upload-time = "2025-12-20T14:08:52.782Z" },
+    { url = "https://files.pythonhosted.org/packages/54/c8/12811c9b48fde162bb72b6f2e78fada9a247a09d7bb5be2050a5d099c77b/nodeenv-1.11.0-py2.py3-none-any.whl", hash = "sha256:edaa16e6c14d7cf395d75d4bbd5a26390f4dc06501a33b4e76282b02cc688a25", size = 34277, upload-time = "2026-09-26T11:29:19.933Z" },
 ]
 
 [[package]]
@@ -2172,17 +2172,18 @@ wheels = [
 
 [[package]]
 name = "virtualenv"
-version = "21.11.0"
+version = "21.14.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "distlib" },
     { name = "filelock" },
+    { name = "packaging" },
     { name = "platformdirs" },
     { name = "python-discovery" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8d/f0/58b5e510c05ef177afa8c5679516a46bf7b3cf131aadae3bbd1605f19035/virtualenv-21.11.0.tar.gz", hash = "sha256:fa83254de82b83565013b2f111519cf056124dd068bdbb8c5e49c6b72c061f0f", size = 5391846, upload-time = "2026-09-23T03:09:33.626Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/67/b5d37693e5e666b68100db8fe34f00db28279330db55f739a3c799ff2449/virtualenv-21.14.1.tar.gz", hash = "sha256:719b189804e66678017d9f63bbfc590c44f6b96ab4829513806394f9b375929c", size = 5462838, upload-time = "2026-09-29T23:33:33.991Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/ba/324de21687982db37a65fa1ef9d32d4a07bbcc47081ab35291480bfd1c75/virtualenv-21.11.0-py3-none-any.whl", hash = "sha256:15be2e0b4a5c35f2bec284b11ef025f2b80e0d907b0ab9bbae3c4f835f6bf1e8", size = 5485008, upload-time = "2026-09-23T03:09:30.916Z" },
+    { url = "https://files.pythonhosted.org/packages/85/a8/22be2d14ef0d7b1e9e7dc1d839a85073fc20917be1747d6f1347d1cfc8c3/virtualenv-21.14.1-py3-none-any.whl", hash = "sha256:6fd04089fc0dc33549e7abdff70fc3b63d4e15799f2dbf3281f80d13b9fce522", size = 5486534, upload-time = "2026-09-29T23:33:32.333Z" },
 ]
 
 [[package]]
