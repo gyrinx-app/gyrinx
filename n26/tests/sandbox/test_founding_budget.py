@@ -1245,10 +1245,10 @@ class TestTheFigureOnTheGangPage:
     reader who does not own the gang is not shown it.
     """
 
-    #: What the hover says, per model. The whole of it, because a
+    #: What the hover says. The whole of it, because a
     #: substring of it would pass on a page that had drawn half a
     #: sentence.
-    HOVER = "{} can spend these founding Trade Points at the Trading Post while the Spend built-in TP action is open."
+    HOVER = "This model can spend these founding Trade Points at the Trading Post while the Spend built-in TP action is open."
 
     def page(self, gang):
         from django.urls import reverse
@@ -1263,7 +1263,7 @@ class TestTheFigureOnTheGangPage:
         assert ">5 TP<span" in self.body(client, gang)
 
     def test_the_hover_says_what_the_figure_is(self, client, gang, leader):
-        assert self.HOVER.format("Rasp") in self.body(client, gang)
+        assert self.HOVER in self.body(client, gang)
 
     def test_the_figure_carries_the_founding_mark(self, client, gang, leader):
         """The same mark the Spend built-in TP action carries in the
@@ -1285,19 +1285,19 @@ class TestTheFigureOnTheGangPage:
     def test_completing_the_action_takes_it_away(self, client, gang, leader, player):
         complete_action(gang, FOUNDING_KIND, actor=player)
 
-        assert self.HOVER.format("Rasp") not in self.body(client, gang)
+        assert self.HOVER not in self.body(client, gang)
 
     def test_a_model_with_no_allowance_shows_nothing(self, client, gang, hire_into):
         """The ally is ranked Champion by its own book, and no gang's
         list names it — so nothing on its card raises the counter."""
         hire_into(gang, ("Allies", "Bone Scrivener"), "Wren")
 
-        assert self.HOVER.format("Wren") not in self.body(client, gang)
+        assert self.HOVER not in self.body(client, gang)
 
     def test_a_reader_who_does_not_own_it_is_not_shown_it(self, client, gang, leader):
         stranger = User.objects.create_user("a-stranger")
 
-        assert self.HOVER.format("Rasp") not in self.body(client, gang, reader=stranger)
+        assert self.HOVER not in self.body(client, gang, reader=stranger)
 
     def test_an_owner_the_flag_does_not_admit_is_not_shown_it(
         self, client, gang, leader
@@ -1310,5 +1310,5 @@ class TestTheFigureOnTheGangPage:
         gang.save(update_fields=["owner"])
 
         body = self.body(client, gang, reader=plain)
-        assert self.HOVER.format("Rasp") not in body
+        assert self.HOVER not in body
         assert " TP<span" not in body

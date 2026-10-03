@@ -1,0 +1,6 @@
+{% load react %}
+<div id="n26-rename-dialog-host" {% if oob %}hx-swap-oob="true"{% endif %}>
+    {% if rename_dialog %}
+        {% react_island "rename-dialog" rename_dialog %}
+    {% endif %}
+</div>

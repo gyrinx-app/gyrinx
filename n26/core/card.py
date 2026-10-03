@@ -196,6 +196,8 @@ class Card:
     #: The whole pool's worth, whatever this card selects. The gang counts
     #: each purchase once; an equipment card shows only its selected kit.
     full_rating: int = 0
+    #: Current and recorded hire contributions when a manual override remains.
+    base_rating_override: tuple[int, int] | None = None
 
     #: Equipment a modifier granted, with free profiles beneath
     #: weapons. Filled in by
@@ -457,11 +459,47 @@ def _flat_rows(**filters):
     ledger entry and the table is narrow. The assignable an assignment
     names is loaded afterwards, in narrow passes — see ``hydrate_rows``.
     """
+    from django.db.models import Case, Exists, OuterRef, Q, Subquery, Sum, When
+    from django.db.models.functions import Coalesce
+
+    from n26.core.models import AdvancementSelection, LedgerEvent
+
+    overrides = (
+        LedgerEvent.objects.filter(
+            assignment_id=OuterRef("pk"),
+            kind__in=[LedgerEvent.Kind.RATING_SET, LedgerEvent.Kind.RATING_RESET],
+        )
+        .order_by()
+        .values("assignment_id")
+        .annotate(total=Sum("rating_delta"))
+        .values("total")
+    )
     return list(
-        Assignment.objects.filter(archived=False, **filters).select_related(
-            "ledger_entry"
+        Assignment.objects.filter(archived=False, **filters)
+        .select_related("ledger_entry")
+        .annotate(
+            rating_from_advancement=Exists(
+                AdvancementSelection.objects.filter(
+                    Q(pick_assignment_id=OuterRef("pk"))
+                    | Q(promotion_assignment_id=OuterRef("pk"))
+                )
+            ),
+            base_rating_override_delta=Case(
+                When(
+                    gang__isnull=False,
+                    profile__isnull=False,
+                    miniature_root__isnull=False,
+                    then=Coalesce(Subquery(overrides), 0),
+                ),
+                default=0,
+            ),
         )
     )
+
+
+def rating_assignments(miniature):
+    """Recorded rating contributions without loading the library content."""
+    return _flat_rows(miniature_root=miniature, removes=False)
 
 
 def hydrate_rows(rows, with_statlines=False, with_options=False):
@@ -707,6 +745,14 @@ def assemble(
         for row in rows
         if getattr(row, "ledger_entry", None)
     )
+    for row in rows:
+        if not row.gang_id or not row.miniature_root_id or not row.profile_id:
+            continue
+        delta = getattr(row, "base_rating_override_delta", 0)
+        if delta:
+            current = row.ledger_entry.rating_contribution
+            card.base_rating_override = (current, current - delta)
+            break
     return card
 
 

@@ -115,29 +115,27 @@ def check_counter_value(counter_value, *, events=None):
     return problems
 
 
-def sum_rating(**root):
+def sum_rating(*, include_dead=False, **root):
     """Sum rating over live assignments under a root.
 
     Archived assignments are skipped: a sold weapon stops counting, while its
     ledger entry stays a true statement of what it was worth.
+    ``include_dead`` reads the underlying total for validation before reactivation.
 
     ``sum_rating(gang_root=gang)`` or ``sum_rating(miniature_root=model)``.
     """
     from n26.core.status import Status
 
     lookups = {f"assignment__{key}": value for key, value in root.items()}
-    return (
-        LedgerEntry.objects.filter(assignment__archived=False, **lookups)
+    entries = LedgerEntry.objects.filter(assignment__archived=False, **lookups).exclude(
         # A model whose membership has gone is off the roster, and so is
-        # everything it was carrying — the assignments keep their pinned
-        # roots, so they have to be filtered out here.
-        .exclude(assignment__miniature_root__membership__archived=True)
-        # A dead model keeps its row and its card, and counts nothing:
-        # rating is what the gang can field.
-        .exclude(assignment__miniature_root__status=Status.DEAD)
-        .aggregate(total=Sum("rating_contribution"))["total"]
-        or 0
+        # everything it was carrying — the assignments keep their pinned roots.
+        assignment__miniature_root__membership__archived=True
     )
+    if not include_dead:
+        # Rating is what the gang can field; a dead model counts nothing.
+        entries = entries.exclude(assignment__miniature_root__status=Status.DEAD)
+    return entries.aggregate(total=Sum("rating_contribution"))["total"] or 0
 
 
 def recomputed_rating(gang):

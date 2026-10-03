@@ -11,6 +11,7 @@ from n26.core.models import Assignment, Gang, Miniature, PrintConfig, Reason
 from n26.library.models.modifier import OFFERABLE_KINDS
 
 _CLONE_EVENT_NOTE_VERSION = "v1"
+CLONED_RATING_NOTE_PREFIX = "cloned-rating:v1:"
 
 
 @dataclass(frozen=True)

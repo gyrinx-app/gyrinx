@@ -1,0 +1,8 @@
+{% include "n26/includes/model_rating.html" with rating_id=miniature.pk rating=miniature.rating rating_name=miniature.name rating_oob=True mode="edit" htmx=True %}
+<c-n26.gang-figures :gang="gang"
+                    :summary="summary"
+                    id="n26-gang-figures"
+                    trade_points_href="{{ trade_points_href }}"
+                    credits_href="{{ credits_href }}"
+                    hx-swap-oob="true" />
+<div id="n26-rating-dialog-host" hx-swap-oob="true"></div>

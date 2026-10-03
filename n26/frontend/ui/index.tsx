@@ -13,6 +13,67 @@ import {
 } from "react";
 import cotton from "../generated/cotton.json";
 
+/** A native modal, styled from Cotton; React owns its lifetime and dismissal. */
+export function Dialog({
+    title,
+    lead,
+    children,
+    onDismiss,
+    onSubmit,
+    pending = false,
+    returnFocusId,
+}: {
+    title: string;
+    lead?: string;
+    children: ReactNode;
+    onDismiss: () => void;
+    onSubmit: ComponentProps<"form">["onSubmit"];
+    pending?: boolean;
+    returnFocusId?: string;
+}) {
+    const ref = useRef<HTMLDialogElement>(null);
+    const previous = useRef(document.activeElement);
+    const titleId = useId();
+    useEffect(() => {
+        const dialog = ref.current!;
+        dialog.showModal();
+        return () => {
+            dialog.close();
+            const target =
+                (returnFocusId
+                    ? document.getElementById(returnFocusId)
+                    : null) ?? previous.current;
+            if (target instanceof HTMLElement && target.isConnected)
+                target.focus();
+        };
+    }, [returnFocusId]);
+    return (
+        <dialog
+            ref={ref}
+            aria-labelledby={titleId}
+            className={cotton.dialog.root}
+            onCancel={(event) => {
+                event.preventDefault();
+                if (!pending) onDismiss();
+            }}
+        >
+            <form
+                onSubmit={onSubmit}
+                className={cotton.dialog.form}
+                aria-busy={pending}
+            >
+                <div className={cotton.dialog.header}>
+                    <h2 id={titleId} className={cotton.dialog.title}>
+                        {title}
+                    </h2>
+                    {lead && <p className={cotton.dialog.lead}>{lead}</p>}
+                </div>
+                {children}
+            </form>
+        </dialog>
+    );
+}
+
 export function Button({
     variant = "default",
     size = "default",
@@ -58,6 +119,62 @@ export function FormActions({
 }) {
     return (
         <div className={`${cotton.formActions} ${className}`}>{children}</div>
+    );
+}
+
+export interface RatingReceiptProps {
+    defaultRating: number;
+    overrideDelta: number;
+    contributions: Array<{ label: string; rating: number }>;
+    total: number;
+}
+
+export function RatingReceipt({
+    defaultRating,
+    overrideDelta,
+    contributions,
+    total,
+}: RatingReceiptProps) {
+    const recipe = cotton.ratingReceipt;
+    const lines = [
+        { label: "Default base rating", display: `${defaultRating}¢` },
+        ...(overrideDelta
+            ? [
+                  {
+                      label: "Base rating override",
+                      display: `${overrideDelta > 0 ? "+" : ""}${overrideDelta}¢`,
+                  },
+              ]
+            : []),
+        ...contributions.map(({ label, rating }) => ({
+            label,
+            display: `${rating > 0 ? "+" : ""}${rating}¢`,
+        })),
+    ];
+    return (
+        <dl className={recipe[0]}>
+            {lines.map(({ label, display }) => (
+                <div key={label} className={recipe[1]}>
+                    <dt className={recipe[2]}>{label}</dt>
+                    <dd className={recipe[3]}>{display}</dd>
+                </div>
+            ))}
+            <div className={recipe[4]}>
+                <dt className={recipe[5]}>Total rating</dt>
+                <dd className={recipe[6]}>{total}¢</dd>
+            </div>
+        </dl>
+    );
+}
+
+export function RatingBaseline({ rating }: { rating: number }) {
+    return (
+        <div className={cotton.ratingBaseline[0]}>
+            <span className={cotton.ratingBaseline[1]}>
+                Without an override
+            </span>
+            <span className={cotton.ratingBaseline[2]}>{rating}¢</span>
+        </div>
     );
 }
 

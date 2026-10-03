@@ -1,0 +1,11 @@
+{% comment %}
+<c-n26.rating-baseline> — The recorded base rating before a manual override.
+
+Use above the override field to keep the original figure visible while editing.
+React's matching adapter takes its presentation from this component.
+{% endcomment %}
+<c-vars rating="0" class="" />
+<div class="flex items-center justify-between gap-4 rounded-control border border-box-border bg-ink-50 px-4 py-3 dark:bg-ink-900 {{ class }}">
+    <span class="text-sm text-muted">Without an override</span>
+    <span class="text-xl font-semibold tabular-nums">{{ rating }}¢</span>
+</div>

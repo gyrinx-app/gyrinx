@@ -33,6 +33,7 @@ from functools import cached_property
 from uuid import uuid4
 
 from django.db import transaction
+from django.db.models import Sum
 
 from n26.core.models import (
     Assignment,
@@ -650,6 +651,52 @@ class Operation:
         self.event(None, LedgerEvent.Kind.LEFT_CAMPAIGN)
         self._campaign = None
         return membership
+
+    def set_base_rating(self, miniature, rating):
+        """Change the hire's rating contribution, preserving its payment.
+
+        Reload the membership under the gang lock so repeated saves compare
+        against the current contribution and emit no duplicate event.
+        Passing None removes the override and keeps any hire option changes.
+        """
+        membership = _under_the_lock(miniature.membership)
+        if membership.archived or membership.gang_root_id != self.gang.pk:
+            raise Refusal("You cannot change this model's base rating.")
+        entry = membership.ledger_entry
+        resetting = rating is None
+        if resetting:
+            rating = entry.rating_without_override
+        # A refund negates this contribution in an integer ledger delta.
+        if not isinstance(rating, int) or not -(2**31) < rating < 2**31:
+            raise Refusal("Enter a whole number between -2147483647 and 2147483647.")
+        before = entry.rating_contribution
+        if rating == before:
+            return False
+        if not -(2**31) <= rating - before < 2**31:
+            raise Refusal("This rating change is too large. Enter a smaller change.")
+        entry.rating_contribution = rating
+        entry.save(update_fields=["rating_contribution", "modified"])
+        from n26.core.reconcile import sum_rating
+
+        underlying = sum_rating(miniature_root=miniature, include_dead=True)
+        counted = sum_rating(miniature_root=miniature)
+        # A dead model can return to Active; its underlying total must fit then too.
+        totals = (
+            underlying,
+            self.gang.recompute_rating() + underlying - counted,
+        )
+        if any(not -(2**31) <= total < 2**31 for total in totals):
+            raise Refusal(
+                "This would make the model or gang rating too large. Enter a smaller rating."
+            )
+        self.event(
+            membership,
+            LedgerEvent.Kind.RATING_RESET if resetting else LedgerEvent.Kind.RATING_SET,
+            rating_delta=rating - before,
+            note=f"Base rating {before}¢ → {rating}¢",
+        )
+        self.touched(miniature)
+        return True
 
     def rename(self, miniature, name):
         """Give one model a new name, and say so in the history.
@@ -1396,6 +1443,15 @@ class Operation:
         assignment_map = {}
         miniature_map = {}
         memberships = {model.membership_id for model in plan.miniatures}
+        rating_overrides = dict(
+            LedgerEvent.objects.filter(
+                assignment_id__in=memberships,
+                kind__in=[LedgerEvent.Kind.RATING_SET, LedgerEvent.Kind.RATING_RESET],
+            )
+            .values("assignment_id")
+            .annotate(total=Sum("rating_delta"))
+            .values_list("assignment_id", "total")
+        )
         planned = {assignment.pk for assignment in plan.assignments}
         preserving_external_anchors = plan.source_gang.pk == self.gang.pk
 
@@ -1513,7 +1569,12 @@ class Operation:
             if not is_guard and source.miniature_root_id in miniature_map:
                 clone.miniature_root = miniature_map[source.miniature_root_id]
             clone.save()
-            self._clone_ledger(source, clone, neutral=source.pk in plan.neutral)
+            self._clone_ledger(
+                source,
+                clone,
+                neutral=source.pk in plan.neutral,
+                rating_override=rating_overrides.get(source.pk, 0),
+            )
 
             role = getattr(source, "profile_role", None)
             if role is not None:
@@ -1621,8 +1682,10 @@ class Operation:
             archived_at=_now() if is_archived else None,
         )
 
-    def _clone_ledger(self, source, clone, *, neutral=False):
-        """Give a cloned assignment one fresh opening that reconciles."""
+    def _clone_ledger(self, source, clone, *, neutral=False, rating_override=0):
+        """Give a cloned assignment a fresh opening and its rating override."""
+        from n26.core.cloning import CLONED_RATING_NOTE_PREFIX
+
         entry = getattr(source, "ledger_entry", None)
         values = (
             {
@@ -1649,14 +1712,33 @@ class Operation:
                 "note": "",
             }
         )
+        if neutral:
+            rating_override = 0
+        baseline = values["rating_contribution"] - rating_override
+        if not -(2**31) <= baseline < 2**31:
+            raise Refusal(
+                "You cannot clone this model. Its base rating without an override "
+                "is outside the supported range."
+            )
         LedgerEntry.objects.create(assignment=clone, **values)
         self.event(
             clone,
             LedgerEvent.Kind.CLONED,
             credits_delta=values["paid"],
             trade_points_delta=values["trade_points"],
-            rating_delta=values["rating_contribution"],
+            rating_delta=baseline,
         )
+        # The difference between two integer contributions can need several deltas.
+        while rating_override:
+            delta = max(-(2**31), min(2**31 - 1, rating_override))
+            self.event(
+                clone,
+                LedgerEvent.Kind.RATING_SET,
+                rating_delta=delta,
+                note=f"{CLONED_RATING_NOTE_PREFIX}{baseline}|{baseline + delta}",
+            )
+            baseline += delta
+            rating_override -= delta
 
     def hire(self, profile, model_name, paid=None, owner=None, option=None, **kwargs):
         """Hire a model: a gang-hosted assignment naming a profile.
@@ -1842,6 +1924,12 @@ class Operation:
         if delta:
             entry = getattr(carrier, "ledger_entry", None)
             if entry is not None:
+                entry.refresh_from_db()
+                if not -(2**31) < entry.rating_contribution + delta < 2**31:
+                    raise Refusal(
+                        "You cannot take this option. The resulting base rating is outside "
+                        "the range -2147483647¢ to 2147483647¢."
+                    )
                 entry.paid += delta
                 entry.list_price += delta
                 entry.rating_contribution += delta
@@ -3040,12 +3128,22 @@ class Operation:
     def settle(self):
         """Rewrite the pinned numbers this operation disturbed.
 
-        This is also where an overspend is refused: raising here unwinds
-        the whole operation's transaction, so a too-expensive hire leaves
-        nothing half-written behind.
+        Rating overflow and overspend are refused here so the whole
+        transaction unwinds, including assignments, payments and events.
         """
+
+        def repin_rating(thing):
+            rating = thing.recompute_rating()
+            if not -(2**31) <= rating < 2**31:
+                raise Refusal(
+                    "You cannot make this change. The resulting rating is outside "
+                    "the range -2147483648¢ to 2147483647¢."
+                )
+            thing.rating = rating
+            thing.save(update_fields=["rating", "modified"])
+
         for miniature in self._miniatures.values():
-            miniature.repin_rating()
+            repin_rating(miniature)
         if self.gang is not None:
             # What the gang read about its own open activities is dropped
             # here as well as at each writer: the instance goes on being
@@ -3054,8 +3152,8 @@ class Operation:
             self.gang.forget_open_activities()
             stash = getattr(self.gang, "stash", None)
             if stash is not None:
-                stash.repin_rating()
-            self.gang.repin_rating()
+                repin_rating(stash)
+            repin_rating(self.gang)
             remaining = self.gang.recompute_credits()
             if remaining is not None and remaining < 0:
                 raise NotEnoughCredits(self.gang, shortfall=-remaining)

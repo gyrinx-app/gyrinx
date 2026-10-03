@@ -29,6 +29,7 @@ from n26.core.models.dismissed_offer import slot_key as _address
 from n26.core.models.ledger import Reason
 from n26.core.owned import thing_key
 from n26.core.progression import RankSummary, progression_summaries
+from n26.core.rating import RatingReceipt, build_rating_receipt
 from n26.core.status import Status, status_colour
 from n26.core.status import label_for as status_label
 from n26.library.models import (
@@ -1066,6 +1067,13 @@ class ModelCard:
     #: the same structure either way, and "" is how it says "nowhere to
     #: link to".
     id: str = ""
+    #: Offered only on the owner's Edit page, including partial redraws.
+    base_rating_href: str = ""
+    rename_href: str = ""
+    #: JSON-safe explanation for the rating's interactive override marker.
+    rating_override: dict = field(default_factory=dict)
+    rating_receipt: RatingReceipt | None = None
+
     #: The library entry it was hired from — "Escher Gang Queen". Shared
     #: content: many models across many gangs point at this one profile.
     #: Blank when there is no profile to name, which a header draws as
@@ -1190,6 +1198,12 @@ class ModelCard:
     #: Where the model's picture is, or empty for none. A URL — a
     #: renderer does not reach into storage.
     image_url: str = ""
+
+    @property
+    def rating_breakdown(self):
+        return (
+            self.rating_receipt.popover_props(self.name) if self.rating_receipt else {}
+        )
 
     @property
     def status_colour(self):
@@ -3083,6 +3097,24 @@ def card_to_model_card(
         # A dead model's kit is still drawn, but the model is worth
         # nothing to the gang now, and the figure says so.
         rating=0 if status == Status.DEAD else card.rating,
+        rating_receipt=build_rating_receipt(
+            [
+                node.assignment
+                for node in card.all_nodes()
+                if node.assignment is not None and not node.broadcast
+            ],
+            status=status,
+        ),
+        rating_override=(
+            {
+                "name": name,
+                "rating": 0 if status == Status.DEAD else card.rating,
+                "baseRating": card.base_rating_override[0],
+                "defaultBaseRating": card.base_rating_override[1],
+            }
+            if card.base_rating_override is not None
+            else {}
+        ),
         status=status,
         status_label=(
             status_label(status, vehicle) if status and status != Status.ACTIVE else ""

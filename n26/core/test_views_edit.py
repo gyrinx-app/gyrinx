@@ -7,6 +7,7 @@ writes rather than earns: their notes, saved here and nowhere else.
 """
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
@@ -433,8 +434,13 @@ class TestRenamingFromHere:
     def test_the_card_offers_the_rename(self, client, tester, gang, vex):
         client.force_login(tester)
         body = client.get(edit_url(vex)).content.decode()
-        assert 'aria-label="Rename Vex"' in body
-        assert f"?rename={vex.pk}" in body
+        pencil = BeautifulSoup(body, "html.parser").find(
+            "a", attrs={"aria-label": "Rename Vex"}
+        )
+        assert pencil is not None
+        opened = client.get(pencil["href"])
+        assert opened.status_code == 302
+        assert opened.url == f"{edit_url(vex)}?rename={vex.pk}"
 
     def test_the_url_opens_the_dialog_on_this_page(self, client, tester, gang, vex):
         client.force_login(tester)

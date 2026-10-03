@@ -53,7 +53,9 @@ action_history renders completed results as one edit card, beside Lore when both
             {% include "n26/includes/model_card_host.html" with name_action=name_action %}
         </c-slot>
         {% if flows.strip %}
-            <c-slot name="card_companion">{{ flows }}</c-slot>
+            <c-slot name="card_companion">
+                {{ flows }}
+            </c-slot>
         {% endif %}
         {% if tab_actions.strip %}
             <c-slot name="tab_actions">{{ tab_actions }}</c-slot>

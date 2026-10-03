@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from django.urls import reverse
 
 from n26.core.campaigns import NO_CEILING
-from n26.core.cloning import clone_event_details
+from n26.core.cloning import CLONED_RATING_NOTE_PREFIX, clone_event_details
 from n26.core.effects import kind_of
 from n26.core.models import Assignment, CampaignEvent, LedgerEvent, Reason
 from n26.core.models.activity import read_note
@@ -65,6 +65,8 @@ PERSONAL = {
     Kind.IMAGE_CLEARED,
     Kind.STAT_SET,
     Kind.STAT_CLEARED,
+    Kind.RATING_SET,
+    Kind.RATING_RESET,
 }
 
 
@@ -180,15 +182,19 @@ def latest(gang, limit=5, viewer=None):
 def _events(gang, window=None):
     """The gang's events, oldest first — all of them, or the last
     ``window`` of them read back to front and turned round."""
-    rows = gang.ledger_events.exclude(kind__in=_COUNTER_MACHINERY).select_related(
-        "miniature",
-        "actor",
-        "action_record__fighter",
-        "post_battle_revision",
-        "campaign",
-        "campaign_asset__asset__asset_type",
-        "counterpart",
-        "battle",
+    rows = (
+        gang.ledger_events.exclude(kind__in=_COUNTER_MACHINERY)
+        .exclude(kind=Kind.RATING_SET, note__startswith=CLONED_RATING_NOTE_PREFIX)
+        .select_related(
+            "miniature",
+            "actor",
+            "action_record__fighter",
+            "post_battle_revision",
+            "campaign",
+            "campaign_asset__asset__asset_type",
+            "counterpart",
+            "battle",
+        )
     )
     if window is None:
         return list(rows.order_by("created", "id"))
@@ -559,6 +565,8 @@ def _machinery(e, row):
     """
     if e.kind in _COUNTER_MACHINERY:
         return True
+    if e.kind == Kind.RATING_SET and e.note.startswith(CLONED_RATING_NOTE_PREFIX):
+        return True
     if row is None:
         return False
     if e.kind == Kind.CLONED:
@@ -804,6 +812,10 @@ def _tell(e, row, alive):
             return (Span("sold "), thing), "credits"
         case Kind.REPRICED:
             return (Span("the price of "), thing, Span(" changed")), "credits"
+        case Kind.RATING_SET:
+            return (Span("changed "), at, Span("'s base rating")), "model"
+        case Kind.RATING_RESET:
+            return (Span("reset "), at, Span("'s base rating")), "model"
         case Kind.AMENDED:
             return (Span("changed "), thing), "credits"
         case Kind.MOVED:
@@ -1282,6 +1294,7 @@ def campaign_history_size(campaign):
         + campaign.gang_events.exclude(riders)
         .exclude(handed_over)
         .exclude(kind=Kind.CLONED, assignment__isnull=False)
+        .exclude(kind=Kind.RATING_SET, note__startswith=CLONED_RATING_NOTE_PREFIX)
         .exclude(kind__in=_COUNTER_MACHINERY)
         .count()
     )
@@ -1332,6 +1345,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
         # letting the openings consume a page would make one large clone hide
         # the acts immediately before it.
         .exclude(kind=LedgerEvent.Kind.CLONED, assignment__isnull=False)
+        .exclude(kind=Kind.RATING_SET, note__startswith=CLONED_RATING_NOTE_PREFIX)
         # An opening establishes a counter's ledger. It is not a campaign
         # act, even when the counter arrived while joining the campaign.
         .exclude(kind__in=_COUNTER_MACHINERY)

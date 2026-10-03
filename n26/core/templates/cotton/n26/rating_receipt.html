@@ -1,0 +1,29 @@
+{% comment %}
+<c-n26.rating-receipt> — A model's default rating, override and grouped additions.
+
+Pass a RatingReceipt built from recorded ledger contributions, not library prices.
+The override and additions are signed; every line adds to the total.
+{% endcomment %}
+<c-vars :receipt="None" class="" />
+    <dl class="space-y-2 text-sm tabular-nums {{ class }}">
+        <div class="flex items-baseline justify-between gap-4">
+            <dt class="text-muted">Default base rating</dt>
+            <dd>{{ receipt.default_rating }}¢</dd>
+        </div>
+        {% if receipt.override_delta %}
+            <div class="flex items-baseline justify-between gap-4">
+                <dt class="text-muted">Base rating override</dt>
+                <dd>{{ receipt.display_override }}</dd>
+            </div>
+        {% endif %}
+        {% for contribution in receipt.contributions %}
+            <div class="flex items-baseline justify-between gap-4">
+                <dt class="text-muted">{{ contribution.label }}</dt>
+                <dd>{{ contribution.display_rating }}</dd>
+            </div>
+        {% endfor %}
+        <div class="flex items-baseline justify-between gap-4 border-t border-dashed border-box-border pt-3 font-semibold">
+            <dt>Total rating</dt>
+            <dd>{{ receipt.total }}¢</dd>
+        </div>
+    </dl>

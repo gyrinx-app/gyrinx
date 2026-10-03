@@ -47,7 +47,7 @@ is named by the page's own heading directly below.
         {% endcomment %}
         <c-slot name="switcher">
             {% fighter_switcher gang miniature as fighter_switcher_ %}
-            <c-n26.quick-switcher.of :switcher="fighter_switcher_" hotkey="r" />
+            <c-n26.quick-switcher.of :switcher="fighter_switcher_" hotkey="r" id="n26-fighter-switcher" />
         </c-slot>
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -56,7 +56,7 @@ is named by the page's own heading directly below.
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    {{ miniature.name }}
+                    <span id="n26-model-breadcrumb-{{ miniature.pk }}">{{ miniature.name }}</span>
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
@@ -67,6 +67,7 @@ is named by the page's own heading directly below.
         {% endcomment %}
         <c-slot name="actions">
             <c-n26.gang-figures :gang="gang"
+                                id="n26-gang-figures"
                                 :summary="summary"
                                 trade_points_href="{{ trade_points_href }}"
                                 credits_href="{{ credits_href }}" />
@@ -180,7 +181,7 @@ is named by the page's own heading directly below.
                                crop="{{ picture_shape }}"
                                max="{{ picture_max }}"
                                image_url="{{ picture_url }}"
-                               alt="A picture of {{ miniature.name }}"
+                               alt="A picture of this model"
                                img_class="w-40">
                 Shown from the card's picture control and printed in the
                 card's corner. Picking a file opens the crop, and using
@@ -298,7 +299,7 @@ is named by the page's own heading directly below.
                     {% csrf_token %}
                     <input type="hidden" name="act" value="statline">
                     <p class="mb-3 text-sm text-ink-500 dark:text-ink-400">
-                        Set {{ miniature.name }}'s characteristics by hand. An empty box keeps their
+                        Set this model's characteristics by hand. An empty box keeps their
                         own value, and what you set is what the rules then work on.
                     </p>
                     <c-n26.statline.edit :cells="statline_cells" layout="wrap" />
@@ -328,21 +329,6 @@ is named by the page's own heading directly below.
     the sheet answers the fetch with this host filled.
     {% endcomment %}
     <div id="n26-status-dialog-host"></div>
-    {% if renaming %}
-        <c-n26.dialog title="Rename {{ renaming.name }}"
-                      action="{% url 'n26-rename-fighter' renaming.pk %}?back=edit"
-                      cancel_url="{{ edit_url }}"
-                      submit_label="Rename">
-            {% csrf_token %}
-            <c-ui.field label="Name" for="model-name">
-                <c-ui.input id="model-name"
-                            name="name"
-                            required
-                            maxlength="200"
-                            autocomplete="off"
-                            autofocus="autofocus"
-                            value="{{ renaming.name }}" />
-            </c-ui.field>
-        </c-n26.dialog>
-    {% endif %}
+    {% include "n26/includes/base_rating_dialog.html" %}
+    {% include "n26/includes/rename_dialog.html" %}
 {% endblock content %}

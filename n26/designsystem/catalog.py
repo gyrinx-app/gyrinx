@@ -2346,6 +2346,18 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="rating-baseline",
+                tag="c-n26.rating-baseline",
+                template="n26/rating_baseline.html",
+                summary="The base rating without a manual override, beside its label.",
+            ),
+            Component(
+                slug="rating-receipt",
+                tag="c-n26.rating-receipt",
+                template="n26/rating_receipt.html",
+                summary="A model's default rating, override and grouped additions.",
+            ),
+            Component(
                 slug="model-card",
                 tag="c-n26.model-card",
                 template="n26/model_card/index.html",

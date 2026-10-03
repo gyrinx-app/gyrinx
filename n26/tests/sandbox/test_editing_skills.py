@@ -315,7 +315,7 @@ class TestWhatTheSquareShows:
         client.force_login(player)
         page = client.get(at_tab(nobody, OWN_SETS)).content.decode()
 
-        assert "No skill set has been put in a tier for Nobody." in page
+        assert "No skill set has been put in a tier for this model." in page
 
     def test_a_granted_skill_is_drawn_ticked_and_fixed(
         self, client, player, yolanda, sets, library

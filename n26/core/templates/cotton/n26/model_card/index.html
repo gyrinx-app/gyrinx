@@ -10,6 +10,8 @@ Founding Trade Points are not the rating. They show in gang or edit mode only, w
 Lore and notes are sanitised editor HTML. A card can be read by people who are not its owner.
 card.collections and card.effects are on the structure and are not drawn.
 An empty href draws nothing. A print sheet or hire preview that passes none cannot be clicked.
+card.base_rating_href offers a pencil beside the total rating on the owner's Edit page.
+card.rename_href lets the name pencil fetch a dialog on the owner's Edit page.
 status_hx needs the host in n26/includes/status_dialogs.html.
 {% endcomment %}
 
@@ -38,7 +40,7 @@ status_hx needs the host in n26/includes/status_dialogs.html.
 
             <div class="min-w-0">
                 <div class="font-semibold">
-                    {{ card.name }}{% if name_action %}{{ name_action }}{% endif %}
+                    <span id="n26-model-name-{{ card.id }}">{{ card.name }}{% if name_action %}{{ name_action }}{% endif %}</span>
 
                     {% if owner_href and card.owned_by %}
                         <c-ui.tooltip size="sm">
@@ -59,9 +61,9 @@ status_hx needs the host in n26/includes/status_dialogs.html.
 
             <div class="col-start-1 row-start-2 min-w-0 self-center">
 
-                {% if card.profile_name and card.profile_name != card.name %}
-                    <div class="text-sm text-muted">{{ card.profile_name }}</div>
-                {% endif %}
+                <div id="n26-model-profile-name-{{ card.id }}" class="text-sm text-muted">
+                    {% if card.profile_name and card.profile_name != card.name %}{{ card.profile_name }}{% endif %}
+                </div>
 
                 {% if mode == "edit" and card.rank_summaries %}
                     <div class="mt-1 space-y-0.5 text-xs text-muted">
@@ -110,15 +112,12 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                                         <span class="inline-block align-[-0.1875em]"><c-n26.founding-mark class="size-3.5" /></span>
                                         <span>{{ card.trade_points_left }} TP<span class="sr-only"> Trade Points left to spend at the Trading Post while the gang is being founded</span></span>
                                     </span>
-                                    <c-slot name="content">{{ card.name }} can spend these founding Trade Points at the Trading Post while the Spend built-in TP action is open.</c-slot>
+                                    <c-slot name="content">This model can spend these founding Trade Points at the Trading Post while the Spend built-in TP action is open.</c-slot>
                                 </c-ui.tooltip>
                                 <span aria-hidden="true" class="text-muted">·</span>
                             </c-n26.model-card.mode>
                         {% endif %}
-                    <c-ui.tooltip size="sm">
-                        <span>{{ card.rating }}¢<span class="sr-only"> rating, including weapons and wargear</span></span>
-                        <c-slot name="content">Rating, including weapons and wargear</c-slot>
-                    </c-ui.tooltip>
+                    {% include "n26/includes/model_rating.html" with rating_id=card.id rating=card.rating rating_name=card.name rating_href=card.base_rating_href rating_override=card.rating_override rating_breakdown=card.rating_breakdown %}
                 </div>
 
                 {% if actions or card.image_url or card.model_cards_href %}
@@ -129,7 +128,7 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                                 <c-slot name="trigger">
                                     <c-ui.button size="xs"
                                                  variant="ghost" :compact="True"
-                                                 aria-label="Show a picture of {{ card.name }}"
+                                                 aria-label="Show this model's picture"
                                                  title="Picture">
                                         <span class="n26-icon-only">
                                             <c-n26.icon name="image" class="size-3.5" />
@@ -138,7 +137,7 @@ status_hx needs the host in n26/includes/status_dialogs.html.
                                 </c-slot>
                                 <div class="p-1">
                                     <img src="{{ card.image_url }}"
-                                         alt="A picture of {{ card.name }}"
+                                         alt="Model picture"
                                          class="w-56 max-w-[75vw] rounded-control">
                                 </div>
                             </c-ui.dropdown>
