@@ -1,89 +1,57 @@
+{% load react %}
 <div id="post-battle-summary"
      class="border border-box-border bg-ink-100 p-4 dark:bg-ink-900"
      {% if oob %}hx-swap-oob="true"{% endif %}>
-    <h2 id="changes-heading" class="text-lg font-semibold">Changes to apply</h2>
-    <p class="mt-2 text-sm text-muted">Use Check changes to review the current entries. Nothing changes until you apply them.</p>
-    <dl class="mt-4 space-y-3 text-sm">
-        <div class="flex justify-between gap-3">
-            <dt>Credits from this battle</dt>
-            <dd class="font-semibold tabular-nums">
-                {{ plan.total_text }}
-            </dd>
-        </div>
-        {% if plan.change_text %}
-            <div class="flex justify-between gap-3">
-                <dt>Change from the last version</dt>
-                <dd class="tabular-nums">
-                    {{ plan.change_text }}
-                </dd>
-            </div>
-        {% endif %}
-        {% if plan.credits_before != None %}
-            <div class="flex justify-between gap-3">
-                <dt>Credits balance</dt>
-                <dd class="tabular-nums">
-                    {{ plan.credits_before }} → {{ plan.credits_after }}¢
-                </dd>
-            </div>
-        {% else %}
-            <div>
-                <dt>Credits budget</dt>
-                <dd class="text-muted">
-                    This gang does not track a credits budget.
-                </dd>
-            </div>
-        {% endif %}
-        {% for change in plan.moving_gang_counters %}
-            <div class="flex justify-between gap-3">
-                <dt>{{ change.name }}</dt>
-                <dd class="tabular-nums">
-                    {{ change.before }} → {{ change.after }}
-                </dd>
-            </div>
-        {% endfor %}
-    </dl>
-    <ul class="mt-4 space-y-3 text-sm">
-        {% for model in models %}
-            {% if model.changes %}
-                <li>
-                    <p class="font-medium">{{ model.name }}</p>
-                    {% if model.xp_changes %}
-                        {% if model.result.xp_change %}<p class="text-muted">{{ model.result.xp_change|stringformat:'+d' }} XP</p>{% endif %}
-                        <p class="text-muted">XP total: {{ model.result.xp_before }} → {{ model.result.xp_after }}</p>
-                    {% endif %}
-                    {% for change, parts in model.summary_counters %}
-                        <p class="text-muted">{{ change.name }}: {{ change.before }} → {{ change.after }} ({{ parts }})</p>
-                    {% endfor %}
-                    {% for effect in model.named_effects %}<p class="text-muted">{{ effect.name }}</p>{% endfor %}
-                    {% if model.result.status_conflict %}
-                        <p class="text-red-700 dark:text-red-300">{{ model.result.status_conflict }}</p>
-                    {% elif model.status_changes %}
-                        <p class="text-muted">Final status: {{ model.final_status_label }}</p>
-                        {% if model.ends_in_recovery %}
-                            <p class="text-xs text-muted">Stays In Recovery until the end of the campaign cycle.</p>
-                        {% endif %}
-                    {% endif %}
-                    {% if model.result.equipment_changed %}
-                        <p>
-                            {% if model.result.equipment_disposition == "stash" %}
-                                Moves to the stash:
-                            {% else %}
-                                Marked lost:
+    {% react_host "post-battle-preview" preview %}
+        <h2 id="changes-heading" class="text-lg font-semibold">Changes to apply</h2>
+        <p class="mt-2 text-sm text-muted">These changes take effect when you apply the results.</p>
+        <dl class="mt-4 space-y-3 text-sm">
+            {% for row in preview.rows %}
+                <div class="flex justify-between gap-3">
+                    <dt>{{ row.label }}</dt>
+                    <dd class="shrink-0 text-right tabular-nums">
+                        {{ row.value }}
+                    </dd>
+                </div>
+            {% endfor %}
+        </dl>
+        <ul class="mt-4 space-y-3 text-sm">
+            {% for model in models %}
+                {% if model.changes %}
+                    <li>
+                        <p class="font-medium">{{ model.name }}</p>
+                        {% for award in model.summary_awards %}<p class="text-muted tabular-nums">{{ award }}</p>{% endfor %}
+                        {% for effect in model.named_effects %}<p class="text-muted">{{ effect.name }}</p>{% endfor %}
+                        {% if model.result.status_conflict %}
+                            <p class="text-red-700 dark:text-red-300">{{ model.result.status_conflict }}</p>
+                        {% elif model.status_changes %}
+                            <p class="text-muted">Final status: {{ model.final_status_label }}</p>
+                            {% if model.ends_in_recovery %}
+                                <p class="text-xs text-muted">Stays In Recovery until the end of the campaign cycle.</p>
                             {% endif %}
-                            {{ model.result.equipment_affected_names|join:', '|default:'No equipment' }}.
-                        </p>
-                        {% if model.result.equipment_exclusions %}
-                            <p class="text-muted">Stays with the model: {{ model.result.equipment_exclusions|join:', ' }}.</p>
                         {% endif %}
-                    {% elif model.result.equipment_ignored %}
-                        <p class="text-muted">Equipment stays with the model.</p>
-                    {% endif %}
-                    {% if model.result.note_appends %}<p class="text-muted">Adds a note to {{ model.name }}'s notes.</p>{% endif %}
-                </li>
-            {% endif %}
-        {% endfor %}
-    </ul>
-    <c-ui.button type="submit" name="intent" value="check" class="mt-4 w-full">
-        Check changes
-    </c-ui.button>
+                        {% if model.result.equipment_changed %}
+                            <p>
+                                {% if model.result.equipment_disposition == "stash" %}
+                                    Moves to the stash:
+                                {% else %}
+                                    Marked lost:
+                                {% endif %}
+                                {{ model.result.equipment_affected_names|join:', '|default:'No equipment' }}.
+                            </p>
+                            {% if model.result.equipment_exclusions %}
+                                <p class="text-muted">Stays with the model: {{ model.result.equipment_exclusions|join:', ' }}.</p>
+                            {% endif %}
+                        {% elif model.result.equipment_ignored %}
+                            <p class="text-muted">Equipment stays with the model.</p>
+                        {% endif %}
+                        {% if model.result.note_appends %}<p class="text-muted">Adds a note to {{ model.name }}'s notes.</p>{% endif %}
+                    </li>
+                {% endif %}
+            {% endfor %}
+        </ul>
+        <c-ui.button type="submit" name="intent" value="check" class="mt-4 w-full">
+            Check changes
+        </c-ui.button>
+    {% endreact_host %}
 </div>

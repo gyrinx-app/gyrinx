@@ -217,3 +217,165 @@ describe("post-battle in-place updates", () => {
         );
     });
 });
+
+describe("live preview versions", () => {
+    it("publishes a current preview and review hash after autosave", async () => {
+        form.insertAdjacentHTML(
+            "beforeend",
+            '<input name="review" value="old">',
+        );
+        const updates = vi.fn();
+        form.addEventListener("post-battle:preview", updates);
+        const preview = {
+            rows: [{ label: "Reputation", value: "5 → 8" }],
+            models: [],
+        };
+        await editAndAutosave(
+            Response.json({
+                revision: 5,
+                generation: 6,
+                review: "new",
+                saved: "12:30",
+                preview,
+            }),
+        );
+        expect(form.elements.review.value).toBe("new");
+        expect(JSON.parse(form.dataset.previewSnapshot)).toEqual(preview);
+        expect(updates.mock.calls.at(-1)[0].detail).toEqual({
+            state: "ready",
+            preview,
+        });
+    });
+
+    it("applies corrected XP to named fields before marking the preview ready", async () => {
+        form.insertAdjacentHTML(
+            "beforeend",
+            '<input type="hidden" name="model-one-xp" value="2">',
+        );
+        await editAndAutosave(
+            Response.json({
+                revision: 5,
+                generation: 6,
+                saved: "12:30",
+                corrections: { "model-one-xp": "" },
+            }),
+        );
+        expect(form.elements.namedItem("model-one-xp").value).toBe("");
+        expect(form.dataset.previewState).toBe("ready");
+    });
+
+    it("retains newer XP edits when an older correction arrives", async () => {
+        form.insertAdjacentHTML(
+            "beforeend",
+            '<input name="model-one-xp" value="2">',
+        );
+        let finish;
+        fetch.mockReturnValueOnce(
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+        );
+        form.elements.credits.dispatchEvent(
+            new Event("input", { bubbles: true }),
+        );
+        await vi.advanceTimersByTimeAsync(900);
+        const xp = form.elements.namedItem("model-one-xp");
+        xp.value = "3";
+        xp.dispatchEvent(new Event("input", { bubbles: true }));
+        finish(
+            Response.json({
+                revision: 5,
+                generation: 6,
+                saved: "12:30",
+                corrections: { "model-one-xp": "" },
+            }),
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        expect(xp.value).toBe("3");
+        expect(form.dataset.previewState).toBe("updating");
+    });
+
+    it("does not display an older response while newer input awaits saving", async () => {
+        let finish;
+        fetch.mockReturnValueOnce(
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+        );
+        const updates = vi.fn();
+        form.addEventListener("post-battle:preview", updates);
+        form.elements.credits.dispatchEvent(
+            new Event("input", { bubbles: true }),
+        );
+        await vi.advanceTimersByTimeAsync(900);
+        form.elements.credits.value = "80";
+        form.elements.credits.dispatchEvent(
+            new Event("input", { bubbles: true }),
+        );
+        finish(
+            Response.json({
+                revision: 5,
+                generation: 4,
+                saved: "12:30",
+                preview: { rows: [{ value: "10" }] },
+            }),
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        expect(updates.mock.calls.at(-1)[0].detail).toEqual({
+            state: "updating",
+        });
+        fetch.mockResolvedValueOnce(
+            Response.json({
+                revision: 6,
+                generation: 4,
+                saved: "12:31",
+                preview: { rows: [{ value: "80" }] },
+            }),
+        );
+        await vi.advanceTimersByTimeAsync(900);
+        expect(fetch.mock.calls[1][1].body.get("revision")).toBe("5");
+        expect(fetch.mock.calls[1][1].body.get("credits")).toBe("80");
+        expect(updates.mock.calls.at(-1)[0].detail).toEqual({
+            state: "ready",
+            preview: { rows: [{ value: "80" }] },
+        });
+    });
+
+    it("waits for a dirty preview before applying and blocks failed saves", async () => {
+        form.insertAdjacentHTML(
+            "beforeend",
+            '<button name="intent" value="apply">Apply</button>',
+        );
+        const apply = form.querySelector('[value="apply"]');
+        const submit = vi
+            .spyOn(form, "requestSubmit")
+            .mockImplementation(() => {});
+        fetch.mockResolvedValueOnce(
+            Response.json({ revision: 5, generation: 4, saved: "12:30" }),
+        );
+        form.elements.credits.dispatchEvent(
+            new Event("input", { bubbles: true }),
+        );
+        const event = new SubmitEvent("submit", {
+            cancelable: true,
+            submitter: apply,
+        });
+        form.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(true);
+        expect(submit).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(submit).toHaveBeenCalledWith(apply);
+        submit.mockClear();
+        await editAndAutosave(
+            Response.json({ error: "Refused" }, { status: 409 }),
+        );
+        const failed = new SubmitEvent("submit", {
+            cancelable: true,
+            submitter: apply,
+        });
+        form.dispatchEvent(failed);
+        expect(failed.defaultPrevented).toBe(true);
+        expect(submit).not.toHaveBeenCalled();
+        expect(status.textContent).toContain("before applying results");
+    });
+});

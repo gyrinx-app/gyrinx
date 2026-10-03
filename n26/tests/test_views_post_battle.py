@@ -363,7 +363,7 @@ class TestReportLayout:
             ),
         )
         document = BeautifulSoup(response.content, "html.parser")
-        assert "XP total: 0 → 2" in document.find("aside").get_text()
+        assert "+2 XP (0 → 2)" in document.find("aside").get_text()
 
     def test_summary_shows_xp_removed_with_a_lasting_effect(
         self, client, table, feature
@@ -393,7 +393,7 @@ class TestReportLayout:
             ),
         )
         document = BeautifulSoup(response.content, "html.parser")
-        assert "XP total: 2 → 0" in document.find("aside").get_text()
+        assert "-2 XP (2 → 0)" in document.find("aside").get_text()
         assert xp_value(model) == 2
 
 
@@ -2069,7 +2069,7 @@ class TestWhatTheSummaryAndReceiptList:
         )
 
         text = summary_text(checked)
-        assert "Cinder +1 XP XP total: 0 → 1" in text
+        assert "Cinder +1 XP (0 → 1)" in text
         assert "Ember" not in text
         assert "XP adjustment" not in text
         assert "Final status" not in text
@@ -2234,6 +2234,10 @@ class TestMissionResults:
         section = mission(page)
         assert section.find("h2").get_text(strip=True) == "Mission results"
         assert "Gang results" not in page.content.decode()
+        assert (
+            section.find(id="add-credit-line").get_text(strip=True)
+            == "Add credit source"
+        )
         (first,) = credit_line_ids(page)
         added = mission_step(client, report, page, "add-credit-line")
         assert added.status_code == 200
@@ -2267,7 +2271,7 @@ class TestMissionResults:
             },
         )
         checked = client.post(editor_url(report), fields)
-        assert "Credits from this battle: +55¢" in " ".join(
+        assert "Credits from this battle +55¢" in " ".join(
             mission(checked).get_text(" ", strip=True).split()
         )
         applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
@@ -2297,7 +2301,7 @@ class TestMissionResults:
         cells = [
             cell.get_text(strip=True) for cell in row.find_parent("tr").find_all("td")
         ]
-        assert cells[0] == "5" and cells[-1] == "6"
+        assert cells[1] == "5" and cells[-1] == "6"
         assert "From results" not in mission(stepped).get_text()
         report.refresh_from_db()
         assert report.draft["gang_counters"] == {key: "1"}
@@ -2412,7 +2416,7 @@ class TestMissionResultsAddUp:
         cells = [
             cell.get_text(strip=True) for cell in field.find_parent("tr").find_all("td")
         ]
-        assert (cells[0], field["value"], cells[-1]) == ("5", "2", "7")
+        assert (cells[1], field["value"], cells[-1]) == ("5", "2", "7")
         assert "Before" in mission(page).find("thead").get_text()
 
     def test_a_negative_amount_is_refused_by_its_field(self, client, table, feature):
@@ -2433,7 +2437,7 @@ class TestMissionResultsAddUp:
         assert field["aria-invalid"] == "true"
         error = mission(checked).find(id=field["aria-describedby"])
         assert "Enter a whole number from 0 to 1,000,000" in error.get_text()
-        assert "Credits from this battle: +0¢" in " ".join(
+        assert "Credits from this battle +0¢" in " ".join(
             mission(checked).get_text(" ", strip=True).split()
         )
 
@@ -2516,7 +2520,7 @@ class TestModelCounters:
         cells = [
             cell.get_text(strip=True) for cell in field.find_parent("tr").find_all("td")
         ]
-        assert cells[0] == "2" and cells[-1] == "3"
+        assert cells[1] == "2" and cells[-1] == "3"
         report.refresh_from_db()
         assert report.draft["models"][0]["counters"] == {key: "1"}
 
@@ -2551,7 +2555,7 @@ class TestModelCounters:
             .get_text(" ", strip=True)
             .split()
         )
-        assert "Kill Count: 2 → 3 (+1 entered)" in summary
+        assert "+1 Kill Count (2 → 3)" in summary
         applied = client.post(editor_url(report), html_fields(checked, intent="apply"))
         assert applied.status_code == 302
         assert CounterValue.objects.get(assignment=kills).value == 3
@@ -2596,7 +2600,7 @@ class TestModelCounters:
             cell.get_text(strip=True) for cell in entry.find_parent("tr").find_all("td")
         ]
         # Before, the entered change and what the kept result adds make After.
-        assert (cells[0], entry["value"], cells[2], cells[-1]) == ("2", "1", "+1", "4")
+        assert (cells[1], entry["value"], cells[2], cells[-1]) == ("2", "1", "+1", "4")
         assert "From results" in box.find("thead").get_text()
 
     def test_a_correction_applies_after_a_changed_counter_is_removed(
@@ -2722,3 +2726,231 @@ class TestModelResultEdges:
             assert not plan.valid
             assert any("You cannot correct the change to" in e for e in plan.errors)
         assert not report.revisions.exists()
+
+
+class TestLivePreview:
+    """Live previews match saved drafts without applying gameplay changes."""
+
+    def test_autosave_previews_counters_without_applying_them(
+        self, client, table, feature, reputation, kills
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        data = html_fields(
+            page,
+            intent="autosave",
+            **{
+                f"gang-counter-{reputation.pk}": "3",
+                f"model-{table.models[0].pk}-counter-{kills.pk}": "1",
+            },
+        )
+        before = LedgerEvent.objects.count()
+        response = client.post(editor_url(report), data)
+        assert response.status_code == 200
+        result = response.json()
+        assert {
+            "id": f"gang-counter:{reputation.pk}",
+            "label": "+3 Reputation",
+            "value": "5 → 8",
+        } in result["preview"]["rows"]
+        assert any(
+            "+1 Kill Count (2 → 3)" in line
+            for model in result["preview"]["models"]
+            for line in model["lines"]
+        )
+        assert result["review"]
+        assert CounterValue.objects.get(assignment=reputation).value == 5
+        assert CounterValue.objects.get(assignment=kills).value == 2
+        assert LedgerEvent.objects.count() == before
+        data.update(revision=result["revision"], generation=result["generation"])
+        again = client.post(editor_url(report), data).json()
+        assert again["preview"] == result["preview"]
+        assert LedgerEvent.objects.count() == before
+
+    def test_autosave_corrects_removed_xp_before_saving_and_returns_matching_fields(
+        self, client, table, feature
+    ):
+        from n26.core.post_battle import preview_report
+
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        data = awards(page, table, intent="autosave")
+        model = table.models[0]
+        xp = Assignment.objects.get(
+            miniature_root=model, counter__isnull=False, archived=False
+        )
+        with operation(table.gang, actor=table.owner) as op:
+            op.remove(xp)
+        saved = client.post(editor_url(report), data)
+        assert saved.status_code == 200
+        result = saved.json()
+        field = f"model-{model.pk}-xp"
+        assert result["corrections"] == {field: ""}
+        report.refresh_from_db()
+        assert (
+            next(m for m in report.draft["models"] if m["id"] == str(model.pk))["xp"]
+            == ""
+        )
+        assert result["review"] == preview_report(report, actor=table.owner).review
+        data.update(result["corrections"])
+        data.update(
+            intent="apply",
+            revision=result["revision"],
+            generation=result["generation"],
+            review=result["review"],
+        )
+        applied = client.post(editor_url(report), data)
+        assert applied.status_code == 302
+        xp.refresh_from_db()
+        assert xp.archived
+        assert CounterValue.objects.get(assignment=xp).value == 0
+
+    def test_mark_all_attended_keeps_xp_and_confirmation_independent(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        marked = client.post(editor_url(report), html_fields(page, intent="attend-all"))
+        assert marked.status_code == 200
+        report.refresh_from_db()
+        assert all(model["participated"] for model in report.draft["models"])
+        assert not report.draft["participation_confirmed"]
+        assert all(not model["xp"] for model in report.draft["models"])
+        data = html_fields(marked, intent="autosave")
+        data.pop(f"model-{table.models[1].pk}-participated")
+        assert client.post(editor_url(report), data).status_code == 200
+        report.refresh_from_db()
+        assert [model["participated"] for model in report.draft["models"]] == [
+            True,
+            False,
+        ]
+
+    def test_model_profile_caption_and_standalone_preview(self, client, table, feature):
+        report = start(client, table, standalone=True)
+        page = client.get(editor_url(report))
+        assert all(row.profile_name == "Ganger" for row in page.context["models"])
+        assert (
+            module(page, table.models[0])
+            .find("h3")
+            .find_parent()
+            .find("p")
+            .get_text(strip=True)
+            == "Ganger"
+        )
+        result = client.post(
+            editor_url(report), html_fields(page, intent="autosave")
+        ).json()
+        assert "territory" not in result["preview"]
+        assert page.context["territory"] is None
+
+    @pytest.mark.parametrize("result", ["winners", "not_recorded"])
+    def test_recorded_territory_is_attributed_and_never_replayed(
+        self, client, table, feature, result
+    ):
+        from n26.library.models import AssetType
+
+        other = open_founding(
+            found_gang(
+                "Rust Kings", table.gang.gang_type, owner=table.owner, budget=1000
+            )
+        )
+        join_campaign(other, table.campaign)
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            kind = act.add_asset_type(
+                "Territory", AssetType.Ownership.HOLDING, "Territories"
+            )
+            token = act.add_asset(act.create_asset(kind, "Sump Gate"))
+            act.assign(token, table.gang.campaign_memberships.get(left__isnull=True))
+            act.edit_battle(
+                table.battle,
+                scenario="Stand-off",
+                date=table.battle.date,
+                gangs=[table.gang, other],
+                result=result,
+                winners=[other] if result == "winners" else [],
+                revision=table.battle.revision,
+                stake=token,
+                stake_awarded_to=other,
+            )
+        table.battle.refresh_from_db()
+        report = start(client, table)
+        before = LedgerEvent.objects.count()
+        page = client.get(editor_url(report))
+        data = html_fields(page, intent="autosave")
+        result = client.post(editor_url(report), data).json()
+        assert "territory" not in result["preview"]
+        section = mission(page)
+        assert section.find(attrs={"data-battle-stake": True}) is not None
+        assert "Sump Gate" in section.get_text()
+        assert "Moved from Ashen Choir to Rust Kings." in section.get_text()
+        assert "Already applied." in section.get_text()
+        soup = BeautifulSoup(page.content, "html.parser")
+        summary = soup.find(id="post-battle-summary")
+        assert "Sump Gate" not in summary.get_text()
+        assert summary.find(attrs={"data-battle-stake": True}) is None
+        assert "territory" not in page.context["preview"]
+        assert LedgerEvent.objects.count() == before
+        applied = client.post(
+            editor_url(report), awards(client.get(editor_url(report)), table)
+        )
+        assert applied.status_code == 302
+        token.refresh_from_db()
+        assert token.holder.gang_id == other.pk
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            act.unassign(token)
+            act.assign(token, table.gang.campaign_memberships.get(left__isnull=True))
+        client.post(reverse("n26-post-battle-correct", args=[report.pk]))
+        page = client.get(editor_url(report))
+        # Corrections retain the historical winner separately from today's holder.
+        assert (
+            page.context["territory"]["outcome"]
+            == "Moved from Ashen Choir to Rust Kings."
+        )
+        assert "Ashen Choir" in page.context["territory"]["currentHolder"]
+
+    def test_autosave_query_count_does_not_grow_with_roster(
+        self, client, table, feature
+    ):
+        report = start(client, table)
+
+        def count():
+            page = client.get(editor_url(report))
+            with CaptureQueriesContext(connection) as queries:
+                response = client.post(
+                    editor_url(report), html_fields(page, intent="autosave")
+                )
+                assert response.status_code == 200
+            return len(queries)
+
+        small = count()
+        for name in ("Ash", "Flare", "Coal"):
+            hire(table.gang, table.models[0].membership.profile, name)
+        assert count() <= small
+
+    def test_unrecorded_stake_does_not_claim_a_transfer(self, client, table, feature):
+        from n26.library.models import AssetType
+
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            kind = act.add_asset_type(
+                "Territory", AssetType.Ownership.HOLDING, "Territories"
+            )
+            token = act.add_asset(act.create_asset(kind, "Unresolved Gate"))
+            act.assign(token, table.gang.campaign_memberships.get(left__isnull=True))
+            act.edit_battle(
+                table.battle,
+                scenario="Stand-off",
+                date=table.battle.date,
+                gangs=[table.gang],
+                result="not_recorded",
+                winners=[],
+                revision=table.battle.revision,
+                stake=token,
+                stake_awarded_to=None,
+            )
+        report = start(client, table)
+        page = client.get(editor_url(report))
+        territory = page.context["territory"]
+        assert territory["outcome"] == "Outcome not recorded."
+        assert "arbitrator records" in territory["note"]
+        assert "Already applied." not in mission(page).get_text()
+        assert "territory" not in page.context["preview"]

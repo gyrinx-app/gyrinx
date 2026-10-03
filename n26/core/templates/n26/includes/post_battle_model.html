@@ -12,12 +12,15 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
     <legend class="sr-only">{{ model.name }}</legend>
     <input type="hidden" name="model_id" value="{{ model.id }}">
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h3 class="flex min-w-0 flex-wrap items-center gap-2 text-base font-semibold">
-            <span class="min-w-0">{{ model.name }}</span>
-            <c-ui.badge size="sm" color="{{ model.status_colour }}">
-                <span class="sr-only">Status:</span> {{ model.result.status_label }}
-            </c-ui.badge>
-        </h3>
+        <div class="min-w-0">
+            <h3 class="flex min-w-0 flex-wrap items-center gap-2 text-base font-semibold">
+                <span class="min-w-0">{{ model.name }}</span>
+                <c-ui.badge size="sm" color="{{ model.status_colour }}">
+                    <span class="sr-only">Status:</span> {{ model.result.status_label }}
+                </c-ui.badge>
+            </h3>
+            {% if model.profile_name %}<p class="mt-1 text-sm text-muted">{{ model.profile_name }}</p>{% endif %}
+        </div>
         <label class="flex min-h-11 items-center gap-3 text-sm font-medium"
                for="{{ model.prefix }}-participated">
             <input id="{{ model.prefix }}-participated"
