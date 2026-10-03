@@ -297,7 +297,16 @@ def _fill_addresses(sheet, campaign, *, yours):
                 if counter is not None and counter.assignment_id:
                     counter.href = reverse("n26-tally", args=[counter.assignment_id])
                     counter.back = here + "#gangs"
+    addable_types = set()
     if yours:
+        addable_types = {
+            str(pk)
+            for pk in _holding_assets(
+                campaign, include_staged=sees_staged(campaign.owner)
+            )
+            .values_list("asset_type_id", flat=True)
+            .distinct()
+        }
         # What the arbitrator adds sits where it will show: an asset type
         # becomes a table under Assets, a counter or a label becomes a
         # column of the gangs table.
@@ -314,10 +323,11 @@ def _fill_addresses(sheet, campaign, *, yours):
                 roll.href = f"{here}?starting={line.gang_id}&type={roll.asset_type_id}"
     for table in sheet.assets:
         if yours:
-            table.add_href = (
-                reverse("n26-campaign-add-asset", args=[campaign.pk])
-                + f"?type={table.asset_type_id}"
-            )
+            if table.asset_type_id in addable_types:
+                table.add_href = (
+                    reverse("n26-campaign-add-asset", args=[campaign.pk])
+                    + f"?type={table.asset_type_id}"
+                )
             table.create_href = (
                 reverse("n26-campaign-new-asset", args=[campaign.pk])
                 + f"?type={table.asset_type_id}"
@@ -378,14 +388,14 @@ def _rolling(campaign, sheet, asked):
     table = next((t for t in sheet.assets if t.asset_type_id == asked), None)
     if table is None or not table.tables:
         return None
-    # Three per player is the rulebook's figure for Territories. An asset
+    # Three per gang is the rulebook's figure for Territories. An asset
     # type the arbitrator declared has no such rule, so its dialog says
     # nothing about how many to generate.
     label = table.label.lower()
     lead = f"The rolled {label} will be added to the campaign as unclaimed."
     if table.label == TERRITORY:
         lead += (
-            " The rules generate three per player: "
+            " The rules generate three per gang: "
             f"{sheet.territories_to_generate} for this campaign."
         )
     return {
@@ -1260,9 +1270,12 @@ def add_asset(request, pk):
     type rides the form's address too, so a failed submit redisplays the
     same narrowed list.
     """
+    from django.urls import reverse
+
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import AddAssetForm
     from n26.library.income import income_of, with_income
+    from n26.library.models import AssetType
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     asset_type = _asset_type_asked_for(found, request.GET.get("type"))
@@ -1304,6 +1317,20 @@ def add_asset(request, pk):
     # the word's first letter, since the label is the author's to choose.
     noun = asset_type.label_singular.lower() if asset_type else "asset"
     article = "an" if noun[:1] in "aeiou" else "a"
+    assets = [card(asset) for asset in with_income(offered)]
+    has_holding_type = (
+        asset_type is not None
+        or bool(assets)
+        or _campaign_asset_types(found)
+        .filter(ownership=AssetType.Ownership.HOLDING)
+        .exists()
+    )
+    empty_next_href = reverse(
+        "n26-campaign-new-asset" if has_holding_type else "n26-campaign-add-asset-type",
+        args=[found.pk],
+    )
+    if asset_type is not None:
+        empty_next_href += f"?type={asset_type.pk}"
     _badge_a_redrawn_page(request, found)
     return render(
         request,
@@ -1315,7 +1342,11 @@ def add_asset(request, pk):
             "adding": f"{article} {noun}",
             "back": _assets_anchor(found),
             # Drawn as cards, one per asset.
-            "assets": [card(asset) for asset in with_income(offered)],
+            "assets": assets,
+            "empty_next_href": empty_next_href,
+            "empty_next_label": "Create asset"
+            if has_holding_type
+            else "Add an asset type",
         },
     )
 
@@ -1676,6 +1707,8 @@ def new_asset(request, pk):
             annotation=data["annotation"],
             income=data["income"],
         )
+        if asset.asset_type.is_holding:
+            op.add_asset(asset)
         return f"Created {asset}."
 
     picked = str(form["asset_type"].value() or request.GET.get("type", ""))
