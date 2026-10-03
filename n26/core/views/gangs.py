@@ -372,7 +372,7 @@ def gang_sheet(request, pk):
             # the model's own page; a campaign counter is drawn here and
             # nowhere else, so here is the only place its controls can be
             # offered. The gang's own counters stay settled facts.
-            link_counters(sheet.campaign, back=at)
+            link_counters(sheet.campaign, back=at, adjust=True)
     # One question at a time: a URL naming two dialogs draws the leaving
     # one, because two open modals is not a state the page can mean.
     leaving = _leaving(request, gang) if yours else None

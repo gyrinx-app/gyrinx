@@ -275,6 +275,8 @@ def _fill_addresses(sheet, campaign, *, yours):
     serves the page and the partial update a roll delivers."""
     from django.urls import reverse
 
+    from n26.core.owned import with_query
+
     here = reverse("n26-campaign", args=[campaign.pk])
     for line in sheet.gangs:
         line.href = reverse("n26-gang", args=[line.gang_id])
@@ -297,6 +299,7 @@ def _fill_addresses(sheet, campaign, *, yours):
                 if counter is not None and counter.assignment_id:
                     counter.href = reverse("n26-tally", args=[counter.assignment_id])
                     counter.back = here + "#gangs"
+                    counter.adjust_href = with_query(counter.href, back=counter.back)
     if yours:
         # What the arbitrator adds sits where it will show: an asset type
         # becomes a table under Assets, a counter or a label becomes a
