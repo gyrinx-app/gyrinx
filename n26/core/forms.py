@@ -1020,6 +1020,29 @@ class TableEntryForm(forms.Form):
         return cleaned
 
 
+class CampaignLogFilterForm(forms.Form):
+    """URL-backed filters over complete campaign acts."""
+
+    player = forms.ChoiceField(required=False, label="Player or arbitrator")
+    gang = forms.ChoiceField(required=False, label="Gang")
+    kind = forms.ChoiceField(required=False, label="Action type")
+    from_date = forms.DateField(required=False, label="From date")
+    to_date = forms.DateField(required=False, label="To date")
+
+    def __init__(self, *args, players, gangs, kinds, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["player"].choices = [("", "Everyone"), *players]
+        self.fields["gang"].choices = [("", "All gangs"), *gangs]
+        self.fields["kind"].choices = [("", "All action types"), *kinds]
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("from_date"), cleaned.get("to_date")
+        if start and end and end < start:
+            self.add_error("to_date", "Choose an end date on or after the start date.")
+        return cleaned
+
+
 class CampaignRollForm(forms.Form):
     """A generated or physical roll, attributed only within its campaign."""
 
