@@ -49,7 +49,15 @@ def _roster(gang):
     return roster(gang)
 
 
-def _print_rows(gang, gang_card, miniatures, weapon_ids=None, brought_in=None):
+def _print_rows(
+    gang,
+    gang_card,
+    miniatures,
+    weapon_ids=None,
+    brought_in=None,
+    *,
+    include_campaign=False,
+):
     """A print card per model: filtered, computed, columned.
 
     ``gang_card`` is the gang already built — the same build the header
@@ -63,11 +71,11 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None, brought_in=None):
     pet left out of the print is still named on its owner's card.
     """
     from n26.core.card import build_card, build_modifier_index, carriers
-    from n26.core.effects import compute
+    from n26.core.effects import compute, compute_gang
     from n26.core.models import Assignment, DismissedOffer
     from n26.core.printing import detail_columns
     from n26.core.progression import progression_summaries
-    from n26.core.render import build_model_card, hide_dismissed
+    from n26.core.render import build_campaign_block, build_model_card, hide_dismissed
 
     selection = None
     if weapon_ids is not None:
@@ -88,6 +96,12 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None, brought_in=None):
                 miniature, with_statlines=True, assignment_set=selection
             )
     index = build_modifier_index(carriers(gang_card, *cards.values()))
+    gang_computed = compute_gang(gang_card, index)
+    campaign = (
+        build_campaign_block(gang_card, index=index, computed=gang_computed)
+        if include_campaign
+        else None
+    )
     computed = {
         miniature.pk: compute(cards[miniature.pk], index) for miniature in miniatures
     }
@@ -121,7 +135,7 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None, brought_in=None):
                 "columns": detail_columns(model_card),
             }
         )
-    return rows
+    return rows, campaign
 
 
 def _config_for(request, gang):
@@ -392,8 +406,13 @@ def print_gang(request, pk):
     brought = brought_in_by(miniatures)
     if wanted is not None:
         miniatures = [m for m in miniatures if str(m.pk) in wanted]
-    rows = _print_rows(
-        gang, gang_card, miniatures, weapon_ids=weapon_ids, brought_in=brought
+    rows, campaign = _print_rows(
+        gang,
+        gang_card,
+        miniatures,
+        weapon_ids=weapon_ids,
+        brought_in=brought,
+        include_campaign=include_header,
     )
 
     # One event for the sheet, carrying how much of the gang it covers —
@@ -415,6 +434,7 @@ def print_gang(request, pk):
         {
             "gang": gang,
             "rows": rows,
+            "campaign": campaign,
             "stash": stash_lines(gang_card, brought_in=brought),
             "stash_rating": gang_card.stash_rating,
             "include_header": include_header,

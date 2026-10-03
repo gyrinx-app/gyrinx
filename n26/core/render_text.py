@@ -176,6 +176,17 @@ def render_gang_sheet(sheet):
         if choice.is_resolved and not choice.is_full:
             chosen = f"{chosen} (add)"
         lines.append(f"{choice.kind_label}: {chosen}")
+    if sheet.campaign:
+        campaign = sheet.campaign
+        lines.append(f"Campaign: {campaign.name}")
+        for group in campaign.asset_groups:
+            lines.append(f"  {group.label}: {group.names}")
+        for line in campaign.other_lines:
+            lines.append(f"  {line.type_label}: {line.name}")
+        for counter in campaign.counters:
+            lines.append(f"  {counter.name}: {counter.value}")
+        for choice in campaign.choices:
+            lines.append(f"  {choice.kind_label}: {choice.chosen or '—'}")
     if sheet.stash:
         lines.append(f"Stash — {sheet.stash_rating}cr")
         for line in sheet.stash:
