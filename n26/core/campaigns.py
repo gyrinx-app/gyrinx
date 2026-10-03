@@ -1318,6 +1318,20 @@ class CampaignOperation:
         _own_table(self.campaign, entry.table)
         remove_asset_table_entry(entry)
 
+    def add_gang(self, gang):
+        """Put a gang into this campaign (``Operation.join_campaign``).
+
+        The campaign's line is held already, so archiving, which takes
+        every gang out under the same line, cannot run between the check
+        and the join. An archived campaign takes no gangs.
+        """
+        from n26.core.operations import Refusal, operation
+
+        if self.campaign.archived:
+            raise Refusal(f"{self.campaign.name} is archived, so no gang can join it.")
+        with operation(gang, actor=self.actor) as op:
+            return op.join_campaign(self.campaign)
+
     def remove_gang(self, membership):
         """Take one gang out of this campaign, and give back everything the
         campaign gave it (``Operation.leave_campaign``).
@@ -1355,8 +1369,10 @@ class CampaignOperation:
         campaign = self.campaign
         if campaign.archived:
             return campaign
+        # Each gang's line stays held until the archive commits, so they are
+        # taken in key order, the order every multi-gang operation uses.
         for membership in campaign.memberships.filter(left__isnull=True).order_by(
-            "created"
+            "gang_id"
         ):
             self.remove_gang(membership)
         campaign.archive()

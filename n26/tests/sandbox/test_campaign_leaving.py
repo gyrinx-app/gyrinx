@@ -10,6 +10,8 @@ happened. Archiving a campaign does the same for every gang still in it.
 See design/campaign-assets.md.
 """
 
+import re
+
 import pytest
 from django.apps import apps
 from django.contrib.auth.models import User
@@ -242,3 +244,53 @@ class TestArchivingACampaign:
         before = LedgerEvent.objects.filter(gang=gang).count()
         archive_campaign(campaign)
         assert LedgerEvent.objects.filter(gang=gang).count() == before
+
+    def test_an_archived_campaign_takes_no_gangs(self, gang_type, campaign):
+        from n26.core.campaigns import campaign_operation
+        from n26.core.operations import Refusal
+
+        archive_campaign(campaign)
+        late = found_gang("Late", gang_type, owner=User.objects.create_user("late"))
+        with pytest.raises(Refusal, match="Dust Falls is archived"):
+            with campaign_operation(campaign, actor=campaign.owner) as act:
+                act.add_gang(late)
+        assert not CampaignMembership.objects.filter(gang=late).exists()
+
+
+class TestTheConfirmationPage:
+    """The page says what the gang loses and what goes back to the campaign,
+    each under its own heading."""
+
+    @pytest.fixture
+    def open_to_everyone(self, db):
+        from gyrinx.site.models import Availability, FeatureFlag
+        from n26.flags import CAMPAIGNS
+
+        return FeatureFlag.objects.create(
+            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
+        )
+
+    def test_each_thing_is_under_the_right_heading(
+        self, client, gang, campaign, alignment, old_ruins, open_to_everyone
+    ):
+        played(gang, alignment, old_ruins)
+        client.force_login(campaign.owner)
+        drawn = client.get(
+            f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/"
+        ).content.decode()
+
+        removed, _, returned = drawn.partition("Returned to Dust Falls")
+        removed = removed.partition("Removed from The Ashen Choir")[2]
+        for label, value in (
+            ("Settlement", "Settlement"),
+            ("Reputation", "4"),
+            ("Alignment", "Outlaw"),
+        ):
+            assert re.search(
+                rf"<dt[^>]*>{label}</dt>\s*<dd[^>]*>\s*{value}\s*</dd>", removed
+            ), label
+        assert "Old Ruins" not in removed
+        assert re.search(
+            r"<dt[^>]*>Territory</dt>\s*<dd[^>]*>\s*Old Ruins\s*</dd>", returned
+        )
+        assert "These will be unassigned." in returned
