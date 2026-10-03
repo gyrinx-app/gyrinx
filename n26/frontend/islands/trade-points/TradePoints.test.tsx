@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import cotton from "../../generated/cotton.json";
 import { TradePoints, type TradePointsProps } from "./TradePoints";
 
 const props: TradePointsProps = {
@@ -68,6 +69,10 @@ describe("TradePoints", () => {
         const box = screen.getByRole("checkbox", { name: "Vex" });
         expect((box as HTMLInputElement).checked).toBe(true);
         expect((box as HTMLInputElement).disabled).toBe(true);
+        // The row takes the tick list's disabled look, not only the box.
+        expect(box.closest("label")!.className).toBe(
+            cotton.tickList.labelDisabled,
+        );
         expect(new FormData(form).getAll("visiting")).toEqual([]);
         expect(new FormData(form).get("brought")).toBe("9");
     });

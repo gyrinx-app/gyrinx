@@ -1,6 +1,12 @@
 import { useState } from "react";
-import cotton from "../../generated/cotton.json";
-import { Button, Field, Input } from "../../ui";
+import {
+    Button,
+    Field,
+    Input,
+    TickList,
+    TickListGroup,
+    TickListOption,
+} from "../../ui";
 
 export type TradePointsOption = {
     key: string;
@@ -37,7 +43,6 @@ export function TradePoints({
             ),
         0,
     );
-    const recipe = cotton.tickList;
 
     return (
         <>
@@ -46,47 +51,28 @@ export function TradePoints({
                     className="min-w-0 border-0 p-0"
                     disabled={overridden}
                 >
-                    <div className={recipe.root}>
+                    <TickList>
                         {groups.map((group) => (
-                            <fieldset key={group.name}>
-                                <legend className={recipe.legend}>
-                                    {group.name}
-                                </legend>
-                                <div className={recipe.options}>
-                                    {group.options.map((option) => (
-                                        <label
-                                            key={option.key}
-                                            className={recipe.label}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                name="visiting"
-                                                value={option.key}
-                                                checked={
-                                                    checked[option.key] ?? false
-                                                }
-                                                disabled={overridden}
-                                                className={recipe.input}
-                                                onChange={(event) =>
-                                                    setChecked((current) => ({
-                                                        ...current,
-                                                        [option.key]:
-                                                            event.target
-                                                                .checked,
-                                                    }))
-                                                }
-                                            />
-                                            <span className={recipe.text}>
-                                                <span className={recipe.name}>
-                                                    {option.name}
-                                                </span>
-                                            </span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </fieldset>
+                            <TickListGroup key={group.name} name={group.name}>
+                                {group.options.map((option) => (
+                                    <TickListOption
+                                        key={option.key}
+                                        name="visiting"
+                                        value={option.key}
+                                        label={option.name}
+                                        checked={checked[option.key] ?? false}
+                                        disabled={overridden}
+                                        onChange={(isChecked) =>
+                                            setChecked((current) => ({
+                                                ...current,
+                                                [option.key]: isChecked,
+                                            }))
+                                        }
+                                    />
+                                ))}
+                            </TickListGroup>
                         ))}
-                    </div>
+                    </TickList>
                 </fieldset>
             ) : (
                 <p className="text-sm text-muted">{emptyMessage}</p>
