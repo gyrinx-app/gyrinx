@@ -172,6 +172,47 @@ homebrew_postgres_data_dir() {
   fi
 }
 
+# _release_provision_lock <lock_dir> <label>
+#   Remove this process's mkdir lock. A waiter may delete the directory, or
+#   claim it, in the gap after the pid file is gone. That handoff is success:
+#   the work this process finished is already done. Fail only when this
+#   process still holds a directory it cannot remove.
+#   _provision_lock_handoff_hook, when defined, runs in that gap so a test
+#   can take the lock before rmdir.
+_release_provision_lock() {
+  local lock_dir="$1"
+  local label="$2"
+  local holder=""
+
+  if [ -f "$lock_dir/pid" ]; then
+    read -r holder < "$lock_dir/pid" || holder=""
+    if [ "$holder" = "$$" ]; then
+      rm -f "$lock_dir/pid"
+    fi
+  fi
+  if declare -F _provision_lock_handoff_hook >/dev/null 2>&1; then
+    _provision_lock_handoff_hook "$lock_dir"
+  fi
+  if [ ! -d "$lock_dir" ]; then
+    return 0
+  fi
+  if rmdir "$lock_dir" 2>/dev/null; then
+    return 0
+  fi
+  if [ ! -d "$lock_dir" ]; then
+    return 0
+  fi
+  holder=""
+  if [ -f "$lock_dir/pid" ]; then
+    read -r holder < "$lock_dir/pid" || holder=""
+  fi
+  if [ -n "$holder" ] && [ "$holder" != "$$" ]; then
+    return 0
+  fi
+  echo "[gyrinx] Could not release the ${label}." >&2
+  return 1
+}
+
 # provision_worktree_venv <worktree_root> [reset]
 #   Ensure <worktree_root>/.venv matches uv.lock and pyproject.toml, and has
 #   the project editable-installed from that worktree. A hash stamp makes the
@@ -338,9 +379,7 @@ provision_worktree_venv() {
   else
     provision_status=$?
   fi
-  rm -f "$lock_dir/pid"
-  if ! rmdir "$lock_dir" 2>/dev/null; then
-    echo "[gyrinx] Could not release the provisioning lock for ${venv}." >&2
+  if ! _release_provision_lock "$lock_dir" "provisioning lock for ${venv}"; then
     return 1
   fi
   return "$provision_status"
@@ -574,9 +613,8 @@ provision_worktree_frontend() {
   else
     provision_status=$?
   fi
-  rm -f "$lock_dir/pid"
-  if ! rmdir "$lock_dir" 2>/dev/null; then
-    echo "[gyrinx] Could not release the frontend provisioning lock for ${wt_root}." >&2
+  if ! _release_provision_lock "$lock_dir" \
+    "frontend provisioning lock for ${wt_root}"; then
     return 1
   fi
   return "$provision_status"

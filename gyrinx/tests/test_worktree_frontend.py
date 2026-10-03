@@ -6,6 +6,7 @@ runs it on every push.
 """
 
 import os
+import shutil
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -299,3 +300,145 @@ def test_codex_run_uses_the_shared_frontend_provisioner():
 
     assert 'provision_worktree_frontend "$PROJECT_DIR"' in run
     assert "npm audit fix" not in run
+
+
+def test_release_succeeds_when_a_waiter_already_removed_the_lock(tmp_path):
+    lock_dir = tmp_path / ".gyrinx-venv-provision.lock"
+    lock_dir.mkdir()
+    (lock_dir / "pid").write_text("1\n")
+    shutil.rmtree(lock_dir)
+
+    result = subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            """
+source "$1"
+_release_provision_lock "$2" "provisioning lock for test"
+""",
+            "test",
+            str(REPO_ROOT / "scripts/lib/worktree.sh"),
+            str(lock_dir),
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Could not release" not in result.stderr
+
+
+def test_release_succeeds_when_a_waiter_claims_the_lock(tmp_path):
+    lock_dir = tmp_path / ".gyrinx-frontend-provision.lock"
+    result = subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            """
+source "$1"
+lock_dir="$2"
+mkdir "$lock_dir"
+printf '%s\\n' "$$" > "$lock_dir/pid"
+_provision_lock_handoff_hook() {
+  rmdir "$1" 2>/dev/null || true
+  mkdir "$1"
+  printf '%s\\n' 999999 > "$1/pid"
+}
+_release_provision_lock "$lock_dir" "frontend provisioning lock for example"
+""",
+            "test",
+            str(REPO_ROOT / "scripts/lib/worktree.sh"),
+            str(lock_dir),
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Could not release" not in result.stderr
+    assert (lock_dir / "pid").read_text().strip() == "999999"
+
+
+def test_release_fails_when_this_process_still_holds_a_stuck_lock(tmp_path):
+    lock_dir = tmp_path / ".gyrinx-venv-provision.lock"
+    result = subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            """
+source "$1"
+lock_dir="$2"
+mkdir "$lock_dir"
+printf '%s\\n' "$$" > "$lock_dir/pid"
+_provision_lock_handoff_hook() {
+  touch "$1/stuck"
+}
+_release_provision_lock "$lock_dir" "provisioning lock for example"
+""",
+            "test",
+            str(REPO_ROOT / "scripts/lib/worktree.sh"),
+            str(lock_dir),
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 1
+    assert "Could not release the provisioning lock for example." in result.stderr
+    assert lock_dir.exists()
+
+
+def test_frontend_provisioner_keeps_a_successful_build_when_the_lock_is_claimed(
+    tmp_path,
+):
+    worktree = _islands_worktree(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_fake_npm(bin_dir)
+    result = subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            """
+source "$1"
+_provision_lock_handoff_hook() {
+  rmdir "$1" 2>/dev/null || true
+  mkdir "$1"
+  printf '%s\\n' 999999 > "$1/pid"
+}
+provision_worktree_frontend "$2"
+""",
+            "test",
+            str(REPO_ROOT / "scripts/lib/worktree.sh"),
+            str(worktree),
+        ],
+        text=True,
+        capture_output=True,
+        env=os.environ
+        | {
+            "PATH": _path_with_bin(bin_dir),
+            "NPM_CALL_LOG": str(bin_dir / "npm-calls"),
+            "NPM_PATH_LOG": str(bin_dir / "npm-path"),
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Could not release" not in result.stderr
+    assert (bin_dir / "npm-calls").read_text().splitlines() == [
+        "ci --no-audit --no-fund",
+        "run js",
+    ]
+    lock_pid = worktree / ".gyrinx-frontend-provision.lock" / "pid"
+    assert lock_pid.read_text().strip() == "999999"
+
+
+def test_both_provisioners_hand_off_through_the_shared_release():
+    source = (REPO_ROOT / "scripts/lib/worktree.sh").read_text()
+
+    assert (
+        '_release_provision_lock "$lock_dir" "provisioning lock for ${venv}"' in source
+    )
+    assert (
+        '_release_provision_lock "$lock_dir" \\\n'
+        '    "frontend provisioning lock for ${wt_root}"' in source
+    )
