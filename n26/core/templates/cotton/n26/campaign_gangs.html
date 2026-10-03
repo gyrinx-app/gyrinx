@@ -5,63 +5,55 @@ Lay counters, labels, and assets by position against the sheet's column lists, n
 A missing counter is None. Draw it as a dash, not a blank.
 Unlimited credits also draw as a dash.
 Every empty value is a dash, never a blank. A blank cell looks like a failed number.
+Each gang has a numeric line, followed by one indented grid of labels, assets, and actions.
+The detail grid has two columns on wide screens and one on phones.
 Name whose gang it is under the type. A campaign table holds several people's gangs.
 Credits link to Manage credits only where the line has credits_href. The view fills it as it does counter hrefs.
 Counter controls appear only where the line has an href. The view fills that for the arbitrator, and for a gang's owner on their own.
-The kit table wrapper scrolls sideways. Do not add a wrap, or a wide campaign will widen the page.
+On phones the gang heading, figures, and details stack within the viewport.
+At wider widths the kit table wrapper scrolls any extra numeric columns.
 Over budget is amber, not orange. Orange is what a waiting invitation wears on the same page.
 Starting rolls fetch with hx-swap none so a dialog opens.
 {% endcomment %}
 
 <c-vars :sheet="None" class="" />
+{% load platform_tags %}
 
-<c-ui.table class="{{ class }}">
-    <thead>
+<c-ui.table class="max-md:block {{ class }}">
+    <thead class="max-md:hidden">
         <tr>
-            <th scope="col">Gang</th>
+            <th scope="col" class="w-64">Gang</th>
             <th scope="col" class="text-right">Rating</th>
             <th scope="col" class="text-right">Credits</th>
             <th scope="col" class="text-right">Wealth</th>
             {% for name in sheet.counter_columns %}<th scope="col" class="text-right">{{ name }}</th>{% endfor %}
-            {% for name in sheet.label_columns %}<th scope="col">{{ name }}</th>{% endfor %}
-            {% for asset_type in sheet.asset_types %}<th scope="col">{{ asset_type.plural }}</th>{% endfor %}
         </tr>
     </thead>
-    <tbody>
-        {% for gang in sheet.gangs %}
-            <tr>
-                <td class="min-w-48">
+    {% for gang in sheet.gangs %}
+        <tbody class="border-b border-box-border last:border-b-0 max-md:block max-md:py-3">
+            <tr class="border-b-0! max-md:ml-6 max-md:grid max-md:grid-cols-3">
+                <th scope="rowgroup" class="w-64 min-w-48 max-w-64 align-top font-normal! whitespace-normal! max-md:col-span-3 max-md:-ml-6 max-md:w-auto max-md:min-w-0 max-md:max-w-none">
                     <div class="flex flex-col">
                         <span class="font-semibold text-ink-900 dark:text-ink-100">
                             <c-n26.link href="{{ gang.href }}" tone="current">
                                 <c-slot name="leading"><c-n26.color-swatch color="{{ gang.colour }}" /></c-slot>
                                 {{ gang.name }}
                             </c-n26.link>
-
-                            {% if gang.over_budget %}
-                                <span class="ml-1 inline-block align-middle">
-                                    <c-ui.badge color="amber" size="sm">Over budget</c-ui.badge>
-                                </span>
-                            {% endif %}
                         </span>
                         <span class="text-xs text-muted">{{ gang.gang_type }}{% if gang.owner %} · <c-n26.user-link :user="gang.owner" tone="current" />{% endif %}</span>
-
-                        {% for roll in gang.starting_rolls %}
-                            {% if roll.href %}
-                                <span class="mt-1">
-                                    {# The response opens a dialog. Swapping this fetch would replace the table. #}
-                                    <c-ui.button size="xs"
-                                                 variant="default"
-                                                 href="{{ roll.href }}"
-                                                 hx-get="{{ roll.href }}"
-                                                 hx-swap="none">{{ roll.label }}</c-ui.button>
-                                </span>
-                            {% endif %}
-                        {% endfor %}
+                        {% if gang.over_budget %}
+                            <span class="mt-1 self-start">
+                                <c-ui.badge color="amber" size="sm">Over budget</c-ui.badge>
+                            </span>
+                        {% endif %}
                     </div>
+                </th>
+                <td class="text-right tabular-nums whitespace-nowrap max-md:block max-md:text-left">
+                    <span class="block text-xs font-medium text-muted md:hidden">Rating</span>
+                    {{ gang.rating }}¢
                 </td>
-                <td class="text-right tabular-nums whitespace-nowrap">{{ gang.rating }}¢</td>
-                <td class="text-right tabular-nums whitespace-nowrap">
+                <td class="text-right tabular-nums whitespace-nowrap max-md:block max-md:text-left">
+                    <span class="block text-xs font-medium text-muted md:hidden">Credits</span>
                     {% if gang.credits_unlimited %}
                         <span class="text-muted">&mdash;</span>
                     {% elif gang.credits_href %}
@@ -70,9 +62,13 @@ Starting rolls fetch with hx-swap none so a dialog opens.
                         {{ gang.credits }}¢
                     {% endif %}
                 </td>
-                <td class="text-right tabular-nums whitespace-nowrap">{{ gang.wealth }}¢</td>
+                <td class="text-right tabular-nums whitespace-nowrap max-md:block max-md:text-left">
+                    <span class="block text-xs font-medium text-muted md:hidden">Wealth</span>
+                    {{ gang.wealth }}¢
+                </td>
                 {% for line in gang.counters %}
-                    <td class="text-right tabular-nums whitespace-nowrap">
+                    <td class="text-right tabular-nums whitespace-nowrap max-md:block max-md:text-left">
+                        <span class="block text-xs font-medium text-muted md:hidden">{{ sheet.counter_columns|get_item:forloop.counter0 }}</span>
                         {# None means this gang does not carry that counter. A blank cell would look like a failed number. #}
                         {% if line is None %}
                             <span class="text-muted">&mdash;</span>
@@ -82,21 +78,57 @@ Starting rolls fetch with hx-swap none so a dialog opens.
                         {% endif %}
                     </td>
                 {% endfor %}
-                {% for pick in gang.labels %}
-                    <td class="whitespace-nowrap">
-                        {% if pick %}{{ pick }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
-                    </td>
-                {% endfor %}
-                {% for names in gang.assets %}
-                    <td>
-                        {% if names %}
-                            {% for name in names %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}
-                        {% else %}
-                            <span class="text-muted">&mdash;</span>
-                        {% endif %}
-                    </td>
-                {% endfor %}
             </tr>
-        {% endfor %}
-    </tbody>
+            {% if gang.labels or gang.assets or gang.starting_rolls %}
+                <tr class="border-b-0! max-md:block">
+                    <td class="max-md:hidden"></td>
+                    <td colspan="{{ sheet.counter_columns|length|add:3 }}" class="pt-0! max-md:ml-6 max-md:block">
+                        <dl class="grid grid-cols-1 gap-x-6 gap-y-2 lg:grid-cols-2">
+                            {% for pick in gang.labels %}
+                                <div class="min-w-0">
+                                    <dt class="text-xs font-medium text-muted">{{ sheet.label_columns|get_item:forloop.counter0 }}</dt>
+                                    <dd class="whitespace-normal break-words">
+                                        {% if pick %}{{ pick }}{% else %}<span class="text-muted">&mdash;</span>{% endif %}
+                                    </dd>
+                                </div>
+                            {% endfor %}
+                            {% for names in gang.assets %}
+                                <div class="min-w-0">
+                                    <dt class="text-xs font-medium text-muted">{% with asset_type=sheet.asset_types|get_item:forloop.counter0 %}{{ asset_type.plural }}{% endwith %}</dt>
+                                    <dd class="whitespace-normal break-words">
+                                        {% if names %}
+                                            {% for name in names %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">&mdash;</span>
+                                        {% endif %}
+                                    </dd>
+                                </div>
+                            {% endfor %}
+                            {% for roll in gang.starting_rolls %}
+                                {% if roll.href %}
+                                    <div class="min-w-0">
+                                        <dt class="text-xs font-medium text-muted">Actions</dt>
+                                        <dd>
+                                            {# The response opens a dialog. Swapping this fetch would replace the table. #}
+                                            <c-ui.button size="sm"
+                                                         variant="text"
+                                                         class="py-0!"
+                                                         href="{{ roll.href }}"
+                                                         hx-get="{{ roll.href }}"
+                                                         hx-swap="none">
+                                                <span class="flex items-center gap-1">
+                                                    {{ roll.label }}
+                                                    <c-n26.icon name="arrow-right" class="size-3.5" />
+                                                </span>
+                                            </c-ui.button>
+                                        </dd>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </dl>
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    {% endfor %}
 </c-ui.table>

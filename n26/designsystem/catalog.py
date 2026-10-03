@@ -2271,14 +2271,15 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "Counters, labels and assets are laid out by position against "
-                    "the sheet's column lists, never by name, so a value lands "
-                    "under its heading by index. Every empty value draws a dash, "
+                    "Numeric counters stay in columns; labels, assets and actions "
+                    "share an indented grid beneath each gang. On phones the "
+                    "figures and details stack within the viewport. Match values "
+                    "to the sheet's heading lists by position, never by name. "
+                    "Every empty value draws a dash, "
                     "never a blank, which would look like a failed number. Counter "
                     "controls appear only where the line carries an address, which "
                     "the view fills for the arbitrator and for a gang's own owner. "
-                    "It sits in c-ui.table, which already scrolls sideways, so do "
-                    "not add another wrapper or a wide campaign widens the page."
+                    "At wider widths c-ui.table scrolls extra numeric columns."
                 ),
             ),
             Component(

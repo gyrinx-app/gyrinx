@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.view.campaign-sheet> — Draws the campaign screen: header, budget, gangs, assets, battles, log, and players.
+<c-n26.view.campaign-sheet> — Draws the campaign screen: header, budget, gangs, battles, assets, log, and players.
 
 Players, battles, and log are markup slots, not fields on the sheet.
 Declare those slots. An undeclared name resolves to the caller's variable of that name.
@@ -110,15 +110,15 @@ log_count may be markup: the campaign page passes a host that a roll update redr
         {% include "n26/includes/campaign_gangs.html" %}
     </c-n26.section>
 
-    {# Reads assets_actions from this component context. Removing that prop empties the include. #}
-    {% include "n26/includes/campaign_assets_section.html" %}
-
     <c-n26.section id="battles" title="Battles" count="{% if sheet.battles_fought %}{{ sheet.battles_fought }} recorded{% endif %}">
         {% if battles_actions.strip %}<c-slot name="actions">{{ battles_actions }}</c-slot>{% endif %}
         {{ battles }}
     </c-n26.section>
 
-    <c-n26.section id="log" title="Log">
+    {# Reads assets_actions from this component context. Removing that prop empties the include. #}
+    {% include "n26/includes/campaign_assets_section.html" %}
+
+    <c-n26.section id="log" title="Latest activity">
         {% if log_count.strip %}<c-slot name="count">{{ log_count }}</c-slot>{% endif %}
         {% if log_href or log_actions.strip %}
             <c-slot name="actions">
