@@ -288,19 +288,36 @@ work has exercised it. Start weekly with one unmerged migration PR at a time;
 increase frequency only if review is keeping up. It should propose small changes,
 never auto-merge or deploy. No schedule is installed by this PoC.
 
+When authoring templates have no Alpine left, the job continues with one
+page-local player interaction or shared control. It still ships a single
+reviewable PR and leaves kit-owned controls alone.
+
 A ready-to-use job prompt:
 
 > Read the repository instructions and load the n26-react skill. Check for an
-> open automated React migration PR; if one exists, stop. Check overlapping active
-> work and avoid those candidates. From the Alpine baseline, choose one small authoring
-> interaction with existing server contracts and supported design-system
-> primitives. Explain the boundary, migrate it without changing its behaviour,
-> remove the superseded Alpine code and lower the baseline. Run Python and React
-> tests, typechecking and the production build; check the real UI at phone and
-> desktop widths in both themes. Open one reviewable PR with the changed
-> interaction, test results and useful UI evidence. Do not change domain rules,
-> add broad APIs, merge, deploy, or work around missing access. If no safe
-> candidate exists, report the specific dependency and make no PR.
+> open automated React migration PR; if one exists, stop. Check overlapping
+> active work and avoid those candidates. From the Alpine baseline, choose one
+> small first-party interaction. Prefer a remaining authoring interaction. When
+> `n26/library/templates` has no Alpine, take the next documented step: one
+> player interaction or shared control whose Alpine owner is that template. It
+> must already have a server contract (a native form, a link, or an existing
+> endpoint) and be drawable with a supported primitive (`Button`, `Input`,
+> `Switch`, `SearchBar`, `FilterMenu`, `CheckboxCard`, `PickBox`, `PickLegend`,
+> `Dialog`, `Badge`, or an exported Cotton recipe). Prefer a template that owns
+> its `x-data`, such as `cotton/n26/share.html` or `n26/trade_points.html`, over
+> one that publishes values into a parent scope. Leave these until a smaller
+> owner is gone: `c-ui.mode-toggle`, `c-ui.drawer`, `c-ui.dropdown`,
+> `c-ui.popover`, `c-ui.tabs`, `c-n26.collection-picker`, `c-n26.range-menu`, and
+> any fragment swapped by htmx. A React primitive that does not submit `name`
+> and `value` does not replace a posting checkbox. Do not add a mode-toggle,
+> dropdown, or range menu in order to unlock a larger page. Explain the
+> boundary, migrate it without changing its behaviour, remove the superseded
+> Alpine code and lower the baseline. Run Python and React tests, typechecking
+> and the production build; check the real UI at phone and desktop widths in
+> both themes. Open one reviewable PR with the changed interaction, test
+> results and useful UI evidence. Do not change domain rules, add broad APIs,
+> merge, deploy, or work around missing access. If every remaining candidate
+> needs one of the deferred owners, report that dependency and make no PR.
 
 ## Framework references
 
