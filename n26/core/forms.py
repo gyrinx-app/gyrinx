@@ -941,7 +941,7 @@ class PoolRollForm(RollAssetForm):
     """Generate several unclaimed assets from one selected table."""
 
     count = forms.IntegerField(
-        required=False,
+        required=True,
         min_value=1,
         max_value=100,
         label="Number to roll",
@@ -954,15 +954,19 @@ class PoolRollForm(RollAssetForm):
         from uuid import uuid4
 
         super().__init__(*args, **kwargs)
+        # Missing quantity is the single-roll request contract. An explicit
+        # blank remains a required error.
+        if self.is_bound and "count" not in self.data:
+            self.data = self.data.copy()
+            self.data["count"] = 1
         self.fields["request_key"].initial = uuid4
 
     def clean(self):
         from uuid import uuid4
 
         data = super().clean()
-        data["count"] = data.get("count") or 1
         data["request_key"] = data.get("request_key") or uuid4()
-        if data["count"] > 1 and data.get("rolled") is not None:
+        if (data.get("count") or 0) > 1 and data.get("rolled") is not None:
             self.add_error("rolled", "Set the number to 1 to use your own roll.")
         return data
 

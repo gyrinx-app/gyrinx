@@ -1350,3 +1350,44 @@ class TestBatchPool:
         assert 'value="6"' in widget
         assert "Roll territories" in page
         assert "Add to pool" in page
+
+
+@pytest.mark.usefixtures("campaigns_open")
+class TestPoolReads:
+    def test_larger_batches_reuse_the_available_table_and_entries(
+        self, campaign, selection_table, arbitrator
+    ):
+        from uuid import uuid4
+
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.campaigns import campaign_operation
+
+        def reads(count):
+            with CaptureQueriesContext(connection) as captured:
+                with campaign_operation(campaign, actor=arbitrator) as op:
+                    op.roll_assets(
+                        selection_table,
+                        count=count,
+                        request_key=uuid4(),
+                        rolled=None,
+                        rng=random.Random(7),
+                    )
+            return sum(query["sql"].lstrip().startswith("SELECT") for query in captured)
+
+        reads(1)
+        assert reads(10) == reads(2)
+
+    def test_a_cleared_quantity_is_required_instead_of_generating_one_asset(
+        self, client, campaign, territory, selection_table, arbitrator
+    ):
+        client.force_login(arbitrator)
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {"type": str(territory.pk), "count": ""},
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code == 200
+        assert "This field is required." in response.content.decode()
+        assert not campaign.campaign_assets.exists()
