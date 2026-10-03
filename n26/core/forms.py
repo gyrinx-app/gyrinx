@@ -6,12 +6,14 @@ empty database. This is the real one: same fields, same words, but the
 gang types are the library's own.
 """
 
+from html.parser import HTMLParser
+
 from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 
 from n26.core.colours import GANG_COLOURS
-from n26.core.widgets import RichText
+from n26.core.widgets import CAMPAIGN_SUMMARY_CONFIG, RichText
 from n26.library.income import INCOME_HELP
 from n26.library.models import AssetType, CampaignType, GangType
 
@@ -411,6 +413,18 @@ class RenameFighterForm(forms.Form):
     name = forms.CharField(max_length=200, label="Name")
 
 
+class _SummaryImages(HTMLParser):
+    """Image sources in submitted HTML, without fetching any address."""
+
+    def __init__(self):
+        super().__init__()
+        self.sources = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "img":
+            self.sources.extend(value or "" for name, value in attrs if name == "src")
+
+
 class CampaignForm(forms.Form):
     """Setting a campaign up, and editing one afterwards.
 
@@ -441,12 +455,27 @@ class CampaignForm(forms.Form):
     summary = forms.CharField(
         required=False,
         label="Summary",
-        widget=RichText(),
+        widget=RichText(mce_attrs=CAMPAIGN_SUMMARY_CONFIG),
         help_text=(
             "What this campaign is, and anything the players have agreed. "
-            "Shown at the top of the campaign's page."
+            "Shown at the top of the campaign's page. Use the image button to insert "
+            "a public image URL. Pasting or uploading image files is not supported."
         ),
     )
+
+    def clean_summary(self):
+        summary = self.cleaned_data["summary"]
+        images = _SummaryImages()
+        images.feed(summary)
+        if any(
+            source.strip().lower().startswith(("data:", "blob:"))
+            for source in images.sources
+        ):
+            raise forms.ValidationError(
+                "Pasted image files cannot be saved. Use the image button to "
+                "insert a public image URL, or remove the image."
+            )
+        return summary
 
 
 def _foundable_campaign_types(include_staged=False):
