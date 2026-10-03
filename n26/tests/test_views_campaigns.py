@@ -578,9 +578,9 @@ class TestCampaignDashboardLayout:
             "Wealth",
         ]
         cells = re.findall(r"<td\b[^>]*>(.*?)</td>", table, re.S)
-        # The arbitrator's Credits figure links to Manage credits.
-        texts = [re.sub(r"<[^>]+>", "", cell).strip() for cell in cells[1:4]]
-        assert texts == ["125¢", "800¢", "1000¢"]
+        # Numeric cells include labels used when the header is hidden on phones.
+        texts = [" ".join(re.sub(r"<[^>]+>", "", cell).split()) for cell in cells[:3]]
+        assert texts == ["Rating 125¢", "Credits 800¢", "Wealth 1000¢"]
         assert_reconciled(gang)
 
     def test_gang_name_precedes_its_log_action(
@@ -600,14 +600,11 @@ class TestCampaignDashboardLayout:
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         assets = drawn.split('id="n26-campaign-assets"', 1)[1].split("</section>", 1)[0]
         assert 'id="assets"' in assets
-        assert re.search(
-            r'<h2 class="text-sm font-medium text-muted">\s*Assets', assets
-        )
         gangs = drawn.split('id="gangs"', 1)[1].split("</section>", 1)[0]
-        assert re.search(
-            r'<h2 class="text-lg font-semibold text-ink-900 dark:text-ink-100">\s*Gangs',
-            gangs,
-        )
+        asset_heading = re.search(r'<h2 class="([^"]+)">\s*Assets', assets)
+        gang_heading = re.search(r'<h2 class="([^"]+)">\s*Gangs', gangs)
+        assert asset_heading and gang_heading
+        assert asset_heading.group(1) == gang_heading.group(1)
         assert "Add asset type" in assets
         assert "Tables" in assets
 
