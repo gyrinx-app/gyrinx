@@ -840,6 +840,21 @@ class CampaignOperation:
             roll=rolled, dice=dice, table=table, campaign_asset=campaign_asset
         )
 
+    def roll_assets(self, table, *, count, request_key, rolled=None, rng=None):
+        """Generate an unclaimed pool together and record the submission."""
+        from n26.core.operations import Refusal
+
+        if not 1 <= count <= 100:
+            raise ValueError("Roll between 1 and 100 assets at a time.")
+        if not isinstance(request_key, UUID):
+            raise ValueError("An asset batch requires a UUID request mark.")
+        if count > 1 and rolled is not None:
+            raise Refusal("Set the number to 1 to use your own roll.")
+        if self.campaign.events.filter(batch=request_key).exists():
+            return []
+        self.batch = request_key
+        return [self.roll_asset(table, rolled=rolled, rng=rng) for _ in range(count)]
+
     def remove_asset(self, campaign_asset):
         """Take an asset nobody holds out of the campaign.
 

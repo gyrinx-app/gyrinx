@@ -391,8 +391,10 @@ def _rolling(campaign, sheet, asked):
     # Three per gang is the rulebook's figure for Territories. An asset
     # type the arbitrator declared has no such rule, so its dialog says
     # nothing about how many to generate.
-    label = table.label.lower()
-    lead = f"The rolled {label} will be added to the campaign as unclaimed."
+    label = table.plural.lower()
+    lead = (
+        f"Each rolled {table.label.lower()} will be added to the campaign as unclaimed."
+    )
     if table.label == TERRITORY:
         lead += (
             " The rules generate three per gang: "
@@ -405,6 +407,9 @@ def _rolling(campaign, sheet, asked):
         "action": reverse("n26-campaign-roll-asset", args=[campaign.pk]),
         "asset_type_id": asked,
         "label": label,
+        "default_count": max(sheet.territories_to_generate, 1)
+        if table.label == TERRITORY
+        else 1,
         "tables": table.tables,
         "only": table.tables[0] if len(table.tables) == 1 else None,
     }
@@ -457,15 +462,17 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
     value that is not one of the tables offered falls back to the first,
     so the cards still show one chosen and the script reads a known id.
     """
-    from n26.core.forms import RollAssetForm
+    from n26.core.forms import PoolRollForm, RollAssetForm
     from n26.library.models import AssetTable
 
     question = rolling or starting
     if question is not None:
         tables = question["tables"]
         if form is None:
-            form = RollAssetForm(
-                tables=AssetTable.objects.filter(pk__in=[t.table_id for t in tables])
+            form_class = PoolRollForm if rolling else RollAssetForm
+            form = form_class(
+                initial={"count": question.get("default_count", 1)},
+                tables=AssetTable.objects.filter(pk__in=[t.table_id for t in tables]),
             )
         chosen = str(form["table"].value() or "")
         if chosen not in {table.table_id for table in tables}:
@@ -530,7 +537,7 @@ def roll_asset(request, pk):
     GET reopens the dialog instead of acting.
     """
     from n26.core.campaigns import campaign_operation, tables_in_play
-    from n26.core.forms import RollAssetForm
+    from n26.core.forms import PoolRollForm
     from n26.core.operations import Refusal
 
     # Acts and leaves, or draws a dialog that names nobody.
@@ -545,17 +552,20 @@ def roll_asset(request, pk):
         .filter(asset_type=asset_type)
         .exclude(dice="")
     )
-    form = RollAssetForm(request.POST, tables=tables)
-    roll = None
+    form = PoolRollForm(request.POST, tables=tables)
+    rolls = None
     if form.is_valid():
         try:
             with campaign_operation(found, actor=request.user) as act:
-                roll = act.roll_asset(
-                    form.cleaned_data["table"], rolled=form.cleaned_data["rolled"]
+                rolls = act.roll_assets(
+                    form.cleaned_data["table"],
+                    count=form.cleaned_data["count"],
+                    request_key=form.cleaned_data["request_key"],
+                    rolled=form.cleaned_data["rolled"],
                 )
         except Refusal as refused:
             form.add_error(None, str(refused))
-    if roll is None:
+    if rolls is None:
         return _roll_refused(
             request,
             found,
@@ -563,10 +573,19 @@ def roll_asset(request, pk):
             again,
             lambda sheet: _rolling(found, sheet, str(asset_type.pk)),
         )
-    messages.success(
-        request,
-        f"Rolled {roll.roll}: {roll.campaign_asset} added to the campaign, unclaimed.",
-    )
+    if not rolls:
+        messages.info(request, "That selection was already rolled.")
+    elif len(rolls) == 1:
+        roll = rolls[0]
+        messages.success(
+            request,
+            f"Rolled {roll.roll}: {roll.campaign_asset} added to the campaign, unclaimed.",
+        )
+    else:
+        messages.success(
+            request,
+            f"Rolled {len(rolls)} {asset_type.plural.lower()}, added to the campaign unclaimed.",
+        )
     return _roll_made(request, found)
 
 
