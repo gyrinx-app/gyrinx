@@ -1,4 +1,5 @@
 ---
+name: dev-server
 description: |
   Knowledge about starting, stopping, and connecting to the Gyrinx dev server. Load this skill when
   you need to start the dev server, guide browser use to the right URL, check if the server is

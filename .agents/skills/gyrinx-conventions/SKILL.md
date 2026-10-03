@@ -1,4 +1,5 @@
 ---
+name: gyrinx-conventions
 description: |
   Established architectural conventions and patterns for the Gyrinx Django project. Load this skill
   when working on the Gyrinx codebase to ensure consistency with existing patterns. Useful for
