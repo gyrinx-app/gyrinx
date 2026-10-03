@@ -895,7 +895,12 @@ def mark_fighter(request, pk):
                 Status.RECOVERY,
             ):
                 op.release_capture(miniature, note="no longer captured")
-            op.set_status(miniature, status)
+            if status == Status.CAPTURED:
+                from n26.library.staged import sees_staged
+
+                op.capture(miniature, include_staged=sees_staged(request.user))
+            else:
+                op.set_status(miniature, status)
     except Refusal as refusal:
         messages.error(request, str(refusal))
         return redirect(back_url)

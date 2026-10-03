@@ -207,7 +207,7 @@ def find_slot(gang, key):
     raise Http404("No such choice")
 
 
-def _landing(request, gang, key, offer, op, here, back):
+def _landing(request, gang, key, offer, op, here, back, *, lasting_model=None):
     """Where a settled click goes, by way of the screen for whatever the
     pick itself brought, where any of it asks for one.
 
@@ -226,6 +226,8 @@ def _landing(request, gang, key, offer, op, here, back):
     derivation, and only once the pick has brought a screen: a click
     that brought nothing must not pay for it.
     """
+    if lasting_model is not None:
+        return reverse("n26-edit-fighter", args=[lasting_model.pk])
     if not offer.takes_several:
         return onward(request, gang, op, back)
     keys = arriving(request, gang, op)
@@ -561,7 +563,19 @@ def choose(request, pk, slot):
             found,
             offer,
             here=here,
-            land=lambda op: _landing(request, gang, slot, offer, op, here, back),
+            land=lambda op: _landing(
+                request,
+                gang,
+                slot,
+                offer,
+                op,
+                here,
+                back,
+                lasting_model=found.miniature
+                if found.slot.slot is not None
+                and found.slot.slot.slot_type.is_lasting_effect
+                else None,
+            ),
         )
 
     from n26.core.render import lift_landing
@@ -872,6 +886,7 @@ def settle_pick(
     if wanted is None:
         wanted = request.POST.get("thing", "")
     wanted = dropped or wanted
+    before_status = found.miniature.status if found.miniature is not None else None
     try:
         with operation(gang, actor=request.user) as op:
             picked = _write_pick(
@@ -884,7 +899,25 @@ def settle_pick(
         messages.error(request, str(refusal))
         return redirect(here)
     _record_pick(request, gang, offer, picked, dropped)
-    messages.success(request, _said_about(picked, offer, dropped))
+    if found.miniature is not None:
+        found.miniature.refresh_from_db(fields=["status"])
+    if (
+        picked is not None
+        and not dropped
+        and found.miniature is not None
+        and found.miniature.status != before_status
+    ):
+        from n26.core.status import label_for
+
+        label = label_for(
+            found.miniature.status,
+            found.miniature.membership.profile.profile_type.name == "Vehicle",
+        )
+        messages.success(
+            request, f"{picked.name}: {found.miniature.name} is now {label}."
+        )
+    else:
+        messages.success(request, _said_about(picked, offer, dropped))
     return redirect(land(op))
 
 
