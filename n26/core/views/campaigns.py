@@ -1878,8 +1878,9 @@ def new_asset(request, pk):
                 "value": str(asset_type.pk),
                 "label": asset_type.label_singular,
                 "description": (
-                    f"{asset_type.campaign_type} · "
-                    f"{asset_type.get_ownership_display().lower()}"
+                    "Owned by one gang at a time and can be transferred."
+                    if asset_type.is_holding
+                    else f"Each gang always has one of every {asset_type.label_singular} asset."
                 ),
                 "checked": str(asset_type.pk) == picked,
             }
