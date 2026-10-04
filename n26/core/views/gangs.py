@@ -93,7 +93,7 @@ def dashboard(request):
         request,
         "n26/dashboard.html",
         {
-            **_record_table_context(request),
+            **_record_table_context(request, campaigns_open=campaigns_open),
             "changelog": changelog_entries()[:5],
             "changelog_tag": CHANGELOG_TAG,
             "campaigns_open": campaigns_open,
@@ -132,7 +132,7 @@ def gangs(request):
     )
 
 
-def _record_table_context(request, everyone=False, per_page=None):
+def _record_table_context(request, everyone=False, per_page=None, campaigns_open=None):
     """The rows and facets <c-n26.record-table> needs: gangs — the
     viewer's own, or everybody's — narrowed by ``?q=`` when there is
     one, and the types present among what survives.
@@ -152,7 +152,7 @@ def _record_table_context(request, everyone=False, per_page=None):
     not a page anybody should be sent.
     """
     from gyrinx.querysets import search_queryset
-    from n26.core.models import Gang, Miniature
+    from n26.core.models import Campaign, CampaignMembership, Gang, Miniature
 
     query = request.GET.get("q", "").strip()
     listed = Gang.objects.filter(archived=False)
@@ -184,6 +184,31 @@ def _record_table_context(request, everyone=False, per_page=None):
         total = page.paginator.count
         pages = _pages(request, page) if page.paginator.num_pages > 1 else None
         found = page.object_list
+    found = list(found)
+    # An index may list everybody's public gangs. Only expose campaigns
+    # this reader runs or has accepted, and fetch all displayed links once.
+    campaigns = {}
+    from n26.flags import CAMPAIGNS, enabled
+
+    if campaigns_open is None:
+        campaigns_open = enabled(CAMPAIGNS, request.user)
+    if found and campaigns_open:
+        campaigns = {
+            membership.gang_id: membership.campaign
+            for membership in CampaignMembership.objects.filter(
+                gang__in=found,
+                left__isnull=True,
+                campaign__in=Campaign.objects.involving(request.user).filter(
+                    archived=False
+                ),
+            ).select_related("campaign")
+        }
+    for row in found:
+        campaign = campaigns.get(row.pk)
+        row.campaign_name = campaign.name if campaign else ""
+        row.campaign_href = (
+            reverse("n26-campaign", args=[campaign.pk]) if campaign else ""
+        )
     return {
         "gangs": found,
         "query": query,
@@ -337,6 +362,9 @@ def gang_sheet(request, pk):
     campaigns_open = link_model_cards(gang, sheet.models, request.user)
     dialog = None
     link_campaign(sheet.campaign, request.user)
+    unlimited_in_campaign = (
+        yours and gang.credits_unlimited and sheet.campaign is not None
+    )
     link_owners(sheet)
     # The offers the owner has dismissed come off every card and the
     # gang's own strip, whoever is reading: one query. Restore controls
@@ -453,6 +481,7 @@ def gang_sheet(request, pk):
                 gang, marking or ransoming, status_back
             ),
             "dialog": dialog,
+            "unlimited_in_campaign": unlimited_in_campaign,
         },
     )
 

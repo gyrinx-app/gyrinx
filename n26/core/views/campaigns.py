@@ -13,6 +13,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from n26.core.views.permissions import (
     _any_campaign_or_404,
@@ -958,6 +959,13 @@ def add_gang(request, pk):
                 # gang sheet should not have to work out which figures it
                 # added together.
                 gang.refresh_from_db()
+                if gang.credits_unlimited:
+                    messages.warning(
+                        request,
+                        f"{gang.name} uses unlimited credits. Its credit balance "
+                        "is not tracked. The gang owner can set a credits "
+                        "budget on the gang's Edit page.",
+                    )
                 if over_budget(found, gang):
                     messages.warning(
                         request,
@@ -985,6 +993,11 @@ def add_gang(request, pk):
         {
             "pk": str(row.pk),
             "name": row.name,
+            "href": reverse("n26-gang", args=[row.pk]),
+            "unlimited": row.credits_unlimited,
+            "budget_href": reverse("n26-edit-gang", args=[row.pk]) + "#starting-credits"
+            if row.credits_unlimited and row.owner_id == request.user.pk
+            else "",
             "owner": row.owner.username,
             # The person behind the name the arbitrator's rows draw. Which
             # badge follows it is the platform's to decide from the person,
