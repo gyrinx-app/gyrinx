@@ -7,6 +7,8 @@ deployed to Cloud Run. N26's TypeScript is built with Vite.
 
 ## What matters most in review
 
+For pull request reviews, use `.github/skills/code-review/SKILL.md` to select the relevant shared guidance and verify findings against the affected code.
+
 **N26 interactions use React.** Read `.agents/skills/n26-react/SKILL.md` and
 `docs/developing-gyrinx/react.md`. Prefer bounded conversion of touched Alpine
 interactions, with existing Cotton-derived React primitives. Static markup stays

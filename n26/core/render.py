@@ -11,6 +11,7 @@ number of queries regardless of how many models or how much kit — see
 """
 
 from dataclasses import dataclass, field, replace
+from datetime import date, datetime
 
 from django.utils.text import capfirst
 
@@ -281,6 +282,8 @@ class CounterLine:
     assignment_id: str = ""
     href: str = ""
     back: str = ""
+    #: Optional amount-entry screen, provided only for campaign controls.
+    adjust_href: str = ""
     #: Whether this is the XP counter, decided where the counter itself is
     #: to hand rather than re-derived from ``name`` — which is what a
     #: reader sees, and carries the counter's annotation with it, so an
@@ -1426,9 +1429,10 @@ class StashLine(SlotMarked):
 
 @dataclass(frozen=True)
 class CampaignAssetLine:
-    """One asset the gang has from its campaign, drawn as a row of its
-    own: what type of asset it is on the left, what this one is called on
-    the right.
+    """One asset the gang has from its campaign, before display grouping.
+
+    The individual name and income stay available for campaign tables and
+    comparison captures.
 
     ``type_label`` is the campaign type's own word for the class of thing
     — "Settlement", "Territory" — as the author wrote it, so it reads as
@@ -1451,6 +1455,40 @@ class CampaignAssetLine:
     income: int = 0
     provenance: Provenance = field(default_factory=Provenance)
     campaign_asset_id: str = ""
+
+    #: Populated for assets, so grouping uses the author's plural and the
+    #: actual type rather than merging unrelated types with the same label.
+    type_plural: str = ""
+    asset_type_id: str = ""
+
+
+@dataclass(frozen=True)
+class CampaignAssetGroup:
+    """One asset type's named holdings or possessions on a gang sheet."""
+
+    label: str
+    names: str
+    held: bool
+    provenance: Provenance = field(default_factory=Provenance)
+
+
+def group_campaign_assets(lines):
+    """One named list per type, with the shared xN convention."""
+    grouped = {}
+    for line in lines:
+        if line.type_plural:
+            grouped.setdefault(line.asset_type_id or line.type_plural, []).append(line)
+    return [
+        CampaignAssetGroup(
+            label=members[0].type_plural,
+            names=stacked_names(line.name for line in members),
+            held=any(line.campaign_asset_id for line in members),
+            provenance=members[0].provenance
+            if all(line.provenance == members[0].provenance for line in members)
+            else Provenance(),
+        )
+        for members in grouped.values()
+    ]
 
 
 @dataclass
@@ -1490,6 +1528,14 @@ class CampaignBlock:
     #: feature gets: the page behind these answers them with a 404.
     href: str = ""
     assets_href: str = ""
+
+    @property
+    def asset_groups(self):
+        return group_campaign_assets([*self.lines, *self.holdings])
+
+    @property
+    def other_lines(self):
+        return [line for line in self.lines if not line.type_plural]
 
 
 @dataclass
@@ -1795,6 +1841,8 @@ class CampaignAssetEntry:
     #: asset; the holding gang's owner hands over something they hold.
     transfer_label: str = "Transfer"
     remove_href: str = ""
+    #: Read-only details of this exact campaign holding.
+    href: str = ""
 
 
 @dataclass
@@ -1873,9 +1921,7 @@ class CampaignSheet:
     #: Where the arbitrator opens and writes asset tables. Empty for a
     #: reader who may not.
     tables_href: str = ""
-    #: How many territories the rules have the arbitrator generate for a
-    #: campaign of this many players: three each. Players, not gangs, since
-    #: the rules count people at the table; the arbitrator is not one.
+    #: Suggested unclaimed pool: three territories per active gang.
     territories_to_generate: int = 0
 
     def __post_init__(self):
@@ -3494,23 +3540,18 @@ def _campaign_keys(gang_card, membership):
     return frozenset(keys)
 
 
-def _asset_type_labels(assets):
-    """What each asset's type is called, keyed by the asset's id.
-
-    One query for the whole block, and none where the campaign gave no
-    asset. The asset type is not on the assignment's own fetch — widening
-    that would put another join on every assignment query in the app, for
-    a fact only this block reads.
-    """
+def _asset_types(assets):
+    """One read for the types and their authored plurals, however many assets."""
     from n26.library.models import Asset
 
     if not assets:
         return {}
-    return dict(
-        Asset.objects.filter(pk__in={asset.pk for asset in assets}).values_list(
-            "pk", "asset_type__label_singular"
-        )
-    )
+    return {
+        asset.pk: asset.asset_type
+        for asset in Asset.objects.filter(
+            pk__in={asset.pk for asset in assets}
+        ).select_related("asset_type")
+    }
 
 
 def _campaign_parts(gang_card, membership, keys, readings):
@@ -3555,26 +3596,32 @@ def _campaign_parts(gang_card, membership, keys, readings):
     return possessions, [line for line in counters if line.drawn]
 
 
-def _possession_lines(possessions, labels, provenance_of, income_for):
-    """Each possession as a row labelled with what sort of thing it is —
-    for an asset its type's own word, for anything else the kind's name."""
+def _possession_lines(possessions, types, provenance_of, income_for):
+    """Individual facts retained for campaign tables and comparison captures."""
     from n26.library.models import Asset
 
-    return [
-        CampaignAssetLine(
-            type_label=labels.get(
-                node.assignable.pk, capfirst(kind_of(node.assignable))
-            ),
-            name=node.name,
-            income=(
-                income_for(node.assignable, node.assignable)
-                if isinstance(node.assignable, Asset)
-                else 0
-            ),
-            provenance=provenance_of(node),
+    lines = []
+    for node in possessions:
+        asset_type = (
+            types.get(node.assignable.pk)
+            if isinstance(node.assignable, Asset)
+            else None
         )
-        for node in possessions
-    ]
+        lines.append(
+            CampaignAssetLine(
+                type_label=asset_type.label_singular
+                if asset_type
+                else capfirst(kind_of(node.assignable)),
+                type_plural=asset_type.plural if asset_type else "",
+                asset_type_id=str(asset_type.pk) if asset_type else "",
+                name=node.name,
+                income=income_for(node.assignable, node.assignable)
+                if asset_type
+                else 0,
+                provenance=provenance_of(node),
+            )
+        )
+    return lines
 
 
 def _income_reader(index):
@@ -3608,7 +3655,7 @@ def _campaign_block(gang_card, membership, keys, readings, index=None):
     if membership is None:
         return None
     possessions, counters = _campaign_parts(gang_card, membership, keys, readings)
-    labels = _asset_type_labels(
+    types = _asset_types(
         [node.assignable for node in possessions if isinstance(node.assignable, Asset)]
     )
     income_for = _income_reader(index)
@@ -3616,12 +3663,14 @@ def _campaign_block(gang_card, membership, keys, readings, index=None):
         name=membership.campaign.name,
         campaign_id=str(membership.campaign_id),
         lines=_possession_lines(
-            possessions, labels, _provenance_within(gang_card), income_for
+            possessions, types, _provenance_within(gang_card), income_for
         ),
         counters=counters,
         holdings=[
             CampaignAssetLine(
                 type_label=campaign_asset.asset.asset_type.label_singular,
+                type_plural=campaign_asset.asset.asset_type.plural,
+                asset_type_id=str(campaign_asset.asset.asset_type_id),
                 name=str(campaign_asset),
                 income=income_for(campaign_asset.asset, campaign_asset),
                 campaign_asset_id=str(campaign_asset.pk),
@@ -3629,6 +3678,29 @@ def _campaign_block(gang_card, membership, keys, readings, index=None):
             for campaign_asset in gang_card.holdings
         ],
     )
+
+
+def build_campaign_block(gang_card, *, index, computed):
+    """Campaign facts for a print, from the gang's existing derivation."""
+    from n26.core.models import CampaignMembership
+
+    membership = (
+        CampaignMembership.objects.filter(gang=gang_card.gang, left__isnull=True)
+        .select_related("campaign")
+        .first()
+    )
+    if membership is None:
+        return None
+    keys = _campaign_keys(gang_card, membership)
+    block = _campaign_block(
+        gang_card, membership, keys, list(computed.counters), index=index
+    )
+    block.choices = [
+        _choice_line(slot, GANG_SLOT_HOST)
+        for slot in computed.choices
+        if getattr(slot.anchor, "key", None) in keys
+    ]
+    return block
 
 
 def roster(gang):
@@ -4042,7 +4114,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     )
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
     from n26.core.effects import compute, counter_readings
-    from n26.core.models import CampaignMembership, CampaignParticipant
+    from n26.core.models import CampaignMembership
     from n26.library.income import boons_of, income_of
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.references import reading_sentences
@@ -4227,7 +4299,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
             CampaignAssetEntry(
                 campaign_asset_id=str(campaign_asset.pk),
                 name=str(campaign_asset),
-                asset_name=campaign_asset.asset.name if campaign_asset.name else "",
+                asset_name=str(campaign_asset.asset) if campaign_asset.name else "",
                 income=income_of(campaign_asset.asset),
                 boons=[
                     boon_said(modifier) for modifier in boons_of(campaign_asset.asset)
@@ -4261,16 +4333,13 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         ],
         assets=list(tables.values()),
         battles_fought=campaign.battles.count(),
-        territories_to_generate=TERRITORIES_PER_PLAYER
-        * campaign.participants.filter(
-            state=CampaignParticipant.State.ACCEPTED
-        ).count(),
+        territories_to_generate=TERRITORIES_PER_GANG * len(memberships),
     )
 
 
-#: How many territories the rules generate for each player at the table
+#: How many territories the rules generate for each gang
 #: when a campaign is set up.
-TERRITORIES_PER_PLAYER = 3
+TERRITORIES_PER_GANG = 3
 
 
 def boon_said(modifier):
@@ -4476,3 +4545,32 @@ def build_ledger(gang):
     return LedgerView(
         gang=gang.name, starting_credits=gang.starting_credits, lines=lines
     )
+
+
+@dataclass(frozen=True)
+class CampaignAssetDetails:
+    name: str
+    library_name: str
+    kind: str
+    created: datetime
+    income: int
+    boons: list[str]
+    holder: str
+    holder_href: str
+
+
+@dataclass(frozen=True)
+class CampaignAssetAction:
+    label: str
+    href: str
+    variant: str
+
+
+@dataclass(frozen=True)
+class CampaignAssetBattle:
+    title: str
+    date: date
+    href: str
+    gangs: str
+    outcome: str
+    transferred_to: str

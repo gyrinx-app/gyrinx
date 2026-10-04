@@ -604,6 +604,50 @@ def dialog_recipe():
     }
 
 
+def _tick_list_html(disabled):
+    """One group, one option, so the list's class strings can be read off."""
+    from django.template import Context, Template
+
+    from n26.core.render import ChoiceOffer, Choosable, ChoosableGroup
+
+    offer = ChoiceOffer(
+        label="Who is visiting",
+        groups=[
+            ChoosableGroup(
+                name="2 Trade Points each",
+                options=[Choosable(key="1", name="Vex")],
+            )
+        ],
+    )
+    flag = "True" if disabled else "False"
+    source = f'<c-n26.tick-list :offer="offer" name="visiting" :disabled="{flag}" />'
+    return Template(CottonCompiler().process(source)).render(Context({"offer": offer}))
+
+
+def tick_list_recipe():
+    """Class strings from the cotton tick list, enabled and shut."""
+    enabled = Elements(_tick_list_html(False)).elements
+    shut = Elements(_tick_list_html(True)).elements
+    wanted = ("div", "fieldset", "legend", "div", "label", "input", "span", "span")
+    found = [tag for tag, _attrs in enabled if tag in wanted]
+    # The two spans are the text wrap and the option name. Keep that order.
+    if tuple(found) != wanted:
+        raise ValueError(f"Cotton tick list structure changed: {found}")
+    picked = [attrs for tag, attrs in enabled if tag in wanted]
+    root, _fieldset, legend, options, label, control, text, name = picked
+    shut_label = next(attrs for tag, attrs in shut if tag == "label")
+    return {
+        "root": class_name(root),
+        "legend": class_name(legend),
+        "options": class_name(options),
+        "label": class_name(label),
+        "labelDisabled": class_name(shut_label),
+        "input": class_name(control),
+        "text": class_name(text),
+        "name": class_name(name),
+    }
+
+
 def button_link_by_size():
     """Link-button classes for every cotton size, including the text variants.
 
@@ -754,6 +798,7 @@ def recipes():
         "filterMenu": filter_menu_recipe(),
         "quickSwitcher": quick_switcher_recipe(),
         "pickList": pick_list_recipe(),
+        "tickList": tick_list_recipe(),
         "popover": {
             "panel": classes(
                 '<c-ui.popover panel_label="Help">Body</c-ui.popover>',

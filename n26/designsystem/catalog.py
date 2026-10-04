@@ -2418,7 +2418,7 @@ GROUPS: list[Group] = [
                         (
                             "The plus and minus that post a change of one on a "
                             "counter line, drawn only where that line carries an "
-                            "address."
+                            "address. An optional Adjust link opens amount entry."
                         ),
                     ),
                     Part(
@@ -2723,16 +2723,16 @@ GROUPS: list[Group] = [
                 tag="c-n26.site.announcement",
                 template="n26/site/announcement.html",
                 summary="A bar across the top of the site, carrying one message.",
-                needs=(ALPINE,),
                 notes=(
                     "It sits above the nav rather than inside it, so it pushes the "
                     "whole application down. tone is a data-tone attribute setting "
                     "the background, border, ink and icon together; pass "
-                    'icon="none" to draw no icon. A CTA needs both cta_text and '
-                    "cta_url, and the action slot holds extra controls, typically a "
-                    "form, which must stay outside the message span. Dismissing "
-                    "hides the bar for this visit only: on_dismiss is where a "
-                    "server call or a localStorage flag goes."
+                    'icon="none" to draw no icon, or any name from the icon '
+                    "registry. A CTA needs both cta_text and cta_url. The action "
+                    "slot holds extra controls, typically a form, and stays in "
+                    "the server markup with the message. Dismissing hides the "
+                    "bar for this visit. dismiss_url posts banner_id when the "
+                    "server should remember that."
                 ),
             ),
             Component(
@@ -2841,7 +2841,8 @@ GROUPS: list[Group] = [
                     "slot has to be filled, or Cotton draws the page's own Hire "
                     "controls beside the title. Put the switcher in trailing, not "
                     "leading: leading sits inside the h1 and is read as part of "
-                    "the page name. Pass activities_square only for the owner."
+                    "the page name. Pass activities_square only for the owner. "
+                    "The notice slot holds guidance below the header."
                 ),
             ),
             Component(

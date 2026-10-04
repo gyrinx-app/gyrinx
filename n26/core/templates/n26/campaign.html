@@ -29,15 +29,19 @@ reader's other campaigns — the same pattern a gang's screens use.
     <c-n26.view.campaign-sheet :sheet="sheet"
                                edit_href="{% if yours %}{% url 'n26-edit-campaign' campaign.pk %}{% endif %}"
                                log_href="{{ log_href }}">
+        {% if invitations %}
+            <c-slot name="invitation">
+                {% url "n26-campaign" campaign.pk as invitation_return %}
+                {% include "n26/includes/campaign_invitations.html" with back=invitation_return %}
+            </c-slot>
+        {% endif %}
         <c-slot name="log_count">
             {% include "n26/includes/campaign_log_count.html" %}
         </c-slot>
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="campaign.owner"
-                                     tone="current"
-                                     href="{% url 'n26-dashboard' %}" />
+                    <c-n26.user-link :user="campaign.owner" tone="current" />
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
@@ -46,9 +50,7 @@ reader's other campaigns — the same pattern a gang's screens use.
             </c-ui.breadcrumbs>
         </c-slot>
         <c-slot name="arbitrator">
-            <c-n26.user-link :user="campaign.owner"
-                             tone="current"
-                             href="{% url 'n26-dashboard' %}" />
+            <c-n26.user-link :user="campaign.owner" tone="current" />
         </c-slot>
         {% comment %}
         The reader's other campaigns, beside the name of this one — the same
@@ -86,7 +88,7 @@ reader's other campaigns — the same pattern a gang's screens use.
                                  variant="default"
                                  aria-label="Log a dice roll"
                                  href="{% url 'n26-campaign-record-roll' campaign.pk %}">
-                        <c-n26.icon name="dice-5" class="size-4" />
+                        <c-n26.icon name="dices" class="size-4" />
                     </c-ui.button>
                     <c-ui.dropdown>
                         <c-slot name="trigger">
@@ -111,7 +113,7 @@ reader's other campaigns — the same pattern a gang's screens use.
                              variant="default"
                              href="{% url 'n26-campaign-record-roll' campaign.pk %}">
                     <span class="flex items-center gap-2">
-                        <c-n26.icon name="dice-5" class="size-4" />
+                        <c-n26.icon name="dices" class="size-4" />
                         Log a dice roll
                     </span>
                 </c-ui.button>

@@ -1,0 +1,38 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}{{ person.username }}{% endblock %}
+{% block content %}
+    <div class="max-w-3xl space-y-8">
+        <c-n26.page-header title="{{ person.username }}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">Home</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        {{ person.username }}
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+            {% if may_invite %}
+                <c-slot name="actions">
+                    <c-ui.button variant="primary"
+                                 href="{% url 'n26-invite-user' person.pk %}">Invite to campaign</c-ui.button>
+                </c-slot>
+            {% endif %}
+        </c-n26.page-header>
+        <c-n26.form-section title="Gangs">
+            {% if gangs %}
+                <ul class="divide-y divide-box-border border-y border-box-border">
+                    {% for gang in gangs %}
+                        <li class="py-3">
+                            <c-n26.link href="{{ gang.href }}" class="font-semibold">
+                                {{ gang.name }}
+                            </c-n26.link>
+                            <p class="text-sm text-muted">{{ gang.gang_type }}</p>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-sm text-muted">No gangs to show.</p>
+            {% endif %}
+        </c-n26.form-section>
+    </div>
+{% endblock %}

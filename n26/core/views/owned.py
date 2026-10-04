@@ -62,7 +62,7 @@ from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse
 from django.shortcuts import render
 from django.urls import reverse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from n26.core.owned import (
     DIALOGS,
@@ -85,7 +85,7 @@ from n26.library.staged import sees_staged
 MOST_A_TALLY_MOVES = 1000
 
 
-def link_counters(card, back=""):
+def link_counters(card, back="", *, adjust=False):
     """Point every counter line on this card at what changes it.
 
     Costs no queries: the line already carries the assignment behind it,
@@ -107,6 +107,8 @@ def link_counters(card, back=""):
         if line.drawn and line.assignment_id:
             line.href = reverse("n26-tally", args=[line.assignment_id])
             line.back = back
+            if adjust:
+                line.adjust_href = with_query(line.href, back=back)
 
 
 def _possession_or_404(request, pk):
@@ -1320,7 +1322,7 @@ def refund_assignment(request, pk):
 
 
 @login_required
-@require_POST
+@require_http_methods(["GET", "POST"])
 def tally_counter(request, pk):
     """Move one counter up or down.
 
@@ -1334,7 +1336,8 @@ def tally_counter(request, pk):
     business. Only counters, though — every other assignment has verbs
     of its own, and none of them is a running number.
 
-    A step at a time. The rulebook's own acts move these by more — a
+    The GET form accepts one deliberate amount; the existing POST controls
+    still move one point. The rulebook's own acts move these by more — a
     Spyrer spends four Kill Count on Suit Evolution — and ``change``
     being signed and free is what lets one address serve both.
 
@@ -1344,6 +1347,7 @@ def tally_counter(request, pk):
     arbitrator as the actor so the gang's history says who did it.
     """
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.forms import CounterAdjustmentForm
     from n26.core.operations import Refusal, operation
     from n26.core.views.edit import render_card_update
     from n26.core.views.permissions import _campaign_counter_or_404
@@ -1355,13 +1359,48 @@ def tally_counter(request, pk):
     gang = assignment.gang_root
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
-    back = request.POST.get("back", "")[:500]
+    data = request.GET if request.method == "GET" else request.POST
+    back = data.get("back", "")[:500]
     here = reverse("n26-gang", args=[gang.pk])
+    adjusting = request.method == "GET" or "adjust" in request.POST
+    if adjusting:
+        back = _safe_redirect(request, back, here).url
+        form = CounterAdjustmentForm(
+            request.POST if request.method == "POST" else None,
+            maximum=MOST_A_TALLY_MOVES,
+        )
 
-    try:
-        change = int(request.POST.get("change", ""))
-    except ValueError:
-        raise Http404("Not a change to make") from None
+        def adjustment_page():
+            from n26.core.models import CounterValue
+
+            value = (
+                CounterValue.objects.filter(assignment=assignment)
+                .values_list("value", flat=True)
+                .first()
+                or 0
+            )
+            return render(
+                request,
+                "n26/adjust_counter.html",
+                {
+                    "form": form,
+                    "assignment": assignment,
+                    "gang": gang,
+                    "name": name,
+                    "value": value,
+                    "back": back,
+                    "maximum": MOST_A_TALLY_MOVES,
+                },
+            )
+
+        if request.method == "GET" or not form.is_valid():
+            return adjustment_page()
+        change = form.cleaned_data["change"]
+    else:
+        try:
+            change = int(request.POST.get("change", ""))
+        except ValueError:
+            raise Http404("Not a change to make") from None
     if not change or abs(change) > MOST_A_TALLY_MOVES:
         # Zero moves nothing, and writing an event to say so fills a
         # gang's history with rows that record nothing happening. The
@@ -1372,8 +1411,24 @@ def tally_counter(request, pk):
 
     try:
         with operation(gang, actor=request.user) as op:
+            if adjusting and change < 0:
+                from n26.core.models import CounterValue
+
+                value = (
+                    CounterValue.objects.filter(assignment=assignment)
+                    .values_list("value", flat=True)
+                    .first()
+                    or 0
+                )
+                if value == 0:
+                    raise Refusal(
+                        "This counter is already 0. Enter a positive amount to increase it."
+                    )
             standing = op.tally(assignment, change)
     except Refusal as refusal:
+        if adjusting:
+            form.add_error("change", str(refusal))
+            return adjustment_page()
         messages.error(request, str(refusal))
         if is_htmx(request):
             # Nothing moved, so nothing on the page is redrawn; the
@@ -1402,5 +1457,8 @@ def tally_counter(request, pk):
             miniature,
             back or reverse("n26-edit-fighter", args=[miniature.pk]),
         )
-    messages.success(request, f"{name} is now {standing}.")
+    if adjusting:
+        messages.success(request, f"{name}: recorded value is now {standing}.")
+    else:
+        messages.success(request, f"{name} is now {standing}.")
     return _safe_redirect(request, back, here)
