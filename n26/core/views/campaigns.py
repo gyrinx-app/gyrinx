@@ -1404,17 +1404,21 @@ def add_asset(request, pk):
     submitted = set(form["asset"].value() or [])
 
     def card(asset):
-        # The asset type and income under the name; a redisplay after a
-        # failed submit keeps the pick.
+        # Show the type only when the picker is not already narrowed to it.
+        # A redisplay after a failed submit keeps the pick.
         income = income_of(asset)
+        description = ", ".join(
+            part
+            for part in (
+                str(asset.asset_type) if asset_type is None else "",
+                f"Income {income}¢" if income else "",
+            )
+            if part
+        )
         return {
             "value": str(asset.pk),
             "label": str(asset),
-            "description": (
-                f"{asset.asset_type}, income {income}¢"
-                if income
-                else str(asset.asset_type)
-            ),
+            "description": description,
             "checked": str(asset.pk) in submitted,
             "name": form[f"name_{asset.pk}"].value() or ""
             if f"name_{asset.pk}" in form.fields
