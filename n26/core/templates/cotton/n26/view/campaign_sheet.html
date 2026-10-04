@@ -26,6 +26,7 @@ log_count may be markup: the campaign page passes a host that a roll update redr
     breadcrumb=""
     trailing=""
     share=""
+    invitation=""
     actions=""
     gangs_actions=""
     assets_actions=""
@@ -87,6 +88,8 @@ log_count may be markup: the campaign page passes a host that a roll update redr
                 <div class="flex flex-wrap items-center justify-end gap-2 md:ml-auto md:shrink-0">{{ players_actions }}{{ actions }}</div>
             {% endif %}
         </div>
+
+        {% if invitation.strip %}{{ invitation }}{% endif %}
 
         {% if sheet.summary %}
             <c-n26.prose>
