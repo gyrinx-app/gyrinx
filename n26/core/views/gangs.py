@@ -11,6 +11,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.safestring import mark_safe
+from django.views.decorators.http import require_POST
 
 from n26.core.status import Status
 from n26.core.status import explains as status_explains
@@ -93,7 +94,7 @@ def dashboard(request):
         request,
         "n26/dashboard.html",
         {
-            **_record_table_context(request),
+            **_record_table_context(request, campaigns_open=campaigns_open),
             "changelog": changelog_entries()[:5],
             "changelog_tag": CHANGELOG_TAG,
             "campaigns_open": campaigns_open,
@@ -132,7 +133,7 @@ def gangs(request):
     )
 
 
-def _record_table_context(request, everyone=False, per_page=None):
+def _record_table_context(request, everyone=False, per_page=None, campaigns_open=None):
     """The rows and facets <c-n26.record-table> needs: gangs — the
     viewer's own, or everybody's — narrowed by ``?q=`` when there is
     one, and the types present among what survives.
@@ -152,7 +153,7 @@ def _record_table_context(request, everyone=False, per_page=None):
     not a page anybody should be sent.
     """
     from gyrinx.querysets import search_queryset
-    from n26.core.models import Gang, Miniature
+    from n26.core.models import Campaign, CampaignMembership, Gang, Miniature
 
     query = request.GET.get("q", "").strip()
     listed = Gang.objects.filter(archived=False)
@@ -184,6 +185,31 @@ def _record_table_context(request, everyone=False, per_page=None):
         total = page.paginator.count
         pages = _pages(request, page) if page.paginator.num_pages > 1 else None
         found = page.object_list
+    found = list(found)
+    # An index may list everybody's public gangs. Only expose campaigns
+    # this reader runs or has accepted, and fetch all displayed links once.
+    campaigns = {}
+    from n26.flags import CAMPAIGNS, enabled
+
+    if campaigns_open is None:
+        campaigns_open = enabled(CAMPAIGNS, request.user)
+    if found and campaigns_open:
+        campaigns = {
+            membership.gang_id: membership.campaign
+            for membership in CampaignMembership.objects.filter(
+                gang__in=found,
+                left__isnull=True,
+                campaign__in=Campaign.objects.involving(request.user).filter(
+                    archived=False
+                ),
+            ).select_related("campaign")
+        }
+    for row in found:
+        campaign = campaigns.get(row.pk)
+        row.campaign_name = campaign.name if campaign else ""
+        row.campaign_href = (
+            reverse("n26-campaign", args=[campaign.pk]) if campaign else ""
+        )
     return {
         "gangs": found,
         "query": query,
@@ -277,9 +303,11 @@ def gang_sheet(request, pk):
     its own grid reaches. A fighter with no grid gets no control, which
     is a content gap showing rather than a screen being withheld.
     """
+    from django.template.response import TemplateResponse
+
     from n26.core.activities import activities_square, founding_blocks_visit
     from n26.core.card import build_gang_card
-    from n26.core.owned import DIALOGS, EquipHost
+    from n26.core.owned import DIALOGS, EquipHost, with_query
     from n26.core.render import render_gang
     from n26.core.views.choose import link_slots, settle_dismissed
     from n26.core.views.htmx import is_htmx
@@ -337,6 +365,18 @@ def gang_sheet(request, pk):
     campaigns_open = link_model_cards(gang, sheet.models, request.user)
     dialog = None
     link_campaign(sheet.campaign, request.user)
+    unlimited_in_campaign = (
+        yours and gang.credits_unlimited and sheet.campaign is not None
+    )
+    campaign_budget = None
+    if unlimited_in_campaign:
+        from n26.core.models import CampaignMembership
+
+        campaign_budget = (
+            CampaignMembership.objects.filter(gang=gang, left__isnull=True)
+            .values_list("campaign__budget", flat=True)
+            .first()
+        )
     link_owners(sheet)
     # The offers the owner has dismissed come off every card and the
     # gang's own strip, whoever is reading: one query. Restore controls
@@ -371,7 +411,10 @@ def gang_sheet(request, pk):
             # the model's own page; a campaign counter is drawn here and
             # nowhere else, so here is the only place its controls can be
             # offered. The gang's own counters stay settled facts.
-            link_counters(sheet.campaign, back=at)
+            link_counters(sheet.campaign, back=at, adjust=True)
+            for choice in sheet.campaign.choices:
+                if choice.href:
+                    choice.href = with_query(choice.href, dialog="campaign")
     # One question at a time: a URL naming two dialogs draws the leaving
     # one, because two open modals is not a state the page can mean.
     leaving = _leaving(request, gang) if yours else None
@@ -391,7 +434,7 @@ def gang_sheet(request, pk):
         and any(request.GET.get(kind) for kind in DIALOGS)
     ):
         dialog = owned_dialog(request, host)
-    return render(
+    return TemplateResponse(
         request,
         "n26/gang_sheet.html",
         {
@@ -453,6 +496,8 @@ def gang_sheet(request, pk):
                 gang, marking or ransoming, status_back
             ),
             "dialog": dialog,
+            "unlimited_in_campaign": unlimited_in_campaign,
+            "campaign_budget": campaign_budget,
         },
     )
 
@@ -1293,6 +1338,58 @@ def gang_notes(request, pk):
     headings.
     """
     return _written_page(request, pk, field="notes", template="n26/gang_notes.html")
+
+
+@login_required
+@require_POST
+def use_campaign_budget(request, pk):
+    """Apply the active campaign's current budget to this owner's gang."""
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.forms import EditGangForm
+    from n26.core.models import CampaignMembership
+    from n26.core.operations import NotEnoughCredits, operation
+    from n26.flags import CAMPAIGNS, enabled
+
+    if not enabled(CAMPAIGNS, request.user):
+        raise Http404("Campaigns are not available")
+    gang = _own_gang_or_404(request, pk)
+    membership = (
+        CampaignMembership.objects.filter(
+            gang=gang, left__isnull=True, campaign__archived=False
+        )
+        .select_related("campaign")
+        .first()
+    )
+    if membership is None or membership.campaign.budget is None:
+        raise Http404("No campaign budget")
+    form = EditGangForm(
+        gang,
+        {
+            "name": gang.name,
+            "colour": gang.colour,
+            "starting_credits": membership.campaign.budget,
+        },
+    )
+    if not form.is_valid():
+        for error in form.errors.get("starting_credits", []):
+            messages.error(request, error)
+        return redirect(reverse("n26-edit-gang", args=[gang.pk]) + "#starting-credits")
+    try:
+        with operation(gang, actor=request.user) as op:
+            op.set_budget(form.cleaned_data["starting_credits"])
+            op.settle()
+    except NotEnoughCredits as refusal:
+        messages.error(request, str(refusal))
+        return redirect(reverse("n26-edit-gang", args=[gang.pk]) + "#starting-credits")
+    record(
+        request,
+        N26Noun.GANG,
+        EventVerb.UPDATE,
+        gang,
+        starting_credits=gang.starting_credits,
+    )
+    messages.success(request, f"Credits budget set to {gang.starting_credits}¢.")
+    return redirect("n26-gang", pk=gang.pk)
 
 
 @login_required

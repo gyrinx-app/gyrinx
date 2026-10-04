@@ -41,7 +41,10 @@ def test_campaign_controls_include_link_image_and_table_without_global_changes()
     configured = CampaignForm().fields["summary"].widget.mce_attrs
     assert set(configured["plugins"].split()) >= {"link", "image", "table"}
     assert set(configured["toolbar"].split()) >= {"link", "image", "table"}
-    assert configured["paste_data_images"] is False
+    assert configured["paste_data_images"] is True
+    assert configured["automatic_uploads"] is True
+    assert configured["setup"] == "n26CampaignImages"
+    assert "/tinymce/upload/" in configured["images_upload_handler"]
     assert configured["menubar"] is False
     assert not RichText().mce_attrs.get("toolbar")
 
@@ -78,7 +81,10 @@ def test_unsavable_pasted_images_show_an_error_and_preserve_the_previous_summary
         },
     )
     assert response.status_code == 200
-    assert "Pasted image files cannot be saved." in response.content.decode()
+    assert (
+        "Finish uploading each image before saving, or remove it."
+        in response.content.decode()
+    )
     campaign.refresh_from_db()
     assert campaign.summary == ""
     assert list(campaign.events.values_list("kind", flat=True)) == [
@@ -115,3 +121,76 @@ def test_only_the_arbitrator_can_change_the_summary(client, campaign):
     assert response.status_code in {403, 404}
     campaign.refresh_from_db()
     assert campaign.summary == ""
+
+
+def test_uploaded_image_url_survives_summary_save_edit_and_render(
+    client, campaign, settings
+):
+    import base64
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    settings.STORAGES = {
+        **settings.STORAGES,
+        "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    }
+    image = SimpleUploadedFile(
+        "summary.png",
+        base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=="
+        ),
+        content_type="image/png",
+    )
+    response = client.post("/tinymce/upload/", {"file": image})
+    assert response.status_code == 200
+    location = response.json()["location"]
+    assert location.startswith("/media/")
+    content = f'<p>Cycle one</p><p><img src="{location}" alt="Campaign map"></p>'
+    edit = reverse("n26-edit-campaign", args=[campaign.pk])
+    assert (
+        client.post(
+            edit, {"name": campaign.name, "budget": "", "summary": content}
+        ).status_code
+        == 302
+    )
+    campaign.refresh_from_db()
+    assert campaign.summary == content
+    assert client.get(edit).context["form"].initial["summary"] == content
+    assert (
+        location
+        in client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
+    )
+
+
+def test_compact_description_keeps_full_rich_text_in_disclosure_and_popover(
+    client, campaign
+):
+    client.post(
+        reverse("n26-edit-campaign", args=[campaign.pk]),
+        {"name": campaign.name, "budget": "1000", "summary": CONTENT},
+    )
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+    soup = BeautifulSoup(response.content, "html.parser")
+    overview = soup.find(id="campaign-overview")
+    assert overview.find("dt", string="Type")
+    assert overview.find("dt", string="Arbitrator")
+    assert overview.find("dt", string="Gang budget")
+    popover = overview.find(attrs={"popover": "auto"})
+    assert overview.find("button", attrs={"popovertarget": popover["id"]})
+    disclosure = overview.find("details")
+    assert disclosure.find("summary")
+    assert not disclosure.has_attr("open")
+    for full in [disclosure, popover]:
+        assert full.find("a", href="https://example.com/campaign-pack")
+        assert full.find("img", src="https://example.com/map.png")
+        assert full.find("td", string="Border dispute")
+
+
+def test_empty_description_does_not_offer_an_empty_popover(client, campaign):
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+    overview = BeautifulSoup(response.content, "html.parser").find(
+        id="campaign-overview"
+    )
+    assert "No description yet." in overview.get_text()
+    assert not overview.find("details")
+    assert not overview.find(attrs={"popover": True})

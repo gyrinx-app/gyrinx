@@ -15,6 +15,7 @@ that would take a gang out refuses in words.
 """
 
 import pytest
+from bs4 import BeautifulSoup
 from django.apps import apps
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -294,7 +295,13 @@ class TestTheGangSheet:
         assert "Dust Falls" in body
         assert "Settlement" in body
         assert "Reputation" in body
-        assert "From Territory campaign (campaign type)" in body
+        state = BeautifulSoup(body, "html.parser").find(id="n26-campaign-state")
+        heading = state.find("h2")
+        assert (
+            heading.get_text(" ", strip=True)
+            == f"Campaign · {membership.campaign.name}"
+        )
+        assert "Settlements" in state.get_text()
 
 
 class TestEditingTheTypeReachesMemberGangs:

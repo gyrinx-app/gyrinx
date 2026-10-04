@@ -25,7 +25,7 @@ from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.history import build, campaign_history
-from n26.core.models import CampaignEvent, LedgerEvent
+from n26.core.models import CampaignAsset, CampaignEvent, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
@@ -423,6 +423,22 @@ class TestAnAsset:
         ]
         assert entry.held
 
+    @pytest.mark.parametrize("name", ["", "The drowned sump"])
+    def test_annotated_holdings_keep_their_display_name_on_the_gang_and_history(
+        self, campaign, core, gang, name
+    ):
+        territory = core.asset_types.get(label_singular="Territory")
+        made = create_campaign_asset(
+            campaign, territory, "Sump Hole", annotation="flooded"
+        )
+        assign_asset(add_asset(campaign, made, name=name), gang)
+        expected = name or "Sump Hole (flooded)"
+
+        assert [line.name for line in render_gang(gang).campaign.holdings] == [expected]
+        assert expected in sentences(campaign_history(campaign))[-1]
+        assert expected in sentences(build(gang))[-1]
+        assert_reconciled(gang)
+
     def test_it_can_be_under_the_arbitrators_own_asset_type(self, campaign):
         racket = add_campaign_asset_type(campaign, "Racket")
         made = create_campaign_asset(campaign, racket, "Protection", income=10)
@@ -759,23 +775,17 @@ class TestALabel:
         (question,) = sheet.campaign.choices
         assert bool(house.href) == bool(question.href) == owner
         page = BeautifulSoup(response.content, "html.parser")
-        details = next(
-            dl for dl in page.find_all("dl") if campaign.name in dl.get_text()
-        )
-        rows = list(details.find_all("div", recursive=False))
-        heading = next(
-            i for i, row in enumerate(rows) if campaign.name in row.get_text()
-        )
-        faction_rows = [
-            i for i, row in enumerate(rows) if row.find("dt", string="Faction")
-        ]
+        campaign_state = page.find(id="n26-campaign-state")
+        assert campaign.name in campaign_state.find("h2").get_text()
+        faction_rows = [dt.parent for dt in page.find_all("dt", string="Faction")]
         assert len(faction_rows) == 2
-        assert faction_rows[0] < heading < faction_rows[1]
-        campaign_row = rows[faction_rows[1]]
+        personal_row, campaign_row = faction_rows
+        assert not personal_row.find_parent(id="n26-campaign-state")
+        assert campaign_row.find_parent(id="n26-campaign-state")
+        assert ("Nomads" if answered else "—") in campaign_row.get_text()
         assert (
-            "Nomads" if answered else "Choose" if owner else "—"
-        ) in campaign_row.get_text()
-        assert bool(campaign_row.find("a")) == owner
+            bool(campaign_row.find("a", attrs={"aria-label": "Edit Faction"})) == owner
+        )
         dismiss = reverse("n26-dismiss-offer", args=[gang.pk, question.key])
         assert bool(campaign_row.find("form", action=dismiss)) == (
             owner and not answered
@@ -932,9 +942,7 @@ class TestTheArbitratorsControlsOnThePage:
     def test_the_arbitrator_sees_the_controls_and_a_player_does_not(
         self, client, campaign, gang
     ):
-        """What the arbitrator adds shows where it lands — a counter as a
-        column of the gangs table — and the controls that add more sit on
-        those headings, for the arbitrator alone."""
+        """Counters stay on the gang table; their management opens from Edit."""
         add_campaign_counter(campaign, "Meat", opening=3)
         page = reverse("n26-campaign", args=[campaign.pk])
 
@@ -942,17 +950,24 @@ class TestTheArbitratorsControlsOnThePage:
         body = client.get(page).content.decode()
         assert 'id="additions"' not in body
         assert "Meat" in body
-        for name in (
-            "n26-campaign-add-asset-type",
-            "n26-campaign-add-counter",
-            "n26-campaign-add-label",
-        ):
-            assert reverse(name, args=[campaign.pk]) in body
+        assert reverse("n26-campaign-add-asset-type", args=[campaign.pk]) in body
+        settings = (
+            reverse("n26-edit-campaign", args=[campaign.pk])
+            + "?tab=counters-and-labels"
+        )
+        assert settings in body
+        for name in ("n26-campaign-add-counter", "n26-campaign-add-label"):
+            assert reverse(name, args=[campaign.pk]) not in body
+        settings_body = client.get(settings).content.decode()
+        for name in ("n26-campaign-add-counter", "n26-campaign-add-label"):
+            assert reverse(name, args=[campaign.pk]) in settings_body
         assert reverse("n26-campaign-new-asset", args=[campaign.pk]) + "?type=" in body
 
         client.force_login(gang.owner)
         body = client.get(page).content.decode()
         assert "Meat" in body
+        assert settings not in body
+        assert client.get(settings).status_code == 404
         for name in (
             "n26-campaign-add-asset-type",
             "n26-campaign-add-counter",
@@ -1005,13 +1020,56 @@ class TestTheArbitratorsControlsOnThePage:
             {
                 "asset_type": str(territory.pk),
                 "name": "Sump Hole",
-                "annotation": "",
+                "annotation": "flooded",
                 "income": "15",
             },
         )
         assert response.status_code == 302
         made = Asset.objects.get(name="Sump Hole")
         assert made.pack == campaign.pack and made.income == 15
+        holding = CampaignAsset.objects.get(campaign=campaign, asset=made)
+        assert holding.holder is None
+        sheet = render_campaign(campaign)
+        (entry,) = next(
+            table for table in sheet.assets if table.asset_type_id == str(territory.pk)
+        ).entries
+        assert entry.name == "Sump Hole (flooded)"
+        assert entry.income == 15
+        html = client.get(response["Location"]).content.decode()
+        assert "Sump Hole (flooded)" in html
+        assert "15¢" in html
+
+    def test_the_campaign_hides_add_until_a_holding_is_available(
+        self, client, arbitrator
+    ):
+        basic = create_campaign_type("Empty holdings")
+        kind = add_asset_type(basic, "Cache", AssetType.Ownership.HOLDING)
+        campaign = found_campaign("New table", basic, owner=arbitrator)
+        client.force_login(arbitrator)
+        url = reverse("n26-campaign", args=[campaign.pk])
+        add = reverse("n26-campaign-add-asset", args=[campaign.pk]) + f"?type={kind.pk}"
+        assert add not in client.get(url).content.decode()
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.create_asset(kind, "Sump cache")
+        assert add in client.get(url).content.decode()
+
+    def test_an_empty_asset_catalogue_offers_a_next_step_instead_of_a_submit(
+        self, client, arbitrator
+    ):
+        basic = create_campaign_type("Empty campaign")
+        campaign = found_campaign("New table", basic, owner=arbitrator)
+        client.force_login(arbitrator)
+        response = client.get(reverse("n26-campaign-add-asset", args=[campaign.pk]))
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert "Nothing to add" in soup.get_text()
+        assert soup.select('button[type="submit"]') == []
+        assert (
+            reverse("n26-campaign-add-asset-type", args=[campaign.pk])
+            in response.content.decode()
+        )
+        assert soup.select('input[name="name"]') == []
 
     def test_a_refusal_lands_on_the_form(self, client, campaign):
         add_campaign_counter(campaign, "Meat")
@@ -1282,7 +1340,7 @@ class TestTheArbitratorTallies:
         client.force_login(campaign.owner)
         page = reverse("n26-campaign", args=[campaign.pk])
         body = client.get(page).content.decode()
-        assert "Add one to Reputation" in body
+        assert "Edit Reputation" in body
 
         response = client.post(
             reverse("n26-tally", args=[self.reputation_of(gang).assignment_id]),
@@ -1303,7 +1361,7 @@ class TestTheArbitratorTallies:
         client.force_login(rival.owner)
         body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
         # Their own row carries the control; the other gang's does not.
-        assert body.count("Add one to Reputation") == 1
+        assert body.count("Edit Reputation") == 1
         response = client.post(
             reverse("n26-tally", args=[self.reputation_of(gang).assignment_id]),
             {"change": "1"},

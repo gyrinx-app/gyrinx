@@ -8,8 +8,10 @@ import re
 from importlib import import_module
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import Group, User
 from django.test import Client
+from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.models import (
@@ -327,11 +329,10 @@ class TestSettingOneUp:
         assert not Campaign.objects.exists()
 
     def test_the_page_names_the_type(self, client, campaign, open_to_everyone):
-        """The type it was founded on leads the header, beside who runs
-        it, and has no row of its own in the facts strip."""
+        """The description card names the type and who runs the campaign."""
         body = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         assert "Territory campaign" in body
-        assert "Arbitrator:" in body
+        assert "Arbitrator:" not in body
         assert "Campaign type" not in body
 
     def test_the_form_opens_with_a_thousand_credit_budget(
@@ -550,7 +551,7 @@ class TestCampaignDashboardLayout:
         assert "Held" not in figures
         assert "Unclaimed" not in figures
         assert "Cycles" not in figures
-        assert "Arbitrator:" in drawn
+        assert "Arbitrator:" not in drawn
 
     @pytest.mark.parametrize("owner", [True, False])
     def test_players_follow_battles_and_log_for_every_reader(
@@ -596,6 +597,36 @@ class TestCampaignDashboardLayout:
         texts = [" ".join(re.sub(r"<[^>]+>", "", cell).split()) for cell in cells[:3]]
         assert texts == ["Rating 125¢", "Credits 800¢", "Wealth 1000¢"]
         assert_reconciled(gang)
+
+    def test_labels_use_full_width_rows_without_adding_numeric_columns(
+        self, client, campaign, arbitrator, gang_type, open_to_everyone
+    ):
+        from n26.tests.sandbox.actions import add_campaign_label, join_campaign
+
+        gang = found_gang("The Ashen Choir", gang_type, owner=arbitrator)
+        join_campaign(gang, campaign)
+        for name in ["Alignment", "Campaign objective"]:
+            add_campaign_label(campaign, name, ["Unset", "Selected"], actor=arbitrator)
+        response = client.get(f"/n26/campaigns/{campaign.pk}/")
+        table = (
+            BeautifulSoup(response.content, "html.parser")
+            .find(id="n26-campaign-gangs")
+            .find("table")
+        )
+        headings = table.thead.find_all("th")
+        assert not {"Alignment", "Campaign objective"} & {
+            heading.get_text(strip=True) for heading in headings
+        }
+        details = {
+            row.th.get_text(strip=True): row
+            for row in table.tbody.find_all("tr", recursive=False)[1:]
+        }
+        for name in ["Alignment", "Campaign objective"]:
+            row = details[name]
+            assert row.th["scope"] == "row"
+            assert len(row.find_all(["th", "td"], recursive=False)) == 2
+            assert int(row.td["colspan"]) == len(headings) - 1
+            assert row.td.get_text(strip=True) == "—"
 
     def test_gang_name_precedes_its_log_action(
         self, client, campaign, arbitrator, gang_type, open_to_everyone
@@ -1272,14 +1303,12 @@ class TestAnsweringAnInvitation:
             CampaignParticipant.State.DECLINED
         )
 
-    def test_answering_lands_back_where_the_reader_was(
-        self, client, theirs, open_to_everyone
-    ):
+    def test_accepting_opens_the_campaign(self, client, theirs, open_to_everyone):
         response = client.post(
             f"/n26/campaigns/{theirs.pk}/invitation/",
             {"answer": "accept", "next": "/n26/"},
         )
-        assert response["Location"] == "/n26/"
+        assert response["Location"] == f"/n26/campaigns/{theirs.pk}/"
 
     def test_it_will_not_be_sent_somewhere_else(self, client, theirs, open_to_everyone):
         """The address to return to arrives in a form, so it is checked."""
@@ -1287,7 +1316,7 @@ class TestAnsweringAnInvitation:
             f"/n26/campaigns/{theirs.pk}/invitation/",
             {"answer": "accept", "next": "https://example.test/"},
         )
-        assert response["Location"] == "/n26/campaigns/"
+        assert response["Location"] == f"/n26/campaigns/{theirs.pk}/"
 
     def test_somebody_never_asked_gets_404(
         self, client, arbitrator, campaign_type, open_to_everyone
@@ -1338,7 +1367,8 @@ class TestWhatAParticipantSees:
         drawn = client.get("/n26/campaigns/").content.decode()
         # The name is drawn through <c-n26.user-link>, which wraps it so the
         # badge the arbitrator holds can follow it.
-        assert re.search(r"arbitrated by <span[^>]*>kesh<", drawn)
+        assert re.search(r"arbitrated by <a[^>]*><span[^>]*>kesh<", drawn)
+        assert reverse("n26-user-profile", args=[theirs.owner.username]) in drawn
         assert f"/n26/campaigns/{theirs.pk}/edit/" not in drawn
 
     def test_a_question_still_waiting_is_not_one_of_their_campaigns(

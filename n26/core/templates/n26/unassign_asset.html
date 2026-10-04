@@ -14,7 +14,7 @@ POST is the act.
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-asset-unassign' campaign.pk campaign_asset.pk %}"
+    <c-n26.form-page action="{{ action }}"
                      title="Unassign {{ campaign_asset }} from {{ campaign_asset.holder.gang.name }}?"
                      submit_label="Unassign"
                      submit_variant="danger"
@@ -22,9 +22,7 @@ POST is the act.
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="campaign.owner"
-                                     tone="current"
-                                     href="{% url 'n26-dashboard' %}" />
+                    <c-n26.user-link :user="campaign.owner" tone="current" />
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
@@ -34,11 +32,6 @@ POST is the act.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-ui.alert variant="warning" title="The asset becomes unclaimed">
-            {{ campaign_asset.holder.gang.name }} stops holding this {{ campaign_asset.type_label }}.
-            Anything the {{ campaign_asset.type_label }} gave the gang stops as well. The
-            gang's history and the campaign's log both record it, and the
-            {{ campaign_asset.type_label }} can be assigned again.
-        </c-ui.alert>
+        {% include "n26/includes/campaign_unassign_summary.html" %}
     </c-n26.form-page>
 {% endblock content %}

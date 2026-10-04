@@ -354,7 +354,7 @@ class TestTheCampaignPage:
         body = client.get(
             reverse("n26-campaign-add-asset", args=[campaign.pk])
         ).content.decode()
-        assert "income 30¢" in body
+        assert "Income 30¢" in body
 
     def test_income_cannot_be_added_again_as_the_arbitrators_counter(self, campaign):
         from n26.core.operations import Refusal

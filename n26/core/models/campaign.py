@@ -397,7 +397,7 @@ class CampaignAsset(Base):
         ]
 
     def __str__(self):
-        return self.name or self.asset.name
+        return self.name or str(self.asset)
 
     @property
     def held(self):

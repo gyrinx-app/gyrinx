@@ -386,10 +386,10 @@ class TestTheNamesOnACampaign:
         player(table, "vex")
 
         body = client.get(f"/n26/campaigns/{table.pk}/").content.decode()
-        named = re.search(r"<span[^>]*font-medium[^>]*>vex<", body)
+        named = re.search(r"<a[^>]*font-medium[^>]*><span[^>]*>vex<", body)
         assert named
         assert FLAIR_WRAPPER in body[named.end() : named.end() + 400]
-        assert not re.search(r"<span[^>]*font-medium[^>]*>patron<", body)
+        assert not re.search(r"<a[^>]*font-medium[^>]*><span[^>]*>patron<", body)
 
     def test_the_log_page_reads_the_badges_once_for_everybody(
         self, table, player, client
@@ -763,7 +763,8 @@ class TestTheNamesOnACampaign:
 
         body = client.get("/n26/campaigns/").content.decode()
         invitations = body[body.index(">Invitations<") :]
-        assert re.search(r"from\s*<span[^>]*>patron<", invitations)
+        assert re.search(r"from\s*<a[^>]*><span[^>]*>patron<", invitations)
+        assert reverse("n26-user-profile", args=[table.owner.username]) in invitations
         assert badge_svg(GUILDER).strip() in invitations
 
     def test_the_list_reads_the_badges_once_for_every_invitation(

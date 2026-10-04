@@ -1502,6 +1502,8 @@ GROUPS: list[Group] = [
                 template="n26/section.html",
                 summary="A titled block of a page, with an optional count and controls.",
                 notes=(
+                    "Pass :boxed to give the section a card and a compact header; "
+                    "pass :flush for tables that provide their own cell padding. "
                     "The title renders as an h2, the same rank c-n26.form-section "
                     "gives a form's groups, so a detail section and a form group "
                     "read at the same rank. The count sits inside the heading, so "
@@ -2233,9 +2235,9 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
-                    "It emits a heading and facts rather than its own container, so "
-                    "it must sit inside a c-n26.detail-list, and class lands on "
-                    "every heading and fact. An asset's line is labelled with the "
+                    "It owns a roster card and appears before the gang activities. "
+                    "Each counter and label occupies a separate row. "
+                    "An asset's line is labelled with the "
                     "campaign type's word for its asset type. A holding links to "
                     "the campaign's assets, because another gang may hold it next, "
                     "and adds nothing to the gang's rating. Counter controls draw "
@@ -2271,8 +2273,9 @@ GROUPS: list[Group] = [
                 needs=(ALPINE, KIT_JS),
                 notes=(
                     "Numeric counters stay in columns; labels, assets and actions "
-                    "share an indented grid beneath each gang. On phones the "
-                    "figures and details stack within the viewport. Match values "
+                    "have labelled rows beneath each gang, with values spanning "
+                    "the remaining columns. On phones the figures form a grid "
+                    "and details keep labels beside values. Match values "
                     "to the sheet's heading lists by position, never by name. "
                     "Every empty value draws a dash, "
                     "never a blank, which would look like a failed number. Counter "
@@ -2289,9 +2292,11 @@ GROUPS: list[Group] = [
                     "Every asset of one asset type, showing who holds each and its "
                     "available actions."
                 ),
-                needs=(ALPINE, KIT_JS),
+                needs=(KIT_JS,),
                 notes=(
-                    "Call it once per transferable asset type. A control is drawn "
+                    "Call it once per transferable asset type. Asset actions open "
+                    "in a native popover outside the scrolling table. Tab moves "
+                    "through its links and Escape closes it. A control is drawn "
                     "only where the structure carries its address, "
                     "so a reader who may not act sees no controls rather than "
                     "disabled ones; n26.core.views.campaigns fills them for the "
@@ -2418,7 +2423,7 @@ GROUPS: list[Group] = [
                         (
                             "The plus and minus that post a change of one on a "
                             "counter line, drawn only where that line carries an "
-                            "address."
+                            "address. An optional Adjust link opens amount entry."
                         ),
                     ),
                     Part(
@@ -2841,8 +2846,16 @@ GROUPS: list[Group] = [
                     "slot has to be filled, or Cotton draws the page's own Hire "
                     "controls beside the title. Put the switcher in trailing, not "
                     "leading: leading sits inside the h1 and is read as part of "
-                    "the page name. Pass activities_square only for the owner."
+                    "the page name. Pass activities_square only for the owner. "
+                    "The notice slot holds guidance below the header."
                 ),
+            ),
+            Component(
+                slug="campaign-description",
+                tag="c-n26.campaign-description",
+                template="n26/campaign_description.html",
+                summary="A compact campaign description with mobile disclosure and desktop popover.",
+                notes="Use a unique panel_id when several descriptions share a page. Full rich text is sanitised in both views; browser-native disclosure and popover controls handle opening and closing.",
             ),
             Component(
                 slug="view-campaign-sheet",
@@ -2854,16 +2867,11 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
-                    "It has the gang sheet's shape: the type and the arbitrator as "
-                    "the lead, the headline figures in the corner, the facts beside "
-                    "the page's controls, then the sections at one heading scale. "
-                    "The gangs and assets tables are drawn from :sheet, while "
-                    "players, battles and log arrive as slots because each names "
-                    "addresses. Those slots must be declared, because the page "
-                    "filling this calls its own context battles and players. What "
-                    "the arbitrator adds sits where it shows: Add asset type on the "
-                    "Assets heading, Add counter and Add label on the Gangs "
-                    "heading."
+                    "Metadata and a compact description lead the card grid. Gangs "
+                    "span its width; Battles and Assets share a row on wide screens. "
+                    "Players, battles and log arrive as declared markup slots. "
+                    "The description opens inline on mobile and in a popover on "
+                    "wider screens. Counter and label management lives on Edit campaign."
                 ),
             ),
             Component(

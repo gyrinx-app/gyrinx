@@ -1,0 +1,14 @@
+<div id="n26-asset-dialog-host" hx-swap-oob="true">
+    <c-n26.dialog id="n26-asset-dialog"
+                  title="Unassign {{ campaign_asset }} from {{ campaign_asset.holder.gang.name }}?"
+                  action="{{ action }}"
+                  cancel_url="{{ back }}"
+                  submit_label="Unassign"
+                  submit_variant="danger"
+                  :redrawn="True"
+                  :htmx="True"
+                  class="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+        {% csrf_token %}
+        {% include "n26/includes/campaign_unassign_summary.html" %}
+    </c-n26.dialog>
+</div>

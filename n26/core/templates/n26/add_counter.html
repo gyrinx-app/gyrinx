@@ -24,12 +24,13 @@ playing catch up within moments. It shows as a column of the gangs table.
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="campaign.owner"
-                                     tone="current"
-                                     href="{% url 'n26-dashboard' %}" />
+                    <c-n26.user-link :user="campaign.owner" tone="current" />
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    Counters and labels
+                </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
                     Add a counter
                 </c-ui.breadcrumbs.item>

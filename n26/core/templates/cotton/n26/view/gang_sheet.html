@@ -4,12 +4,13 @@
 The stash is excluded from rating. Rating is what the models are worth; stashed gear counts in wealth instead.
 The share slot fills the header's breadcrumb_actions.
 Owner, owner_href, and owner_flair build the breadcrumb here.
-Actions and the stash share the grid's first cell, stacked.
+Campaign state fills its own grid cell first. Actions and the stash share the next cell, stacked.
 members is markup, drawn as the next cells, so a model can fill the row beside them.
 Declare the slots. An undeclared name resolves to the caller's variable of that name.
 Keep the header actions slot filled. Left empty, Cotton would draw this page's Hire controls beside the title.
 The switcher goes in trailing, not leading. Leading sits inside the h1 and is read as the page name.
 Pass activities_square only for the owner.
+The notice slot holds guidance below the header, before the gang details.
 {% endcomment %}
 
 <c-vars
@@ -26,7 +27,9 @@ Pass activities_square only for the owner.
     owner_flair=""
     type_flair=""
     details=""
+    notice=""
     actions=""
+    campaign_state=""
     activities_square=""
     secondary_actions=""
     members=""
@@ -77,6 +80,8 @@ Pass activities_square only for the owner.
         </c-slot>
     </c-n26.page-header>
 
+    {% if notice %}{{ notice }}{% endif %}
+
     <div class="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
         {# min-w-0 lets a long pickable list shrink. Without it the row grows the page sideways. #}
         {% if details %}<div class="min-w-0 max-w-full">{{ details }}</div>{% endif %}
@@ -95,6 +100,7 @@ Pass activities_square only for the owner.
     {# auto-rows-min keeps a later row as tall as its own cards. #}
     {# n26-roster-grid stretches only the first row, beside this stacked cell. The counts match md:grid-cols-2 and xl:grid-cols-3. #}
     <div class="n26-roster-grid grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {% if campaign_state.strip %}{{ campaign_state }}{% endif %}
         <div class="flex min-h-0 flex-col gap-4">
             {% if activities_square %}{{ activities_square }}{% endif %}
             <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">

@@ -128,6 +128,10 @@ class Act:
     #: own history leaves these empty: there is only ever the one.
     gang_pk: str = ""
     gang_name: str = ""
+    #: Filter identity for ownership acts, whose sentence omits the actor.
+    actor_pk: int | None = None
+    #: A transfer concerns both gangs even though it draws no gang subtitle.
+    related_gang_pks: tuple[str, ...] = ()
 
     @property
     def search(self):
@@ -645,6 +649,7 @@ def _clean_house_as_one(standing, viewer, alive):
         when=first.created,
         actor=_actor(first, viewer),
         actor_user=_actor_user(first, viewer),
+        actor_pk=first.actor_id,
         spans=(
             Span("cleaned house — "),
             Span(f"{len(subs)} {models} back from Recovery"),
@@ -666,6 +671,7 @@ def _edits_as_one(standing, viewer, alive):
         when=first.created,
         actor=_actor(first, viewer),
         actor_user=_actor_user(first, viewer),
+        actor_pk=first.actor_id,
         spans=(Span(f"{verb} what "), _model_span(model, alive), Span(" is")),
         subs=subs,
         category="model",
@@ -698,6 +704,7 @@ def _one_act(e, row, viewer, alive):
         when=e.created,
         actor=actor,
         actor_user=_actor_user(e, viewer) if actor else None,
+        actor_pk=e.actor_id,
         spans=spans,
         credits=-e.credits_delta,
         trade_points=-e.trade_points_delta,
@@ -1012,7 +1019,7 @@ def _about_a_holding(e):
 
 
 def _holding_name(e):
-    """The asset an event is about, linked to the campaign's assets while
+    """The asset an event is about, linked to its detail page while
     it still stands. One removed from the campaign since is named from the
     note, which kept the name for exactly this: the line still says what
     the gang gained or lost."""
@@ -1021,7 +1028,9 @@ def _holding_name(e):
         return Span(e.note or "an asset")
     return Span(
         str(campaign_asset),
-        reverse("n26-campaign", args=[campaign_asset.campaign_id]) + "#assets",
+        reverse(
+            "n26-campaign-asset", args=[campaign_asset.campaign_id, campaign_asset.pk]
+        ),
     )
 
 
@@ -1232,6 +1241,24 @@ def _model_span(model, alive):
     if model.pk not in alive:
         return Span(str(model))
     return Span(str(model), reverse("n26-equip", args=[model.pk]))
+
+
+def asset_ownership_history(campaign_asset):
+    """Recorded ownership changes for this exact holding, oldest first.
+
+    Pool-add events did not store the holding's identity. They are not
+    guessed from names, which can be shared by several territories.
+    """
+    events = (
+        LedgerEvent.objects.filter(
+            campaign=campaign_asset.campaign,
+            campaign_asset=campaign_asset,
+            kind__in=(Kind.GAINED, Kind.LOST),
+        )
+        .select_related("gang", "campaign_asset__asset__asset_type")
+        .order_by("created", "id")
+    )
+    return [act for _, act in _holding_acts(events)]
 
 
 def campaign_history(campaign, viewer=None, limit=None):
@@ -1454,7 +1481,14 @@ def _holding_acts(events):
             spans = (Span(f"{_gang_named(lost)} lost "), name)
         yield (
             (first.created, str(first.pk)),
-            Act(when=first.created, actor="", spans=spans, category="gang"),
+            Act(
+                when=first.created,
+                actor="",
+                spans=spans,
+                category="gang",
+                actor_pk=first.actor_id,
+                related_gang_pks=tuple(dict.fromkeys(str(e.gang_id) for e in marked)),
+            ),
         )
 
 
@@ -1468,6 +1502,7 @@ def _one_campaign_act(e, viewer):
         when=e.created,
         actor=_actor(e, viewer),
         actor_user=_actor_user(e, viewer),
+        actor_pk=e.actor_id,
         spans=spans,
         category=category,
         note=e.note if e.kind == CampaignEvent.Kind.DICE_ROLL_NOTED else "",

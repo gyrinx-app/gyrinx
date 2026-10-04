@@ -782,6 +782,7 @@ def recipes():
         "ratingReceipt": classes(
             "<c-n26.rating-receipt />", "dl", "div", "dt", "dd", "div", "dt", "dd"
         ),
+        "card": classes('<c-ui.card padding="sm" />', "div")[0],
         "table": classes("<c-ui.table />", "div", "table"),
         "link": classes('<c-n26.link href="/">Name</c-n26.link>', "a", "span"),
         "explanationTrigger": classes(

@@ -4,12 +4,28 @@
 id is the fragment target. Omit it and the section cannot be linked to.
 Use the same h2 rank as form-section. A detail section and a form group then read as the same rank of thing.
 Keep the count inside the heading so a reader scanning headings hears the title and the count together.
-heading_class changes the heading style without changing its h2 rank.
+heading_class changes the plain heading style without changing its h2 rank.
+boxed uses the same compact card header as the gang roster.
+flush removes card body padding when its contents supply their own, such as table cells.
 {% endcomment %}
 
-<c-vars title="" count="" actions="" id="" class="" heading_class="text-lg font-semibold text-ink-900 dark:text-ink-100" />
+<c-vars title="" count="" actions="" id="" class="" heading_class="text-lg font-semibold text-ink-900 dark:text-ink-100" :boxed="False" :flush="False" />
 
-<section {% if id %}id="{{ id }}"{% endif %} class="flex flex-col gap-3 {{ class }}">
+<section {% if id %}id="{{ id }}"{% endif %} class="min-w-0 flex flex-col gap-3 {% if boxed %}h-full{% endif %} {{ class }}">
+    {% if boxed %}
+        <c-ui.card padding="none" class="h-full">
+            <c-slot name="header">
+                <div class="-mx-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                    <h2 class="text-sm font-semibold">
+                        {{ title }}
+                        {% if count %}<span class="ml-1 text-xs font-normal text-muted">{{ count }}</span>{% endif %}
+                    </h2>
+                    {% if actions.strip %}<div class="flex flex-wrap items-center gap-2">{{ actions }}</div>{% endif %}
+                </div>
+            </c-slot>
+            <div class="min-w-0 {% if not flush %}p-4{% endif %}">{{ slot }}</div>
+        </c-ui.card>
+    {% else %}
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <h2 class="{{ heading_class }}">
             {{ title }}
@@ -18,4 +34,5 @@ heading_class changes the heading style without changing its h2 rank.
         {% if actions.strip %}<div class="flex flex-wrap items-center gap-2">{{ actions }}</div>{% endif %}
     </div>
     {{ slot }}
+    {% endif %}
 </section>

@@ -82,6 +82,39 @@ def fields(gang=None, **changes):
     } | changes
 
 
+@pytest.mark.parametrize(
+    "result,expected",
+    [
+        ("not_recorded", "Not recorded"),
+        ("draw", "Draw"),
+        ("winners", "Won by The Ashen Choir"),
+    ],
+)
+def test_campaign_lists_battle_result_above_participating_gangs(
+    client, campaign, battle, gang, flag, result, expected
+):
+    battle.result = result
+    battle.save(update_fields=["result"])
+    if result == "winners":
+        battle.winners.add(gang)
+    soup = BeautifulSoup(
+        client.get(f"/n26/campaigns/{campaign.pk}/").content, "html.parser"
+    )
+    section = soup.find(id="battles")
+    assert section.find("table") is None
+    item = section.find("time").find_parent("li")
+    header = item.find("div", recursive=False)
+    assert header.find("a")["href"] == address(campaign, battle)
+    assert header.find("a").get_text(strip=True) == "Stand-off"
+    assert header.find("time")["datetime"] == "2026-08-03"
+    assert expected in header.get_text(" ", strip=True)
+    participants = item.find("ul")
+    assert gang.name in participants.get_text()
+    assert bool(participants.find(attrs={"aria-label": "Winner"})) == (
+        result == "winners"
+    )
+
+
 class TestBattleForm:
     """A new battle has no outcome; the outcome is recorded by editing it."""
 

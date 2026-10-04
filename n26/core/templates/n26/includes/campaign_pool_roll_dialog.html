@@ -1,0 +1,80 @@
+{% comment %}
+Generate an unclaimed pool from a selected table. Quantity and an optional
+single manual roll are native form fields; the server validates their combination.
+The surrounding dialog owns modal and htmx behaviour.
+{% endcomment %}
+<c-n26.dialog title="{{ question.title }}"
+              action="{{ question.action }}"
+              cancel_url="{% url 'n26-campaign' campaign.pk %}"
+              submit_label="Add to pool"
+              :redrawn="redrawn"
+              :htmx="True">
+    <c-slot name="lead">
+        {{ question.lead }}
+    </c-slot>
+    {% csrf_token %}
+    {% for error in form.non_field_errors %}
+        <c-ui.alert variant="error">
+            {{ error }}
+        </c-ui.alert>
+    {% endfor %}
+    <c-ui.error :form="form" name="request_key" />
+    <input type="hidden"
+           name="request_key"
+           value="{{ form.request_key.value|default:'' }}">
+    <input type="hidden" name="type" value="{{ question.asset_type_id }}">
+    {% if question.only %}
+        <input type="hidden" name="table" value="{{ question.only.table_id }}">
+        {% include "n26/includes/campaign_roll_table.html" %}
+        <c-ui.error :form="form" name="table" />
+    {% else %}
+        <c-n26.radio-cards label="Table" name="table" :form="form" min="12rem">
+            {% for table, checked in question.choices %}
+                <c-n26.radio-cards.card name="table"
+                                        value="{{ table.table_id }}"
+                                        label="{{ table.name }}"
+                                        description="{{ table.die }}"
+                                        :checked="checked"
+                                        :wrap="True" />
+            {% endfor %}
+        </c-n26.radio-cards>
+    {% endif %}
+    <c-ui.field error="x"
+                label="{{ form.count.label }}"
+                :form="form"
+                name="count"
+                for="pool-count">
+        <c-slot name="description">
+            <p class="text-sm text-muted">{{ form.count.help_text }}</p>
+        </c-slot>
+        <c-ui.input id="pool-count"
+                    name="count"
+                    required
+                    type="number"
+                    min="1"
+                    max="100"
+                    inputmode="numeric"
+                    value="{{ form.count.value|default_if_none:1 }}" />
+    </c-ui.field>
+    <c-ui.field error="x"
+                label="{{ form.rolled.label }}"
+                :form="form"
+                name="rolled"
+                for="pool-roll">
+        <c-slot name="description">
+            <div class="text-sm text-muted">
+                {{ form.rolled.help_text }} Set the number to 1 to use your own roll.
+                {% for table in question.tables %}
+                    <span class="block">{% if not question.only %}{{ table.name }}: {% endif %}A {{ table.die }} roll is {{ table.lowest }} to {{ table.highest }}.</span>
+                {% endfor %}
+            </div>
+        </c-slot>
+        <c-ui.input id="pool-roll"
+                    name="rolled"
+                    type="number"
+                    min="1"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    value="{{ form.rolled.value|default_if_none:'' }}" />
+    </c-ui.field>
+</c-n26.dialog>

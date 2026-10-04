@@ -2285,7 +2285,7 @@ class TestMissionResults:
         assert "Scenario reward" in receipt and "Bounty" in receipt
         assert_books(table)
 
-    def test_gang_counter_steps_and_shows_now_and_after(
+    def test_gang_counter_input_shows_before_and_after(
         self, client, table, feature, reputation
     ):
         report = start(client, table)
@@ -2293,9 +2293,11 @@ class TestMissionResults:
         key = str(reputation.pk)
         row = mission(page).find("input", id=f"gang-counter-{key}").find_parent("tr")
         assert row.find("label").get_text(strip=True) == "Reputation"
-        minus = row.find("button", attrs={"value": f"counter-step:{key}:-1"})
-        assert not minus.has_attr("disabled")
-        stepped = mission_step(client, report, page, f"counter-step:{key}:+1")
+        assert not row.find("button")
+        assert row.find("input", id=f"gang-counter-{key}")["type"] == "number"
+        stepped = mission_step(
+            client, report, page, "check", **{f"gang-counter-{key}": "1"}
+        )
         row = mission(stepped).find("input", id=f"gang-counter-{key}")
         assert row["value"] == "1"
         cells = [
@@ -2306,30 +2308,17 @@ class TestMissionResults:
         report.refresh_from_db()
         assert report.draft["gang_counters"] == {key: "1"}
 
-    def test_counter_steps_post_the_form_only_without_scripts(
+    def test_gang_counter_changes_use_number_inputs_without_extra_step_buttons(
         self, client, table, feature, reputation
     ):
         report = start(client, table)
         page = client.get(editor_url(report))
         key = str(reputation.pk)
-        for step in ("-1", "+1"):
-            button = mission(page).find(
-                "button", attrs={"value": f"counter-step:{key}:{step}"}
-            )
-            assert not button.has_attr("hx-post")
-            assert button["data-counter-step"] == f"gang-counter-{key}"
-            assert button["data-step"] == step
-
-    def test_minus_is_off_where_the_counter_would_go_below_zero(
-        self, client, table, feature
-    ):
-        empty = assign(create_counter("Favour"), gang=table.gang, actor=table.owner)
-        report = start(client, table)
-        page = client.get(editor_url(report))
-        minus = mission(page).find(
-            "button", attrs={"value": f"counter-step:{empty.pk}:-1"}
-        )
-        assert minus.has_attr("disabled")
+        section = mission(page)
+        field = section.find("input", id=f"gang-counter-{key}")
+        assert field["type"] == "number"
+        assert field["step"] == "1"
+        assert not section.select("button[data-counter-step]")
 
     def test_applied_counter_change_is_on_the_receipt(
         self, client, table, feature, reputation

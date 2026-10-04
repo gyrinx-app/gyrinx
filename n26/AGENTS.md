@@ -29,6 +29,7 @@ When it is present, read the relevant note before a non-trivial change.
 | --- | --- | --- |
 | `n26/analytics.py` | `gyrinx.analytics` | Views call the edition seam; they do not import the platform module. |
 | `n26/flags.py` | `gyrinx.site.flags` | Declare edition feature slugs here and claim them from `n26/core/apps.py`. |
+| `n26/uploads.py` | `gyrinx.widgets` | Reuse the authenticated rich-text image upload handler; widgets opt in through this seam. |
 | `n26/notifications.py` | `gyrinx.site.models` notifications | This is the only N26 file that writes notifications. |
 | `n26/impersonation.py` | `gyrinx.impersonation` | Keep the shared session and audit behaviour behind this file. |
 | `n26/write_pause.py` | `gyrinx.site.write_pause` | Keep the platform write-pause state behind this file. |

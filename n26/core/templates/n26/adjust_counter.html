@@ -1,0 +1,19 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}Edit {{ name }}{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-tally' assignment.pk %}"
+                     title="Edit {{ name }}"
+                     :form="form"
+                     submit_label="Save"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Edit {{ name }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% include "n26/includes/campaign_counter_fields.html" %}
+    </c-n26.form-page>
+{% endblock %}

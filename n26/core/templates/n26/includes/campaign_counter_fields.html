@@ -1,0 +1,5 @@
+{% load react %}
+{% csrf_token %}
+<input type="hidden" name="adjust" value="1">
+<input type="hidden" name="back" value="{{ back }}">
+{% react_island "counter-adjustment" counter_preview %}

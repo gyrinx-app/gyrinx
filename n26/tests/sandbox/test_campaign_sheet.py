@@ -18,7 +18,7 @@ from django.urls import reverse
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.models import Campaign
 from n26.core.render import render_campaign
-from n26.flags import CAMPAIGNS
+from n26.flags import CAMPAIGNS, STAGED_CONTENT
 from n26.library.authoring import (
     add_asset_type,
     add_built_in,
@@ -354,5 +354,14 @@ class TestTheQueryBudget:
             body = client.get(address).content.decode()
 
         assert "More 2" in body
-        assert body.count("Add one to Meat") == 6
+        assert body.count("Edit Meat") == 6
         assert len(more_queries.captured_queries) == len(few.captured_queries)
+        # Rendering the assets and filling their addresses share the same
+        # reader instance, so the staged-content flag is checked once.
+        assert (
+            sum(
+                "site_featureflag" in query["sql"] and STAGED_CONTENT in query["sql"]
+                for query in more_queries.captured_queries
+            )
+            == 1
+        )

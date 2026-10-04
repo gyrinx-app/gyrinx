@@ -1,7 +1,9 @@
 {% comment %}
 <c-n26.user-link> — A person's username with their platform badge beside it.
 
-Pass a User as user. username is read here; the badge comes from the platform registry.
+Pass a User as user. Names open their public profile unless linked is False.
+Set linked to False inside an account menu button. An explicit href overrides the profile.
+username is read here; the badge comes from the platform registry.
 When you render many of these, prefetch profile and badge_grants or you get one query per user.
 No badge draws the name alone. The empty artwork is not wrapped.
 There is no label prop. The registry wording is the accessible name and the tooltip.
@@ -10,7 +12,8 @@ Whitespace around the markup becomes a space in the surrounding sentence.
 {% endcomment %}{% load badge_tags %}<c-vars
     user=""
     href=""
+    :linked="True"
     underline="hover"
     tone="accent"
     class=""
-/>{# Prefetch profile and badge_grants when this repeats in a list. #}{% badge_for user as badge %}<c-n26.flair-link text="{{ user.username }}" href="{{ href }}" underline="{{ underline }}" tone="{{ tone }}" label="{{ badge.description }}" class="{{ class }}">{% badge_svg badge %}</c-n26.flair-link>
+/>{# Prefetch profile and badge_grants when this repeats in a list. #}{% badge_for user as badge %}{% with profile_href="" %}{% if linked and not href and user.pk %}{% url "n26-user-profile" user.username as profile_href %}{% endif %}<c-n26.flair-link text="{{ user.username }}" href="{% if linked %}{{ href|default:profile_href }}{% endif %}" underline="{{ underline }}" tone="{{ tone }}" label="{{ badge.description }}" class="{{ class }}">{% badge_svg badge %}</c-n26.flair-link>{% endwith %}

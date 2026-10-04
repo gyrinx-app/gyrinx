@@ -1,0 +1,14 @@
+{# title: Campaign budget guidance #}
+{# note: The notice slot places owner guidance below the header and above the gang details. #}
+<c-n26.view.gang-sheet :sheet="gang" owner="Sample player" owner_href="#">
+    <c-slot name="header_actions">
+        <c-ui.button size="sm" href="#">
+            Edit
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="notice">
+        <c-ui.card>
+            <p class="text-sm">This gang has unlimited credits. Review its credits budget on the edit page.</p>
+        </c-ui.card>
+    </c-slot>
+</c-n26.view.gang-sheet>

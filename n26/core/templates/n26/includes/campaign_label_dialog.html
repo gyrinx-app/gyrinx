@@ -1,0 +1,20 @@
+{% if reopened %}<div hx-swap-oob="delete:#n26-campaign-state-dialog"></div>{% endif %}
+<div id="n26-campaign-state-dialog-host" hx-swap-oob="true">
+    <c-n26.dialog id="n26-campaign-state-dialog"
+                  title="{{ offer.label }}"
+                  action="{{ choice_action }}"
+                  cancel_url="{{ back }}"
+                  submit_label="{{ submit_label }}"
+                  :redrawn="True"
+                  :htmx="True"
+                  class="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+        {% csrf_token %}
+        <input type="hidden" name="return" value="{{ back }}">
+        {% if pick_lead %}<p class="text-sm text-muted">{{ pick_lead }}</p>{% endif %}
+        {% if offer.takes_several %}
+            <c-n26.choice-picks :offer="offer" />
+        {% else %}
+            <c-n26.choice-offer :offer="offer" />
+        {% endif %}
+    </c-n26.dialog>
+</div>

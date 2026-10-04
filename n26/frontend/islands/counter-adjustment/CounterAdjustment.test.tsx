@@ -1,0 +1,61 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it } from "vitest";
+import { CounterAdjustment } from "./CounterAdjustment";
+
+const props = { value: 5, recorded: 2, change: "", errors: [], maximum: 1000 };
+
+describe("counter adjustment", () => {
+    it("previews additions and removals without changing the input contract", async () => {
+        const user = userEvent.setup();
+        const view = render(
+            <form>
+                <CounterAdjustment {...props} />
+            </form>,
+        );
+        const input = screen.getByRole("spinbutton", { name: "Change *" });
+        await user.type(input, "4");
+        expect(
+            view.container.querySelector("[data-counter-preview]")?.textContent,
+        ).toBe("9");
+        expect(
+            view.container.querySelector("[data-counter-delta]")?.textContent,
+        ).toBe("+4");
+        expect(
+            new FormData(view.container.querySelector("form")!).get("change"),
+        ).toBe("4");
+        await user.clear(input);
+        await user.type(input, "-1");
+        expect(
+            view.container.querySelector("[data-counter-preview]")?.textContent,
+        ).toBe("4");
+        expect(
+            view.container.querySelector("[data-counter-delta]")?.textContent,
+        ).toBe("-1");
+    });
+    it("keeps contributions when removal reaches the recorded floor", () => {
+        const view = render(<CounterAdjustment {...props} change="-10" />);
+        expect(
+            view.container.querySelector("[data-counter-preview]")?.textContent,
+        ).toBe("3");
+        expect(
+            view.container.querySelector("[data-counter-delta]")?.textContent,
+        ).toBe("-2");
+    });
+    it("retains server errors and avoids previewing invalid amounts", () => {
+        const view = render(
+            <CounterAdjustment
+                {...props}
+                change="1001"
+                errors={["Too much."]}
+            />,
+        );
+        expect(screen.getByText("Too much.")).toBeTruthy();
+        expect(
+            view.container.querySelector("[data-counter-preview]")?.textContent,
+        ).toBe("5");
+        expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe(
+            "1001",
+        );
+    });
+});

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import {
@@ -7,17 +7,42 @@ import {
 } from "./CampaignRollSource";
 
 const props: CampaignRollSourceProps = {
+    requestKey: "9db976dd-3e3e-4392-84ee-dfa3dd31a1bd",
     source: "generated",
     rolled: "",
     choices: [
-        { value: "generated", label: "Roll here" },
-        { value: "manual", label: "Use physical dice" },
+        { value: "generated", label: "Generate a roll" },
+        { value: "manual", label: "I already rolled" },
     ],
     sourceErrors: [],
     rolledErrors: [],
 };
 
 describe("campaign roll source", () => {
+    it("starts a fresh submission when browser Back restores the form", () => {
+        const view = render(
+            <form>
+                <CampaignRollSource {...props} />
+            </form>,
+        );
+        const form = view.container.querySelector("form")!;
+        expect(new FormData(form).get("request_key")).toBe(props.requestKey);
+        act(() =>
+            window.dispatchEvent(
+                new PageTransitionEvent("pageshow", { persisted: false }),
+            ),
+        );
+        expect(new FormData(form).get("request_key")).toBe(props.requestKey);
+        act(() =>
+            window.dispatchEvent(
+                new PageTransitionEvent("pageshow", { persisted: true }),
+            ),
+        );
+        expect(new FormData(form).get("request_key")).not.toBe(
+            props.requestKey,
+        );
+    });
+
     it("enables and submits the physical result only for physical dice", async () => {
         const user = userEvent.setup();
         const view = render(
@@ -26,24 +51,33 @@ describe("campaign roll source", () => {
             </form>,
         );
         const result = screen.getByRole("spinbutton", {
-            name: "Physical result",
+            name: "Result",
         }) as HTMLInputElement;
         const form = view.container.querySelector("form")!;
+        const manualRadio = screen.getByRole("radio", {
+            name: "I already rolled",
+        });
+        expect(manualRadio.closest("label")!.contains(result)).toBe(false);
+        expect(
+            manualRadio.closest("label")!.parentElement!.contains(result),
+        ).toBe(true);
         expect(result.disabled).toBe(true);
         expect(new FormData(form).has("rolled")).toBe(false);
         await user.click(
-            screen.getByRole("radio", { name: "Use physical dice" }),
+            screen.getByRole("radio", { name: "I already rolled" }),
         );
         expect(result.disabled).toBe(false);
         expect(result.required).toBe(true);
         await user.type(result, "61");
         expect(new FormData(form).get("rolled")).toBe("61");
-        await user.click(screen.getByRole("radio", { name: "Roll here" }));
+        await user.click(
+            screen.getByRole("radio", { name: "Generate a roll" }),
+        );
         expect(result.disabled).toBe(true);
         expect(result.required).toBe(false);
         expect(new FormData(form).has("rolled")).toBe(false);
         await user.click(
-            screen.getByRole("radio", { name: "Use physical dice" }),
+            screen.getByRole("radio", { name: "I already rolled" }),
         );
         expect(result.value).toBe("61");
     });
@@ -60,7 +94,7 @@ describe("campaign roll source", () => {
             />,
         );
         const result = screen.getByRole("spinbutton", {
-            name: "Physical result",
+            name: "Result",
         }) as HTMLInputElement;
         expect(result.disabled).toBe(false);
         expect(result.value).toBe("17");

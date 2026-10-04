@@ -13,6 +13,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from n26.core.views.permissions import (
     _any_campaign_or_404,
@@ -238,12 +239,17 @@ def campaign(request, pk):
         # Asked for a dialog that cannot be drawn — a stale or withdrawn
         # question — so the whole page is served, and it names everybody.
         load_owner_badges(found.owner, *(line.owner for line in sheet.gangs))
-    _fill_addresses(sheet, found, yours=yours)
+    _fill_addresses(sheet, found, yours=yours, viewer=request.user)
     acts, more_acts = _recent_acts(found, request.user)
     battles = found.battles.prefetch_related("gangs", "winners")[:BATTLES_ON_THE_PAGE]
     # Read once and asked twice: the page draws the players, and whether
     # this reader is one of them decides what it offers them.
     players = list(_players(found))
+    invitations = [
+        player for player in players if player.user_id == reading and player.waiting
+    ]
+    for invitation in invitations:
+        invitation.campaign = found
     at_the_table = any(
         player.user_id == reading and player.state == accepted for player in players
     )
@@ -261,6 +267,7 @@ def campaign(request, pk):
             "may_add_gang": yours or at_the_table,
             "may_record": yours or at_the_table,
             "players": players,
+            "invitations": invitations,
             "battles": battles,
             "acts": acts,
             "more_acts": more_acts,
@@ -269,11 +276,13 @@ def campaign(request, pk):
     )
 
 
-def _fill_addresses(sheet, campaign, *, yours):
+def _fill_addresses(sheet, campaign, *, yours, viewer):
     """Put the addresses on a campaign sheet. The structure says who may
     act; only the view knows where each act is asked, so the same filling
     serves the page and the partial update a roll delivers."""
     from django.urls import reverse
+
+    from n26.core.owned import with_query
 
     here = reverse("n26-campaign", args=[campaign.pk])
     for line in sheet.gangs:
@@ -297,7 +306,14 @@ def _fill_addresses(sheet, campaign, *, yours):
                 if counter is not None and counter.assignment_id:
                     counter.href = reverse("n26-tally", args=[counter.assignment_id])
                     counter.back = here + "#gangs"
+                    counter.adjust_href = with_query(counter.href, back=counter.back)
     if yours:
+        addable_types = {
+            str(pk)
+            for pk in _holding_assets(campaign, include_staged=sees_staged(viewer))
+            .values_list("asset_type_id", flat=True)
+            .distinct()
+        }
         # What the arbitrator adds sits where it will show: an asset type
         # becomes a table under Assets, a counter or a label becomes a
         # column of the gangs table.
@@ -314,10 +330,11 @@ def _fill_addresses(sheet, campaign, *, yours):
                 roll.href = f"{here}?starting={line.gang_id}&type={roll.asset_type_id}"
     for table in sheet.assets:
         if yours:
-            table.add_href = (
-                reverse("n26-campaign-add-asset", args=[campaign.pk])
-                + f"?type={table.asset_type_id}"
-            )
+            if table.asset_type_id in addable_types:
+                table.add_href = (
+                    reverse("n26-campaign-add-asset", args=[campaign.pk])
+                    + f"?type={table.asset_type_id}"
+                )
             table.create_href = (
                 reverse("n26-campaign-new-asset", args=[campaign.pk])
                 + f"?type={table.asset_type_id}"
@@ -327,6 +344,9 @@ def _fill_addresses(sheet, campaign, *, yours):
             if table.tables:
                 table.roll_href = f"{here}?roll={table.asset_type_id}"
         for entry in table.entries:
+            entry.href = reverse(
+                "n26-campaign-asset", args=[campaign.pk, entry.campaign_asset_id]
+            )
             if entry.held:
                 entry.holder_href = reverse("n26-gang", args=[entry.holder_gang_id])
             if entry.held and (yours or entry.holder_yours):
@@ -378,14 +398,16 @@ def _rolling(campaign, sheet, asked):
     table = next((t for t in sheet.assets if t.asset_type_id == asked), None)
     if table is None or not table.tables:
         return None
-    # Three per player is the rulebook's figure for Territories. An asset
+    # Three per gang is the rulebook's figure for Territories. An asset
     # type the arbitrator declared has no such rule, so its dialog says
     # nothing about how many to generate.
-    label = table.label.lower()
-    lead = f"The rolled {label} will be added to the campaign as unclaimed."
+    label = table.plural.lower()
+    lead = (
+        f"Each rolled {table.label.lower()} will be added to the campaign as unclaimed."
+    )
     if table.label == TERRITORY:
         lead += (
-            " The rules generate three per player: "
+            " The rules generate three per gang: "
             f"{sheet.territories_to_generate} for this campaign."
         )
     return {
@@ -395,6 +417,9 @@ def _rolling(campaign, sheet, asked):
         "action": reverse("n26-campaign-roll-asset", args=[campaign.pk]),
         "asset_type_id": asked,
         "label": label,
+        "default_count": max(sheet.territories_to_generate, 1)
+        if table.label == TERRITORY
+        else 1,
         "tables": table.tables,
         "only": table.tables[0] if len(table.tables) == 1 else None,
     }
@@ -447,15 +472,17 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
     value that is not one of the tables offered falls back to the first,
     so the cards still show one chosen and the script reads a known id.
     """
-    from n26.core.forms import RollAssetForm
+    from n26.core.forms import PoolRollForm, RollAssetForm
     from n26.library.models import AssetTable
 
     question = rolling or starting
     if question is not None:
         tables = question["tables"]
         if form is None:
-            form = RollAssetForm(
-                tables=AssetTable.objects.filter(pk__in=[t.table_id for t in tables])
+            form_class = PoolRollForm if rolling else RollAssetForm
+            form = form_class(
+                initial={"count": question.get("default_count", 1)},
+                tables=AssetTable.objects.filter(pk__in=[t.table_id for t in tables]),
             )
         chosen = str(form["table"].value() or "")
         if chosen not in {table.table_id for table in tables}:
@@ -496,7 +523,9 @@ def _campaign_update(request, campaign):
     from n26.core.views.htmx import with_toasts
 
     sheet = render_campaign(campaign, viewer=request.user)
-    _fill_addresses(sheet, campaign, yours=True)
+    _fill_addresses(
+        sheet, campaign, yours=campaign.owner_id == request.user.pk, viewer=request.user
+    )
     acts, more_acts = _recent_acts(campaign, request.user)
     response = render(
         request,
@@ -520,7 +549,7 @@ def roll_asset(request, pk):
     GET reopens the dialog instead of acting.
     """
     from n26.core.campaigns import campaign_operation, tables_in_play
-    from n26.core.forms import RollAssetForm
+    from n26.core.forms import PoolRollForm
     from n26.core.operations import Refusal
 
     # Acts and leaves, or draws a dialog that names nobody.
@@ -535,17 +564,20 @@ def roll_asset(request, pk):
         .filter(asset_type=asset_type)
         .exclude(dice="")
     )
-    form = RollAssetForm(request.POST, tables=tables)
-    roll = None
+    form = PoolRollForm(request.POST, tables=tables)
+    rolls = None
     if form.is_valid():
         try:
             with campaign_operation(found, actor=request.user) as act:
-                roll = act.roll_asset(
-                    form.cleaned_data["table"], rolled=form.cleaned_data["rolled"]
+                rolls = act.roll_assets(
+                    form.cleaned_data["table"],
+                    count=form.cleaned_data["count"],
+                    request_key=form.cleaned_data["request_key"],
+                    rolled=form.cleaned_data["rolled"],
                 )
         except Refusal as refused:
             form.add_error(None, str(refused))
-    if roll is None:
+    if rolls is None:
         return _roll_refused(
             request,
             found,
@@ -553,10 +585,19 @@ def roll_asset(request, pk):
             again,
             lambda sheet: _rolling(found, sheet, str(asset_type.pk)),
         )
-    messages.success(
-        request,
-        f"Rolled {roll.roll}: {roll.campaign_asset} added to the campaign, unclaimed.",
-    )
+    if not rolls:
+        messages.info(request, "That selection was already rolled.")
+    elif len(rolls) == 1:
+        roll = rolls[0]
+        messages.success(
+            request,
+            f"Rolled {roll.roll}: {roll.campaign_asset} added to the campaign, unclaimed.",
+        )
+    else:
+        messages.success(
+            request,
+            f"Rolled {len(rolls)} {asset_type.plural.lower()}, added to the campaign unclaimed.",
+        )
     return _roll_made(request, found)
 
 
@@ -738,11 +779,12 @@ def campaign_log(request, pk):
     from n26.core.campaign_permissions import may_record_campaign
     from n26.core.history import campaign_history, load_actor_badges
     from n26.core.views.gangs import _pages
-    from n26.core.views.history import by_day
+    from n26.core.views.history import by_day, filter_campaign_acts
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=True)
     acts = campaign_history(found, viewer=request.user)
     total = len(acts)
+    filters, acts, narrowed = filter_campaign_acts(request, acts)
     # Newest first before paging, so page one is the latest screenful
     # rather than the founding.
     page = Paginator(list(reversed(acts)), LOG_PER_PAGE).get_page(
@@ -758,6 +800,9 @@ def campaign_log(request, pk):
             "campaign": found,
             "may_record": may_record_campaign(found, request.user),
             "days": by_day(page.object_list),
+            "filters": filters,
+            "narrowed": narrowed,
+            "matched": len(acts),
             "total": total,
             "pages": _pages(request, page) if page.paginator.num_pages > 1 else None,
         },
@@ -768,11 +813,21 @@ def campaign_log(request, pk):
 @login_required
 def edit_campaign(request, pk):
     """The facts an arbitrator may change after setting up."""
+    from django.db.models import Q
+    from django.urls import reverse
+
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import CampaignForm
+    from n26.library.models import DefaultAssignment
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    tab = request.GET.get("tab", "general")
+    if tab != "counters-and-labels" or request.method == "POST":
+        tab = "general"
+    edit_url = reverse("n26-edit-campaign", args=[found.pk])
+    counters = []
+    labels = []
 
     if request.method == "POST":
         form = CampaignForm(request.POST)
@@ -784,7 +839,7 @@ def edit_campaign(request, pk):
             record(request, N26Noun.CAMPAIGN, EventVerb.UPDATE, found)
             messages.success(request, f"Saved {found.name}.")
             return redirect("n26-campaign", pk=found.pk)
-    else:
+    elif tab == "general":
         form = CampaignForm(
             initial={
                 "name": found.name,
@@ -793,11 +848,45 @@ def edit_campaign(request, pk):
             }
         )
 
+    else:
+        form = None
+        members = (
+            DefaultAssignment.objects.filter(
+                default_set_id__in=(
+                    found.campaign_type.built_ins_id,
+                    found.additions.built_ins_id,
+                ),
+                archived=False,
+            )
+            .filter(Q(counter__isnull=False) | Q(slot__isnull=False))
+            .select_related("counter", "slot")
+            .order_by("position", "pk")
+        )
+        for member in members:
+            if member.counter_id:
+                counters.append({"name": str(member.counter), "opening": member.amount})
+            if member.slot_id:
+                labels.append({"name": member.slot.choice_label})
+
     _badge_a_redrawn_page(request, found)
     return render(
         request,
         "n26/edit_campaign.html",
-        {"form": form, "campaign": found},
+        {
+            "form": form,
+            "campaign": found,
+            "tab": tab,
+            "edit_tabs": [
+                {"label": "General", "href": edit_url, "current": tab == "general"},
+                {
+                    "label": "Counters and labels",
+                    "href": f"{edit_url}?tab=counters-and-labels",
+                    "current": tab == "counters-and-labels",
+                },
+            ],
+            "counters": counters,
+            "labels": labels,
+        },
     )
 
 
@@ -926,6 +1015,13 @@ def add_gang(request, pk):
                 # gang sheet should not have to work out which figures it
                 # added together.
                 gang.refresh_from_db()
+                if gang.credits_unlimited:
+                    messages.warning(
+                        request,
+                        f"{gang.name} uses unlimited credits. Its credit balance "
+                        "is not tracked. The gang owner can set a credits "
+                        "budget on the gang's Edit page.",
+                    )
                 if over_budget(found, gang):
                     messages.warning(
                         request,
@@ -953,6 +1049,11 @@ def add_gang(request, pk):
         {
             "pk": str(row.pk),
             "name": row.name,
+            "href": reverse("n26-gang", args=[row.pk]),
+            "unlimited": row.credits_unlimited,
+            "budget_href": reverse("n26-edit-gang", args=[row.pk]) + "#starting-credits"
+            if row.credits_unlimited and row.owner_id == request.user.pk
+            else "",
             "owner": row.owner.username,
             # The person behind the name the arbitrator's rows draw. Which
             # badge follows it is the platform's to decide from the person,
@@ -1219,6 +1320,22 @@ def _campaign_asset_or_404(campaign, asset_pk):
         raise Http404("No such asset in this campaign") from None
 
 
+def _asset_back(request, campaign, holding):
+    from django.urls import reverse
+
+    if request.GET.get("from") == "detail":
+        return reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
+    return _assets_anchor(campaign)
+
+
+def _asset_update(request, campaign, holding):
+    if request.GET.get("from") == "detail":
+        from n26.core.views.campaign_assets import _asset_detail_update
+
+        return _asset_detail_update(request, campaign.pk, holding.pk)
+    return _campaign_update(request, campaign)
+
+
 def _holding_owner(campaign_asset, user):
     """Whether this reader owns the gang holding the asset."""
     return campaign_asset.held and campaign_asset.holder.gang.owner_id == getattr(
@@ -1260,9 +1377,12 @@ def add_asset(request, pk):
     type rides the form's address too, so a failed submit redisplays the
     same narrowed list.
     """
+    from django.urls import reverse
+
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import AddAssetForm
     from n26.library.income import income_of, with_income
+    from n26.library.models import AssetType
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     asset_type = _asset_type_asked_for(found, request.GET.get("type"))
@@ -1274,36 +1394,71 @@ def add_asset(request, pk):
         form = AddAssetForm(request.POST, offered=offered)
         if form.is_valid():
             with campaign_operation(found, actor=request.user) as act:
-                campaign_asset = act.add_asset(
-                    form.cleaned_data["asset"], name=form.cleaned_data["name"]
+                made = act.add_assets(
+                    form.cleaned_data["asset"],
+                    name=form.cleaned_data["name"],
+                    names=form.cleaned_data["names"],
+                    request_key=form.cleaned_data["request_key"],
                 )
-            messages.success(request, f"Added {campaign_asset}.")
+            if not made:
+                messages.info(request, "That selection was already added.")
+            elif len(form.cleaned_data["asset"]) == 1:
+                chosen = form.cleaned_data["asset"][0]
+                messages.success(
+                    request,
+                    f"Added {form.cleaned_data['names'].get(str(chosen.pk)) or form.cleaned_data['name'] or str(chosen)}.",
+                )
+            else:
+                label = asset_type.plural.lower() if asset_type else "assets"
+                messages.success(
+                    request, f"Added {len(form.cleaned_data['asset'])} {label}."
+                )
             return redirect(_assets_anchor(found))
     else:
         form = AddAssetForm(offered=offered)
 
-    submitted = str(form["asset"].value() or "")
+    submitted = set(form["asset"].value() or [])
 
     def card(asset):
-        # The asset type and income under the name; a redisplay after a
-        # failed submit keeps the pick.
+        # Show the type only when the picker is not already narrowed to it.
+        # A redisplay after a failed submit keeps the pick.
         income = income_of(asset)
+        description = ", ".join(
+            part
+            for part in (
+                str(asset.asset_type) if asset_type is None else "",
+                f"Income {income}¢" if income else "",
+            )
+            if part
+        )
         return {
             "value": str(asset.pk),
-            "label": asset.name,
-            "description": (
-                f"{asset.asset_type}, income {income}¢"
-                if income
-                else str(asset.asset_type)
-            ),
-            "checked": str(asset.pk) == submitted,
+            "label": str(asset),
+            "description": description,
+            "checked": str(asset.pk) in submitted,
+            "name": form[f"name_{asset.pk}"].value() or ""
+            if f"name_{asset.pk}" in form.fields
+            else "",
+            "nameErrors": list(form[f"name_{asset.pk}"].errors)
+            if f"name_{asset.pk}" in form.fields
+            else [],
         }
 
-    # The asset type's own word for what is being added, with its article,
-    # for the title: "Add a territory", "Add an asset". The article follows
-    # the word's first letter, since the label is the author's to choose.
-    noun = asset_type.label_singular.lower() if asset_type else "asset"
-    article = "an" if noun[:1] in "aeiou" else "a"
+    noun = asset_type.plural.lower() if asset_type else "assets"
+    assets = [card(asset) for asset in with_income(offered)]
+    has_holding_type = (
+        asset_type is not None
+        or bool(assets)
+        or _campaign_asset_types(found)
+        .filter(ownership=AssetType.Ownership.HOLDING)
+        .exists()
+    )
+    empty_next_href = reverse(
+        "n26-campaign-new-asset" if has_holding_type else "n26-campaign-add-asset-type",
+        args=[found.pk],
+    )
+    if asset_type is not None:
+        empty_next_href += f"?type={asset_type.pk}"
     _badge_a_redrawn_page(request, found)
     return render(
         request,
@@ -1312,10 +1467,31 @@ def add_asset(request, pk):
             "form": form,
             "campaign": found,
             "asset_type": asset_type,
-            "adding": f"{article} {noun}",
+            "adding": noun,
             "back": _assets_anchor(found),
             # Drawn as cards, one per asset.
-            "assets": [card(asset) for asset in with_income(offered)],
+            "assets": assets,
+            "fallback_options": [
+                {
+                    "key": asset["value"],
+                    "name": asset["label"],
+                    "detail": asset["description"],
+                    "is_current": asset["checked"],
+                }
+                for asset in assets
+            ],
+            "selection": {
+                "label": f"Select {noun}",
+                "invalid": bool(form["asset"].errors),
+                "options": assets,
+                "selected": list(submitted),
+                "renameLabel": f"Optional: Rename {noun}",
+                "itemLabel": str(asset_type) if asset_type else "Asset",
+            },
+            "empty_next_href": empty_next_href,
+            "empty_next_label": "Create asset"
+            if has_holding_type
+            else "Add an asset type",
         },
     )
 
@@ -1328,12 +1504,13 @@ def assign_asset(request, pk, asset_pk):
     from n26.core.forms import AssignAssetForm
     from n26.core.models import CampaignMembership
     from n26.core.operations import Refusal
+    from n26.core.views.htmx import is_htmx
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
     playing = (
         CampaignMembership.objects.filter(campaign=found, left__isnull=True)
-        .select_related("gang", "gang__gang_type")
+        .select_related("gang", "gang__gang_type", "gang__owner")
         .order_by("gang__name")
     )
 
@@ -1353,22 +1530,36 @@ def assign_asset(request, pk, asset_pk):
                     messages.success(
                         request, f"Assigned {campaign_asset} to {membership.gang.name}."
                     )
-            return redirect(_assets_anchor(found))
+            if is_htmx(request):
+                return _asset_update(request, found, campaign_asset)
+            return redirect(_asset_back(request, found, campaign_asset))
     else:
         form = AssignAssetForm(playing=playing)
 
     _badge_a_redrawn_page(request, found)
-    return render(
+    response = render(
         request,
-        "n26/assign_asset.html",
+        "n26/includes/campaign_assign_dialog.html"
+        if is_htmx(request)
+        else "n26/assign_asset.html",
         {
             "form": form,
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "playing": playing,
-            "back": _assets_anchor(found),
+            "choices": [
+                (membership, str(membership.pk) == str(form["membership"].value()))
+                for membership in playing
+            ],
+            "back": _asset_back(request, found, campaign_asset),
+            "action": request.get_full_path(),
+            "redrawn": is_htmx(request),
+            "reopened": is_htmx(request) and request.method == "POST",
         },
     )
+
+    if is_htmx(request):
+        response["HX-Replace-Url"] = request.get_full_path()
+    return response
 
 
 @requires_flag(CAMPAIGNS)
@@ -1383,6 +1574,7 @@ def unassign_asset(request, pk, asset_pk):
 
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
+    from n26.core.views.htmx import is_htmx
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
@@ -1393,7 +1585,9 @@ def unassign_asset(request, pk, asset_pk):
     # A stale link to an asset nobody holds any more: nothing to ask.
     if not campaign_asset.held:
         messages.error(request, f"{campaign_asset} is not held by any gang.")
-        return redirect(_assets_anchor(found))
+        if is_htmx(request):
+            return _asset_update(request, found, campaign_asset)
+        return redirect(_asset_back(request, found, campaign_asset))
 
     if request.method == "POST":
         holder = campaign_asset.holder.gang.name
@@ -1412,17 +1606,26 @@ def unassign_asset(request, pk, asset_pk):
                 messages.error(request, f"{campaign_asset} is not held by any gang.")
             else:
                 messages.success(request, f"Unassigned {campaign_asset} from {holder}.")
-        return redirect(_assets_anchor(found))
+        if is_htmx(request):
+            return _asset_update(request, found, campaign_asset)
+        return redirect(_asset_back(request, found, campaign_asset))
 
-    return render(
+    response = render(
         request,
-        "n26/unassign_asset.html",
+        "n26/includes/campaign_unassign_dialog.html"
+        if is_htmx(request)
+        else "n26/unassign_asset.html",
         {
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "back": _assets_anchor(found),
+            "back": _asset_back(request, found, campaign_asset),
+            "action": request.get_full_path(),
         },
     )
+
+    if is_htmx(request):
+        response["HX-Replace-Url"] = request.get_full_path()
+    return response
 
 
 @requires_flag(CAMPAIGNS)
@@ -1441,6 +1644,7 @@ def transfer_asset(request, pk, asset_pk):
     from n26.core.forms import AssignAssetForm
     from n26.core.models import CampaignMembership
     from n26.core.operations import Refusal
+    from n26.core.views.htmx import is_htmx
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
@@ -1451,11 +1655,13 @@ def transfer_asset(request, pk, asset_pk):
     # A stale link to an asset nobody holds any more: nothing to hand over.
     if not campaign_asset.held:
         messages.error(request, f"{campaign_asset} is not held by any gang.")
-        return redirect(_assets_anchor(found))
+        if is_htmx(request):
+            return _asset_update(request, found, campaign_asset)
+        return redirect(_asset_back(request, found, campaign_asset))
     receiving = (
         CampaignMembership.objects.filter(campaign=found, left__isnull=True)
         .exclude(pk=campaign_asset.holder_id)
-        .select_related("gang", "gang__gang_type")
+        .select_related("gang", "gang__gang_type", "gang__owner")
         .order_by("gang__name")
     )
 
@@ -1481,26 +1687,40 @@ def transfer_asset(request, pk, asset_pk):
                         request,
                         f"{campaign_asset} went from {holder} to {membership.gang.name}.",
                     )
-            return redirect(_assets_anchor(found))
+            if is_htmx(request):
+                return _asset_update(request, found, campaign_asset)
+            return redirect(_asset_back(request, found, campaign_asset))
     else:
         form = AssignAssetForm(playing=receiving)
 
     _badge_a_redrawn_page(request, found)
-    return render(
+    response = render(
         request,
-        "n26/transfer_asset.html",
+        "n26/includes/campaign_transfer_dialog.html"
+        if is_htmx(request)
+        else "n26/transfer_asset.html",
         {
             "form": form,
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "receiving": receiving,
+            "choices": [
+                (membership, str(membership.pk) == str(form["membership"].value()))
+                for membership in receiving
+            ],
+            "redrawn": is_htmx(request),
+            "reopened": is_htmx(request) and request.method == "POST",
             # The arbitrator transfers; the holding gang's owner hands over.
             # Two words for one act, because the owner is giving something
             # of their own away and the arbitrator is moving the campaign's.
             "verb": "Transfer" if arbitrating else "Hand over",
-            "back": _assets_anchor(found),
+            "back": _asset_back(request, found, campaign_asset),
+            "action": request.get_full_path(),
         },
     )
+
+    if is_htmx(request):
+        response["HX-Replace-Url"] = request.get_full_path()
+    return response
 
 
 @requires_flag(CAMPAIGNS)
@@ -1676,6 +1896,8 @@ def new_asset(request, pk):
             annotation=data["annotation"],
             income=data["income"],
         )
+        if asset.asset_type.is_holding:
+            op.add_asset(asset)
         return f"Created {asset}."
 
     picked = str(form["asset_type"].value() or request.GET.get("type", ""))
@@ -1691,14 +1913,21 @@ def new_asset(request, pk):
                 "value": str(asset_type.pk),
                 "label": asset_type.label_singular,
                 "description": (
-                    f"{asset_type.campaign_type} · "
-                    f"{asset_type.get_ownership_display().lower()}"
+                    "Owned by one gang at a time and can be transferred."
+                    if asset_type.is_holding
+                    else f"Each gang always has one of every {asset_type.label_singular} asset."
                 ),
                 "checked": str(asset_type.pk) == picked,
             }
             for asset_type in asset_types
         ],
     )
+
+
+def _campaign_settings_url(campaign):
+    from django.urls import reverse
+
+    return reverse("n26-edit-campaign", args=[campaign.pk]) + "?tab=counters-and-labels"
 
 
 @requires_flag(CAMPAIGNS)
@@ -1715,7 +1944,7 @@ def add_counter(request, pk):
         return f"Added the counter {counter}. Every gang starts at {data['opening']}."
 
     return _addition_page(
-        request, found, form, "n26/add_counter.html", act, _gangs_anchor(found)
+        request, found, form, "n26/add_counter.html", act, _campaign_settings_url(found)
     )
 
 
@@ -1733,7 +1962,7 @@ def add_label(request, pk):
         return f"Added the label {slot.choice_label}. Every gang picks one option."
 
     return _addition_page(
-        request, found, form, "n26/add_label.html", act, _gangs_anchor(found)
+        request, found, form, "n26/add_label.html", act, _campaign_settings_url(found)
     )
 
 
@@ -2352,7 +2581,6 @@ def answer_invitation(request, pk):
             campaign__pk=pk,
             campaign__archived=False,
             user=request.user,
-            state=CampaignParticipant.State.INVITED,
         )
     except ValidationError as malformed:
         raise Http404("No such campaign") from malformed
@@ -2366,16 +2594,31 @@ def answer_invitation(request, pk):
 
     accepted = answer == "accept"
     with campaign_operation(campaign, actor=request.user) as act:
-        act.answer_invitation(request.user, accepted)
-
-    messages.success(
+        answered = act.answer_invitation(request.user, accepted)
+        # Read the stored result while the campaign lock still excludes
+        # removal. A stale form may refer to an invitation already withdrawn.
+        state = (
+            CampaignParticipant.objects.filter(pk=player.pk)
+            .values_list("state", flat=True)
+            .first()
+        )
+    if state is None:
+        messages.info(request, "This invitation is no longer available.")
+        return redirect("n26-campaigns")
+    if state == CampaignParticipant.State.ACCEPTED:
+        messages.success(
+            request,
+            f"You joined {campaign.name}."
+            if answered
+            else f"You have already joined {campaign.name}.",
+        )
+        return redirect("n26-campaign", pk=campaign.pk)
+    messages.info(
         request,
-        f"You joined {campaign.name}."
-        if accepted
-        else f"You declined {campaign.name}.",
+        f"You declined {campaign.name}."
+        if answered
+        else f"You have already declined {campaign.name}.",
     )
-    # Answered from the campaigns list or the home page, and a reader should
-    # land back where they were rather than somewhere this view chose.
     return _safe_redirect(
         request, request.POST.get("next", ""), fallback_url=reverse("n26-campaigns")
     )

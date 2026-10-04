@@ -1,75 +1,63 @@
 {% comment %}
-<c-n26.campaign-block> — What a gang has because it is in a campaign.
+<c-n26.campaign-block> — The gang's campaign state in a separate roster card.
 
-Must sit inside a detail list. It emits a heading and facts, not its own list.
-
-    <c-n26.detail-list>
-        <c-n26.campaign-block :campaign="sheet.campaign" />
-    </c-n26.detail-list>
-
-Assets share one named row per type, using its authored plural and xN for repeats.
-Holdings link to the campaign's assets. Per-item income stays off the strip; the Income counter totals it.
-They are held, never owned, and add nothing to the gang's rating.
-Campaign choices sit under the campaign heading and use the usual picker controls.
-Counter controls render only when the counter has an href.
-The view fills a counter href for the gang's owner and for nobody else.
-Do not build campaign links from a URL name here.
-Empty addresses mean the reader cannot open those pages. A named URL would 404 for most readers.
-class lands on every heading and fact. There is no container of its own to put it on.
+The view supplies editable addresses only to the owner. Counters and labels
+open existing server forms in the page's campaign-state dialog host.
+Assets retain their authored groups and links. This card owns its container.
 {% endcomment %}
-
-<c-vars :campaign="None" class="" />
-
+<c-vars :campaign="None" :redrawn="False" class="" />
 {% if campaign %}
-    <c-n26.detail-list.heading class="{{ class }}">
-        <c-n26.link href="{{ campaign.href }}" tone="current">{{ campaign.name }}</c-n26.link>
-    </c-n26.detail-list.heading>
-    <c-n26.choice-slots :choices="campaign.choices" class="{{ class }}" />
-    {% for line in campaign.other_lines %}
-        <c-n26.detail-list.row label="{{ line.type_label }}" :editable="False" class="{{ class }}">
-            {% spaceless %}
-                {% if line.provenance.source %}
-                    <c-ui.tooltip size="sm">
-                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}<span class="sr-only"> (from {{ line.provenance.source }})</span></span>
-                        <c-slot name="content">From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}</c-slot>
-                    </c-ui.tooltip>
-                {% else %}
-                    <span>{{ line.name }}</span>
-                {% endif %}
-                {% if line.income %}<span class="text-muted">&nbsp;· income {{ line.income }}¢</span>{% endif %}
-            {% endspaceless %}
-        </c-n26.detail-list.row>
-    {% endfor %}
-    {% for group in campaign.asset_groups %}
-        <c-n26.detail-list.row label="{{ group.label }}" :editable="False" class="{{ class }}">
-            {% if group.held %}
-                <c-n26.link href="{{ campaign.assets_href }}" tone="current">{{ group.names }}</c-n26.link>
-            {% elif group.provenance.source %}
-                <c-ui.tooltip size="sm">
-                    <span class="cursor-help underline decoration-dotted underline-offset-2">{{ group.names }}<span class="sr-only"> (from {{ group.provenance.source }})</span></span>
-                    <c-slot name="content">From {{ group.provenance.source }}</c-slot>
-                </c-ui.tooltip>
-            {% else %}
-                <span>{{ group.names }}</span>
-            {% endif %}
-        </c-n26.detail-list.row>
-    {% endfor %}
-    {% for counter in campaign.counters %}
-        <c-n26.detail-list.row :editable="False" class="{{ class }}">
-            <c-slot name="label">
-                {% if counter.provenance.source %}
-                    <c-ui.tooltip size="sm">
-                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ counter.name }}<span class="sr-only"> (from {{ counter.provenance.source }})</span></span>
-                        <c-slot name="content">From {{ counter.provenance.source }}{% if counter.provenance.source_kind %} ({{ counter.provenance.source_kind }}){% endif %}</c-slot>
-                    </c-ui.tooltip>
-                {% else %}
-                    {{ counter.name }}
-                {% endif %}
-            </c-slot>
-            {% spaceless %}
-                <span class="tabular-nums">{{ counter.value }}</span>
-                {% if counter.href %}<c-n26.counter-controls :counter="counter" />{% endif %}
-            {% endspaceless %}
-        </c-n26.detail-list.row>
-    {% endfor %}
+<div id="n26-campaign-state" {% if redrawn %}hx-swap-oob="true"{% endif %} class="min-w-0 {{ class }}">
+    <c-ui.card padding="none" class="h-full">
+        <c-slot name="header">
+            <h2 class="-mx-2 text-sm font-semibold">
+                Campaign <span class="font-normal text-muted" aria-hidden="true">·</span>
+                <c-n26.link href="{{ campaign.href }}" underline="always" class="inline-flex items-center gap-1.5">
+                    {{ campaign.name }}
+                    <c-slot name="trailing"><c-n26.icon name="arrow-right" class="size-3.5 shrink-0" /></c-slot>
+                </c-n26.link>
+            </h2>
+        </c-slot>
+        <dl class="divide-y divide-box-border px-4">
+            {% for choice in campaign.choices %}
+                <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 py-2.5">
+                    <dt class="min-w-0 break-words text-sm text-muted">{{ choice.kind_label }}</dt>
+                    <dd class="flex min-w-0 items-center justify-end gap-2 text-sm">
+                        <span class="min-w-0 break-words text-right">{% if choice.is_resolved %}{{ choice.chosen }}{% else %}—{% endif %}</span>
+                        {% if choice.dismiss_href %}
+                            <form method="post" action="{{ choice.dismiss_href }}" class="inline shrink-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="back" value="{{ choice.back }}">
+                                <c-ui.button type="submit" size="xs" variant="ghost" aria-label="Hide {{ choice.kind_label }}"><c-n26.icon name="x" class="size-3.5" /></c-ui.button>
+                            </form>
+                        {% endif %}
+                        {% if choice.href %}
+                            <c-ui.button size="xs" variant="ghost" href="{{ choice.href }}" hx-get="{{ choice.href }}" hx-swap="none" aria-label="Edit {{ choice.kind_label }}" class="shrink-0"><c-n26.icon name="pencil" class="size-3.5" /></c-ui.button>
+                        {% endif %}
+                    </dd>
+                </div>
+            {% endfor %}
+            {% for counter in campaign.counters %}
+                <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 py-2.5">
+                    <dt class="min-w-0 break-words text-sm text-muted">{{ counter.name }}</dt>
+                    <dd class="flex items-center justify-end text-sm tabular-nums">
+                        {% if counter.href %}{% include "n26/includes/campaign_counter_value.html" with redrawn=False steps=True %}{% else %}{{ counter.value }}{% endif %}
+                    </dd>
+                </div>
+            {% endfor %}
+            {% for line in campaign.other_lines %}
+                <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-baseline gap-3 py-2.5">
+                    <dt class="min-w-0 break-words text-sm text-muted">{{ line.type_label }}</dt>
+                    <dd class="min-w-0 break-words text-right text-sm">{{ line.name }}{% if line.income %}<span class="text-muted"> · income {{ line.income }}¢</span>{% endif %}</dd>
+                </div>
+            {% endfor %}
+            {% for group in campaign.asset_groups %}
+                <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-baseline gap-3 py-2.5">
+                    <dt class="min-w-0 break-words text-sm text-muted">{{ group.label }}</dt>
+                    <dd class="min-w-0 break-words text-right text-sm">{% if group.held %}<c-n26.link href="{{ campaign.assets_href }}" tone="current">{{ group.names }}</c-n26.link>{% else %}{{ group.names }}{% endif %}</dd>
+                </div>
+            {% endfor %}
+        </dl>
+    </c-ui.card>
+</div>
 {% endif %}

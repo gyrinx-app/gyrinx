@@ -35,7 +35,7 @@ survives a reload and can be linked to; nothing is rolled by drawing.
     {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{{ request.path }}"
+    <c-n26.form-page action="{{ choice_action }}"
                      title="{{ offer.label }}"
                      lead="{{ pick_lead }}"
                      submit_label="{{ submit_label }}"
@@ -66,8 +66,8 @@ survives a reload and can be linked to; nothing is rolled by drawing.
         {% endif %}
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
-                <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">
-                    <c-n26.user-link :user="user" href="{% url 'n26-dashboard' %}" tone="current" />
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="user" tone="current" />
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{{ back }}">
                     {{ gang.name }}

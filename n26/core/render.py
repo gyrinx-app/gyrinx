@@ -11,6 +11,7 @@ number of queries regardless of how many models or how much kit — see
 """
 
 from dataclasses import dataclass, field, replace
+from datetime import date, datetime
 
 from django.utils.text import capfirst
 
@@ -281,6 +282,8 @@ class CounterLine:
     assignment_id: str = ""
     href: str = ""
     back: str = ""
+    #: Optional amount-entry dialog, provided only for campaign controls.
+    adjust_href: str = ""
     #: Whether this is the XP counter, decided where the counter itself is
     #: to hand rather than re-derived from ``name`` — which is what a
     #: reader sees, and carries the counter's annotation with it, so an
@@ -1469,22 +1472,26 @@ class CampaignAssetGroup:
     provenance: Provenance = field(default_factory=Provenance)
 
 
-def group_campaign_assets(lines):
-    """One named list per type, with the shared xN convention."""
-    grouped = {}
+def group_campaign_assets(lines, *, types=()):
+    """One row per available type, with the shared xN convention."""
+    grouped = {key: [] for key, _ in types}
+    labels = dict(types)
     for line in lines:
         if line.type_plural:
-            grouped.setdefault(line.asset_type_id or line.type_plural, []).append(line)
+            key = line.asset_type_id or line.type_plural
+            labels.setdefault(key, line.type_plural)
+            grouped.setdefault(key, []).append(line)
     return [
         CampaignAssetGroup(
-            label=members[0].type_plural,
-            names=stacked_names(line.name for line in members),
+            label=labels[key],
+            names=stacked_names(line.name for line in members) if members else "None",
             held=any(line.campaign_asset_id for line in members),
             provenance=members[0].provenance
-            if all(line.provenance == members[0].provenance for line in members)
+            if members
+            and all(line.provenance == members[0].provenance for line in members)
             else Provenance(),
         )
-        for members in grouped.values()
+        for key, members in grouped.items()
     ]
 
 
@@ -1525,10 +1532,14 @@ class CampaignBlock:
     #: feature gets: the page behind these answers them with a 404.
     href: str = ""
     assets_href: str = ""
+    #: Available types remain visible even when this gang holds none.
+    asset_types: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def asset_groups(self):
-        return group_campaign_assets([*self.lines, *self.holdings])
+        return group_campaign_assets(
+            [*self.lines, *self.holdings], types=self.asset_types
+        )
 
     @property
     def other_lines(self):
@@ -1682,21 +1693,16 @@ class CampaignGangLine:
     #: Whether the reader owns this gang — what decides which of the
     #: table's controls are theirs.
     yours: bool = False
-    #: How many value columns the gangs table draws — rating, credits,
-    #: wealth and one per counter — so the details under the gang can be
-    #: laid one to a column. Set by the sheet, as are the two lists of
-    #: headings below.
-    detail_width: int = 0
+    #: The columns a detail value spans: rating, credits, wealth, counters
+    #: and the gang menu. Set by the sheet alongside the detail headings.
+    detail_colspan: int = 1
 
     @property
-    def detail_rows(self):
-        """The labels, assets and starting rolls under this gang, as rows of
-        cells that line up with the value columns above them.
+    def details(self):
+        """Label values and asset groups, followed by the permitted actions.
 
-        Read when the table is drawn, after the view has filled the roll
-        addresses: a roll the reader may not make has no address and takes
-        no cell. A gang with more details than columns runs on to another
-        row.
+        Read after the view fills action addresses, so inaccessible starting
+        rolls never appear in the Actions row.
         """
         details = [
             *(
@@ -1707,22 +1713,11 @@ class CampaignGangLine:
                 GangDetail(label=plural, text=", ".join(names))
                 for plural, names in zip(self.asset_names, self.assets, strict=True)
             ),
-            *(
-                GangDetail(label="Actions", roll=roll)
-                for roll in self.starting_rolls
-                if roll.href
-            ),
         ]
-        width = max(self.detail_width, 1)
-        return [
-            GangDetailRow(
-                details=details[start : start + width],
-                # The cells left empty to the end of the row, the actions
-                # column included.
-                pad=width - len(details[start : start + width]) + 1,
-            )
-            for start in range(0, len(details), width)
-        ]
+        rolls = [roll for roll in self.starting_rolls if roll.href]
+        if rolls:
+            details.append(GangDetail(label="Actions", rolls=rolls))
+        return details
 
     #: The headings of ``labels`` and ``assets``, in the same order: the
     #: sheet's label columns and its asset types' plural names.
@@ -1732,22 +1727,12 @@ class CampaignGangLine:
 
 @dataclass(frozen=True)
 class GangDetail:
-    """One cell under a gang on the campaign's gangs table: a label's pick,
-    the assets of one type, or a starting roll. Empty text is drawn as a
-    dash."""
+    """A labelled gang detail: a choice, asset group or permitted actions.
+    Empty text without actions is drawn as a dash."""
 
     label: str
     text: str = ""
-    roll: StartingRoll | None = None
-
-
-@dataclass(frozen=True)
-class GangDetailRow:
-    """One row of details under a gang, at most one per value column, and
-    how many cells are left to fill out the row."""
-
-    details: list[GangDetail]
-    pad: int
+    rolls: list[StartingRoll] = field(default_factory=list)
 
 
 @dataclass
@@ -1838,6 +1823,8 @@ class CampaignAssetEntry:
     #: asset; the holding gang's owner hands over something they hold.
     transfer_label: str = "Transfer"
     remove_href: str = ""
+    #: Read-only details of this exact campaign holding.
+    href: str = ""
 
 
 @dataclass
@@ -1916,17 +1903,14 @@ class CampaignSheet:
     #: Where the arbitrator opens and writes asset tables. Empty for a
     #: reader who may not.
     tables_href: str = ""
-    #: How many territories the rules have the arbitrator generate for a
-    #: campaign of this many players: three each. Players, not gangs, since
-    #: the rules count people at the table; the arbitrator is not one.
+    #: Suggested unclaimed pool: three territories per active gang.
     territories_to_generate: int = 0
 
     def __post_init__(self):
-        # Each gang line lays its details out under the value columns, so
-        # it needs the column count and the headings its labels and assets
-        # are read under. Set here, once, so every sheet built has them.
+        # Detail values span every column after the gang identity. Labels
+        # and asset names stay in the same order as their prepared values.
         for line in self.gangs:
-            line.detail_width = 3 + len(self.counter_columns)
+            line.detail_colspan = 4 + len(self.counter_columns)
             line.label_names = self.label_columns
             line.asset_names = [asset_type.plural for asset_type in self.asset_types]
 
@@ -3647,7 +3631,7 @@ def _campaign_block(gang_card, membership, keys, readings, index=None):
     the card was computed against, which already holds what each asset's
     income is read off.
     """
-    from n26.library.models import Asset
+    from n26.library.models import Asset, AssetType
 
     if membership is None:
         return None
@@ -3659,6 +3643,22 @@ def _campaign_block(gang_card, membership, keys, readings, index=None):
     return CampaignBlock(
         name=membership.campaign.name,
         campaign_id=str(membership.campaign_id),
+        asset_types=[
+            (str(asset_type.pk), asset_type.plural)
+            for asset_type in sorted(
+                AssetType.objects.filter(
+                    campaign_type_id__in=(
+                        membership.campaign.campaign_type_id,
+                        membership.campaign.additions_id,
+                    )
+                ),
+                key=lambda asset_type: (
+                    asset_type.campaign_type_id != membership.campaign.campaign_type_id,
+                    asset_type.position,
+                    asset_type.label_singular,
+                ),
+            )
+        ],
         lines=_possession_lines(
             possessions, types, _provenance_within(gang_card), income_for
         ),
@@ -4111,7 +4111,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     )
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
     from n26.core.effects import compute, counter_readings
-    from n26.core.models import CampaignMembership, CampaignParticipant
+    from n26.core.models import CampaignMembership
     from n26.library.income import boons_of, income_of
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.references import reading_sentences
@@ -4227,8 +4227,8 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     # Every counter the arbitrator built in is a column, whether or not any
     # gang carries it yet: a counter added a moment ago has not reached
     # the gangs until the propagation pass runs, and a heading with dashes
-    # under it says so where a missing column would say nothing. Every
-    # label is a column the same way.
+    # under it says so where a missing column would say nothing. Labels
+    # remain visible as named details even before any gang picks a value.
     added_counters, label_slots = _arbitrators_additions(campaign)
     label_columns = [slot.choice_label for slot in label_slots]
     for name in added_counters:
@@ -4296,7 +4296,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
             CampaignAssetEntry(
                 campaign_asset_id=str(campaign_asset.pk),
                 name=str(campaign_asset),
-                asset_name=campaign_asset.asset.name if campaign_asset.name else "",
+                asset_name=str(campaign_asset.asset) if campaign_asset.name else "",
                 income=income_of(campaign_asset.asset),
                 boons=[
                     boon_said(modifier) for modifier in boons_of(campaign_asset.asset)
@@ -4330,16 +4330,13 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         ],
         assets=list(tables.values()),
         battles_fought=campaign.battles.count(),
-        territories_to_generate=TERRITORIES_PER_PLAYER
-        * campaign.participants.filter(
-            state=CampaignParticipant.State.ACCEPTED
-        ).count(),
+        territories_to_generate=TERRITORIES_PER_GANG * len(memberships),
     )
 
 
-#: How many territories the rules generate for each player at the table
+#: How many territories the rules generate for each gang
 #: when a campaign is set up.
-TERRITORIES_PER_PLAYER = 3
+TERRITORIES_PER_GANG = 3
 
 
 def boon_said(modifier):
@@ -4370,6 +4367,11 @@ def boon_said(modifier):
     elif isinstance(effect, AddsAssignable) and effect.thing is not None:
         thing = effect.thing
         said = f"{getattr(thing, 'name', None) or thing}."
+    elif isinstance(effect, OpAddsMiniature):
+        said = (
+            f"Gain {effect.profile.name} for free. "
+            "Recruited models stay with the gang when this asset is lost."
+        )
     else:
         return sentence_for(modifier, carriage=GANG_CARRIAGE).text
     if scope.is_conditional:
@@ -4545,3 +4547,33 @@ def build_ledger(gang):
     return LedgerView(
         gang=gang.name, starting_credits=gang.starting_credits, lines=lines
     )
+
+
+@dataclass(frozen=True)
+class CampaignAssetDetails:
+    name: str
+    library_name: str
+    kind: str
+    created: datetime
+    income: int
+    boons: list[str]
+    holder: str
+    holder_href: str
+
+
+@dataclass(frozen=True)
+class CampaignAssetAction:
+    label: str
+    href: str
+    variant: str
+    attrs: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CampaignAssetBattle:
+    title: str
+    date: date
+    href: str
+    gangs: str
+    outcome: str
+    transferred_to: str
