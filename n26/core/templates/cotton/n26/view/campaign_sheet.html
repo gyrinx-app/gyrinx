@@ -4,7 +4,7 @@
 Players, battles, and log are markup slots, not fields on the sheet.
 Declare those slots. An undeclared name resolves to the caller's variable of that name.
 assets_actions never appears in this file. The assets include reads it from the same context.
-The share slot fills the header's breadcrumb_actions.
+The share slot fills the header's breadcrumb_actions. Figures sit below the title.
 Player-management controls in players_actions appear beside the page actions.
 An empty edit_href draws the budget without a link. A None budget prints None set, which is distinct from zero.
 Add counter and Add label come from sheet hrefs. Extra gang controls go in gangs_actions.
@@ -49,25 +49,10 @@ log_count may be markup: the campaign page passes a host that a roll update redr
             {% if share.strip %}<c-slot name="breadcrumb_actions">{{ share }}</c-slot>{% endif %}
             {% if trailing.strip %}<c-slot name="trailing">{{ trailing }}</c-slot>{% endif %}
 
-            <c-slot name="lead">
-
-                {% if sheet.campaign_type_description %}
-                    <c-ui.tooltip size="sm">
-                        <span class="cursor-help underline decoration-dotted underline-offset-2">{{ sheet.campaign_type }}</span>
-                        <c-slot name="content">{{ sheet.campaign_type_description }}</c-slot>
-                    </c-ui.tooltip>
-                {% else %}
-                    <span>{{ sheet.campaign_type }}</span>
-                {% endif %}
-                <span class="mx-1.5 text-ink-400" aria-hidden="true">·</span>
-                {# Markup here, such as a user link. Empty falls back to the sheet name. #}
-                <span>Arbitrator: {% if arbitrator.strip %}{{ arbitrator }}{% else %}{{ sheet.arbitrator }}{% endif %}</span>
-            </c-slot>
-
-            <c-slot name="actions">
-                {% include "n26/includes/campaign_figures.html" %}
-            </c-slot>
+            <c-slot name="actions"> </c-slot>
         </c-n26.page-header>
+
+        {% include "n26/includes/campaign_figures.html" %}
 
         <div class="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
             <div class="min-w-0 max-w-full">
@@ -84,32 +69,47 @@ log_count may be markup: the campaign page passes a host that a roll update redr
                     {% endif %}
                 </c-n26.detail-list>
             </div>
-            {% if actions.strip or players_actions.strip %}
-                <div class="flex flex-wrap items-center justify-end gap-2 md:ml-auto md:shrink-0">{{ players_actions }}{{ actions }}</div>
+            {% if sheet.add_counter_href or sheet.add_label_href %}
+                <div class="flex flex-wrap items-center gap-2">
+                    {% if sheet.add_counter_href %}
+                        <c-ui.button size="sm" variant="default" href="{{ sheet.add_counter_href }}">Add counter</c-ui.button>
+                    {% endif %}
+                    {% if sheet.add_label_href %}
+                        <c-ui.button size="sm" variant="default" href="{{ sheet.add_label_href }}">Add label</c-ui.button>
+                    {% endif %}
+                </div>
             {% endif %}
         </div>
 
+        {% if actions.strip or players_actions.strip %}
+            <div class="flex flex-wrap items-center gap-2">{{ players_actions }}{{ actions }}</div>
+        {% endif %}
+
         {% if invitation.strip %}{{ invitation }}{% endif %}
 
-        {% if sheet.summary %}
-            <c-n26.prose>
-                {{ sheet.summary|safe_rich_text }}
-            </c-n26.prose>
-        {% endif %}
+        <c-ui.card padding="sm">
+            <div class="flex flex-col gap-4">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+                    {% if sheet.campaign_type_description %}
+                        <c-ui.tooltip size="sm">
+                            <span class="cursor-help underline decoration-dotted underline-offset-2">{{ sheet.campaign_type }}</span>
+                            <c-slot name="content">{{ sheet.campaign_type_description }}</c-slot>
+                        </c-ui.tooltip>
+                    {% else %}
+                        <span>{{ sheet.campaign_type }}</span>
+                    {% endif %}
+                    <span class="text-ink-400" aria-hidden="true">·</span>
+                    <span>{% if arbitrator.strip %}{{ arbitrator }}{% else %}{{ sheet.arbitrator }}{% endif %}</span>
+                </div>
+                {% if sheet.summary %}
+                    <c-n26.prose>{{ sheet.summary|safe_rich_text }}</c-n26.prose>
+                {% endif %}
+            </div>
+        </c-ui.card>
     </div>
 
     <c-n26.section id="gangs" title="Gangs" count="{{ sheet.gang_count }} gang{{ sheet.gang_count|pluralize }}">
-        {% if gangs_actions.strip or sheet.add_counter_href or sheet.add_label_href %}
-            <c-slot name="actions">
-                {% if sheet.add_counter_href %}
-                    <c-ui.button size="sm" variant="default" href="{{ sheet.add_counter_href }}">Add counter</c-ui.button>
-                {% endif %}
-                {% if sheet.add_label_href %}
-                    <c-ui.button size="sm" variant="default" href="{{ sheet.add_label_href }}">Add label</c-ui.button>
-                {% endif %}
-                {{ gangs_actions }}
-            </c-slot>
-        {% endif %}
+        {% if gangs_actions.strip %}<c-slot name="actions">{{ gangs_actions }}</c-slot>{% endif %}
         {% include "n26/includes/campaign_gangs.html" %}
     </c-n26.section>
 
