@@ -3,7 +3,9 @@
 #
 # Provides deterministic database names and Django ports for per-worktree
 # isolation, the worktree Python interpreter used by git hook scripts, and
-# stamped venv and React-asset provisioners. Sourced by dev.sh,
+# stamped venv and React-asset provisioners. A hashed port that is already
+# taken is recorded in logs/dev-port so later commands keep the same
+# DJANGO_PORT. Sourced by dev.sh,
 # activate_venv_hook.sh, .codex/run.sh, cleanup scripts, and pre-commit hook
 # wrappers.
 #
@@ -72,10 +74,10 @@ worktree_db_name() {
   fi
 }
 
-# worktree_port [path]
+# worktree_hashed_port [path]
 #   Main worktree  → 8000
 #   Child worktree → deterministic port in range 8100-9599
-worktree_port() {
+worktree_hashed_port() {
   local root="${1:-$(_worktree_root)}"
   local main
   main=$(_main_worktree)
@@ -87,6 +89,224 @@ worktree_port() {
     cksum_val=$(echo -n "$root" | cksum | awk '{print $1}')
     echo $(( (cksum_val % 1500) + 8100 ))
   fi
+}
+
+# _worktree_saved_port <root>
+#   logs/dev-port records a port chosen when the hash was already taken.
+#   Session cookies are named for DJANGO_PORT, so every command must see it.
+_worktree_saved_port() {
+  local root="$1"
+  local file="${root}/logs/dev-port"
+  local saved
+  [ -f "$file" ] || return 0
+  saved=$(head -n 1 "$file" 2>/dev/null || true)
+  saved=${saved//[[:space:]]/}
+  if [[ "$saved" =~ ^[0-9]+$ ]] && [ "$saved" -ge 1024 ] && [ "$saved" -le 65535 ]; then
+    echo "$saved"
+  fi
+}
+
+# worktree_port [path]
+#   The hashed port, unless logs/dev-port holds a port from a collision.
+worktree_port() {
+  local root="${1:-$(_worktree_root)}"
+  local saved
+  saved=$(_worktree_saved_port "$root")
+  if [ -n "$saved" ]; then
+    echo "$saved"
+    return 0
+  fi
+  worktree_hashed_port "$root"
+}
+
+# port_is_listening <port>
+#   True when something accepts TCP connections on 127.0.0.1:<port>.
+port_is_listening() {
+  python3 -c 'import socket, sys
+s = socket.socket()
+s.settimeout(0.2)
+try:
+    rc = s.connect_ex(("127.0.0.1", int(sys.argv[1])))
+finally:
+    s.close()
+sys.exit(0 if rc == 0 else 1)' "$1"
+}
+
+# listening_pid <port>
+#   PID of the process listening on 127.0.0.1:<port>, or empty.
+listening_pid() {
+  local port="$1"
+  local pid=""
+  if [ -r /proc/net/tcp ]; then
+    pid=$(python3 - "$port" <<'PY'
+import os
+import sys
+
+port = int(sys.argv[1])
+hexport = f"{port:04X}"
+inodes = set()
+with open("/proc/net/tcp", encoding="ascii", errors="replace") as handle:
+    next(handle, None)
+    for line in handle:
+        fields = line.split()
+        if len(fields) < 10:
+            continue
+        local, state, inode = fields[1], fields[3], fields[9]
+        local_port = local.rsplit(":", 1)[-1]
+        if local_port.upper() == hexport and state == "0A":
+            inodes.add(inode)
+if not inodes:
+    sys.exit(0)
+for entry in os.listdir("/proc"):
+    if not entry.isdigit():
+        continue
+    fd_dir = f"/proc/{entry}/fd"
+    try:
+        fds = os.listdir(fd_dir)
+    except OSError:
+        continue
+    for fd in fds:
+        try:
+            target = os.readlink(f"{fd_dir}/{fd}")
+        except OSError:
+            continue
+        if target.startswith("socket:[") and target[8:-1] in inodes:
+            print(entry)
+            sys.exit(0)
+PY
+)
+  fi
+  if [ -z "$pid" ] && command -v lsof >/dev/null 2>&1; then
+    pid=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null || true)
+    pid=${pid%%$'\n'*}
+  fi
+  if [ -n "$pid" ]; then
+    echo "$pid"
+  fi
+}
+
+# listener_cwd <pid>
+listener_cwd() {
+  local pid="$1"
+  if [ -d "/proc/${pid}" ]; then
+    readlink -f "/proc/${pid}/cwd" 2>/dev/null || true
+    return 0
+  fi
+  if command -v lsof >/dev/null 2>&1; then
+    local cwd
+    cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null || true)
+    cwd=${cwd##*$'\n'n}
+    cwd=${cwd%%$'\n'*}
+    echo "$cwd"
+  fi
+}
+
+# listener_cmd <pid>
+listener_cmd() {
+  local pid="$1"
+  if [ -r "/proc/${pid}/cmdline" ]; then
+    tr '\0' ' ' < "/proc/${pid}/cmdline" || true
+    return 0
+  fi
+  ps -p "$pid" -o args= 2>/dev/null || true
+}
+
+# dev_port_owner <root> <port>
+#   ours: this worktree's runserver. other: a different process. unknown: no pid.
+dev_port_owner() {
+  local root="$1"
+  local port="$2"
+  local pid cwd cmd root_phys
+  pid=$(listening_pid "$port")
+  if [ -z "$pid" ]; then
+    echo unknown
+    return 0
+  fi
+  root_phys=$(cd "$root" && pwd -P)
+  cwd=$(listener_cwd "$pid")
+  cmd=$(listener_cmd "$pid")
+  if [[ "$cmd" != *runserver* ]]; then
+    echo other
+    return 0
+  fi
+  if [ "$cwd" = "$root_phys" ] || [[ "$cwd" == "$root_phys"/* ]] \
+    || [[ "$cmd" == *"$root_phys"* ]] || [[ "$cmd" == *"$root/"* ]]; then
+    echo ours
+    return 0
+  fi
+  echo other
+}
+
+# next_free_dev_port <start>
+#   The next port that is not accepting connections. Skips 8000.
+next_free_dev_port() {
+  local start="$1"
+  local i candidate
+  for ((i = 1; i <= 32; i++)); do
+    candidate=$((start + i))
+    if [ "$candidate" -gt 65535 ] || [ "$candidate" -eq 8000 ]; then
+      continue
+    fi
+    if ! port_is_listening "$candidate"; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  for ((i = 0; i < 32; i++)); do
+    candidate=$((9600 + i))
+    if [ "$candidate" -eq "$start" ]; then
+      continue
+    fi
+    if ! port_is_listening "$candidate"; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# choose_dev_port <root> <preferred>
+#   Prints the port to bind. Exit 10 when this worktree is already serving it.
+#   A sibling that hashed to the same port is recorded in logs/dev-port.
+choose_dev_port() {
+  local root="$1"
+  local port="$2"
+  local owner replacement
+  if ! port_is_listening "$port"; then
+    echo "$port"
+    return 0
+  fi
+  owner=$(dev_port_owner "$root" "$port")
+  if [ "$owner" = "ours" ]; then
+    echo "This worktree is already serving http://localhost:${port}." >&2
+    echo "$port"
+    return 10
+  fi
+  if [ "$owner" = "unknown" ]; then
+    echo "Port ${port} is already in use, and this script cannot tell which process has it." >&2
+    echo "Session cookies are named for DJANGO_PORT. Start the server with a free port:" >&2
+    echo "  DJANGO_PORT=<free-port> ./scripts/dev.sh" >&2
+    echo "Use that same DJANGO_PORT for screenshots and manage agent_login_url." >&2
+    return 1
+  fi
+  replacement=$(next_free_dev_port "$port") || {
+    echo "Port ${port} is already in use, and no nearby port is free." >&2
+    return 1
+  }
+  mkdir -p "${root}/logs"
+  printf '%s\n' "$replacement" > "${root}/logs/dev-port"
+  echo "Port ${port} is already in use by another process." >&2
+  echo "This worktree will listen on ${replacement} instead." >&2
+  echo "Session cookies use that port. Screenshots and login links read logs/dev-port." >&2
+  echo "Delete logs/dev-port to return to the hashed port once it is free." >&2
+  echo "$replacement"
+}
+
+# resolve_dev_port [path]
+#   choose_dev_port for this worktree's current port (hash or logs/dev-port).
+resolve_dev_port() {
+  local root="${1:-$(_worktree_root)}"
+  choose_dev_port "$root" "$(worktree_port "$root")"
 }
 
 # worktree_label [path]
