@@ -1112,7 +1112,7 @@ class CampaignRollForm(forms.Form):
     reason = forms.CharField(max_length=200)
     dice = forms.ChoiceField(initial="d6", widget=forms.RadioSelect)
     source = forms.ChoiceField(
-        choices=[("generated", "Roll here"), ("manual", "Use physical dice")],
+        choices=[("generated", "Generate a roll"), ("manual", "I already rolled")],
         initial="generated",
         widget=forms.RadioSelect,
     )
@@ -1159,7 +1159,7 @@ class CampaignRollForm(forms.Form):
                 )
                 self.add_error("rolled", message)
         elif cleaned.get("rolled") is not None:
-            self.add_error("rolled", "Leave the physical result blank to roll here.")
+            self.add_error("rolled", "Leave the result blank to generate a roll.")
         return cleaned
 
 
