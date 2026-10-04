@@ -197,7 +197,7 @@ gtm_container_id, messages, user.
             {% endcomment %}
             {% if user.is_authenticated %}
                 <c-slot name="user_label">
-                    <c-n26.user-link :user="user" tone="current" underline="none" />
+                    <c-n26.user-link :user="user" :linked="False" tone="current" underline="none" />
                 </c-slot>
             {% endif %}
             <c-slot name="logo">
@@ -313,7 +313,7 @@ gtm_container_id, messages, user.
                     and c-n26.user-link is what asks.
                     {% endcomment %}
                     <div class="flex items-center gap-2 px-4 pt-2 pb-1 text-sm font-medium text-ink-900 dark:text-ink-100">
-                        <c-n26.user-link :user="user" tone="current" underline="none" />
+                        <c-n26.user-link :user="user" :linked="False" tone="current" underline="none" />
                     </div>
                     {% comment %}
                     The account page belongs to the site rather than to either

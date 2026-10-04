@@ -25,9 +25,7 @@ with no script and a redisplay keeps the pick.
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="campaign.owner"
-                                     tone="current"
-                                     href="{% url 'n26-dashboard' %}" />
+                    <c-n26.user-link :user="campaign.owner" tone="current" />
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>

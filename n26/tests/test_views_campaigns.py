@@ -10,6 +10,7 @@ from importlib import import_module
 import pytest
 from django.contrib.auth.models import Group, User
 from django.test import Client
+from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.models import (
@@ -1336,7 +1337,8 @@ class TestWhatAParticipantSees:
         drawn = client.get("/n26/campaigns/").content.decode()
         # The name is drawn through <c-n26.user-link>, which wraps it so the
         # badge the arbitrator holds can follow it.
-        assert re.search(r"arbitrated by <span[^>]*>kesh<", drawn)
+        assert re.search(r"arbitrated by <a[^>]*><span[^>]*>kesh<", drawn)
+        assert reverse("n26-user-profile", args=[theirs.owner.pk]) in drawn
         assert f"/n26/campaigns/{theirs.pk}/edit/" not in drawn
 
     def test_a_question_still_waiting_is_not_one_of_their_campaigns(
