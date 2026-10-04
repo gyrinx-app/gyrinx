@@ -46,7 +46,9 @@ the bottom.
                                                  :type_icon="gang.type_icon"
                                                  colour="{{ gang.colour }}"
                                                  :sheet="gang.sheet"
+                                                 layout="menu"
                                                  href="{% url 'designsystem:shell_gang' %}"
+                                                 edit_href="#"
                                                  print_href="{% url 'designsystem:print_lab' %}" />
                 {% endfor %}
             </c-n26.record-table>
