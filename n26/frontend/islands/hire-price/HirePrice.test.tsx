@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { mount } from "./entry";
 import { HirePrice, type HirePriceProps } from "./HirePrice";
 
 const props: HirePriceProps = {
@@ -49,5 +50,33 @@ describe("HirePrice", () => {
         expect(document.querySelector("[title]")).toBeNull();
         fireEvent.change(box, { target: { value: "55" } });
         expect(document.querySelector("[title]")).toBeNull();
+    });
+});
+
+describe("mounting over the server-drawn box", () => {
+    it("keeps a figure typed before the module loaded", () => {
+        const host = document.createElement("div");
+        host.id = "hire-host";
+        host.innerHTML = '<input type="number" name="paid" value="55">';
+        document.body.appendChild(host);
+        (host.querySelector("input") as HTMLInputElement).value = "30";
+
+        let unmount: () => void = () => {};
+        act(() => {
+            unmount = mount(host, props);
+        });
+
+        const box = host.querySelector<HTMLInputElement>('input[name="paid"]');
+        expect(box?.value).toBe("30");
+        expect(host.textContent).toContain("−25¢");
+        act(() => unmount());
+        host.remove();
+    });
+
+    it("keeps an emptied box empty", () => {
+        render(<HirePrice {...props} initial="" />);
+        expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe(
+            "",
+        );
     });
 });

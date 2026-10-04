@@ -7,6 +7,8 @@ export type HirePriceProps = {
     min: number;
     max: number;
     id: string;
+    /** What the box already held before React mounted; empty stays empty. */
+    initial?: string;
 };
 
 export function HirePrice({
@@ -16,8 +18,9 @@ export function HirePrice({
     min,
     max,
     id,
+    initial,
 }: HirePriceProps) {
-    const [raw, setRaw] = useState(String(quoted));
+    const [raw, setRaw] = useState(initial ?? String(quoted));
     const price = Number(raw);
     const delta =
         raw !== "" && Number.isFinite(price) && price !== quoted
