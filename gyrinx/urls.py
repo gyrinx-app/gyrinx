@@ -23,6 +23,7 @@ from django.contrib.admindocs import urls as admindocs_urls
 from django.urls import include, path, re_path
 
 from gyrinx import views_debug
+from gyrinx.accounts import views as account_views
 from gyrinx.admin_site import admin_gated_patterns
 from gyrinx.pages import views
 
@@ -60,6 +61,17 @@ urlpatterns = (
     debug_toolbar_urls()
     + [
         path("robots.txt", views.robots_txt, name="robots_txt"),
+        path(
+            "accounts/settings/",
+            account_views.SettingsView.as_view(),
+            name="account-settings",
+        ),
+        path("accounts/security/", account_views.security, name="account-security"),
+        path("accounts/email/", account_views.legacy_email),
+        path("accounts/password/change/", account_views.legacy_password),
+        path("accounts/password/set/", account_views.CombinedPasswordSetView.as_view()),
+        path("accounts/2fa/", account_views.legacy_security),
+        path("accounts/sessions/", account_views.legacy_sessions),
         path("", include("n23.core.urls")),
         path("n26/", include("n26.urls")),
         path("api/", include("gyrinx.api.urls")),

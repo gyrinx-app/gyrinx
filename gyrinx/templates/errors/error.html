@@ -1,25 +1,21 @@
 {% extends "platform/layouts/base.html" %}
-{% block head_title %}
-    Error {{ error_code }}
-{% endblock head_title %}
+{% load platform_tags %}
+{% block head_title %}Error {{ error_code }}{% endblock head_title %}
 {% block content %}
-    <div class="container">
-        <div class="row justify-content-center mt-5">
-            <div class="col-md-6 text-center">
-                <h1 class="display-1 fw-bold text-danger">{{ error_code }}</h1>
-                <h2 class="mb-4">{{ error_message }}</h2>
-                <p class="text-secondary mb-4">{{ error_description }}</p>
-                <div class="d-flex gap-2 justify-content-center">
-                    <a href="{% url 'core:index' %}" class="btn btn-primary">
-                        <i class="bi-house-door me-1" aria-hidden="true"></i> Go Home
-                    </a>
-                    <button type="button"
-                            onclick="window.history.back();"
-                            class="btn btn-secondary">
-                        <i class="bi-arrow-left me-1" aria-hidden="true"></i> Go Back
-                    </button>
-                </div>
-            </div>
+    {% if request.edition == "n26" %}
+        {% url 'n26-dashboard' as home_url %}
+    {% else %}
+        {% url 'core:index' as home_url %}
+    {% endif %}
+    <div class="mx-auto max-w-xl space-y-6 py-16 text-center">
+        <h1 class="text-6xl font-semibold text-red-600 dark:text-red-400">{{ error_code }}</h1>
+        <h2 class="text-2xl font-semibold">{{ error_message }}</h2>
+        <p class="text-muted">{{ error_description }}</p>
+        <div class="flex items-center justify-center gap-4">
+            <c-ui.button href="{{ home_url }}" variant="primary">
+                Home
+            </c-ui.button>
+            <c-n26.link href="{% safe_referer home_url %}">Back</c-n26.link>
         </div>
     </div>
 {% endblock content %}

@@ -1,5 +1,5 @@
 {% load allauth %}
-<div class="alert alert-{{ attrs.level|default:'info' }}" role="alert">
+<c-ui.alert variant="{% if attrs.level == "error" %}error{% elif attrs.level == "success" %}success{% elif attrs.level == "warning" %}warning{% else %}info{% endif %}">
     {% slot message %}
     {% endslot %}
-</div>
+</c-ui.alert>

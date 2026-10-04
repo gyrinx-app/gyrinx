@@ -1,18 +1,12 @@
 {% load allauth %}
-<div class="card mb-3 col-12 col-md-8 col-lg-6">
-    <div class="card-header">
-        <h2 class="h5 mb-0">
-            {% slot title %}
-            {% endslot %}
-        </h2>
-    </div>
-    <div class="card-body">
+<c-n26.section :subsection="account_panel_subsection">
+    <c-slot name="title">
+        {% slot title %}
+        {% endslot %}
+    </c-slot>
+    <div class="space-y-4 rounded-box border border-box-border bg-box p-4">
         {% slot body %}
         {% endslot %}
-        {% if slots.actions %}
-            <div class="list-group list-group-flush mt-3">
-                {% for action in slots.actions %}<div class="list-group-item">{{ action }}</div>{% endfor %}
-            </div>
-        {% endif %}
+        {% if slots.actions %}<div class="flex flex-wrap gap-3">{% for action in slots.actions %}{{ action }}{% endfor %}</div>{% endif %}
     </div>
-</div>
+</c-n26.section>

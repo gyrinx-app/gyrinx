@@ -20,11 +20,11 @@
             {% element table tags="sessions" %}
                 <thead>
                     <tr>
-                        <th class="text-nowrap">{% translate "Started At" %}</th>
-                        <th class="text-nowrap">{% translate "IP Address" %}</th>
+                        <th class="whitespace-nowrap">{% translate "Started at" %}</th>
+                        <th class="whitespace-nowrap">{% translate "IP address" %}</th>
                         <th>{% translate "Browser" %}</th>
                         {% if show_last_seen_at %}
-                            <th class="text-nowrap">{% translate "Last Seen At" %}</th>
+                            <th class="whitespace-nowrap">{% translate "Last seen at" %}</th>
                         {% endif %}
                         <th></th>
                     </tr>
@@ -32,13 +32,13 @@
                 <tbody>
                     {% for session in sessions %}
                         <tr>
-                            <td class="text-nowrap">
+                            <td class="whitespace-nowrap">
                                 <span title="{{ session.created_at }}">{{ session.created_at|naturaltime }}</span>
                             </td>
-                            <td class="text-nowrap">{{ session.ip }}</td>
+                            <td class="whitespace-nowrap">{{ session.ip }}</td>
                             <td>{{ session.user_agent }}</td>
                             {% if show_last_seen_at %}
-                                <td class="text-nowrap">
+                                <td class="whitespace-nowrap">
                                     <span title="{{ session.last_seen_at }}">{{ session.last_seen_at|naturaltime }}</span>
                                 </td>
                             {% endif %}
@@ -58,11 +58,11 @@
         {% slot actions %}
             {% if session_count > 1 %}
                 {% element button tags="danger" type="submit" %}
-                    {% translate "Sign Out Other Sessions" %}
+                    {% translate "Sign out other sessions" %}
                 {% endelement %}
             {% else %}
                 {% element button tags="danger" type="submit" %}
-                    {% translate "Sign Out" %}
+                    {% translate "Sign out" %}
                 {% endelement %}
             {% endif %}
         {% endslot %}

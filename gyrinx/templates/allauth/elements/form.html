@@ -1,11 +1,12 @@
 {% load allauth %}
-<form class="col-12 {% if not attrs.wide %}col-12 col-md-8 col-lg-6{% endif %}"
+<form class="space-y-6 {% if not attrs.wide %}max-w-xl{% endif %}"
       method="{{ attrs.method }}"
+      {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
       action="{{ attrs.action }}">
     {% slot body %}
     {% endslot %}
-    <div class="hstack gap-3 mt-4">
+    <c-n26.form-actions>
         {% slot actions %}
         {% endslot %}
-    </div>
+    </c-n26.form-actions>
 </form>

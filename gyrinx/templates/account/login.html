@@ -2,15 +2,15 @@
 {% load i18n %}
 {% load allauth account %}
 {% block head_title %}
-    {% trans "Sign In" %}
+    {% trans "Sign in" %}
 {% endblock head_title %}
 {% block content %}
     {% element h1 %}
-        {% trans "Sign In" %}
+        {% trans "Sign in" %}
     {% endelement %}
     {% if not SOCIALACCOUNT_ONLY %}
         <p>
-            {% blocktranslate %}If you have not created an account yet, then please <a href="{{ signup_url }}">sign up</a> first.{% endblocktranslate %}
+            {% blocktranslate %}Create an account by <a href="{{ signup_url }}">signing up</a>.{% endblocktranslate %}
         </p>
         {% url 'account_login' as login_url %}
         {% element form form=form method="post" action=login_url tags="entrance,login" %}
@@ -18,17 +18,11 @@
                 {% csrf_token %}
                 {% element fields form=form unlabeled=True %}
                 {% endelement %}
-                <div id="email-warning"
-                     class="form-text text-warning mb-3 d-none"
-                     role="alert">
-                    <i class="bi-info-circle"></i>
-                    {% trans "It looks like you've entered an email address. Please use your username to sign in." %}
-                </div>
                 {{ redirect_field }}
             {% endslot %}
             {% slot actions %}
                 {% element button type="submit" tags="prominent,login" %}
-                    {% trans "Sign In" %}
+                    {% trans "Sign in" %}
                 {% endelement %}
             {% endslot %}
         {% endelement %}
@@ -58,32 +52,4 @@
     {% if PASSKEY_LOGIN_ENABLED %}
         {% include "mfa/webauthn/snippets/login_script.html" with button_id="passkey_login" %}
     {% endif %}
-    <script>
-        (function() {
-            const loginField = document.getElementById('id_login');
-            const emailWarning = document.getElementById('email-warning');
-
-            if (!loginField || !emailWarning) return;
-
-            // Simple email pattern check - just looking for @ with text on both sides
-            function looksLikeEmail(value) {
-                return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-            }
-
-            function updateWarning() {
-                const value = loginField.value;
-                if (looksLikeEmail(value)) {
-                    emailWarning.classList.remove('d-none');
-                } else {
-                    emailWarning.classList.add('d-none');
-                }
-            }
-
-            loginField.addEventListener('input', updateWarning);
-            loginField.addEventListener('change', updateWarning);
-
-            // Check on page load in case of autofill
-            updateWarning();
-        })();
-    </script>
 {% endblock extra_body %}

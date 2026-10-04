@@ -3,7 +3,7 @@
 {% load allauth %}
 {% block content %}
     {% element h1 %}
-        {% translate "Recovery Codes" %}
+        {% translate "Recovery codes" %}
     {% endelement %}
     {% element p %}
         {% blocktranslate count unused_count=unused_codes|length %}There is {{ unused_count }} out of {{ total_count }} recovery codes available.{% plural %}There are {{ unused_count }} out of {{ total_count }} recovery codes available.{% endblocktranslate %}

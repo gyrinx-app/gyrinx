@@ -46,6 +46,17 @@
 @source "../../library/templates";
 @source "../../frontend";
 @source "../../../gyrinx/pages/templates/flatpages";
+@source "../../../gyrinx/templates/account";
+@source "../../../gyrinx/templates/allauth";
+@source "../../../gyrinx/templates/mfa";
+@source "../../../gyrinx/templates/usersessions";
+@source "../../../gyrinx/templates/platform";
+@source "../../../gyrinx/templates/404.html";
+@source "../../../gyrinx/templates/errors";
+@source "../../../n23/core/templates/core/account_home.html";
+@source "../../../n23/core/templates/core/change_username.html";
+@source "../../../n23/core/templates/core/badge_settings.html";
+@source "../../../n23/core/templates/core/timezone_settings.html";
 
 /* Paper. Kept in its own file because print is a different medium with rules
  * that contradict screen habits — see the note at the top of it, which is the

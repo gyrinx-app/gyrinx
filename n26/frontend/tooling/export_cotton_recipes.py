@@ -693,7 +693,16 @@ def recipes():
         "input",
         "button",
     )
-    button_variants = ("default", "primary", "success", "danger", "ghost", "subtle")
+    button_variants = (
+        "default",
+        "primary",
+        "success",
+        "danger",
+        "ghost",
+        "subtle",
+        "text",
+        "text-danger",
+    )
     field = classes(
         '<c-ui.field label="Name" description_trailing="Help" for="recipe-field">Control</c-ui.field>',
         "div",
