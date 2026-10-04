@@ -86,10 +86,10 @@ The n26 application shell owns its gang queries and maintenance state separately
                                      icon="{{ banner.icon|banner_icon }}"
                                      cta_text="{{ banner.cta_text }}"
                                      cta_url="{% if banner.cta_url %}{% url 'core:track-banner-click' banner.id %}{% endif %}"
-                                     on_dismiss="fetch('{% url 'core:dismiss-banner' %}', {method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'}, body: JSON.stringify({banner_id: '{{ banner.id }}'})})"
-                                     id="site-banner-{{ banner.id }}">
-                {{ banner.text }}
-            </c-n26.site.announcement>
+                                     dismiss_url="{% url 'core:dismiss-banner' %}"
+                                     banner_id="{{ banner.id }}"
+                                     message="{{ banner.text }}"
+                                     id="site-banner-{{ banner.id }}" />
         {% endif %}
         <c-n26.site.nav title="Gyrinx"
                         href="/"

@@ -1273,14 +1273,12 @@ class TestAnsweringAnInvitation:
             CampaignParticipant.State.DECLINED
         )
 
-    def test_answering_lands_back_where_the_reader_was(
-        self, client, theirs, open_to_everyone
-    ):
+    def test_accepting_opens_the_campaign(self, client, theirs, open_to_everyone):
         response = client.post(
             f"/n26/campaigns/{theirs.pk}/invitation/",
             {"answer": "accept", "next": "/n26/"},
         )
-        assert response["Location"] == "/n26/"
+        assert response["Location"] == f"/n26/campaigns/{theirs.pk}/"
 
     def test_it_will_not_be_sent_somewhere_else(self, client, theirs, open_to_everyone):
         """The address to return to arrives in a form, so it is checked."""
@@ -1288,7 +1286,7 @@ class TestAnsweringAnInvitation:
             f"/n26/campaigns/{theirs.pk}/invitation/",
             {"answer": "accept", "next": "https://example.test/"},
         )
-        assert response["Location"] == "/n26/campaigns/"
+        assert response["Location"] == f"/n26/campaigns/{theirs.pk}/"
 
     def test_somebody_never_asked_gets_404(
         self, client, arbitrator, campaign_type, open_to_everyone
