@@ -11,6 +11,7 @@ number of queries regardless of how many models or how much kit — see
 """
 
 from dataclasses import dataclass, field, replace
+from datetime import date, datetime
 
 from django.utils.text import capfirst
 
@@ -281,6 +282,8 @@ class CounterLine:
     assignment_id: str = ""
     href: str = ""
     back: str = ""
+    #: Optional amount-entry screen, provided only for campaign controls.
+    adjust_href: str = ""
     #: Whether this is the XP counter, decided where the counter itself is
     #: to hand rather than re-derived from ``name`` — which is what a
     #: reader sees, and carries the counter's annotation with it, so an
@@ -1838,6 +1841,8 @@ class CampaignAssetEntry:
     #: asset; the holding gang's owner hands over something they hold.
     transfer_label: str = "Transfer"
     remove_href: str = ""
+    #: Read-only details of this exact campaign holding.
+    href: str = ""
 
 
 @dataclass
@@ -1916,9 +1921,7 @@ class CampaignSheet:
     #: Where the arbitrator opens and writes asset tables. Empty for a
     #: reader who may not.
     tables_href: str = ""
-    #: How many territories the rules have the arbitrator generate for a
-    #: campaign of this many players: three each. Players, not gangs, since
-    #: the rules count people at the table; the arbitrator is not one.
+    #: Suggested unclaimed pool: three territories per active gang.
     territories_to_generate: int = 0
 
     def __post_init__(self):
@@ -4111,7 +4114,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     )
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
     from n26.core.effects import compute, counter_readings
-    from n26.core.models import CampaignMembership, CampaignParticipant
+    from n26.core.models import CampaignMembership
     from n26.library.income import boons_of, income_of
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.references import reading_sentences
@@ -4296,7 +4299,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
             CampaignAssetEntry(
                 campaign_asset_id=str(campaign_asset.pk),
                 name=str(campaign_asset),
-                asset_name=campaign_asset.asset.name if campaign_asset.name else "",
+                asset_name=str(campaign_asset.asset) if campaign_asset.name else "",
                 income=income_of(campaign_asset.asset),
                 boons=[
                     boon_said(modifier) for modifier in boons_of(campaign_asset.asset)
@@ -4330,16 +4333,13 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         ],
         assets=list(tables.values()),
         battles_fought=campaign.battles.count(),
-        territories_to_generate=TERRITORIES_PER_PLAYER
-        * campaign.participants.filter(
-            state=CampaignParticipant.State.ACCEPTED
-        ).count(),
+        territories_to_generate=TERRITORIES_PER_GANG * len(memberships),
     )
 
 
-#: How many territories the rules generate for each player at the table
+#: How many territories the rules generate for each gang
 #: when a campaign is set up.
-TERRITORIES_PER_PLAYER = 3
+TERRITORIES_PER_GANG = 3
 
 
 def boon_said(modifier):
@@ -4545,3 +4545,32 @@ def build_ledger(gang):
     return LedgerView(
         gang=gang.name, starting_credits=gang.starting_credits, lines=lines
     )
+
+
+@dataclass(frozen=True)
+class CampaignAssetDetails:
+    name: str
+    library_name: str
+    kind: str
+    created: datetime
+    income: int
+    boons: list[str]
+    holder: str
+    holder_href: str
+
+
+@dataclass(frozen=True)
+class CampaignAssetAction:
+    label: str
+    href: str
+    variant: str
+
+
+@dataclass(frozen=True)
+class CampaignAssetBattle:
+    title: str
+    date: date
+    href: str
+    gangs: str
+    outcome: str
+    transferred_to: str

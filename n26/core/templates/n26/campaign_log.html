@@ -31,9 +31,7 @@ offers the reader's other campaigns.
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
                     <c-ui.breadcrumbs.item>
-                        <c-n26.user-link :user="campaign.owner"
-                                         tone="current"
-                                         href="{% url 'n26-dashboard' %}" />
+                        <c-n26.user-link :user="campaign.owner" tone="current" />
                     </c-ui.breadcrumbs.item>
                     <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                     <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
@@ -48,13 +46,75 @@ offers the reader's other campaigns.
                                  variant="primary"
                                  href="{% url 'n26-campaign-record-roll' campaign.pk %}">
                         <span class="flex items-center gap-2">
-                            <c-n26.icon name="dice-5" class="size-4" />
+                            <c-n26.icon name="dices" class="size-4" />
                             Log a dice roll
                         </span>
                     </c-ui.button>
                 </c-slot>
             {% endif %}
         </c-n26.page-header>
+        <form method="get"
+              action="{% url 'n26-campaign-log' campaign.pk %}"
+              class="space-y-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <c-ui.field label="Player or arbitrator"
+                            :form="filters"
+                            name="player"
+                            error="x"
+                            for="log-player">
+                    <c-ui.select.native id="log-player" name="player" placeholder="">
+                        {% for value, label in filters.fields.player.choices %}<option value="{{ value }}"
+        {% if value|stringformat:'s' == filters.player.value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </c-ui.select.native>
+                </c-ui.field>
+                <c-ui.field label="Gang" :form="filters" name="gang" error="x" for="log-gang">
+                    <c-ui.select.native id="log-gang" name="gang" placeholder="">
+                        {% for value, label in filters.fields.gang.choices %}<option value="{{ value }}"
+        {% if value|stringformat:'s' == filters.gang.value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </c-ui.select.native>
+                </c-ui.field>
+                <c-ui.field label="Action type"
+                            :form="filters"
+                            name="kind"
+                            error="x"
+                            for="log-kind">
+                    <c-ui.select.native id="log-kind" name="kind" placeholder="">
+                        {% for value, label in filters.fields.kind.choices %}<option value="{{ value }}"
+        {% if value|stringformat:'s' == filters.kind.value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </c-ui.select.native>
+                </c-ui.field>
+                <div class="grid grid-cols-2 gap-4">
+                    <c-ui.field label="From date"
+                                :form="filters"
+                                name="from_date"
+                                error="x"
+                                for="log-from-date">
+                        <c-ui.input id="log-from-date"
+                                    name="from_date"
+                                    type="date"
+                                    value="{{ filters.from_date.value|default_if_none:'' }}" />
+                    </c-ui.field>
+                    <c-ui.field label="To date"
+                                :form="filters"
+                                name="to_date"
+                                error="x"
+                                for="log-to-date">
+                        <c-ui.input id="log-to-date"
+                                    name="to_date"
+                                    type="date"
+                                    value="{{ filters.to_date.value|default_if_none:'' }}" />
+                    </c-ui.field>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+                <c-ui.button type="submit" size="sm">
+                    Apply filters
+                </c-ui.button>
+                {% if narrowed %}<c-n26.link href="{% url 'n26-campaign-log' campaign.pk %}"
+            class="text-sm">Clear filters</c-n26.link>{% endif %}
+                <p class="text-sm text-muted">{{ matched }} of {{ total }} entries</p>
+            </div>
+        </form>
         {% if days %}
             <ol class="flex flex-col gap-5">
                 {% for day in days %}
@@ -95,7 +155,7 @@ offers the reader's other campaigns.
                 {% endfor %}
             </ol>
         {% else %}
-            <p class="text-muted">Nothing recorded yet. Every change to the campaign is added here.</p>
+            {% if narrowed %}<p class="text-sm text-muted">No activity matches these filters.</p>{% else %}<p class="text-muted">Nothing recorded yet. Every change to the campaign is added here.</p>{% endif %}
         {% endif %}
         {% comment %}
         The ends are drawn as two cases rather than one with a computed
@@ -126,7 +186,7 @@ offers the reader's other campaigns.
                         <c-ui.pagination.next :disabled="True" />
                     {% endif %}
                 </c-ui.pagination>
-                <p class="text-sm text-muted">Page {{ pages.number }} of {{ pages.of }} · {{ total }} entr{{ total|pluralize:"y,ies" }}</p>
+                <p class="text-sm text-muted">Page {{ pages.number }} of {{ pages.of }} · {{ matched }} entr{{ matched|pluralize:"y,ies" }}</p>
             </div>
         {% endif %}
     </div>

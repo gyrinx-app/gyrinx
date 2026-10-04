@@ -1,4 +1,5 @@
 ---
+name: trace-analysis
 description: |
   Use this skill when the user mentions "trace playbook", "analyze trace", "performance trace analysis",
   "OTel trace", "OpenTelemetry trace", or asks to analyze a trace file for performance optimization.

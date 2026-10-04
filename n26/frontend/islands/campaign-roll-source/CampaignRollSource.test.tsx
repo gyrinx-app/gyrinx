@@ -10,8 +10,8 @@ const props: CampaignRollSourceProps = {
     source: "generated",
     rolled: "",
     choices: [
-        { value: "generated", label: "Roll here" },
-        { value: "manual", label: "Use physical dice" },
+        { value: "generated", label: "Generate a roll" },
+        { value: "manual", label: "I already rolled" },
     ],
     sourceErrors: [],
     rolledErrors: [],
@@ -26,24 +26,26 @@ describe("campaign roll source", () => {
             </form>,
         );
         const result = screen.getByRole("spinbutton", {
-            name: "Physical result",
+            name: "Result if already rolled",
         }) as HTMLInputElement;
         const form = view.container.querySelector("form")!;
         expect(result.disabled).toBe(true);
         expect(new FormData(form).has("rolled")).toBe(false);
         await user.click(
-            screen.getByRole("radio", { name: "Use physical dice" }),
+            screen.getByRole("radio", { name: "I already rolled" }),
         );
         expect(result.disabled).toBe(false);
         expect(result.required).toBe(true);
         await user.type(result, "61");
         expect(new FormData(form).get("rolled")).toBe("61");
-        await user.click(screen.getByRole("radio", { name: "Roll here" }));
+        await user.click(
+            screen.getByRole("radio", { name: "Generate a roll" }),
+        );
         expect(result.disabled).toBe(true);
         expect(result.required).toBe(false);
         expect(new FormData(form).has("rolled")).toBe(false);
         await user.click(
-            screen.getByRole("radio", { name: "Use physical dice" }),
+            screen.getByRole("radio", { name: "I already rolled" }),
         );
         expect(result.value).toBe("61");
     });
@@ -60,7 +62,7 @@ describe("campaign roll source", () => {
             />,
         );
         const result = screen.getByRole("spinbutton", {
-            name: "Physical result",
+            name: "Result if already rolled",
         }) as HTMLInputElement;
         expect(result.disabled).toBe(false);
         expect(result.value).toBe("17");

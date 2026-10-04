@@ -236,8 +236,10 @@ class TestAssigningAndUnassigning:
         assert sentences(acts)[-1] == "Old Ruins went to The Ashen Choir"
         assert acts[-1].gang_name == ""
         assert acts[-1].actor == ""
-        # The asset's name leads to the campaign's assets, in both.
-        anchor = reverse("n26-campaign", args=[campaign.pk]) + "#assets"
+        # The asset's name leads to this exact holding, in both.
+        anchor = reverse(
+            "n26-campaign-asset", args=[campaign.pk, campaign_assets[0].pk]
+        )
         assert gang_acts[-1].spans[1].href == anchor
         assert acts[-1].spans[0].href == anchor
 
@@ -407,6 +409,28 @@ class TestTheAssetsOnTheCampaignPage:
         assert reverse("n26-campaign", args=[campaign.pk]) in body
         assert reverse("n26-campaign", args=[campaign.pk]) + "#assets" in body
 
+    def test_a_rolled_holding_keeps_its_income_and_boons(
+        self, client, campaign, old_ruins, arbitrator
+    ):
+        from n26.core.campaigns import campaign_operation
+        from n26.core.render import render_campaign
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            table = act.create_table(
+                old_ruins.asset_type, "Review territory table", "d3"
+            )
+            act.add_table_entry(table, old_ruins, roll_low=1, roll_high=3)
+            roll = act.roll_asset(table, rolled=1)
+        (entry,) = render_campaign(campaign).assets[0].entries
+        assert entry.campaign_asset_id == str(roll.campaign_asset.pk)
+        assert entry.income == 30
+        assert any("Reputation" in boon for boon in entry.boons)
+        assert any("Salvage" in boon for boon in entry.boons)
+        client.force_login(arbitrator)
+        html = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
+        assert "30¢" in html
+        assert "Salvage" in html
+
     def test_the_page_lists_held_and_unclaimed_by_asset_type(
         self, client, campaign_assets, gang, campaign, arbitrator
     ):
@@ -431,7 +455,7 @@ class TestTheAssetsOnTheCampaignPage:
             )
             in body
         )
-        assert "Add territory" in body
+        assert "Add territories" in body
         assert "1 held, 1 unclaimed" in body
 
     def test_a_player_reads_the_assets_without_the_controls(
@@ -447,7 +471,7 @@ class TestTheAssetsOnTheCampaignPage:
             )
             not in body
         )
-        assert "Add territory" not in body
+        assert "Add territories" not in body
 
     def test_the_arbitrator_adds_an_asset(
         self, client, campaign, old_ruins, arbitrator
@@ -475,14 +499,14 @@ class TestTheAssetsOnTheCampaignPage:
         address = reverse("n26-campaign-add-asset", args=[campaign.pk])
 
         body = client.get(f"{address}?type={old_ruins.asset_type_id}").content.decode()
-        assert "Add a territory" in body
+        assert "Add territories" in body
         assert "Old Ruins" in body
         assert "Protection" not in body
 
         other = create_campaign_type("Law & Misrule")
         turf = add_asset_type(other, "Turf", "pooled")
         body = client.get(f"{address}?type={turf.pk}").content.decode()
-        assert "Add an asset" in body
+        assert "Add assets" in body
         assert "Old Ruins" in body
         assert "Protection" in body
 
@@ -621,3 +645,156 @@ class TestTheAssetsOnTheCampaignPage:
         )
         assert "Removed Old Ruins by the sump." in removed.content.decode()
         assert campaign.campaign_assets.count() == 1
+
+
+@pytest.fixture
+def recruiting_asset(old_ruins, person_type, gang_type):
+    from n26.tests.sandbox.actions import create_profile, op_adds_model
+
+    recruit = create_profile("Sump recruit", person_type, gang_type, price=50)
+    modifier(
+        "Old Ruins recruits a fighter",
+        targets_gang(),
+        op_adds_model(recruit),
+        attach_to=old_ruins,
+    )
+    return old_ruins, recruit
+
+
+class TestRecruitBoons:
+    def test_grant_recruits_once_and_loss_keeps_the_model(
+        self, campaign, gang, recruiting_asset
+    ):
+        from n26.core.models import Miniature
+
+        asset, profile = recruiting_asset
+        token = add_asset(campaign, asset)
+        assign_asset(token, gang)
+        recruit = Miniature.objects.get(
+            membership__gang=gang, membership__profile=profile
+        )
+        assert recruit.membership.caused_by_id is None
+        assert recruit.membership.ledger_entry.paid == 0
+        from n26.core import history
+
+        acts = history.build(gang)
+        granted = next(
+            act
+            for act in acts
+            if profile.name in "".join(span.text for span in act.spans)
+        )
+        assert "Old Ruins" in granted.note
+        assign_asset(token, gang)
+        assert (
+            Miniature.objects.filter(
+                membership__gang=gang, membership__profile=profile
+            ).count()
+            == 1
+        )
+        unassign_asset(token)
+        recruit.refresh_from_db()
+        assert not recruit.membership.archived
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_transfer_recruits_for_the_receiver_and_keeps_the_first_recruit(
+        self, campaign, gang, rival, recruiting_asset
+    ):
+        from n26.core.campaigns import campaign_operation
+        from n26.core.models import Miniature
+
+        asset, profile = recruiting_asset
+        token = add_asset(campaign, asset)
+        assign_asset(token, gang)
+        with campaign_operation(campaign, actor=campaign.owner) as op:
+            op.transfer(token, campaign.memberships.get(gang=rival, left__isnull=True))
+        recruits = Miniature.objects.filter(
+            membership__profile=profile, membership__archived=False
+        )
+        assert set(recruits.values_list("membership__gang_id", flat=True)) == {
+            gang.pk,
+            rival.pk,
+        }
+        for member in (gang, rival):
+            member.refresh_from_db()
+            assert_reconciled(member)
+
+    def test_leaving_keeps_the_recruit_but_returns_the_territory(
+        self, campaign, gang, recruiting_asset
+    ):
+        from n26.core.campaigns import campaign_operation
+        from n26.core.models import Miniature
+
+        asset, profile = recruiting_asset
+        token = add_asset(campaign, asset)
+        assign_asset(token, gang)
+        with campaign_operation(campaign, actor=campaign.owner) as op:
+            op.remove_gang(campaign.memberships.get(gang=gang, left__isnull=True))
+        recruit = Miniature.objects.get(
+            membership__gang=gang, membership__profile=profile
+        )
+        assert not recruit.membership.archived
+        token.refresh_from_db()
+        assert token.holder_id is None
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_grant_uses_the_existing_stored_effect_depth_limit(
+        self, campaign, gang, recruiting_asset
+    ):
+        from n26.core.models import Miniature
+        from n26.core.operations import Operation
+        from n26.tests.sandbox.actions import op_adds_model
+
+        asset, profile = recruiting_asset
+        modifier(
+            "Recruit brings another recruit",
+            targets_gang(),
+            op_adds_model(profile),
+            attach_to=profile,
+        )
+        assign_asset(add_asset(campaign, asset), gang)
+        assert (
+            Miniature.objects.filter(
+                membership__gang=gang, membership__profile=profile
+            ).count()
+            == Operation.MAX_STORED_EFFECT_DEPTH
+        )
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+
+class TestCampaignSuppression:
+    def test_additions_suppress_a_shared_rule_only_in_their_own_campaign(
+        self, core, gang_type, arbitrator, player
+    ):
+        from n26.core.models import Assignment
+        from n26.library.authoring import ef_removes
+        from n26.tests.sandbox.actions import add_built_in
+
+        shared_rule = create_rule("Shared campaign rule")
+        add_built_in(core, shared_rule)
+        first = found_campaign("First", core, owner=arbitrator)
+        second = found_campaign("Second", core, owner=arbitrator)
+        first_gang = found_gang("First gang", gang_type, owner=player)
+        second_gang = found_gang("Second gang", gang_type, owner=player)
+        join_campaign(first_gang, first)
+        join_campaign(second_gang, second)
+        assert shared_rule.name in [
+            line.name for line in render_gang(first_gang).campaign.lines
+        ]
+        modifier(
+            "Remove the shared rule here",
+            targets_gang(),
+            ef_removes(shared_rule),
+            attach_to=first.additions,
+        )
+        assert shared_rule.name not in [
+            line.name for line in render_gang(first_gang).campaign.lines
+        ]
+        assert shared_rule.name in [
+            line.name for line in render_gang(second_gang).campaign.lines
+        ]
+        assert Assignment.objects.filter(
+            gang=first_gang, rule=shared_rule, archived=False
+        ).exists()

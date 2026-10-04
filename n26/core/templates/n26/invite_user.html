@@ -1,0 +1,57 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}Invite {{ person.username }}{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-invite-user' person.pk %}"
+                     title="Invite {{ person.username }}"
+                     lead="Select a campaign. You can add a message on the next screen."
+                     :form="form"
+                     submit_label="{% if options %}Continue{% endif %}"
+                     cancel_url="{% url 'n26-user-profile' person.pk %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">Home</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-user-profile' person.pk %}">{{ person.username }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Invite
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% if options %}
+            <c-ui.field label="Campaign *"
+                        error="x"
+                        :form="form"
+                        name="campaign"
+                        for="invite-campaign">
+                <c-ui.select.native id="invite-campaign" name="campaign" required placeholder="">
+                    <c-ui.select.option value="">
+                        Select a campaign
+                    </c-ui.select.option>
+                    {% for option in options %}
+                        <c-ui.select.option value="{{ option.value }}" :selected="option.selected">
+                            {{ option.label }}
+                        </c-ui.select.option>
+                    {% endfor %}
+                </c-ui.select.native>
+            </c-ui.field>
+        {% else %}
+            <c-ui.alert variant="info" title="No campaigns available">
+                <p>You have no active campaigns available to invite {{ person.username }} to.</p>
+            </c-ui.alert>
+        {% endif %}
+        {% if existing %}
+            <c-n26.form-section title="Already invited or playing">
+                <ul class="space-y-3">
+                    {% for campaign in existing %}
+                        <li>
+                            <c-n26.link href="{{ campaign.href }}">
+                                {{ campaign.name }}
+                            </c-n26.link>
+                            <p class="text-sm text-muted">{{ campaign.status }}</p>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </c-n26.form-section>
+        {% endif %}
+    </c-n26.form-page>
+{% endblock %}

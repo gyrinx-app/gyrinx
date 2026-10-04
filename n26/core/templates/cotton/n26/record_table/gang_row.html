@@ -10,12 +10,13 @@ Name the column widths. Auto sizes each listing to its own content, so wealth st
 Keep the type outside the name link so the accessible name stays the gang's name only.
 The colour mark sits inside the name link so the focus ring covers both and they cannot wrap apart.
 The actions cell spans both grid rows so the buttons sit against the name and the wealth strip together.
+Campaign links must be supplied only for campaigns the reader can see.
 Pass the owner's name as text. A user object will not draw as a link here.
 The sheet must carry model_count. The strip leads with it.
 {% endcomment %}
 
 <c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" print_href=""
-        owner="" class="" />
+        owner="" campaign_name="" campaign_href="" class="" />
 
 <div data-record-row data-record-type="{{ type }}" data-record-search="{{ name|add:' '|add:type|lower }}"
      class="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-1 py-3
@@ -34,6 +35,11 @@ The sheet must carry model_count. The strip leads with it.
             </c-n26.flair-link>
             {% if owner %}<span class="text-muted"> · {{ owner }}</span>{% endif %}
         </p>
+        {% if campaign_href %}
+            <p class="relative mt-1 text-sm text-muted">
+                Campaign: <c-n26.link href="{{ campaign_href }}">{{ campaign_name }}</c-n26.link>
+            </p>
+        {% endif %}
     </div>
 
     <c-n26.wealth :sheet="sheet" lead="models"

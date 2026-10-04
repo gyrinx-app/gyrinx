@@ -25,7 +25,7 @@ Cancel goes back to the source gang without writing anything.
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="source.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                    <c-n26.user-link :user="source.owner" tone="current" />
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-gang' source.pk %}">{{ source.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
