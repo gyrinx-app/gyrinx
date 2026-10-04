@@ -10,6 +10,7 @@ from importlib import import_module
 import pytest
 from django.contrib.auth.models import Group, User
 from django.test import Client
+from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.models import (
@@ -1272,14 +1273,12 @@ class TestAnsweringAnInvitation:
             CampaignParticipant.State.DECLINED
         )
 
-    def test_answering_lands_back_where_the_reader_was(
-        self, client, theirs, open_to_everyone
-    ):
+    def test_accepting_opens_the_campaign(self, client, theirs, open_to_everyone):
         response = client.post(
             f"/n26/campaigns/{theirs.pk}/invitation/",
             {"answer": "accept", "next": "/n26/"},
         )
-        assert response["Location"] == "/n26/"
+        assert response["Location"] == f"/n26/campaigns/{theirs.pk}/"
 
     def test_it_will_not_be_sent_somewhere_else(self, client, theirs, open_to_everyone):
         """The address to return to arrives in a form, so it is checked."""
@@ -1287,7 +1286,7 @@ class TestAnsweringAnInvitation:
             f"/n26/campaigns/{theirs.pk}/invitation/",
             {"answer": "accept", "next": "https://example.test/"},
         )
-        assert response["Location"] == "/n26/campaigns/"
+        assert response["Location"] == f"/n26/campaigns/{theirs.pk}/"
 
     def test_somebody_never_asked_gets_404(
         self, client, arbitrator, campaign_type, open_to_everyone
@@ -1338,7 +1337,8 @@ class TestWhatAParticipantSees:
         drawn = client.get("/n26/campaigns/").content.decode()
         # The name is drawn through <c-n26.user-link>, which wraps it so the
         # badge the arbitrator holds can follow it.
-        assert re.search(r"arbitrated by <span[^>]*>kesh<", drawn)
+        assert re.search(r"arbitrated by <a[^>]*><span[^>]*>kesh<", drawn)
+        assert reverse("n26-user-profile", args=[theirs.owner.pk]) in drawn
         assert f"/n26/campaigns/{theirs.pk}/edit/" not in drawn
 
     def test_a_question_still_waiting_is_not_one_of_their_campaigns(

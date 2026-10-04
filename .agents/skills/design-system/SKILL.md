@@ -1,4 +1,5 @@
 ---
+name: design-system
 description: |
   Load the Gyrinx design system reference (patterns, colours, typography, components, spacing,
   buttons, tables, forms, page shells, inline action menus, etc.). Trigger when working on

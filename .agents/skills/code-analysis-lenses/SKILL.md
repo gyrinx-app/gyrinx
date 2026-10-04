@@ -1,4 +1,5 @@
 ---
+name: code-analysis-lenses
 description: |
   Four analytical lenses for evaluating code quality: pattern unification, abstraction detection,
   boundary analysis, and simplification. Load this skill when doing code review, architecture

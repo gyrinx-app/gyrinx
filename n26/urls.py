@@ -13,6 +13,8 @@ from n26.library import views as authoring_views
 
 urlpatterns = [
     path("", views.dashboard, name="n26-dashboard"),
+    path("users/<int:pk>/", views.user_profile, name="n26-user-profile"),
+    path("users/<int:pk>/invite/", views.invite_user, name="n26-invite-user"),
     # The shared changelog lives at /changelog/. These addresses remain
     # because links to them are already out, and they open that page
     # narrowed to this edition.
