@@ -9,17 +9,19 @@ Lead is a named slot so an option name can carry an ampersand.
 
 fields become hidden inputs the hire view needs. Drop them and the POST has no option.
 
-The price box reads Alpine quoted and price on the wrapping span. Do not remove that scope.
+The price box posts paid. It shows how far the typed figure sits from the quote. Without a script the box still posts the quote and the difference is unsaid.
 
 Put the csrf token in the default slot.
 Use a plain checkbox, not the kit's. The kit checkbox needs Alpine group scope, and this panel must work with scripting off.
 Pass rate_at_paid from the posted form. A redraw must keep an untick after a name the field refused.
 {% endcomment %}
 
+{% load arith hire_price react %}
 <c-vars
     action=""
     profile=""
     price=""
+    price_cap=""
     :choices="None"
     :fields="None"
     cancel_url=""
@@ -54,11 +56,21 @@ Pass rate_at_paid from the posted form. A redraw must keep an untick after a nam
     <c-ui.field label="Price"
                 description="What the gang pays. The box below decides what they are worth."
                 for="hire-paid">
-        {# The price include reads quoted and price from this Alpine scope. #}
-        <span x-data="{ quoted: {{ price|default:0 }}, price: {{ price|default:0 }} }"
-              class="inline-flex">
-            {% include "n26/includes/equip_price.html" with field="paid" quoted=price label=profile %}
+        {% hire_price_props field="paid" quoted=price label=profile price_cap=price_cap element_id="hire-paid" as props_ %}
+        {% react_host "hire-price" props_ class="inline-flex" %}
+        <span class="flex items-center justify-end gap-1.5">
+            <input type="number"
+                   id="hire-paid"
+                   name="paid"
+                   value="{{ price|default:0 }}"
+                   min="{{ price|default:0|at_most:0 }}"
+                   max="{{ price_cap }}"
+                   step="1"
+                   inputmode="numeric"
+                   aria-label="Price for {{ profile }}"
+                   class="w-16 shrink-0 rounded-control border border-box-border bg-[var(--color-input-bg)] px-1.5 py-1 text-right text-sm tabular-nums text-ink-900 shadow-[var(--shadow-input)] focus-ring dark:text-ink-100">
         </span>
+        {% endreact_host %}
     </c-ui.field>
 
     <label class="flex cursor-pointer items-start gap-2.5">
