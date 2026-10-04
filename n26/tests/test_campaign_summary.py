@@ -160,3 +160,37 @@ def test_uploaded_image_url_survives_summary_save_edit_and_render(
         location
         in client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
     )
+
+
+def test_compact_description_keeps_full_rich_text_in_disclosure_and_popover(
+    client, campaign
+):
+    client.post(
+        reverse("n26-edit-campaign", args=[campaign.pk]),
+        {"name": campaign.name, "budget": "1000", "summary": CONTENT},
+    )
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+    soup = BeautifulSoup(response.content, "html.parser")
+    overview = soup.find(id="campaign-overview")
+    assert overview.find("dt", string="Type")
+    assert overview.find("dt", string="Arbitrator")
+    assert overview.find("dt", string="Gang budget")
+    popover = overview.find(attrs={"popover": "auto"})
+    assert overview.find("button", attrs={"popovertarget": popover["id"]})
+    disclosure = overview.find("details")
+    assert disclosure.find("summary")
+    assert not disclosure.has_attr("open")
+    for full in [disclosure, popover]:
+        assert full.find("a", href="https://example.com/campaign-pack")
+        assert full.find("img", src="https://example.com/map.png")
+        assert full.find("td", string="Border dispute")
+
+
+def test_empty_description_does_not_offer_an_empty_popover(client, campaign):
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+    overview = BeautifulSoup(response.content, "html.parser").find(
+        id="campaign-overview"
+    )
+    assert "No description yet." in overview.get_text()
+    assert not overview.find("details")
+    assert not overview.find(attrs={"popover": True})

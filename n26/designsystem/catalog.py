@@ -1502,6 +1502,7 @@ GROUPS: list[Group] = [
                 template="n26/section.html",
                 summary="A titled block of a page, with an optional count and controls.",
                 notes=(
+                    "Pass :boxed to give the section a card and a compact header. "
                     "The title renders as an h2, the same rank c-n26.form-section "
                     "gives a form's groups, so a detail section and a form group "
                     "read at the same rank. The count sits inside the heading, so "
@@ -2846,6 +2847,13 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="campaign-description",
+                tag="c-n26.campaign-description",
+                template="n26/campaign_description.html",
+                summary="A compact campaign description with mobile disclosure and desktop popover.",
+                notes="Use a unique panel_id when several descriptions share a page. Full rich text is sanitised in both views; browser-native disclosure and popover controls handle opening and closing.",
+            ),
+            Component(
                 slug="view-campaign-sheet",
                 tag="c-n26.view.campaign-sheet",
                 template="n26/view/campaign_sheet.html",
@@ -2855,16 +2863,11 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
-                    "It has the gang sheet's shape: the type and the arbitrator as "
-                    "the lead, the headline figures in the corner, the facts beside "
-                    "the page's controls, then the sections at one heading scale. "
-                    "The gangs and assets tables are drawn from :sheet, while "
-                    "players, battles and log arrive as slots because each names "
-                    "addresses. Those slots must be declared, because the page "
-                    "filling this calls its own context battles and players. What "
-                    "the arbitrator adds sits where it shows: Add asset type on the "
-                    "Assets heading, Add counter and Add label on the Gangs "
-                    "heading."
+                    "Metadata and a compact description lead the card grid. Gangs "
+                    "span its width; Battles and Assets share a row on wide screens. "
+                    "Players, battles and log arrive as declared markup slots. "
+                    "The description opens inline on mobile and in a popover on "
+                    "wider screens. Counter and label management lives on Edit campaign."
                 ),
             ),
             Component(
