@@ -936,7 +936,7 @@ class CampaignOperation:
         campaign_asset.holder = membership
         campaign_asset.save(update_fields=["holder", "modified"])
         with operation(membership.gang, actor=self.actor) as op:
-            op.event(campaign_asset, LedgerEvent.Kind.GAINED, note=str(campaign_asset))
+            op.gain_asset(campaign_asset)
         return campaign_asset
 
     def unassign(self, campaign_asset, by_holder=None):
@@ -1036,10 +1036,8 @@ class CampaignOperation:
                 reversal_of=undone.get((loser.gang_id, LedgerEvent.Kind.GAINED)),
             )
         with operation(membership.gang, actor=self.actor, batch=mark) as op:
-            op.event(
+            op.gain_asset(
                 campaign_asset,
-                LedgerEvent.Kind.GAINED,
-                note=str(campaign_asset),
                 battle=battle,
                 reversal_of=undone.get((membership.gang_id, LedgerEvent.Kind.LOST)),
             )

@@ -36,7 +36,7 @@ POST is the act.
         {% csrf_token %}
         <c-ui.alert variant="warning" title="The asset becomes unclaimed">
             {{ campaign_asset.holder.gang.name }} stops holding this {{ campaign_asset.type_label }}.
-            Anything the {{ campaign_asset.type_label }} gave the gang stops as well. The
+            Benefits that depend on holding it stop. Recruited models stay with the gang. The
             gang's history and the campaign's log both record it, and the
             {{ campaign_asset.type_label }} can be assigned again.
         </c-ui.alert>
