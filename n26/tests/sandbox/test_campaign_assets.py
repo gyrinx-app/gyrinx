@@ -236,8 +236,10 @@ class TestAssigningAndUnassigning:
         assert sentences(acts)[-1] == "Old Ruins went to The Ashen Choir"
         assert acts[-1].gang_name == ""
         assert acts[-1].actor == ""
-        # The asset's name leads to the campaign's assets, in both.
-        anchor = reverse("n26-campaign", args=[campaign.pk]) + "#assets"
+        # The asset's name leads to this exact holding, in both.
+        anchor = reverse(
+            "n26-campaign-asset", args=[campaign.pk, campaign_assets[0].pk]
+        )
         assert gang_acts[-1].spans[1].href == anchor
         assert acts[-1].spans[0].href == anchor
 

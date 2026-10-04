@@ -173,6 +173,11 @@ urlpatterns = [
         name="n26-campaign-roll-asset",
     ),
     path(
+        "campaigns/<str:pk>/assets/<str:asset_pk>/",
+        views.asset_detail,
+        name="n26-campaign-asset",
+    ),
+    path(
         "campaigns/<str:pk>/gangs/<str:gang_pk>/roll/",
         views.roll_starting_asset,
         name="n26-campaign-roll-starting",

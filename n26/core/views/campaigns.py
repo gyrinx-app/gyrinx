@@ -344,6 +344,9 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
             if table.tables:
                 table.roll_href = f"{here}?roll={table.asset_type_id}"
         for entry in table.entries:
+            entry.href = reverse(
+                "n26-campaign-asset", args=[campaign.pk, entry.campaign_asset_id]
+            )
             if entry.held:
                 entry.holder_href = reverse("n26-gang", args=[entry.holder_gang_id])
             if entry.held and (yours or entry.holder_yours):
