@@ -2701,7 +2701,8 @@ class TestTheLibraryTabsQueryBudget:
         # and one reads the n26 write-pause state for the page notice.
         # Action controls read tracking state, earned uses, drafts and history
         # once for this model, independent of the number of library rows.
-        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 70
+        # Historical table results are one additional bounded read.
+        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 71
 
     def test_it_costs_the_same_however_much_it_holds(
         self, client, tester, fighter, house_list, stocked

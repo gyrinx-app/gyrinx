@@ -281,6 +281,8 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="+",
     )
 
+    chosen_for_status_revision = models.PositiveIntegerField(null=True, blank=True)
+
     # Which offer this pick settles. One line may offer two choices of a
     # kind, both answered by the same kind of thing, so nothing about the
     # answer says which question it was.

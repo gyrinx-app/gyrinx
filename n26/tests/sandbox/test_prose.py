@@ -48,6 +48,7 @@ from n26.library.authoring import (
     ef_removes,
     ef_requires_companions,
     has_pickable,
+    has_status,
     has_subtypes,
     has_traits,
     is_profile_type,
@@ -1448,7 +1449,7 @@ class TestTheQueryCountStaysFlat:
         carry, read whether or not the row has any. Promotion gates add
         one reference scan for promotions requiring the rule.
         """
-        with django_assert_num_queries(73):
+        with django_assert_num_queries(74):
             prose_for(much_used)
 
 
@@ -1561,3 +1562,23 @@ class TestTheDeletePageAndTheProseAgree:
         ]
 
         assert lines and not any(reference.protects for reference in lines)
+
+
+def test_status_narrowing_is_named_in_the_modifier_prose(default_pack):
+    from n26.core.status import Status
+
+    veteran = create_subtype("Veteran")
+    rule = create_rule("Prisoner benefit")
+    attach_modifiers_to(
+        rule,
+        [
+            modifier(
+                "Benefit while Captured",
+                targets_model(has_status(Status.CAPTURED)),
+                ef_adds(veteran),
+            )
+        ],
+    )
+    assert texts(prose_for(rule).does) == [
+        "While their status is Captured, they gain the Veteran subtype."
+    ]

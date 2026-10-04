@@ -473,6 +473,7 @@ def action_panel_context(miniature, own, computed, *, counter_tracking_active=No
     """The same available flows on Edit, Equip and their partial updates."""
     from n26.core.action_flow import action_panels
     from n26.core.counter_tracking import is_active as counter_tracking_is_active
+    from n26.core.result_history import result_history
     from n26.core.views.action_flows import link_action_panels, split_action_panels
 
     if counter_tracking_active is None:
@@ -491,6 +492,7 @@ def action_panel_context(miniature, own, computed, *, counter_tracking_active=No
     return {
         "action_panels": flows,
         "action_history_panels": history,
+        "result_history": result_history(miniature),
     }
 
 

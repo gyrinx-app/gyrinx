@@ -1265,7 +1265,7 @@ ESCAPE_STATUSES = {
     "Ransomed": "ransomed",
     "Daring Escape": "recovery",
 }
-#: The results that hand a model to the Escape table.
+#: The results that set Captured status; the gang-carried condition offers Escape.
 CAPTURED_RESULTS = ("Captured",)
 
 
@@ -1423,15 +1423,17 @@ def _create_lasting_effect_tables():
                     status,
                 )
     escape = _create_escape_table()
+    _create_escape_status_modifier(escape)
     for index, (_, _, rows, _, _) in enumerate(LASTING_EFFECT_TABLES):
         slot_type = SlotType.objects.get(name__iexact=LASTING_EFFECT_TABLES[index][0])
         for _, _, result in rows:
             if result in CAPTURED_RESULTS:
-                _grants_escape(
-                    _table_row(
-                        Pickable, result, _twin_qualifier(index, result), slot_type, {}
-                    ),
-                    escape,
+                pickable = _table_row(
+                    Pickable, result, _twin_qualifier(index, result), slot_type, {}
+                )
+                Pickable.objects.filter(pk=pickable.pk).update(record_only=True)
+                pickable.modifiers.remove(
+                    *pickable.modifiers.filter(adds_assignable__slot=escape)
                 )
 
 
@@ -1465,29 +1467,41 @@ def _create_escape_table():
             pickable=pickable,
             defaults={"roll_low": low, "roll_high": high, "position": position},
         )
+        Pickable.objects.filter(pk=pickable.pk).update(record_only=True)
         _status_modifier(pickable, ESCAPE_STATUSES[result])
-    return _table_row(
+    slot = _table_row(
         Slot,
         ESCAPE_SLOT_TYPE,
         "",
         slot_type,
         {"picklist": table, "label": ESCAPE_SLOT_TYPE, "min_picks": 0, "max_picks": 1},
     )
+    Slot.objects.filter(pk=slot.pk).update(follows_status=True)
+    slot.follows_status = True
+    return slot
 
 
-def _grants_escape(pickable, slot):
-    """Attach "gives the model the Escape choice" to a Captured result,
-    once — found by name, as the status modifiers are."""
-    from n26.library.authoring import ef_adds, modifier, targets_model
-    from n26.library.models import Modifier
+def _create_escape_status_modifier(slot):
+    """One shared conditional grant, attached to the standard gang types."""
+    from django.conf import settings
 
-    name = f"{pickable}: rolls on the {slot.choice_label} table"
-    if pickable.modifiers.filter(name=name).exists():
-        return
-    row = Modifier.objects.filter(name=name).first()
+    from n26.core.status import Status
+    from n26.library.authoring import ef_adds, has_status, modifier, targets_every_model
+    from n26.library.models import GangType, Modifier
+
+    name = "Captured models: Escape"
+    row = Modifier.objects.filter(
+        name=name, pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+    ).first()
     if row is None:
-        row = modifier(name, targets_model(), ef_adds(slot))
-    pickable.modifiers.add(row)
+        row = modifier(
+            name, targets_every_model(has_status(Status.CAPTURED)), ef_adds(slot)
+        )
+    for gang_type in GangType.objects.filter(
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+    ):
+        gang_type.modifiers.add(row)
+    return row
 
 
 #: Suit Evolution's roll (Spyre Hunting Party gang list): a Spyrer spends

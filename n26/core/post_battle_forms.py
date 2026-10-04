@@ -430,7 +430,7 @@ def editor_models(plan, payload, refresh_url=""):
                     selected=selected,
                     label=f"{label} {number}".strip(),
                     questions=found.questions if found else [],
-                    name=found.name if found else "",
+                    name=found.display_name if found else "",
                     retained_choices=[
                         (key, selected)
                         for key, selected in (effect.get("choices") or {}).items()

@@ -1,0 +1,397 @@
+"""Authored status conditions offer a separate choice for each status transition."""
+
+from copy import deepcopy
+from uuid import uuid4
+
+import pytest
+from django.db import connection
+from django.http import Http404
+from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
+
+from n26.core.card import build_card, build_modifier_index, carriers
+from n26.core.effects import compute
+from n26.core.models import Assignment, LedgerEvent
+from n26.core.operations import operation
+from n26.core.post_battle import preview_report, start_correction
+from n26.core.render import build_model_card, slot_key
+from n26.core.status import Status
+from n26.core.views.choose import find_slot
+from n26.library.authoring import (
+    add_picklist_member,
+    create_pickable,
+    create_picklist,
+    create_slot,
+    create_slot_type,
+    ef_adds,
+    has_status,
+    modifier,
+    op_sets_status,
+    targets_every_model,
+    targets_model,
+)
+from n26.tests.fixtures import admit_to_founding
+from n26.tests.sandbox import test_post_battle as report_tests
+from n26.tests.sandbox.actions import hire
+
+owner = report_tests.owner
+content = report_tests.content
+gang = report_tests.gang
+model = report_tests.model
+report = report_tests.report
+payload_for = report_tests.payload_for
+save = report_tests.save
+apply = report_tests.apply
+effect_for = report_tests.effect_for
+
+
+pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def follow_up(content, gang_type):
+    kind = create_slot_type("Release result")
+    released = create_pickable(
+        "Back to the gang",
+        kind,
+        record_only=True,
+        effects=[(targets_model(), op_sets_status(Status.RECOVERY))],
+    )
+    ransom = create_pickable(
+        "Held for payment",
+        kind,
+        record_only=True,
+        effects=[(targets_model(), op_sets_status(Status.RANSOMED))],
+    )
+    table = create_picklist("Release table", kind, members=[released, ransom])
+    slot = create_slot(
+        "Release", kind, table, min_picks=0, max_picks=1, follows_status=True
+    )
+    modifier(
+        "Prisoners may resolve Release",
+        targets_every_model(has_status(Status.CAPTURED)),
+        ef_adds(slot),
+        attach_to=gang_type,
+    )
+    captured = create_pickable(
+        "Taken prisoner",
+        content["kind"],
+        record_only=True,
+        effects=[(targets_model(), op_sets_status(Status.CAPTURED))],
+    )
+    add_picklist_member(content["table"], captured)
+    return captured, slot, released, ransom
+
+
+def computed(model):
+    card = build_card(model)
+    return compute(card, build_modifier_index(carriers(card)))
+
+
+def choose(model, slot, pick):
+    question = next(q for q in computed(model).choices if q.slot.pk == slot.pk)
+    with operation(model.gang, actor=model.gang.owner) as op:
+        return op.choose(question.anchor.assignment, pick, slot=slot, miniature=model)
+
+
+def mark(model, status):
+    with operation(model.gang, actor=model.gang.owner) as op:
+        op.set_status(model, status)
+
+
+def test_manual_status_offers_a_choice_without_an_injury(model, follow_up):
+    _, slot, _, _ = follow_up
+    assert all(q.slot.pk != slot.pk for q in computed(model).choices)
+    mark(model, Status.CAPTURED)
+    question = next(q for q in computed(model).choices if q.slot.pk == slot.pk)
+    assert not question.picks
+    assert question.status_revision == 1
+    assert not Assignment.objects.filter(
+        miniature=model, pickable__isnull=False
+    ).exists()
+
+
+def test_results_leave_current_choices_but_keep_history(model, content, follow_up):
+    captured, slot, released, _ = follow_up
+    choose(model, content["slot"], content["wound"])
+    capture = choose(model, content["slot"], captured)
+    card = build_model_card(model, computed=computed(model))
+    assert [q.chosen for q in card.row_questions if q.is_lasting_effect] == [
+        "Grievous Wound"
+    ]
+    picked = choose(model, slot, released)
+    assert model.status == Status.RECOVERY
+    assert all(q.slot.pk != slot.pk for q in computed(model).choices)
+    assert (
+        Assignment.objects.filter(
+            pk__in=[capture.pk, picked.pk], archived=False
+        ).count()
+        == 2
+    )
+    assert LedgerEvent.objects.filter(assignment=capture).exists()
+    with operation(model.gang, actor=model.gang.owner) as op:
+        op.clean_house()
+    model.refresh_from_db()
+    assert model.status == Status.ACTIVE
+    assert all(q.slot.pk != slot.pk for q in computed(model).choices)
+
+
+def test_a_later_capture_has_a_new_address_and_no_old_pick(model, follow_up):
+    _, slot, released, _ = follow_up
+    mark(model, Status.CAPTURED)
+    first = next(q for q in computed(model).choices if q.slot.pk == slot.pk)
+    old_key = slot_key(first, str(model.pk))
+    choose(model, slot, released)
+    mark(model, Status.CAPTURED)
+    fresh = next(q for q in computed(model).choices if q.slot.pk == slot.pk)
+    assert not fresh.picks
+    assert slot_key(fresh, str(model.pk)) != old_key
+    with pytest.raises(Http404):
+        find_slot(model.gang, old_key)
+    events = LedgerEvent.objects.count()
+    mark(model, Status.CAPTURED)
+    assert LedgerEvent.objects.count() == events
+    assert model.status_revision == fresh.status_revision
+
+
+def test_post_battle_can_resolve_the_status_choice_in_the_same_report(
+    report, owner, model, follow_up
+):
+    captured, _, released, _ = follow_up
+    effect = effect_for(report, owner, captured)
+    payload = payload_for(model, effects=[effect])
+    before = (
+        LedgerEvent.objects.count(),
+        Assignment.objects.count(),
+        model.status_revision,
+    )
+    plan = preview_report(report, actor=owner, payload=payload)
+    assert plan.valid, plan.errors
+    question = plan.models[0].effects[0].questions[0]
+    effect["choices"][question.key] = [
+        next(o.value for o in question.options if o.label == released.name)
+    ]
+    plan = preview_report(report, actor=owner, payload=payload)
+    assert plan.valid, plan.errors
+    assert plan.models[0].final_status == Status.RECOVERY
+    assert not plan.models[0].status_conflict
+    assert plan.models[0].effects[0].display_name == "Taken prisoner → Back to the gang"
+    from n26.core.post_battle_forms import editor_models, preview_display
+
+    display = preview_display(plan, editor_models(plan, payload))
+    assert "Taken prisoner → Back to the gang" in display["models"][0]["lines"]
+    model.refresh_from_db()
+    assert (
+        LedgerEvent.objects.count(),
+        Assignment.objects.count(),
+        model.status_revision,
+    ) == before
+    report = save(report, owner, payload)
+    key = uuid4()
+    apply(report, owner, key=key)
+    events = LedgerEvent.objects.count()
+    apply(report, owner, key=key)
+    assert LedgerEvent.objects.count() == events
+    model.refresh_from_db()
+    assert model.status == Status.RECOVERY
+    assert Assignment.objects.filter(miniature=model, pickable=released).exists()
+
+
+def test_deferred_choice_is_available_to_a_later_report(
+    report, owner, model, follow_up
+):
+    captured, slot, released, _ = follow_up
+    effect = effect_for(report, owner, captured)
+    report = save(report, owner, payload_for(model, effects=[effect]))
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.CAPTURED
+    report = start_correction(report, actor=owner)
+    release = effect_for(report, owner, released)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"].append(release)
+    payload["models"][0]["status"] = ""
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.RECOVERY
+    picked = Assignment.objects.get(miniature=model, pickable=released, archived=False)
+    assert picked.chosen_for_slot_id == slot.pk
+
+
+def test_a_carried_choice_can_be_corrected_and_removed(report, owner, model, follow_up):
+    _, slot, released, ransom = follow_up
+    mark(model, Status.CAPTURED)
+    effect = effect_for(report, owner, released)
+    report = save(report, owner, payload_for(model, effects=[effect]))
+    apply(report, owner)
+    report = start_correction(report, actor=owner)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"][0]["pick"] = str(ransom.pk)
+    payload["models"][0]["status"] = ""
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.RANSOMED
+    assert not Assignment.objects.filter(
+        miniature=model, pickable=released, archived=False
+    ).exists()
+    report = start_correction(report, actor=owner)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"] = []
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.CAPTURED
+    assert not next(q for q in computed(model).choices if q.slot.pk == slot.pk).picks
+
+
+def test_roster_queries_do_not_grow_with_status_choices(
+    client, owner, model, gang, content, follow_up
+):
+    admit_to_founding(owner)
+    client.force_login(owner)
+    mark(model, Status.CAPTURED)
+    url = reverse("n26-gang", args=[gang.pk])
+    client.get(url)
+    with CaptureQueriesContext(connection) as small:
+        response = client.get(url)
+    assert response.status_code == 200
+    assert "Resolve" in response.content.decode()
+    for n in range(4):
+        another = hire(gang, content["profile"], f"Prisoner {n}")
+        mark(another, Status.CAPTURED)
+    with CaptureQueriesContext(connection) as large:
+        assert client.get(url).status_code == 200
+    assert len(large) == len(small)
+
+
+def test_inline_follow_up_is_removed_with_its_report_result(
+    report, owner, model, follow_up
+):
+    captured, _, released, ransom = follow_up
+    effect = effect_for(report, owner, captured)
+    payload = payload_for(model, effects=[effect])
+    question = (
+        preview_report(report, actor=owner, payload=payload)
+        .models[0]
+        .effects[0]
+        .questions[0]
+    )
+    effect["choices"][question.key] = [
+        next(o.value for o in question.options if o.label == released.name)
+    ]
+    report = save(report, owner, payload)
+    revision = apply(report, owner)
+    record = revision.receipt["occurrences"][effect["id"]]
+    assert len(record["assignment_ids"]) == 2
+    report = start_correction(report, actor=owner)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"][0]["choices"][question.key] = [
+        f"library.pickable:{ransom.pk}"
+    ]
+    payload["models"][0]["status"] = ""
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.RANSOMED
+    assert not Assignment.objects.filter(
+        miniature=model, pickable=released, archived=False
+    ).exists()
+    assert (
+        Assignment.objects.filter(
+            miniature=model, pickable=captured, archived=False
+        ).count()
+        == 1
+    )
+
+
+def test_model_edit_keeps_result_history_and_persistent_injuries(
+    client, owner, model, content, follow_up
+):
+    captured, slot, released, _ = follow_up
+    admit_to_founding(owner)
+    client.force_login(owner)
+    choose(model, content["slot"], content["wound"])
+    choose(model, content["slot"], captured)
+    choose(model, slot, released)
+    response = client.get(reverse("n26-edit-fighter", args=[model.pk]))
+    assert response.status_code == 200
+    assert [r.name for r in response.context["result_history"]] == [
+        released.name,
+        captured.name,
+    ]
+    assert "Result history" in response.content.decode()
+    assert "Grievous Wound" in response.content.decode()
+
+
+def test_stale_status_choice_post_does_not_change_a_later_capture(
+    client, owner, model, follow_up
+):
+    _, slot, released, _ = follow_up
+    admit_to_founding(owner)
+    client.force_login(owner)
+    mark(model, Status.CAPTURED)
+    question = next(q for q in computed(model).choices if q.slot.pk == slot.pk)
+    old_url = reverse(
+        "n26-choose", args=[model.gang.pk, slot_key(question, str(model.pk))]
+    )
+    choose(model, slot, released)
+    mark(model, Status.CAPTURED)
+    count = LedgerEvent.objects.count()
+    response = client.post(old_url, {"thing": f"library.pickable:{released.pk}"})
+    assert response.status_code == 404
+    model.refresh_from_db()
+    assert model.status == Status.CAPTURED
+    assert LedgerEvent.objects.count() == count
+
+
+def test_follow_up_controls_are_only_available_to_the_owner(
+    client, owner, model, follow_up
+):
+    from django.contrib.auth.models import User
+
+    _, slot, _, _ = follow_up
+    mark(model, Status.CAPTURED)
+    question = next(q for q in computed(model).choices if q.slot.pk == slot.pk)
+    url = reverse("n26-choose", args=[model.gang.pk, slot_key(question, str(model.pk))])
+    visitor = User.objects.create_user("other-player")
+    admit_to_founding(visitor)
+    client.force_login(visitor)
+    assert client.get(url).status_code == 404
+    roster = client.get(reverse("n26-gang", args=[model.gang.pk]))
+    assert "Resolve" not in roster.content.decode()
+
+
+def test_an_unrelated_result_does_not_attach_an_existing_status_choice(
+    report, owner, model, content, follow_up, counter_tracking
+):
+    mark(model, Status.CAPTURED)
+    effect = effect_for(report, owner, content["lesson"])
+    plan = preview_report(
+        report, actor=owner, payload=payload_for(model, effects=[effect])
+    )
+    assert plan.valid, plan.errors
+    assert not plan.models[0].effects[0].questions
+    assert plan.models[0].final_status == Status.CAPTURED
+
+
+def test_batched_and_selected_cards_keep_status_facts(model, follow_up):
+    from n26.core.card import build_gang_card
+    from n26.core.models import AssignmentSet
+
+    _, slot, _, _ = follow_up
+    mark(model, Status.CAPTURED)
+    gang_card = build_gang_card(model.gang)
+    selection = AssignmentSet.objects.create(miniature=model, name="Empty equipment")
+    for card in (
+        gang_card.members[model.pk],
+        gang_card.members_under(selection)[model.pk],
+    ):
+        assert card.miniature is None
+        index = build_modifier_index(carriers(card))
+        with CaptureQueriesContext(connection) as queries:
+            done = compute(card, index)
+        assert len(queries) == 0
+        question = next(q for q in done.choices if q.slot.pk == slot.pk)
+        assert question.status_revision == model.status_revision

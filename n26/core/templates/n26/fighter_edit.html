@@ -88,6 +88,11 @@ is named by the page's own heading directly below.
                 for a reader the status feature does not reach, which is
                 what leaves the addresses empty.
                 {% endcomment %}
+                {% if result_history %}
+                    <c-ui.dropdown.item href="#n26-result-history">
+                        Result history
+                    </c-ui.dropdown.item>
+                {% endif %}
                 {% if mark_href %}
                     {% if miniature.status == "ransomed" %}
                         <c-ui.dropdown.item href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none">
@@ -144,6 +149,7 @@ is named by the page's own heading directly below.
         </c-slot>
         <c-slot name="action_history">
             {% include "n26/includes/action_history.html" %}
+            {% include "n26/includes/result_history.html" %}
             {% include "n26/includes/progression_history.html" %}
         </c-slot>
         <c-slot name="notes">

@@ -785,3 +785,15 @@ class TestAnInterstitialOnASlot:
 
         assert plan_deletion([shown, house_legacy]).ok
         assert plan_deletion([house_legacy, shown]).ok
+
+
+@pytest.mark.parametrize("kwargs", [{"max_picks": 2}, {"assigned_to": "gang"}])
+def test_status_choice_requires_one_pick_on_the_model(legacy, kwargs):
+    with pytest.raises(ValidationError, match="one pick on the model"):
+        create_slot(
+            "Follow-up",
+            legacy,
+            create_picklist("Follow-up table", legacy),
+            follows_status=True,
+            **kwargs,
+        )

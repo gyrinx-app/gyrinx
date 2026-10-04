@@ -180,6 +180,7 @@ class TargetsMiniature(models.Model):
         "is_profile_type",
         "has_pickable",
         "counter_at_least",
+        "has_status",
     )
 
     class Reach(models.TextChoices):
@@ -513,6 +514,29 @@ class HasPickable(models.Model):
             return None
         matched = select.Any(*(select.Has(pickable) for pickable in wanted))
         return select.Not(matched) if self.negate else matched
+
+
+class HasStatus(models.Model):
+    """Reach models with the selected current status."""
+
+    scope = models.ForeignKey(
+        TargetsMiniature, on_delete=models.CASCADE, related_name="has_status"
+    )
+    status = models.CharField(
+        max_length=12, choices=Status, help_text="The model must have this status."
+    )
+
+    class Meta:
+        verbose_name = "has status"
+        verbose_name_plural = "has status"
+
+    def __str__(self):
+        return f"{Status(self.status).label} models"
+
+    def as_condition(self):
+        from n26.core import select
+
+        return select.HasStatus(self.status)
 
 
 class CounterAtLeast(models.Model):

@@ -245,6 +245,7 @@ class ChoiceSlot:
     #: modifier's offer is one and exactly one; a slot says for itself.
     min_picks: int = 1
     max_picks: int = 1
+    status_revision: int | None = None
 
     @property
     def resolved_with(self):
@@ -1786,8 +1787,21 @@ def _fill_slot_choices(computed, given, by_choice):
             for node in by_choice.get(anchor.key, ())
             if node.chosen_for_slot_id == slot.pk
         ]
+        revision = (
+            computed.card.current_status_revision if slot.follows_status else None
+        )
+        picks = (
+            [node for node in picks if node.chosen_for_status_revision == revision]
+            if slot.follows_status
+            else [
+                node
+                for node in picks
+                if not getattr(node.assignable, "record_only", False)
+            ]
+        )
         computed.choices.append(
             ChoiceSlot(
+                status_revision=revision,
                 kind_label=slot.choice_label,
                 source=source,
                 source_kind=source_kind,

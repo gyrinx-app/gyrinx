@@ -810,9 +810,16 @@ rolls. The player rolls at the table and adds the result they rolled.
    result too, and Foundations attaches these for you: Grievous Wound
    and the 51–56 injuries put the model **In Recovery**, Critical Injury
    marks it **Critically Injured**, Memorable Death marks it **Dead**,
-   and Captured marks it **Captured** and gives it an **Escape** choice —
-   a D6 table of its own (Executed, Ransomed, Daring Escape), each result
-   setting the status in turn. The card shows the status under the
+   and Captured marks it **Captured**. Foundations also attaches a shared
+   modifier to each gang type: target *all models in the gang*, narrow to
+   **Has status: Captured**, and give the **Escape** choice. Escape is a
+   D6 table (Executed, Ransomed, Daring Escape), each result setting the
+   status in turn. The Escape slot has **Follows status** ticked; its
+   results and Captured have **Record only** ticked. These results appear
+   in the model’s result history, while permanent injuries stay on its
+   card. Leaving Captured hides Escape; a later capture offers a new
+   choice. Setting Captured by hand offers the same choice. Attach the
+   shared modifier to any gang type you add later too. The card shows the status under the
    model's name. The owner can set it by hand from the card's menu, and
    Clean House on the gang's menu clears every Recovery at the end of a
    cycle. Taking a result off the card does not undo the status.

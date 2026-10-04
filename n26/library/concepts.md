@@ -259,6 +259,8 @@ The linked category is used for categorisation decisions: a rule that places "th
 
 The summary explains the option to players but does not create its effects; modifiers do that. Leave it blank if there is no useful explanation.
 
+**Record only** keeps a result in the model’s result history instead of its current choice rows. Its status changes and other effects still apply. Use it for resolved events such as Captured and Escape outcomes; permanent injuries remain current choices.
+
 ### Picklist
 
 > Draft, for review.
@@ -280,6 +282,8 @@ A roll table is a picklist that names its dice and how a roll finds its entry �
 Fields of its own: its **slot type** and **picklist**; the **label** shown on the card; an optional **introduction** shown below the choice page title; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; a **mode**; and a position among the slots on one card. A tier ladder holds one pick and gives every picklist member a unique numeric level. Level 0 means that the slot has no pick.
 
 One specific, named use of a slot type. Assigning one to a model or gang — built into a profile, given by a modifier, or brought by an option when something is bought — makes the slot appear. The card draws the label with what the player has picked, or what is set by default, or a control to pick, on the holder's own card and nowhere else: a slot the gang holds appears once rather than on every fighter. Picking under the minimum adds a note on the card and blocks nothing (no page prints these notes yet), and the picker stops offering at the maximum. A slot of one pick is settled by picking, and picking again replaces the pick. A slot of several picks is filled a pick at a time, each option on the picker adding or removing its own. A slot of 0 picks shows no choice. **Hidden** makes the slot invisible while the pick still does everything it does: grouped hidden assignables, under one name.
+
+**Follows status** gives each status change a fresh use of this choice. It takes one pick on the model. A modifier narrowed by **Has status** can show it only while that status applies. Earlier picks stay in history and do not settle a later occurrence.
 
 ### Interstitial
 

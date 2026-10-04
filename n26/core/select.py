@@ -71,6 +71,7 @@ class Matchable:
     #: Counter values the thing holds, keyed by :func:`key` of the
     #: counter — what threshold conditions read.
     counts: tuple = ()
+    status: str | None = None
 
     @property
     def kind(self):
@@ -86,6 +87,7 @@ class Matchable:
             thing=self.thing,
             assignables=self.assignables | {key(thing) for thing in things},
             counts=self.counts,
+            status=self.status,
         )
 
     def counting(self, extra):
@@ -105,6 +107,7 @@ class Matchable:
             thing=self.thing,
             assignables=self.assignables,
             counts=tuple(totals.items()),
+            status=self.status,
         )
 
 
@@ -134,6 +137,26 @@ class Anything:
 
     def __str__(self):
         return "anything"
+
+
+@dataclass(frozen=True)
+class HasStatus:
+    status: str
+
+    def matches(self, target):
+        return target.status == self.status
+
+    def as_q(self, for_model):
+        from n26.core.models import Miniature
+
+        if for_model is not Miniature:
+            raise NotExpressibleAsQuery("Status belongs to a model.")
+        return Q(status=self.status)
+
+    def __str__(self):
+        from n26.core.status import Status
+
+        return f"status is {Status(self.status).label}"
 
 
 @dataclass(frozen=True)

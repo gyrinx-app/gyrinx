@@ -134,6 +134,11 @@ class Pickable(Content, Assignable):
         help_text="Notes for authors using this option elsewhere. Players do not see them.",
     )
 
+    record_only = models.BooleanField(
+        default=False,
+        help_text="Keep this result in history rather than among current choices.",
+    )
+
     summary = models.TextField(
         blank=True,
         default="",
@@ -703,6 +708,10 @@ class Slot(Content, Assignable):
             "displayed) to every member, whoever was asked."
         ),
     )
+    follows_status = models.BooleanField(
+        default=False,
+        help_text="Each status change opens a new use of this choice. Previous results stay in history.",
+    )
     hidden = models.BooleanField(
         default=False,
         help_text="Display no choice at all. What is picked still applies.",
@@ -776,6 +785,12 @@ class Slot(Content, Assignable):
 
     def clean(self):
         super().clean()
+        if self.follows_status and (
+            self.max_picks != 1 or self.assigned_to != self.WillBeAssignedTo.BEARER
+        ):
+            raise ValidationError(
+                {"follows_status": "A status choice takes one pick on the model."}
+            )
         if self.mode == self.Mode.TIER_LADDER:
             if self.max_picks != 1:
                 raise ValidationError(

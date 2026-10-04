@@ -8,7 +8,7 @@ the gang's later earnings or spending.
 import json
 from collections import defaultdict
 from contextlib import contextmanager
-from copy import deepcopy
+from copy import copy, deepcopy
 from dataclasses import asdict, dataclass, field, replace
 from hashlib import sha256
 from uuid import UUID, uuid4
@@ -70,6 +70,7 @@ class ChoiceQuestion:
     selected: list[str]
     min_picks: int
     max_picks: int
+    follows_status: bool = False
 
     @property
     def multiple(self):
@@ -91,6 +92,17 @@ class EffectResult:
     pick: str
     questions: list[ChoiceQuestion] = field(default_factory=list)
     statuses: list[str] = field(default_factory=list)
+
+    @property
+    def display_name(self):
+        outcomes = [
+            option.label
+            for question in self.questions
+            if question.follows_status
+            for option in question.options
+            if option.value in question.selected
+        ]
+        return " → ".join([self.name, *outcomes])
 
 
 @dataclass
@@ -219,6 +231,7 @@ class PostBattlePlan:
     # Resolved objects are private execution data, never template inputs.
     _writes: list = field(default_factory=list, repr=False)
     _removals: list = field(default_factory=list, repr=False)
+    _status_restores: dict = field(default_factory=dict, repr=False)
     _status_writes: dict = field(default_factory=dict, repr=False)
     _equipment: dict = field(default_factory=dict, repr=False)
     _retained: dict = field(default_factory=dict, repr=False)
@@ -568,6 +581,13 @@ def _effect_steps(thing, index, errors, facts, active):
     return statuses
 
 
+def _project_status(card, statuses):
+    for status in statuses:
+        if card.miniature.status != status:
+            card.miniature.status = status
+            card.miniature.status_revision += 1
+
+
 def _project_effect(
     card, computed, slot, thing, raw, result, index, writes, facts, active
 ):
@@ -575,6 +595,12 @@ def _project_effect(
     occurrence = result.id
     root_key = f"post-battle:{occurrence}"
     nodes = {root_key}
+    starting = compute(card, index)
+    earlier_status_choices = {
+        (q.anchor.key, q.identity.pk, q.status_revision)
+        for q in starting.choices
+        if q.status_revision is not None
+    }
     card.roots.append(
         Node(
             thing,
@@ -582,15 +608,25 @@ def _project_effect(
             caused_by_key=slot.anchor.key,
             chosen_for_key=slot.anchor.key,
             chosen_for_slot_id=slot.slot.pk,
+            chosen_for_status_revision=slot.status_revision,
             acquired=timezone.now(),
         )
     )
     writes.append(
-        (occurrence, root_key, slot.anchor.key, slot.slot, None, thing, card.miniature)
+        (
+            occurrence,
+            root_key,
+            slot.anchor.key,
+            slot.slot,
+            None,
+            thing,
+            card.miniature,
+            slot.anchor.key,
+        )
     )
-    result.statuses.extend(
-        _effect_steps(thing, index, result_errors := [], facts, active)
-    )
+    statuses = _effect_steps(thing, index, result_errors := [], facts, active)
+    result.statuses.extend(statuses)
+    _project_status(card, statuses)
     answers = raw.get("choices") or {}
     if not isinstance(answers, dict):
         result_errors.append(f"The choices for {thing} are invalid.")
@@ -601,12 +637,23 @@ def _project_effect(
         pending = [
             q
             for q in computed.choices
-            if q.anchor.key in nodes and (q.anchor.key, q.identity.pk) not in asked
+            if (
+                q.anchor.key in nodes
+                or (
+                    q.status_revision is not None
+                    and (q.anchor.key, q.identity.pk, q.status_revision)
+                    not in earlier_status_choices
+                    and not q.is_full
+                )
+            )
+            and (q.anchor.key, q.identity.pk, q.status_revision) not in asked
         ]
         if not pending:
             break
         for question in pending:
-            asked.add((question.anchor.key, question.identity.pk))
+            asked.add(
+                (question.anchor.key, question.identity.pk, question.status_revision)
+            )
             key = f"{question.anchor.key}:{question.identity._meta.model_name}:{question.identity.pk}"
             offered = _options(question, computed)
             chosen = answers.get(key, [])
@@ -623,6 +670,7 @@ def _project_effect(
                     chosen,
                     question.min_picks,
                     question.max_picks,
+                    follows_status=question.status_revision is not None,
                 )
             )
             if not question.min_picks <= len(chosen) <= question.max_picks:
@@ -656,8 +704,11 @@ def _project_effect(
                     Node(
                         option.thing,
                         node_key,
-                        caused_by_key=question.anchor.key,
+                        caused_by_key=root_key
+                        if question.status_revision is not None
+                        else question.anchor.key,
                         chosen_for_key=question.anchor.key,
+                        chosen_for_status_revision=question.status_revision,
                         chosen_for_slot_id=question.slot.pk if question.slot else None,
                         chosen_for_offer_id=question.offer.pk
                         if question.offer
@@ -674,11 +725,16 @@ def _project_effect(
                         question.offer,
                         option.thing,
                         card.miniature,
+                        root_key
+                        if question.status_revision is not None
+                        else question.anchor.key,
                     )
                 )
-                result.statuses.extend(
-                    _effect_steps(option.thing, index, result_errors, facts, active)
+                statuses = _effect_steps(
+                    option.thing, index, result_errors, facts, active
                 )
+                result.statuses.extend(statuses)
+                _project_status(card, statuses)
     else:
         result_errors.append(f"{thing} has too many linked choices to record here.")
     known = {q.key for q in result.questions}
@@ -755,7 +811,7 @@ def _project_counters(card, index, plan, result, facts, manual=None):
         result.errors.append(
             "These corrections would take a counter below zero. Correct its later changes first."
         )
-    for _, _, _, _, _, thing, miniature in plan._writes:
+    for _, _, _, _, _, thing, miniature, _ in plan._writes:
         if str(miniature.pk) != result.id:
             continue
         for modifier, _ in index.for_thing(thing):
@@ -1179,6 +1235,35 @@ def preview_report(report, *, actor, payload=None):
         before = old_models.get(model_id, {})
         model_errors = []
         card.roots = _remove_nodes(card.roots, removed)
+        card.miniature = copy(miniature)
+        facts.append(["status-revision", model_id, miniature.status_revision])
+        # Re-open a status condition before replacing the result that settled it.
+        # This is a real correction transition when applied, not a reuse of an
+        # earlier choice revision.
+        if (
+            any(
+                str(root.miniature_root_id) == model_id
+                and root.chosen_for_status_revision is not None
+                and any(event.kind == LedgerEvent.Kind.STATUS_SET for event in events)
+                for _, root, events in plan._removals
+            )
+            and model_id in started
+        ):
+            expected = next(
+                (
+                    m["status_after"]
+                    for m in previous.receipt.get("models", [])
+                    if m["id"] == model_id
+                ),
+                None,
+            )
+            if miniature.status != expected:
+                model_errors.append(
+                    "This model's status has changed since these results. Correct its status separately first."
+                )
+            else:
+                plan._status_restores[model_id] = started[model_id]
+                _project_status(card, [started[model_id]])
         computed = compute(card, index)
         xp_nodes = [
             n
@@ -1242,7 +1327,9 @@ def preview_report(report, *, actor, payload=None):
         for slot in computed.choices:
             if (
                 slot.slot is None
-                or not slot.slot.slot_type.is_lasting_effect
+                or not (
+                    slot.slot.slot_type.is_lasting_effect or slot.slot.follows_status
+                )
                 or slot.slot.assigned_to == Slot.WillBeAssignedTo.GANG
             ):
                 continue
@@ -1344,8 +1431,8 @@ def preview_report(report, *, actor, payload=None):
                     active,
                 )
             )
-            implied.extend(effect.statuses)
-            implied_by.extend((effect.name, status) for status in effect.statuses)
+            implied.extend(effect.statuses[-1:])
+            implied_by.extend((effect.name, status) for status in effect.statuses[-1:])
         explicit = str(raw.get("status", ""))
         if explicit and explicit not in Status.values:
             model_errors.append("Choose a valid final status.")
@@ -1392,6 +1479,11 @@ def preview_report(report, *, actor, payload=None):
                 and miniature.status != Status.ACTIVE
                 and implied
                 and implied[-1] != miniature.status
+                and not any(
+                    eligible.get(spec["slot"], (None, {}))[0] is not None
+                    and eligible[spec["slot"]][0].slot.follows_status
+                    for spec in normalized_effects
+                )
             ):
                 name, status = implied_by[-1]
                 verb = "leaves" if status == Status.ACTIVE else "makes"
@@ -1623,6 +1715,12 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
             for occurrence, root, _ in plan._removals:
                 op.post_battle_occurrence = UUID(occurrence)
                 op.remove(root, note="Post-battle correction")
+            for model_id, status in plan._status_restores.items():
+                op.set_status(
+                    Miniature.objects.get(pk=model_id),
+                    status,
+                    note="Post-battle correction",
+                )
             for (
                 occurrence,
                 key,
@@ -1631,6 +1729,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                 offer,
                 thing,
                 miniature,
+                cause_key,
             ) in plan._writes:
                 op.post_battle_occurrence = UUID(occurrence)
                 anchor = assigned.get(anchor_key)
@@ -1639,7 +1738,12 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                         pk=anchor_key, archived=False, gang_root=gang
                     )
                 assigned[key] = op.choose(
-                    anchor, thing, slot=slot, offer=offer, miniature=miniature
+                    anchor,
+                    thing,
+                    slot=slot,
+                    offer=offer,
+                    miniature=miniature,
+                    caused_by=assigned.get(cause_key, anchor),
                 )
                 roots.setdefault(occurrence, assigned[key])
             op.post_battle_occurrence = None
@@ -1754,7 +1858,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                     "status_after": m.final_status,
                     "status_before_label": m.status_label,
                     "status_after_label": label_for(m.final_status, m.is_vehicle),
-                    "effects": [e.name for e in m.effects],
+                    "effects": [e.display_name for e in m.effects],
                     "equipment_disposition": m.equipment_disposition,
                     "equipment_changed": m.equipment_changed,
                     "equipment_names": m.equipment_affected_names,

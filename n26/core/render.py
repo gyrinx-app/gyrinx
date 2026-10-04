@@ -638,6 +638,7 @@ class ChoiceLine:
     #: Most models carry one, so a card away from the model's own screens
     #: draws it only once something has been chosen.
     is_lasting_effect: bool = False
+    follows_status: bool = False
     #: Dismissed choices are kept off the model card. The model's Edit page
     #: and the gang's Dismissed choices tab offer Restore instead of Choose.
     dismissed: bool = False
@@ -2110,7 +2111,7 @@ def slot_key(slot, host):
     anchor = getattr(slot.anchor, "assignment", None)
     if not host or anchor is None or slot.identity is None:
         return ""
-    return _address(host, anchor.pk, slot.identity.pk)
+    return _address(host, anchor.pk, slot.identity.pk, slot.status_revision)
 
 
 def _choice_line(slot, host):
@@ -2121,6 +2122,7 @@ def _choice_line(slot, host):
         takes_several=slot.max_picks > 1,
         is_tier_ladder=is_tier_ladder(slot),
         is_lasting_effect=is_lasting_effect(slot),
+        follows_status=bool(slot.slot and slot.slot.follows_status),
         key=slot_key(slot, host),
         provenance=Provenance(
             source=slot.source,
