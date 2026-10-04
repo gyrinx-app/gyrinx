@@ -7,7 +7,8 @@ Must sit inside a detail list. It emits a heading and facts, not its own list.
         <c-n26.campaign-block :campaign="sheet.campaign" />
     </c-n26.detail-list>
 
-Holdings link to the campaign's assets, not to the holding itself.
+Assets share one named row per type, using its authored plural and xN for repeats.
+Holdings link to the campaign's assets. Per-item income stays off the strip; the Income counter totals it.
 They are held, never owned, and add nothing to the gang's rating.
 Campaign choices sit under the campaign heading and use the usual picker controls.
 Counter controls render only when the counter has an href.
@@ -24,7 +25,7 @@ class lands on every heading and fact. There is no container of its own to put i
         <c-n26.link href="{{ campaign.href }}" tone="current">{{ campaign.name }}</c-n26.link>
     </c-n26.detail-list.heading>
     <c-n26.choice-slots :choices="campaign.choices" class="{{ class }}" />
-    {% for line in campaign.lines %}
+    {% for line in campaign.other_lines %}
         <c-n26.detail-list.row label="{{ line.type_label }}" :editable="False" class="{{ class }}">
             {% spaceless %}
                 {% if line.provenance.source %}
@@ -39,12 +40,18 @@ class lands on every heading and fact. There is no container of its own to put i
             {% endspaceless %}
         </c-n26.detail-list.row>
     {% endfor %}
-    {% for holding in campaign.holdings %}
-        <c-n26.detail-list.row label="{{ holding.type_label }}" :editable="False" class="{{ class }}">
-            {% spaceless %}
-                <c-n26.link href="{{ campaign.assets_href }}" tone="current">{{ holding.name }}</c-n26.link>
-                {% if holding.income %}<span class="text-muted">&nbsp;· income {{ holding.income }}¢</span>{% endif %}
-            {% endspaceless %}
+    {% for group in campaign.asset_groups %}
+        <c-n26.detail-list.row label="{{ group.label }}" :editable="False" class="{{ class }}">
+            {% if group.held %}
+                <c-n26.link href="{{ campaign.assets_href }}" tone="current">{{ group.names }}</c-n26.link>
+            {% elif group.provenance.source %}
+                <c-ui.tooltip size="sm">
+                    <span class="cursor-help underline decoration-dotted underline-offset-2">{{ group.names }}<span class="sr-only"> (from {{ group.provenance.source }})</span></span>
+                    <c-slot name="content">From {{ group.provenance.source }}</c-slot>
+                </c-ui.tooltip>
+            {% else %}
+                <span>{{ group.names }}</span>
+            {% endif %}
         </c-n26.detail-list.row>
     {% endfor %}
     {% for counter in campaign.counters %}

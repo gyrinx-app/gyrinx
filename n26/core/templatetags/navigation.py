@@ -68,7 +68,11 @@ def places_switcher(context, here=""):
     """
     from n26.core.navigation import places_switcher as build
 
-    return build(context.get("request"), here=here)
+    return build(
+        context.get("request"),
+        here=here,
+        campaigns_open=feature_open(context, "campaigns"),
+    )
 
 
 @register.simple_tag

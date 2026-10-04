@@ -24,7 +24,7 @@ INCOME = "Income"
 #: authoring page, the campaign type's page, the arbitrator's own.
 INCOME_HELP = (
     "Credits this asset brings its holder each cycle. Added to the gang's "
-    "Income counter. Nothing collects it yet."
+    "Income counter."
 )
 
 

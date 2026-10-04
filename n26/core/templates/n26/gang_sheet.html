@@ -39,7 +39,7 @@ that said it twice would be spending the width the name needs.
                            trade_points_href="{{ trade_points_href }}"
                            credits_href="{{ credits_href }}"
                            owner="{{ gang.owner.username }}"
-                           owner_href="{% url 'n26-dashboard' %}"
+                           owner_href="{% url 'n26-user-profile' gang.owner.pk %}"
                            owner_flair_label="{{ owner_badge.description }}"
                            gangs_href="{% url 'n26-dashboard' %}">
         {% if unlimited_in_campaign %}

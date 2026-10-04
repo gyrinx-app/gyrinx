@@ -310,6 +310,18 @@ if [ "$SETUP_ONLY" = true ]; then
   exit 0
 fi
 
+# A sibling worktree can hash to this port. Record a free one before the
+# server starts so the banner, the cookie name and later commands agree.
+resolve_status=0
+resolved_port=$(resolve_dev_port "$WT_ROOT") || resolve_status=$?
+if [ "$resolve_status" -eq 10 ]; then
+  exit 0
+fi
+if [ "$resolve_status" -ne 0 ]; then
+  exit "$resolve_status"
+fi
+export DJANGO_PORT="$resolved_port"
+
 # ---------------------------------------------------------------------------
 # Background process management
 # ---------------------------------------------------------------------------
