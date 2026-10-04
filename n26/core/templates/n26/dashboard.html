@@ -71,7 +71,10 @@ places — the same pattern a gang's screens use for their siblings.
                                                  :sheet="gang"
                                                  campaign_name="{{ gang.campaign_name }}"
                                                  campaign_href="{{ gang.campaign_href }}"
-                                                 href="{% url 'n26-gang' gang.pk %}" />
+                                                 layout="menu"
+                                                 href="{% url 'n26-gang' gang.pk %}"
+                                                 edit_href="{% url 'n26-edit-gang' gang.pk %}"
+                                                 print_href="{% url 'n26-print-setup' gang.pk %}" />
                 {% endfor %}
             </c-n26.record-table>
         </c-slot>

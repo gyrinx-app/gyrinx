@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from n26.core import icons
+from n26.core.models import Gang
 
 pytestmark = pytest.mark.django_db
 
@@ -89,3 +90,58 @@ class TestTheHomeTabQuery:
         client.force_login(tester)
         body = client.get(reverse("n26-dashboard"), {"tab": "Nope"}).content.decode()
         assert "activeTab: 'Gangs'" in body
+
+
+ICON = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+    '<circle cx="12" cy="12" r="9" fill="currentColor"/></svg>'
+)
+
+
+def flat(body):
+    return body.replace(" ", "").replace("\n", "")
+
+
+class TestTheGangRows:
+    """A home row draws the gang type's artwork beside the wealth strip and
+    an actions menu in place of the Edit button. The Gangs page keeps its
+    button."""
+
+    @pytest.fixture
+    def gang(self, tester, gang_type):
+        return Gang.objects.create(
+            name="The Ashen Choir", owner=tester, gang_type=gang_type
+        )
+
+    def test_a_home_row_has_no_edit_button(self, client, tester, gang):
+        client.force_login(tester)
+        body = client.get(reverse("n26-dashboard")).content.decode()
+        assert "The Ashen Choir" in body
+        assert ">Edit<" not in flat(body)
+
+    def test_a_home_row_has_a_menu_of_gang_actions(self, client, tester, gang):
+        client.force_login(tester)
+        body = client.get(reverse("n26-dashboard")).content.decode()
+        assert 'aria-label="Actions for The Ashen Choir"' in body
+        assert ">Viewgang<" in flat(body)
+        assert ">Editgangsettings<" in flat(body)
+        assert ">Print<" in flat(body)
+        assert reverse("n26-gang", args=[gang.pk]) in body
+        assert reverse("n26-edit-gang", args=[gang.pk]) in body
+        assert reverse("n26-print-setup", args=[gang.pk]) in body
+
+    def test_a_home_row_draws_the_gang_type_artwork(
+        self, client, tester, gang, store_artwork
+    ):
+        gang.gang_type.icon_url = store_artwork(ICON, "choir.svg")
+        gang.gang_type.save(update_fields=["icon_url"])
+        client.force_login(tester)
+        body = client.get(reverse("n26-dashboard")).content.decode()
+        assert "[--n26-icon-size:2.25rem]" in body
+        assert 'r="9"' in body
+
+    def test_the_gangs_page_still_has_the_edit_button(self, client, tester, gang):
+        client.force_login(tester)
+        body = client.get(reverse("n26-gangs")).content.decode()
+        assert ">Edit<" in flat(body)
+        assert "Actions for The Ashen Choir" not in body

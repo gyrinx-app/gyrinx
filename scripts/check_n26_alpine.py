@@ -12,7 +12,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "n26/frontend/tooling/alpine-baseline.json"
 COMMENTS = re.compile(r"{% comment\b.*?{% endcomment %}|{#.*?#}|<!--.*?-->", re.S)
-DIRECTIVE = re.compile(r"\s(?:x-[\w.:-]+|@[\w.:-]+)\b(?=\s|=|/?>)")
+# An @ handler always takes a value. Without the =, Tailwind's container
+# query classes (@2xl:flex) in a class list would count as handlers.
+DIRECTIVE = re.compile(r"\s(?:x-[\w.:-]+\b(?=\s|=|/?>)|@[\w.:-]+(?==))")
 
 
 def inventory():
