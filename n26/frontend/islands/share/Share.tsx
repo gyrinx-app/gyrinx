@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import cotton from "../../generated/cotton.json";
-import { ButtonLink, Icon } from "../../ui";
+import {
+    ButtonLink,
+    type ButtonLinkSize,
+    type ButtonLinkVariant,
+    Icon,
+} from "../../ui";
 
 export type ShareProps = {
     url: string;
     message: string;
-    size: keyof typeof cotton.buttonLinkBySize;
-    variant: keyof typeof cotton.buttonLinkBySize.md;
+    size: ButtonLinkSize;
+    variant: ButtonLinkVariant;
 };
 
 const COPIED_FOR_MS = 4000;

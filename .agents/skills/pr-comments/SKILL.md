@@ -1,4 +1,5 @@
 ---
+name: pr-comments
 description: |
   Fetch all PR comments, reviews, and review threads in a single GraphQL call.
   Use when you need to check PR feedback, address review comments, see review

@@ -1,30 +1,19 @@
 {% comment %}
-The campaigns somebody has been asked into and not yet answered.
-
-Drawn above their own campaigns on both surfaces that list them, so one
-include is the only place the answer buttons exist and the two cannot come to
-disagree about what answering looks like.
-
-Accept and decline are two submits in one form, so the pair works with no
-scripting and neither is a link pretending to act — a real <a> cannot post,
-and declining has to. Accept is `success`, the variant that ends a question;
-declining is outlined danger, so it reads red without shouting louder than the
-answer most people are looking for.
-
-`next` carries where the reader was, so answering from the home page lands
-back on the home page.
-
-  invitations — CampaignParticipant rows, each with its campaign.
-  back — the address to return to after answering.
+The reader's unanswered invitations, on the home, campaign list and campaign
+pages. Accept and decline submit without scripting. Accepted players land on
+the campaign; declining uses the validated return address.
 {% endcomment %}
 {% if invitations %}
     <section class="flex flex-col gap-2">
         <h2 class="text-sm font-medium text-muted">Invitations</h2>
         <ul class="flex flex-col">
             {% for invitation in invitations %}
-                <li class="flex flex-wrap items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                <li class="flex flex-col items-start gap-3 border-b border-box-border/50 py-2 last:border-b-0 sm:flex-row sm:items-center">
                     <div class="min-w-0 flex-1">
-                        <p class="text-base font-semibold">{{ invitation.campaign.name }}</p>
+                        <p class="text-base font-semibold">
+                            <a href="{% url 'n26-campaign' invitation.campaign.pk %}"
+                               class="hover:underline">{{ invitation.campaign.name }}</a>
+                        </p>
                         <p class="text-sm text-muted">
                             from
                             {% if invitation.campaign.owner %}
