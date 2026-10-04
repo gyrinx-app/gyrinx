@@ -763,6 +763,11 @@ class AddAssetForm(forms.Form):
     def __init__(self, *args, offered, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["asset"].queryset = offered
+        if self.is_bound:
+            for asset in offered.filter(pk__in=self["asset"].value() or []):
+                self.fields[f"name_{asset.pk}"] = forms.CharField(
+                    required=False, max_length=200, label=f"Rename {asset}"
+                )
         from uuid import uuid4
 
         self.fields["request_key"].initial = uuid4
@@ -777,6 +782,9 @@ class AddAssetForm(forms.Form):
             self.add_error(
                 "name", "Select one asset to give it a name in this campaign."
             )
+        data["names"] = {
+            str(asset.pk): data.get(f"name_{asset.pk}", "") for asset in assets or []
+        }
         return data
 
 

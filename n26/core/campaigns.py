@@ -719,7 +719,7 @@ class CampaignOperation:
         self.event(CampaignEvent.Kind.ASSET_ADDED, note=str(campaign_asset))
         return campaign_asset
 
-    def add_assets(self, assets, *, name="", request_key):
+    def add_assets(self, assets, *, name="", names=None, request_key):
         """Add a selection once, under the campaign lock.
 
         The request mark is recorded with the events, so a retry cannot add
@@ -738,7 +738,7 @@ class CampaignOperation:
             return False
         self.batch = request_key
         for asset in assets:
-            self.add_asset(asset, name=name)
+            self.add_asset(asset, name=(names or {}).get(str(asset.pk), "") or name)
         return True
 
     def _keep(self, asset, name=""):

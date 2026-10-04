@@ -328,11 +328,10 @@ class TestSettingOneUp:
         assert not Campaign.objects.exists()
 
     def test_the_page_names_the_type(self, client, campaign, open_to_everyone):
-        """The type it was founded on leads the header, beside who runs
-        it, and has no row of its own in the facts strip."""
+        """The description card names the type and who runs the campaign."""
         body = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         assert "Territory campaign" in body
-        assert "Arbitrator:" in body
+        assert "Arbitrator:" not in body
         assert "Campaign type" not in body
 
     def test_the_form_opens_with_a_thousand_credit_budget(
@@ -551,7 +550,7 @@ class TestCampaignDashboardLayout:
         assert "Held" not in figures
         assert "Unclaimed" not in figures
         assert "Cycles" not in figures
-        assert "Arbitrator:" in drawn
+        assert "Arbitrator:" not in drawn
 
     @pytest.mark.parametrize("owner", [True, False])
     def test_players_follow_battles_and_log_for_every_reader(

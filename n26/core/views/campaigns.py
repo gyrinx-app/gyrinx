@@ -1335,6 +1335,7 @@ def add_asset(request, pk):
                 made = act.add_assets(
                     form.cleaned_data["asset"],
                     name=form.cleaned_data["name"],
+                    names=form.cleaned_data["names"],
                     request_key=form.cleaned_data["request_key"],
                 )
             if not made:
@@ -1342,7 +1343,8 @@ def add_asset(request, pk):
             elif len(form.cleaned_data["asset"]) == 1:
                 chosen = form.cleaned_data["asset"][0]
                 messages.success(
-                    request, f"Added {form.cleaned_data['name'] or str(chosen)}."
+                    request,
+                    f"Added {form.cleaned_data['names'].get(str(chosen.pk)) or form.cleaned_data['name'] or str(chosen)}.",
                 )
             else:
                 label = asset_type.plural.lower() if asset_type else "assets"
@@ -1368,6 +1370,12 @@ def add_asset(request, pk):
                 else str(asset.asset_type)
             ),
             "checked": str(asset.pk) in submitted,
+            "name": form[f"name_{asset.pk}"].value() or ""
+            if f"name_{asset.pk}" in form.fields
+            else "",
+            "nameErrors": list(form[f"name_{asset.pk}"].errors)
+            if f"name_{asset.pk}" in form.fields
+            else [],
         }
 
     noun = asset_type.plural.lower() if asset_type else "assets"
@@ -1411,8 +1419,8 @@ def add_asset(request, pk):
                 "invalid": bool(form["asset"].errors),
                 "options": assets,
                 "selected": list(submitted),
-                "name": form["name"].value() or "",
-                "nameErrors": list(form["name"].errors),
+                "renameLabel": f"Optional: Rename {noun}",
+                "itemLabel": str(asset_type) if asset_type else "Asset",
             },
             "empty_next_href": empty_next_href,
             "empty_next_label": "Create asset"
@@ -1430,12 +1438,13 @@ def assign_asset(request, pk, asset_pk):
     from n26.core.forms import AssignAssetForm
     from n26.core.models import CampaignMembership
     from n26.core.operations import Refusal
+    from n26.core.views.htmx import is_htmx
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
     playing = (
         CampaignMembership.objects.filter(campaign=found, left__isnull=True)
-        .select_related("gang", "gang__gang_type")
+        .select_related("gang", "gang__gang_type", "gang__owner")
         .order_by("gang__name")
     )
 
@@ -1455,22 +1464,35 @@ def assign_asset(request, pk, asset_pk):
                     messages.success(
                         request, f"Assigned {campaign_asset} to {membership.gang.name}."
                     )
+            if is_htmx(request):
+                return _campaign_update(request, found)
             return redirect(_assets_anchor(found))
     else:
         form = AssignAssetForm(playing=playing)
 
     _badge_a_redrawn_page(request, found)
-    return render(
+    response = render(
         request,
-        "n26/assign_asset.html",
+        "n26/includes/campaign_assign_dialog.html"
+        if is_htmx(request)
+        else "n26/assign_asset.html",
         {
             "form": form,
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "playing": playing,
+            "choices": [
+                (membership, str(membership.pk) == str(form["membership"].value()))
+                for membership in playing
+            ],
             "back": _assets_anchor(found),
+            "redrawn": is_htmx(request),
+            "reopened": is_htmx(request) and request.method == "POST",
         },
     )
+
+    if is_htmx(request):
+        response["HX-Replace-Url"] = request.path
+    return response
 
 
 @requires_flag(CAMPAIGNS)

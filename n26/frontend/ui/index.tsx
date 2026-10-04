@@ -655,6 +655,10 @@ export function RadioCard({
     );
 }
 
+export function Card({ children }: { children: ReactNode }) {
+    return <div className={cotton.card}>{children}</div>;
+}
+
 export function Table({
     children,
     className = "",

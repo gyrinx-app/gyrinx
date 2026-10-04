@@ -1,0 +1,15 @@
+{% if reopened %}<div hx-swap-oob="delete:#n26-asset-dialog"></div>{% endif %}
+<div id="n26-asset-dialog-host" hx-swap-oob="true">
+    <c-n26.dialog id="n26-asset-dialog"
+                  title="Assign {{ campaign_asset }}"
+                  action="{% url 'n26-campaign-asset-assign' campaign.pk campaign_asset.pk %}"
+                  cancel_url="{{ back }}"
+                  submit_label="Assign"
+                  :redrawn="redrawn"
+                  :htmx="True"
+                  class="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+        {% csrf_token %}
+        {% for error in form.non_field_errors %}<c-ui.alert variant="error">{{ error }}</c-ui.alert>{% endfor %}
+        {% include "n26/includes/campaign_assign_choices.html" %}
+    </c-n26.dialog>
+</div>
