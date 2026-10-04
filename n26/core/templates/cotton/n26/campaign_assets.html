@@ -28,7 +28,7 @@ Roll is primary because it begins a form. The other controls do not.
                                  href="{{ table.roll_href }}"
                                  hx-get="{{ table.roll_href }}"
                                  hx-swap="none"
-                                 title="Roll {{ table.plural|lower }} for the campaign’s unclaimed pool.">Roll {{ table.label|lower }}</c-ui.button>
+                                 title="Roll {{ table.plural|lower }} for the campaign’s unclaimed pool.">Roll {{ table.plural|lower }}</c-ui.button>
                 {% endif %}
                 {% if table.add_href %}
                     <c-ui.button size="xs"

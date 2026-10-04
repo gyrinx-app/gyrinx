@@ -687,7 +687,7 @@ class TestThePages:
             reverse("n26-campaign", args=[quiet.pk]) + f"?roll={racket.pk}"
         ).content.decode()
         assert "Roll racket" in page
-        assert "The rolled racket will be added to the campaign as unclaimed." in page
+        assert "Each rolled racket will be added to the campaign as unclaimed." in page
         assert "three per gang" not in page
 
     def test_a_malformed_gang_key_is_a_bad_link(
@@ -705,14 +705,14 @@ class TestThePages:
     ):
         client.force_login(arbitrator)
         page = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
-        assert "Roll territory" in page
+        assert "Roll territories" in page
         assert page.count("Roll starting territory") == 2
         assert "Tables" in page
         assert "Add territories" in page
 
         client.force_login(owner)
         page = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
-        assert "Roll territory" not in page
+        assert "Roll territories" not in page
         assert "Roll starting territory" not in page
         assert "?roll=" not in page
 
@@ -739,7 +739,7 @@ class TestThePages:
         address = reverse("n26-campaign", args=[campaign.pk]) + f"?roll={territory.pk}"
         page = client.get(address).content.decode()
         assert "The rules generate three per gang: 9 for this campaign." in page
-        assert "Roll territory" in page
+        assert "Roll territories" in page
         assert f'name="table" value="{selection_table.pk}"' in page
 
         # Over htmx the panel alone comes back, in its host.
@@ -755,7 +755,7 @@ class TestThePages:
         assert "Territory Selection Table · D66" in body
         assert f'type="hidden" name="table" value="{selection_table.pk}"' in body
         assert (
-            "The rolled territory will be added to the campaign as unclaimed." in body
+            "Each rolled territory will be added to the campaign as unclaimed." in body
         )
 
     def test_the_starting_dialog_offers_only_the_tables_the_gang_holds(
@@ -798,7 +798,7 @@ class TestThePages:
         assert "Your own roll" in body
         assert "Optional. Leave blank and the roll is made for you." in body
         assert "A D66 roll is 11 to 66." in body
-        assert "Use my roll" in body
+        assert "Add to pool" in body
         assert "at the table" not in body
 
     def test_posting_the_rolls(
@@ -1254,3 +1254,140 @@ class TestThePages:
         assert response.status_code == 200
         assert "You cannot roll 7 on a D66." in response.content.decode()
         assert not badge_reads(refused)
+
+
+@pytest.mark.usefixtures("campaigns_open")
+class TestBatchPool:
+    def test_quantity_generates_unclaimed_results_and_records_each_roll(
+        self, client, campaign, territory, selection_table, arbitrator, monkeypatch
+    ):
+        from uuid import uuid4
+
+        from n26.library.models import Dice
+
+        monkeypatch.setattr(Dice, "roll", lambda dice, rng=None: 34)
+        client.force_login(arbitrator)
+        key = str(uuid4())
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {"type": str(territory.pk), "count": "3", "request_key": key},
+        )
+        assert response.status_code == 302
+        holdings = campaign.campaign_assets.all()
+        assert holdings.count() == 3
+        assert all(holding.holder_id is None for holding in holdings)
+        events = campaign.events.filter(kind=CampaignEvent.Kind.ASSET_ROLLED)
+        assert events.count() == 3
+        assert {str(event.batch) for event in events} == {key}
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {"type": str(territory.pk), "count": "3", "request_key": key},
+        )
+        assert response.status_code == 302
+        assert campaign.campaign_assets.count() == 3
+        assert events.count() == 3
+
+    def test_manual_roll_cannot_silently_repeat_across_a_batch(
+        self, client, campaign, territory, selection_table, arbitrator
+    ):
+        client.force_login(arbitrator)
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {"type": str(territory.pk), "count": "3", "rolled": "34"},
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code == 200
+        assert "Set the number to 1 to use your own roll." in response.content.decode()
+        assert not campaign.campaign_assets.exists()
+
+    def test_invalid_quantity_is_refused_without_a_partial_pool(
+        self, client, campaign, territory, selection_table, arbitrator
+    ):
+        client.force_login(arbitrator)
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {"type": str(territory.pk), "count": "0"},
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code == 200
+        assert "greater than or equal to 1" in response.content.decode()
+        assert not campaign.campaign_assets.exists()
+
+    def test_a_table_gap_does_not_leave_half_the_requested_pool(
+        self, client, campaign, territory, selection_table, arbitrator, monkeypatch
+    ):
+        from n26.library.models import Dice
+
+        rolls = iter([34, 99])
+        monkeypatch.setattr(Dice, "roll", lambda dice, rng=None: next(rolls))
+        client.force_login(arbitrator)
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {"type": str(territory.pk), "count": "2"},
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code == 200
+        assert "covers a roll of 99" in response.content.decode()
+        assert not campaign.campaign_assets.exists()
+        assert not campaign.events.filter(kind=CampaignEvent.Kind.ASSET_ROLLED).exists()
+
+    def test_the_dialog_suggests_three_per_active_gang(
+        self,
+        client,
+        campaign,
+        territory,
+        selection_table,
+        arbitrator,
+        slag_kings,
+        wild_cats,
+    ):
+        client.force_login(arbitrator)
+        page = client.get(
+            reverse("n26-campaign", args=[campaign.pk]) + f"?roll={territory.pk}",
+            HTTP_HX_REQUEST="true",
+        ).content.decode()
+        (widget,) = re.findall(r'<input[^>]*name="count"[^>]*>', page)
+        assert 'value="6"' in widget
+        assert "Roll territories" in page
+        assert "Add to pool" in page
+
+
+@pytest.mark.usefixtures("campaigns_open")
+class TestPoolReads:
+    def test_larger_batches_reuse_the_available_table_and_entries(
+        self, campaign, selection_table, arbitrator
+    ):
+        from uuid import uuid4
+
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.campaigns import campaign_operation
+
+        def reads(count):
+            with CaptureQueriesContext(connection) as captured:
+                with campaign_operation(campaign, actor=arbitrator) as op:
+                    op.roll_assets(
+                        selection_table,
+                        count=count,
+                        request_key=uuid4(),
+                        rolled=None,
+                        rng=random.Random(7),
+                    )
+            return sum(query["sql"].lstrip().startswith("SELECT") for query in captured)
+
+        reads(1)
+        assert reads(10) == reads(2)
+
+    def test_a_cleared_quantity_is_required_instead_of_generating_one_asset(
+        self, client, campaign, territory, selection_table, arbitrator
+    ):
+        client.force_login(arbitrator)
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {"type": str(territory.pk), "count": ""},
+            HTTP_HX_REQUEST="true",
+        )
+        assert response.status_code == 200
+        assert "This field is required." in response.content.decode()
+        assert not campaign.campaign_assets.exists()
