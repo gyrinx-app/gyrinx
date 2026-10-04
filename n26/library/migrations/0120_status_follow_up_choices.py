@@ -65,6 +65,64 @@ def update_standard_choices(apps, schema_editor):
         gang_type.modifiers.add(modifier)
 
 
+def restore_standard_choices(apps, schema_editor):
+    """Restore the old grant before dropping the status condition table."""
+    from django.conf import settings
+
+    using = schema_editor.connection.alias
+    Slot = apps.get_model("library", "Slot")
+    Pickable = apps.get_model("library", "Pickable")
+    Modifier = apps.get_model("library", "Modifier")
+    slot = (
+        Slot.objects.using(using)
+        .filter(
+            name="Escape", qualifier="", pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+        )
+        .first()
+    )
+    if slot is None:
+        return
+    Modifier.objects.using(using).filter(
+        pack_id=slot.pack_id, name="Captured models: Escape"
+    ).delete()
+    captures = Pickable.objects.using(using).filter(
+        pack_id=slot.pack_id,
+        name="Captured",
+        slot_type__name__in=["Lasting Injury", "Lasting Damage"],
+    )
+    for result in captures:
+        qualifier = result.qualifier or result.slot_type.name
+        name = f"{result.name} ({qualifier}): rolls on the Escape table"
+        grant = (
+            Modifier.objects.using(using)
+            .filter(pack_id=slot.pack_id, name=name)
+            .first()
+        )
+        if grant is None:
+            scope = (
+                apps.get_model("library", "TargetsMiniature")
+                .objects.using(using)
+                .create(reach="bearer")
+            )
+            effect = (
+                apps.get_model("library", "AddsAssignable")
+                .objects.using(using)
+                .create(slot_id=slot.pk)
+            )
+            grant = Modifier.objects.using(using).create(
+                name=name,
+                pack_id=slot.pack_id,
+                targets_miniature_id=scope.pk,
+                adds_assignable_id=effect.pk,
+            )
+        result.modifiers.add(grant)
+    captures.update(record_only=False)
+    Pickable.objects.using(using).filter(
+        pack_id=slot.pack_id, slot_type_id=slot.slot_type_id
+    ).update(record_only=False)
+    Slot.objects.using(using).filter(pk=slot.pk).update(follows_status=False)
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("library", "0119_hide_equipment_categories"),
@@ -128,5 +186,5 @@ class Migration(migrations.Migration):
                 "verbose_name_plural": "has status",
             },
         ),
-        migrations.RunPython(update_standard_choices, migrations.RunPython.noop),
+        migrations.RunPython(update_standard_choices, restore_standard_choices),
     ]

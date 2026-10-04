@@ -1715,6 +1715,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
             for occurrence, root, _ in plan._removals:
                 op.post_battle_occurrence = UUID(occurrence)
                 op.remove(root, note="Post-battle correction")
+            op.post_battle_occurrence = None
             for model_id, status in plan._status_restores.items():
                 op.set_status(
                     Miniature.objects.get(pk=model_id),

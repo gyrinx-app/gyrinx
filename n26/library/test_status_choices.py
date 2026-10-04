@@ -64,3 +64,25 @@ def test_standard_upgrade_is_idempotent_and_leaves_other_packs(default_pack, gan
     assert not captured.modifiers.filter(adds_assignable__slot=escape).exists()
     grant = gang_type.modifiers.get(name="Captured models: Escape")
     assert grant.targets_miniature.has_status.get().status == Status.CAPTURED
+
+
+def test_standard_upgrade_reverse_restores_the_result_grant(default_pack, gang_type):
+    STANDARD_CONTENT["lasting-effect-tables"].create()
+    migration = import_module("n26.library.migrations.0120_status_follow_up_choices")
+    migration.restore_standard_choices(apps, SimpleNamespace(connection=connection))
+    escape = Slot.objects.get(name="Escape")
+    captures = Pickable.objects.filter(name="Captured")
+    assert not escape.follows_status
+    assert not Modifier.objects.filter(name="Captured models: Escape").exists()
+    for result in captures:
+        assert not result.record_only
+        grant = result.modifiers.get(adds_assignable__slot=escape)
+        assert grant.targets_miniature.reach == "bearer"
+    migration.update_standard_choices(apps, SimpleNamespace(connection=connection))
+    assert gang_type.modifiers.filter(name="Captured models: Escape").exists()
+    assert not captures.filter(modifiers__adds_assignable__slot=escape).exists()
+    migration.restore_standard_choices(apps, SimpleNamespace(connection=connection))
+    assert all(
+        result.modifiers.filter(adds_assignable__slot=escape).exists()
+        for result in captures
+    )

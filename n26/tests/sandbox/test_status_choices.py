@@ -244,6 +244,13 @@ def test_a_carried_choice_can_be_corrected_and_removed(report, owner, model, fol
     model.refresh_from_db()
     assert model.status == Status.CAPTURED
     assert not next(q for q in computed(model).choices if q.slot.pk == slot.pk).picks
+    reopened = LedgerEvent.objects.filter(
+        miniature=model,
+        kind=LedgerEvent.Kind.STATUS_SET,
+        note__endswith=": Post-battle correction",
+    ).latest("created")
+    assert reopened.note == "ransomed → captured: Post-battle correction"
+    assert reopened.post_battle_occurrence is None
 
 
 def test_roster_queries_do_not_grow_with_status_choices(
@@ -395,3 +402,15 @@ def test_batched_and_selected_cards_keep_status_facts(model, follow_up):
         assert len(queries) == 0
         question = next(q for q in done.choices if q.slot.pk == slot.pk)
         assert question.status_revision == model.status_revision
+
+
+def test_a_status_choice_is_never_offered_as_a_gang_status(gang, follow_up):
+    from n26.core.card import build_gang_card
+    from n26.core.effects import compute_gang
+
+    _, slot, _, _ = follow_up
+    with operation(gang, actor=gang.owner) as op:
+        op.assign(slot, gang=gang)
+    card = build_gang_card(gang)
+    done = compute_gang(card, build_modifier_index(carriers(card)))
+    assert all(q.slot.pk != slot.pk for q in done.choices)

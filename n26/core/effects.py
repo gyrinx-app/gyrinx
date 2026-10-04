@@ -1780,7 +1780,7 @@ def _fill_slot_choices(computed, given, by_choice):
     asked.sort(key=lambda part: (part[0].position, part[0].name))
 
     for slot, anchor, source, source_kind in asked:
-        if slot.hidden:
+        if slot.hidden or (slot.follows_status and computed.card.host_kind == GANG):
             continue
         picks = [
             node

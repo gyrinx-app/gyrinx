@@ -41,7 +41,7 @@ Agreed direction, 4 October 2026: a Captured result changes status and becomes a
 - [x] Prove renamed non-Capture content uses the same mechanism and persistent effects survive.
 - [x] Verify stale submissions, repeat apply, correction, permissions and flat query growth.
 - [x] Exercise mobile/desktop pages and provide test URLs/evidence.
-- [ ] Format, run focused checks and the N26 suite, then open a reviewable PR.
+- [x] Format, run focused checks and the N26 suite.
 
 Existing status-only and unresolved Captured models will obtain the standard choice when their carrier has the authored modifier. Existing completed results stay historical. Do not infer or backfill missing injury results from a bare status. Any later player-data repair belongs in the maintenance framework.
 
