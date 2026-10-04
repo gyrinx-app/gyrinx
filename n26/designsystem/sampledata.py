@@ -2257,6 +2257,7 @@ def gang_sheet():
             lines=[
                 CampaignAssetLine(
                     type_label="Settlement",
+                    type_plural="Settlements",
                     name="Settlement",
                     provenance=Provenance(
                         source="Territory campaign", source_kind="campaign type"
@@ -2294,6 +2295,7 @@ def gang_sheet():
             holdings=[
                 CampaignAssetLine(
                     type_label="Territory",
+                    type_plural="Territories",
                     name="Old Ruins",
                     income=30,
                     campaign_asset_id="old-ruins",

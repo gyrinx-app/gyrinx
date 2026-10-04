@@ -116,7 +116,7 @@ gtm_container_id, messages, user.
         icon n26 does not draw.
         {% endcomment %}
         {% comment %}
-        on_dismiss is what makes the close button stick. The component
+        dismiss_url is what makes the close button stick. The component
         deliberately does not remember being dismissed — only the application
         can decide where that memory lives — so without this the bar is hidden
         for the current page and back on the next one.
@@ -152,10 +152,10 @@ gtm_container_id, messages, user.
                                      icon="{{ banner.icon|banner_icon }}"
                                      cta_text="{{ banner.cta_text }}"
                                      cta_url="{% if banner.cta_url %}{% url 'core:track-banner-click' banner.id %}{% endif %}"
-                                     on_dismiss="fetch('{% url 'core:dismiss-banner' %}', {method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'}, body: JSON.stringify({banner_id: '{{ banner.id }}'})})"
-                                     id="site-banner-{{ banner.id }}">
-                {{ banner.text }}
-            </c-n26.site.announcement>
+                                     dismiss_url="{% url 'core:dismiss-banner' %}"
+                                     banner_id="{{ banner.id }}"
+                                     message="{{ banner.text }}"
+                                     id="site-banner-{{ banner.id }}" />
         {% endif %}
         {% comment %}
         The `dark` class keeps the header dark in both modes: it re-declares the
