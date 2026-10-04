@@ -930,6 +930,16 @@ class TestTheModelHeaderPage:
         assert page.index("Vesna Krail", demo) < card < page.index("This model", card)
 
 
+class TestTheViewPreview:
+    """The standalone preview draws one view on its own page shell."""
+
+    def test_it_loads_the_menu_placement_script(self, reader):
+        """The dashboard's gang rows open fixed-position menus, which call
+        n26PositionMenu. Without the script, opening one throws."""
+        page = reader.get("/n26/design/view/view-dashboard/").content.decode()
+        assert "n26/menu-position.js" in page
+
+
 class TestTheModelEditPage:
     """The card above the tabs, then the boxes in their order, Lore last."""
 
