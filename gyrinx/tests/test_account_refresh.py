@@ -5,9 +5,12 @@ import time
 
 import pytest
 from allauth.account.models import EmailAddress
+from django.template import Context, Origin, Template
 from django.urls import reverse
 
 from gyrinx.accounts.models import UserProfile
+from gyrinx.analytics.models import Event, EventVerb
+from gyrinx.analytics.nouns import PlatformNoun
 from gyrinx.editions import COOKIE_NAME
 from gyrinx.site.models import notify
 
@@ -99,6 +102,58 @@ def test_combined_settings_save_preferences_without_reverifying_email(client, us
     user.profile.refresh_from_db()
     assert user.profile.timezone == "Europe/London"
     assert EmailAddress.objects.filter(user=user).count() == 1
+
+
+@pytest.mark.django_db
+def test_combined_settings_logs_only_changed_preferences(client, user):
+    EmailAddress.objects.create(
+        user=user, email="account@example.com", primary=True, verified=True
+    )
+    UserProfile.objects.get_or_create(user=user)
+    client.force_login(user)
+    data = {
+        "action_save": "1",
+        "email": "account@example.com",
+        "timezone": "UTC",
+        "selected_badge": "none",
+    }
+    assert client.post(reverse("account-settings"), data).status_code == 302
+    events = Event.objects.filter(
+        owner=user, noun=PlatformNoun.USER, verb=EventVerb.UPDATE
+    )
+    assert {event.field: event.context for event in events} == {
+        "selected_badge": {"selected_badge": "none"},
+        "timezone": {"timezone": "UTC"},
+    }
+    assert client.post(reverse("account-settings"), data).status_code == 302
+    assert events.count() == 2
+
+
+@pytest.mark.django_db
+def test_manage_subpage_has_one_page_heading(client, user):
+    client.force_login(user)
+    html = client.get(reverse("account_logout")).content.decode()
+    assert len(re.findall(r"<h1\b", html)) == 1
+    assert re.search(r"<h2\b[^>]*>\s*Sign Out\s*</h2>", html)
+
+
+def test_allauth_error_alert_keeps_error_styles():
+    html = Template(
+        '{% load allauth %}{% element alert level="error" %}'
+        "{% slot message %}Example error{% endslot %}{% endelement %}",
+        origin=Origin("test", template_name="account/test_adapter.html"),
+    ).render(Context())
+    assert "bg-red-50" in html
+    assert "Example error" in html
+
+
+def test_allauth_badge_keeps_explanatory_tooltip():
+    html = Template(
+        '{% load allauth %}{% element badge title="Example explanation" %}'
+        "Unspecified{% endelement %}",
+        origin=Origin("test", template_name="account/test_adapter.html"),
+    ).render(Context())
+    assert 'title="Example explanation"' in html
 
 
 @pytest.mark.django_db

@@ -16,6 +16,8 @@ from django.utils.html import strip_tags
 
 from gyrinx.account_forms import AccountSettingsForm
 from gyrinx.accounts.models import UserProfile
+from gyrinx.analytics.models import EventVerb, log_event
+from gyrinx.analytics.nouns import PlatformNoun
 
 
 def _flat_choices(choices):
@@ -84,11 +86,26 @@ class SettingsView(EmailView):
         return super().post(request, *args, **kwargs)
 
     def form_valid(self, form):
+        previous = {
+            field: getattr(form.badge_form.profile, field)
+            for field in ("selected_badge", "timezone")
+        }
         with transaction.atomic():
             if form.email_changed:
                 manage_email.add_email(self.request, form.email_form)
                 self._did_send_verification_email = True
             form.save_preferences()
+        for field, old_value in previous.items():
+            value = form.cleaned_data[field]
+            if value != old_value:
+                log_event(
+                    user=self.request.user,
+                    noun=PlatformNoun.USER,
+                    verb=EventVerb.UPDATE,
+                    request=self.request,
+                    field=field,
+                    **{field: value},
+                )
         messages.success(self.request, "Account settings saved.")
         return redirect(self.get_success_url())
 

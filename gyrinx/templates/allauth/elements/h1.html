@@ -1,5 +1,13 @@
 {% load allauth %}
-<h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100">
-    {% slot %}
-    {% endslot %}
-</h1>
+{# The account layout supplies the page h1; entrance pages supply their own. #}
+{% if account_manage %}
+    <h2 class="text-2xl font-semibold text-ink-900 dark:text-ink-100">
+        {% slot %}
+        {% endslot %}
+    </h2>
+{% else %}
+    <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100">
+        {% slot %}
+        {% endslot %}
+    </h1>
+{% endif %}
