@@ -1,0 +1,28 @@
+{% extends "account/base_manage.html" %}
+{% load react %}
+{% block head_title %}Account settings{% endblock head_title %}
+{% block content %}
+    <c-n26.section title="Settings" class="max-w-xl">
+        {% react_island "account-settings" settings_form %}
+        {% if new_emailaddress %}
+            <c-ui.alert variant="info" title="Email verification pending">
+                Verify {{ new_emailaddress.email }} to use it for your account.
+            </c-ui.alert>
+            <form method="post"
+                  action="{% url 'account-settings' %}"
+                  class="flex flex-wrap gap-3">
+                {% csrf_token %}
+                <input type="hidden" name="email" value="{{ new_emailaddress.email }}">
+                <c-ui.button type="submit" name="action_send" variant="default">
+                    Resend verification
+                </c-ui.button>
+                {% if current_emailaddress %}<c-ui.button type="submit"
+             name="action_remove"
+             variant="danger">Cancel email change</c-ui.button>{% endif %}
+            </form>
+        {% endif %}
+        {% if "@" in user.username %}
+            <c-n26.link href="{% url 'core:change-username' %}">Change username</c-n26.link>
+        {% endif %}
+    </c-n26.section>
+{% endblock content %}

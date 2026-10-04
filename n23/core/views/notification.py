@@ -13,13 +13,16 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, JsonResponse
+from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.timesince import timesince
 from django.views import generic
 from django.views.decorators.http import require_POST
 
+from gyrinx.accounts.rich_text import rich_text_nodes
 from gyrinx.http import safe_redirect
 from gyrinx.site.models import Notification, NotificationType
 
@@ -63,7 +66,7 @@ def apply_inbox_filters(qs, params):
 class NotificationInboxView(LoginRequiredMixin, generic.ListView):
     """The user's notification inbox with URL-driven filters and pagination."""
 
-    template_name = "core/notifications.html"
+    template_name = "account/notifications.html"
     context_object_name = "notifications"
     paginate_by = 25
 
@@ -92,6 +95,54 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
         context["inbox_unread_count"] = Notification.objects.unread_count_for(
             self.request.user
         )
+        query = self.request.GET.copy()
+
+        def page_url(number):
+            query["page"] = number
+            return f"{reverse('core:notifications')}?{query.urlencode()}"
+
+        page = context["page_obj"]
+        context["account_tab"] = "notifications"
+        context["notification_inbox"] = {
+            "rows": [
+                {
+                    "id": str(n.id),
+                    "subject": n.subject,
+                    "content": rich_text_nodes(n.content),
+                    "sender": n.sender_label,
+                    "system": n.is_system,
+                    "created": n.created.isoformat(),
+                    "age": f"{timesince(n.created)} ago",
+                    "type": n.get_notification_type_display(),
+                    "read": n.is_read,
+                    "archived": n.archived,
+                    "openUrl": reverse("core:notification-open", args=[n.id])
+                    if n.target_object_id or n.scope_object_id
+                    else "",
+                    "actions": {
+                        key: reverse(f"core:notification-{key}", args=[n.id])
+                        for key in ("read", "unread", "archive", "unarchive", "delete")
+                    },
+                }
+                for n in context["notifications"]
+            ],
+            "filters": self._resolved_filters,
+            "typeChoices": [
+                {"value": value, "label": label}
+                for value, label in NotificationType.choices
+            ],
+            "csrfToken": get_token(self.request),
+            "inboxUrl": reverse("core:notifications"),
+            "bulkUrl": reverse("core:notifications-bulk"),
+            "returnUrl": self.request.get_full_path(),
+            "unreadCount": context["inbox_unread_count"],
+            "page": page.number,
+            "pages": page.paginator.num_pages,
+            "previousUrl": page_url(page.previous_page_number())
+            if page.has_previous()
+            else "",
+            "nextUrl": page_url(page.next_page_number()) if page.has_next() else "",
+        }
         return context
 
 
@@ -104,6 +155,8 @@ def _get_owned(request, id):
 
 def _back(request):
     """Redirect back to the posted ``next`` (validated) or the inbox."""
+    if request.headers.get("Accept") == "application/json":
+        return JsonResponse({"ok": True})
     return safe_redirect(
         request,
         request.POST.get("next"),

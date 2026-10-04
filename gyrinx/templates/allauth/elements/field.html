@@ -1,12 +1,12 @@
 {% load allauth %}
 {{ attrs.errors }}
-<div class="mb-3">
+<div class="space-y-2">
     {% if attrs.type == "textarea" %}
-        <label for="{{ attrs.id }}" class="form-label">
+        <label for="{{ attrs.id }}" class="text-sm font-medium">
             {% slot label %}
             {% endslot %}
         </label>
-        <textarea class="form-control"
+        <textarea class="w-full rounded-control border border-box-border bg-box px-3 py-2 text-sm focus-ring"
                   {% if attrs.required %}required{% endif %}
                   {% if attrs.rows %}rows="{{ attrs.rows }}"{% endif %}
                   {% if attrs.disabled %}disabled{% endif %}
@@ -16,8 +16,8 @@
                   {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
                   {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}>{% slot value %}{% endslot %}</textarea>
     {% elif attrs.type == "checkbox" %}
-        <div class="form-check">
-            <input class="form-check-input"
+        <div class="flex items-start gap-2">
+            <input class="size-4 accent-accent focus-ring"
                    {% if attrs.required %}required{% endif %}
                    {% if attrs.disabled %}disabled{% endif %}
                    {% if attrs.readonly %}readonly{% endif %}
@@ -27,14 +27,14 @@
                    {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %}
                    {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %}
                    type="{{ attrs.type }}">
-            <label for="{{ attrs.id }}" class="form-check-label">
+            <label for="{{ attrs.id }}" class="text-sm">
                 {% slot label %}
                 {% endslot %}
             </label>
         </div>
     {% elif attrs.type == "radio" %}
-        <div class="form-check">
-            <input class="form-check-input"
+        <div class="flex items-start gap-2">
+            <input class="size-4 accent-accent focus-ring"
                    {% if attrs.required %}required{% endif %}
                    {% if attrs.disabled %}disabled{% endif %}
                    {% if attrs.readonly %}readonly{% endif %}
@@ -44,17 +44,17 @@
                    {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %}
                    {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %}
                    type="{{ attrs.type }}">
-            <label for="{{ attrs.id }}" class="form-check-label">
+            <label for="{{ attrs.id }}" class="text-sm">
                 {% slot label %}
                 {% endslot %}
             </label>
         </div>
     {% else %}
-        <label for="{{ attrs.id }}" class="form-label">
+        <label for="{{ attrs.id }}" class="text-sm font-medium">
             {% slot label %}
             {% endslot %}
         </label>
-        <input class="form-control"
+        <input class="w-full rounded-control border border-box-border bg-box px-3 py-2 text-sm focus-ring"
                {% if attrs.required %}required{% endif %}
                {% if attrs.disabled %}disabled{% endif %}
                {% if attrs.readonly %}readonly{% endif %}
@@ -67,7 +67,7 @@
                type="{{ attrs.type }}">
     {% endif %}
     {% if slots.help_text %}
-        <div class="form-text">
+        <div class="text-sm text-muted">
             {% slot help_text %}
             {% endslot %}
         </div>

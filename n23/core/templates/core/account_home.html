@@ -1,53 +1,14 @@
 {% extends "account/base_manage.html" %}
-{% load i18n group_tags badge_tags %}
-{% block head_title %}
-    {% trans "Your Account" %}
-{% endblock head_title %}
+{% block head_title %}Account overview{% endblock head_title %}
 {% block content %}
-    <div class="vstack gap-4">
-        <div>
-            <h2 class="mb-0">{{ user.username }}{% user_badge user %}</h2>
-            <p class="text-secondary mb-0 mt-1">Member since {{ user.date_joined|date:"F Y" }}</p>
+    <c-n26.section title="Overview">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {% for label, count in account_stats %}
+                <div class="rounded-box border border-box-border bg-box p-4">
+                    <div class="text-3xl font-semibold tabular-nums">{{ count }}</div>
+                    <div class="mt-1 text-sm text-muted">{{ label }}</div>
+                </div>
+            {% endfor %}
         </div>
-        <div class="row g-2 g-md-3">
-            <div class="col-4">
-                <div class="bg-body-tertiary rounded p-3 text-center">
-                    <div class="fs-3 fw-semibold">{{ stats.lists_count }}</div>
-                    <div class="text-secondary fs-7">Lists</div>
-                </div>
-            </div>
-            <div class="col-4">
-                <div class="bg-body-tertiary rounded p-3 text-center">
-                    <div class="fs-3 fw-semibold">{{ stats.campaign_gangs_count }}</div>
-                    <div class="text-secondary fs-7">Campaign Gangs</div>
-                </div>
-            </div>
-            <div class="col-4">
-                <div class="bg-body-tertiary rounded p-3 text-center">
-                    <div class="fs-3 fw-semibold">{{ stats.fighters_count }}</div>
-                    <div class="text-secondary fs-7">Fighters</div>
-                </div>
-            </div>
-            <div class="col-4">
-                <div class="bg-body-tertiary rounded p-3 text-center">
-                    <div class="fs-3 fw-semibold">{{ stats.campaigns_count }}</div>
-                    <div class="text-secondary fs-7">Campaigns</div>
-                </div>
-            </div>
-            <div class="col-4">
-                <div class="bg-body-tertiary rounded p-3 text-center">
-                    <div class="fs-3 fw-semibold">{{ stats.battles_count }}</div>
-                    <div class="text-secondary fs-7">Battles</div>
-                </div>
-            </div>
-            {% if show_packs %}
-                <div class="col-4">
-                    <div class="bg-body-tertiary rounded p-3 text-center">
-                        <div class="fs-3 fw-semibold">{{ stats.packs_count }}</div>
-                        <div class="text-secondary fs-7">Content Packs</div>
-                    </div>
-                </div>
-            {% endif %}
-        </div>
-    </div>
+    </c-n26.section>
 {% endblock content %}

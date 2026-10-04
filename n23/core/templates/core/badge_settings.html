@@ -1,55 +1,30 @@
 {% extends "account/base_manage.html" %}
-{% load i18n badge_tags %}
-{% block head_title %}
-    {% trans "Badge" %}
-{% endblock head_title %}
+{% load allauth badge_tags %}
+{% block head_title %}Badge{% endblock head_title %}
 {% block content %}
-    <h1 class="h3 mb-2">{% trans "Badge" %}</h1>
-    {% if available_badges %}
-        <p class="text-secondary">A badge shows next to your name by default. You can pick which one to show, or hide it.</p>
-        <form method="post" class="vstack gap-3">
-            {% csrf_token %}
-            {% if form.selected_badge.errors %}
-                <div class="invalid-feedback d-block">{{ form.selected_badge.errors.0 }}</div>
-            {% endif %}
-            <fieldset class="vstack gap-2">
-                <legend class="visually-hidden">{% trans "Badge" %}</legend>
-                {% for badge in available_badges %}
-                    <label class="d-flex align-items-center gap-2 border rounded p-2">
-                        <input type="radio"
-                               name="selected_badge"
-                               value="{{ badge.slug }}"
-                               class="form-check-input mt-0"
-                               {% if form.selected_badge.value == badge.slug %}checked{% endif %}>
-                        <span class="fs-4 badge-preview">{% badge_icon badge %}</span>
-                        <span>{{ badge.title }}</span>
-                    </label>
-                {% endfor %}
-                <label class="d-flex align-items-center gap-2 border rounded p-2">
-                    <input type="radio"
-                           name="selected_badge"
-                           value="{{ hide_badge_value }}"
-                           class="form-check-input mt-0"
-                           {% if form.selected_badge.value == hide_badge_value %}checked{% endif %}>
-                    <span>{% trans "Hide badge" %}</span>
-                </label>
-            </fieldset>
-            <div class="hstack gap-2 mt-2">
-                <button type="submit" class="btn btn-primary btn-sm">
-                    <i class="bi-check-lg"></i> {% trans "Save" %}
-                </button>
-                <a href="{% url 'core:account_home' %}" class="btn btn-link btn-sm">{% trans "Cancel" %}</a>
-            </div>
-        </form>
-    {% else %}
-        <div class="border rounded p-3">
-            <p class="mb-1">You don't have any badges yet.</p>
-            <p class="text-secondary mb-0">
-                Supporter badges unlock when you back Gyrinx on
-                <a href="https://patreon.com/Gyrinx?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink"
-                   target="_blank"
-                   rel="noopener">Patreon</a>.
-            </p>
-        </div>
-    {% endif %}
+    <c-n26.section title="Badge" class="max-w-xl">
+        {% element form method="post" %}
+            {% slot body %}
+                {% csrf_token %}
+                <c-n26.radio-cards label="Badge" :form="form" name="selected_badge">
+                    {% for badge in available_badges %}
+                        <c-n26.radio-cards.card name="selected_badge"
+                                                value="{{ badge.slug }}"
+                                                label="{{ badge.title }}"
+                                                checked="{% if form.selected_badge.value == badge.slug %}1{% endif %}">
+                            <c-slot name="flair">
+                                <span aria-hidden="true"
+                                      class="n26-icon-inline [--n26-icon-size:2.5rem]">{% badge_svg badge %}</span>
+                            </c-slot>
+                        </c-n26.radio-cards.card>
+                    {% endfor %}
+                    <c-n26.radio-cards.card name="selected_badge"
+                                            value="{{ hide_badge_value }}"
+                                            label="Hide badge"
+                                            checked="{% if form.selected_badge.value == hide_badge_value %}1{% endif %}" />
+                </c-n26.radio-cards>
+            {% endslot %}
+            {% slot actions %}{% element button type="submit" %}Save{% endelement %}<c-n26.link href="{% url 'account-settings' %}">Cancel</c-n26.link>{% endslot %}
+        {% endelement %}
+    </c-n26.section>
 {% endblock content %}

@@ -225,6 +225,8 @@ def badge_settings(request):
 
     :template:`core/badge_settings.html`
     """
+    if request.method == "GET":
+        return redirect("account-settings")
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
     if request.method == "POST":
@@ -276,6 +278,8 @@ def timezone_settings(request):
 
     :template:`core/timezone_settings.html`
     """
+    if request.method == "GET":
+        return redirect("account-settings")
     UserProfile.objects.get_or_create(user=request.user)
 
     if request.method == "POST":

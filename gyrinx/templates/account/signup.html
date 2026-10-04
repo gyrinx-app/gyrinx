@@ -1,11 +1,11 @@
 {% extends "account/base_entrance.html" %}
 {% load allauth i18n %}
 {% block head_title %}
-    {% trans "Signup" %}
+    {% trans "Sign up" %}
 {% endblock head_title %}
 {% block content %}
     {% element h1 %}
-        {% trans "Sign Up" %}
+        {% trans "Sign up" %}
     {% endelement %}
     {% setvar link %}
         <a href="{{ login_url }}">
@@ -14,7 +14,7 @@
         </a>
     {% endsetvar %}
     {% element p %}
-        {% blocktranslate %}Already have an account? Then please {{ link }}sign in{{ end_link }}.{% endblocktranslate %}
+        {% blocktranslate %}Already have an account? {{ link }}Sign in{{ end_link }}.{% endblocktranslate %}
     {% endelement %}
     {% if not SOCIALACCOUNT_ONLY %}
         {% url 'account_signup' as action_url %}
@@ -27,7 +27,7 @@
             {% endslot %}
             {% slot actions %}
                 {% element button tags="prominent,signup" type="submit" %}
-                    {% trans "Sign Up" %}
+                    {% trans "Sign up" %}
                 {% endelement %}
             {% endslot %}
         {% endelement %}

@@ -253,10 +253,17 @@ def test_inbox_renders_rich_text_content_sanitized(client, user):
         content="<p>Hello <strong>bold</strong></p><script>alert(1)</script>",
     )
     client.force_login(user)
-    body = client.get(reverse("core:notifications")).content.decode()
-    # Allowed formatting survives; dangerous tags are neutralised.
-    assert "<strong>bold</strong>" in body
-    assert "<script>alert(1)</script>" not in body
+    response = client.get(reverse("core:notifications"))
+    content = response.context["notification_inbox"]["rows"][0]["content"]
+    assert content[0]["children"][1] == {
+        "tag": "strong",
+        "attrs": {},
+        "children": ["bold"],
+    }
+    assert all(
+        node.get("tag") != "script" for node in content if isinstance(node, dict)
+    )
+    assert "<script>alert(1)</script>" not in response.content.decode()
 
 
 @pytest.mark.django_db

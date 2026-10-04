@@ -114,33 +114,39 @@ def test_form_allows_hiding_badge(user):
 
 @pytest.mark.django_db
 def test_badge_page_requires_login(client):
-    response = client.get(BADGE_URL)
-    assert response.status_code == 302
-    assert "/accounts/login" in response.url or "login" in response.url
+    response = client.get(BADGE_URL, follow=True)
+    assert response.redirect_chain
+    assert "/accounts/login" in response.redirect_chain[0][0]
 
 
 @pytest.mark.django_db
 def test_badge_page_shows_unlocked_badges(client, user):
     _profile(user, patreon_status=PatreonStatus.ACTIVE, patreon_tier="Uphiver")
     client.force_login(user)
-    response = client.get(BADGE_URL)
+    response = client.get(BADGE_URL, follow=True)
     content = response.content.decode()
     assert response.status_code == 200
     assert "Scummer" in content
     assert "Guilder" in content
     assert "Uphiver" in content
     assert "Hide badge" in content
-    # The opt-out radio carries the sentinel value from context, not a literal.
-    assert f'value="{HIDE_BADGE}"' in content
+    assert (
+        next(
+            f
+            for f in response.context["settings_form"]["fields"]
+            if f["name"] == "selected_badge"
+        )["choices"][-1]["value"]
+        == HIDE_BADGE
+    )
 
 
 @pytest.mark.django_db
 def test_badge_page_empty_state_for_non_supporter(client, user):
     client.force_login(user)
-    response = client.get(BADGE_URL)
+    response = client.get(BADGE_URL, follow=True)
     content = response.content.decode()
     assert response.status_code == 200
-    assert "don't have any badges yet" in content
+    assert "Hide badge" in content
 
 
 @pytest.mark.django_db
@@ -149,7 +155,7 @@ def test_badge_page_shows_picker_for_staff_user(client, user):
     user.save()
     _profile(user)
     client.force_login(user)
-    response = client.get(BADGE_URL)
+    response = client.get(BADGE_URL, follow=True)
     content = response.content.decode()
     assert response.status_code == 200
     assert "don't have any badges yet" not in content

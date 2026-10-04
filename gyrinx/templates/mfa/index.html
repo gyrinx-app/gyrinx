@@ -2,16 +2,16 @@
 {% load allauth %}
 {% load i18n %}
 {% block head_title %}
-    {% trans "Two-Factor Authentication" %}
+    {% trans "Two-factor authentication" %}
 {% endblock head_title %}
 {% block content %}
     {% element h1 tags="mfa,index" %}
-        {% trans "Two-Factor Authentication" %}
+        {% trans "Two-factor authentication" %}
     {% endelement %}
     {% if "totp" in MFA_SUPPORTED_TYPES %}
         {% element panel %}
             {% slot title %}
-                {% translate "Authenticator App" %}
+                {% translate "Authenticator app" %}
             {% endslot %}
             {% slot body %}
                 {% if authenticators.totp %}
@@ -42,7 +42,7 @@
     {% if "webauthn" in MFA_SUPPORTED_TYPES %}
         {% element panel %}
             {% slot title %}
-                {% translate "Security Keys" %}
+                {% translate "Security keys" %}
             {% endslot %}
             {% slot body %}
                 {% if authenticators.webauthn|length %}
@@ -74,7 +74,7 @@
         {% with total_count=authenticators.recovery_codes.generate_codes|length unused_count=authenticators.recovery_codes.get_unused_codes|length %}
             {% element panel %}
                 {% slot title %}
-                    {% translate "Recovery Codes" %}
+                    {% translate "Recovery codes" %}
                 {% endslot %}
                 {% slot body %}
                     {% if authenticators.recovery_codes %}

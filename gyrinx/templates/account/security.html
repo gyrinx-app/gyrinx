@@ -1,0 +1,16 @@
+{% extends "account/base_manage.html" %}
+{% load react %}
+{% block head_title %}Account security{% endblock head_title %}
+{% block content %}
+    <div class="space-y-8">
+        <c-n26.section title="Password" id="password" class="max-w-xl">
+            {% react_island "account-password" password_form %}
+        </c-n26.section>
+        <c-n26.section title="Two-factor authentication" id="two-factor" class="max-w-xl">
+            {% include "mfa/_management.html" %}
+        </c-n26.section>
+        <c-n26.section title="Sessions" id="sessions">
+            {% include "usersessions/_management.html" %}
+        </c-n26.section>
+    </div>
+{% endblock content %}

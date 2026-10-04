@@ -22,7 +22,6 @@ from gyrinx.timezones import (
     stored_timezone,
     timezone_choices,
 )
-from gyrinx.widgets import BsRadioSelect
 
 
 class ResetPasswordForm(ResetPasswordForm):
@@ -148,7 +147,7 @@ class BadgeSelectionForm(forms.Form):
     selected_badge = forms.ChoiceField(
         required=False,
         label="Badge",
-        widget=BsRadioSelect,
+        widget=forms.Select,
     )
 
     def __init__(self, *args, **kwargs):
@@ -222,3 +221,63 @@ class TimezoneForm(forms.Form):
         if self.request is not None:
             remember_timezone(self.request, tzname)
         return profile
+
+
+class AccountSettingsForm(forms.Form):
+    """One validated form for the displayed badge, time zone and email change."""
+
+    email = forms.EmailField(
+        label="Email",
+        help_text="A new address must be verified before it replaces your current email.",
+    )
+
+    def __init__(self, *args, user, request=None, **kwargs):
+        from allauth.account.forms import AddEmailForm
+        from allauth.account.models import EmailAddress
+
+        self.user = user
+        from allauth.account import app_settings as account_settings
+        from allauth.utils import get_form_class
+
+        self.email_form_class = get_form_class(
+            account_settings.FORMS, "add_email", AddEmailForm
+        )
+        self.badge_form = BadgeSelectionForm(user=user)
+        self.timezone_form = TimezoneForm(user=user, request=request)
+        super().__init__(*args, **kwargs)
+        self.fields["selected_badge"] = self.badge_form.fields["selected_badge"]
+        self.fields["selected_badge"].widget = forms.Select()
+        self.fields["timezone"] = self.timezone_form.fields["timezone"]
+        self.fields["timezone"].label = "Time zone"
+        self.fields[
+            "timezone"
+        ].help_text = "Dates and times are shown in this time zone."
+        current = EmailAddress.objects.get_verified(user)
+        self.current_email = current.email if current else user.email
+        self.fields["email"].initial = self.current_email
+        self.order_fields(["selected_badge", "timezone", "email"])
+
+    def clean_selected_badge(self):
+        self.badge_form.cleaned_data = self.cleaned_data
+        return self.badge_form.clean_selected_badge()
+
+    def clean_timezone(self):
+        self.timezone_form.cleaned_data = self.cleaned_data
+        return self.timezone_form.clean_timezone()
+
+    def clean_email(self):
+        value = self.cleaned_data["email"].lower()
+        self.email_changed = value.casefold() != self.current_email.casefold()
+        if self.email_changed:
+            self.email_form = self.email_form_class(
+                data={"email": value}, user=self.user
+            )
+            if not self.email_form.is_valid():
+                raise forms.ValidationError(self.email_form.errors["email"])
+        return value
+
+    def save_preferences(self):
+        self.badge_form.cleaned_data = self.cleaned_data
+        self.timezone_form.cleaned_data = self.cleaned_data
+        self.badge_form.save()
+        self.timezone_form.save()

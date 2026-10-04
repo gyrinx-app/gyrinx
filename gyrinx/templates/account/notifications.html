@@ -1,0 +1,8 @@
+{% extends "account/base_manage.html" %}
+{% load react %}
+{% block head_title %}Notifications{% endblock head_title %}
+{% block content %}
+    <c-n26.section title="Notifications">
+        {% react_island "notification-inbox" notification_inbox %}
+    </c-n26.section>
+{% endblock content %}

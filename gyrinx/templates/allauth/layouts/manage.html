@@ -1,10 +1,25 @@
 {% extends "allauth/layouts/base.html" %}
+{% load account_navigation %}
 {% block account_layout %}
-    <div class="row">
-        <div class="col-12 col-md-3 mb-3 mb-md-0">{% include "platform/includes/account_sidebar.html" %}</div>
-        <div class="col-12 col-md-9">
-            {% block content %}
-            {% endblock content %}
-        </div>
+    <c-n26.page-header lead="Member since {{ user.date_joined|date:'F Y' }}">
+        <c-slot name="title">
+            <c-n26.user-link :user="user" tone="current" />
+        </c-slot>
+    </c-n26.page-header>
+    {% account_tabs as tabs %}
+    <div class="flex items-end gap-3">
+        <c-n26.tab-links :tabs="tabs" label="Account" class="min-w-0 flex-1" />
+        <form method="post"
+              action="{% url 'account_logout' %}"
+              class="shrink-0 pb-1">
+            {% csrf_token %}
+            <c-ui.button variant="danger" size="sm" type="submit">
+                Sign out
+            </c-ui.button>
+        </form>
+    </div>
+    <div class="space-y-6">
+        {% block content %}
+        {% endblock content %}
     </div>
 {% endblock account_layout %}

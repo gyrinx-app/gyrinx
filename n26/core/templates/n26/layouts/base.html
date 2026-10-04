@@ -178,12 +178,13 @@ gtm_container_id, messages, user.
         notifications processor. Passed with a colon so it stays a number: the
         string "0" is true, and the bar would carry an empty-inbox badge.
         {% endcomment %}
-        <c-n26.site.nav title="Gyrinx"
-                        href="{% url 'n26-dashboard' %}"
-                        sticky="1"
-                        :unread="unread_notification_count"
-                        class="dark">
-            {% comment %}
+        {% block site_nav %}
+            <c-n26.site.nav title="Gyrinx"
+                            href="{% url 'n26-dashboard' %}"
+                            sticky="1"
+                            :unread="unread_notification_count"
+                            class="dark">
+                {% comment %}
             The account button's name, with the badge the account holds. A slot
             rather than the user_label attribute because an attribute is escaped
             and the badge would arrive as its own source code; drawn only when
@@ -194,32 +195,32 @@ gtm_container_id, messages, user.
             supporter standing and staff flag belong to the account — and
             c-n26.user-link is what asks. No href: the button around it is the
             control, and a link inside a button is a click with two answers.
-            {% endcomment %}
-            {% if user.is_authenticated %}
-                <c-slot name="user_label">
-                    <c-n26.user-link :user="user" tone="current" underline="none" />
+                {% endcomment %}
+                {% if user.is_authenticated %}
+                    <c-slot name="user_label">
+                        <c-n26.user-link :user="user" tone="current" underline="none" />
+                    </c-slot>
+                {% endif %}
+                <c-slot name="logo">
+                    <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
+                         alt=""
+                         width="24"
+                         height="24"
+                         class="size-6">
                 </c-slot>
-            {% endif %}
-            <c-slot name="logo">
-                <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
-                     alt=""
-                     width="24"
-                     height="24"
-                     class="size-6">
-            </c-slot>
-            <c-slot name="brand_actions">
-                <a href="{% url 'core:dice' %}"
-                   title="Dice roller"
-                   aria-label="Dice roller"
-                   class="inline-flex shrink-0 items-center rounded-control p-1.5 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-ring dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-white">
-                    <c-n26.icon name="dice-6" class="size-5" />
-                </a>
-            </c-slot>
-            <c-slot name="heading">
-                {% block nav_heading %}
-                {% endblock nav_heading %}
-            </c-slot>
-            {% comment %}
+                <c-slot name="brand_actions">
+                    <a href="{% url 'core:dice' %}"
+                       title="Dice roller"
+                       aria-label="Dice roller"
+                       class="inline-flex shrink-0 items-center rounded-control p-1.5 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-ring dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-white">
+                        <c-n26.icon name="dice-6" class="size-5" />
+                    </a>
+                </c-slot>
+                <c-slot name="heading">
+                    {% block nav_heading %}
+                    {% endblock nav_heading %}
+                </c-slot>
+                {% comment %}
             A second slot beside the name rather than more of it. A page that
             is one of something — one gang, one kind of content — offers the
             others here; whether it also names itself first is its own
@@ -232,14 +233,14 @@ gtm_container_id, messages, user.
             everywhere, and a page that is not one of anything still has
             somewhere worth going. Pages that are one of something override
             the block, keeping the same chord on their own list.
-            {% endcomment %}
-            <c-slot name="switcher">
-                {% block nav_switcher %}
-                    {% places_switcher as places_ %}
-                    <c-n26.quick-switcher.of :switcher="places_" hotkey="f" />
-                {% endblock nav_switcher %}
-            </c-slot>
-            {% comment %}
+                {% endcomment %}
+                <c-slot name="switcher">
+                    {% block nav_switcher %}
+                        {% places_switcher as places_ %}
+                        <c-n26.quick-switcher.of :switcher="places_" hotkey="f" />
+                    {% endblock nav_switcher %}
+                </c-slot>
+                {% comment %}
             One list of places, on every screen the edition has. The block
             exists so a page can say which of them it is — it overrides with
             the same include and its own `here` — and not so an area can swap
@@ -252,11 +253,11 @@ gtm_container_id, messages, user.
             template owns. The default is filled here rather than left empty,
             so a page that says nothing still gets the drawer everything else
             has.
-            {% endcomment %}
-            {% block nav_items %}
-                {% include "n26/_nav.html" %}
-            {% endblock nav_items %}
-            {% comment %}
+                {% endcomment %}
+                {% block nav_items %}
+                    {% include "n26/_nav.html" %}
+                {% endblock nav_items %}
+                {% comment %}
             The reader's own gangs, under the places the app has: a gang is
             what someone opens the drawer for, and the alternative is two
             clicks through the gangs page every time.
@@ -264,20 +265,20 @@ gtm_container_id, messages, user.
             The query runs here rather than in a context processor because
             this layout is the only thing that draws the drawer — a processor
             would run it for every page on the site.
-            {% endcomment %}
-            {% if user.is_authenticated %}
-                <c-slot name="gangs">
-                    {% drawer_gangs as drawer_gangs_ %}
-                    {% for gang in drawer_gangs_ %}
-                        <c-n26.site.nav.gang href="{% url 'n26-gang' gang.pk %}"
-                                             name="{{ gang.name }}"
-                                             type="{{ gang.gang_type }}"
-                                             :type_icon="gang.gang_type.artwork"
-                                             colour="{{ gang.colour }}" />
-                    {% endfor %}
-                </c-slot>
-            {% endif %}
-            {% comment %}
+                {% endcomment %}
+                {% if user.is_authenticated %}
+                    <c-slot name="gangs">
+                        {% drawer_gangs as drawer_gangs_ %}
+                        {% for gang in drawer_gangs_ %}
+                            <c-n26.site.nav.gang href="{% url 'n26-gang' gang.pk %}"
+                                                 name="{{ gang.name }}"
+                                                 type="{{ gang.gang_type }}"
+                                                 :type_icon="gang.gang_type.artwork"
+                                                 colour="{{ gang.colour }}" />
+                        {% endfor %}
+                    </c-slot>
+                {% endif %}
+                {% comment %}
             The account menu: what you are signed in as, the doors only staff
             have, and the way out. Each separator is drawn by the section
             below it, so a section that is not there leaves no rule behind
@@ -286,12 +287,12 @@ gtm_container_id, messages, user.
             c-ui.dropdown.item, not c-ui.menu.item — menu.item calls
             selectOption(), which is combobox machinery outside a dropdown's
             scope, so it throws on click and the panel never closes.
-            {% endcomment %}
-            {% if user.is_authenticated %}
-                <c-slot name="menu">
-                    {% url 'admin:index' as admin_url_ %}
-                    {% url 'account_logout' as logout_url_ %}
-                    {% comment %}
+                {% endcomment %}
+                {% if user.is_authenticated %}
+                    <c-slot name="menu">
+                        {% url 'admin:index' as admin_url_ %}
+                        {% url 'account_logout' as logout_url_ %}
+                        {% comment %}
                     Who you are, at the top of the menu about you. The bar's
                     own button drops the name below sm — the width belongs to
                     the page there — and this is where it goes instead, so
@@ -311,11 +312,11 @@ gtm_container_id, messages, user.
                     from the platform's registry: supporter standing and staff
                     flag are the account's business rather than this edition's,
                     and c-n26.user-link is what asks.
-                    {% endcomment %}
-                    <div class="flex items-center gap-2 px-4 pt-2 pb-1 text-sm font-medium text-ink-900 dark:text-ink-100">
-                        <c-n26.user-link :user="user" tone="current" underline="none" />
-                    </div>
-                    {% comment %}
+                        {% endcomment %}
+                        <div class="flex items-center gap-2 px-4 pt-2 pb-1 text-sm font-medium text-ink-900 dark:text-ink-100">
+                            <c-n26.user-link :user="user" tone="current" underline="none" />
+                        </div>
+                        {% comment %}
                     The account page belongs to the site rather than to either
                     edition, so it is named rather than spelled out: a name
                     that stops resolving raises here, while a path that stops
@@ -325,12 +326,12 @@ gtm_container_id, messages, user.
                     it, which is the discipline the whole menu follows: a
                     section draws the break above itself, so nothing can be
                     left holding a rule with nothing under it.
-                    {% endcomment %}
-                    <c-ui.dropdown.separator />
-                    <c-ui.dropdown.item href="{% url 'core:account_home' %}">
-                        Your account
-                    </c-ui.dropdown.item>
-                    {% comment %}
+                        {% endcomment %}
+                        <c-ui.dropdown.separator />
+                        <c-ui.dropdown.item href="{% url 'core:account_home' %}">
+                            Your account
+                        </c-ui.dropdown.item>
+                        {% comment %}
                     The inbox, under the account it belongs to. One inbox
                     serves both editions — a battle in the classic app and a
                     gang here write to the same place — so this is the site's
@@ -342,12 +343,12 @@ gtm_container_id, messages, user.
                     is the mark they find inside. Labelled here and not there:
                     this row is read out as it stands, where the button's own
                     accessible name already carries the number.
-                    {% endcomment %}
-                    <c-ui.dropdown.item href="{% url 'core:notifications' %}">
-                        Notifications
-                        <c-n26.count-badge :count="unread_notification_count" label="unread notifications" />
-                    </c-ui.dropdown.item>
-                    {% comment %}
+                        {% endcomment %}
+                        <c-ui.dropdown.item href="{% url 'core:notifications' %}">
+                            Notifications
+                            <c-n26.count-badge :count="unread_notification_count" label="unread notifications" />
+                        </c-ui.dropdown.item>
+                        {% comment %}
                     The colour scheme, in the menu rather than in the bar. It is
                     clicked once and then never again, and the row of the bar it
                     used to sit in is wanted by the page's name and the switcher
@@ -355,11 +356,11 @@ gtm_container_id, messages, user.
 
                     The group's own label is the break above it; a separator as
                     well would say the same thing twice.
-                    {% endcomment %}
-                    <c-ui.dropdown.group label="Theme">
-                        <c-n26.site.nav.theme storage_key="theme" />
-                    </c-ui.dropdown.group>
-                    {% comment %}
+                        {% endcomment %}
+                        <c-ui.dropdown.group label="Theme">
+                            <c-n26.site.nav.theme storage_key="theme" />
+                        </c-ui.dropdown.group>
+                        {% comment %}
                     The doors into the admin and into content authoring, kept
                     together and out of the drawer: the drawer is for the
                     places every reader has, and writing content is something
@@ -369,18 +370,18 @@ gtm_container_id, messages, user.
                     The heading is the break between them and the account
                     items above; a rule as well would say the same thing
                     twice.
-                    {% endcomment %}
-                    {% if user.is_staff %}
-                        <c-ui.dropdown.group label="Staff only">
-                            {% if admin_url_ %}
-                                <c-ui.dropdown.item href="{{ admin_url_ }}">
-                                    Admin
+                        {% endcomment %}
+                        {% if user.is_staff %}
+                            <c-ui.dropdown.group label="Staff only">
+                                {% if admin_url_ %}
+                                    <c-ui.dropdown.item href="{{ admin_url_ }}">
+                                        Admin
+                                    </c-ui.dropdown.item>
+                                {% endif %}
+                                <c-ui.dropdown.item href="{% url 'authoring-index' %}">
+                                    Content Library
                                 </c-ui.dropdown.item>
-                            {% endif %}
-                            <c-ui.dropdown.item href="{% url 'authoring-index' %}">
-                                Content Library
-                            </c-ui.dropdown.item>
-                            {% comment %}
+                                {% comment %}
                             The way into the account whose gang or campaign is
                             on screen, set by the read guards in
                             n26.core.views.permissions and narrowed to a target
@@ -400,104 +401,105 @@ gtm_container_id, messages, user.
                             requestSubmit is preferred so the form's own submit
                             event fires, and guarded because it throws where it
                             is missing (Safari before 16).
-                            {% endcomment %}
-                            {% if impersonate_target %}
-                                <form method="post"
-                                      action="{% url 'core:impersonate-start' impersonate_target.pk %}"
-                                      role="none"
-                                      x-on:click="$el.requestSubmit ? $el.requestSubmit() : $el.submit()">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                                    <c-ui.dropdown.item variant="danger">
-                                        Impersonate {{ impersonate_target.username }}
-                                    </c-ui.dropdown.item>
-                                </form>
-                            {% endif %}
-                        </c-ui.dropdown.group>
-                    {% endif %}
-                    {% if logout_url_ %}
-                        <c-ui.dropdown.separator />
-                        <c-ui.dropdown.item href="{{ logout_url_ }}" variant="danger">
-                            Sign out
-                        </c-ui.dropdown.item>
-                    {% endif %}
-                </c-slot>
-            {% endif %}
-            <c-slot name="actions">
-                {% comment %}
+                                {% endcomment %}
+                                {% if impersonate_target %}
+                                    <form method="post"
+                                          action="{% url 'core:impersonate-start' impersonate_target.pk %}"
+                                          role="none"
+                                          x-on:click="$el.requestSubmit ? $el.requestSubmit() : $el.submit()">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                        <c-ui.dropdown.item variant="danger">
+                                            Impersonate {{ impersonate_target.username }}
+                                        </c-ui.dropdown.item>
+                                    </form>
+                                {% endif %}
+                            </c-ui.dropdown.group>
+                        {% endif %}
+                        {% if logout_url_ %}
+                            <c-ui.dropdown.separator />
+                            <c-ui.dropdown.item href="{{ logout_url_ }}" variant="danger">
+                                Sign out
+                            </c-ui.dropdown.item>
+                        {% endif %}
+                    </c-slot>
+                {% endif %}
+                <c-slot name="actions">
+                    {% comment %}
                 The way to the guides, as an icon: the bar has no room for a
                 word, and the drawer carries the worded entry. Hidden on
                 narrow screens for the same reason — the drawer is the
                 narrow reader's way in. A written-out flatpage path, like
                 the drawer's: the page is stored under its URL, not routed.
-                {% endcomment %}
-                {# djlint:off D018 — a flatpage is stored under its URL, not routed #}
-                <a href="/help/n26/"
-                   title="Help"
-                   aria-label="Help"
-                   class="hidden shrink-0 items-center text-ink-500 transition-colors hover:text-ink-900 focus-ring sm:inline-flex dark:text-ink-400 dark:hover:text-white">
-                    <c-n26.icon name="circle-question-mark" class="size-5" />
-                </a>
-                {# djlint:on #}
-                {% comment %}
+                    {% endcomment %}
+                    {# djlint:off D018 — a flatpage is stored under its URL, not routed #}
+                    <a href="/help/n26/"
+                       title="Help"
+                       aria-label="Help"
+                       class="hidden shrink-0 items-center text-ink-500 transition-colors hover:text-ink-900 focus-ring sm:inline-flex dark:text-ink-400 dark:hover:text-white">
+                        <c-n26.icon name="circle-question-mark" class="size-5" />
+                    </a>
+                    {# djlint:on #}
+                    {% comment %}
                 Goes before help does as the bar narrows; the drawer's copy is
                 what a narrow reader gets instead.
-                {% endcomment %}
-                <a href="{% url 'core:dice' %}"
-                   title="Dice roller"
-                   aria-label="Dice roller"
-                   class="hidden shrink-0 items-center text-ink-500 transition-colors hover:text-ink-900 focus-ring lg:inline-flex dark:text-ink-400 dark:hover:text-white">
-                    <c-n26.icon name="dice-6" class="size-5" />
-                </a>
-                {% comment %}
+                    {% endcomment %}
+                    <a href="{% url 'core:dice' %}"
+                       title="Dice roller"
+                       aria-label="Dice roller"
+                       class="hidden shrink-0 items-center text-ink-500 transition-colors hover:text-ink-900 focus-ring lg:inline-flex dark:text-ink-400 dark:hover:text-white">
+                        <c-n26.icon name="dice-6" class="size-5" />
+                    </a>
+                    {% comment %}
                 The way to the other edition, left of the account menu.
                 Both editions are open to the same accounts, so there is
                 nothing to check here — the classic app's bar draws its
                 own copy on the same terms.
-                {% endcomment %}
-                <c-n26.site.edition-toggle />
-                {% comment %}
+                    {% endcomment %}
+                    <c-n26.site.edition-toggle />
+                    {% comment %}
                 A visitor with no account menu still needs somewhere to change
                 the scheme, so for them the toggle stays in the bar — where
                 there is room for it, the sign-in buttons being the only other
                 thing they carry.
-                {% endcomment %}
-                {% if not user.is_authenticated %}
-                    <c-ui.mode-toggle storage_key="theme" size="sm" />
-                    {% url 'account_login' as login_url_ %}
-                    {% url 'account_signup' as signup_url_ %}
-                    {% comment %}
+                    {% endcomment %}
+                    {% if not user.is_authenticated %}
+                        <c-ui.mode-toggle storage_key="theme" size="sm" />
+                        {% url 'account_login' as login_url_ %}
+                        {% url 'account_signup' as signup_url_ %}
+                        {% comment %}
                     No ?next on the login and signup pages themselves — it would
                     point back at the form and send the user round in a circle.
-                    {% endcomment %}
-                    {% if request.path != login_url_ and request.path != signup_url_ %}
-                        {% with next_param=request.get_full_path|urlencode %}
-                            <c-ui.button size="sm"
-                                         variant="default"
-                                         href="{{ login_url_ }}?next={{ next_param }}">
+                        {% endcomment %}
+                        {% if request.path != login_url_ and request.path != signup_url_ %}
+                            {% with next_param=request.get_full_path|urlencode %}
+                                <c-ui.button size="sm"
+                                             variant="default"
+                                             href="{{ login_url_ }}?next={{ next_param }}">
+                                    Sign In
+                                </c-ui.button>
+                                {% if signup_url_ %}
+                                    <c-ui.button size="sm"
+                                                 variant="primary"
+                                                 href="{{ signup_url_ }}?next={{ next_param }}">
+                                        Sign Up
+                                    </c-ui.button>
+                                {% endif %}
+                            {% endwith %}
+                        {% else %}
+                            <c-ui.button size="sm" variant="default" href="{{ login_url_ }}">
                                 Sign In
                             </c-ui.button>
                             {% if signup_url_ %}
-                                <c-ui.button size="sm"
-                                             variant="primary"
-                                             href="{{ signup_url_ }}?next={{ next_param }}">
+                                <c-ui.button size="sm" variant="primary" href="{{ signup_url_ }}">
                                     Sign Up
                                 </c-ui.button>
                             {% endif %}
-                        {% endwith %}
-                    {% else %}
-                        <c-ui.button size="sm" variant="default" href="{{ login_url_ }}">
-                            Sign In
-                        </c-ui.button>
-                        {% if signup_url_ %}
-                            <c-ui.button size="sm" variant="primary" href="{{ signup_url_ }}">
-                                Sign Up
-                            </c-ui.button>
                         {% endif %}
                     {% endif %}
-                {% endif %}
-            </c-slot>
-        </c-n26.site.nav>
+                </c-slot>
+            </c-n26.site.nav>
+        {% endblock site_nav %}
         {% if is_impersonating %}
             {% comment %}
             Deliberately not dismissible: an impersonation notice must show on

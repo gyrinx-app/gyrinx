@@ -1,24 +1,10 @@
 {% extends "platform/layouts/base.html" %}
-{% load i18n platform_tags %}
 {% block body %}
-    <div id="content" class="container my-3 my-md-5">
-        {% if messages %}
-            <div>
-                {% for message in messages %}
-                    <div class="alert alert-{% if message.tags == 'debug' %}secondary{% elif message.tags == 'info' %}info{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% elif message.tags == 'error' %}danger{% else %}info{% endif %} alert-dismissible fade show"
-                         role="alert">
-                        {{ message }}
-                        <button type="button"
-                                class="btn-close"
-                                data-bs-dismiss="alert"
-                                aria-label="Close"></button>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
+    <main id="content" class="n26-site-container flex-1 space-y-6 pt-6 pb-10">
+        {% include "n26/includes/messages.html" %}
         {% block account_layout %}
             {% block content %}
             {% endblock content %}
         {% endblock account_layout %}
-    </div>
+    </main>
 {% endblock body %}

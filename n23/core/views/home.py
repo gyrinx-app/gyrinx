@@ -253,6 +253,14 @@ def account_home(request):
         "core/account_home.html",
         {
             "stats": stats,
+            "account_stats": [
+                ("Lists", lists_count),
+                ("Campaign gangs", campaign_gangs_count),
+                ("Fighters", fighters_count),
+                ("Campaigns", campaigns_count),
+                ("Battles", battles_count),
+                ("Content packs", packs_count),
+            ],
             "show_packs": show_packs,
         },
     )
