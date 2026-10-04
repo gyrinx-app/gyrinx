@@ -34,3 +34,22 @@ class RichText(TinyMCE):
         if height is not None:
             mce_attrs = {"height": height, "max_height": height, **mce_attrs}
         super().__init__(attrs=attrs, mce_attrs=mce_attrs, **kwargs)
+
+
+# A campaign summary needs links, tables and URL images without changing the
+# controls offered by gang notes or library descriptions.
+CAMPAIGN_SUMMARY_CONFIG = {
+    "plugins": "autoresize autolink image link lists table",
+    "toolbar": (
+        "undo redo | blocks | bold italic underline | bullist numlist | "
+        "link image table | removeformat"
+    ),
+    "menubar": False,
+    "image_dimensions": False,
+    "object_resizing": False,
+    "content_style": "img { max-width: 100%; height: auto; }",
+    # Without an upload handler, pasted files remain data/blob addresses that
+    # cannot survive the saved page's protocol allowlist.
+    "paste_data_images": False,
+    "paste_block_drop": True,
+}

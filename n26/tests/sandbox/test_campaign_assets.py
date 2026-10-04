@@ -370,7 +370,16 @@ class TestWhatHoldingDoes:
         client.force_login(gang.owner)
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
         assert "Old Ruins" in body
-        assert "income 30¢" in body
+        assert "income 30¢" not in body
+        assert "Territories" in body
+        assert (
+            next(
+                line.value
+                for line in render_gang(gang).campaign.counters
+                if line.name == "Income"
+            )
+            == 30
+        )
         assert "Salvage" in body
 
 

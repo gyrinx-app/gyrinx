@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.record-table.gang-row> — One gang listing in a record table, with wealth and edit controls.
 
-Must sit inside a record table so register and matches exist.
+A record table filters these data attributes without replacing the listing markup.
 Search includes the gang type as well as the name.
 The wide layout keys off the table's query container, not the viewport.
 The listing itself must stay relative too. Drop either and the stretched link swallows Print.
@@ -17,14 +17,7 @@ The sheet must carry model_count. The strip leads with it.
 <c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" print_href=""
         owner="" class="" />
 
-<div x-data="{ facets: {
-        type: {{ type|json_dumps }},
-        search: {{ name|add:' '|add:type|lower|json_dumps }},
-     } }"
-     x-init="register(facets)"
-     x-show="matches(facets)"
-     x-cloak
-
+<div data-record-row data-record-type="{{ type }}" data-record-search="{{ name|add:' '|add:type|lower }}"
      class="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-1 py-3
             hover:bg-ink-500/5 @2xl:grid-cols-[minmax(0,1fr)_17rem_9rem] {{ class }}">
 

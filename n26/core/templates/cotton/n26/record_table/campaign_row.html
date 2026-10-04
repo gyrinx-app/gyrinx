@@ -1,9 +1,7 @@
 {% comment %}
 <c-n26.record-table.campaign-row> — One campaign listing in a record table.
 
-Must sit inside a record table so register and matches exist.
-Outside it, Alpine throws and x-cloak keeps the listing hidden.
-This listing registers an empty type, so a type filter that is not null hides every campaign.
+A record table filters these data attributes without replacing the listing markup.
 n26-row-link stretches the click target over the whole listing.
 Keep the actions cell relative so its button stays clickable above that sheet.
 Do not let this listing span two grid rows. The name would sit on the first while the button centres across both.
@@ -15,14 +13,7 @@ Repeat that floor if the button's padding changes.
 
 <c-vars name="" href="" owner="" action_label="" class="" />
 
-<div x-data="{ facets: {
-        type: '',
-        search: {{ name|lower|json_dumps }},
-     } }"
-     x-init="register(facets)"
-     x-show="matches(facets)"
-     x-cloak
-
+<div data-record-row data-record-type="" data-record-search="{{ name|lower }}"
      class="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-1 py-3
             hover:bg-ink-500/5 {{ class }}">
 
