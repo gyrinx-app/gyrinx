@@ -1326,11 +1326,15 @@ class TestTheSiteBanner:
         rendered data-tone="primary", which no rule matches, so the bar
         silently kept the default blue — right by luck, and wrong the
         moment the colour was secondary or dark."""
+        from django.urls import reverse
+
         live_banner(colour="primary")
 
         body = client.get("/n26/").content.decode()
         assert 'data-tone="info"' in body
         assert 'data-tone="primary"' not in body
+        assert reverse("core:dismiss-banner") in body
+        assert 'x-show="shown"' not in body
 
     def test_a_colourless_banner_still_gets_a_tone(
         self, tester, client, default_pack, live_banner
@@ -1407,7 +1411,7 @@ class TestTheSiteBanner:
         banner at all, so a bar closed in either edition stays closed in
         both.
 
-        The close button is an Alpine expression rather than a form, so
+        The close button posts from the island rather than a form, so
         the request under test is read out of the page and made here —
         a shell that says nothing has nothing to read.
         """
@@ -1421,13 +1425,12 @@ class TestTheSiteBanner:
         body = client.get("/n26/").content.decode()
         assert "N26 support is coming." in body
 
-        bar = announcement_bar(body)
         dismiss_url = reverse("core:dismiss-banner")
-        assert dismiss_url in bar
-        # The id the expression posts, not merely the one in the wrapper's
+        assert dismiss_url in body
+        # The id the island posts, not merely the one in the wrapper's
         # own id attribute.
         assert re.search(
-            rf"{re.escape(dismiss_url)}.*{re.escape(str(banner.id))}", bar, re.S
+            rf"{re.escape(dismiss_url)}.*{re.escape(str(banner.id))}", body, re.S
         )
 
         dismissed = client.post(
@@ -1490,6 +1493,35 @@ class TestTheSiteBanner:
         bar = announcement_bar(body)
         assert "Read the notes" not in bar
         assert "n26-announcement-cta" not in bar
+
+    def test_an_impersonation_notice_keeps_its_stop_form(
+        self, client, tester, default_pack
+    ):
+        """The notice is not a plain sentence. It names who is signed in,
+        and the only way out is a form that posts. Both have to survive
+        in the bar itself: a dismiss control that redraws the bar from a
+        text prop would print the tags and drop the form.
+        """
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        admin = User.objects.create_superuser("overseer", "overseer@example.com")
+        client.force_login(admin)
+        started = client.post(
+            reverse("core:impersonate-start", args=[tester.pk]),
+            {"next": "/n26/"},
+        )
+        assert started.status_code == 302
+
+        body = client.get("/n26/").content.decode()
+        # id sits on the aside, ahead of the class the slice starts at.
+        assert 'id="impersonation-banner"' in body
+        bar = announcement_bar(body)
+        assert f"<strong>{tester.username}</strong>" in bar
+        assert "<form" in bar
+        assert reverse("core:impersonate-stop") in bar
+        assert "Stop impersonating" in bar
+        assert "data-react-module" not in bar
 
 
 class TestTheSharedIconKeys:

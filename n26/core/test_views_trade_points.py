@@ -310,10 +310,10 @@ class TestWhoIsOffered:
         assert "Start TP visit" in body
         assert "Start action" not in body
         assert "Selected models add" in body
-        assert 'x-text="added"' in body
-        assert 'x-show="!overridden"' in body
-        assert 'x-model="override"' in body
-        assert ':disabled="overridden || locked"' in body
+        assert "data-react-fallback" in body
+        assert 'x-text="added"' not in body
+        assert 'x-model="override"' not in body
+        assert '"points": 2' in body
 
     def test_a_gang_with_nobody_says_so(self, client, tester, gang):
         """A gang can be full of Gangers and still have nobody who adds

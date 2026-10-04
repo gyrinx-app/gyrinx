@@ -29,6 +29,12 @@ reader's other campaigns — the same pattern a gang's screens use.
     <c-n26.view.campaign-sheet :sheet="sheet"
                                edit_href="{% if yours %}{% url 'n26-edit-campaign' campaign.pk %}{% endif %}"
                                log_href="{{ log_href }}">
+        {% if invitations %}
+            <c-slot name="invitation">
+                {% url "n26-campaign" campaign.pk as invitation_return %}
+                {% include "n26/includes/campaign_invitations.html" with back=invitation_return %}
+            </c-slot>
+        {% endif %}
         <c-slot name="log_count">
             {% include "n26/includes/campaign_log_count.html" %}
         </c-slot>
@@ -199,9 +205,9 @@ reader's other campaigns — the same pattern a gang's screens use.
                     </thead>
                     <tbody>
                         {% for battle in battles %}
-                            {# relative lets the title's n26-row-link cover the row; ! beats the table kit's near-invisible hover. #}
-                            <tr class="relative hover:bg-ink-500/5!">
-                                <td class="align-top">
+                            {# Older Safari cannot contain an absolute link within a table row. Stretch it within the title cell instead. #}
+                            <tr class="hover:bg-ink-500/5!">
+                                <td class="relative align-top">
                                     <c-n26.link href="{% url 'n26-battle' campaign.pk battle.pk %}"
                                                 class="n26-row-link font-medium">{{ battle.title }}</c-n26.link>
                                     <div class="mt-1 text-sm tabular-nums text-muted">{{ battle.date|date:"j M Y" }}</div>

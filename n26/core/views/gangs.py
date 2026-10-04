@@ -1,6 +1,5 @@
 """Where a player lands, what they own, and founding one more."""
 
-import json
 from dataclasses import dataclass
 
 from django.contrib import messages
@@ -1475,6 +1474,33 @@ def _brought(data, ticked):
     return int(typed)
 
 
+def _trade_points_form(offered, offer, amount_label, empty_message):
+    """The tick list and amount box, as JSON the start form's island reads.
+
+    Points ride on each option. The running total is their sum, and the
+    heading already says the same figure to the reader.
+    """
+    points = {visitor.key: visitor.trade_points for visitor in offered}
+    return {
+        "amountLabel": amount_label,
+        "emptyMessage": empty_message,
+        "groups": [
+            {
+                "name": group.name,
+                "options": [
+                    {
+                        "key": option.key,
+                        "name": option.name,
+                        "points": points[option.key],
+                    }
+                    for option in group.options
+                ],
+            }
+            for group in offer.groups
+        ],
+    }
+
+
 def _start_help(gang, offered):
     """What the start form says to do, for the state the gang is in."""
     if gang.visiting_trading_post:
@@ -1661,7 +1687,9 @@ def gang_trade_points(request, pk):
     # something.
     members = roster(gang)
     offered = visitors(gang, going=set(), members=members)
+    offer = as_offer(offered)
     receipt = receipt_for(gang)
+    amount_label = "Or enter a specific TP amount" if offered else "TP amount"
     return render(
         request,
         "n26/trade_points.html",
@@ -1678,12 +1706,6 @@ def gang_trade_points(request, pk):
             # post is shut. The form below it is drawn either way, so the
             # page reads the same whichever state it is in.
             "visit_card": visit_card(receipt, at) if receipt else None,
-            # What each offered fighter adds, keyed by the box value, so
-            # the running total can follow the ticks without a second
-            # copy of who is on the list.
-            "points_json": json.dumps(
-                {visitor.key: visitor.trade_points for visitor in offered}
-            ),
             # Whether an action is open, as a plain boolean: the start form
             # reads it to shut itself, and a cotton :attribute takes a
             # variable rather than an expression.
@@ -1696,14 +1718,18 @@ def gang_trade_points(request, pk):
             "start_help": _start_help(gang, offered),
             # The box is an alternative to the ticks only where there are
             # ticks. On its own it is simply the amount.
-            "amount_label": (
-                "Or enter a specific TP amount" if offered else "TP amount"
+            "amount_label": amount_label,
+            "trade_points_form": _trade_points_form(
+                offered,
+                offer,
+                amount_label,
+                f"No model in {gang.name} adds Trade Points.",
             ),
             # Every fighter, not only those who performed the action:
             # what a visit added is the gang's, and it is spent on
             # whoever it was for. Who went is the ranks on the receipt.
             "roster": members,
-            "offer": as_offer(offered),
+            "offer": offer,
             "edit_tabs": _edit_tabs(gang, "trade-points"),
         },
     )
