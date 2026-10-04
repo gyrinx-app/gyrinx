@@ -120,16 +120,29 @@ worktree_port() {
 }
 
 # port_is_listening <port>
-#   True when something accepts TCP connections on 127.0.0.1:<port>.
+#   True when the port is in use: something accepts on 127.0.0.1, or the
+#   wildcard address cannot be bound. runserver binds 0.0.0.0, so a
+#   listener on another local address still blocks it.
 port_is_listening() {
   python3 -c 'import socket, sys
+port = int(sys.argv[1])
 s = socket.socket()
 s.settimeout(0.2)
 try:
-    rc = s.connect_ex(("127.0.0.1", int(sys.argv[1])))
+    rc = s.connect_ex(("127.0.0.1", port))
 finally:
     s.close()
-sys.exit(0 if rc == 0 else 1)' "$1"
+if rc == 0:
+    sys.exit(0)
+b = socket.socket()
+b.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    b.bind(("0.0.0.0", port))
+except OSError:
+    sys.exit(0)
+finally:
+    b.close()
+sys.exit(1)' "$1"
 }
 
 # listening_pid <port>
@@ -230,7 +243,7 @@ dev_port_owner() {
     return 0
   fi
   if [ "$cwd" = "$root_phys" ] || [[ "$cwd" == "$root_phys"/* ]] \
-    || [[ "$cmd" == *"$root_phys"* ]] || [[ "$cmd" == *"$root/"* ]]; then
+    || [[ "$cmd" == *"$root_phys/"* ]] || [[ "$cmd" == *"$root/"* ]]; then
     echo ours
     return 0
   fi
@@ -284,9 +297,9 @@ choose_dev_port() {
   fi
   if [ "$owner" = "unknown" ]; then
     echo "Port ${port} is already in use, and this script cannot tell which process has it." >&2
-    echo "Session cookies are named for DJANGO_PORT. Start the server with a free port:" >&2
-    echo "  DJANGO_PORT=<free-port> ./scripts/dev.sh" >&2
-    echo "Use that same DJANGO_PORT for screenshots and manage agent_login_url." >&2
+    echo "Session cookies are named for DJANGO_PORT. Record a free port and start again:" >&2
+    echo "  mkdir -p logs && echo <free-port> > logs/dev-port && ./scripts/dev.sh" >&2
+    echo "Then re-source .venv/bin/activate so screenshots and manage agent_login_url use it." >&2
     return 1
   fi
   replacement=$(next_free_dev_port "$port") || {

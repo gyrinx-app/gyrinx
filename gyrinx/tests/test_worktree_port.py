@@ -254,3 +254,49 @@ def test_choose_dev_port_returns_a_free_preferred_port(tmp_path):
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == str(port)
     assert not (tmp_path / "logs" / "dev-port").exists()
+
+
+def test_a_sibling_whose_name_starts_with_ours_is_not_ours(tmp_path):
+    """`gang-fix` must not read as `gang`'s own server."""
+    worktree = tmp_path / "gang"
+    sibling = tmp_path / "gang-fix"
+    worktree.mkdir()
+    sibling.mkdir()
+    port = _free_port()
+    with _RunserverProcess(port, sibling):
+        result = subprocess.run(
+            [
+                "/bin/bash",
+                "-c",
+                'source "$1" && choose_dev_port "$2" "$3"',
+                "test",
+                str(WORKTREE_SH),
+                str(worktree),
+                str(port),
+            ],
+            text=True,
+            capture_output=True,
+        )
+    assert result.returncode == 0, result.stderr
+    assert int(result.stdout.strip()) != port
+
+
+def test_a_port_bound_on_the_wildcard_address_counts_as_in_use():
+    """runserver binds 0.0.0.0, so a port it cannot bind is not free,
+    even when nothing answers on 127.0.0.1."""
+    port = _free_port()
+    with socket.socket() as holder:
+        holder.bind(("0.0.0.0", port))
+        result = subprocess.run(
+            [
+                "/bin/bash",
+                "-c",
+                'source "$1" && port_is_listening "$2"',
+                "test",
+                str(WORKTREE_SH),
+                str(port),
+            ],
+            text=True,
+            capture_output=True,
+        )
+    assert result.returncode == 0, result.stderr
