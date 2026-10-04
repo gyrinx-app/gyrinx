@@ -874,6 +874,9 @@ def context():
             FlowStep("Review", current=True),
             FlowStep("Completed"),
         ),
+        "campaign_counter_adjustable": CounterLine(
+            name="Meat", value=5, tallied=2, href="#", back="#", adjust_href="#"
+        ),
         "counter_payment_figures": PaymentFigures("Kill Count", "8", "4", "4"),
         "credit_payment_figures": PaymentFigures("", "430¢", "100¢", "330¢"),
         "sample_action_panels": (
@@ -2257,6 +2260,7 @@ def gang_sheet():
             lines=[
                 CampaignAssetLine(
                     type_label="Settlement",
+                    type_plural="Settlements",
                     name="Settlement",
                     provenance=Provenance(
                         source="Territory campaign", source_kind="campaign type"
@@ -2294,6 +2298,7 @@ def gang_sheet():
             holdings=[
                 CampaignAssetLine(
                     type_label="Territory",
+                    type_plural="Territories",
                     name="Old Ruins",
                     income=30,
                     campaign_asset_id="old-ruins",

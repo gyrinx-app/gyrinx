@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
+{% load navigation react %}
 {% comment %}
 Adding an asset to the campaign, picked from what the campaign type and the
 arbitrator's own additions offer. Only asset types whose ownership is Holding
@@ -7,8 +7,8 @@ are offered: a Settlement is every gang's own and is never added here.
 Reached from the Add beside one asset type's table, the list is narrowed to
 that type and the page says so in its title.
 
-Native radios over a shared name, as the campaign type cards are, so the form
-posts with no script and a redisplay after a failed submit keeps the pick.
+Native checkboxes submit the selection without scripting. React adds Select all
+and enables the optional name only for a single selection.
 {% endcomment %}
 {% block head_title %}Add {{ adding }} to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -25,16 +25,14 @@ posts with no script and a redisplay after a failed submit keeps the pick.
     {% endcomment %}
     <c-n26.form-page action="{% url 'n26-campaign-add-asset' campaign.pk %}{% if asset_type %}?type={{ asset_type.pk }}{% endif %}"
                      title="Add {{ adding }}"
-                     lead="It stays unclaimed until you assign it to a gang."
+                     lead="Each stays unclaimed until you assign it to a gang."
                      :form="form"
-                     submit_label="Add"
+                     submit_label="{% if assets %}Add {{ adding }}{% endif %}"
                      cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="campaign.owner"
-                                     tone="current"
-                                     href="{% url 'n26-dashboard' %}" />
+                    <c-n26.user-link :user="campaign.owner" tone="current" />
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
@@ -44,42 +42,46 @@ posts with no script and a redisplay after a failed submit keeps the pick.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section title="{% if asset_type %}{{ asset_type.label_singular }}{% else %}Asset{% endif %}">
-            {% if assets %}
-                <c-n26.radio-cards label="{% if asset_type %}{{ asset_type.label_singular }}{% else %}Asset{% endif %} *"
-                                   description="{% if asset_type %}The {{ asset_type.plural|lower }} this campaign deals in.{% else %}The assets this campaign deals in.{% endif %}"
-                                   :form="form"
-                                   name="asset">
-                    {% for asset in assets %}
-                        <c-n26.radio-cards.card name="asset"
-                                                value="{{ asset.value }}"
-                                                label="{{ asset.label }}"
-                                                description="{{ asset.description }}"
-                                                :checked="asset.checked" />
-                    {% endfor %}
-                </c-n26.radio-cards>
-            {% else %}
-                <c-ui.alert variant="info" title="Nothing to add">
-                    {% if asset_type %}
-                        This campaign has no {{ asset_type.plural|lower }} yet.
-                    {% else %}
-                        This campaign has no assets that one gang holds at a time yet.
-                    {% endif %}
-                </c-ui.alert>
-            {% endif %}
-        </c-n26.form-section>
-        <c-n26.form-section title="In this campaign">
-            <c-ui.field label="Name in this campaign"
-                        description="Optional. Leave blank to use the asset's own name."
-                        error="x"
-                        :form="form"
-                        name="name"
-                        for="asset-name">
-                <c-ui.input id="asset-name"
-                            name="name"
-                            autocomplete="off"
-                            value="{{ form.name.value|default:'' }}" />
-            </c-ui.field>
-        </c-n26.form-section>
+        <c-ui.error :form="form" name="request_key" />
+        <input type="hidden"
+               name="request_key"
+               value="{{ form.request_key.value|default:'' }}">
+        {% if assets %}
+            <c-n26.form-section title="Select {{ adding }}">
+                <p id="campaign-assets-help"
+                   class="text-sm text-muted">Select one or more. Each will be added unclaimed.</p>
+                <div id="campaign-assets-errors">
+                    <c-ui.error :form="form" name="asset" />
+                </div>
+                {% react_host "campaign-asset-selection" selection %}
+                    <fieldset aria-describedby="campaign-assets-help campaign-assets-errors"
+                              {% if form.asset.errors %}aria-invalid="true"{% endif %}>
+                        <legend class="sr-only">Select {{ adding }}</legend>
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            {% for option in fallback_options %}
+                                <c-n26.pick-list.box :option="option" name="asset" />
+                            {% endfor %}
+                        </div>
+                    </fieldset>
+                    <c-ui.field error="x"
+                                label="Name in this campaign"
+                                description="Optional. Select one asset to use a name."
+                                :form="form"
+                                name="name"
+                                for="asset-name">
+                        <c-ui.input id="asset-name" name="name" value="{{ form.name.value|default:'' }}" />
+                    </c-ui.field>
+                {% endreact_host %}
+            </c-n26.form-section>
+        {% else %}
+            <c-ui.alert variant="info" title="Nothing to add">
+                <p>This campaign has no {{ adding }} to add.</p>
+                <p class="mt-2">
+                    <c-n26.link href="{{ empty_next_href }}">
+                        {{ empty_next_label }}
+                    </c-n26.link>
+                </p>
+            </c-ui.alert>
+        {% endif %}
     </c-n26.form-page>
 {% endblock content %}

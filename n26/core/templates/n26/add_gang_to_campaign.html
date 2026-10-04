@@ -30,9 +30,7 @@ a reader who cannot find one is told where it went.
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="campaign.owner"
-                                     tone="current"
-                                     href="{% url 'n26-dashboard' %}" />
+                    <c-n26.user-link :user="campaign.owner" tone="current" />
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
@@ -42,6 +40,9 @@ a reader who cannot find one is told where it went.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
+        {% if campaign.budget is not None %}
+            <p class="text-sm text-muted">The campaign's joining budget is {{ campaign.budget }}¢. Adding a gang does not change its credits budget.</p>
+        {% endif %}
         {% comment %}
         The list submits by its own buttons and draws no widget for the field,
         so the field's own error has nowhere else to appear. It is reachable
@@ -160,11 +161,21 @@ a reader who cannot find one is told where it went.
                             x-cloak
                             class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
                             <div class="min-w-0 flex-1">
-                                <span class="text-base font-semibold text-ink-900 dark:text-ink-100">{{ gang.name }}</span>
+                                <c-n26.link href="{{ gang.href }}" tone="current" class="text-base font-semibold">
+                                    {{ gang.name }}
+                                </c-n26.link>
                                 {% if arbitrating %}
-                                    <span class="text-sm text-muted">
+                                    <span class="ml-1 text-sm text-muted">
                                         <c-n26.user-link :user="gang.owned_by" tone="current" />
                                     </span>
+                                {% endif %}
+                                {% if gang.unlimited %}
+                                    <p class="mt-1 text-sm text-muted">Unlimited credits: credit balances are not tracked.</p>
+                                    {% if gang.budget_href %}
+                                        <c-n26.link href="{{ gang.budget_href }}" class="text-sm">
+                                            Review credits budget
+                                        </c-n26.link>
+                                    {% endif %}
                                 {% endif %}
                             </div>
                             {% comment %}

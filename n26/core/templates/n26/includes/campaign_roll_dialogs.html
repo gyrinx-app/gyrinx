@@ -33,7 +33,7 @@ nothing navigates.
 <div id="n26-roll-dialog-host"
      {% if redrawn %}hx-swap-oob="true"{% endif %}>
     {% if rolling %}
-        {% include "n26/includes/campaign_roll_dialog.html" with question=rolling %}
+        {% include "n26/includes/campaign_pool_roll_dialog.html" with question=rolling %}
     {% endif %}
     {% if starting %}
         {% include "n26/includes/campaign_roll_dialog.html" with question=starting %}

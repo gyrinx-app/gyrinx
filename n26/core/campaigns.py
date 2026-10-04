@@ -33,7 +33,7 @@ so a campaign never exists without them::
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from django.db import transaction
 from django.utils import timezone
@@ -719,6 +719,28 @@ class CampaignOperation:
         self.event(CampaignEvent.Kind.ASSET_ADDED, note=str(campaign_asset))
         return campaign_asset
 
+    def add_assets(self, assets, *, name="", request_key):
+        """Add a selection once, under the campaign lock.
+
+        The request mark is recorded with the events, so a retry cannot add
+        another copy even after the first holdings have moved or gone.
+        """
+        from n26.core.operations import Refusal
+
+        if not isinstance(request_key, UUID):
+            raise ValueError("An asset batch requires a UUID request mark.")
+        assets = list(assets)
+        if not assets:
+            raise ValueError("An asset batch requires a selection.")
+        if len(assets) > 1 and name:
+            raise Refusal("Select one asset to give it a name in this campaign.")
+        if self.campaign.events.filter(batch=request_key).exists():
+            return False
+        self.batch = request_key
+        for asset in assets:
+            self.add_asset(asset, name=name)
+        return True
+
     def _keep(self, asset, name=""):
         """The campaign asset itself, held by nobody. Written by the two
         acts that bring an asset in — adding one by hand and rolling one —
@@ -752,8 +774,17 @@ class CampaignOperation:
         Refused in words where the table is not one the roller holds,
         names no dice, or has no entry for the roll.
         """
-        from n26.core.operations import ROLL_ENTERED, Refusal
-        from n26.library.models import Dice
+        self._check_roll_table(table, membership=membership)
+        return self._roll_asset(
+            table,
+            self._roll_entries(table),
+            membership=membership,
+            rolled=rolled,
+            rng=rng,
+        )
+
+    def _check_roll_table(self, table, *, membership=None):
+        from n26.core.operations import Refusal
         from n26.library.staged import sees_staged
 
         if membership is not None and (
@@ -788,12 +819,8 @@ class CampaignOperation:
                 f"from {table}. That table is not available to {gang}."
             )
 
-        dice = Dice(table.dice)
-        entered = rolled is not None
-        if not entered:
-            rolled = Dice.roll(dice, rng)
-        elif rolled not in Dice.rolls(dice):
-            raise Refusal(f"You cannot roll {rolled} on a {dice.label}.")
+    def _roll_entries(self, table):
+        from n26.library.staged import sees_staged
 
         # The roll is where an asset is newly chosen for the campaign, so a
         # reader who may not see staged content cannot land on a staged
@@ -801,7 +828,20 @@ class CampaignOperation:
         entries = table.entries.select_related("asset__asset_type")
         if not sees_staged(self.actor):
             entries = entries.live().filter(asset__staged=False)
-        entry = table.landing(rolled, list(entries))
+        return list(entries)
+
+    def _roll_asset(self, table, entries, *, membership=None, rolled=None, rng=None):
+        from n26.core.operations import ROLL_ENTERED, Refusal
+        from n26.library.models import Dice
+
+        dice = Dice(table.dice)
+        entered = rolled is not None
+        if not entered:
+            rolled = Dice.roll(dice, rng)
+        elif rolled not in Dice.rolls(dice):
+            raise Refusal(f"You cannot roll {rolled} on a {dice.label}.")
+
+        entry = table.landing(rolled, entries)
         if entry is None:
             raise Refusal(
                 f"Nothing on {table} covers a roll of {rolled}. Fill that gap first."
@@ -817,6 +857,26 @@ class CampaignOperation:
         return AssetRoll(
             roll=rolled, dice=dice, table=table, campaign_asset=campaign_asset
         )
+
+    def roll_assets(self, table, *, count, request_key, rolled=None, rng=None):
+        """Generate an unclaimed pool together and record the submission."""
+        from n26.core.operations import Refusal
+
+        if not 1 <= count <= 100:
+            raise ValueError("Roll between 1 and 100 assets at a time.")
+        if not isinstance(request_key, UUID):
+            raise ValueError("An asset batch requires a UUID request mark.")
+        if count > 1 and rolled is not None:
+            raise Refusal("Set the number to 1 to use your own roll.")
+        if self.campaign.events.filter(batch=request_key).exists():
+            return []
+        self._check_roll_table(table)
+        entries = self._roll_entries(table)
+        self.batch = request_key
+        return [
+            self._roll_asset(table, entries, rolled=rolled, rng=rng)
+            for _ in range(count)
+        ]
 
     def remove_asset(self, campaign_asset):
         """Take an asset nobody holds out of the campaign.
@@ -876,7 +936,7 @@ class CampaignOperation:
         campaign_asset.holder = membership
         campaign_asset.save(update_fields=["holder", "modified"])
         with operation(membership.gang, actor=self.actor) as op:
-            op.event(campaign_asset, LedgerEvent.Kind.GAINED, note=str(campaign_asset))
+            op.gain_asset(campaign_asset)
         return campaign_asset
 
     def unassign(self, campaign_asset, by_holder=None):
@@ -976,10 +1036,8 @@ class CampaignOperation:
                 reversal_of=undone.get((loser.gang_id, LedgerEvent.Kind.GAINED)),
             )
         with operation(membership.gang, actor=self.actor, batch=mark) as op:
-            op.event(
+            op.gain_asset(
                 campaign_asset,
-                LedgerEvent.Kind.GAINED,
-                note=str(campaign_asset),
                 battle=battle,
                 reversal_of=undone.get((membership.gang_id, LedgerEvent.Kind.LOST)),
             )

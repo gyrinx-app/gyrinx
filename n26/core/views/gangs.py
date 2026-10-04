@@ -1,6 +1,5 @@
 """Where a player lands, what they own, and founding one more."""
 
-import json
 from dataclasses import dataclass
 
 from django.contrib import messages
@@ -94,7 +93,7 @@ def dashboard(request):
         request,
         "n26/dashboard.html",
         {
-            **_record_table_context(request),
+            **_record_table_context(request, campaigns_open=campaigns_open),
             "changelog": changelog_entries()[:5],
             "changelog_tag": CHANGELOG_TAG,
             "campaigns_open": campaigns_open,
@@ -133,7 +132,7 @@ def gangs(request):
     )
 
 
-def _record_table_context(request, everyone=False, per_page=None):
+def _record_table_context(request, everyone=False, per_page=None, campaigns_open=None):
     """The rows and facets <c-n26.record-table> needs: gangs — the
     viewer's own, or everybody's — narrowed by ``?q=`` when there is
     one, and the types present among what survives.
@@ -153,7 +152,7 @@ def _record_table_context(request, everyone=False, per_page=None):
     not a page anybody should be sent.
     """
     from gyrinx.querysets import search_queryset
-    from n26.core.models import Gang, Miniature
+    from n26.core.models import Campaign, CampaignMembership, Gang, Miniature
 
     query = request.GET.get("q", "").strip()
     listed = Gang.objects.filter(archived=False)
@@ -185,6 +184,31 @@ def _record_table_context(request, everyone=False, per_page=None):
         total = page.paginator.count
         pages = _pages(request, page) if page.paginator.num_pages > 1 else None
         found = page.object_list
+    found = list(found)
+    # An index may list everybody's public gangs. Only expose campaigns
+    # this reader runs or has accepted, and fetch all displayed links once.
+    campaigns = {}
+    from n26.flags import CAMPAIGNS, enabled
+
+    if campaigns_open is None:
+        campaigns_open = enabled(CAMPAIGNS, request.user)
+    if found and campaigns_open:
+        campaigns = {
+            membership.gang_id: membership.campaign
+            for membership in CampaignMembership.objects.filter(
+                gang__in=found,
+                left__isnull=True,
+                campaign__in=Campaign.objects.involving(request.user).filter(
+                    archived=False
+                ),
+            ).select_related("campaign")
+        }
+    for row in found:
+        campaign = campaigns.get(row.pk)
+        row.campaign_name = campaign.name if campaign else ""
+        row.campaign_href = (
+            reverse("n26-campaign", args=[campaign.pk]) if campaign else ""
+        )
     return {
         "gangs": found,
         "query": query,
@@ -338,6 +362,9 @@ def gang_sheet(request, pk):
     campaigns_open = link_model_cards(gang, sheet.models, request.user)
     dialog = None
     link_campaign(sheet.campaign, request.user)
+    unlimited_in_campaign = (
+        yours and gang.credits_unlimited and sheet.campaign is not None
+    )
     link_owners(sheet)
     # The offers the owner has dismissed come off every card and the
     # gang's own strip, whoever is reading: one query. Restore controls
@@ -372,7 +399,7 @@ def gang_sheet(request, pk):
             # the model's own page; a campaign counter is drawn here and
             # nowhere else, so here is the only place its controls can be
             # offered. The gang's own counters stay settled facts.
-            link_counters(sheet.campaign, back=at)
+            link_counters(sheet.campaign, back=at, adjust=True)
     # One question at a time: a URL naming two dialogs draws the leaving
     # one, because two open modals is not a state the page can mean.
     leaving = _leaving(request, gang) if yours else None
@@ -454,6 +481,7 @@ def gang_sheet(request, pk):
                 gang, marking or ransoming, status_back
             ),
             "dialog": dialog,
+            "unlimited_in_campaign": unlimited_in_campaign,
         },
     )
 
@@ -1475,6 +1503,33 @@ def _brought(data, ticked):
     return int(typed)
 
 
+def _trade_points_form(offered, offer, amount_label, empty_message):
+    """The tick list and amount box, as JSON the start form's island reads.
+
+    Points ride on each option. The running total is their sum, and the
+    heading already says the same figure to the reader.
+    """
+    points = {visitor.key: visitor.trade_points for visitor in offered}
+    return {
+        "amountLabel": amount_label,
+        "emptyMessage": empty_message,
+        "groups": [
+            {
+                "name": group.name,
+                "options": [
+                    {
+                        "key": option.key,
+                        "name": option.name,
+                        "points": points[option.key],
+                    }
+                    for option in group.options
+                ],
+            }
+            for group in offer.groups
+        ],
+    }
+
+
 def _start_help(gang, offered):
     """What the start form says to do, for the state the gang is in."""
     if gang.visiting_trading_post:
@@ -1661,7 +1716,9 @@ def gang_trade_points(request, pk):
     # something.
     members = roster(gang)
     offered = visitors(gang, going=set(), members=members)
+    offer = as_offer(offered)
     receipt = receipt_for(gang)
+    amount_label = "Or enter a specific TP amount" if offered else "TP amount"
     return render(
         request,
         "n26/trade_points.html",
@@ -1678,12 +1735,6 @@ def gang_trade_points(request, pk):
             # post is shut. The form below it is drawn either way, so the
             # page reads the same whichever state it is in.
             "visit_card": visit_card(receipt, at) if receipt else None,
-            # What each offered fighter adds, keyed by the box value, so
-            # the running total can follow the ticks without a second
-            # copy of who is on the list.
-            "points_json": json.dumps(
-                {visitor.key: visitor.trade_points for visitor in offered}
-            ),
             # Whether an action is open, as a plain boolean: the start form
             # reads it to shut itself, and a cotton :attribute takes a
             # variable rather than an expression.
@@ -1696,14 +1747,18 @@ def gang_trade_points(request, pk):
             "start_help": _start_help(gang, offered),
             # The box is an alternative to the ticks only where there are
             # ticks. On its own it is simply the amount.
-            "amount_label": (
-                "Or enter a specific TP amount" if offered else "TP amount"
+            "amount_label": amount_label,
+            "trade_points_form": _trade_points_form(
+                offered,
+                offer,
+                amount_label,
+                f"No model in {gang.name} adds Trade Points.",
             ),
             # Every fighter, not only those who performed the action:
             # what a visit added is the gang's, and it is spent on
             # whoever it was for. Who went is the ranks on the receipt.
             "roster": members,
-            "offer": as_offer(offered),
+            "offer": offer,
             "edit_tabs": _edit_tabs(gang, "trade-points"),
         },
     )
