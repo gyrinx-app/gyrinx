@@ -29,6 +29,7 @@ import random
 import re
 
 import pytest
+from bs4 import BeautifulSoup
 from django.apps import apps
 from django.contrib.auth.models import User
 from django.db import connection
@@ -752,7 +753,9 @@ class TestThePages:
         # One table is a fact, not a choice: named with its die, no radio,
         # and posted hidden.
         assert 'type="radio"' not in body
-        assert "Territory Selection Table · D66" in body
+        assert "Territory Selection Table · D66" in BeautifulSoup(
+            body, "html.parser"
+        ).get_text(" ", strip=True)
         assert f'type="hidden" name="table" value="{selection_table.pk}"' in body
         assert (
             "Each rolled territory will be added to the campaign as unclaimed." in body
@@ -775,7 +778,9 @@ class TestThePages:
         ).content.decode()
         assert "Roll starting territory for Wild Cats" in cats
         assert "Goliath Territories" not in cats
-        assert "Territory Selection Table · D66" in cats
+        assert "Territory Selection Table · D66" in BeautifulSoup(
+            cats, "html.parser"
+        ).get_text(" ", strip=True)
         assert 'type="radio"' not in cats.split('id="n26-roll-dialog-host"')[1]
         assert "The rolled territory will be assigned to Wild Cats." in cats
         assert "The tables Wild Cats holds" not in cats
@@ -898,6 +903,7 @@ class TestThePages:
         assert response.status_code == 200
         assert "Location" not in response
         body = response.content.decode()
+        soup = BeautifulSoup(body, "html.parser")
         for host in (
             "n26-campaign-figures",
             "n26-campaign-gangs",
@@ -905,7 +911,9 @@ class TestThePages:
             "n26-campaign-log",
             "n26-campaign-log-count",
         ):
-            assert re.search(rf'id="{host}"\s+hx-swap-oob="true"', body), host
+            element = soup.find(id=host)
+            assert element is not None, host
+            assert element.get("hx-swap-oob") == "true", host
         assert '<div id="n26-roll-dialog-host" hx-swap-oob="true"></div>' in body
         assert "<dialog" not in body
         # The sections carry what the roll changed.

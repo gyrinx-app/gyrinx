@@ -75,7 +75,9 @@ class TestRecordingPages:
         response = client.get(record_url(campaign))
         assert response.status_code == 200
         assert "Log a dice roll" in response.content.decode()
-        assert 'name="request_key"' in response.content.decode()
+        assert response.context["roll_source"]["requestKey"] == str(
+            response.context["form"]["request_key"].value()
+        )
         assert response.context["roll_source"]["source"] == "generated"
         assert response.context["roll_source"]["rolled"] == ""
         assert response.context["roll_source"]["sourceErrors"] == []
@@ -139,7 +141,14 @@ class TestRecordingPages:
         assert (roll.rolled, roll.modifier, roll.total) == (rolled, -2, rolled - 2)
         assert roll.actor == player
         assert roll.source == "manual"
-        assert "Physical dice" in client.get(response.url).content.decode()
+        page = client.get(response.url)
+        faces = (
+            [str(rolled // 10), str(rolled % 10)] if dice == "d66" else [str(rolled)]
+        )
+        assert page.context["faces"] == faces
+        for face in faces:
+            assert f'aria-label="A die showing {face}"' in page.content.decode()
+        assert "Physical dice" in page.content.decode()
         assert LedgerEvent.objects.count() == 0
 
     @pytest.mark.parametrize(

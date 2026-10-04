@@ -764,7 +764,7 @@ class TestTheNamesOnACampaign:
         body = client.get("/n26/campaigns/").content.decode()
         invitations = body[body.index(">Invitations<") :]
         assert re.search(r"from\s*<a[^>]*><span[^>]*>patron<", invitations)
-        assert reverse("n26-user-profile", args=[table.owner.pk]) in invitations
+        assert reverse("n26-user-profile", args=[table.owner.username]) in invitations
         assert badge_svg(GUILDER).strip() in invitations
 
     def test_the_list_reads_the_badges_once_for_every_invitation(

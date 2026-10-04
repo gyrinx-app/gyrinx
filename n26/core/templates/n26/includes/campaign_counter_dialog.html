@@ -1,0 +1,12 @@
+{% if reopened %}<div hx-swap-oob="delete:#n26-campaign-state-dialog"></div>{% endif %}
+<div id="n26-campaign-state-dialog-host" hx-swap-oob="true">
+    <c-n26.dialog id="n26-campaign-state-dialog"
+                  title="Edit {{ name }}"
+                  action="{% url 'n26-tally' assignment.pk %}"
+                  cancel_url="{{ back }}"
+                  submit_label="Save"
+                  :redrawn="True"
+                  :htmx="True">
+        {% include "n26/includes/campaign_counter_fields.html" %}
+    </c-n26.dialog>
+</div>

@@ -86,7 +86,7 @@ def test_joining_leaves_the_budget_unchanged_and_owner_can_explicitly_set_it(
     gang.refresh_from_db()
     assert gang.starting_credits is None
     sheet_url = reverse("n26-gang", args=[gang.pk])
-    assert "Review credits budget" in client.get(sheet_url).content.decode()
+    assert "Use a custom budget" in client.get(sheet_url).content.decode()
     response = client.post(
         reverse("n26-edit-gang", args=[gang.pk]),
         {"name": gang.name, "starting_credits": 1000, "colour": ""},
@@ -95,7 +95,7 @@ def test_joining_leaves_the_budget_unchanged_and_owner_can_explicitly_set_it(
     gang.refresh_from_db()
     assert gang.starting_credits == 1000
     assert gang.credits == 1000
-    assert "Review credits budget" not in client.get(sheet_url).content.decode()
+    assert "Use a custom budget" not in client.get(sheet_url).content.decode()
 
 
 def test_unlimited_guidance_is_only_for_owner_of_a_participating_gang(
@@ -104,13 +104,13 @@ def test_unlimited_guidance_is_only_for_owner_of_a_participating_gang(
     owner, campaign = table
     gang = found_gang("Unlimited gang", gang_type, owner=owner)
     path = reverse("n26-gang", args=[gang.pk])
-    assert "Review credits budget" not in client.get(path).content.decode()
+    assert "Use a custom budget" not in client.get(path).content.decode()
     join(campaign, gang)
     client.logout()
-    assert "Review credits budget" not in client.get(path).content.decode()
+    assert "Use a custom budget" not in client.get(path).content.decode()
     stranger = User.objects.create_user("stranger")
     client.force_login(stranger)
-    assert "Review credits budget" not in client.get(path).content.decode()
+    assert "Use a custom budget" not in client.get(path).content.decode()
     assert (
         client.post(
             reverse("n26-edit-gang", args=[gang.pk]),
@@ -179,3 +179,39 @@ def test_more_participating_gangs_do_not_add_index_queries(client, table, gang_t
     with CaptureQueriesContext(connection) as many:
         assert client.get(path).status_code == 200
     assert len(many) <= len(few)
+
+
+def test_the_owner_can_use_the_current_campaign_budget_in_one_submission(
+    client, table, gang_type
+):
+    owner, campaign = table
+    gang = found_gang("Unlimited gang", gang_type, owner=owner)
+    join(campaign, gang)
+    path = reverse("n26-use-campaign-budget", args=[gang.pk])
+    assert client.get(path).status_code == 405
+    assert (
+        "Use campaign budget"
+        in client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+    )
+    response = client.post(path, {"starting_credits": 1})
+    assert response.url == reverse("n26-gang", args=[gang.pk])
+    gang.refresh_from_db()
+    assert gang.starting_credits == 1000
+    assert gang.credits == 1000
+    assert "Use campaign budget" not in client.get(response.url).content.decode()
+
+
+def test_the_campaign_arbitrator_cannot_set_a_players_budget(client, table, gang_type):
+    _, campaign = table
+    player = User.objects.create_user("player")
+    CampaignParticipant.objects.create(
+        campaign=campaign, user=player, state=CampaignParticipant.State.ACCEPTED
+    )
+    gang = found_gang("Player gang", gang_type, owner=player)
+    join(campaign, gang)
+    assert (
+        client.post(reverse("n26-use-campaign-budget", args=[gang.pk])).status_code
+        == 404
+    )
+    gang.refresh_from_db()
+    assert gang.starting_credits is None

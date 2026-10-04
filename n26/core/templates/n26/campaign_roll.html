@@ -35,7 +35,12 @@
         {% csrf_token %}
         <c-ui.card variant="outline" padding="md">
             <p class="text-sm text-muted">Result · {{ roll.get_source_display }}</p>
-            <p class="mt-2 text-4xl font-semibold tabular-nums">{{ roll.total }}</p>
+            <div class="mt-3 flex items-center gap-4">
+                <div class="flex shrink-0 gap-2">
+                    {% for face in faces %}<c-n26.die value="{{ face }}" class="text-4xl" />{% endfor %}
+                </div>
+                <p class="text-4xl font-semibold tabular-nums">{{ roll.total }}</p>
+            </div>
             <p class="mt-2 text-base tabular-nums">{{ roll.calculation }}</p>
             {% if roll.gang %}<p class="mt-2 text-sm text-muted">Gang: {{ roll.gang.name }}</p>{% endif %}
             {% if roll.battle %}<p class="mt-2 text-sm text-muted">Battle: <c-n26.link href="{% url 'n26-battle' campaign.pk roll.battle.pk %}">{{ roll.battle.title }}</c-n26.link></p>{% endif %}

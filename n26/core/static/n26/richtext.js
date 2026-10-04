@@ -13,6 +13,56 @@
 (function () {
     "use strict";
 
+    // File copies can provide a PNG filename with no MIME type. TinyMCE's
+    // image handler checks the MIME type, so it otherwise rejects a supported
+    // file before its normal image upload can run. Keep other clipboard data.
+    window.n26CampaignImages = function (editor) {
+        editor.on(
+            "paste drop",
+            function (event) {
+                var property =
+                    event.type === "paste" ? "clipboardData" : "dataTransfer";
+                var data = event[property];
+                if (!data || !data.files.length) return;
+                var types = {
+                    png: "image/png",
+                    jpg: "image/jpeg",
+                    jpeg: "image/jpeg",
+                    gif: "image/gif",
+                    webp: "image/webp",
+                    svg: "image/svg+xml",
+                };
+                var changed = false;
+                var files = Array.from(data.files, function (file) {
+                    var extension = file.name.split(".").pop().toLowerCase();
+                    var type = types[extension];
+                    if (
+                        type &&
+                        (!file.type || file.type === "application/octet-stream")
+                    ) {
+                        changed = true;
+                        return new File([file], file.name, {
+                            type: type,
+                            lastModified: file.lastModified,
+                        });
+                    }
+                    return file;
+                });
+                if (!changed) return;
+                var replacement = new DataTransfer();
+                Array.from(data.types).forEach(function (type) {
+                    if (type !== "Files")
+                        replacement.setData(type, data.getData(type));
+                });
+                files.forEach(function (file) {
+                    replacement.items.add(file);
+                });
+                event[property] = replacement;
+            },
+            true,
+        );
+    };
+
     var isDark = function () {
         return document.documentElement.classList.contains("dark");
     };
@@ -67,6 +117,13 @@
                     var el = editor.getElement();
                     if (!el || !el.dataset.mceConf) return;
                     var conf = withAppearance(el, dark);
+                    // django-tinymce resolves these JSON strings on first load.
+                    // Keep the live callbacks when changing the editor's skin.
+                    ["setup", "images_upload_handler"].forEach(function (key) {
+                        var callback = editor.options.get(key);
+                        if (typeof callback === "function")
+                            conf[key] = callback;
+                    });
                     editor.remove();
                     window.tinymce.init(conf);
                 });

@@ -35,7 +35,7 @@ survives a reload and can be linked to; nothing is rolled by drawing.
     {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{{ request.path }}"
+    <c-n26.form-page action="{{ choice_action }}"
                      title="{{ offer.label }}"
                      lead="{{ pick_lead }}"
                      submit_label="{{ submit_label }}"

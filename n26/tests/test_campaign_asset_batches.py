@@ -101,6 +101,55 @@ class TestBatchSelection:
         assert response.status_code == 302
         assert batch[0].campaign_assets.get().name == "By the sump"
 
+    def test_each_selected_asset_can_have_its_own_name(self, client, batch):
+        first, second = batch[2]
+        response = post(
+            client,
+            batch,
+            **{
+                f"name_{first.pk}": " By the sump ",
+                f"name_{second.pk}": "Eastern market",
+            },
+        )
+        assert response.status_code == 302
+        holdings = batch[0].campaign_assets
+        assert holdings.get(asset=first).name == "By the sump"
+        assert holdings.get(asset=second).name == "Eastern market"
+        key = batch[0].events.first().batch
+        post(client, batch, request_key=str(key), **{f"name_{first.pk}": "Retry name"})
+        assert holdings.count() == 2
+        assert holdings.get(asset=first).name == "By the sump"
+
+    def test_blank_names_keep_the_library_names(self, client, batch):
+        first, second = batch[2]
+        assert (
+            post(
+                client, batch, **{f"name_{first.pk}": " ", f"name_{second.pk}": ""}
+            ).status_code
+            == 302
+        )
+        assert all(not holding.name for holding in batch[0].campaign_assets.all())
+
+    def test_an_invalid_name_rejects_the_batch_and_preserves_each_draft(
+        self, client, batch
+    ):
+        first, second = batch[2]
+        response = post(
+            client,
+            batch,
+            **{
+                f"name_{first.pk}": "x" * 201,
+                f"name_{second.pk}": "Eastern market",
+            },
+        )
+        assert response.status_code == 200
+        assert not batch[0].campaign_assets.exists()
+        props = response.context["selection"]
+        by_id = {item["value"]: item for item in props["options"]}
+        assert by_id[str(first.pk)]["name"] == "x" * 201
+        assert by_id[str(first.pk)]["nameErrors"]
+        assert by_id[str(second.pk)]["name"] == "Eastern market"
+
     def test_an_invalid_member_rejects_the_whole_selection(self, client, batch):
         response = post(
             client, batch, asset=[str(batch[2][0].pk), "01ARZ3NDEKTSV4RRFFQ69G5FAV"]

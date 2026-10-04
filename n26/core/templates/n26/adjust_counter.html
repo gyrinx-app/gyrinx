@@ -1,38 +1,19 @@
 {% extends "n26/layouts/base.html" %}
-{% block head_title %}Adjust {{ name }}{% endblock %}
+{% block head_title %}Edit {{ name }}{% endblock %}
 {% block content %}
     <c-n26.form-page action="{% url 'n26-tally' assignment.pk %}"
-                     title="Adjust {{ name }}"
+                     title="Edit {{ name }}"
                      :form="form"
-                     submit_label="Apply change"
+                     submit_label="Save"
                      cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Adjust {{ name }}
+                    Edit {{ name }}
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
-        {% csrf_token %}
-        <input type="hidden" name="adjust" value="1">
-        <input type="hidden" name="back" value="{{ back }}">
-        <c-n26.form-section title="Recorded {{ name }}: {{ value }}">
-            <p class="text-sm text-muted">This changes the recorded value. Contributions from rules and assets are added separately and stay unchanged.</p>
-            <c-ui.field :form="form"
-                        name="change"
-                        error="x"
-                        label="Amount *"
-                        for="counter-change"
-                        description="{{ form.change.help_text }}">
-                <c-ui.input id="counter-change"
-                            name="change"
-                            type="number"
-                            required
-                            min="-{{ maximum }}"
-                            max="{{ maximum }}"
-                            value="{{ form.change.value|default_if_none:'' }}" />
-            </c-ui.field>
-        </c-n26.form-section>
+        {% include "n26/includes/campaign_counter_fields.html" %}
     </c-n26.form-page>
 {% endblock %}

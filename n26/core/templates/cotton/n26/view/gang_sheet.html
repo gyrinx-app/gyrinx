@@ -4,7 +4,7 @@
 The stash is excluded from rating. Rating is what the models are worth; stashed gear counts in wealth instead.
 The share slot fills the header's breadcrumb_actions.
 Owner, owner_href, and owner_flair build the breadcrumb here.
-Actions and the stash share the grid's first cell, stacked.
+Campaign state fills its own grid cell first. Actions and the stash share the next cell, stacked.
 members is markup, drawn as the next cells, so a model can fill the row beside them.
 Declare the slots. An undeclared name resolves to the caller's variable of that name.
 Keep the header actions slot filled. Left empty, Cotton would draw this page's Hire controls beside the title.
@@ -29,6 +29,7 @@ The notice slot holds guidance below the header, before the gang details.
     details=""
     notice=""
     actions=""
+    campaign_state=""
     activities_square=""
     secondary_actions=""
     members=""
@@ -99,6 +100,7 @@ The notice slot holds guidance below the header, before the gang details.
     {# auto-rows-min keeps a later row as tall as its own cards. #}
     {# n26-roster-grid stretches only the first row, beside this stacked cell. The counts match md:grid-cols-2 and xl:grid-cols-3. #}
     <div class="n26-roster-grid grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {% if campaign_state.strip %}{{ campaign_state }}{% endif %}
         <div class="flex min-h-0 flex-col gap-4">
             {% if activities_square %}{{ activities_square }}{% endif %}
             <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">

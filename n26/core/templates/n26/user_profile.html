@@ -14,7 +14,7 @@
             {% if may_invite %}
                 <c-slot name="actions">
                     <c-ui.button variant="primary"
-                                 href="{% url 'n26-invite-user' person.pk %}">Invite to campaign</c-ui.button>
+                                 href="{% url 'n26-invite-user' person.username %}">Invite to campaign</c-ui.button>
                 </c-slot>
             {% endif %}
         </c-n26.page-header>

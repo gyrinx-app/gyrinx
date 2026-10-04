@@ -90,7 +90,7 @@ reader's other campaigns — the same pattern a gang's screens use.
                                  href="{% url 'n26-campaign-record-roll' campaign.pk %}">
                         <c-n26.icon name="dices" class="size-4" />
                     </c-ui.button>
-                    <c-ui.dropdown>
+                    <c-ui.dropdown align="end" strategy="fixed">
                         <c-slot name="trigger">
                             <c-ui.button size="sm" variant="default" aria-label="More actions">
                                 <span class="n26-icon-only gap-0.5">
@@ -103,6 +103,7 @@ reader's other campaigns — the same pattern a gang's screens use.
                             View log
                         </c-ui.dropdown.item>
                         {% if yours %}
+                            <c-ui.dropdown.item href="{% url 'n26-edit-campaign' campaign.pk %}?tab=counters-and-labels">Counters and labels</c-ui.dropdown.item>
                             <c-ui.dropdown.item href="{% url 'n26-archive-campaign' campaign.pk %}">Archive campaign</c-ui.dropdown.item>
                         {% endif %}
                     </c-ui.dropdown>
@@ -192,47 +193,37 @@ reader's other campaigns — the same pattern a gang's screens use.
         </c-slot>
         <c-slot name="battles">
             {% if battles %}
-                <c-ui.table>
-                    <thead>
-                        <tr>
-                            <th scope="col">Battle</th>
-                            <th scope="col">Gangs</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for battle in battles %}
-                            {# Older Safari cannot contain an absolute link within a table row. Stretch it within the title cell instead. #}
-                            <tr class="hover:bg-ink-500/5!">
-                                <td class="relative align-top">
-                                    <c-n26.link href="{% url 'n26-battle' campaign.pk battle.pk %}"
-                                                class="n26-row-link font-medium">{{ battle.title }}</c-n26.link>
-                                    <div class="mt-1 text-sm tabular-nums text-muted">{{ battle.date|date:"j M Y" }}</div>
-                                </td>
-                                <td>
-                                    <ul class="flex flex-col gap-1">
-                                        {% for gang, won in battle.gang_outcomes %}
-                                            <li>
-                                                <c-n26.color-swatch color="{{ gang.colour }}" />
-                                                {{ gang.name }}
-                                                {% if won %}
-                                                    <c-n26.icon name="trophy"
-                                                                label="Winner"
-                                                                stroke_width="2"
-                                                                class="inline-block size-4 align-[-0.15em] text-accent" />
-                                                {% endif %}
-                                            </li>
-                                        {% empty %}
-                                            <li class="text-muted">No gangs named</li>
-                                        {% endfor %}
-                                    </ul>
-                                    {% if battle.result == "draw" %}<p class="mt-1 text-sm text-muted">Draw</p>{% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </c-ui.table>
+                <ul class="divide-y divide-box-border">
+                    {% for battle in battles %}
+                        <li class="relative px-4 py-3 hover:bg-ink-500/5">
+                            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                <c-n26.link href="{% url 'n26-battle' campaign.pk battle.pk %}"
+                                            class="n26-row-link mr-auto font-medium">{{ battle.title }}</c-n26.link>
+                                <time class="text-xs tabular-nums text-muted"
+                                      datetime="{{ battle.date|date:'Y-m-d' }}">{{ battle.date|date:"j M Y" }}</time>
+                                <span class="text-xs text-muted">{{ battle.result_label }}</span>
+                            </div>
+                            <ul class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted">
+                                {% for gang, won in battle.gang_outcomes %}
+                                    <li>
+                                        <c-n26.color-swatch color="{{ gang.colour }}" />
+                                        {{ gang.name }}
+                                        {% if won %}
+                                            <c-n26.icon name="trophy"
+                                                        label="Winner"
+                                                        stroke_width="2"
+                                                        class="inline-block size-4 align-[-0.15em] text-accent" />
+                                        {% endif %}
+                                    </li>
+                                {% empty %}
+                                    <li>No gangs named</li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                    {% endfor %}
+                </ul>
             {% else %}
-                <p class="text-sm text-muted">No battles yet.</p>
+                <p class="p-4 text-sm text-muted">No battles yet.</p>
             {% endif %}
         </c-slot>
         {% comment %}
@@ -254,5 +245,7 @@ reader's other campaigns — the same pattern a gang's screens use.
     {% endcomment %}
     {% if yours %}
         {% include "n26/includes/campaign_roll_dialogs.html" with redrawn=False %}
+    {% else %}
+        <div id="n26-roll-dialog-host"></div>
     {% endif %}
 {% endblock content %}

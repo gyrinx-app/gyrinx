@@ -523,7 +523,9 @@ def _campaign_update(request, campaign):
     from n26.core.views.htmx import with_toasts
 
     sheet = render_campaign(campaign, viewer=request.user)
-    _fill_addresses(sheet, campaign, yours=True, viewer=request.user)
+    _fill_addresses(
+        sheet, campaign, yours=campaign.owner_id == request.user.pk, viewer=request.user
+    )
     acts, more_acts = _recent_acts(campaign, request.user)
     response = render(
         request,
@@ -811,11 +813,21 @@ def campaign_log(request, pk):
 @login_required
 def edit_campaign(request, pk):
     """The facts an arbitrator may change after setting up."""
+    from django.db.models import Q
+    from django.urls import reverse
+
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import CampaignForm
+    from n26.library.models import DefaultAssignment
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    tab = request.GET.get("tab", "general")
+    if tab != "counters-and-labels" or request.method == "POST":
+        tab = "general"
+    edit_url = reverse("n26-edit-campaign", args=[found.pk])
+    counters = []
+    labels = []
 
     if request.method == "POST":
         form = CampaignForm(request.POST)
@@ -827,7 +839,7 @@ def edit_campaign(request, pk):
             record(request, N26Noun.CAMPAIGN, EventVerb.UPDATE, found)
             messages.success(request, f"Saved {found.name}.")
             return redirect("n26-campaign", pk=found.pk)
-    else:
+    elif tab == "general":
         form = CampaignForm(
             initial={
                 "name": found.name,
@@ -836,11 +848,45 @@ def edit_campaign(request, pk):
             }
         )
 
+    else:
+        form = None
+        members = (
+            DefaultAssignment.objects.filter(
+                default_set_id__in=(
+                    found.campaign_type.built_ins_id,
+                    found.additions.built_ins_id,
+                ),
+                archived=False,
+            )
+            .filter(Q(counter__isnull=False) | Q(slot__isnull=False))
+            .select_related("counter", "slot")
+            .order_by("position", "pk")
+        )
+        for member in members:
+            if member.counter_id:
+                counters.append({"name": str(member.counter), "opening": member.amount})
+            if member.slot_id:
+                labels.append({"name": member.slot.choice_label})
+
     _badge_a_redrawn_page(request, found)
     return render(
         request,
         "n26/edit_campaign.html",
-        {"form": form, "campaign": found},
+        {
+            "form": form,
+            "campaign": found,
+            "tab": tab,
+            "edit_tabs": [
+                {"label": "General", "href": edit_url, "current": tab == "general"},
+                {
+                    "label": "Counters and labels",
+                    "href": f"{edit_url}?tab=counters-and-labels",
+                    "current": tab == "counters-and-labels",
+                },
+            ],
+            "counters": counters,
+            "labels": labels,
+        },
     )
 
 
@@ -1274,6 +1320,22 @@ def _campaign_asset_or_404(campaign, asset_pk):
         raise Http404("No such asset in this campaign") from None
 
 
+def _asset_back(request, campaign, holding):
+    from django.urls import reverse
+
+    if request.GET.get("from") == "detail":
+        return reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
+    return _assets_anchor(campaign)
+
+
+def _asset_update(request, campaign, holding):
+    if request.GET.get("from") == "detail":
+        from n26.core.views.campaign_assets import _asset_detail_update
+
+        return _asset_detail_update(request, campaign.pk, holding.pk)
+    return _campaign_update(request, campaign)
+
+
 def _holding_owner(campaign_asset, user):
     """Whether this reader owns the gang holding the asset."""
     return campaign_asset.held and campaign_asset.holder.gang.owner_id == getattr(
@@ -1335,6 +1397,7 @@ def add_asset(request, pk):
                 made = act.add_assets(
                     form.cleaned_data["asset"],
                     name=form.cleaned_data["name"],
+                    names=form.cleaned_data["names"],
                     request_key=form.cleaned_data["request_key"],
                 )
             if not made:
@@ -1342,7 +1405,8 @@ def add_asset(request, pk):
             elif len(form.cleaned_data["asset"]) == 1:
                 chosen = form.cleaned_data["asset"][0]
                 messages.success(
-                    request, f"Added {form.cleaned_data['name'] or str(chosen)}."
+                    request,
+                    f"Added {form.cleaned_data['names'].get(str(chosen.pk)) or form.cleaned_data['name'] or str(chosen)}.",
                 )
             else:
                 label = asset_type.plural.lower() if asset_type else "assets"
@@ -1356,18 +1420,28 @@ def add_asset(request, pk):
     submitted = set(form["asset"].value() or [])
 
     def card(asset):
-        # The asset type and income under the name; a redisplay after a
-        # failed submit keeps the pick.
+        # Show the type only when the picker is not already narrowed to it.
+        # A redisplay after a failed submit keeps the pick.
         income = income_of(asset)
+        description = ", ".join(
+            part
+            for part in (
+                str(asset.asset_type) if asset_type is None else "",
+                f"Income {income}¢" if income else "",
+            )
+            if part
+        )
         return {
             "value": str(asset.pk),
             "label": str(asset),
-            "description": (
-                f"{asset.asset_type}, income {income}¢"
-                if income
-                else str(asset.asset_type)
-            ),
+            "description": description,
             "checked": str(asset.pk) in submitted,
+            "name": form[f"name_{asset.pk}"].value() or ""
+            if f"name_{asset.pk}" in form.fields
+            else "",
+            "nameErrors": list(form[f"name_{asset.pk}"].errors)
+            if f"name_{asset.pk}" in form.fields
+            else [],
         }
 
     noun = asset_type.plural.lower() if asset_type else "assets"
@@ -1411,8 +1485,8 @@ def add_asset(request, pk):
                 "invalid": bool(form["asset"].errors),
                 "options": assets,
                 "selected": list(submitted),
-                "name": form["name"].value() or "",
-                "nameErrors": list(form["name"].errors),
+                "renameLabel": f"Optional: Rename {noun}",
+                "itemLabel": str(asset_type) if asset_type else "Asset",
             },
             "empty_next_href": empty_next_href,
             "empty_next_label": "Create asset"
@@ -1430,12 +1504,13 @@ def assign_asset(request, pk, asset_pk):
     from n26.core.forms import AssignAssetForm
     from n26.core.models import CampaignMembership
     from n26.core.operations import Refusal
+    from n26.core.views.htmx import is_htmx
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
     playing = (
         CampaignMembership.objects.filter(campaign=found, left__isnull=True)
-        .select_related("gang", "gang__gang_type")
+        .select_related("gang", "gang__gang_type", "gang__owner")
         .order_by("gang__name")
     )
 
@@ -1455,22 +1530,36 @@ def assign_asset(request, pk, asset_pk):
                     messages.success(
                         request, f"Assigned {campaign_asset} to {membership.gang.name}."
                     )
-            return redirect(_assets_anchor(found))
+            if is_htmx(request):
+                return _asset_update(request, found, campaign_asset)
+            return redirect(_asset_back(request, found, campaign_asset))
     else:
         form = AssignAssetForm(playing=playing)
 
     _badge_a_redrawn_page(request, found)
-    return render(
+    response = render(
         request,
-        "n26/assign_asset.html",
+        "n26/includes/campaign_assign_dialog.html"
+        if is_htmx(request)
+        else "n26/assign_asset.html",
         {
             "form": form,
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "playing": playing,
-            "back": _assets_anchor(found),
+            "choices": [
+                (membership, str(membership.pk) == str(form["membership"].value()))
+                for membership in playing
+            ],
+            "back": _asset_back(request, found, campaign_asset),
+            "action": request.get_full_path(),
+            "redrawn": is_htmx(request),
+            "reopened": is_htmx(request) and request.method == "POST",
         },
     )
+
+    if is_htmx(request):
+        response["HX-Replace-Url"] = request.get_full_path()
+    return response
 
 
 @requires_flag(CAMPAIGNS)
@@ -1485,6 +1574,7 @@ def unassign_asset(request, pk, asset_pk):
 
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
+    from n26.core.views.htmx import is_htmx
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
@@ -1495,7 +1585,9 @@ def unassign_asset(request, pk, asset_pk):
     # A stale link to an asset nobody holds any more: nothing to ask.
     if not campaign_asset.held:
         messages.error(request, f"{campaign_asset} is not held by any gang.")
-        return redirect(_assets_anchor(found))
+        if is_htmx(request):
+            return _asset_update(request, found, campaign_asset)
+        return redirect(_asset_back(request, found, campaign_asset))
 
     if request.method == "POST":
         holder = campaign_asset.holder.gang.name
@@ -1514,17 +1606,26 @@ def unassign_asset(request, pk, asset_pk):
                 messages.error(request, f"{campaign_asset} is not held by any gang.")
             else:
                 messages.success(request, f"Unassigned {campaign_asset} from {holder}.")
-        return redirect(_assets_anchor(found))
+        if is_htmx(request):
+            return _asset_update(request, found, campaign_asset)
+        return redirect(_asset_back(request, found, campaign_asset))
 
-    return render(
+    response = render(
         request,
-        "n26/unassign_asset.html",
+        "n26/includes/campaign_unassign_dialog.html"
+        if is_htmx(request)
+        else "n26/unassign_asset.html",
         {
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "back": _assets_anchor(found),
+            "back": _asset_back(request, found, campaign_asset),
+            "action": request.get_full_path(),
         },
     )
+
+    if is_htmx(request):
+        response["HX-Replace-Url"] = request.get_full_path()
+    return response
 
 
 @requires_flag(CAMPAIGNS)
@@ -1543,6 +1644,7 @@ def transfer_asset(request, pk, asset_pk):
     from n26.core.forms import AssignAssetForm
     from n26.core.models import CampaignMembership
     from n26.core.operations import Refusal
+    from n26.core.views.htmx import is_htmx
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
@@ -1553,11 +1655,13 @@ def transfer_asset(request, pk, asset_pk):
     # A stale link to an asset nobody holds any more: nothing to hand over.
     if not campaign_asset.held:
         messages.error(request, f"{campaign_asset} is not held by any gang.")
-        return redirect(_assets_anchor(found))
+        if is_htmx(request):
+            return _asset_update(request, found, campaign_asset)
+        return redirect(_asset_back(request, found, campaign_asset))
     receiving = (
         CampaignMembership.objects.filter(campaign=found, left__isnull=True)
         .exclude(pk=campaign_asset.holder_id)
-        .select_related("gang", "gang__gang_type")
+        .select_related("gang", "gang__gang_type", "gang__owner")
         .order_by("gang__name")
     )
 
@@ -1583,26 +1687,40 @@ def transfer_asset(request, pk, asset_pk):
                         request,
                         f"{campaign_asset} went from {holder} to {membership.gang.name}.",
                     )
-            return redirect(_assets_anchor(found))
+            if is_htmx(request):
+                return _asset_update(request, found, campaign_asset)
+            return redirect(_asset_back(request, found, campaign_asset))
     else:
         form = AssignAssetForm(playing=receiving)
 
     _badge_a_redrawn_page(request, found)
-    return render(
+    response = render(
         request,
-        "n26/transfer_asset.html",
+        "n26/includes/campaign_transfer_dialog.html"
+        if is_htmx(request)
+        else "n26/transfer_asset.html",
         {
             "form": form,
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "receiving": receiving,
+            "choices": [
+                (membership, str(membership.pk) == str(form["membership"].value()))
+                for membership in receiving
+            ],
+            "redrawn": is_htmx(request),
+            "reopened": is_htmx(request) and request.method == "POST",
             # The arbitrator transfers; the holding gang's owner hands over.
             # Two words for one act, because the owner is giving something
             # of their own away and the arbitrator is moving the campaign's.
             "verb": "Transfer" if arbitrating else "Hand over",
-            "back": _assets_anchor(found),
+            "back": _asset_back(request, found, campaign_asset),
+            "action": request.get_full_path(),
         },
     )
+
+    if is_htmx(request):
+        response["HX-Replace-Url"] = request.get_full_path()
+    return response
 
 
 @requires_flag(CAMPAIGNS)
@@ -1795,14 +1913,21 @@ def new_asset(request, pk):
                 "value": str(asset_type.pk),
                 "label": asset_type.label_singular,
                 "description": (
-                    f"{asset_type.campaign_type} · "
-                    f"{asset_type.get_ownership_display().lower()}"
+                    "Owned by one gang at a time and can be transferred."
+                    if asset_type.is_holding
+                    else f"Each gang always has one of every {asset_type.label_singular} asset."
                 ),
                 "checked": str(asset_type.pk) == picked,
             }
             for asset_type in asset_types
         ],
     )
+
+
+def _campaign_settings_url(campaign):
+    from django.urls import reverse
+
+    return reverse("n26-edit-campaign", args=[campaign.pk]) + "?tab=counters-and-labels"
 
 
 @requires_flag(CAMPAIGNS)
@@ -1819,7 +1944,7 @@ def add_counter(request, pk):
         return f"Added the counter {counter}. Every gang starts at {data['opening']}."
 
     return _addition_page(
-        request, found, form, "n26/add_counter.html", act, _gangs_anchor(found)
+        request, found, form, "n26/add_counter.html", act, _campaign_settings_url(found)
     )
 
 
@@ -1837,7 +1962,7 @@ def add_label(request, pk):
         return f"Added the label {slot.choice_label}. Every gang picks one option."
 
     return _addition_page(
-        request, found, form, "n26/add_label.html", act, _gangs_anchor(found)
+        request, found, form, "n26/add_label.html", act, _campaign_settings_url(found)
     )
 
 

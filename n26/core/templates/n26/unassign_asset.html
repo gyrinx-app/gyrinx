@@ -14,7 +14,7 @@ POST is the act.
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-asset-unassign' campaign.pk campaign_asset.pk %}"
+    <c-n26.form-page action="{{ action }}"
                      title="Unassign {{ campaign_asset }} from {{ campaign_asset.holder.gang.name }}?"
                      submit_label="Unassign"
                      submit_variant="danger"
@@ -32,11 +32,6 @@ POST is the act.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-ui.alert variant="warning" title="The asset becomes unclaimed">
-            {{ campaign_asset.holder.gang.name }} stops holding this {{ campaign_asset.type_label }}.
-            Benefits that depend on holding it stop. Recruited models stay with the gang. The
-            gang's history and the campaign's log both record it, and the
-            {{ campaign_asset.type_label }} can be assigned again.
-        </c-ui.alert>
+        {% include "n26/includes/campaign_unassign_summary.html" %}
     </c-n26.form-page>
 {% endblock content %}

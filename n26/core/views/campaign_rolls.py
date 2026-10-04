@@ -46,6 +46,7 @@ def record_campaign_roll(request, pk):
                 for value, label in form.fields["dice"].choices
             ],
             "roll_source": {
+                "requestKey": str(form["request_key"].value()),
                 "source": form["source"].value() or "",
                 "rolled": "" if rolled is None else str(rolled),
                 "choices": [
@@ -92,5 +93,13 @@ def campaign_roll(request, pk, roll_pk):
     return render(
         request,
         "n26/campaign_roll.html",
-        {"campaign": campaign, "roll": roll, "form": form, "may_note": may_note},
+        {
+            "campaign": campaign,
+            "roll": roll,
+            "form": form,
+            "may_note": may_note,
+            "faces": [str(roll.rolled // 10), str(roll.rolled % 10)]
+            if roll.dice == CampaignRoll.Dice.D66
+            else [str(roll.rolled)],
+        },
     )

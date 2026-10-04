@@ -3,14 +3,17 @@
 from dataclasses import dataclass
 
 from django import forms
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.db.models import OuterRef, Q, Subquery
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
+from n26.core.campaigns import campaign_operation
 from n26.core.models import Campaign, CampaignParticipant, Gang
-from n26.core.owned import with_query
+from n26.core.operations import Refusal
 from n26.flags import CAMPAIGNS, enabled, requires_flag
 
 
@@ -21,12 +24,27 @@ class PublicGang:
     href: str
 
 
-def _person(pk):
-    return get_object_or_404(
-        User.objects.all(),
-        pk=pk,
-        is_active=True,
-    )
+def _person(username):
+    people = User.objects.filter(is_active=True)
+    exact = people.filter(username=username).first()
+    if exact is not None:
+        return exact
+    matches = list(people.filter(username__iexact=username)[:2])
+    if len(matches) == 1:
+        return matches[0]
+    raise Http404("No unambiguous active username matches.")
+
+
+def user_profile_by_id(request, pk):
+    person = get_object_or_404(User, pk=pk, is_active=True)
+    return redirect("n26-user-profile", username=person.username)
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def invite_user_by_id(request, pk):
+    person = get_object_or_404(User, pk=pk, is_active=True)
+    return invite_user(request, person.username)
 
 
 def _owned_campaigns(user, person):
@@ -40,9 +58,9 @@ def _owned_campaigns(user, person):
     )
 
 
-def user_profile(request, pk):
+def user_profile(request, username):
     """Public username and gang links; account details and campaigns stay private."""
-    person = _person(pk)
+    person = _person(username)
     gangs = [
         PublicGang(name=name, gang_type=kind, href=reverse("n26-gang", args=[pk]))
         for pk, name, kind in Gang.objects.filter(owner=person, archived=False)
@@ -69,6 +87,13 @@ class InviteCampaignForm(forms.Form):
         error_messages={"invalid_choice": "Select one of your available campaigns."},
     )
 
+    message = forms.CharField(
+        required=False,
+        label="Message",
+        help_text="Optional. Sent with the invitation.",
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+
     def __init__(self, campaigns, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["campaign"].queryset = campaigns
@@ -76,11 +101,11 @@ class InviteCampaignForm(forms.Form):
 
 @requires_flag(CAMPAIGNS)
 @login_required
-def invite_user(request, pk):
-    """Choose an owned campaign before opening its invitation message screen."""
-    person = _person(pk)
+def invite_user(request, username):
+    """Send a campaign invitation and its optional message from one form."""
+    person = _person(username)
     if person.pk == request.user.pk:
-        return redirect("n26-user-profile", pk=person.pk)
+        return redirect("n26-user-profile", username=person.username)
     campaigns = _owned_campaigns(request.user, person)
     eligible = campaigns.filter(
         Q(invitation_state__isnull=True)
@@ -91,11 +116,14 @@ def invite_user(request, pk):
     )
     if request.method == "POST" and form.is_valid():
         campaign = form.cleaned_data["campaign"]
-        return redirect(
-            with_query(
-                reverse("n26-campaign-add-player", args=[campaign.pk]), invite=person.pk
-            )
-        )
+        try:
+            with campaign_operation(campaign, actor=request.user) as op:
+                op.invite(person, message=form.cleaned_data["message"])
+        except Refusal as refused:
+            form.add_error(None, str(refused))
+        else:
+            messages.success(request, f"Invited {person.username}.")
+            return redirect("n26-campaign", pk=campaign.pk)
     options = [
         {
             "value": str(campaign.pk),

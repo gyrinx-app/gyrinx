@@ -52,4 +52,5 @@ CAMPAIGN_SUMMARY_CONFIG = {
     "content_style": "img { max-width: 100%; height: auto; }",
     "paste_data_images": True,
     "paste_block_drop": False,
+    "setup": "n26CampaignImages",
 }

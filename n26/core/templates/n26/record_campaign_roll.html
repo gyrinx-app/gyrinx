@@ -29,7 +29,6 @@
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        {{ form.request_key }}
         <c-ui.error :form="form" name="request_key" />
         <c-n26.form-section title="The roll">
             <c-ui.field label="Reason *"

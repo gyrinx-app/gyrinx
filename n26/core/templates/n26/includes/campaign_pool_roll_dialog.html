@@ -25,11 +25,7 @@ The surrounding dialog owns modal and htmx behaviour.
     <input type="hidden" name="type" value="{{ question.asset_type_id }}">
     {% if question.only %}
         <input type="hidden" name="table" value="{{ question.only.table_id }}">
-        <c-n26.detail-list>
-            <c-n26.detail-list.row label="Table" :editable="False">
-                {{ question.only.name }} · {{ question.only.die }}
-            </c-n26.detail-list.row>
-        </c-n26.detail-list>
+        {% include "n26/includes/campaign_roll_table.html" %}
         <c-ui.error :form="form" name="table" />
     {% else %}
         <c-n26.radio-cards label="Table" name="table" :form="form" min="12rem">
@@ -47,8 +43,10 @@ The surrounding dialog owns modal and htmx behaviour.
                 label="{{ form.count.label }}"
                 :form="form"
                 name="count"
-                for="pool-count"
-                description="{{ form.count.help_text }}">
+                for="pool-count">
+        <c-slot name="description">
+            <p class="text-sm text-muted">{{ form.count.help_text }}</p>
+        </c-slot>
         <c-ui.input id="pool-count"
                     name="count"
                     required
@@ -64,10 +62,12 @@ The surrounding dialog owns modal and htmx behaviour.
                 name="rolled"
                 for="pool-roll">
         <c-slot name="description">
-            {{ form.rolled.help_text }} Set the number to 1 to use your own roll.
-            {% for table in question.tables %}
-                <span class="block">{{ table.name }}: A {{ table.die }} roll is {{ table.lowest }} to {{ table.highest }}.</span>
-            {% endfor %}
+            <div class="text-sm text-muted">
+                {{ form.rolled.help_text }} Set the number to 1 to use your own roll.
+                {% for table in question.tables %}
+                    <span class="block">{% if not question.only %}{{ table.name }}: {% endif %}A {{ table.die }} roll is {{ table.lowest }} to {{ table.highest }}.</span>
+                {% endfor %}
+            </div>
         </c-slot>
         <c-ui.input id="pool-roll"
                     name="rolled"

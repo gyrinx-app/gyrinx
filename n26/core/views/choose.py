@@ -454,6 +454,34 @@ def _host(found):
     return {}
 
 
+def _campaign_label_or_404(gang, found):
+    from n26.core.models import CampaignMembership
+
+    membership = CampaignMembership.objects.filter(gang=gang, left__isnull=True).first()
+    if membership is None or found.miniature is not None:
+        raise Http404("No such campaign label")
+    carriers = {membership.type_carrier_id, membership.additions_carrier_id}
+    anchor = found.anchor
+    seen = set()
+    while anchor is not None and anchor.pk not in seen:
+        if anchor.pk in carriers:
+            return
+        seen.add(anchor.pk)
+        anchor = anchor.caused_by
+    raise Http404("No such campaign label")
+
+
+def _campaign_label_update(request, gang, *, close=True):
+    from n26.core.views.gangs import gang_sheet
+    from n26.core.views.htmx import with_toasts
+
+    context = gang_sheet(request, gang.pk).context_data
+    context.update(redrawn=True, close_dialog=close)
+    return with_toasts(
+        request, render(request, "n26/includes/campaign_label_update.html", context)
+    )
+
+
 @login_required
 def choose(request, pk, slot):
     """The pick screen for one slot, and the click that settles it.
@@ -509,6 +537,14 @@ def choose(request, pk, slot):
     here = reverse("n26-choose", args=[gang.pk, slot])
     if returning:
         here = with_query(here, **{"return": returning})
+    campaign_dialog = request.GET.get("dialog") == "campaign"
+    if campaign_dialog:
+        from n26.flags import CAMPAIGNS, enabled
+
+        if not enabled(CAMPAIGNS, request.user):
+            raise Http404("No such campaign label")
+        _campaign_label_or_404(gang, found)
+        here = with_query(here, dialog="campaign")
 
     if request.method == "POST" and request.POST.get("act") in {"roll", "enter"}:
         # Rolling writes before anything is picked: the roll is on the
@@ -554,7 +590,7 @@ def choose(request, pk, slot):
         return redirect(with_query(here, roll=event.pk))
 
     if request.method == "POST":
-        return settle_pick(
+        response = settle_pick(
             request,
             gang,
             slot,
@@ -563,6 +599,21 @@ def choose(request, pk, slot):
             here=here,
             land=lambda op: _landing(request, gang, slot, offer, op, here, back),
         )
+        from n26.core.views.htmx import is_htmx, no_update
+
+        if not campaign_dialog or not is_htmx(request):
+            return response
+        if response.url == back:
+            response = _campaign_label_update(request, gang)
+            response["HX-Replace-Url"] = back
+            return response
+        if response.url != here:
+            destination = response.url
+            response = no_update(request)
+            response["HX-Redirect"] = destination
+            return response
+        found = find_slot(gang, slot)
+        offer = build_choice_offer(found.slot, found.computed, include_staged=shown)
 
     from n26.core.render import lift_landing
 
@@ -587,9 +638,14 @@ def choose(request, pk, slot):
         elif not roll.is_spent:
             offer = lift_landing(offer, landed, threshold=roll.threshold)
 
-    return render(
+    from n26.core.views.htmx import is_htmx, with_toasts
+
+    dialog_request = campaign_dialog and is_htmx(request)
+    response = render(
         request,
-        "n26/choose.html",
+        "n26/includes/campaign_label_dialog.html"
+        if dialog_request
+        else "n26/choose.html",
         {
             "gang": gang,
             "miniature": found.miniature,
@@ -609,8 +665,18 @@ def choose(request, pk, slot):
             # to have under it.
             "pick_lead": found.slot.slot.introduction if found.slot.slot else "",
             "returning": returning,
+            "choice_action": here,
+            "reopened": request.method == "POST",
         },
     )
+    if dialog_request:
+        if request.method == "POST":
+            update = _campaign_label_update(request, gang, close=False)
+            update.content += response.content
+            response = update
+        response["HX-Replace-Url"] = here
+        return with_toasts(request, response)
+    return response
 
 
 @login_required

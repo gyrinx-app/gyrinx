@@ -16,4 +16,4 @@ Whitespace around the markup becomes a space in the surrounding sentence.
     underline="hover"
     tone="accent"
     class=""
-/>{# Prefetch profile and badge_grants when this repeats in a list. #}{% badge_for user as badge %}{% with profile_href="" %}{% if linked and not href and user.pk %}{% url "n26-user-profile" user.pk as profile_href %}{% endif %}<c-n26.flair-link text="{{ user.username }}" href="{% if linked %}{{ href|default:profile_href }}{% endif %}" underline="{{ underline }}" tone="{{ tone }}" label="{{ badge.description }}" class="{{ class }}">{% badge_svg badge %}</c-n26.flair-link>{% endwith %}
+/>{# Prefetch profile and badge_grants when this repeats in a list. #}{% badge_for user as badge %}{% with profile_href="" %}{% if linked and not href and user.pk %}{% url "n26-user-profile" user.username as profile_href %}{% endif %}<c-n26.flair-link text="{{ user.username }}" href="{% if linked %}{{ href|default:profile_href }}{% endif %}" underline="{{ underline }}" tone="{{ tone }}" label="{{ badge.description }}" class="{{ class }}">{% badge_svg badge %}</c-n26.flair-link>{% endwith %}

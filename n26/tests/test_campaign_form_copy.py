@@ -115,7 +115,11 @@ class TestOwnershipCopy:
         for radio in radios:
             card = radio.find_parent("label")
             asset_type = AssetType.objects.get(pk=radio["value"])
-            description = f"{campaign.campaign_type} · {asset_type.get_ownership_display().lower()}"
+            description = (
+                "Owned by one gang at a time and can be transferred."
+                if asset_type.is_holding
+                else f"Each gang always has one of every {asset_type.label_singular} asset."
+            )
             assert description in card.get_text(" ", strip=True)
             assert not card.select(".truncate")
 

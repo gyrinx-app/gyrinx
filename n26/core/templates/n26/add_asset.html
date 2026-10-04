@@ -8,7 +8,7 @@ Reached from the Add beside one asset type's table, the list is narrowed to
 that type and the page says so in its title.
 
 Native checkboxes submit the selection without scripting. React adds Select all
-and enables the optional name only for a single selection.
+and optional names for the selected assets.
 {% endcomment %}
 {% block head_title %}Add {{ adding }} to {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -43,6 +43,7 @@ and enables the optional name only for a single selection.
         </c-slot>
         {% csrf_token %}
         <c-ui.error :form="form" name="request_key" />
+        <c-ui.error :form="form" name="name" />
         <input type="hidden"
                name="request_key"
                value="{{ form.request_key.value|default:'' }}">
@@ -63,14 +64,6 @@ and enables the optional name only for a single selection.
                             {% endfor %}
                         </div>
                     </fieldset>
-                    <c-ui.field error="x"
-                                label="Name in this campaign"
-                                description="Optional. Select one asset to use a name."
-                                :form="form"
-                                name="name"
-                                for="asset-name">
-                        <c-ui.input id="asset-name" name="name" value="{{ form.name.value|default:'' }}" />
-                    </c-ui.field>
                 {% endreact_host %}
             </c-n26.form-section>
         {% else %}

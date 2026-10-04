@@ -1321,6 +1321,41 @@ def refund_assignment(request, pk):
     return _acted(request, touched, gang, back)
 
 
+def _campaign_counter_update(request, assignment, gang, back, *, close=False):
+    """Redraw one computed campaign counter, including rules contributions."""
+    from n26.core.card import build_gang_card, build_modifier_index, carriers
+    from n26.core.effects import compute_gang
+    from n26.core.render import build_campaign_block
+    from n26.core.views.htmx import with_toasts
+
+    card = build_gang_card(gang)
+    index = build_modifier_index(carriers(card, *card.members.values()))
+    block = build_campaign_block(card, index=index, computed=compute_gang(card, index))
+    if block is None:
+        return no_update(request)
+    link_counters(block, back=back, adjust=True)
+    counter = next(
+        (line for line in block.counters if line.assignment_id == str(assignment.pk)),
+        None,
+    )
+    if counter is None:
+        return no_update(request)
+    messages.success(request, f"{counter.name} is now {counter.value}.")
+    return with_toasts(
+        request,
+        render(
+            request,
+            "n26/includes/campaign_counter_update.html",
+            {
+                "counter": counter,
+                "redrawn": True,
+                "close_dialog": close,
+                "steps": back == reverse("n26-gang", args=[gang.pk]),
+            },
+        ),
+    )
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def tally_counter(request, pk):
@@ -1379,19 +1414,55 @@ def tally_counter(request, pk):
                 .first()
                 or 0
             )
-            return render(
+            from n26.core.card import build_gang_card, build_modifier_index, carriers
+            from n26.core.effects import compute_gang
+            from n26.core.render import build_campaign_block
+
+            total = value
+            if miniature is None:
+                card = build_gang_card(gang)
+                index = build_modifier_index(carriers(card, *card.members.values()))
+                block = build_campaign_block(
+                    card, index=index, computed=compute_gang(card, index)
+                )
+                if block is not None:
+                    line = next(
+                        (
+                            c
+                            for c in block.counters
+                            if c.assignment_id == str(assignment.pk)
+                        ),
+                        None,
+                    )
+                    if line is not None:
+                        total = line.value
+            preview = {
+                "value": total,
+                "recorded": value,
+                "change": str(form["change"].value() or ""),
+                "errors": list(form["change"].errors),
+                "maximum": MOST_A_TALLY_MOVES,
+            }
+            response = render(
                 request,
-                "n26/adjust_counter.html",
+                "n26/includes/campaign_counter_dialog.html"
+                if is_htmx(request)
+                else "n26/adjust_counter.html",
                 {
                     "form": form,
                     "assignment": assignment,
                     "gang": gang,
                     "name": name,
                     "value": value,
+                    "counter_preview": preview,
                     "back": back,
                     "maximum": MOST_A_TALLY_MOVES,
+                    "reopened": request.method == "POST",
                 },
             )
+            if is_htmx(request) and request.method == "GET":
+                response["HX-Replace-Url"] = request.get_full_path()
+            return response
 
         if request.method == "GET" or not form.is_valid():
             return adjustment_page()
@@ -1457,6 +1528,13 @@ def tally_counter(request, pk):
             miniature,
             back or reverse("n26-edit-fighter", args=[miniature.pk]),
         )
+    if miniature is None and is_htmx(request):
+        response = _campaign_counter_update(
+            request, assignment, gang, back or here, close=adjusting
+        )
+        if adjusting:
+            response["HX-Replace-Url"] = back or here
+        return response
     if adjusting:
         messages.success(request, f"{name}: recorded value is now {standing}.")
     else:

@@ -92,7 +92,7 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
             {% if model.counter_rows %}
                 <div class="space-y-1.5" data-model-counters>
                     <h4 id="{{ model.counters_heading_id }}" class="text-sm font-medium">Counters</h4>
-                    {% include "n26/includes/post_battle_counters.html" with rows=model.counter_rows show_effects=model.show_counter_effects heading_id=model.counters_heading_id %}
+                    {% include "n26/includes/post_battle_counters.html" with rows=model.counter_rows show_steps=True show_effects=model.show_counter_effects heading_id=model.counters_heading_id %}
                 </div>
             {% endif %}
         </div>

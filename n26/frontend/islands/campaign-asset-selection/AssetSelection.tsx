@@ -1,14 +1,20 @@
 import { useId, useState } from "react";
-import { Button, CheckboxCard, Field, Input } from "../../ui";
+import { Button, Card, CheckboxCard, Input, Table } from "../../ui";
 
-type Option = { value: string; label: string; description: string };
+type Option = {
+    value: string;
+    label: string;
+    description: string;
+    name?: string;
+    nameErrors?: string[];
+};
 export type AssetSelectionProps = {
     options: Option[];
     label?: string;
     invalid?: boolean;
     selected: string[];
-    name: string;
-    nameErrors: string[];
+    renameLabel?: string;
+    itemLabel?: string;
 };
 
 export function AssetSelection({
@@ -16,13 +22,19 @@ export function AssetSelection({
     label = "Assets",
     invalid = false,
     selected: initial,
-    name: initialName,
-    nameErrors,
+    renameLabel = "Optional: Rename assets",
+    itemLabel = "Asset",
 }: AssetSelectionProps) {
     const [selected, setSelected] = useState(initial);
-    const [name, setName] = useState(initialName);
+    const [names, setNames] = useState<Record<string, string>>(
+        Object.fromEntries(
+            options.map((item) => [item.value, item.name || ""]),
+        ),
+    );
     const id = useId();
-    const canName = selected.length === 1;
+    const selectedOptions = options.filter((item) =>
+        selected.includes(item.value),
+    );
     function choose(value: string, checked: boolean) {
         setSelected((values) =>
             checked
@@ -49,26 +61,6 @@ export function AssetSelection({
                     {selected.length} selected
                 </p>
             </div>
-            <Field
-                label="Name in this campaign"
-                htmlFor={id}
-                errors={nameErrors}
-                description={
-                    canName
-                        ? "Optional. Leave blank to use the asset's own name."
-                        : "Select one asset to use a name in this campaign."
-                }
-            >
-                <Input
-                    id={id}
-                    name="name"
-                    value={name}
-                    disabled={!canName}
-                    maxLength={200}
-                    autoComplete="off"
-                    onChange={(event) => setName(event.target.value)}
-                />
-            </Field>
             <fieldset
                 aria-describedby="campaign-assets-help campaign-assets-errors"
                 aria-invalid={invalid || undefined}
@@ -96,6 +88,91 @@ export function AssetSelection({
                     ))}
                 </div>
             </fieldset>
+            {selectedOptions.length > 0 && (
+                <Card>
+                    <details
+                        open={
+                            selectedOptions.some(
+                                (item) => item.nameErrors?.length,
+                            ) || undefined
+                        }
+                    >
+                        <summary className="cursor-pointer font-medium">
+                            {renameLabel}
+                        </summary>
+                        <div className="mt-4">
+                            <Table>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">{itemLabel}</th>
+                                        <th scope="col">Rename to</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedOptions.map((item) => (
+                                        <tr key={item.value}>
+                                            <th
+                                                scope="row"
+                                                className="font-normal"
+                                            >
+                                                {item.label}
+                                            </th>
+                                            <td className="min-w-48">
+                                                <Input
+                                                    id={`${id}-${item.value}`}
+                                                    aria-label={`Rename ${item.label}`}
+                                                    aria-invalid={
+                                                        Boolean(
+                                                            item.nameErrors
+                                                                ?.length,
+                                                        ) || undefined
+                                                    }
+                                                    aria-describedby={
+                                                        item.nameErrors?.length
+                                                            ? `${id}-${item.value}-errors`
+                                                            : undefined
+                                                    }
+                                                    name={`name_${item.value}`}
+                                                    placeholder={item.label}
+                                                    value={
+                                                        names[item.value] || ""
+                                                    }
+                                                    maxLength={200}
+                                                    autoComplete="off"
+                                                    onChange={(event) =>
+                                                        setNames((values) => ({
+                                                            ...values,
+                                                            [item.value]:
+                                                                event.target
+                                                                    .value,
+                                                        }))
+                                                    }
+                                                />
+                                                {Boolean(
+                                                    item.nameErrors?.length,
+                                                ) && (
+                                                    <div
+                                                        id={`${id}-${item.value}-errors`}
+                                                        className="mt-1 text-sm text-red-700 dark:text-red-400"
+                                                    >
+                                                        {item.nameErrors!.map(
+                                                            (error) => (
+                                                                <p key={error}>
+                                                                    {error}
+                                                                </p>
+                                                            ),
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </Table>
+                        </div>
+                    </details>
+                </Card>
+            )}
         </div>
     );
 }
