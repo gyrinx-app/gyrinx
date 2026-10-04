@@ -238,7 +238,7 @@ def campaign(request, pk):
         # Asked for a dialog that cannot be drawn — a stale or withdrawn
         # question — so the whole page is served, and it names everybody.
         load_owner_badges(found.owner, *(line.owner for line in sheet.gangs))
-    _fill_addresses(sheet, found, yours=yours)
+    _fill_addresses(sheet, found, yours=yours, viewer=request.user)
     acts, more_acts = _recent_acts(found, request.user)
     battles = found.battles.prefetch_related("gangs", "winners")[:BATTLES_ON_THE_PAGE]
     # Read once and asked twice: the page draws the players, and whether
@@ -269,7 +269,7 @@ def campaign(request, pk):
     )
 
 
-def _fill_addresses(sheet, campaign, *, yours):
+def _fill_addresses(sheet, campaign, *, yours, viewer):
     """Put the addresses on a campaign sheet. The structure says who may
     act; only the view knows where each act is asked, so the same filling
     serves the page and the partial update a roll delivers."""
@@ -298,6 +298,12 @@ def _fill_addresses(sheet, campaign, *, yours):
                     counter.href = reverse("n26-tally", args=[counter.assignment_id])
                     counter.back = here + "#gangs"
     if yours:
+        addable_types = {
+            str(pk)
+            for pk in _holding_assets(campaign, include_staged=sees_staged(viewer))
+            .values_list("asset_type_id", flat=True)
+            .distinct()
+        }
         # What the arbitrator adds sits where it will show: an asset type
         # becomes a table under Assets, a counter or a label becomes a
         # column of the gangs table.
@@ -314,10 +320,11 @@ def _fill_addresses(sheet, campaign, *, yours):
                 roll.href = f"{here}?starting={line.gang_id}&type={roll.asset_type_id}"
     for table in sheet.assets:
         if yours:
-            table.add_href = (
-                reverse("n26-campaign-add-asset", args=[campaign.pk])
-                + f"?type={table.asset_type_id}"
-            )
+            if table.asset_type_id in addable_types:
+                table.add_href = (
+                    reverse("n26-campaign-add-asset", args=[campaign.pk])
+                    + f"?type={table.asset_type_id}"
+                )
             table.create_href = (
                 reverse("n26-campaign-new-asset", args=[campaign.pk])
                 + f"?type={table.asset_type_id}"
@@ -378,14 +385,14 @@ def _rolling(campaign, sheet, asked):
     table = next((t for t in sheet.assets if t.asset_type_id == asked), None)
     if table is None or not table.tables:
         return None
-    # Three per player is the rulebook's figure for Territories. An asset
+    # Three per gang is the rulebook's figure for Territories. An asset
     # type the arbitrator declared has no such rule, so its dialog says
     # nothing about how many to generate.
     label = table.label.lower()
     lead = f"The rolled {label} will be added to the campaign as unclaimed."
     if table.label == TERRITORY:
         lead += (
-            " The rules generate three per player: "
+            " The rules generate three per gang: "
             f"{sheet.territories_to_generate} for this campaign."
         )
     return {
@@ -496,7 +503,7 @@ def _campaign_update(request, campaign):
     from n26.core.views.htmx import with_toasts
 
     sheet = render_campaign(campaign, viewer=request.user)
-    _fill_addresses(sheet, campaign, yours=True)
+    _fill_addresses(sheet, campaign, yours=True, viewer=request.user)
     acts, more_acts = _recent_acts(campaign, request.user)
     response = render(
         request,
@@ -1260,9 +1267,12 @@ def add_asset(request, pk):
     type rides the form's address too, so a failed submit redisplays the
     same narrowed list.
     """
+    from django.urls import reverse
+
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import AddAssetForm
     from n26.library.income import income_of, with_income
+    from n26.library.models import AssetType
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     asset_type = _asset_type_asked_for(found, request.GET.get("type"))
@@ -1274,15 +1284,28 @@ def add_asset(request, pk):
         form = AddAssetForm(request.POST, offered=offered)
         if form.is_valid():
             with campaign_operation(found, actor=request.user) as act:
-                campaign_asset = act.add_asset(
-                    form.cleaned_data["asset"], name=form.cleaned_data["name"]
+                made = act.add_assets(
+                    form.cleaned_data["asset"],
+                    name=form.cleaned_data["name"],
+                    request_key=form.cleaned_data["request_key"],
                 )
-            messages.success(request, f"Added {campaign_asset}.")
+            if not made:
+                messages.info(request, "That selection was already added.")
+            elif len(form.cleaned_data["asset"]) == 1:
+                chosen = form.cleaned_data["asset"][0]
+                messages.success(
+                    request, f"Added {form.cleaned_data['name'] or str(chosen)}."
+                )
+            else:
+                label = asset_type.plural.lower() if asset_type else "assets"
+                messages.success(
+                    request, f"Added {len(form.cleaned_data['asset'])} {label}."
+                )
             return redirect(_assets_anchor(found))
     else:
         form = AddAssetForm(offered=offered)
 
-    submitted = str(form["asset"].value() or "")
+    submitted = set(form["asset"].value() or [])
 
     def card(asset):
         # The asset type and income under the name; a redisplay after a
@@ -1290,20 +1313,30 @@ def add_asset(request, pk):
         income = income_of(asset)
         return {
             "value": str(asset.pk),
-            "label": asset.name,
+            "label": str(asset),
             "description": (
                 f"{asset.asset_type}, income {income}¢"
                 if income
                 else str(asset.asset_type)
             ),
-            "checked": str(asset.pk) == submitted,
+            "checked": str(asset.pk) in submitted,
         }
 
-    # The asset type's own word for what is being added, with its article,
-    # for the title: "Add a territory", "Add an asset". The article follows
-    # the word's first letter, since the label is the author's to choose.
-    noun = asset_type.label_singular.lower() if asset_type else "asset"
-    article = "an" if noun[:1] in "aeiou" else "a"
+    noun = asset_type.plural.lower() if asset_type else "assets"
+    assets = [card(asset) for asset in with_income(offered)]
+    has_holding_type = (
+        asset_type is not None
+        or bool(assets)
+        or _campaign_asset_types(found)
+        .filter(ownership=AssetType.Ownership.HOLDING)
+        .exists()
+    )
+    empty_next_href = reverse(
+        "n26-campaign-new-asset" if has_holding_type else "n26-campaign-add-asset-type",
+        args=[found.pk],
+    )
+    if asset_type is not None:
+        empty_next_href += f"?type={asset_type.pk}"
     _badge_a_redrawn_page(request, found)
     return render(
         request,
@@ -1312,10 +1345,31 @@ def add_asset(request, pk):
             "form": form,
             "campaign": found,
             "asset_type": asset_type,
-            "adding": f"{article} {noun}",
+            "adding": noun,
             "back": _assets_anchor(found),
             # Drawn as cards, one per asset.
-            "assets": [card(asset) for asset in with_income(offered)],
+            "assets": assets,
+            "fallback_options": [
+                {
+                    "key": asset["value"],
+                    "name": asset["label"],
+                    "detail": asset["description"],
+                    "is_current": asset["checked"],
+                }
+                for asset in assets
+            ],
+            "selection": {
+                "label": f"Select {noun}",
+                "invalid": bool(form["asset"].errors),
+                "options": assets,
+                "selected": list(submitted),
+                "name": form["name"].value() or "",
+                "nameErrors": list(form["name"].errors),
+            },
+            "empty_next_href": empty_next_href,
+            "empty_next_label": "Create asset"
+            if has_holding_type
+            else "Add an asset type",
         },
     )
 
@@ -1676,6 +1730,8 @@ def new_asset(request, pk):
             annotation=data["annotation"],
             income=data["income"],
         )
+        if asset.asset_type.is_holding:
+            op.add_asset(asset)
         return f"Created {asset}."
 
     picked = str(form["asset_type"].value() or request.GET.get("type", ""))
