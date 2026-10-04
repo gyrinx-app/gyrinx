@@ -1,0 +1,19 @@
+{# title: Menu layout #}
+{# note: layout="menu" draws each gang type's artwork large beside the wealth strip and puts View gang, Edit gang settings and Print in a menu. A type with no artwork keeps an empty slot on the wide layout, so the strips line up. The home page uses this layout. #}
+{# layout: full #}
+<c-n26.record-table :type_options="dashboard_types" noun="gangs">
+    <c-slot name="empty">
+        No gangs match that. Try a shorter search.
+    </c-slot>
+    {% for gang in dashboard_gangs %}
+        <c-n26.record-table.gang-row name="{{ gang.name }}"
+                                     type="{{ gang.type }}"
+                                     :type_icon="gang.type_icon"
+                                     colour="{{ gang.colour }}"
+                                     :sheet="gang.sheet"
+                                     layout="menu"
+                                     href="#"
+                                     edit_href="#"
+                                     print_href="#" />
+    {% endfor %}
+</c-n26.record-table>
