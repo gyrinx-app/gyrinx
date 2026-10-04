@@ -62,6 +62,16 @@ Do **not** rely on `npm run watch` alone to produce the first build — it won't
 
 The port is set via `DJANGO_PORT` environment variable, which is also auto-configured by the
 session hook (`scripts/activate_venv_hook.sh`) for every Agent Bash invocation.
+`scripts/dev.sh`, `.codex/run.sh` and the venv activate hook all read it through
+`worktree_port`. Session and CSRF cookies are named `gyrinx_sessionid_<port>` and
+`gyrinx_csrftoken_<port>`, so a server started on a different port will not see a
+login link or screenshot minted for the hashed port.
+
+Two worktrees can hash to the same port. When `./scripts/dev.sh` finds that port
+taken by another process, it listens on the next free port and writes
+`logs/dev-port`. Later commands see that file. Delete `logs/dev-port` to return
+to the hashed port once it is free. If this worktree's own `runserver` is already
+listening, `dev.sh` prints that URL and does not start a second server.
 
 ## Finding the URL
 

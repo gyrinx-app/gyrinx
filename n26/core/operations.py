@@ -804,46 +804,6 @@ class Operation:
         )
         return miniature
 
-    def capture(self, miniature, *, include_staged=False):
-        """Mark a model captured with the result that provides its Escape roll."""
-        from n26.core.card import build_card, build_modifier_index, carriers
-        from n26.core.effects import compute
-
-        miniature.refresh_from_db(fields=["status"])
-        if (
-            miniature.status == Status.CAPTURED
-            and Assignment.objects.filter(
-                miniature=miniature,
-                archived=False,
-                pickable__modifiers__op_sets_status__status=Status.CAPTURED,
-                chosen_for_slot__slot_type__is_lasting_effect=True,
-            )
-            .exclude(picks__archived=False)
-            .exists()
-        ):
-            return miniature
-        card = build_card(miniature)
-        computed = compute(card, build_modifier_index(carriers(card)))
-        for choice in computed.choices:
-            slot = choice.slot
-            if slot is None or not slot.slot_type.is_lasting_effect:
-                continue
-            result = (
-                slot.picklist.available_members(include_staged=include_staged)
-                .filter(pickable__modifiers__op_sets_status__status=Status.CAPTURED)
-                .select_related("pickable")
-                .first()
-            )
-            if result is not None:
-                self.choose(
-                    choice.anchor.assignment,
-                    result.pickable,
-                    slot=slot,
-                    miniature=miniature,
-                )
-                return miniature
-        raise Refusal("This model has no Captured result on its lasting-effect table.")
-
     def release_capture(self, miniature, note=""):
         """Take away a Captured result the Escape table has not settled.
 
