@@ -1,7 +1,7 @@
 {% comment %}
 Counters a report changes: the gang's in Mission results, or one model's in
 its module. Each row takes a signed change; the page script updates After as
-it is typed, and the -1/+1 buttons redraw the section. A counter a result
+it is typed. Model counter rows also offer -1/+1 buttons. A counter a result
 creates has no change to enter, only what the result adds.
 {% endcomment %}
 <div class="overflow-x-auto">
@@ -37,15 +37,17 @@ creates has no change to enter, only what the result adds.
                                    name="{{ row.list_name }}"
                                    value="{{ row.change.assignment_id }}">
                             <div class="flex items-center gap-1">
-                                <c-ui.button type="submit"
-                                             id="{{ row.prefix }}-minus"
-                                             name="intent"
-                                             value="{{ row.intent }}:-1"
-                                             size="sm"
-                                             aria-label="{{ row.minus_label }}"
-                                             :attrs="row.minus_attrs">
-                                    −1
-                                </c-ui.button>
+                                {% if show_steps %}
+                                    <c-ui.button type="submit"
+                                                 id="{{ row.prefix }}-minus"
+                                                 name="intent"
+                                                 value="{{ row.intent }}:-1"
+                                                 size="sm"
+                                                 aria-label="{{ row.minus_label }}"
+                                                 :attrs="row.minus_attrs">
+                                        −1
+                                    </c-ui.button>
+                                {% endif %}
                                 <div class="w-16 sm:w-20">
                                     <c-ui.input id="{{ row.prefix }}"
                                                 name="{{ row.prefix }}"
@@ -57,15 +59,17 @@ creates has no change to enter, only what the result adds.
                                                 data-counter-base="{{ row.base }}"
                                                 data-counter-limit="{{ row.limit }}" />
                                 </div>
-                                <c-ui.button type="submit"
-                                             id="{{ row.prefix }}-plus"
-                                             name="intent"
-                                             value="{{ row.intent }}:+1"
-                                             size="sm"
-                                             aria-label="{{ row.plus_label }}"
-                                             :attrs="row.plus_attrs">
-                                    +1
-                                </c-ui.button>
+                                {% if show_steps %}
+                                    <c-ui.button type="submit"
+                                                 id="{{ row.prefix }}-plus"
+                                                 name="intent"
+                                                 value="{{ row.intent }}:+1"
+                                                 size="sm"
+                                                 aria-label="{{ row.plus_label }}"
+                                                 :attrs="row.plus_attrs">
+                                        +1
+                                    </c-ui.button>
+                                {% endif %}
                             </div>
                         {% endif %}
                     </td>

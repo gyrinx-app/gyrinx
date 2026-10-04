@@ -43,6 +43,7 @@ def test_campaign_controls_include_link_image_and_table_without_global_changes()
     assert set(configured["toolbar"].split()) >= {"link", "image", "table"}
     assert configured["paste_data_images"] is True
     assert configured["automatic_uploads"] is True
+    assert configured["setup"] == "n26CampaignImages"
     assert "/tinymce/upload/" in configured["images_upload_handler"]
     assert configured["menubar"] is False
     assert not RichText().mce_attrs.get("toolbar")

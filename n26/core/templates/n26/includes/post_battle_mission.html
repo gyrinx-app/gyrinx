@@ -100,7 +100,7 @@ so the id must stay put.
     {% if mission.counter_rows %}
         <div class="space-y-3">
             <h3 id="gang-counters-heading" class="text-lg font-semibold">Gang counters</h3>
-            {% include "n26/includes/post_battle_counters.html" with rows=mission.counter_rows show_effects=mission.show_effects heading_id="gang-counters-heading" %}
+            {% include "n26/includes/post_battle_counters.html" with rows=mission.counter_rows show_steps=False show_effects=mission.show_effects heading_id="gang-counters-heading" %}
         </div>
     {% endif %}
 </fieldset>
