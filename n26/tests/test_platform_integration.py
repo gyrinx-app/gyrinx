@@ -1494,6 +1494,35 @@ class TestTheSiteBanner:
         assert "Read the notes" not in bar
         assert "n26-announcement-cta" not in bar
 
+    def test_an_impersonation_notice_keeps_its_stop_form(
+        self, client, tester, default_pack
+    ):
+        """The notice is not a plain sentence. It names who is signed in,
+        and the only way out is a form that posts. Both have to survive
+        in the bar itself: a dismiss control that redraws the bar from a
+        text prop would print the tags and drop the form.
+        """
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        admin = User.objects.create_superuser("overseer", "overseer@example.com")
+        client.force_login(admin)
+        started = client.post(
+            reverse("core:impersonate-start", args=[tester.pk]),
+            {"next": "/n26/"},
+        )
+        assert started.status_code == 302
+
+        body = client.get("/n26/").content.decode()
+        # id sits on the aside, ahead of the class the slice starts at.
+        assert 'id="impersonation-banner"' in body
+        bar = announcement_bar(body)
+        assert f"<strong>{tester.username}</strong>" in bar
+        assert "<form" in bar
+        assert reverse("core:impersonate-stop") in bar
+        assert "Stop impersonating" in bar
+        assert "data-react-module" not in bar
+
 
 class TestTheSharedIconKeys:
     """gyrinx/site/icons.py names an n26 icon for every key, as a string,

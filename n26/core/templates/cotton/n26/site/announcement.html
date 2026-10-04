@@ -1,13 +1,17 @@
 {% comment %}
-<c-n26.site.announcement> — Site-wide announcement bar with optional CTA and dismiss.
+<c-n26.site.announcement> — Site-wide announcement bar with optional CTA, extra action, and dismiss.
 
 Print CSS in app.css hides this bar.
 Tone is a data-tone attribute, so background, border, and ink stay in step.
-Pass none to hide the icon. An empty icon draws the tone's default.
+Pass none to hide the icon. An empty icon draws the tone's default. Any other
+name is drawn from the icon registry.
 A CTA needs both cta_text and cta_url.
-Dismiss hides the bar for this visit. dismiss_url posts banner_id so the server can remember it.
+The action slot is extra controls, typically a form. It stays in this markup,
+with the message, because a form cannot travel through the dismiss control.
+Dismiss hides the bar for this visit. dismiss_url posts banner_id so the server
+can remember it. Pass an empty dismissible to keep the bar.
 Do not add role=status. That announces on change, and this bar is already on the page at load.
-The message is the default slot. Keep a form out of that slot: the browser would close the span around it.
+Keep action outside the message span. The browser closes a span around a form.
 {% endcomment %}
 
 {% load announcement react %}
@@ -17,15 +21,13 @@ The message is the default slot. Keep a form out of that slot: the browser would
     message=""
     cta_text=""
     cta_url=""
+    action=""
     dismissible="1"
     dismiss_url=""
     banner_id=""
-    id=""
     class=""
 />
-{% announcement_props tone=tone icon=icon message=message slot=slot cta_text=cta_text cta_url=cta_url dismissible=dismissible dismiss_url=dismiss_url banner_id=banner_id csrf_token=csrf_token element_id=id css_class=class as props_ %}
-{% react_host "announcement" props_ class="contents" %}
-<aside {% if id %}id="{{ id }}"{% endif %}
+<aside {{ attrs }}
        class="n26-announcement {{ class }}"
        data-tone="{{ tone }}"
        aria-label="Site announcement">
@@ -43,14 +45,17 @@ The message is the default slot. Keep a form out of that slot: the browser would
                     <c-n26.icon name="arrow-right" class="size-4" stroke_width="2" />
                 </a>
             {% endif %}
+            {% if action %}{{ action }}{% endif %}
         </div>
         {% if dismissible %}
+            {% announcement_props dismiss_url=dismiss_url banner_id=banner_id csrf=csrf_token as props_ %}
+            {% react_host "announcement" props_ class="shrink-0" %}
             <button type="button"
                     class="n26-announcement-dismiss focus-ring"
                     aria-label="Dismiss announcement">
                 <c-n26.icon name="x" class="size-4" stroke_width="2" />
             </button>
+            {% endreact_host %}
         {% endif %}
     </div>
 </aside>
-{% endreact_host %}

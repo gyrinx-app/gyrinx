@@ -1,50 +1,39 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Announcement, type AnnouncementProps } from "./Announcement";
 
 const props: AnnouncementProps = {
-    tone: "info",
-    icon: "",
-    message: "Campaigns are live.",
-    ctaText: "Read the notes",
-    ctaUrl: "/notes/",
-    dismissible: true,
     dismissUrl: "/dismiss/",
     bannerId: "12",
     csrfToken: "token",
-    id: "site-banner-12",
-    className: "",
 };
+
+function draw(extra: Partial<AnnouncementProps> = {}) {
+    return render(
+        <aside className="n26-announcement">
+            <span>Campaigns are live.</span>
+            <Announcement {...props} {...extra} />
+        </aside>,
+    );
+}
 
 afterEach(() => {
     vi.unstubAllGlobals();
 });
 
 describe("Announcement", () => {
-    it("draws the message, the tone and the call to action", () => {
-        render(<Announcement {...props} />);
-        const bar = screen.getByRole("complementary", {
-            name: "Site announcement",
-        });
-        expect(bar.getAttribute("data-tone")).toBe("info");
-        expect(bar.textContent).toContain("Campaigns are live.");
-        expect(
-            screen
-                .getByRole("link", { name: "Read the notes" })
-                .getAttribute("href"),
-        ).toBe("/notes/");
-    });
-
-    it("hides the bar and posts the banner id", () => {
+    it("hides the bar after the dismissal is saved", async () => {
         const fetchMock = vi.fn().mockResolvedValue(new Response());
         vi.stubGlobal("fetch", fetchMock);
-        render(<Announcement {...props} />);
+        const view = draw();
         fireEvent.click(
             screen.getByRole("button", { name: "Dismiss announcement" }),
         );
-        expect(
-            screen.queryByRole("complementary", { name: "Site announcement" }),
-        ).toBeNull();
+        const bar = view.container.querySelector(".n26-announcement");
+        expect(bar?.hasAttribute("hidden")).toBe(false);
+        await waitFor(() => {
+            expect(bar?.hasAttribute("hidden")).toBe(true);
+        });
         expect(fetchMock).toHaveBeenCalledWith("/dismiss/", {
             method: "POST",
             headers: {
@@ -55,28 +44,52 @@ describe("Announcement", () => {
         });
     });
 
+    it("leaves the bar up when the dismissal is refused", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue(new Response(null, { status: 403 })),
+        );
+        const view = draw();
+        fireEvent.click(
+            screen.getByRole("button", { name: "Dismiss announcement" }),
+        );
+        expect(await screen.findByRole("alert")).toBeTruthy();
+        expect(screen.getByRole("alert").textContent).toBe(
+            "This announcement is still showing. Try again.",
+        );
+        expect(
+            view.container
+                .querySelector(".n26-announcement")
+                ?.hasAttribute("hidden"),
+        ).toBe(false);
+    });
+
+    it("leaves the bar up when the dismissal request fails", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+        const view = draw();
+        fireEvent.click(
+            screen.getByRole("button", { name: "Dismiss announcement" }),
+        );
+        expect(await screen.findByRole("alert")).toBeTruthy();
+        expect(
+            view.container
+                .querySelector(".n26-announcement")
+                ?.hasAttribute("hidden"),
+        ).toBe(false);
+    });
+
     it("hides without posting when the bar is only for this visit", () => {
         const fetchMock = vi.fn();
         vi.stubGlobal("fetch", fetchMock);
-        render(<Announcement {...props} dismissUrl="" bannerId="" />);
+        const view = draw({ dismissUrl: "", bannerId: "" });
         fireEvent.click(
             screen.getByRole("button", { name: "Dismiss announcement" }),
         );
         expect(fetchMock).not.toHaveBeenCalled();
-    });
-
-    it("draws no dismiss button and no icon when asked not to", () => {
-        render(
-            <Announcement
-                {...props}
-                dismissible={false}
-                icon="none"
-                ctaText=""
-            />,
-        );
         expect(
-            screen.queryByRole("button", { name: "Dismiss announcement" }),
-        ).toBeNull();
-        expect(document.querySelector("svg")).toBeNull();
+            view.container
+                .querySelector(".n26-announcement")
+                ?.hasAttribute("hidden"),
+        ).toBe(true);
     });
 });

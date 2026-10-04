@@ -822,14 +822,8 @@ def recipes():
                 "check",
                 "check-check",
                 "loader-circle",
-                "circle-check",
                 "circle-question-mark",
                 "triangle-alert",
-                "arrow-right",
-                "bell",
-                "star",
-                "heart",
-                "settings",
             )
         },
     }

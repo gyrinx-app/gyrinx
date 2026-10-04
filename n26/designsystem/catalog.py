@@ -2727,9 +2727,11 @@ GROUPS: list[Group] = [
                     "It sits above the nav rather than inside it, so it pushes the "
                     "whole application down. tone is a data-tone attribute setting "
                     "the background, border, ink and icon together; pass "
-                    'icon="none" to draw no icon. A CTA needs both cta_text and '
-                    "cta_url. The message is the default slot. Dismissing hides "
-                    "the bar for this visit. dismiss_url posts banner_id when the "
+                    'icon="none" to draw no icon, or any name from the icon '
+                    "registry. A CTA needs both cta_text and cta_url. The action "
+                    "slot holds extra controls, typically a form, and stays in "
+                    "the server markup with the message. Dismissing hides the "
+                    "bar for this visit. dismiss_url posts banner_id when the "
                     "server should remember that."
                 ),
             ),
