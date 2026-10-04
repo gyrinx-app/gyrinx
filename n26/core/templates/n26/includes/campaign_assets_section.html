@@ -13,7 +13,7 @@ extra controls, usually empty); `redrawn` marks the copy an update delivers.
 <div id="n26-campaign-assets"
      class="min-w-0 xl:col-span-2"
      {% if redrawn %}hx-swap-oob="true"{% endif %}>
-    <c-n26.section :boxed="True" id="assets" title="Assets">
+    <c-n26.section :boxed="True" :flush="True" id="assets" title="Assets">
         {% if assets_actions.strip or sheet.add_asset_type_href or sheet.tables_href %}
             <c-slot name="actions">
                 {% if sheet.tables_href %}
@@ -30,13 +30,13 @@ extra controls, usually empty); `redrawn` marks the copy an update delivers.
             </c-slot>
         {% endif %}
         {% if sheet.assets %}
-            <div class="flex flex-col gap-6">
+            <div class="flex flex-col divide-y divide-box-border">
                 {% for table in sheet.assets %}
                     <c-n26.campaign-assets :table="table" />
                 {% endfor %}
             </div>
         {% else %}
-            <p class="text-sm text-muted">{{ sheet.campaign_type }} has no transferable asset types.</p>
+            <p class="p-4 text-sm text-muted">{{ sheet.campaign_type }} has no transferable asset types.</p>
         {% endif %}
     </c-n26.section>
 </div>

@@ -11,7 +11,7 @@ Roll is primary because it begins a form. The other controls do not.
 <c-vars :table="None" class="" />
 
 <div class="flex flex-col gap-2 {{ class }}">
-    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-4">
         <h3 class="text-sm font-medium text-ink-900 dark:text-ink-100">
             {{ table.plural }}
             {% if table.entries %}
@@ -115,7 +115,7 @@ Roll is primary because it begins a form. The other controls do not.
             </tbody>
         </c-ui.table>
     {% else %}
-        <p class="text-sm text-muted">
+        <p class="px-4 pb-4 text-sm text-muted">
             No {{ table.plural|lower }} yet.
             {% if table.add_href %}Add assets to the pool, then assign them to gangs.{% endif %}
         </p>

@@ -7,19 +7,10 @@ panel_id must be unique when more than one description appears on a page.
 <c-vars summary="" panel_id="n26-campaign-description-popover" class="" />
 {% load richtext platform_tags %}
 <c-ui.card padding="sm" class="min-w-0 h-full {{ class }}">
-    <c-slot name="header">
-        <div class="-mx-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 class="text-sm font-semibold">Description</h2>
-            {% if summary %}
-                <div class="hidden md:block">
-                    <c-ui.button type="button" size="xs" variant="ghost" popovertarget="{{ panel_id }}"><span class="inline-flex items-center gap-1">Read full description <c-n26.icon name="chevron-down" class="size-3.5" /></span></c-ui.button>
-                </div>
-            {% endif %}
-        </div>
-    </c-slot>
     {% if summary %}
         <div class="hidden md:block">
             <p class="line-clamp-3 text-sm text-muted">{{ summary|plain_text_truncate:220 }}</p>
+            <c-ui.button type="button" size="sm" variant="text" class="mt-3" popovertarget="{{ panel_id }}"><span class="inline-flex items-center gap-1">Read full description <c-n26.icon name="chevron-down" class="size-3.5" /></span></c-ui.button>
         </div>
         <details class="group md:hidden">
             <summary class="cursor-pointer list-none">
@@ -34,8 +25,8 @@ panel_id must be unique when more than one description appears on a page.
         </details>
         <div id="{{ panel_id }}" popover="auto"
              aria-label="Full campaign description"
-             class="max-md:hidden max-h-[min(36rem,75dvh)] w-[min(32rem,calc(100vw-2rem))] overflow-y-auto rounded-box border border-box-border bg-surface p-5 text-ink-900 shadow-xl dark:bg-ink-900 dark:text-ink-100"
-             style="inset: auto; position-area: bottom span-left; position-try-fallbacks: flip-block, flip-inline; margin: 0.5rem 0;">
+             class="max-md:hidden max-h-[min(36rem,75dvh,calc(100%-1rem))] w-[min(32rem,calc(100vw-2rem))] overflow-y-auto rounded-box border border-box-border bg-surface p-5 text-ink-900 shadow-xl dark:bg-ink-900 dark:text-ink-100"
+             style="inset: auto; position-area: bottom span-right; position-try-fallbacks: flip-block, flip-inline; margin: 0.5rem 0;">
             <div class="mb-4 flex items-center justify-between gap-3">
                 <h3 class="text-sm font-semibold">Description</h3>
                 <c-ui.button type="button" size="xs" variant="ghost" popovertarget="{{ panel_id }}" popovertargetaction="hide" aria-label="Close description"><c-n26.icon name="x" class="size-4" /></c-ui.button>

@@ -901,6 +901,7 @@ class TestThePages:
         assert response.status_code == 200
         assert "Location" not in response
         body = response.content.decode()
+        soup = BeautifulSoup(body, "html.parser")
         for host in (
             "n26-campaign-figures",
             "n26-campaign-gangs",
@@ -908,7 +909,9 @@ class TestThePages:
             "n26-campaign-log",
             "n26-campaign-log-count",
         ):
-            assert re.search(rf'id="{host}"\s+hx-swap-oob="true"', body), host
+            element = soup.find(id=host)
+            assert element is not None, host
+            assert element.get("hx-swap-oob") == "true", host
         assert '<div id="n26-roll-dialog-host" hx-swap-oob="true"></div>' in body
         assert "<dialog" not in body
         # The sections carry what the roll changed.

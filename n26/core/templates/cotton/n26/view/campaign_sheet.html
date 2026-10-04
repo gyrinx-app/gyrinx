@@ -62,7 +62,6 @@ log_count may be markup: the campaign page passes a host that a roll update redr
 
     <div class="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2" id="campaign-overview">
         <c-ui.card padding="none" class="min-w-0 h-full">
-            <c-slot name="header"><h2 class="-mx-2 text-sm font-semibold">Campaign details</h2></c-slot>
             <dl class="divide-y divide-box-border px-4">
                 <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 py-2.5">
                     <dt class="text-sm text-muted">Type</dt>
@@ -92,12 +91,12 @@ log_count may be markup: the campaign page passes a host that a roll update redr
     </div>
 
     <div class="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-3" id="campaign-sections">
-        <c-n26.section :boxed="True" class="xl:col-span-3" id="gangs" title="Gangs" count="{{ sheet.gang_count }} gang{{ sheet.gang_count|pluralize }}">
+        <c-n26.section :boxed="True" :flush="True" class="xl:col-span-3" id="gangs" title="Gangs" count="{{ sheet.gang_count }} gang{{ sheet.gang_count|pluralize }}">
             {% if gangs_actions.strip %}<c-slot name="actions">{{ gangs_actions }}</c-slot>{% endif %}
             {% include "n26/includes/campaign_gangs.html" %}
         </c-n26.section>
 
-        <c-n26.section :boxed="True" id="battles" title="Battles" count="{% if sheet.battles_fought %}{{ sheet.battles_fought }} recorded{% endif %}">
+        <c-n26.section :boxed="True" :flush="True" id="battles" title="Battles" count="{% if sheet.battles_fought %}{{ sheet.battles_fought }} recorded{% endif %}">
             {% if battles_actions.strip %}<c-slot name="actions">{{ battles_actions }}</c-slot>{% endif %}
             {{ battles }}
         </c-n26.section>

@@ -1502,7 +1502,8 @@ GROUPS: list[Group] = [
                 template="n26/section.html",
                 summary="A titled block of a page, with an optional count and controls.",
                 notes=(
-                    "Pass :boxed to give the section a card and a compact header. "
+                    "Pass :boxed to give the section a card and a compact header; "
+                    "pass :flush for tables that provide their own cell padding. "
                     "The title renders as an h2, the same rank c-n26.form-section "
                     "gives a form's groups, so a detail section and a form group "
                     "read at the same rank. The count sits inside the heading, so "
