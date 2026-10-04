@@ -43,14 +43,22 @@ class _RunserverProcess:
                 """\
                 import socket
                 import sys
-                import time
 
+                # Accept and close, like a real server. A listener that
+                # never accepts fills its queue, and macOS then refuses
+                # the probe that asks whether the port is in use.
                 port = int(sys.argv[1])
                 sock = socket.socket()
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 sock.bind(("127.0.0.1", port))
-                sock.listen(1)
-                time.sleep(60)
+                sock.listen(16)
+                sock.settimeout(60)
+                while True:
+                    try:
+                        conn, _ = sock.accept()
+                    except TimeoutError:
+                        break
+                    conn.close()
                 """
             )
         )
