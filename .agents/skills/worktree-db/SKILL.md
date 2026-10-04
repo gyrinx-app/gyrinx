@@ -1,4 +1,5 @@
 ---
+name: worktree-db
 description: |
   Knowledge about per-worktree database isolation in the Gyrinx project. Load this skill when
   working with databases across worktrees: forking, resetting, migrating, cleaning up orphans,

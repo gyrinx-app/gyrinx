@@ -1,5 +1,5 @@
 ---
-name: Edit GitHub Discussion
+name: edit-github-discussion
 description: |
   This skill should be used when the user asks to "edit a GitHub discussion", "update discussion content",
   "iterate on a discussion", "modify discussion body", or wants to make changes to an existing GitHub

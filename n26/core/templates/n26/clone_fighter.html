@@ -25,7 +25,7 @@ the source, and a completed clone opens the new model there.
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                    <c-n26.user-link :user="gang.owner" tone="current" />
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-edit-fighter' source.pk %}">{{ source.name }}</c-ui.breadcrumbs.item>

@@ -28,13 +28,13 @@ Roll is primary because it begins a form. The other controls do not.
                                  href="{{ table.roll_href }}"
                                  hx-get="{{ table.roll_href }}"
                                  hx-swap="none"
-                                 title="Roll for a {{ table.label|lower }}. It is added to the campaign, unclaimed.">Roll {{ table.label|lower }}</c-ui.button>
+                                 title="Roll {{ table.plural|lower }} for the campaign’s unclaimed pool.">Roll {{ table.plural|lower }}</c-ui.button>
                 {% endif %}
                 {% if table.add_href %}
                     <c-ui.button size="xs"
                                  variant="default"
                                  href="{{ table.add_href }}"
-                                 title="Add one of the campaign type's {{ table.plural|lower }} to this campaign">Add {{ table.label|lower }}</c-ui.button>
+                                 title="Add {{ table.plural|lower }} from the campaign type to this campaign.">Add {{ table.plural|lower }}</c-ui.button>
                 {% endif %}
                 {% if table.create_href %}
                     <c-ui.button size="xs"
@@ -60,7 +60,7 @@ Roll is primary because it begins a form. The other controls do not.
                 {% for entry in table.entries %}
                     <tr>
                         <td class="min-w-40">
-                            <span class="font-semibold text-ink-900 dark:text-ink-100">{{ entry.name }}</span>
+                            <c-n26.link href="{{ entry.href }}" tone="current" class="font-semibold">{{ entry.name }}</c-n26.link>
                             {% if entry.asset_name %}<span class="block text-xs text-muted">{{ entry.asset_name }}</span>{% endif %}
                         </td>
                         <td class="text-right tabular-nums whitespace-nowrap">
@@ -115,7 +115,7 @@ Roll is primary because it begins a form. The other controls do not.
     {% else %}
         <p class="text-sm text-muted">
             No {{ table.plural|lower }} yet.
-            {% if table.add_href %}Add one to assign it to a gang.{% endif %}
+            {% if table.add_href %}Add assets to the pool, then assign them to gangs.{% endif %}
         </p>
     {% endif %}
 </div>
