@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from n26.core import icons
+from n26.core.models import Gang
 
 pytestmark = pytest.mark.django_db
 
@@ -89,3 +90,24 @@ class TestTheHomeTabQuery:
         client.force_login(tester)
         body = client.get(reverse("n26-dashboard"), {"tab": "Nope"}).content.decode()
         assert "activeTab: 'Gangs'" in body
+
+
+class TestTheGangRows:
+    """The whole row already links to the gang, so the home list draws no
+    Edit button beside it. The Gangs page keeps its button."""
+
+    def test_a_home_row_has_no_edit_button(self, client, tester, gang_type):
+        gang = Gang.objects.create(
+            name="The Ashen Choir", owner=tester, gang_type=gang_type
+        )
+        client.force_login(tester)
+        body = client.get(reverse("n26-dashboard")).content.decode()
+        assert "The Ashen Choir" in body
+        assert reverse("n26-gang", args=[gang.pk]) in body
+        assert ">Edit<" not in body.replace(" ", "").replace("\n", "")
+
+    def test_the_gangs_page_still_has_it(self, client, tester, gang_type):
+        Gang.objects.create(name="The Ashen Choir", owner=tester, gang_type=gang_type)
+        client.force_login(tester)
+        body = client.get(reverse("n26-gangs")).content.decode()
+        assert ">Edit<" in body.replace(" ", "").replace("\n", "")

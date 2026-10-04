@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.record-table.gang-row> — One gang listing in a record table, with wealth and edit controls.
+<c-n26.record-table.gang-row> — One gang listing in a record table, with wealth and optional Edit and Print buttons.
 
 A record table filters these data attributes without replacing the listing markup.
 Search includes the gang type as well as the name.
@@ -11,11 +11,12 @@ Keep the type outside the name link so the accessible name stays the gang's name
 The colour mark sits inside the name link so the focus ring covers both and they cannot wrap apart.
 The actions cell spans both grid rows so the buttons sit against the name and the wealth strip together.
 Campaign links must be supplied only for campaigns the reader can see.
+Pass :edit="False" to drop the Edit button where the row link is enough.
 Pass the owner's name as text. A user object will not draw as a link here.
 The sheet must carry model_count. The strip leads with it.
 {% endcomment %}
 
-<c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" print_href=""
+<c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" :edit="True" print_href=""
         owner="" campaign_name="" campaign_href="" class="" />
 
 <div data-record-row data-record-type="{{ type }}" data-record-search="{{ name|add:' '|add:type|lower }}"
@@ -49,7 +50,9 @@ The sheet must carry model_count. The strip leads with it.
     <div class="relative col-start-2 row-start-1 row-span-2 flex shrink-0 flex-col
                 items-stretch gap-2 justify-self-end
                 @2xl:col-start-3 @2xl:row-span-1 @2xl:flex-row @2xl:items-center">
-        <c-ui.button size="sm" variant="default" href="{{ href }}">Edit</c-ui.button>
+        {% if edit %}
+            <c-ui.button size="sm" variant="default" href="{{ href }}">Edit</c-ui.button>
+        {% endif %}
         {% if print_href %}
             <c-ui.button size="sm" variant="default" href="{{ print_href }}">Print</c-ui.button>
         {% endif %}
