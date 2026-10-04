@@ -2233,9 +2233,9 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
-                    "It emits a heading and facts rather than its own container, so "
-                    "it must sit inside a c-n26.detail-list, and class lands on "
-                    "every heading and fact. An asset's line is labelled with the "
+                    "It owns a roster card and appears before the gang activities. "
+                    "Each counter and label occupies a separate row. "
+                    "An asset's line is labelled with the "
                     "campaign type's word for its asset type. A holding links to "
                     "the campaign's assets, because another gang may hold it next, "
                     "and adds nothing to the gang's rating. Counter controls draw "

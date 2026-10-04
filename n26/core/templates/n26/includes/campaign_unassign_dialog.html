@@ -1,7 +1,7 @@
 <div id="n26-asset-dialog-host" hx-swap-oob="true">
     <c-n26.dialog id="n26-asset-dialog"
                   title="Unassign {{ campaign_asset }} from {{ campaign_asset.holder.gang.name }}?"
-                  action="{% url 'n26-campaign-asset-unassign' campaign.pk campaign_asset.pk %}"
+                  action="{{ action }}"
                   cancel_url="{{ back }}"
                   submit_label="Unassign"
                   submit_variant="danger"

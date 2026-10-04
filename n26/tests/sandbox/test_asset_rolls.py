@@ -29,6 +29,7 @@ import random
 import re
 
 import pytest
+from bs4 import BeautifulSoup
 from django.apps import apps
 from django.contrib.auth.models import User
 from django.db import connection
@@ -775,7 +776,9 @@ class TestThePages:
         ).content.decode()
         assert "Roll starting territory for Wild Cats" in cats
         assert "Goliath Territories" not in cats
-        assert "Territory Selection Table · D66" in cats
+        assert "Territory Selection Table · D66" in BeautifulSoup(
+            cats, "html.parser"
+        ).get_text(" ", strip=True)
         assert 'type="radio"' not in cats.split('id="n26-roll-dialog-host"')[1]
         assert "The rolled territory will be assigned to Wild Cats." in cats
         assert "The tables Wild Cats holds" not in cats

@@ -775,23 +775,17 @@ class TestALabel:
         (question,) = sheet.campaign.choices
         assert bool(house.href) == bool(question.href) == owner
         page = BeautifulSoup(response.content, "html.parser")
-        details = next(
-            dl for dl in page.find_all("dl") if campaign.name in dl.get_text()
-        )
-        rows = list(details.find_all("div", recursive=False))
-        heading = next(
-            i for i, row in enumerate(rows) if campaign.name in row.get_text()
-        )
-        faction_rows = [
-            i for i, row in enumerate(rows) if row.find("dt", string="Faction")
-        ]
+        campaign_state = page.find(id="n26-campaign-state")
+        assert campaign.name in campaign_state.find("h2").get_text()
+        faction_rows = [dt.parent for dt in page.find_all("dt", string="Faction")]
         assert len(faction_rows) == 2
-        assert faction_rows[0] < heading < faction_rows[1]
-        campaign_row = rows[faction_rows[1]]
+        personal_row, campaign_row = faction_rows
+        assert not personal_row.find_parent(id="n26-campaign-state")
+        assert campaign_row.find_parent(id="n26-campaign-state")
+        assert ("Nomads" if answered else "—") in campaign_row.get_text()
         assert (
-            "Nomads" if answered else "Choose" if owner else "—"
-        ) in campaign_row.get_text()
-        assert bool(campaign_row.find("a")) == owner
+            bool(campaign_row.find("a", attrs={"aria-label": "Edit Faction"})) == owner
+        )
         dismiss = reverse("n26-dismiss-offer", args=[gang.pk, question.key])
         assert bool(campaign_row.find("form", action=dismiss)) == (
             owner and not answered
@@ -1346,7 +1340,7 @@ class TestTheArbitratorTallies:
         client.force_login(campaign.owner)
         page = reverse("n26-campaign", args=[campaign.pk])
         body = client.get(page).content.decode()
-        assert "Add one to Reputation" in body
+        assert "Edit Reputation" in body
 
         response = client.post(
             reverse("n26-tally", args=[self.reputation_of(gang).assignment_id]),
@@ -1367,7 +1361,7 @@ class TestTheArbitratorTallies:
         client.force_login(rival.owner)
         body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
         # Their own row carries the control; the other gang's does not.
-        assert body.count("Add one to Reputation") == 1
+        assert body.count("Edit Reputation") == 1
         response = client.post(
             reverse("n26-tally", args=[self.reputation_of(gang).assignment_id]),
             {"change": "1"},

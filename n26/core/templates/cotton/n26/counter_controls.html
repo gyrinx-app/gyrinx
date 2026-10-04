@@ -1,21 +1,15 @@
 {% comment %}
-<c-n26.counter-controls> — Plus and minus that post a change of one on a counter line.
+<c-n26.counter-controls> — A counter pencil and optional one-point controls.
 
-counter is an n26.core.render.CounterLine. Minus stays disabled at zero because
-contributions cannot be tallied away. Both positions remain fixed as it changes.
-
-Each direction is its own form. htmx does not read a form's submitter, so two
-buttons in one form would post the same hidden change.
-
-back cannot be read off the request after an htmx redraw, so the line carries it.
-
-Plus always draws. Callers that should not offer a change must not mount this.
-An adjust_href adds an amount-entry link below the one-point controls.
-Set htmx only on a screen that holds the model card host or the campaign counter value host.
+An adjust_href opens an in-page amount dialog. Set steps to retain one-point forms alongside it.
+Its page must provide the campaign-state dialog and counter value hosts.
+Otherwise each direction posts its own form, because htmx ignores submitters.
+Minus stays disabled when the recorded value is zero; contributions stay.
 {% endcomment %}
 
-<c-vars :counter="None" :htmx="False" />
+<c-vars :counter="None" :htmx="False" :steps="False" />
 
+{% if not counter.adjust_href or steps %}
 <span class="ms-1 inline-flex items-center gap-1 align-middle">
         <form method="post"
               action="{{ counter.href }}"
@@ -56,11 +50,12 @@ Set htmx only on a screen that holds the model card host or the campaign counter
     </form>
 </span>
 
+{% endif %}
 {% if counter.adjust_href %}
-    <span class="mt-1 block text-xs">
-        <c-n26.link href="{{ counter.adjust_href }}" aria-label="Adjust {{ counter.name }}" class="inline-flex items-center">
-            Adjust
-            <c-slot name="trailing"><c-n26.icon name="arrow-right" class="ml-1 size-3" /></c-slot>
-        </c-n26.link>
-    </span>
+
+    <c-ui.button size="xs" variant="ghost" href="{{ counter.adjust_href }}"
+                 hx-get="{{ counter.adjust_href }}" hx-swap="none"
+                 aria-label="Edit {{ counter.name }}" class="shrink-0">
+        <c-n26.icon name="pencil" class="size-3.5" />
+    </c-ui.button>
 {% endif %}

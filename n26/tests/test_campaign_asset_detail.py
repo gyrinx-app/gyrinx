@@ -260,3 +260,60 @@ def test_static_asset_creation_and_roll_routes_remain_reachable():
         resolve("/n26/campaigns/example/assets/roll/").url_name
         == "n26-campaign-roll-asset"
     )
+
+
+@pytest.mark.parametrize("actor", ["arbitrator", "player"])
+def test_transferring_from_a_holding_detail_keeps_the_page_and_updates_its_actions(
+    client, setup, actor
+):
+    arbitrator, player, campaign, holding, first, second = setup
+    client.force_login(arbitrator if actor == "arbitrator" else player)
+    url = (
+        reverse("n26-campaign-asset-transfer", args=[campaign.pk, holding.pk])
+        + "?from=detail"
+    )
+    response = client.get(url, HTTP_HX_REQUEST="true")
+    soup = BeautifulSoup(response.content, "html.parser")
+    dialog = soup.find(id="n26-asset-dialog")
+    assert dialog.find("form")["hx-post"] == url
+    assert first.gang.name in dialog.get_text()
+    assert dialog.find("input", {"value": str(second.pk)})
+    assert not dialog.find("input", {"value": str(first.pk)})
+    assert second.gang.owner.username in dialog.get_text()
+    response = client.post(url, {}, HTTP_HX_REQUEST="true")
+    assert response.context["form"].errors["membership"]
+    holding.refresh_from_db()
+    assert holding.holder_id == first.pk
+    response = client.post(url, {"membership": second.pk}, HTTP_HX_REQUEST="true")
+    soup = BeautifulSoup(response.content, "html.parser")
+    assert not soup.find("html")
+    assert soup.find(id="n26-campaign-asset-detail")["hx-swap-oob"] == "true"
+    assert response["HX-Replace-Url"] == address(campaign, holding)
+    assert not soup.find(id="n26-asset-dialog-host").get_text(strip=True)
+    holding.refresh_from_db()
+    assert holding.holder_id == second.pk
+    assert response.context["details"].holder == second.gang.name
+    assert bool(response.context["actions"]) == (actor == "arbitrator")
+
+
+def test_the_holding_detail_opens_assignment_and_unassignment_dialogs(client, setup):
+    _, _, campaign, holding, _, second = setup
+    soup = BeautifulSoup(client.get(address(campaign, holding)).content, "html.parser")
+    assert soup.find(id="n26-asset-dialog-host")
+    for action in soup.select("a[hx-get]"):
+        assert "from=detail" in action["href"]
+    url = (
+        reverse("n26-campaign-asset-unassign", args=[campaign.pk, holding.pk])
+        + "?from=detail"
+    )
+    response = client.post(url, HTTP_HX_REQUEST="true")
+    assert response.context["details"].holder == ""
+    url = (
+        reverse("n26-campaign-asset-assign", args=[campaign.pk, holding.pk])
+        + "?from=detail"
+    )
+    response = client.get(url, HTTP_HX_REQUEST="true")
+    assert response.context["back"] == address(campaign, holding)
+    response = client.post(url, {"membership": second.pk}, HTTP_HX_REQUEST="true")
+    assert response.context["details"].holder == second.gang.name
+    assert response["HX-Replace-Url"] == address(campaign, holding)

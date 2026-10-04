@@ -354,7 +354,7 @@ class TestTheQueryBudget:
             body = client.get(address).content.decode()
 
         assert "More 2" in body
-        assert body.count("Add one to Meat") == 6
+        assert body.count("Edit Meat") == 6
         assert len(more_queries.captured_queries) == len(few.captured_queries)
         # Rendering the assets and filling their addresses share the same
         # reader instance, so the staged-content flag is checked once.

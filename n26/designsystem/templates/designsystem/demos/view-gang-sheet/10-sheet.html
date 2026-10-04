@@ -42,8 +42,10 @@
             {% for counter in gang.counters %}
                 <c-n26.detail-list.row label="{{ counter.name }}" value="{{ counter.value }}" />
             {% endfor %}
-            <c-n26.campaign-block :campaign="gang.campaign" />
         </c-n26.detail-list>
+    </c-slot>
+    <c-slot name="campaign_state">
+        <c-n26.campaign-block :campaign="gang.campaign" />
     </c-slot>
     <c-slot name="actions">
         <c-ui.button size="sm" variant="primary" href="#">

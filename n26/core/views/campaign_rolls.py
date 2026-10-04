@@ -46,6 +46,7 @@ def record_campaign_roll(request, pk):
                 for value, label in form.fields["dice"].choices
             ],
             "roll_source": {
+                "requestKey": str(form["request_key"].value()),
                 "source": form["source"].value() or "",
                 "rolled": "" if rolled is None else str(rolled),
                 "choices": [

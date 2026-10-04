@@ -56,7 +56,6 @@ a page and its chrome is not visible in either one alone.
                 {% for counter in gang.counters %}
                     <c-n26.detail-list.row label="{{ counter.name }}" value="{{ counter.value }}" />
                 {% endfor %}
-                <c-n26.campaign-block :campaign="gang.campaign" />
             </c-n26.detail-list>
         </c-slot>
         {% comment %}
@@ -66,6 +65,9 @@ a page and its chrome is not visible in either one alone.
         below. A gang-level Buy would have to ask "for whom?" after you clicked
         it, which is a question the button should not have needed to ask.
         {% endcomment %}
+        <c-slot name="campaign_state">
+            <c-n26.campaign-block :campaign="gang.campaign" />
+        </c-slot>
         <c-slot name="actions">
             <c-ui.button size="sm"
                          variant="primary"

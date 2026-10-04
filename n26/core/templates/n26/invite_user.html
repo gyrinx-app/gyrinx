@@ -40,9 +40,10 @@
                         name="message"
                         for="invite-message"
                         description="{{ form.message.help_text }}">
-                <c-ui.textarea.impl id="invite-message" name="message" rows="3">
-                    {{ form.message.value|default_if_none:'' }}
-                </c-ui.textarea.impl>
+                {# Keep the input value free of template indentation. #}
+                {# djlint:off #}
+                <c-ui.textarea.impl id="invite-message" name="message" rows="3">{{ form.message.value|default_if_none:'' }}</c-ui.textarea.impl>
+                {# djlint:on #}
             </c-ui.field>
         {% else %}
             <c-ui.alert variant="info" title="No campaigns available">

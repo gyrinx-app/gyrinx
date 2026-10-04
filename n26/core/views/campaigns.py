@@ -1320,6 +1320,22 @@ def _campaign_asset_or_404(campaign, asset_pk):
         raise Http404("No such asset in this campaign") from None
 
 
+def _asset_back(request, campaign, holding):
+    from django.urls import reverse
+
+    if request.GET.get("from") == "detail":
+        return reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
+    return _assets_anchor(campaign)
+
+
+def _asset_update(request, campaign, holding):
+    if request.GET.get("from") == "detail":
+        from n26.core.views.campaign_assets import _asset_detail_update
+
+        return _asset_detail_update(request, campaign.pk, holding.pk)
+    return _campaign_update(request, campaign)
+
+
 def _holding_owner(campaign_asset, user):
     """Whether this reader owns the gang holding the asset."""
     return campaign_asset.held and campaign_asset.holder.gang.owner_id == getattr(
@@ -1515,8 +1531,8 @@ def assign_asset(request, pk, asset_pk):
                         request, f"Assigned {campaign_asset} to {membership.gang.name}."
                     )
             if is_htmx(request):
-                return _campaign_update(request, found)
-            return redirect(_assets_anchor(found))
+                return _asset_update(request, found, campaign_asset)
+            return redirect(_asset_back(request, found, campaign_asset))
     else:
         form = AssignAssetForm(playing=playing)
 
@@ -1534,14 +1550,15 @@ def assign_asset(request, pk, asset_pk):
                 (membership, str(membership.pk) == str(form["membership"].value()))
                 for membership in playing
             ],
-            "back": _assets_anchor(found),
+            "back": _asset_back(request, found, campaign_asset),
+            "action": request.get_full_path(),
             "redrawn": is_htmx(request),
             "reopened": is_htmx(request) and request.method == "POST",
         },
     )
 
     if is_htmx(request):
-        response["HX-Replace-Url"] = request.path
+        response["HX-Replace-Url"] = request.get_full_path()
     return response
 
 
@@ -1569,8 +1586,8 @@ def unassign_asset(request, pk, asset_pk):
     if not campaign_asset.held:
         messages.error(request, f"{campaign_asset} is not held by any gang.")
         if is_htmx(request):
-            return _campaign_update(request, found)
-        return redirect(_assets_anchor(found))
+            return _asset_update(request, found, campaign_asset)
+        return redirect(_asset_back(request, found, campaign_asset))
 
     if request.method == "POST":
         holder = campaign_asset.holder.gang.name
@@ -1590,8 +1607,8 @@ def unassign_asset(request, pk, asset_pk):
             else:
                 messages.success(request, f"Unassigned {campaign_asset} from {holder}.")
         if is_htmx(request):
-            return _campaign_update(request, found)
-        return redirect(_assets_anchor(found))
+            return _asset_update(request, found, campaign_asset)
+        return redirect(_asset_back(request, found, campaign_asset))
 
     response = render(
         request,
@@ -1601,12 +1618,13 @@ def unassign_asset(request, pk, asset_pk):
         {
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "back": _assets_anchor(found),
+            "back": _asset_back(request, found, campaign_asset),
+            "action": request.get_full_path(),
         },
     )
 
     if is_htmx(request):
-        response["HX-Replace-Url"] = request.path
+        response["HX-Replace-Url"] = request.get_full_path()
     return response
 
 
@@ -1626,6 +1644,7 @@ def transfer_asset(request, pk, asset_pk):
     from n26.core.forms import AssignAssetForm
     from n26.core.models import CampaignMembership
     from n26.core.operations import Refusal
+    from n26.core.views.htmx import is_htmx
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
@@ -1636,11 +1655,13 @@ def transfer_asset(request, pk, asset_pk):
     # A stale link to an asset nobody holds any more: nothing to hand over.
     if not campaign_asset.held:
         messages.error(request, f"{campaign_asset} is not held by any gang.")
-        return redirect(_assets_anchor(found))
+        if is_htmx(request):
+            return _asset_update(request, found, campaign_asset)
+        return redirect(_asset_back(request, found, campaign_asset))
     receiving = (
         CampaignMembership.objects.filter(campaign=found, left__isnull=True)
         .exclude(pk=campaign_asset.holder_id)
-        .select_related("gang", "gang__gang_type")
+        .select_related("gang", "gang__gang_type", "gang__owner")
         .order_by("gang__name")
     )
 
@@ -1666,26 +1687,40 @@ def transfer_asset(request, pk, asset_pk):
                         request,
                         f"{campaign_asset} went from {holder} to {membership.gang.name}.",
                     )
-            return redirect(_assets_anchor(found))
+            if is_htmx(request):
+                return _asset_update(request, found, campaign_asset)
+            return redirect(_asset_back(request, found, campaign_asset))
     else:
         form = AssignAssetForm(playing=receiving)
 
     _badge_a_redrawn_page(request, found)
-    return render(
+    response = render(
         request,
-        "n26/transfer_asset.html",
+        "n26/includes/campaign_transfer_dialog.html"
+        if is_htmx(request)
+        else "n26/transfer_asset.html",
         {
             "form": form,
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "receiving": receiving,
+            "choices": [
+                (membership, str(membership.pk) == str(form["membership"].value()))
+                for membership in receiving
+            ],
+            "redrawn": is_htmx(request),
+            "reopened": is_htmx(request) and request.method == "POST",
             # The arbitrator transfers; the holding gang's owner hands over.
             # Two words for one act, because the owner is giving something
             # of their own away and the arbitrator is moving the campaign's.
             "verb": "Transfer" if arbitrating else "Hand over",
-            "back": _assets_anchor(found),
+            "back": _asset_back(request, found, campaign_asset),
+            "action": request.get_full_path(),
         },
     )
+
+    if is_htmx(request):
+        response["HX-Replace-Url"] = request.get_full_path()
+    return response
 
 
 @requires_flag(CAMPAIGNS)

@@ -1,6 +1,4 @@
 {# title: Campaign choices, assets and counters #}
-{# note: The heading names the campaign; everything under it came from that campaign, including the Faction choice. Assets are grouped by their type’s plural. Settlements have a tooltip naming the campaign type that brought them. Territories link to the campaign’s assets; their income is summed on the Income counter. Reputation is an ordinary counter row, with the tally controls the gang's owner gets. #}
+{# note: The campaign has its own roster card. Each label and counter has a separate row; editable values use pencil dialogs on the gang page. Assets retain their authored groups. #}
 {# layout: full #}
-<c-n26.detail-list>
-    <c-n26.campaign-block :campaign="gang.campaign" />
-</c-n26.detail-list>
+<c-n26.campaign-block :campaign="gang.campaign" />

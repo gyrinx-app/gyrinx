@@ -303,9 +303,11 @@ def gang_sheet(request, pk):
     its own grid reaches. A fighter with no grid gets no control, which
     is a content gap showing rather than a screen being withheld.
     """
+    from django.template.response import TemplateResponse
+
     from n26.core.activities import activities_square, founding_blocks_visit
     from n26.core.card import build_gang_card
-    from n26.core.owned import DIALOGS, EquipHost
+    from n26.core.owned import DIALOGS, EquipHost, with_query
     from n26.core.render import render_gang
     from n26.core.views.choose import link_slots, settle_dismissed
     from n26.core.views.htmx import is_htmx
@@ -410,6 +412,9 @@ def gang_sheet(request, pk):
             # nowhere else, so here is the only place its controls can be
             # offered. The gang's own counters stay settled facts.
             link_counters(sheet.campaign, back=at, adjust=True)
+            for choice in sheet.campaign.choices:
+                if choice.href:
+                    choice.href = with_query(choice.href, dialog="campaign")
     # One question at a time: a URL naming two dialogs draws the leaving
     # one, because two open modals is not a state the page can mean.
     leaving = _leaving(request, gang) if yours else None
@@ -429,7 +434,7 @@ def gang_sheet(request, pk):
         and any(request.GET.get(kind) for kind in DIALOGS)
     ):
         dialog = owned_dialog(request, host)
-    return render(
+    return TemplateResponse(
         request,
         "n26/gang_sheet.html",
         {

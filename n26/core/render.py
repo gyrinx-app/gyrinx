@@ -282,7 +282,7 @@ class CounterLine:
     assignment_id: str = ""
     href: str = ""
     back: str = ""
-    #: Optional amount-entry screen, provided only for campaign controls.
+    #: Optional amount-entry dialog, provided only for campaign controls.
     adjust_href: str = ""
     #: Whether this is the XP counter, decided where the counter itself is
     #: to hand rather than re-derived from ``name`` — which is what a
@@ -1472,22 +1472,26 @@ class CampaignAssetGroup:
     provenance: Provenance = field(default_factory=Provenance)
 
 
-def group_campaign_assets(lines):
-    """One named list per type, with the shared xN convention."""
-    grouped = {}
+def group_campaign_assets(lines, *, types=()):
+    """One row per available type, with the shared xN convention."""
+    grouped = {key: [] for key, _ in types}
+    labels = dict(types)
     for line in lines:
         if line.type_plural:
-            grouped.setdefault(line.asset_type_id or line.type_plural, []).append(line)
+            key = line.asset_type_id or line.type_plural
+            labels.setdefault(key, line.type_plural)
+            grouped.setdefault(key, []).append(line)
     return [
         CampaignAssetGroup(
-            label=members[0].type_plural,
-            names=stacked_names(line.name for line in members),
+            label=labels[key],
+            names=stacked_names(line.name for line in members) if members else "None",
             held=any(line.campaign_asset_id for line in members),
             provenance=members[0].provenance
-            if all(line.provenance == members[0].provenance for line in members)
+            if members
+            and all(line.provenance == members[0].provenance for line in members)
             else Provenance(),
         )
-        for members in grouped.values()
+        for key, members in grouped.items()
     ]
 
 
@@ -1528,10 +1532,14 @@ class CampaignBlock:
     #: feature gets: the page behind these answers them with a 404.
     href: str = ""
     assets_href: str = ""
+    #: Available types remain visible even when this gang holds none.
+    asset_types: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def asset_groups(self):
-        return group_campaign_assets([*self.lines, *self.holdings])
+        return group_campaign_assets(
+            [*self.lines, *self.holdings], types=self.asset_types
+        )
 
     @property
     def other_lines(self):
@@ -3650,7 +3658,7 @@ def _campaign_block(gang_card, membership, keys, readings, index=None):
     the card was computed against, which already holds what each asset's
     income is read off.
     """
-    from n26.library.models import Asset
+    from n26.library.models import Asset, AssetType
 
     if membership is None:
         return None
@@ -3662,6 +3670,22 @@ def _campaign_block(gang_card, membership, keys, readings, index=None):
     return CampaignBlock(
         name=membership.campaign.name,
         campaign_id=str(membership.campaign_id),
+        asset_types=[
+            (str(asset_type.pk), asset_type.plural)
+            for asset_type in sorted(
+                AssetType.objects.filter(
+                    campaign_type_id__in=(
+                        membership.campaign.campaign_type_id,
+                        membership.campaign.additions_id,
+                    )
+                ),
+                key=lambda asset_type: (
+                    asset_type.campaign_type_id != membership.campaign.campaign_type_id,
+                    asset_type.position,
+                    asset_type.label_singular,
+                ),
+            )
+        ],
         lines=_possession_lines(
             possessions, types, _provenance_within(gang_card), income_for
         ),
@@ -4569,6 +4593,7 @@ class CampaignAssetAction:
     label: str
     href: str
     variant: str
+    attrs: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

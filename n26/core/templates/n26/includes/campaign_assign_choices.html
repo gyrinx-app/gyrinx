@@ -1,4 +1,7 @@
-<c-n26.radio-cards label="Gang" name="membership" :form="form" min="min(100%, 18rem)">
+<c-n26.radio-cards label="{{ choice_label|default:'Gang' }}"
+                   name="membership"
+                   :form="form"
+                   min="min(100%, 18rem)">
     {% for membership, checked in choices %}
         <c-n26.radio-cards.card name="membership"
                                 value="{{ membership.pk }}"
@@ -7,6 +10,6 @@
                                 :checked="checked"
                                 :wrap="True" />
     {% empty %}
-        <p class="text-sm text-muted">No gangs in this campaign yet.</p>
+        <p class="text-sm text-muted">{{ empty_label|default:"No gangs in this campaign yet." }}</p>
     {% endfor %}
 </c-n26.radio-cards>

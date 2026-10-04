@@ -241,3 +241,28 @@ def test_an_invalid_campaign_keeps_the_invitation_message(
     assert response.status_code == 200
     assert response.context["form"]["message"].value() == "Bring your gang."
     assert not CampaignParticipant.objects.filter(user=player).exists()
+
+
+def test_the_invitation_message_starts_empty_and_keeps_only_the_submitted_text(
+    client, people, campaign_type
+):
+    arbitrator, target, _ = people
+    found_campaign("Dust Falls", campaign_type, owner=arbitrator)
+    client.force_login(arbitrator)
+    url = reverse("n26-invite-user", args=[target.username])
+    response = client.get(url)
+    assert (
+        BeautifulSoup(response.content, "html.parser")
+        .find("textarea", {"name": "message"})
+        .get_text()
+        == ""
+    )
+    response = client.post(
+        url, {"campaign": "", "message": "  Test <message>\ncontinued  "}
+    )
+    assert (
+        BeautifulSoup(response.content, "html.parser")
+        .find("textarea", {"name": "message"})
+        .get_text()
+        == "  Test <message>\ncontinued  "
+    )

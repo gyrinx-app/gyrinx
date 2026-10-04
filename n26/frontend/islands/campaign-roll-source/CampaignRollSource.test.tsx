@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import {
@@ -7,6 +7,7 @@ import {
 } from "./CampaignRollSource";
 
 const props: CampaignRollSourceProps = {
+    requestKey: "9db976dd-3e3e-4392-84ee-dfa3dd31a1bd",
     source: "generated",
     rolled: "",
     choices: [
@@ -18,6 +19,30 @@ const props: CampaignRollSourceProps = {
 };
 
 describe("campaign roll source", () => {
+    it("starts a fresh submission when browser Back restores the form", () => {
+        const view = render(
+            <form>
+                <CampaignRollSource {...props} />
+            </form>,
+        );
+        const form = view.container.querySelector("form")!;
+        expect(new FormData(form).get("request_key")).toBe(props.requestKey);
+        act(() =>
+            window.dispatchEvent(
+                new PageTransitionEvent("pageshow", { persisted: false }),
+            ),
+        );
+        expect(new FormData(form).get("request_key")).toBe(props.requestKey);
+        act(() =>
+            window.dispatchEvent(
+                new PageTransitionEvent("pageshow", { persisted: true }),
+            ),
+        );
+        expect(new FormData(form).get("request_key")).not.toBe(
+            props.requestKey,
+        );
+    });
+
     it("enables and submits the physical result only for physical dice", async () => {
         const user = userEvent.setup();
         const view = render(

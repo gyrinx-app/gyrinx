@@ -86,7 +86,7 @@ Roll is primary because it begins a form. The other controls do not.
                             {% if entry.unassign_href or entry.transfer_href or entry.assign_href or entry.remove_href %}
                                 <div class="flex items-center justify-end gap-1">
                                     {% if entry.transfer_href %}
-                                        <c-ui.button size="xs" variant="default" href="{{ entry.transfer_href }}">{{ entry.transfer_label }}</c-ui.button>
+                                        <c-ui.button size="xs" variant="default" href="{{ entry.transfer_href }}" hx-get="{{ entry.transfer_href }}" hx-swap="none">{{ entry.transfer_label }}</c-ui.button>
                                     {% endif %}
                                     {% if entry.unassign_href %}
                                         <c-ui.button size="xs" variant="default" href="{{ entry.unassign_href }}"

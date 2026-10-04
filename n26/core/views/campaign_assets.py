@@ -28,6 +28,24 @@ from n26.library.references import reading_sentences
 @login_required
 @require_GET
 def asset_detail(request, pk, asset_pk):
+    return render(
+        request, "n26/campaign_asset.html", _asset_context(request, pk, asset_pk)
+    )
+
+
+def _asset_detail_update(request, pk, asset_pk):
+    from n26.core.views.htmx import with_toasts
+
+    context = _asset_context(request, pk, asset_pk)
+    context["redrawn"] = True
+    response = with_toasts(
+        request, render(request, "n26/includes/campaign_asset_update.html", context)
+    )
+    response["HX-Replace-Url"] = reverse("n26-campaign-asset", args=[pk, asset_pk])
+    return response
+
+
+def _asset_context(request, pk, asset_pk):
     campaign = _any_campaign_or_404(request, pk)
     holding = _campaign_asset_or_404(campaign, asset_pk)
     prefetch_related_objects(
@@ -40,10 +58,16 @@ def asset_detail(request, pk, asset_pk):
     actions = []
 
     def action(label, route, danger=False):
+        href = reverse(route, args=[campaign.pk, holding.pk])
+        attrs = {}
+        if not danger:
+            href += "?from=detail"
+            attrs = {"hx-get": href, "hx-swap": "none"}
         actions.append(
             CampaignAssetAction(
                 label=label,
-                href=reverse(route, args=[campaign.pk, holding.pk]),
+                href=href,
+                attrs=attrs,
                 variant="danger" if danger else "default",
             )
         )
@@ -83,27 +107,23 @@ def asset_detail(request, pk, asset_pk):
         )
     history = list(reversed(asset_ownership_history(holding)))
     page = Paginator(history, 50).get_page(request.GET.get("page"))
-    return render(
-        request,
-        "n26/campaign_asset.html",
-        {
-            "campaign": campaign,
-            "details": CampaignAssetDetails(
-                name=str(holding),
-                library_name=holding.asset.name if holding.name else "",
-                kind=holding.asset.asset_type.label_singular,
-                created=holding.created,
-                income=income_of(holding.asset),
-                boons=[boon_said(modifier) for modifier in boons_of(holding.asset)],
-                holder=holding.holder.gang.name if held else "",
-                holder_href=reverse("n26-gang", args=[holding.holder.gang_id])
-                if held
-                else "",
-            ),
-            "actions": actions,
-            "battles": battles,
-            "history": page.object_list,
-            "pages": _pages(request, page) if page.paginator.num_pages > 1 else None,
-            "total": page.paginator.count,
-        },
-    )
+    return {
+        "campaign": campaign,
+        "details": CampaignAssetDetails(
+            name=str(holding),
+            library_name=holding.asset.name if holding.name else "",
+            kind=holding.asset.asset_type.label_singular,
+            created=holding.created,
+            income=income_of(holding.asset),
+            boons=[boon_said(modifier) for modifier in boons_of(holding.asset)],
+            holder=holding.holder.gang.name if held else "",
+            holder_href=reverse("n26-gang", args=[holding.holder.gang_id])
+            if held
+            else "",
+        ),
+        "actions": actions,
+        "battles": battles,
+        "history": page.object_list,
+        "pages": _pages(request, page) if page.paginator.num_pages > 1 else None,
+        "total": page.paginator.count,
+    }

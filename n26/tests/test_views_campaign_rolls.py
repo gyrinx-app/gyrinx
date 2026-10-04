@@ -75,7 +75,9 @@ class TestRecordingPages:
         response = client.get(record_url(campaign))
         assert response.status_code == 200
         assert "Log a dice roll" in response.content.decode()
-        assert 'name="request_key"' in response.content.decode()
+        assert response.context["roll_source"]["requestKey"] == str(
+            response.context["form"]["request_key"].value()
+        )
         assert response.context["roll_source"]["source"] == "generated"
         assert response.context["roll_source"]["rolled"] == ""
         assert response.context["roll_source"]["sourceErrors"] == []
