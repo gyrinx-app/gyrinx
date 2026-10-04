@@ -54,7 +54,7 @@ Pass rate_at_paid from the posted form. A redraw must keep an untick after a nam
     </c-ui.field>
 
     <c-ui.field label="Price"
-                description="What the gang pays. The box below decides what they are worth."
+                description="Price to be paid in credits. Rating may be different."
                 for="hire-paid">
         {% hire_price_props field="paid" quoted=price label=profile price_cap=price_cap element_id="hire-paid" as props_ %}
         {% react_host "hire-price" props_ class="inline-flex" %}

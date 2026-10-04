@@ -30,9 +30,14 @@ describe("HirePrice", () => {
         fireEvent.change(screen.getByRole("spinbutton"), {
             target: { value: "80" },
         });
+        const box = screen.getByRole("spinbutton");
         const delta = document.querySelector("[title]");
-        expect(delta?.textContent).toBe("+25¢");
+        expect(delta?.textContent).toBe("(+25¢)");
         expect(delta?.getAttribute("title")).toBe("Listed at 55¢");
+        expect(
+            box.compareDocumentPosition(delta!) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
     });
 
     it("shows how far a lower price sits from the quote", () => {
@@ -40,7 +45,7 @@ describe("HirePrice", () => {
         fireEvent.change(screen.getByRole("spinbutton"), {
             target: { value: "30" },
         });
-        expect(document.querySelector("[title]")?.textContent).toBe("−25¢");
+        expect(document.querySelector("[title]")?.textContent).toBe("(−25¢)");
     });
 
     it("says nothing when the box is cleared or returned to the quote", () => {

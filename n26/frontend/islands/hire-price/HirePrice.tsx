@@ -29,14 +29,6 @@ export function HirePrice({
 
     return (
         <span className="flex items-center justify-end gap-1.5">
-            {delta && (
-                <span
-                    className="shrink-0 text-xs tabular-nums text-muted"
-                    title={`Listed at ${quoted}¢`}
-                >
-                    {delta}
-                </span>
-            )}
             <input
                 id={id || undefined}
                 type="number"
@@ -50,6 +42,14 @@ export function HirePrice({
                 className="w-16 shrink-0 rounded-control border border-box-border bg-[var(--color-input-bg)] px-1.5 py-1 text-right text-sm tabular-nums text-ink-900 shadow-[var(--shadow-input)] focus-ring dark:text-ink-100"
                 onChange={(event) => setRaw(event.target.value)}
             />
+            {delta && (
+                <span
+                    className="shrink-0 text-xs tabular-nums text-muted"
+                    title={`Listed at ${quoted}¢`}
+                >
+                    ({delta})
+                </span>
+            )}
         </span>
     );
 }
