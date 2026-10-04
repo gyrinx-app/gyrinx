@@ -1,0 +1,10 @@
+{% comment %}
+One roll table is a fixed choice. Both campaign roll forms use the same
+heading and table name; their hidden fields and validation stay in the form.
+{% endcomment %}
+<dl class="space-y-1">
+    <dt class="text-base font-semibold text-ink-900 dark:text-ink-100">Table</dt>
+    <dd class="text-base">
+        {{ question.only.name }} <span class="text-muted">· {{ question.only.die }}</span>
+    </dd>
+</dl>

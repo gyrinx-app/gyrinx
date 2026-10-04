@@ -75,37 +75,43 @@ Roll is primary because it begins a form. The other controls do not.
                                 <span class="text-muted">&mdash;</span>
                             {% endif %}
                         </td>
-                        <td class="min-w-24 max-w-40">
+                        <td class="w-1/3 min-w-40 max-w-64">
                             {% if entry.held %}
                                 <c-n26.link href="{{ entry.holder_href }}">{{ entry.holder }}</c-n26.link>
                             {% else %}
                                 <span class="text-muted">Unclaimed</span>
                             {% endif %}
                         </td>
-                        <td class="min-w-24 max-w-40 text-right">
+                        <td class="w-12 text-right">
                             {% if entry.unassign_href or entry.transfer_href or entry.assign_href or entry.remove_href %}
-                                <div class="flex flex-wrap items-center justify-end gap-1">
+                                <c-ui.button size="sm" variant="ghost"
+                                             popovertarget="asset-actions-{{ entry.campaign_asset_id }}"
+                                             aria-label="Actions for {{ entry.name }}"
+                                             title="Actions for {{ entry.name }}">
+                                    <span class="n26-icon-only gap-0.5">
+                                        <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                        <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                    </span>
+                                </c-ui.button>
+                                {# The native popover escapes the table's scroll container and supports Tab and Escape. #}
+                                <div id="asset-actions-{{ entry.campaign_asset_id }}" popover="auto"
+                                     role="group" aria-label="Actions for {{ entry.name }}"
+                                     class="max-h-[min(24rem,75dvh,calc(100%-1rem))] w-48 overflow-y-auto rounded-control border border-box-border bg-surface p-1 text-ink-900 shadow-lg dark:bg-ink-900 dark:text-ink-100"
+                                     style="inset: auto; position-area: bottom span-left; position-try-fallbacks: flip-block, flip-inline; margin: 0.25rem 0;">
                                     {% if entry.transfer_href %}
-                                        <c-ui.button size="xs" variant="default" href="{{ entry.transfer_href }}" hx-get="{{ entry.transfer_href }}" hx-swap="none">{{ entry.transfer_label }}</c-ui.button>
+                                        <c-ui.button size="sm" variant="ghost" class="w-full text-left!" href="{{ entry.transfer_href }}" hx-get="{{ entry.transfer_href }}" hx-swap="none">{{ entry.transfer_label }}</c-ui.button>
                                     {% endif %}
                                     {% if entry.unassign_href %}
-                                        <c-ui.button size="xs" variant="default" href="{{ entry.unassign_href }}"
+                                        <c-ui.button size="sm" variant="ghost" class="w-full text-left!" href="{{ entry.unassign_href }}"
                                                      hx-get="{{ entry.unassign_href }}" hx-swap="none">Unassign</c-ui.button>
                                     {% endif %}
                                     {% if entry.assign_href %}
-                                        <c-ui.button size="xs" variant="default" href="{{ entry.assign_href }}"
+                                        <c-ui.button size="sm" variant="ghost" class="w-full text-left!" href="{{ entry.assign_href }}"
                                                      hx-get="{{ entry.assign_href }}" hx-swap="none">Assign</c-ui.button>
                                     {% endif %}
                                     {% if entry.remove_href %}
-                                        <c-ui.button size="xs"
-                                                     variant="ghost"
-                                                     href="{{ entry.remove_href }}"
-                                                     aria-label="Remove {{ entry.name }}"
-                                                     title="Remove this asset">
-                                            <span class="n26-icon-only">
-                                                <c-n26.icon name="x" class="size-4" />
-                                            </span>
-                                        </c-ui.button>
+                                        <c-ui.button size="sm" variant="ghost" class="w-full text-left! text-red-600! dark:text-red-400!"
+                                                     href="{{ entry.remove_href }}">Remove</c-ui.button>
                                     {% endif %}
                                 </div>
                             {% endif %}

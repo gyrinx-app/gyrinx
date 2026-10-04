@@ -296,7 +296,11 @@ class TestTheGangSheet:
         assert "Settlement" in body
         assert "Reputation" in body
         state = BeautifulSoup(body, "html.parser").find(id="n26-campaign-state")
-        assert state.find("h2").get_text(strip=True) == membership.campaign.name
+        heading = state.find("h2")
+        assert (
+            heading.get_text(" ", strip=True)
+            == f"Campaign · {membership.campaign.name}"
+        )
         assert "Settlements" in state.get_text()
 
 

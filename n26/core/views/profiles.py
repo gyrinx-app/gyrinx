@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.db.models import OuterRef, Q, Subquery
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -24,11 +25,26 @@ class PublicGang:
 
 
 def _person(username):
-    return get_object_or_404(
-        User.objects.all(),
-        username__iexact=username,
-        is_active=True,
-    )
+    people = User.objects.filter(is_active=True)
+    exact = people.filter(username=username).first()
+    if exact is not None:
+        return exact
+    matches = list(people.filter(username__iexact=username)[:2])
+    if len(matches) == 1:
+        return matches[0]
+    raise Http404("No unambiguous active username matches.")
+
+
+def user_profile_by_id(request, pk):
+    person = get_object_or_404(User, pk=pk, is_active=True)
+    return redirect("n26-user-profile", username=person.username)
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def invite_user_by_id(request, pk):
+    person = get_object_or_404(User, pk=pk, is_active=True)
+    return invite_user(request, person.username)
 
 
 def _owned_campaigns(user, person):

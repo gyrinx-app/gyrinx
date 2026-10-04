@@ -220,7 +220,7 @@ def test_profile_and_invitation_urls_use_the_whole_username(
     player = User.objects.create_user(username)
     found_campaign("Available league", campaign_type, owner=arbitrator)
     profile = reverse("n26-user-profile", args=[username])
-    assert unquote(profile) == f"/n26/users/{username}/"
+    assert unquote(profile) == f"/n26/users/@{username}/"
     assert client.get(profile).context["person"] == player
     assert client.get(profile.lower()).context["person"] == player
     invitation = reverse("n26-invite-user", args=[username])
@@ -265,4 +265,48 @@ def test_the_invitation_message_starts_empty_and_keeps_only_the_submitted_text(
         .find("textarea", {"name": "message"})
         .get_text()
         == "  Test <message>\ncontinued  "
+    )
+
+
+@pytest.mark.parametrize("route", ["n26-user-profile", "n26-invite-user"])
+def test_exact_username_wins_and_ambiguous_case_fallback_is_not_found(
+    client, people, route
+):
+    lower = User.objects.create_user("alice")
+    upper = User.objects.create_user("Alice")
+    for person in [lower, upper]:
+        response = client.get(reverse(route, args=[person.username]))
+        assert response.status_code == 200
+        assert response.context["person"] == person
+    assert client.get(reverse(route, args=["ALICE"])).status_code == 404
+
+
+def test_numeric_username_and_legacy_id_links_target_different_accounts(
+    client, people, campaign_type
+):
+    arbitrator, original, _ = people
+    numeric = User.objects.create_user(str(original.pk))
+    campaign = found_campaign("Legacy league", campaign_type, owner=arbitrator)
+    legacy = reverse("n26-user-profile-by-id", args=[original.pk])
+    response = client.get(legacy)
+    assert response.status_code == 302
+    assert response.url == reverse("n26-user-profile", args=[original.username])
+    assert (
+        client.get(reverse("n26-user-profile", args=[numeric.username])).context[
+            "person"
+        ]
+        == numeric
+    )
+    invitation = reverse("n26-invite-user-by-id", args=[original.pk])
+    assert client.get(invitation).context["person"] == original
+    response = client.post(
+        invitation, {"campaign": str(campaign.pk), "message": "Join us"}
+    )
+    assert response.status_code == 302
+    assert CampaignParticipant.objects.get(campaign=campaign).user == original
+    assert (
+        client.get(reverse("n26-invite-user", args=[numeric.username])).context[
+            "person"
+        ]
+        == numeric
     )

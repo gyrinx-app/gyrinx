@@ -118,6 +118,47 @@ def test_held_actions_follow_existing_owner_and_arbitrator_permissions(
     assert {action.label for action in response.context["actions"]} == labels
 
 
+@pytest.mark.parametrize("person", ["arbitrator", "player", "reader"])
+@pytest.mark.parametrize("held", [True, False])
+def test_asset_dropdown_keeps_permission_gated_links_and_dialog_fetches(
+    client, setup, person, held
+):
+    arbitrator, player, campaign, holding, _, _ = setup
+    if not held:
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            op.unassign(holding)
+    viewer = {"arbitrator": arbitrator, "player": player}.get(person)
+    client.force_login(viewer or User.objects.create_user("reader"))
+    soup = BeautifulSoup(
+        client.get(reverse("n26-campaign", args=[campaign.pk])).content,
+        "html.parser",
+    )
+    panel_id = f"asset-actions-{holding.pk}"
+    panel = soup.find(id=panel_id)
+    labels = (
+        {"Transfer", "Unassign"}
+        if held and person == "arbitrator"
+        else {"Hand over", "Unassign"}
+        if held and person == "player"
+        else {"Assign", "Remove"}
+        if not held and person == "arbitrator"
+        else set()
+    )
+    if not labels:
+        assert panel is None
+        assert soup.find("button", popovertarget=panel_id) is None
+        return
+    assert panel["popover"] == "auto"
+    trigger = soup.find("button", popovertarget=panel_id)
+    assert trigger["aria-label"] == f"Actions for {holding.name}"
+    links = panel.find_all("a")
+    assert {link.get_text(strip=True) for link in links} == labels
+    for link in links:
+        if link.get_text(strip=True) != "Remove":
+            assert link["hx-get"] == link["href"]
+            assert link["hx-swap"] == "none"
+
+
 def test_unclaimed_asset_offers_assign_remove_only_to_arbitrator(client, setup):
     arbitrator, player, campaign, holding, _, _ = setup
     with campaign_operation(campaign, actor=arbitrator) as op:

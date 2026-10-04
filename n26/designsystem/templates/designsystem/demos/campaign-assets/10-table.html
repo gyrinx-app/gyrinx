@@ -1,5 +1,5 @@
 {# title: One asset type's assets #}
-{# note: Every asset of one asset type, with its income, its boons in the author's own words, and who holds it. An asset with a name of its own in this campaign shows the library asset's name under it. The controls are the arbitrator's: Transfer and Unassign on a held asset, Assign and Remove on an unclaimed one; Add and Create on the heading. #}
+{# note: Every asset of one asset type, with its income, its boons in the author's own words, and who holds it. An asset with a name of its own in this campaign shows the library asset's name under it. Each asset has an actions dropdown. These controls are the arbitrator's: Transfer and Unassign on a held asset, Assign and Remove on an unclaimed one; Add and Create on the heading. #}
 {# layout: full #}
 {% for table in campaign_sheet.assets %}
     <c-n26.campaign-assets :table="table" />

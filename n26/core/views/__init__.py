@@ -104,7 +104,12 @@ from n26.core.views.post_battle import (
     post_battle_receipt,
 )
 from n26.core.views.printing import print_gang, print_setup
-from n26.core.views.profiles import invite_user, user_profile
+from n26.core.views.profiles import (
+    invite_user,
+    invite_user_by_id,
+    user_profile,
+    user_profile_by_id,
+)
 from n26.core.views.skills import skills
 from n26.core.views.switchers import switcher_page
 
@@ -203,5 +208,7 @@ __all__ = [
     "switcher_page",
     "tally_counter",
     "invite_user",
+    "invite_user_by_id",
     "user_profile",
+    "user_profile_by_id",
 ]

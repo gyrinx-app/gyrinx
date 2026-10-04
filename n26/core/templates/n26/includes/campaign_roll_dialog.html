@@ -48,12 +48,7 @@ so the act's button in the footer and the field in the body share it.
             <input type="hidden" name="type" value="{{ question.asset_type_id }}">
             {% if question.only %}
                 <input type="hidden" name="table" value="{{ question.only.table_id }}">
-                <dl class="space-y-1">
-                    <dt class="text-base font-semibold text-ink-900 dark:text-ink-100">Table</dt>
-                    <dd class="text-base">
-                        {{ question.only.name }} <span class="text-muted">· {{ question.only.die }}</span>
-                    </dd>
-                </dl>
+                {% include "n26/includes/campaign_roll_table.html" %}
                 {# A table posted that is not this one is refused in the form's words. #}
                 <c-ui.error :form="form" name="table" />
             {% else %}

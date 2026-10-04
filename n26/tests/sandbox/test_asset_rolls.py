@@ -753,7 +753,9 @@ class TestThePages:
         # One table is a fact, not a choice: named with its die, no radio,
         # and posted hidden.
         assert 'type="radio"' not in body
-        assert "Territory Selection Table · D66" in body
+        assert "Territory Selection Table · D66" in BeautifulSoup(
+            body, "html.parser"
+        ).get_text(" ", strip=True)
         assert f'type="hidden" name="table" value="{selection_table.pk}"' in body
         assert (
             "Each rolled territory will be added to the campaign as unclaimed." in body

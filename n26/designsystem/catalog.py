@@ -2292,9 +2292,11 @@ GROUPS: list[Group] = [
                     "Every asset of one asset type, showing who holds each and its "
                     "available actions."
                 ),
-                needs=(ALPINE, KIT_JS),
+                needs=(KIT_JS,),
                 notes=(
-                    "Call it once per transferable asset type. A control is drawn "
+                    "Call it once per transferable asset type. Asset actions open "
+                    "in a native popover outside the scrolling table. Tab moves "
+                    "through its links and Escape closes it. A control is drawn "
                     "only where the structure carries its address, "
                     "so a reader who may not act sees no controls rather than "
                     "disabled ones; n26.core.views.campaigns fills them for the "

@@ -13,8 +13,15 @@ from n26.library import views as authoring_views
 
 urlpatterns = [
     path("", views.dashboard, name="n26-dashboard"),
-    path("users/<str:username>/", views.user_profile, name="n26-user-profile"),
-    path("users/<str:username>/invite/", views.invite_user, name="n26-invite-user"),
+    path("users/@<str:username>/", views.user_profile, name="n26-user-profile"),
+    path("users/@<str:username>/invite/", views.invite_user, name="n26-invite-user"),
+    # Numeric legacy links identify an account by ID, never by username.
+    path("users/<int:pk>/", views.user_profile_by_id, name="n26-user-profile-by-id"),
+    path(
+        "users/<int:pk>/invite/", views.invite_user_by_id, name="n26-invite-user-by-id"
+    ),
+    path("users/<str:username>/", views.user_profile),
+    path("users/<str:username>/invite/", views.invite_user),
     # The shared changelog lives at /changelog/. These addresses remain
     # because links to them are already out, and they open that page
     # narrowed to this edition.
