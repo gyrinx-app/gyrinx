@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.record-table.gang-row> — One gang listing in a record table, with wealth and optional Edit and Print buttons.
+<c-n26.record-table.gang-row> — One gang listing in a record table, with wealth and either buttons or an actions menu.
 
 A record table filters these data attributes without replacing the listing markup.
 Search includes the gang type as well as the name.
@@ -11,17 +11,21 @@ Keep the type outside the name link so the accessible name stays the gang's name
 The colour mark sits inside the name link so the focus ring covers both and they cannot wrap apart.
 The actions cell spans both grid rows so the buttons sit against the name and the wealth strip together.
 Campaign links must be supplied only for campaigns the reader can see.
-Pass :edit="False" to drop the Edit button where the row link is enough.
 Pass the owner's name as text. A user object will not draw as a link here.
 The sheet must carry model_count. The strip leads with it.
+layout="buttons" draws an Edit button, and Print when print_href is set.
+layout="menu" draws the gang type's artwork large beside the strip, and a menu of View gang, Edit gang settings and Print.
+The menu needs edit_href. Print appears only when print_href is set.
+In the menu layout, a type with no artwork still holds its slot on the wide layout, so the strips line up.
 {% endcomment %}
 
-<c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" :edit="True" print_href=""
+{% load artwork %}
+<c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" layout="buttons" edit_href="" print_href=""
         owner="" campaign_name="" campaign_href="" class="" />
 
 <div data-record-row data-record-type="{{ type }}" data-record-search="{{ name|add:' '|add:type|lower }}"
      class="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-1 py-3
-            hover:bg-ink-500/5 @2xl:grid-cols-[minmax(0,1fr)_17rem_9rem] {{ class }}">
+            hover:bg-ink-500/5 {% if layout == 'menu' %}@2xl:grid-cols-[minmax(0,1fr)_20rem_auto]{% else %}@2xl:grid-cols-[minmax(0,1fr)_17rem_9rem]{% endif %} {{ class }}">
 
     <div class="col-start-1 row-start-1 min-w-0">
 
@@ -31,9 +35,13 @@ The sheet must carry model_count. The strip leads with it.
         </a>
 
         <p class="text-sm text-muted">
-            <c-n26.flair-link text="{{ type }}" tone="current">
-                <c-n26.flair.gang-type :icon="type_icon" />
-            </c-n26.flair-link>
+            {% if layout == "menu" %}
+                <c-n26.flair-link text="{{ type }}" tone="current" />
+            {% else %}
+                <c-n26.flair-link text="{{ type }}" tone="current">
+                    <c-n26.flair.gang-type :icon="type_icon" />
+                </c-n26.flair-link>
+            {% endif %}
             {% if owner %}<span class="text-muted"> · {{ owner }}</span>{% endif %}
         </p>
         {% if campaign_href %}
@@ -43,18 +51,51 @@ The sheet must carry model_count. The strip leads with it.
         {% endif %}
     </div>
 
-    <c-n26.wealth :sheet="sheet" lead="models"
-                  class="col-start-1 row-start-2 justify-self-start @2xl:col-start-2 @2xl:row-start-1" />
+    {% if layout == "menu" %}
+        <div class="col-start-1 row-start-2 flex min-w-0 items-center gap-3 justify-self-start
+                    @2xl:col-start-2 @2xl:row-start-1">
+            {% with artwork=type_icon|safe_artwork %}
+                <span class="n26-icon-inline [--n26-icon-size:2.25rem] text-ink-800 dark:text-ink-200 {% if not artwork %}hidden @2xl:inline-flex{% endif %}"
+                      aria-hidden="true">{{ artwork }}</span>
+            {% endwith %}
+            <c-n26.wealth :sheet="sheet" lead="models" class="min-w-0" />
+        </div>
+    {% else %}
+        <c-n26.wealth :sheet="sheet" lead="models"
+                      class="col-start-1 row-start-2 justify-self-start @2xl:col-start-2 @2xl:row-start-1" />
+    {% endif %}
 
     {# This cell is relative so the buttons paint above the stretched link. #}
     <div class="relative col-start-2 row-start-1 row-span-2 flex shrink-0 flex-col
                 items-stretch gap-2 justify-self-end
                 @2xl:col-start-3 @2xl:row-span-1 @2xl:flex-row @2xl:items-center">
-        {% if edit %}
+        {% if layout == "menu" %}
+            <c-ui.dropdown align="end" min_width="12rem" strategy="fixed">
+                <c-slot name="trigger">
+                    {# A doubled colon passes this Alpine binding through. A single colon resolves to nothing. #}
+                    <c-ui.button size="sm"
+                                 variant="ghost"
+                                 aria-label="Actions for {{ name }}"
+                                 title="Actions for {{ name }}"
+                                 aria-haspopup="menu"
+                                 ::aria-expanded="dropdownMenu">
+                        <span class="n26-icon-only gap-0.5">
+                            <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                            <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                        </span>
+                    </c-ui.button>
+                </c-slot>
+                <c-ui.dropdown.item href="{{ href }}">View gang</c-ui.dropdown.item>
+                <c-ui.dropdown.item href="{{ edit_href }}">Edit gang settings</c-ui.dropdown.item>
+                {% if print_href %}
+                    <c-ui.dropdown.item href="{{ print_href }}">Print</c-ui.dropdown.item>
+                {% endif %}
+            </c-ui.dropdown>
+        {% else %}
             <c-ui.button size="sm" variant="default" href="{{ href }}">Edit</c-ui.button>
-        {% endif %}
-        {% if print_href %}
-            <c-ui.button size="sm" variant="default" href="{{ print_href }}">Print</c-ui.button>
+            {% if print_href %}
+                <c-ui.button size="sm" variant="default" href="{{ print_href }}">Print</c-ui.button>
+            {% endif %}
         {% endif %}
     </div>
 </div>
