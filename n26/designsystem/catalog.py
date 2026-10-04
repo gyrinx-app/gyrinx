@@ -2418,7 +2418,7 @@ GROUPS: list[Group] = [
                         (
                             "The plus and minus that post a change of one on a "
                             "counter line, drawn only where that line carries an "
-                            "address."
+                            "address. An optional Adjust link opens amount entry."
                         ),
                     ),
                     Part(

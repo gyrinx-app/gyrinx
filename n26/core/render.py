@@ -281,6 +281,8 @@ class CounterLine:
     assignment_id: str = ""
     href: str = ""
     back: str = ""
+    #: Optional amount-entry screen, provided only for campaign controls.
+    adjust_href: str = ""
     #: Whether this is the XP counter, decided where the counter itself is
     #: to hand rather than re-derived from ``name`` — which is what a
     #: reader sees, and carries the counter's annotation with it, so an

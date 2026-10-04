@@ -1165,3 +1165,22 @@ class CampaignRollForm(forms.Form):
 
 class CampaignRollOutcomeForm(forms.Form):
     outcome = forms.CharField(max_length=512, required=False, widget=forms.Textarea)
+
+
+class CounterAdjustmentForm(forms.Form):
+    """A signed change to the recorded part of a counter."""
+
+    def __init__(self, *args, maximum, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["change"] = forms.IntegerField(
+            label="Amount",
+            min_value=-maximum,
+            max_value=maximum,
+            help_text="Use a positive number to add or a negative number to remove. Recorded values stop at zero.",
+        )
+
+    def clean_change(self):
+        change = self.cleaned_data["change"]
+        if not change:
+            raise forms.ValidationError("Enter an amount to add or remove.")
+        return change
