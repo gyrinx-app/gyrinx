@@ -117,3 +117,64 @@ def by_day(acts):
             days.append(Day(date=date, acts=[]))
         days[-1].acts.append(act)
     return days
+
+
+def filter_campaign_acts(request, acts):
+    """Narrow complete acts, retaining folded transfers and their identities."""
+    from django.contrib.auth.models import User
+
+    from n26.core.forms import CampaignLogFilterForm
+    from n26.core.models import Gang
+
+    def actor_of(act):
+        if act.actor_pk is not None:
+            return act.actor_pk
+        if act.actor_user is not None:
+            return act.actor_user.pk
+        return request.user.pk if act.actor == "You" else None
+
+    def gangs_of(act):
+        return {act.gang_pk, *act.related_gang_pks} - {""}
+
+    people = {actor_of(act) for act in acts} - {None}
+    gang_ids = {pk for act in acts for pk in gangs_of(act)}
+    players = sorted(
+        User.objects.filter(pk__in=people).values_list("pk", "username"),
+        key=lambda row: row[1].casefold(),
+    )
+    gangs = sorted(
+        Gang.objects.filter(pk__in=gang_ids).values_list("pk", "name"),
+        key=lambda row: row[1].casefold(),
+    )
+    kinds = {**KINDS, "gang": "Gang changes", "campaign": "Campaign activity"}
+    form = CampaignLogFilterForm(
+        request.GET or None, players=players, gangs=gangs, kinds=kinds.items()
+    )
+    filtered = acts
+    if form.is_bound:
+        if not form.is_valid():
+            filtered = []
+        else:
+            data = form.cleaned_data
+            if data["player"]:
+                filtered = [
+                    act for act in filtered if str(actor_of(act)) == data["player"]
+                ]
+            if data["gang"]:
+                filtered = [act for act in filtered if data["gang"] in gangs_of(act)]
+            if data["kind"]:
+                filtered = [act for act in filtered if act.category == data["kind"]]
+            if data["from_date"]:
+                filtered = [
+                    act
+                    for act in filtered
+                    if timezone.localdate(act.when) >= data["from_date"]
+                ]
+            if data["to_date"]:
+                filtered = [
+                    act
+                    for act in filtered
+                    if timezone.localdate(act.when) <= data["to_date"]
+                ]
+    narrowed = any(request.GET.get(name) for name in form.fields)
+    return form, filtered, narrowed
