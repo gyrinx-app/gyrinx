@@ -135,6 +135,7 @@ def test_manage_subpage_has_one_page_heading(client, user):
     html = client.get(reverse("account_logout")).content.decode()
     assert len(re.findall(r"<h1\b", html)) == 1
     assert re.search(r"<h2\b[^>]*>\s*Sign Out\s*</h2>", html)
+    assert "<a" not in re.search(r"<h1\b[^>]*>(.*?)</h1>", html, re.S).group(1)
 
 
 @pytest.mark.django_db
@@ -211,6 +212,23 @@ def test_allauth_badge_keeps_explanatory_tooltip():
         origin=Origin("test", template_name="account/test_adapter.html"),
     ).render(Context())
     assert 'title="Example explanation"' in html
+
+
+@pytest.mark.parametrize(
+    "attrs, submit",
+    [
+        ("", True),
+        ('type="submit"', True),
+        ('type="button"', False),
+        ('href="/"', False),
+    ],
+)
+def test_allauth_button_uses_success_for_submit_only(attrs, submit):
+    html = Template(
+        "{% load allauth %}{% element button " + attrs + " %}Example{% endelement %}",
+        origin=Origin("test", template_name="account/test_adapter.html"),
+    ).render(Context())
+    assert ("bg-green-700" in html) == submit
 
 
 @pytest.mark.django_db

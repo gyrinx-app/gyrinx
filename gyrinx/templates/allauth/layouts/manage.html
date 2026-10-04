@@ -4,7 +4,7 @@
     {% with account_manage=True %}
         <c-n26.page-header lead="Member since {{ user.date_joined|date:'F Y' }}">
             <c-slot name="title">
-                <c-n26.user-link :user="user" tone="current" />
+                <c-n26.user-link :user="user" :linked="False" tone="current" />
             </c-slot>
         </c-n26.page-header>
         {% account_tabs as tabs %}

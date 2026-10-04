@@ -2,7 +2,7 @@
 {% allauth_button_attrs attrs as button_attrs %}
 <c-ui.button href="{{ attrs.href }}"
              :attrs="button_attrs"
-             variant="{% if 'danger' in attrs.tags %}danger{% elif 'link' in attrs.tags or 'cancel' in attrs.tags %}text{% elif 'secondary' in attrs.tags or 'outline' in attrs.tags %}default{% elif attrs.type == 'submit' or not attrs.href %}success{% else %}primary{% endif %}">
+             variant="{% if 'danger' in attrs.tags %}danger{% elif 'link' in attrs.tags or 'cancel' in attrs.tags %}text{% elif 'secondary' in attrs.tags or 'outline' in attrs.tags %}default{% elif attrs.type == 'submit' or not attrs.type and not attrs.href %}success{% else %}primary{% endif %}">
     {% slot %}
     {% endslot %}
 </c-ui.button>
