@@ -139,7 +139,14 @@ class TestRecordingPages:
         assert (roll.rolled, roll.modifier, roll.total) == (rolled, -2, rolled - 2)
         assert roll.actor == player
         assert roll.source == "manual"
-        assert "Physical dice" in client.get(response.url).content.decode()
+        page = client.get(response.url)
+        faces = (
+            [str(rolled // 10), str(rolled % 10)] if dice == "d66" else [str(rolled)]
+        )
+        assert page.context["faces"] == faces
+        for face in faces:
+            assert f'aria-label="A die showing {face}"' in page.content.decode()
+        assert "Physical dice" in page.content.decode()
         assert LedgerEvent.objects.count() == 0
 
     @pytest.mark.parametrize(

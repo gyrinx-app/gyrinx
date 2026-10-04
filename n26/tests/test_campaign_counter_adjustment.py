@@ -1,8 +1,12 @@
 """One deliberate campaign counter change, retaining existing tally permissions."""
 
+import json
+
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
@@ -173,3 +177,69 @@ def test_removing_from_zero_shows_an_error_without_recording_an_empty_change(
     assert "already 0" in response.context["form"].errors["change"][0]
     assert events(held).count() == before
     assert (reading(gang).value, reading(gang).tallied) == (3, 0)
+
+
+@pytest.mark.parametrize("actor", ["arbitrator", "player"])
+@pytest.mark.parametrize("origin", ["n26-campaign", "n26-gang"])
+def test_one_point_updates_just_the_counter_and_sends_a_toast(
+    client, setup, actor, origin
+):
+    arbitrator, player, campaign, gang, held = setup
+    client.force_login(arbitrator if actor == "arbitrator" else player)
+    back = reverse(origin, args=[campaign.pk if origin == "n26-campaign" else gang.pk])
+    response = client.post(
+        address(held), {"change": 1, "back": back}, HTTP_HX_REQUEST="true"
+    )
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.content, "html.parser")
+    host = soup.find(id=f"n26-counter-{held.pk}")
+    assert host["hx-swap-oob"] == "true"
+    assert host.select_one("[data-counter-value]").get_text(strip=True) == "6"
+    assert not soup.find("html")
+    assert not soup.find(id="n26-campaign-gangs")
+    assert "HX-Replace-Url" not in response
+    assert (
+        json.loads(response["HX-Trigger"])["n26-toasts"][0]["message"]
+        == "Meat is now 6."
+    )
+    assert (reading(gang).value, reading(gang).tallied) == (6, 3)
+    assert {form["hx-post"] for form in host.find_all("form")} == {address(held)}
+    assert all(
+        form.find("input", {"name": "back"})["value"] == back
+        for form in host.find_all("form")
+    )
+
+
+def test_the_owner_sheets_use_async_counter_controls(client, setup):
+    _, player, campaign, gang, held = setup
+    client.force_login(player)
+    for route, pk in [("n26-campaign", campaign.pk), ("n26-gang", gang.pk)]:
+        soup = BeautifulSoup(
+            client.get(reverse(route, args=[pk])).content, "html.parser"
+        )
+        host = soup.find(id=f"n26-counter-{held.pk}")
+        assert host
+        assert len(host.find_all("form", {"hx-post": address(held)})) == 2
+
+
+def test_the_async_counter_update_does_not_load_other_campaign_gangs(
+    client, setup, gang_type
+):
+    arbitrator, player, campaign, _, held = setup
+    payload = {"change": 1, "back": reverse("n26-campaign", args=[campaign.pk])}
+    client.post(address(held), payload, HTTP_HX_REQUEST="true")
+    with CaptureQueriesContext(connection) as few:
+        assert (
+            client.post(address(held), payload, HTTP_HX_REQUEST="true").status_code
+            == 200
+        )
+    for number in range(6):
+        other = found_gang(f"Other gang {number}", gang_type, owner=player)
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            op.add_gang(other)
+    with CaptureQueriesContext(connection) as many:
+        assert (
+            client.post(address(held), payload, HTTP_HX_REQUEST="true").status_code
+            == 200
+        )
+    assert len(many) <= len(few)

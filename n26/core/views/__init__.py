@@ -82,6 +82,7 @@ from n26.core.views.gangs import (
     pay_ransom,
     refund_fighter,
     rename_fighter,
+    use_campaign_budget,
 )
 from n26.core.views.hire import hire_card, hire_fighter
 from n26.core.views.history import gang_history
@@ -171,6 +172,7 @@ __all__ = [
     "base_rating",
     "edit_fighter",
     "edit_gang",
+    "use_campaign_budget",
     "equip",
     "equip_gang",
     "fighter_options",

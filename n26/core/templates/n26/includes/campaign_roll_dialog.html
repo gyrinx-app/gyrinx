@@ -48,11 +48,12 @@ so the act's button in the footer and the field in the body share it.
             <input type="hidden" name="type" value="{{ question.asset_type_id }}">
             {% if question.only %}
                 <input type="hidden" name="table" value="{{ question.only.table_id }}">
-                <c-n26.detail-list>
-                    <c-n26.detail-list.row label="Table" :editable="False">
-                        {{ question.only.name }} · {{ question.only.die }}
-                    </c-n26.detail-list.row>
-                </c-n26.detail-list>
+                <dl class="space-y-1">
+                    <dt class="text-base font-semibold text-ink-900 dark:text-ink-100">Table</dt>
+                    <dd class="text-base">
+                        {{ question.only.name }} <span class="text-muted">· {{ question.only.die }}</span>
+                    </dd>
+                </dl>
                 {# A table posted that is not this one is refused in the form's words. #}
                 <c-ui.error :form="form" name="table" />
             {% else %}
@@ -77,10 +78,13 @@ so the act's button in the footer and the field in the body share it.
                         name="rolled"
                         for="{{ question.kind }}-roll">
                 <c-slot name="description">
-                    {{ form.rolled.help_text }}
-                    {% for table in question.tables %}
-                        <span x-show="table === '{{ table.table_id }}'">A {{ table.die }} roll is {{ table.lowest }} to {{ table.highest }}.</span>
-                    {% endfor %}
+                    <div class="text-sm text-muted">
+                        {{ form.rolled.help_text }}
+                        {% for table in question.tables %}
+                            <span class="block"
+                                  x-show="table === '{{ table.table_id }}'">A {{ table.die }} roll is {{ table.lowest }} to {{ table.highest }}.</span>
+                        {% endfor %}
+                    </div>
                 </c-slot>
                 <c-ui.input id="{{ question.kind }}-roll"
                             name="rolled"

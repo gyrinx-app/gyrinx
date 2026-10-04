@@ -1321,6 +1321,36 @@ def refund_assignment(request, pk):
     return _acted(request, touched, gang, back)
 
 
+def _campaign_counter_update(request, assignment, gang, back):
+    """Redraw one computed campaign counter, including rules contributions."""
+    from n26.core.card import build_gang_card, build_modifier_index, carriers
+    from n26.core.effects import compute_gang
+    from n26.core.render import build_campaign_block
+    from n26.core.views.htmx import with_toasts
+
+    card = build_gang_card(gang)
+    index = build_modifier_index(carriers(card, *card.members.values()))
+    block = build_campaign_block(card, index=index, computed=compute_gang(card, index))
+    if block is None:
+        return no_update(request)
+    link_counters(block, back=back, adjust=True)
+    counter = next(
+        (line for line in block.counters if line.assignment_id == str(assignment.pk)),
+        None,
+    )
+    if counter is None:
+        return no_update(request)
+    messages.success(request, f"{counter.name} is now {counter.value}.")
+    return with_toasts(
+        request,
+        render(
+            request,
+            "n26/includes/campaign_counter_value.html",
+            {"counter": counter, "redrawn": True},
+        ),
+    )
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def tally_counter(request, pk):
@@ -1457,6 +1487,8 @@ def tally_counter(request, pk):
             miniature,
             back or reverse("n26-edit-fighter", args=[miniature.pk]),
         )
+    if miniature is None and is_htmx(request) and not adjusting:
+        return _campaign_counter_update(request, assignment, gang, back or here)
     if adjusting:
         messages.success(request, f"{name}: recorded value is now {standing}.")
     else:

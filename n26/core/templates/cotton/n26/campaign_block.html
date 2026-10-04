@@ -67,8 +67,11 @@ class lands on every heading and fact. There is no container of its own to put i
                 {% endif %}
             </c-slot>
             {% spaceless %}
-                <span class="tabular-nums">{{ counter.value }}</span>
-                {% if counter.href %}<c-n26.counter-controls :counter="counter" />{% endif %}
+                {% if counter.href %}
+                    {% include "n26/includes/campaign_counter_value.html" with redrawn=False %}
+                {% else %}
+                    <span class="tabular-nums">{{ counter.value }}</span>
+                {% endif %}
             {% endspaceless %}
         </c-n26.detail-list.row>
     {% endfor %}

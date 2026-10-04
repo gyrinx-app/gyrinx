@@ -634,6 +634,33 @@ class TestTheAssetsOnTheCampaignPage:
         campaign_assets[0].refresh_from_db()
         assert campaign_assets[0].holder == membership
 
+    @pytest.mark.parametrize("arbitrating", [True, False])
+    def test_unassigning_in_a_dialog_preserves_the_viewers_permissions(
+        self, client, campaign_assets, gang, campaign, player, arbitrator, arbitrating
+    ):
+        assign_asset(campaign_assets[0], gang)
+        client.force_login(arbitrator if arbitrating else player)
+        at = reverse(
+            "n26-campaign-asset-unassign", args=[campaign.pk, campaign_assets[0].pk]
+        )
+        question = client.get(at, HTTP_HX_REQUEST="true")
+        html = question.content.decode()
+        assert "The gang's history and campaign log will record this change." in html
+        assert "You can immediately reassign this territory." in html
+        assert "The asset becomes unclaimed" not in html
+        assert 'id="n26-asset-dialog-host" hx-swap-oob="true"' in html
+        assert question["HX-Replace-Url"] == at
+        response = client.post(at, HTTP_HX_REQUEST="true")
+        assert response.status_code == 200
+        campaign_assets[0].refresh_from_db()
+        assert campaign_assets[0].holder_id is None
+        assert "Unassigned Old Ruins from The Ashen Choir." in response["HX-Trigger"]
+        html = response.content.decode()
+        assert 'id="n26-asset-dialog-host" hx-swap-oob="true"' in html
+        add_type = reverse("n26-campaign-add-asset-type", args=[campaign.pk])
+        assert (add_type in html) == arbitrating
+        assert response["HX-Replace-Url"] == reverse("n26-campaign", args=[campaign.pk])
+
     def test_the_holding_gangs_owner_hands_an_asset_back(
         self, client, campaign_assets, gang, campaign, player
     ):
@@ -720,6 +747,18 @@ def recruiting_asset(old_ruins, person_type, gang_type):
 
 
 class TestRecruitBoons:
+    def test_the_campaign_boon_explains_that_the_recruit_stays(
+        self, campaign, recruiting_asset
+    ):
+        from n26.core.render import boon_said
+
+        asset, profile = recruiting_asset
+        recruitment = asset.modifiers.get(name="Old Ruins recruits a fighter")
+        said = boon_said(recruitment)
+        assert profile.name in said
+        assert "stay with the gang when this asset is lost" in said
+        assert "leaves again" not in said
+
     def test_grant_recruits_once_and_loss_keeps_the_model(
         self, campaign, gang, recruiting_asset
     ):

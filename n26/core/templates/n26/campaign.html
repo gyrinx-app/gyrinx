@@ -90,7 +90,7 @@ reader's other campaigns — the same pattern a gang's screens use.
                                  href="{% url 'n26-campaign-record-roll' campaign.pk %}">
                         <c-n26.icon name="dices" class="size-4" />
                     </c-ui.button>
-                    <c-ui.dropdown>
+                    <c-ui.dropdown align="end" strategy="fixed">
                         <c-slot name="trigger">
                             <c-ui.button size="sm" variant="default" aria-label="More actions">
                                 <span class="n26-icon-only gap-0.5">
@@ -103,6 +103,7 @@ reader's other campaigns — the same pattern a gang's screens use.
                             View log
                         </c-ui.dropdown.item>
                         {% if yours %}
+                            <c-ui.dropdown.item href="{% url 'n26-edit-campaign' campaign.pk %}?tab=counters-and-labels">Counters and labels</c-ui.dropdown.item>
                             <c-ui.dropdown.item href="{% url 'n26-archive-campaign' campaign.pk %}">Archive campaign</c-ui.dropdown.item>
                         {% endif %}
                     </c-ui.dropdown>
@@ -254,5 +255,7 @@ reader's other campaigns — the same pattern a gang's screens use.
     {% endcomment %}
     {% if yours %}
         {% include "n26/includes/campaign_roll_dialogs.html" with redrawn=False %}
+    {% else %}
+        <div id="n26-roll-dialog-host"></div>
     {% endif %}
 {% endblock content %}

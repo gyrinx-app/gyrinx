@@ -523,7 +523,9 @@ def _campaign_update(request, campaign):
     from n26.core.views.htmx import with_toasts
 
     sheet = render_campaign(campaign, viewer=request.user)
-    _fill_addresses(sheet, campaign, yours=True, viewer=request.user)
+    _fill_addresses(
+        sheet, campaign, yours=campaign.owner_id == request.user.pk, viewer=request.user
+    )
     acts, more_acts = _recent_acts(campaign, request.user)
     response = render(
         request,
@@ -811,11 +813,21 @@ def campaign_log(request, pk):
 @login_required
 def edit_campaign(request, pk):
     """The facts an arbitrator may change after setting up."""
+    from django.db.models import Q
+    from django.urls import reverse
+
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import CampaignForm
+    from n26.library.models import DefaultAssignment
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    tab = request.GET.get("tab", "general")
+    if tab != "counters-and-labels" or request.method == "POST":
+        tab = "general"
+    edit_url = reverse("n26-edit-campaign", args=[found.pk])
+    counters = []
+    labels = []
 
     if request.method == "POST":
         form = CampaignForm(request.POST)
@@ -827,7 +839,7 @@ def edit_campaign(request, pk):
             record(request, N26Noun.CAMPAIGN, EventVerb.UPDATE, found)
             messages.success(request, f"Saved {found.name}.")
             return redirect("n26-campaign", pk=found.pk)
-    else:
+    elif tab == "general":
         form = CampaignForm(
             initial={
                 "name": found.name,
@@ -836,11 +848,45 @@ def edit_campaign(request, pk):
             }
         )
 
+    else:
+        form = None
+        members = (
+            DefaultAssignment.objects.filter(
+                default_set_id__in=(
+                    found.campaign_type.built_ins_id,
+                    found.additions.built_ins_id,
+                ),
+                archived=False,
+            )
+            .filter(Q(counter__isnull=False) | Q(slot__isnull=False))
+            .select_related("counter", "slot")
+            .order_by("position", "pk")
+        )
+        for member in members:
+            if member.counter_id:
+                counters.append({"name": str(member.counter), "opening": member.amount})
+            if member.slot_id:
+                labels.append({"name": member.slot.choice_label})
+
     _badge_a_redrawn_page(request, found)
     return render(
         request,
         "n26/edit_campaign.html",
-        {"form": form, "campaign": found},
+        {
+            "form": form,
+            "campaign": found,
+            "tab": tab,
+            "edit_tabs": [
+                {"label": "General", "href": edit_url, "current": tab == "general"},
+                {
+                    "label": "Counters and labels",
+                    "href": f"{edit_url}?tab=counters-and-labels",
+                    "current": tab == "counters-and-labels",
+                },
+            ],
+            "counters": counters,
+            "labels": labels,
+        },
     )
 
 
@@ -1507,6 +1553,7 @@ def unassign_asset(request, pk, asset_pk):
 
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
+    from n26.core.views.htmx import is_htmx
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
@@ -1517,6 +1564,8 @@ def unassign_asset(request, pk, asset_pk):
     # A stale link to an asset nobody holds any more: nothing to ask.
     if not campaign_asset.held:
         messages.error(request, f"{campaign_asset} is not held by any gang.")
+        if is_htmx(request):
+            return _campaign_update(request, found)
         return redirect(_assets_anchor(found))
 
     if request.method == "POST":
@@ -1536,17 +1585,25 @@ def unassign_asset(request, pk, asset_pk):
                 messages.error(request, f"{campaign_asset} is not held by any gang.")
             else:
                 messages.success(request, f"Unassigned {campaign_asset} from {holder}.")
+        if is_htmx(request):
+            return _campaign_update(request, found)
         return redirect(_assets_anchor(found))
 
-    return render(
+    response = render(
         request,
-        "n26/unassign_asset.html",
+        "n26/includes/campaign_unassign_dialog.html"
+        if is_htmx(request)
+        else "n26/unassign_asset.html",
         {
             "campaign": found,
             "campaign_asset": campaign_asset,
             "back": _assets_anchor(found),
         },
     )
+
+    if is_htmx(request):
+        response["HX-Replace-Url"] = request.path
+    return response
 
 
 @requires_flag(CAMPAIGNS)
@@ -1827,6 +1884,12 @@ def new_asset(request, pk):
     )
 
 
+def _campaign_settings_url(campaign):
+    from django.urls import reverse
+
+    return reverse("n26-edit-campaign", args=[campaign.pk]) + "?tab=counters-and-labels"
+
+
 @requires_flag(CAMPAIGNS)
 @login_required
 def add_counter(request, pk):
@@ -1841,7 +1904,7 @@ def add_counter(request, pk):
         return f"Added the counter {counter}. Every gang starts at {data['opening']}."
 
     return _addition_page(
-        request, found, form, "n26/add_counter.html", act, _gangs_anchor(found)
+        request, found, form, "n26/add_counter.html", act, _campaign_settings_url(found)
     )
 
 
@@ -1859,7 +1922,7 @@ def add_label(request, pk):
         return f"Added the label {slot.choice_label}. Every gang picks one option."
 
     return _addition_page(
-        request, found, form, "n26/add_label.html", act, _gangs_anchor(found)
+        request, found, form, "n26/add_label.html", act, _campaign_settings_url(found)
     )
 
 

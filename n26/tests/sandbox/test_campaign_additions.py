@@ -948,9 +948,7 @@ class TestTheArbitratorsControlsOnThePage:
     def test_the_arbitrator_sees_the_controls_and_a_player_does_not(
         self, client, campaign, gang
     ):
-        """What the arbitrator adds shows where it lands — a counter as a
-        column of the gangs table — and the controls that add more sit on
-        those headings, for the arbitrator alone."""
+        """Counters stay on the gang table; their management opens from Edit."""
         add_campaign_counter(campaign, "Meat", opening=3)
         page = reverse("n26-campaign", args=[campaign.pk])
 
@@ -958,17 +956,24 @@ class TestTheArbitratorsControlsOnThePage:
         body = client.get(page).content.decode()
         assert 'id="additions"' not in body
         assert "Meat" in body
-        for name in (
-            "n26-campaign-add-asset-type",
-            "n26-campaign-add-counter",
-            "n26-campaign-add-label",
-        ):
-            assert reverse(name, args=[campaign.pk]) in body
+        assert reverse("n26-campaign-add-asset-type", args=[campaign.pk]) in body
+        settings = (
+            reverse("n26-edit-campaign", args=[campaign.pk])
+            + "?tab=counters-and-labels"
+        )
+        assert settings in body
+        for name in ("n26-campaign-add-counter", "n26-campaign-add-label"):
+            assert reverse(name, args=[campaign.pk]) not in body
+        settings_body = client.get(settings).content.decode()
+        for name in ("n26-campaign-add-counter", "n26-campaign-add-label"):
+            assert reverse(name, args=[campaign.pk]) in settings_body
         assert reverse("n26-campaign-new-asset", args=[campaign.pk]) + "?type=" in body
 
         client.force_login(gang.owner)
         body = client.get(page).content.decode()
         assert "Meat" in body
+        assert settings not in body
+        assert client.get(settings).status_code == 404
         for name in (
             "n26-campaign-add-asset-type",
             "n26-campaign-add-counter",

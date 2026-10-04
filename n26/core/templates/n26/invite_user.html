@@ -1,16 +1,16 @@
 {% extends "n26/layouts/base.html" %}
 {% block head_title %}Invite {{ person.username }}{% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-invite-user' person.pk %}"
+    <c-n26.form-page action="{% url 'n26-invite-user' person.username %}"
                      title="Invite {{ person.username }}"
-                     lead="Select a campaign. You can add a message on the next screen."
+                     lead="Select a campaign and send an invitation."
                      :form="form"
-                     submit_label="{% if options %}Continue{% endif %}"
-                     cancel_url="{% url 'n26-user-profile' person.pk %}">
+                     submit_label="{% if options %}Invite{% endif %}"
+                     cancel_url="{% url 'n26-user-profile' person.username %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">Home</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'n26-user-profile' person.pk %}">{{ person.username }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-user-profile' person.username %}">{{ person.username }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
                     Invite
                 </c-ui.breadcrumbs.item>
@@ -33,6 +33,16 @@
                         </c-ui.select.option>
                     {% endfor %}
                 </c-ui.select.native>
+            </c-ui.field>
+            <c-ui.field label="Message"
+                        error="x"
+                        :form="form"
+                        name="message"
+                        for="invite-message"
+                        description="{{ form.message.help_text }}">
+                <c-ui.textarea.impl id="invite-message" name="message" rows="3">
+                    {{ form.message.value|default_if_none:'' }}
+                </c-ui.textarea.impl>
             </c-ui.field>
         {% else %}
             <c-ui.alert variant="info" title="No campaigns available">

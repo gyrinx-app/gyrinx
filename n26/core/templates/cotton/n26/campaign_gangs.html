@@ -77,8 +77,11 @@ The menu uses strategy fixed so the table's scroll wrapper does not clip it. On 
                         {% if line is None %}
                             <span class="text-muted">&mdash;</span>
                         {% else %}
-                            {{ line.value }}
-                            {% if line.href %}<c-n26.counter-controls :counter="line" />{% endif %}
+                            {% if line.href %}
+                                {% include "n26/includes/campaign_counter_value.html" with counter=line redrawn=False %}
+                            {% else %}
+                                {{ line.value }}
+                            {% endif %}
                         {% endif %}
                     </td>
                 {% endfor %}

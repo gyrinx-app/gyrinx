@@ -13,8 +13,8 @@ from n26.library import views as authoring_views
 
 urlpatterns = [
     path("", views.dashboard, name="n26-dashboard"),
-    path("users/<int:pk>/", views.user_profile, name="n26-user-profile"),
-    path("users/<int:pk>/invite/", views.invite_user, name="n26-invite-user"),
+    path("users/<str:username>/", views.user_profile, name="n26-user-profile"),
+    path("users/<str:username>/invite/", views.invite_user, name="n26-invite-user"),
     # The shared changelog lives at /changelog/. These addresses remain
     # because links to them are already out, and they open that page
     # narrowed to this edition.
@@ -217,6 +217,11 @@ urlpatterns = [
         "gangs/<str:pk>/hire/card/<str:profile>/",
         views.hire_card,
         name="n26-hire-card",
+    ),
+    path(
+        "gangs/<str:pk>/budget/campaign/",
+        views.use_campaign_budget,
+        name="n26-use-campaign-budget",
     ),
     path("gangs/<str:pk>/edit/", views.edit_gang, name="n26-edit-gang"),
     path("gangs/<str:pk>/clone/", views.clone_gang, name="n26-clone-gang"),

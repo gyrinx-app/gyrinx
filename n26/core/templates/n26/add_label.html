@@ -28,6 +28,9 @@ gang's sheet asks it and each gang's owner picks there.
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    Counters and labels
+                </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
                     Add a label
                 </c-ui.breadcrumbs.item>

@@ -2,11 +2,8 @@
 {% load navigation %}
 {% load static %}
 {% comment %}
-Editing a standing campaign. The same fields as the set-up screen, from the
-same include, so the two cannot drift into asking different questions.
-
-The submit takes the footer's default green: green is the commit, whether it
-is a Save or a Create. Blue is for a control that *opens* a form.
+The URL selects General or Counters and labels. General edits the same
+fields as campaign setup; the other tab lists the campaign's definitions.
 {% endcomment %}
 {% block head_title %}Edit {{ campaign.name }}{% endblock head_title %}
 {% comment %}
@@ -15,8 +12,10 @@ swaps the editor's skin with the colour mode has to be registered before
 django-tinymce reads its config.
 {% endcomment %}
 {% block extra_head %}
-    <script src="{% static 'n26/richtext.js' %}"></script>
-    {{ form.media }}
+    {% if tab == "general" %}
+        <script src="{% static 'n26/richtext.js' %}"></script>
+        {{ form.media }}
+    {% endif %}
 {% endblock extra_head %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
@@ -26,24 +25,86 @@ django-tinymce reads its config.
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-edit-campaign' campaign.pk %}"
-                     title="Edit {{ campaign.name }}"
-                     :form="form"
-                     submit_label="Save campaign"
-                     cancel_url="{% url 'n26-campaign' campaign.pk %}">
-        <c-slot name="breadcrumb">
-            <c-ui.breadcrumbs>
-                <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="campaign.owner" tone="current" />
-                </c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item :current="True">
-                    Edit
-                </c-ui.breadcrumbs.item>
-            </c-ui.breadcrumbs>
-        </c-slot>
-        {% csrf_token %}
-        {% include "n26/includes/campaign_form_fields.html" %}
-    </c-n26.form-page>
+    {% if tab == "counters-and-labels" %}
+        <div class="max-w-3xl space-y-8">
+            <c-n26.page-header title="Edit {{ campaign.name }}">
+                <c-slot name="breadcrumb">
+                    <c-ui.breadcrumbs>
+                        <c-ui.breadcrumbs.item>
+                            <c-n26.user-link :user="campaign.owner" tone="current" />
+                        </c-ui.breadcrumbs.item>
+                        <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                        <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                        <c-ui.breadcrumbs.item :current="True">
+                            Edit
+                        </c-ui.breadcrumbs.item>
+                    </c-ui.breadcrumbs>
+                </c-slot>
+            </c-n26.page-header>
+            <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
+            <c-n26.section title="Counters">
+                <c-slot name="actions">
+                    <c-ui.button size="sm"
+                                 variant="primary"
+                                 href="{% url 'n26-campaign-add-counter' campaign.pk %}">Add counter</c-ui.button>
+                </c-slot>
+                {% if counters %}
+                    <c-ui.table>
+                        <thead>
+                            <tr>
+                                <th scope="col">Counter</th>
+                                <th scope="col" class="text-right">Starting value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for counter in counters %}
+                                <tr>
+                                    <td>{{ counter.name }}</td>
+                                    <td class="text-right tabular-nums">{{ counter.opening }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </c-ui.table>
+                {% else %}
+                    <p class="text-sm text-muted">No campaign counters.</p>
+                {% endif %}
+            </c-n26.section>
+            <c-n26.section title="Labels">
+                <c-slot name="actions">
+                    <c-ui.button size="sm"
+                                 variant="primary"
+                                 href="{% url 'n26-campaign-add-label' campaign.pk %}">Add label</c-ui.button>
+                </c-slot>
+                {% if labels %}
+                    <ul class="divide-y divide-box-border">
+                        {% for label in labels %}<li class="py-3 text-sm">{{ label.name }}</li>{% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-sm text-muted">No campaign labels.</p>
+                {% endif %}
+            </c-n26.section>
+        </div>
+    {% else %}
+        <c-n26.form-page action="{% url 'n26-edit-campaign' campaign.pk %}"
+                         title="Edit {{ campaign.name }}"
+                         :form="form"
+                         submit_label="Save campaign"
+                         cancel_url="{% url 'n26-campaign' campaign.pk %}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item>
+                        <c-n26.user-link :user="campaign.owner" tone="current" />
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Edit
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+            <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
+            {% csrf_token %}
+            {% include "n26/includes/campaign_form_fields.html" %}
+        </c-n26.form-page>
+    {% endif %}
 {% endblock content %}

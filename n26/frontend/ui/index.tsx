@@ -597,6 +597,7 @@ export function RadioCard({
     onChange,
     flair,
     className = "",
+    children,
 }: {
     name: string;
     value: string;
@@ -609,12 +610,11 @@ export function RadioCard({
     onChange: () => void;
     flair?: ReactNode;
     className?: string;
+    children?: ReactNode;
 }) {
     const recipe = cotton.radioCards.card;
-    return (
-        <label
-            className={`${disabled ? recipe.disabled : recipe.enabled} ${className}`}
-        >
+    const control = (
+        <>
             <input
                 type="radio"
                 name={name}
@@ -651,8 +651,21 @@ export function RadioCard({
                     </span>
                 )}
             </span>
-        </label>
+        </>
     );
+    const rootClass = `${disabled ? recipe.disabled : recipe.enabled} ${className}`;
+    // A field inside a choice needs its own label, outside the radio's label.
+    if (children) {
+        return (
+            <div className={`${rootClass} flex-col`}>
+                <label className="flex w-full cursor-pointer items-start gap-3">
+                    {control}
+                </label>
+                <div className="w-full">{children}</div>
+            </div>
+        );
+    }
+    return <label className={rootClass}>{control}</label>;
 }
 
 export function Card({ children }: { children: ReactNode }) {

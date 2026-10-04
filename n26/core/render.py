@@ -4370,6 +4370,11 @@ def boon_said(modifier):
     elif isinstance(effect, AddsAssignable) and effect.thing is not None:
         thing = effect.thing
         said = f"{getattr(thing, 'name', None) or thing}."
+    elif isinstance(effect, OpAddsMiniature):
+        said = (
+            f"Gain {effect.profile.name} for free. "
+            "Recruited models stay with the gang when this asset is lost."
+        )
     else:
         return sentence_for(modifier, carriage=GANG_CARRIAGE).text
     if scope.is_conditional:

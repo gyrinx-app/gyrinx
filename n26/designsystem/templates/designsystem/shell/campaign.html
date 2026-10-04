@@ -54,7 +54,7 @@ be judged side by side.
                 <c-ui.button size="sm" variant="default" href="#" aria-label="Log a dice roll">
                     <c-n26.icon name="dices" class="size-4" />
                 </c-ui.button>
-                <c-ui.dropdown>
+                <c-ui.dropdown align="end" strategy="fixed">
                     <c-slot name="trigger">
                         <c-ui.button size="sm" variant="default" aria-label="More actions">
                             <span class="n26-icon-only gap-0.5">
@@ -65,6 +65,9 @@ be judged side by side.
                     </c-slot>
                     <c-ui.dropdown.item href="#">
                         View log
+                    </c-ui.dropdown.item>
+                    <c-ui.dropdown.item href="#">
+                        Counters and labels
                     </c-ui.dropdown.item>
                     <c-ui.dropdown.item href="#">
                         Archive campaign

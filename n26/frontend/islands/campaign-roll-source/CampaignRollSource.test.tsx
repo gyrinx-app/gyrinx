@@ -26,9 +26,16 @@ describe("campaign roll source", () => {
             </form>,
         );
         const result = screen.getByRole("spinbutton", {
-            name: "Result if already rolled",
+            name: "Result",
         }) as HTMLInputElement;
         const form = view.container.querySelector("form")!;
+        const manualRadio = screen.getByRole("radio", {
+            name: "I already rolled",
+        });
+        expect(manualRadio.closest("label")!.contains(result)).toBe(false);
+        expect(
+            manualRadio.closest("label")!.parentElement!.contains(result),
+        ).toBe(true);
         expect(result.disabled).toBe(true);
         expect(new FormData(form).has("rolled")).toBe(false);
         await user.click(
@@ -62,7 +69,7 @@ describe("campaign roll source", () => {
             />,
         );
         const result = screen.getByRole("spinbutton", {
-            name: "Result if already rolled",
+            name: "Result",
         }) as HTMLInputElement;
         expect(result.disabled).toBe(false);
         expect(result.value).toBe("17");

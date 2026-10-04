@@ -11,7 +11,7 @@ back cannot be read off the request after an htmx redraw, so the line carries it
 
 Plus always draws. Callers that should not offer a change must not mount this.
 An adjust_href adds an amount-entry link below the one-point controls.
-Set htmx only on a screen that holds the model card host. Anywhere else the act runs and the card does not change.
+Set htmx only on a screen that holds the model card host or the campaign counter value host.
 {% endcomment %}
 
 <c-vars :counter="None" :htmx="False" />
@@ -58,7 +58,7 @@ Set htmx only on a screen that holds the model card host. Anywhere else the act 
 
 {% if counter.adjust_href %}
     <span class="mt-1 block text-xs">
-        <c-n26.link href="{{ counter.adjust_href }}" aria-label="Adjust {{ counter.name }}">
+        <c-n26.link href="{{ counter.adjust_href }}" aria-label="Adjust {{ counter.name }}" class="inline-flex items-center">
             Adjust
             <c-slot name="trailing"><c-n26.icon name="arrow-right" class="ml-1 size-3" /></c-slot>
         </c-n26.link>

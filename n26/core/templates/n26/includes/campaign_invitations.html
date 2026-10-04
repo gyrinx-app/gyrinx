@@ -6,47 +6,54 @@ the campaign; declining uses the validated return address.
 {% if invitations %}
     <section class="flex flex-col gap-2">
         <h2 class="text-sm font-medium text-muted">Invitations</h2>
-        <ul class="flex flex-col">
+        <ul class="grid max-w-4xl gap-4 md:grid-cols-2">
             {% for invitation in invitations %}
-                <li class="flex flex-col items-start gap-3 border-b border-box-border/50 py-2 last:border-b-0 sm:flex-row sm:items-center">
-                    <div class="min-w-0 flex-1">
-                        <p class="text-base font-semibold">
-                            <a href="{% url 'n26-campaign' invitation.campaign.pk %}"
-                               class="hover:underline">{{ invitation.campaign.name }}</a>
-                        </p>
-                        <p class="text-sm text-muted">
-                            from
-                            {% if invitation.campaign.owner %}
-                                <c-n26.user-link :user="invitation.campaign.owner" tone="current" />
-                            {% else %}
-                                an arbitrator
-                            {% endif %}
-                        </p>
-                        {% if invitation.message %}
-                            <p class="mt-0.5 text-sm text-muted">“{{ invitation.message }}”</p>
-                        {% endif %}
-                    </div>
-                    <form action="{% url 'n26-campaign-answer-invitation' invitation.campaign.pk %}"
-                          method="post"
-                          class="flex shrink-0 items-center gap-3">
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{{ back }}">
-                        <c-ui.button type="submit"
-                                     name="answer"
-                                     value="accept"
-                                     size="sm"
-                                     variant="success">
-                            Accept
-                        </c-ui.button>
-                        <c-ui.button type="submit"
-                                     name="answer"
-                                     value="decline"
-                                     size="sm"
-                                     variant="danger"
-                                     :outlined="True">
-                            Decline
-                        </c-ui.button>
-                    </form>
+                <li>
+                    <c-ui.card padding="sm" class="h-full">
+                        <div class="flex h-full flex-col items-start gap-4">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-base font-semibold">
+                                    <a href="{% url 'n26-campaign' invitation.campaign.pk %}"
+                                       class="hover:underline">{{ invitation.campaign.name }}</a>
+                                </p>
+                                <p class="text-sm text-muted">
+                                    from
+                                    {% if invitation.campaign.owner %}
+                                        <c-n26.user-link :user="invitation.campaign.owner" tone="current" />
+                                    {% else %}
+                                        an arbitrator
+                                    {% endif %}
+                                </p>
+                                {% if invitation.message %}
+                                    {# Keep template indentation out of the preserved message whitespace. #}
+                                    {# djlint:off #}
+                                    <blockquote class="mt-3 whitespace-pre-wrap border-l-2 border-box-border pl-3 text-sm text-muted">{{ invitation.message }}</blockquote>
+                                    {# djlint:on #}
+                                {% endif %}
+                            </div>
+                            <form action="{% url 'n26-campaign-answer-invitation' invitation.campaign.pk %}"
+                                  method="post"
+                                  class="mt-auto flex shrink-0 items-center gap-3">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ back }}">
+                                <c-ui.button type="submit"
+                                             name="answer"
+                                             value="accept"
+                                             size="sm"
+                                             variant="success">
+                                    Accept
+                                </c-ui.button>
+                                <c-ui.button type="submit"
+                                             name="answer"
+                                             value="decline"
+                                             size="sm"
+                                             variant="danger"
+                                             :outlined="True">
+                                    Decline
+                                </c-ui.button>
+                            </form>
+                        </div>
+                    </c-ui.card>
                 </li>
             {% endfor %}
         </ul>

@@ -1337,7 +1337,7 @@ class TestWhatAParticipantSees:
         # The name is drawn through <c-n26.user-link>, which wraps it so the
         # badge the arbitrator holds can follow it.
         assert re.search(r"arbitrated by <a[^>]*><span[^>]*>kesh<", drawn)
-        assert reverse("n26-user-profile", args=[theirs.owner.pk]) in drawn
+        assert reverse("n26-user-profile", args=[theirs.owner.username]) in drawn
         assert f"/n26/campaigns/{theirs.pk}/edit/" not in drawn
 
     def test_a_question_still_waiting_is_not_one_of_their_campaigns(

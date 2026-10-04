@@ -18,7 +18,7 @@ export function CampaignRollSource(props: CampaignRollSourceProps) {
         <div className="space-y-5">
             <RadioCards
                 legend="How to roll *"
-                min="min(100%, 9rem)"
+                min="min(100%, 18rem)"
                 errors={props.sourceErrors}
             >
                 {props.choices.map((choice) => (
@@ -29,27 +29,32 @@ export function CampaignRollSource(props: CampaignRollSourceProps) {
                         label={choice.label}
                         checked={source === choice.value}
                         onChange={() => setSource(choice.value)}
-                    />
+                    >
+                        {choice.value === "manual" && (
+                            <Field
+                                label="Result"
+                                htmlFor={id}
+                                errors={props.rolledErrors}
+                            >
+                                <Input
+                                    id={id}
+                                    name="rolled"
+                                    type="number"
+                                    min={1}
+                                    max={66}
+                                    inputMode="numeric"
+                                    disabled={!manual}
+                                    required={manual}
+                                    value={rolled}
+                                    onChange={(event) =>
+                                        setRolled(event.target.value)
+                                    }
+                                />
+                            </Field>
+                        )}
+                    </RadioCard>
                 ))}
             </RadioCards>
-            <Field
-                label="Result if already rolled"
-                htmlFor={id}
-                errors={props.rolledErrors}
-            >
-                <Input
-                    id={id}
-                    name="rolled"
-                    type="number"
-                    min={1}
-                    max={66}
-                    inputMode="numeric"
-                    disabled={!manual}
-                    required={manual}
-                    value={rolled}
-                    onChange={(event) => setRolled(event.target.value)}
-                />
-            </Field>
         </div>
     );
 }
