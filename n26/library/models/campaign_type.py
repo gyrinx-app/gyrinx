@@ -210,7 +210,7 @@ class Asset(Content, Assignable):
     What having it does for the gang rides it as ordinary modifiers. Its
     **income** is one of them: a contribution to the system Income counter
     (``n26.library.income``), so a gang's Income reads as the sum of what
-    it holds. Nothing collects that reading yet.
+    it holds.
 
     Assignable so that an inherent asset can be built into its campaign type
     and arrive on every member gang, and so that an asset of either

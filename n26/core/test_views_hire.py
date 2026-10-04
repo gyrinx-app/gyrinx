@@ -707,6 +707,8 @@ class TestTheTypedPrice:
         body = client.get(dialog_url(gang, ganger)).content.decode()
         assert 'name="paid"' in body
         assert 'value="55"' in body
+        assert 'max="100000"' in body
+        assert 'x-data="{ quoted:' not in body
 
     def test_a_typed_price_is_charged_and_the_quote_is_the_rating(
         self, client, tester, gang, ganger

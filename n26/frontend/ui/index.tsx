@@ -94,6 +94,9 @@ export function Button({
     );
 }
 
+export type ButtonLinkSize = keyof typeof cotton.buttonLinkBySize;
+export type ButtonLinkVariant = keyof typeof cotton.buttonLinkBySize.md;
+
 export function ButtonLink({
     variant = "default",
     size = "md",
@@ -101,8 +104,8 @@ export function ButtonLink({
     ...props
 }: ComponentProps<"a"> & {
     href: string;
-    variant?: keyof typeof cotton.buttonLinkBySize.md;
-    size?: keyof typeof cotton.buttonLinkBySize;
+    variant?: ButtonLinkVariant;
+    size?: ButtonLinkSize;
 }) {
     return (
         <a
@@ -860,6 +863,60 @@ export function PickLegend({
                 </>
             )}
         </legend>
+    );
+}
+
+/** The c-n26.tick-list layout: named groups of plain ticked rows. */
+export function TickList({ children }: { children: ReactNode }) {
+    return <div className={cotton.tickList.root}>{children}</div>;
+}
+
+export function TickListGroup({
+    name,
+    children,
+}: {
+    name: string;
+    children: ReactNode;
+}) {
+    return (
+        <fieldset>
+            <legend className={cotton.tickList.legend}>{name}</legend>
+            <div className={cotton.tickList.options}>{children}</div>
+        </fieldset>
+    );
+}
+
+export function TickListOption({
+    name,
+    value,
+    label,
+    checked,
+    disabled = false,
+    onChange,
+}: {
+    name: string;
+    value: string;
+    label: string;
+    checked: boolean;
+    disabled?: boolean;
+    onChange: (checked: boolean) => void;
+}) {
+    const recipe = cotton.tickList;
+    return (
+        <label className={disabled ? recipe.labelDisabled : recipe.label}>
+            <input
+                type="checkbox"
+                name={name}
+                value={value}
+                checked={checked}
+                disabled={disabled}
+                className={recipe.input}
+                onChange={(event) => onChange(event.target.checked)}
+            />
+            <span className={recipe.text}>
+                <span className={recipe.name}>{label}</span>
+            </span>
+        </label>
     );
 }
 

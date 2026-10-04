@@ -119,7 +119,7 @@ A panel inside a scrolling ancestor is clipped. strategy=fixed places it against
       @click="mode === 'click' && toggle($event.detail === 0)"
       :aria-expanded="open"
       :aria-controls="'{{ panel_id }}' || $id('popover-panel')"
-      class="cursor-pointer whitespace-nowrap rounded-button bg-white text-ink-800 border border-ink-200 dark:bg-ink-400/30 dark:text-ink-300 dark:border-ink-300/20 shadow px-4 py-2 text-sm font-medium transition text-center focus-ring active:opacity-100 {{ trigger_class }}"
+      class="cursor-pointer whitespace-nowrap rounded-button bg-white text-ink-800 border border-ink-200 dark:bg-ink-400/30 dark:text-ink-300 dark:border-ink-300/20 px-4 py-2 text-sm font-medium transition text-center focus-ring active:opacity-100 {{ trigger_class }}"
     >
       {{ trigger_text }}
     </button>
