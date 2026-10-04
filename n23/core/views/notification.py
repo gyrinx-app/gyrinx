@@ -70,6 +70,11 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
     context_object_name = "notifications"
     paginate_by = 25
 
+    def render_to_response(self, context, **response_kwargs):
+        if self.request.headers.get("Accept") == "application/json":
+            return JsonResponse(context["notification_inbox"])
+        return super().render_to_response(context, **response_kwargs)
+
     def get_queryset(self):
         # `target` / `scope` are prefetched, not select_related: they are generic
         # relations, so Django batches them one query per content type. Without
@@ -164,6 +169,11 @@ def _back(request):
     )
 
 
+def _bulk_message(request, level, text):
+    if request.headers.get("Accept") != "application/json":
+        messages.add_message(request, level, text)
+
+
 @login_required
 def notification_open(request, id):
     """Title-click proxy: mark the notification read, then follow its link.
@@ -230,7 +240,9 @@ def notifications_bulk(request):
     """Apply a bulk action to selected rows (``ids``) or the whole filter (``all=1``)."""
     action = request.POST.get("action")
     if action not in BULK_ACTIONS:
-        messages.error(request, "Unknown action.")
+        if request.headers.get("Accept") == "application/json":
+            return JsonResponse({"ok": False, "error": "Unknown action."}, status=400)
+        _bulk_message(request, messages.ERROR, "Unknown action.")
         return _back(request)
 
     qs = Notification.objects.for_recipient(request.user)
@@ -246,7 +258,7 @@ def notifications_bulk(request):
             except ValueError, TypeError:
                 continue
         if not ids:
-            messages.info(request, "No notifications selected.")
+            _bulk_message(request, messages.INFO, "No notifications selected.")
             return _back(request)
         # Never act on already-deleted rows.
         qs = qs.filter(id__in=ids, deleted_at__isnull=True)
@@ -254,19 +266,19 @@ def notifications_bulk(request):
     now = timezone.now()
     if action == "mark_read":
         count = qs.filter(is_read=False).update(is_read=True, read_at=now, modified=now)
-        messages.success(request, f"Marked {count} as read.")
+        _bulk_message(request, messages.SUCCESS, f"Marked {count} as read.")
     elif action == "mark_unread":
         count = qs.filter(is_read=True).update(
             is_read=False, read_at=None, modified=now
         )
-        messages.success(request, f"Marked {count} as unread.")
+        _bulk_message(request, messages.SUCCESS, f"Marked {count} as unread.")
     elif action == "archive":
         count = qs.filter(archived=False).update(
             archived=True, archived_at=now, modified=now
         )
-        messages.success(request, f"Archived {count}.")
+        _bulk_message(request, messages.SUCCESS, f"Archived {count}.")
     elif action == "delete":
         count = qs.update(deleted_at=now, modified=now)
-        messages.success(request, f"Deleted {count}.")
+        _bulk_message(request, messages.SUCCESS, f"Deleted {count}.")
 
     return _back(request)

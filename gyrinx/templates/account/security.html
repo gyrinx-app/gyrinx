@@ -7,7 +7,9 @@
             {% react_island "account-password" password_form %}
         </c-n26.section>
         <c-n26.section title="Two-factor authentication" id="two-factor" class="max-w-xl">
-            {% include "mfa/_management.html" %}
+            {% with account_panel_subsection=True %}
+                {% include "mfa/_management.html" %}
+            {% endwith %}
         </c-n26.section>
         <c-n26.section title="Sessions" id="sessions">
             {% include "usersessions/_management.html" %}

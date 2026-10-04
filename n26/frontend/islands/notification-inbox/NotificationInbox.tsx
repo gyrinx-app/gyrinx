@@ -66,11 +66,12 @@ function richText(nodes: RichNode[]): ReactNode[] {
 }
 
 export function NotificationInbox(props: NotificationInboxProps) {
-    const { filters, csrfToken, bulkUrl, inboxUrl } = props;
+    const [inbox, setInbox] = useState(props);
+    const { filters, csrfToken, bulkUrl, inboxUrl } = inbox;
     const id = useId();
-    const [rows, setRows] = useState(props.rows);
+    const [rows, setRows] = useState(inbox.rows);
     const [selected, setSelected] = useState<Set<string>>(new Set());
-    const [unreadCount, setUnreadCount] = useState(props.unreadCount);
+    const [unreadCount, setUnreadCount] = useState(inbox.unreadCount);
     const [pending, setPending] = useState(false);
     const locked = useRef(false);
     const [error, setError] = useState("");
@@ -91,7 +92,7 @@ export function NotificationInbox(props: NotificationInboxProps) {
         setNotice("");
         const body = new URLSearchParams({
             action,
-            next: props.returnUrl,
+            next: inbox.returnUrl,
             ...filters,
         });
         if (all) {
@@ -131,6 +132,35 @@ export function NotificationInbox(props: NotificationInboxProps) {
             const reading = action === "read" || action === "mark_read";
             const unreading = action === "unread" || action === "mark_unread";
             const archiving = action === "archive" || action === "unarchive";
+            const removesRows =
+                targets.length > 0 &&
+                (archiving ||
+                    action === "delete" ||
+                    (reading && filters.status === "unread") ||
+                    (unreading && filters.status === "read"));
+            if (removesRows) {
+                const refreshUrl = `${inboxUrl}?${new URLSearchParams(filters)}`;
+                const fresh = await fetch(refreshUrl, {
+                    credentials: "same-origin",
+                    headers: { Accept: "application/json" },
+                });
+                if (
+                    !fresh.ok ||
+                    fresh.redirected ||
+                    fresh.headers
+                        .get("Content-Type")
+                        ?.includes("application/json") !== true
+                )
+                    throw new Error("refresh");
+                const refreshed: NotificationInboxProps = await fresh.json();
+                setInbox(refreshed);
+                setRows(refreshed.rows);
+                setUnreadCount(refreshed.unreadCount);
+                setSelected(new Set());
+                window.history.replaceState(null, "", refreshUrl);
+                setNotice("Notifications updated.");
+                return;
+            }
             const updated = rows.map((row) =>
                 affected.has(row.id)
                     ? {
@@ -255,7 +285,7 @@ export function NotificationInbox(props: NotificationInboxProps) {
                 <Field htmlFor={`${id}-type`} label="Type">
                     <NativeSelect name="type" defaultValue={filters.type}>
                         <option value="">All types</option>
-                        {props.typeChoices.map((choice) => (
+                        {inbox.typeChoices.map((choice) => (
                             <option key={choice.value} value={choice.value}>
                                 {choice.label}
                             </option>
@@ -424,7 +454,7 @@ export function NotificationInbox(props: NotificationInboxProps) {
                 </>
             ) : (
                 <p className="py-8 text-center text-muted">
-                    {props.rows.length > 0
+                    {inbox.rows.length > 0
                         ? "No notifications remain on this page."
                         : filters.q || filters.type || filters.status !== "all"
                           ? "No notifications match these filters."
@@ -438,18 +468,18 @@ export function NotificationInbox(props: NotificationInboxProps) {
                 className="flex items-center justify-between gap-3"
             >
                 <div>
-                    {props.previousUrl && (
-                        <ButtonLink href={props.previousUrl}>
+                    {inbox.previousUrl && (
+                        <ButtonLink href={inbox.previousUrl}>
                             Previous
                         </ButtonLink>
                     )}
                 </div>
                 <span className="text-sm text-muted">
-                    Page {props.page} of {props.pages}
+                    Page {inbox.page} of {inbox.pages}
                 </span>
                 <div>
-                    {props.nextUrl && (
-                        <ButtonLink href={props.nextUrl}>Next</ButtonLink>
+                    {inbox.nextUrl && (
+                        <ButtonLink href={inbox.nextUrl}>Next</ButtonLink>
                     )}
                 </div>
             </nav>

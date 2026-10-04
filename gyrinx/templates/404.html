@@ -1,24 +1,21 @@
 {% extends "platform/layouts/base.html" %}
 {% load platform_tags %}
-{% block head_title %}
-    Error 404
-{% endblock head_title %}
+{% block head_title %}Error 404{% endblock head_title %}
 {% block content %}
-    <div class="container">
-        <div class="row justify-content-center mt-5">
-            <div class="col-md-6 text-center">
-                <h1 class="display-1 fw-bold text-danger">404</h1>
-                <h2 class="mb-4">Page Not Found</h2>
-                <p data-test-id="the-joke" class="text-secondary mb-4">{% random_404_message %}</p>
-                <div class="hstack gap-3 justify-content-center align-items-center">
-                    <a href="{% safe_referer '/' %}" class="icon-link">
-                        <i class="bi-chevron-left" aria-hidden="true"></i>Back</a>
-                    or
-                    <a href="{% url 'core:index' %}" class="btn btn-primary">
-                        <i class="bi-house-door me-1" aria-hidden="true"></i> Home
-                    </a>
-                </div>
-            </div>
+    {% if request.edition == "n26" %}
+        {% url 'n26-dashboard' as home_url %}
+    {% else %}
+        {% url 'core:index' as home_url %}
+    {% endif %}
+    <div class="mx-auto max-w-xl space-y-6 py-16 text-center">
+        <h1 class="text-6xl font-semibold text-red-600 dark:text-red-400">404</h1>
+        <h2 class="text-2xl font-semibold">Page not found</h2>
+        <p data-test-id="the-joke" class="text-muted">{% random_404_message %}</p>
+        <div class="flex items-center justify-center gap-4">
+            <c-n26.link href="{% safe_referer home_url %}">Back</c-n26.link>
+            <c-ui.button href="{{ home_url }}" variant="primary">
+                Home
+            </c-ui.button>
         </div>
     </div>
 {% endblock content %}

@@ -137,6 +137,63 @@ def test_manage_subpage_has_one_page_heading(client, user):
     assert re.search(r"<h2\b[^>]*>\s*Sign Out\s*</h2>", html)
 
 
+@pytest.mark.django_db
+def test_mfa_panels_are_security_subsections(client, user):
+    client.force_login(user)
+    html = client.get(reverse("account-security")).content.decode()
+    assert re.search(r"<h2\b[^>]*>\s*Two-factor authentication\s*</h2>", html)
+    assert re.search(r"<h3\b[^>]*>\s*Authenticator app\s*</h3>", html)
+
+
+@pytest.mark.django_db
+def test_notification_json_refresh_rebuilds_pages_without_late_flash(client, user):
+    from django.contrib.messages import get_messages
+
+    notes = [notify(recipient=user, subject=f"Update {i}") for i in range(26)]
+    client.force_login(user)
+    assert (
+        client.get(
+            reverse("core:notifications"), HTTP_ACCEPT="application/json"
+        ).json()["pages"]
+        == 2
+    )
+    result = client.post(
+        reverse("core:notifications-bulk"),
+        {"action": "archive", "ids": [str(notes[-1].id)]},
+        HTTP_ACCEPT="application/json",
+    )
+    assert result.json() == {"ok": True}
+    refreshed = client.get(
+        reverse("core:notifications"), HTTP_ACCEPT="application/json"
+    ).json()
+    assert refreshed["page"] == refreshed["pages"] == 1
+    assert refreshed["nextUrl"] == ""
+    assert len(refreshed["rows"]) == 25
+    assert str(notes[0].id) in {row["id"] for row in refreshed["rows"]}
+    response = client.get(reverse("account-security"))
+    assert not list(get_messages(response.wsgi_request))
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "error_view, code", [("error_400", 400), ("error_403", 403), ("error_404", 404)]
+)
+def test_shared_error_pages_use_n26_components(rf, user, client, error_view, code):
+    from gyrinx.pages import views
+
+    request = rf.get("/missing-page/")
+    request.user = user
+    request.session = client.session
+    request.edition = "n26"
+    response = getattr(views, error_view)(request)
+    assert response.status_code == code
+    html = response.content.decode()
+    assert "designsystem/app.css" in html
+    assert "bi-house-door" not in html
+    assert "btn btn-primary" not in html
+    assert 'href="/n26/"' in html
+
+
 def test_allauth_error_alert_keeps_error_styles():
     html = Template(
         '{% load allauth %}{% element alert level="error" %}'

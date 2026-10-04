@@ -53,12 +53,12 @@ const props: NotificationInboxProps = {
     })),
 };
 afterEach(() => vi.unstubAllGlobals());
-function response() {
+function response(data: unknown = { ok: true }) {
     return {
         ok: true,
         redirected: false,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ ok: true }),
+        json: async () => data,
     };
 }
 describe("Notification inbox", () => {
@@ -78,7 +78,19 @@ describe("Notification inbox", () => {
         ).toBe("all");
     });
     it("selects the page, posts only selected IDs with CSRF, and removes archived notifications", async () => {
-        const fetch = vi.fn().mockResolvedValue(response());
+        const fetch = vi
+            .fn()
+            .mockResolvedValueOnce(response())
+            .mockResolvedValueOnce(
+                response({
+                    ...props,
+                    rows: props.rows.slice(1),
+                    page: 1,
+                    pages: 1,
+                    nextUrl: "",
+                    unreadCount: 1,
+                }),
+            );
         vi.stubGlobal("fetch", fetch);
         render(<NotificationInbox {...props} />);
         fireEvent.click(screen.getByLabelText("Select: first update"));
@@ -103,6 +115,11 @@ describe("Notification inbox", () => {
         expect(
             screen.getByRole("link", { name: "second update" }),
         ).toBeTruthy();
+        expect(fetch.mock.calls[1][0]).toBe(
+            "/notifications/?bucket=inbox&status=all&type=&q=",
+        );
+        expect(screen.queryByRole("link", { name: "Next" })).toBeNull();
+        expect(screen.getByText("Page 1 of 1")).toBeTruthy();
     });
     it("keeps rows when an action fails and permits retry", async () => {
         const fetch = vi.fn().mockRejectedValue(new Error("offline"));

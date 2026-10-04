@@ -51,6 +51,8 @@
 @source "../../../gyrinx/templates/mfa";
 @source "../../../gyrinx/templates/usersessions";
 @source "../../../gyrinx/templates/platform";
+@source "../../../gyrinx/templates/404.html";
+@source "../../../gyrinx/templates/errors";
 @source "../../../n23/core/templates/core/account_home.html";
 @source "../../../n23/core/templates/core/change_username.html";
 @source "../../../n23/core/templates/core/badge_settings.html";
