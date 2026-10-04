@@ -5,9 +5,9 @@ Lay counters, labels, and assets by position against the sheet's column lists, n
 A missing counter is None. Draw it as a dash, not a blank.
 Unlimited credits also draw as a dash.
 Every empty value is a dash, never a blank. A blank cell looks like a failed number.
-Each gang has a numeric line, followed by rows of labels, assets, and actions.
-Each detail takes one cell under a value column, so it lines up with the figures above. More details than columns run on to another row. The line lays them out.
-On phones the details stack.
+Each gang has a numeric line, followed by one row per label and asset group and one Actions row.
+Detail headings use the first column; their values span the numeric and menu columns.
+On phones the figures form a grid and details keep their heading beside the value.
 Name whose gang it is under the type. A campaign table holds several people's gangs.
 Credits link to Manage credits only where the line has credits_href. The view fills it as it does counter hrefs.
 Counter controls appear only where the line has an href. The view fills that for the arbitrator, and for a gang's owner on their own.
@@ -106,33 +106,33 @@ The menu uses strategy fixed so the table's scroll wrapper does not clip it. On 
                     {% endif %}
                 </td>
             </tr>
-            {% for row in gang.detail_rows %}
-                <tr class="border-b-0! max-md:hover:bg-transparent! max-md:ml-6 max-md:block">
-                    <td class="max-md:hidden"></td>
-                    {% for detail in row.details %}
-                        <td class="pt-0! align-top whitespace-normal! break-words max-md:block max-md:pb-2!">
-                            <div class="text-xs font-medium text-muted">{{ detail.label }}</div>
-                            {% if detail.roll %}
-                                {# The response opens a dialog. Swapping this fetch would replace the table. #}
-                                <c-ui.button size="sm"
-                                             variant="text"
-                                             class="py-0!"
-                                             href="{{ detail.roll.href }}"
-                                             hx-get="{{ detail.roll.href }}"
-                                             hx-swap="none">
-                                    <span class="flex items-center gap-1">
-                                        {{ detail.roll.label }}
-                                        <c-n26.icon name="arrow-right" class="size-3.5" />
-                                    </span>
-                                </c-ui.button>
-                            {% elif detail.text %}
-                                <div>{{ detail.text }}</div>
-                            {% else %}
-                                <div class="text-muted">&mdash;</div>
-                            {% endif %}
-                        </td>
-                    {% endfor %}
-                    <td colspan="{{ row.pad }}" class="max-md:hidden"></td>
+            {% for detail in gang.details %}
+                <tr class="border-b-0! max-md:hover:bg-transparent! max-md:grid max-md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                    <th scope="row" class="w-64 min-w-48 max-w-64 align-top font-normal! whitespace-normal! text-xs text-muted max-md:block max-md:w-auto max-md:min-w-0 max-md:max-w-none">{{ detail.label }}</th>
+                    <td colspan="{{ gang.detail_colspan }}" class="align-top whitespace-normal! break-words max-md:block">
+                        {% if detail.rolls %}
+                            <div class="flex flex-wrap gap-x-4 gap-y-1">
+                                {% for roll in detail.rolls %}
+                                    {# The response opens a dialog. Swapping this fetch would replace the table. #}
+                                    <c-ui.button size="sm"
+                                                 variant="text"
+                                                 class="py-0!"
+                                                 href="{{ roll.href }}"
+                                                 hx-get="{{ roll.href }}"
+                                                 hx-swap="none">
+                                        <span class="flex items-center gap-1">
+                                            {{ roll.label }}
+                                            <c-n26.icon name="arrow-right" class="size-3.5" />
+                                        </span>
+                                    </c-ui.button>
+                                {% endfor %}
+                            </div>
+                        {% elif detail.text %}
+                            {{ detail.text }}
+                        {% else %}
+                            <span class="text-muted">&mdash;</span>
+                        {% endif %}
+                    </td>
                 </tr>
             {% endfor %}
         </tbody>

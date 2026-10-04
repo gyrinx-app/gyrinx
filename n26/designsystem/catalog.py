@@ -2273,8 +2273,9 @@ GROUPS: list[Group] = [
                 needs=(ALPINE, KIT_JS),
                 notes=(
                     "Numeric counters stay in columns; labels, assets and actions "
-                    "share an indented grid beneath each gang. On phones the "
-                    "figures and details stack within the viewport. Match values "
+                    "have labelled rows beneath each gang, with values spanning "
+                    "the remaining columns. On phones the figures form a grid "
+                    "and details keep labels beside values. Match values "
                     "to the sheet's heading lists by position, never by name. "
                     "Every empty value draws a dash, "
                     "never a blank, which would look like a failed number. Counter "

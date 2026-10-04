@@ -309,7 +309,7 @@ def test_campaign_state_is_the_first_roster_card_and_every_label_has_a_pencil(
     _, player, _, gang, _ = setup
     client.force_login(player)
     state, pencil = label_control(client, gang)
-    assert state.find("h2").get_text(strip=True) == "Dust Falls"
+    assert state.find("h2").get_text(" ", strip=True) == "Campaign · Dust Falls"
     grid = state.find_parent(class_="n26-roster-grid")
     assert state.parent == grid
     assert grid.find_all(recursive=False)[0] == state

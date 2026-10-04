@@ -11,6 +11,7 @@ Assets retain their authored groups and links. This card owns its container.
     <c-ui.card padding="none" class="h-full">
         <c-slot name="header">
             <h2 class="-mx-2 text-sm font-semibold">
+                Campaign <span class="font-normal text-muted" aria-hidden="true">·</span>
                 <c-n26.link href="{{ campaign.href }}" underline="always" class="inline-flex items-center gap-1.5">
                     {{ campaign.name }}
                     <c-slot name="trailing"><c-n26.icon name="arrow-right" class="size-3.5 shrink-0" /></c-slot>

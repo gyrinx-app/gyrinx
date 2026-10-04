@@ -14,7 +14,9 @@ from n26.core.card import Card, Node
 from n26.core.effects import StatChange
 from n26.core.render import (
     AssignableLine,
+    CampaignGangLine,
     Provenance,
+    StartingRoll,
     StashLine,
     _provenance_within,
     apply_changes,
@@ -368,3 +370,38 @@ class TestTheCardStacksItsRepeats:
         card = Card(miniature=None, roots=[held(RESPIRATOR, 1), held(other, 2)])
         drawn = card_to_model_card(card, name="Yolanda")
         assert [k.count for k in drawn.equipment] == [1, 1]
+
+
+def test_campaign_gang_details_group_only_permitted_rolls_into_one_actions_row():
+    territory = StartingRoll("territory", "Roll starting territory", href="/territory/")
+    racket = StartingRoll("racket", "Roll starting racket", href="/racket/")
+    hidden = StartingRoll("hidden", "A roll this reader cannot make")
+    gang = CampaignGangLine(
+        gang_id="gang",
+        name="Gang",
+        gang_type="House",
+        owner=None,
+        rating=0,
+        credits=0,
+        wealth=0,
+        label_names=["Alignment", "Campaign objective"],
+        labels=["Outlaw", "Control the eastern sump routes"],
+        asset_names=["Territories"],
+        assets=[["Old Ruins", "Toll Crossing"]],
+        starting_rolls=[territory, hidden, racket],
+    )
+    details = gang.details
+    assert [detail.label for detail in details] == [
+        "Alignment",
+        "Campaign objective",
+        "Territories",
+        "Actions",
+    ]
+    assert [detail.text for detail in details[:3]] == [
+        "Outlaw",
+        "Control the eastern sump routes",
+        "Old Ruins, Toll Crossing",
+    ]
+    assert details[-1].rolls == [territory, racket]
+    gang.starting_rolls = [hidden]
+    assert all(detail.label != "Actions" for detail in gang.details)

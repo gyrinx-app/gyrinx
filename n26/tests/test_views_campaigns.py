@@ -8,6 +8,7 @@ import re
 from importlib import import_module
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import Group, User
 from django.test import Client
 from django.urls import reverse
@@ -596,6 +597,36 @@ class TestCampaignDashboardLayout:
         texts = [" ".join(re.sub(r"<[^>]+>", "", cell).split()) for cell in cells[:3]]
         assert texts == ["Rating 125¢", "Credits 800¢", "Wealth 1000¢"]
         assert_reconciled(gang)
+
+    def test_labels_use_full_width_rows_without_adding_numeric_columns(
+        self, client, campaign, arbitrator, gang_type, open_to_everyone
+    ):
+        from n26.tests.sandbox.actions import add_campaign_label, join_campaign
+
+        gang = found_gang("The Ashen Choir", gang_type, owner=arbitrator)
+        join_campaign(gang, campaign)
+        for name in ["Alignment", "Campaign objective"]:
+            add_campaign_label(campaign, name, ["Unset", "Selected"], actor=arbitrator)
+        response = client.get(f"/n26/campaigns/{campaign.pk}/")
+        table = (
+            BeautifulSoup(response.content, "html.parser")
+            .find(id="n26-campaign-gangs")
+            .find("table")
+        )
+        headings = table.thead.find_all("th")
+        assert not {"Alignment", "Campaign objective"} & {
+            heading.get_text(strip=True) for heading in headings
+        }
+        details = {
+            row.th.get_text(strip=True): row
+            for row in table.tbody.find_all("tr", recursive=False)[1:]
+        }
+        for name in ["Alignment", "Campaign objective"]:
+            row = details[name]
+            assert row.th["scope"] == "row"
+            assert len(row.find_all(["th", "td"], recursive=False)) == 2
+            assert int(row.td["colspan"]) == len(headings) - 1
+            assert row.td.get_text(strip=True) == "—"
 
     def test_gang_name_precedes_its_log_action(
         self, client, campaign, arbitrator, gang_type, open_to_everyone
