@@ -67,6 +67,10 @@ Local preview: <http://localhost:8456>. The synthetic gang is **Capture and Esca
   - Feedback:
 - [ ] Open the [post-battle draft](http://localhost:8456/n26/post-battle/01M44DSFHX9J0KPB027P01ANVW/). **Post-battle Capture preview** has Captured and Daring Escape selected. The preview should say **Captured → Daring Escape**, with final status In Recovery. The roster remains Active until results are applied.
   - Feedback:
+- [ ] At phone width, check the Changes to apply card. The credits budget explanation wraps inside the card without horizontal overflow.
+  - Feedback:
+- [ ] Change the injury result, Escape outcome and final status several times. The XP explanation stays closed after each update. Click its question mark to open it; Escape closes it.
+  - Feedback:
 - [ ] Before applying the draft, mark **Post-battle Capture preview** Critically Injured. With Captured and Daring Escape selected, the preview should still end In Recovery without asking for a final-status override. Restore Active afterwards so the other checks start from the seeded state.
   - Feedback:
 - [ ] In that draft, change Escape to None. The final status becomes Captured. Apply the report, return to the roster and resolve the pending Escape there.

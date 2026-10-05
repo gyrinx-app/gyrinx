@@ -271,6 +271,14 @@ class ReportModel:
         return {"hx-post": self.refresh_url} if self.refresh_url else {}
 
     @property
+    def xp_help(self):
+        return {
+            "label": self.xp_why_label,
+            "paragraphs": [self.result.xp_blocked_message],
+            "triggerId": f"{self.prefix}-xp-why-button",
+        }
+
+    @property
     def xp_why_label(self):
         return f"Why {self.name} cannot take XP"
 

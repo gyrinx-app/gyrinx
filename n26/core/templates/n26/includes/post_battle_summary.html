@@ -7,9 +7,9 @@
         <p class="mt-2 text-sm text-muted">These changes take effect when you apply the results.</p>
         <dl class="mt-4 space-y-3 text-sm">
             {% for row in preview.rows %}
-                <div class="flex justify-between gap-3">
-                    <dt>{{ row.label }}</dt>
-                    <dd class="shrink-0 text-right tabular-nums">
+                <div class="flex min-w-0 justify-between gap-3">
+                    <dt class="min-w-0 break-words">{{ row.label }}</dt>
+                    <dd class="min-w-0 break-words text-right tabular-nums">
                         {{ row.value }}
                     </dd>
                 </div>

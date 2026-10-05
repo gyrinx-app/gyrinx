@@ -1,3 +1,4 @@
+{% load react %}
 {% comment %}
 One model's results in the post-battle editor. A change to a result, the
 final status or the equipment posts the form and swaps this fieldset for the
@@ -59,28 +60,18 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
             {% else %}
                 <c-ui.field label="XP gained">
                     <input type="hidden" name="{{ model.prefix }}-xp" value="{{ model.xp }}">
-                    <c-ui.popover strategy="fixed"
-                                  position="bottom"
-                                  align="start"
-                                  panel_id="{{ model.prefix }}-xp-why"
-                                  panel_label="{{ model.xp_why_label }}">
-                        <c-slot name="trigger">
-                            <c-ui.button variant="ghost"
-                                         size="sm"
-                                         compact
-                                         id="{{ model.prefix }}-xp-why-button"
-                                         aria-label="{{ model.xp_why_label }}"
-                                         aria-expanded="false"
-                                         ::aria-expanded="open"
-                                         aria-controls="{{ model.prefix }}-xp-why"
-                                         data-xp-why>
-                                <span class="n26-icon-only">
-                                    <c-n26.icon name="circle-question-mark" class="size-5" />
-                                </span>
-                            </c-ui.button>
-                        </c-slot>
-                        <p class="w-64 max-w-full">{{ model.result.xp_blocked_message }}</p>
-                    </c-ui.popover>
+                    {% react_host "help" model.xp_help class="inline-flex" %}
+                        <details class="text-sm">
+                            <summary id="{{ model.prefix }}-xp-why-button"
+                                     class="cursor-pointer list-none text-muted focus-ring"
+                                     aria-label="{{ model.xp_why_label }}"
+                                     data-xp-why>
+                                <c-n26.icon name="circle-question-mark" class="size-4" />
+                            </summary>
+                            <p id="{{ model.prefix }}-xp-why"
+                               class="mt-2 text-muted">{{ model.result.xp_blocked_message }}</p>
+                        </details>
+                    {% endreact_host %}
                 </c-ui.field>
             {% endif %}
             <div id="{{ model.prefix }}-xp-help">
