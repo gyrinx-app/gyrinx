@@ -12,7 +12,7 @@ from django.urls import reverse
 from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
 from n26.core.models import Assignment, LedgerEvent
-from n26.core.operations import operation
+from n26.core.operations import Refusal, operation
 from n26.core.post_battle import preview_report, start_correction
 from n26.core.render import build_model_card, slot_key
 from n26.core.status import Status
@@ -63,7 +63,13 @@ def follow_up(content, gang_type):
         record_only=True,
         effects=[(targets_model(), op_sets_status(Status.RANSOMED))],
     )
-    table = create_picklist("Release table", kind, members=[released, ransom])
+    table = create_picklist(
+        "Release table",
+        kind,
+        members=[released, ransom],
+        dice="d6",
+        roll_selects="band",
+    )
     slot = create_slot(
         "Release", kind, table, min_picks=0, max_picks=1, follows_status=True
     )
@@ -414,3 +420,101 @@ def test_a_status_choice_is_never_offered_as_a_gang_status(gang, follow_up):
     card = build_gang_card(gang)
     done = compute_gang(card, build_modifier_index(carriers(card)))
     assert all(q.slot.pk != slot.pk for q in done.choices)
+
+
+def test_a_roll_from_an_earlier_capture_cannot_settle_the_current_choice(
+    client, owner, model, follow_up
+):
+    _, slot, released, _ = follow_up
+    admit_to_founding(owner)
+    client.force_login(owner)
+    mark(model, Status.CAPTURED)
+    with operation(model.gang, actor=owner) as op:
+        old_roll = op.roll(slot, miniature=model, rolled=6)
+    mark(model, Status.ACTIVE)
+    mark(model, Status.CAPTURED)
+    question = next(q for q in computed(model).choices if q.slot.pk == slot.pk)
+    url = reverse("n26-choose", args=[model.gang.pk, slot_key(question, str(model.pk))])
+    before = (LedgerEvent.objects.count(), Assignment.objects.count())
+    assert client.get(f"{url}?roll={old_roll.pk}").status_code == 404
+    assert (
+        client.post(
+            url, {"thing": f"library.pickable:{released.pk}", "roll": str(old_roll.pk)}
+        ).status_code
+        == 404
+    )
+    with pytest.raises(Refusal, match="status change"):
+        with operation(model.gang, actor=owner) as op:
+            op.choose(
+                question.anchor.assignment,
+                released,
+                slot=slot,
+                miniature=model,
+                roll=old_roll,
+            )
+    assert (LedgerEvent.objects.count(), Assignment.objects.count()) == before
+    model.refresh_from_db()
+    assert model.status == Status.CAPTURED
+    with operation(model.gang, actor=owner) as op:
+        current_roll = op.roll(slot, miniature=model, rolled=6)
+        picked = op.choose(
+            question.anchor.assignment,
+            released,
+            slot=slot,
+            miniature=model,
+            roll=current_roll,
+        )
+    assert picked.roll_id == current_roll.pk
+    assert current_roll.status_revision == question.status_revision
+    assert picked.chosen_for_status_revision == current_roll.status_revision
+    model.refresh_from_db()
+    assert model.status == Status.RECOVERY
+
+
+@pytest.mark.parametrize("keep_capture", [True, False])
+def test_a_deferred_follow_up_can_be_replaced_and_removed_on_later_corrections(
+    report, owner, model, follow_up, keep_capture
+):
+    captured, slot, released, ransom = follow_up
+    capture = effect_for(report, owner, captured)
+    report = save(report, owner, payload_for(model, effects=[capture]))
+    apply(report, owner)
+    report = start_correction(report, actor=owner)
+    release = effect_for(report, owner, released)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"].append(release)
+    payload["models"][0]["status"] = ""
+    report = save(report, owner, payload)
+    apply(report, owner)
+    report = start_correction(report, actor=owner)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"][1]["pick"] = str(ransom.pk)
+    payload["models"][0]["status"] = ""
+    plan = preview_report(report, actor=owner, payload=payload)
+    assert plan.valid, plan.errors
+    assert plan.models[0].final_status == Status.RANSOMED
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.RANSOMED
+    report = start_correction(report, actor=owner)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"] = [capture] if keep_capture else []
+    expected = Status.CAPTURED if keep_capture else Status.ACTIVE
+    payload["models"][0]["status"] = ""
+    plan = preview_report(report, actor=owner, payload=payload)
+    assert plan.valid, plan.errors
+    assert plan.models[0].final_status == expected
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == expected
+    if keep_capture:
+        assert not next(
+            q for q in computed(model).choices if q.slot.pk == slot.pk
+        ).picks
+    else:
+        assert all(q.slot.pk != slot.pk for q in computed(model).choices)
+    assert Assignment.objects.filter(
+        miniature=model, pickable=captured, archived=False
+    ).count() == int(keep_capture)

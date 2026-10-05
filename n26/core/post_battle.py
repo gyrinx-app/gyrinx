@@ -232,6 +232,7 @@ class PostBattlePlan:
     _writes: list = field(default_factory=list, repr=False)
     _removals: list = field(default_factory=list, repr=False)
     _status_restores: dict = field(default_factory=dict, repr=False)
+    _effect_statuses: dict = field(default_factory=dict, repr=False)
     _status_writes: dict = field(default_factory=dict, repr=False)
     _equipment: dict = field(default_factory=dict, repr=False)
     _retained: dict = field(default_factory=dict, repr=False)
@@ -1262,8 +1263,29 @@ def preview_report(report, *, actor, payload=None):
                     "This model's status has changed since these results. Correct its status separately first."
                 )
             else:
-                plan._status_restores[model_id] = started[model_id]
-                _project_status(card, [started[model_id]])
+                # Restore the status before the earliest removed result.
+                # A deferred follow-up starts in its condition's status;
+                # removing its earlier parent result also reverses that status.
+                # Receipt mappings do not preserve chronological order.
+                restore = next(
+                    (
+                        old_occurrences[occurrence].get(
+                            "status_before", started[model_id]
+                        )
+                        for occurrence, root, events in sorted(
+                            plan._removals,
+                            key=lambda removal: (removal[1].created, removal[1].pk),
+                        )
+                        if str(root.miniature_root_id) == model_id
+                        and any(
+                            event.kind == LedgerEvent.Kind.STATUS_SET
+                            for event in events
+                        )
+                    ),
+                    started[model_id],
+                )
+                plan._status_restores[model_id] = restore
+                _project_status(card, [restore])
         computed = compute(card, index)
         xp_nodes = [
             n
@@ -1417,6 +1439,7 @@ def preview_report(report, *, actor, payload=None):
             effect = EffectResult(occurrence, option.name, spec["slot"], spec["pick"])
             result.effects.append(effect)
             facts.append(["effect", model_id, spec])
+            plan._effect_statuses[occurrence] = card.miniature.status
             model_errors.extend(
                 _project_effect(
                     card,
@@ -1454,6 +1477,8 @@ def preview_report(report, *, actor, payload=None):
             )
             if implied:
                 followed = implied[-1]
+            elif model_id in plan._status_restores:
+                followed = plan._status_restores[model_id]
             elif not keeps_a_result:
                 followed = started.get(model_id)
         current_label = label_for(miniature.status, vehicle)
@@ -1785,6 +1810,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                 "input": spec,
                 "name": effects[occurrence].name,
                 "model_id": model_id,
+                "status_before": plan._effect_statuses[occurrence],
                 "questions": [asdict(q) for q in effects[occurrence].questions],
                 "root_id": str(root.pk),
                 "assignment_ids": [

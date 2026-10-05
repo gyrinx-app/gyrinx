@@ -2514,6 +2514,10 @@ class Operation:
             if host is None:
                 raise ValueError("A status choice belongs to a model.")
             host.refresh_from_db(fields=["status", "status_revision"])
+            if roll is not None and roll.status_revision != host.status_revision:
+                raise Refusal(
+                    "That roll does not match this status change. Roll again for this choice."
+                )
             kwargs.setdefault("chosen_for_status_revision", host.status_revision)
         _clear_dismissal(anchor, slot, kwargs)
         return self.assign(
@@ -2876,9 +2880,16 @@ class Operation:
             raise Refusal(f"You cannot roll {rolled} on a {dice.label}.")
         else:
             note = note or ROLL_ENTERED
+        status_revision = None
+        if slot.follows_status:
+            if miniature is None:
+                raise ValueError("A status choice belongs to a model.")
+            miniature.refresh_from_db(fields=["status_revision"])
+            status_revision = miniature.status_revision
         return self.event(
             miniature,
             LedgerEvent.Kind.ROLLED,
+            status_revision=status_revision,
             roll=rolled,
             dice=dice.value,
             slot=slot,

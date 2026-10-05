@@ -13,7 +13,7 @@ Agreed direction, 4 October 2026: a Captured result changes status and becomes a
 ## Identity and writes
 
 - Increment a model's status revision only when status actually changes. Repeating the same status writes nothing.
-- Status follow-up picks store the revision they resolve. Choice addresses also include that revision, rejecting stale submissions and preventing an old pick from settling a new capture.
+- Status follow-up picks and rolls store the revision they resolve. Choice addresses also include that revision, rejecting stale submissions and preventing an old pick or roll from settling a new capture.
 - Retain assignments and ledger history. No automatic removal cascade merely to change presentation.
 - Remove Capture-specific manual-release handling: leaving the status naturally removes its conditional choice. Manually marking Captured offers the same authored follow-up as recording a result.
 
@@ -23,7 +23,7 @@ Agreed direction, 4 October 2026: a Captured result changes status and becomes a
 - Discover both newly offered status choices and existing pending status choices. Reuse table controls, validation and normal choose operations.
 - Allow Escape in the same report or defer it to the roster/model Edit page.
 - Within a result and its follow-up chain, the final selected outcome determines status. Independent conflicting result chains still ask for final status.
-- Keep existing correction safeguards, idempotency and read-only preview. Preserve root/choice identities in receipts.
+- Keep existing correction safeguards, idempotency and read-only preview. Preserve root/choice identities and the status before each result in receipts. Correcting a deferred Escape restores the status before that Escape, even when an earlier report revision recorded Capture.
 
 ## UI
 
@@ -55,6 +55,8 @@ Local preview: <http://localhost:8456>. The synthetic gang is **Capture and Esca
   - Feedback:
 - [ ] On that model, mark Active, then Captured again. Escape becomes available again with no old outcome selected. An earlier Escape URL should now return 404.
   - Feedback:
+- [ ] Enter an Escape roll while Captured, copy its `?roll=` URL, then mark Active and Captured again without applying that roll. The old roll must return 404 on the new Escape page. A new roll should apply normally.
+  - Feedback:
 - [ ] Open **Escaped with a permanent injury**. Eye Injury remains on the current card; Captured and Daring Escape appear in Result history. There is no pending Escape choice.
   - Feedback:
 - [ ] Open **Captured vehicle**. Resolve Escape using the same controls as a fighter; its current damage section should remain separate from the historical results.
@@ -64,6 +66,8 @@ Local preview: <http://localhost:8456>. The synthetic gang is **Capture and Esca
 - [ ] In that draft, change Escape to None. The final status becomes Captured. Apply the report, return to the roster and resolve the pending Escape there.
   - Feedback:
 - [ ] Use Correct results on the report to replace or remove its recorded results. Check the resulting status and history, and that permanent injuries are preserved. Repeat apply should not duplicate an outcome.
+  - Feedback:
+- [ ] Apply Capture without Escape. Correct that report to add Escape, then correct again to replace the Escape outcome. Correct once more to remove only Escape while retaining Capture. The preview and applied status should return to Captured without an explicit final-status override, and Escape should be available again.
   - Feedback:
 - [ ] Repeat the roster and model Edit checks at a narrow mobile width. Resolve links should have a small arrow; history should be readable without stretching the card.
   - Feedback:

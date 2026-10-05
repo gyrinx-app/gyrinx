@@ -381,6 +381,11 @@ def _roll_at(key, gang, found, select_related=()):
             kind=LedgerEvent.Kind.ROLLED,
             slot=found.slot.slot,
             miniature=found.miniature,
+            **(
+                {"status_revision": found.slot.status_revision}
+                if found.slot.slot.follows_status
+                else {}
+            ),
         )
     except ValidationError:
         raise Http404("No such roll") from None
