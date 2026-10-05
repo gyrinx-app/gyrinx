@@ -186,17 +186,21 @@ def plan_miniature_clone(source):
 
 
 def _gang_assignments(gang):
-    """All assignments once, with everything the writer copies resolved."""
-    queryset = Assignment.objects.filter(gang_root=gang).select_related(
-        "ledger_entry",
-        "profile_role",
-        "counter_value",
-        "parent",
-        "caused_by",
-        "chosen_for",
-        "materialised_for",
-        "miniature",
-        "stash",
+    """Standing assignments once; recorded results belong to the source's history."""
+    queryset = (
+        Assignment.objects.filter(gang_root=gang)
+        .exclude(pickable__record_only=True)
+        .select_related(
+            "ledger_entry",
+            "profile_role",
+            "counter_value",
+            "parent",
+            "caused_by",
+            "chosen_for",
+            "materialised_for",
+            "miniature",
+            "stash",
+        )
     )
     return tuple(
         Assignment.with_assignables(queryset)

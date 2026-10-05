@@ -11,10 +11,12 @@ from django.urls import reverse
 
 from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
-from n26.core.models import Assignment, LedgerEvent
-from n26.core.operations import Refusal, operation
+from n26.core.models import Assignment, LedgerEvent, Miniature
+from n26.core.operations import Refusal, clone_gang, operation
 from n26.core.post_battle import preview_report, start_correction
+from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_model_card, slot_key
+from n26.core.result_history import result_history
 from n26.core.status import Status
 from n26.core.views.choose import find_slot
 from n26.library.authoring import (
@@ -644,3 +646,58 @@ def test_legacy_status_choice_keys_remain_readable_in_drafts_and_corrections(
     apply(report, owner)
     model.refresh_from_db()
     assert model.status == Status.RANSOMED
+
+
+@pytest.mark.parametrize("starting_status", [Status.CRITICAL, Status.RANSOMED])
+def test_selected_nested_status_choice_resolves_an_existing_status(
+    report, owner, model, follow_up, starting_status
+):
+    captured, _, released, _ = follow_up
+    mark(model, starting_status)
+    effect = effect_for(report, owner, captured)
+    payload = payload_for(model, effects=[effect])
+    preview = preview_report(report, actor=owner, payload=payload)
+    assert preview.models[0].status_conflict
+    question = preview.models[0].effects[0].questions[0]
+    effect["choices"][question.key] = [
+        next(o.value for o in question.options if o.label == released.name)
+    ]
+    preview = preview_report(report, actor=owner, payload=payload)
+    assert preview.valid, preview.errors
+    assert not preview.models[0].status_conflict
+    assert preview.models[0].final_status == Status.RECOVERY
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.RECOVERY
+    assert_reconciled(report.gang)
+
+
+@pytest.mark.parametrize("whole_gang", [False, True], ids=["model", "gang"])
+def test_clones_keep_permanent_results_without_copying_capture_history(
+    owner, model, content, follow_up, whole_gang
+):
+    captured, slot, released, _ = follow_up
+    choose(model, content["slot"], content["wound"])
+    choose(model, content["slot"], captured)
+    choose(model, slot, released)
+    assert len(result_history(model)) == 2
+    if whole_gang:
+        destination = clone_gang(
+            model.gang, name="Copied gang", owner=owner, actor=owner
+        )
+        clone = Miniature.objects.get(membership__gang=destination, name=model.name)
+    else:
+        destination = model.gang
+        with operation(destination, actor=owner) as op:
+            clone = op.clone_miniature(model)
+    assert result_history(clone) == []
+    assert Assignment.objects.filter(
+        miniature=clone, pickable=content["wound"], archived=False
+    ).exists()
+    assert not Assignment.objects.filter(
+        miniature=clone, pickable__record_only=True
+    ).exists()
+    assert len(result_history(model)) == 2
+    assert_reconciled(model.gang)
+    assert_reconciled(destination)

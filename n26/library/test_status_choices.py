@@ -10,6 +10,7 @@ from django.db import connection
 from n26.core.status import Status
 from n26.library.authoring import (
     attach_modifiers_to,
+    create_gang_type,
     create_pack,
     create_pickable,
     create_slot_type,
@@ -22,13 +23,14 @@ from n26.library.authoring import (
 )
 from n26.library.models import (
     AddsAssignable,
+    GangType,
     HasStatus,
     Modifier,
     Pickable,
     Slot,
     TargetsMiniature,
 )
-from n26.library.standard_content import STANDARD_CONTENT
+from n26.library.standard_content import GANG_TYPES, STANDARD_CONTENT
 
 pytestmark = pytest.mark.django_db
 
@@ -141,3 +143,26 @@ def test_reverse_reuses_the_original_shared_escape_grant(default_pack, gang_type
         # seeding after rollback leaves a single grant on each result.
         name = f"{result}: rolls on the {escape.choice_label} table"
         assert result.modifiers.filter(name=name).get().pk == legacy.pk
+
+
+@pytest.mark.parametrize("tables_first", [False, True])
+def test_standard_gang_types_offer_escape_in_either_seed_order(
+    default_pack, tables_first
+):
+    homebrew = create_pack("Homebrew")
+    custom = create_gang_type("Custom gang", pack=homebrew)
+    keys = ["lasting-effect-tables", "gang-types"]
+    if not tables_first:
+        keys.reverse()
+    for key in keys:
+        STANDARD_CONTENT[key].create()
+    grant = Modifier.objects.get(name="Captured models: Escape", pack=default_pack)
+    standard = GangType.objects.filter(pack=default_pack, name__in=GANG_TYPES)
+    assert standard.count() == len(GANG_TYPES)
+    assert all(gang.modifiers.filter(pk=grant.pk).exists() for gang in standard)
+    assert not custom.modifiers.filter(pk=grant.pk).exists()
+    before = Modifier.objects.count()
+    for key in keys:
+        STANDARD_CONTENT[key].create()
+    assert Modifier.objects.count() == before
+    assert all(gang.modifiers.filter(pk=grant.pk).count() == 1 for gang in standard)

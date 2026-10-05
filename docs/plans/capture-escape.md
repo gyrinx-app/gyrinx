@@ -8,12 +8,14 @@ Agreed direction, 4 October 2026: a Captured result changes status and becomes a
 - Add a generic `has_status` modifier condition, with authoring and selector support.
 - The carrier is an existing gang type assignment. A shared standard modifier reaches every model whose status is Captured and grants the Escape slot. Authors can attach equivalent modifiers to appropriate carriers; there is no global unattached modifier.
 - Add an authored Slot flag for choices that belong to the current status revision. Add an authored Pickable flag for results retained in history rather than displayed as current choices.
+- Standard gang types receive the shared Escape modifier regardless of whether the gang types or lasting-effect tables are seeded first.
 - Standard Captured results retain their status effect but no longer grant Escape. Standard Escape results remain table outcomes that set status. Both are historical result records; permanent injuries remain current effects.
 
 ## Identity and writes
 
 - Increment a model's status revision only when status actually changes. Repeating the same status writes nothing.
 - Status follow-up picks and rolls store the revision they resolve. Choice addresses also include that revision, rejecting stale submissions and preventing an old pick or roll from settling a new capture.
+- Clones copy standing effects, such as permanent injuries, but do not copy historical-only Capture/Escape assignments.
 - Retain assignments and ledger history. No automatic removal cascade merely to change presentation.
 - Remove Capture-specific manual-release handling: leaving the status naturally removes its conditional choice. Manually marking Captured offers the same authored follow-up as recording a result.
 
@@ -59,9 +61,13 @@ Local preview: <http://localhost:8456>. The synthetic gang is **Capture and Esca
   - Feedback:
 - [ ] Open **Escaped with a permanent injury**. Eye Injury remains on the current card; Captured and Daring Escape appear in Result history. There is no pending Escape choice.
   - Feedback:
+- [ ] Clone **Escaped with a permanent injury**. The clone keeps Eye Injury but has no Captured or Daring Escape result history. The source keeps its history. A cloned gang should behave the same way.
+  - Feedback:
 - [ ] Open **Captured vehicle**. Resolve Escape using the same controls as a fighter; its current damage section should remain separate from the historical results.
   - Feedback:
 - [ ] Open the [post-battle draft](http://localhost:8456/n26/post-battle/01M44DSFHX9J0KPB027P01ANVW/). **Post-battle Capture preview** has Captured and Daring Escape selected. The preview should say **Captured → Daring Escape**, with final status In Recovery. The roster remains Active until results are applied.
+  - Feedback:
+- [ ] Before applying the draft, mark **Post-battle Capture preview** Critically Injured. With Captured and Daring Escape selected, the preview should still end In Recovery without asking for a final-status override. Restore Active afterwards so the other checks start from the seeded state.
   - Feedback:
 - [ ] In that draft, change Escape to None. The final status becomes Captured. Apply the report, return to the roster and resolve the pending Escape there.
   - Feedback:

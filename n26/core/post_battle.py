@@ -1522,6 +1522,11 @@ def preview_report(report, *, actor, payload=None):
                     and eligible[spec["slot"]][0].slot.follows_status
                     for spec in normalized_effects
                 )
+                and not any(
+                    question.follows_status and question.selected
+                    for effect in result.effects
+                    for question in effect.questions
+                )
             ):
                 name, status = implied_by[-1]
                 verb = "leaves" if status == Status.ACTIVE else "makes"

@@ -1118,9 +1118,16 @@ def _check_trading_post():
 
 
 def _create_gang_types():
-    from n26.library.models import GangType
+    from django.conf import settings
+
+    from n26.library.models import GangType, Modifier
 
     _named(GangType, GANG_TYPES)
+    grant = Modifier.objects.filter(
+        name="Captured models: Escape", pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+    ).first()
+    if grant is not None:
+        _attach_escape_status_modifier(grant)
 
 
 def _check_gang_types():
@@ -1487,7 +1494,7 @@ def _create_escape_status_modifier(slot):
 
     from n26.core.status import Status
     from n26.library.authoring import ef_adds, has_status, modifier, targets_every_model
-    from n26.library.models import GangType, Modifier
+    from n26.library.models import Modifier
 
     name = "Captured models: Escape"
     row = Modifier.objects.filter(
@@ -1497,11 +1504,20 @@ def _create_escape_status_modifier(slot):
         row = modifier(
             name, targets_every_model(has_status(Status.CAPTURED)), ef_adds(slot)
         )
+    _attach_escape_status_modifier(row)
+    return row
+
+
+def _attach_escape_status_modifier(grant):
+    """Either seed may create its rows first; link only standard gang types."""
+    from django.conf import settings
+
+    from n26.library.models import GangType
+
     for gang_type in GangType.objects.filter(
         pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
     ):
-        gang_type.modifiers.add(row)
-    return row
+        gang_type.modifiers.add(grant)
 
 
 #: Suit Evolution's roll (Spyre Hunting Party gang list): a Spyrer spends
