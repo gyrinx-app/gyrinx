@@ -607,6 +607,22 @@ def price_field(thing, index=None):
     return f"{scope}:price" if index is None else f"{scope}:parts:{index}:price"
 
 
+def price_box(body, name):
+    """The server-drawn price input and the props its island mounts with."""
+    import json
+
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(body, "html.parser")
+    for host in soup.select("[data-react-module*='/equip-price-']"):
+        box = host.find("input", attrs={"name": name})
+        if box is None:
+            continue
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+        return box, props
+    raise AssertionError(name)
+
+
 def test_the_ammo_input_is_named_what_the_server_reads(
     client, tester, fighter, gun_list
 ):
@@ -625,10 +641,15 @@ def test_the_ammo_input_is_named_what_the_server_reads(
     # The round is priced in a box of its own, under the gun's: two
     # charges on one click, so two numbers a reader can set.
     assert f'name="{price_field(autogun, 0)}"' in body
+    round_box, round_props = price_box(body, price_field(autogun, 0))
+    assert round_box["value"] == "10"
+    assert round_props["quoted"] == 10
+    assert round_props["label"] == "warp round"
     # The bare name: the row is drawn under the gun, which has already
     # said which gun it is.
     assert "warp round" in body
     assert "fully automatic" not in body
+    assert 'x-data="{ quoted:' not in body
 
 
 def test_ticking_ammo_buys_it_onto_the_gun(client, tester, gang, fighter, gun_list):
@@ -747,10 +768,23 @@ def test_the_listing_quotes_its_price_in_a_box(client, tester, fighter, house_li
     client.force_login(tester)
     body = client.get(equip_url(fighter, house_list)).content.decode()
 
-    assert f'name="{price_field(sword)}"' in body
+    box, props = price_box(body, price_field(sword))
     # The list's own price for the sword, which is what the purchase
-    # will charge if nobody touches it.
-    assert 'value="35"' in body
+    # will charge if nobody touches it. The island reads the same quote.
+    assert box["value"] == "35"
+    assert box["min"] == "0"
+    assert box["max"] == "100000"
+    assert box["aria-label"] == "Price for Sword"
+    assert props == {
+        "field": price_field(sword),
+        "quoted": 35,
+        "label": "Sword",
+        "min": 0,
+        "max": 100000,
+        "id": "",
+    }
+    assert 'x-model.number="price"' not in body
+    assert 'x-data="{ quoted:' not in body
 
 
 def test_the_price_typed_in_is_the_price_charged(
@@ -920,10 +954,17 @@ def test_the_box_for_gear_priced_below_nothing_opens_at_its_own_price(
     """A floor of zero on the box would have the browser refuse the form
     before the server saw it, and the quote is the one figure a reader
     must be able to submit untouched."""
+    from n26.library.models import Wargear
+
+    brittle = Wargear.objects.get(name="Reduced bone density")
     client.force_login(tester)
     body = client.get(equip_url(fighter, weakening_list)).content.decode()
-    assert 'value="-10"' in body
-    assert 'min="-10"' in body
+    box, props = price_box(body, price_field(brittle))
+    assert box["value"] == "-10"
+    assert box["min"] == "-10"
+    assert props["quoted"] == -10
+    assert props["min"] == -10
+    assert props["max"] == 100000
 
 
 def test_gear_priced_below_nothing_is_bought_at_its_quote(

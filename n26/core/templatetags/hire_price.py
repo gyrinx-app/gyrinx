@@ -1,4 +1,4 @@
-"""JSON props for the hire dialog's price box."""
+"""JSON props for a price box that posts what the reader types."""
 
 from django import template
 
@@ -14,8 +14,7 @@ def _whole(value, fallback):
         return fallback
 
 
-@register.simple_tag
-def hire_price_props(field, quoted, label="", price_cap="", element_id=""):
+def price_box_props(field, quoted, label="", price_cap="", element_id=""):
     """The quote the box starts at, and the bounds the server will accept."""
     amount = _whole(quoted, 0)
     cap = _whole(price_cap, PRICE_CEILING)
@@ -27,3 +26,7 @@ def hire_price_props(field, quoted, label="", price_cap="", element_id=""):
         "max": cap,
         "id": "" if element_id is None else str(element_id),
     }
+
+
+register.simple_tag(price_box_props, name="hire_price_props")
+register.simple_tag(price_box_props, name="equip_price_props")
