@@ -594,6 +594,7 @@ def _project_effect(
 ):
     """Add hypothetical nodes and resolve only the questions this occurrence adds."""
     occurrence = result.id
+    starting_status_revision = card.current_status_revision
     root_key = f"post-battle:{occurrence}"
     nodes = {root_key}
     starting = compute(card, index)
@@ -633,6 +634,7 @@ def _project_effect(
         result_errors.append(f"The choices for {thing} are invalid.")
         answers = {}
     asked = set()
+    legacy_keys = set()
     for _ in range(5):
         computed = compute(card, index)
         pending = [
@@ -656,8 +658,19 @@ def _project_effect(
                 (question.anchor.key, question.identity.pk, question.status_revision)
             )
             key = f"{question.anchor.key}:{question.identity._meta.model_name}:{question.identity.pk}"
+            legacy_chosen = []
+            if question.status_revision is not None:
+                base_key = key
+                # Relative revisions distinguish transitions within this result
+                # and keep selections stable when a correction replays it.
+                key = f"{root_key}:{base_key}:status-{question.status_revision - starting_status_revision}"
+                # Drafts written before revision keys identify only the first
+                # use of a status choice, never a later transition's selection.
+                if base_key in answers and base_key not in legacy_keys:
+                    legacy_keys.add(base_key)
+                    legacy_chosen = answers[base_key]
             offered = _options(question, computed)
-            chosen = answers.get(key, [])
+            chosen = answers.get(key, legacy_chosen)
             if not isinstance(chosen, list) or any(
                 not isinstance(value, str) for value in chosen
             ):
@@ -738,7 +751,7 @@ def _project_effect(
                 _project_status(card, statuses)
     else:
         result_errors.append(f"{thing} has too many linked choices to record here.")
-    known = {q.key for q in result.questions}
+    known = {q.key for q in result.questions} | legacy_keys
     if any(value for key, value in answers.items() if key not in known):
         result_errors.append(
             f"Some choices no longer belong to {thing}. Check its choices again."

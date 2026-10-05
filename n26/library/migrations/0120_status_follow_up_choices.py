@@ -99,8 +99,10 @@ def restore_standard_choices(apps, schema_editor):
         slot_type__name__in=["Lasting Injury", "Lasting Damage"],
     )
     for result in captures:
-        qualifier = result.qualifier or result.slot_type.name
-        name = f"{result.name} ({qualifier}): rolls on the Escape table"
+        label = (
+            f"{result.name} ({result.annotation})" if result.annotation else result.name
+        )
+        name = f"{label}: rolls on the {slot.label or slot.name} table"
         grant = (
             Modifier.objects.using(using)
             .filter(pack_id=slot.pack_id, name=name)

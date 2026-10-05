@@ -1253,7 +1253,7 @@ DELEGATION_STATUSES = {"Critical Injury": "dead"}
 
 #: What happens to a captured model, rolled straight after the battle
 #: (core rules, the Wrap-up): a D6 band table of its own, under its own
-#: slot type, granted to the model by the Captured result itself.
+#: slot type, offered while Captured by the gang-carried status condition.
 ESCAPE_SLOT_TYPE = "Escape"
 ESCAPE_TABLE = [
     (1, 1, "Executed"),

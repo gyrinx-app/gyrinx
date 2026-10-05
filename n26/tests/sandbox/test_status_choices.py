@@ -518,3 +518,129 @@ def test_a_deferred_follow_up_can_be_replaced_and_removed_on_later_corrections(
     assert Assignment.objects.filter(
         miniature=model, pickable=captured, archived=False
     ).count() == int(keep_capture)
+
+
+def test_repeated_status_choices_have_distinct_keys_and_replay_on_correction(
+    report, owner, model, follow_up, gang_type
+):
+    from django.http import QueryDict
+
+    from n26.core.post_battle_forms import posted_payload
+
+    captured, slot, released, ransom = follow_up
+    modifier(
+        "Payment may be resolved separately",
+        targets_every_model(has_status(Status.RANSOMED)),
+        ef_adds(slot),
+        attach_to=gang_type,
+    )
+    effect = effect_for(report, owner, captured)
+    payload = payload_for(model, effects=[effect])
+    first = (
+        preview_report(report, actor=owner, payload=payload)
+        .models[0]
+        .effects[0]
+        .questions[0]
+    )
+    ransom_value = next(o.value for o in first.options if o.label == ransom.name)
+    effect["choices"][first.key] = [ransom_value]
+    plan = preview_report(report, actor=owner, payload=payload)
+    assert plan.valid, plan.errors
+    questions = plan.models[0].effects[0].questions
+    assert len(questions) == 2
+    first, second = questions
+    assert first.key != second.key
+    assert first.selected == [ransom_value]
+    assert second.selected == []
+    legacy_payload = deepcopy(payload)
+    legacy_payload["models"][0]["effects"][0]["choices"] = {
+        first.key.removeprefix(f"post-battle:{effect['id']}:").rsplit(":status-", 1)[
+            0
+        ]: [ransom_value]
+    }
+    legacy_plan = preview_report(report, actor=owner, payload=legacy_payload)
+    assert legacy_plan.valid, legacy_plan.errors
+    assert [q.selected for q in legacy_plan.models[0].effects[0].questions] == [
+        [ransom_value],
+        [],
+    ]
+    release_value = next(o.value for o in second.options if o.label == released.name)
+    data = QueryDict(mutable=True)
+    data.setlist("model_id", [str(model.pk)])
+    data.setlist(f"model-{model.pk}-effect", [effect["id"]])
+    data[f"effect-{effect['id']}-pick"] = f"{effect['slot']}|{effect['pick']}"
+    data.setlist(f"effect-{effect['id']}-question", [first.key, second.key])
+    data.setlist(f"effect-{effect['id']}-choice-{first.key}", [ransom_value])
+    data.setlist(f"effect-{effect['id']}-choice-{second.key}", [release_value])
+    choices = posted_payload(data)["models"][0]["effects"][0]["choices"]
+    assert choices == {first.key: [ransom_value], second.key: [release_value]}
+    effect["choices"] = choices
+    plan = preview_report(report, actor=owner, payload=payload)
+    assert plan.valid, plan.errors
+    assert plan.models[0].final_status == Status.RECOVERY
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.RECOVERY
+    picks = Assignment.objects.filter(
+        miniature=model, chosen_for_slot=slot, archived=False
+    )
+    assert picks.count() == 2
+    assert picks.values("chosen_for_status_revision").distinct().count() == 2
+    report = start_correction(report, actor=owner)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"][0]["choices"][second.key] = []
+    payload["models"][0]["status"] = ""
+    plan = preview_report(report, actor=owner, payload=payload)
+    assert plan.valid, plan.errors
+    assert [q.key for q in plan.models[0].effects[0].questions] == [
+        first.key,
+        second.key,
+    ]
+    assert plan.models[0].final_status == Status.RANSOMED
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.RANSOMED
+
+
+def test_legacy_status_choice_keys_remain_readable_in_drafts_and_corrections(
+    report, owner, model, follow_up
+):
+    captured, _, released, ransom = follow_up
+    effect = effect_for(report, owner, captured)
+    payload = payload_for(model, effects=[effect])
+    question = (
+        preview_report(report, actor=owner, payload=payload)
+        .models[0]
+        .effects[0]
+        .questions[0]
+    )
+    legacy_key = question.key.removeprefix(f"post-battle:{effect['id']}:").rsplit(
+        ":status-", 1
+    )[0]
+    effect["choices"][legacy_key] = [f"library.pickable:{released.pk}"]
+    plan = preview_report(report, actor=owner, payload=payload)
+    assert plan.valid, plan.errors
+    assert plan.models[0].final_status == Status.RECOVERY
+    assert plan.models[0].effects[0].questions[0].selected == [
+        f"library.pickable:{released.pk}"
+    ]
+    from n26.core.post_battle_forms import editor_models
+
+    assert editor_models(plan, payload)[0].effects[0].retained_choices == []
+    report = save(report, owner, payload)
+    apply(report, owner)
+    report = start_correction(report, actor=owner)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"][0]["choices"][legacy_key] = [
+        f"library.pickable:{ransom.pk}"
+    ]
+    payload["models"][0]["status"] = ""
+    plan = preview_report(report, actor=owner, payload=payload)
+    assert plan.valid, plan.errors
+    assert plan.models[0].final_status == Status.RANSOMED
+    report = save(report, owner, payload)
+    apply(report, owner)
+    model.refresh_from_db()
+    assert model.status == Status.RANSOMED

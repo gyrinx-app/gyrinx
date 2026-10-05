@@ -9,6 +9,7 @@ from django.db import connection
 
 from n26.core.status import Status
 from n26.library.authoring import (
+    attach_modifiers_to,
     create_pack,
     create_pickable,
     create_slot_type,
@@ -17,6 +18,7 @@ from n26.library.authoring import (
     modifier,
     revise,
     targets_every_model,
+    targets_model,
 )
 from n26.library.models import (
     AddsAssignable,
@@ -108,3 +110,34 @@ def test_standard_upgrade_reverse_restores_the_result_grant(default_pack, gang_t
         result.modifiers.filter(adds_assignable__slot=escape).exists()
         for result in captures
     )
+
+
+def test_reverse_reuses_the_original_shared_escape_grant(default_pack, gang_type):
+    STANDARD_CONTENT["lasting-effect-tables"].create()
+    escape = Slot.objects.get(name="Escape")
+    captures = list(Pickable.objects.filter(name="Captured"))
+    assert len(captures) == 2
+    legacy = modifier(
+        "Captured: rolls on the Escape table", targets_model(), ef_adds(escape)
+    )
+    for result in captures:
+        attach_modifiers_to(result, [legacy])
+    migration = import_module("n26.library.migrations.0120_status_follow_up_choices")
+    editor = SimpleNamespace(connection=connection)
+    migration.update_standard_choices(apps, editor)
+    assert not any(
+        result.modifiers.filter(pk=legacy.pk).exists() for result in captures
+    )
+    before = Modifier.objects.count()
+    migration.restore_standard_choices(apps, editor)
+    assert Modifier.objects.count() == before - 1
+    for result in captures:
+        assert list(
+            result.modifiers.filter(adds_assignable__slot=escape).values_list(
+                "pk", flat=True
+            )
+        ) == [legacy.pk]
+        # The old standard-content seed finds this exact existing name, so
+        # seeding after rollback leaves a single grant on each result.
+        name = f"{result}: rolls on the {escape.choice_label} table"
+        assert result.modifiers.filter(name=name).get().pk == legacy.pk
