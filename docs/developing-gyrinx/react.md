@@ -51,6 +51,12 @@ returns a disposer. The loader mounts each host once, handles `htmx:load`, and
 unmounts before htmx removes it, including cancellation during an outstanding
 module import. Each root gets its own React ID prefix.
 
+The host's `data-react-name` is the kebab-case island name passed to the tag.
+`data-react-module` is the content-addressed file URL, so a selector such as
+`[data-react-module*='/pick-list-']` matches a hash, not a stable id. In Django
+tests and Playwright, select `[data-react-name="campaign-asset-selection"]`,
+then read the JSON script whose id is the host's `data-react-props`.
+
 React owns everything inside its host. Django owns the host and surrounding
 page. Do not nest islands, pass live Cotton DOM as React children, or swap part
 of a React root with htmx. Compose React children inside one root when they need

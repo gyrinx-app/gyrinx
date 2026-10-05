@@ -76,11 +76,13 @@ def _host(name, props, *, css, content, after="", fallback=False):
         '<script type="module" src="{}"></script>',
         urljoin("/", static("n26/react-islands.js")),
     )
+    # The module URL is content-addressed. The name is the stable island id.
     return format_html(
-        '{}<div id="{}" data-react-module="{}" data-react-props="{}"{} x-ignore hx-disable class="{}">'
+        '{}<div id="{}" data-react-name="{}" data-react-module="{}" data-react-props="{}"{} x-ignore hx-disable class="{}">'
         "{}</div>{}{}{}",
         preloads,
         identifier,
+        name,
         module,
         f"{identifier}-props",
         # The body is a working control; a failed load leaves it standing.
