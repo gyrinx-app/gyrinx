@@ -18,7 +18,14 @@ from n26.library.authoring import (
     revise,
     targets_every_model,
 )
-from n26.library.models import HasStatus, Modifier, Pickable, Slot
+from n26.library.models import (
+    AddsAssignable,
+    HasStatus,
+    Modifier,
+    Pickable,
+    Slot,
+    TargetsMiniature,
+)
 from n26.library.standard_content import STANDARD_CONTENT
 
 pytestmark = pytest.mark.django_db
@@ -69,7 +76,13 @@ def test_standard_upgrade_is_idempotent_and_leaves_other_packs(default_pack, gan
 def test_standard_upgrade_reverse_restores_the_result_grant(default_pack, gang_type):
     STANDARD_CONTENT["lasting-effect-tables"].create()
     migration = import_module("n26.library.migrations.0120_status_follow_up_choices")
+    grant = Modifier.objects.get(name="Captured models: Escape")
+    scope_id, effect_id = grant.targets_miniature_id, grant.adds_assignable_id
     migration.restore_standard_choices(apps, SimpleNamespace(connection=connection))
+    assert not TargetsMiniature.objects.filter(pk=scope_id).exists()
+    assert not HasStatus.objects.filter(scope_id=scope_id).exists()
+    assert not AddsAssignable.objects.filter(pk=effect_id).exists()
+    parts_before = (TargetsMiniature.objects.count(), AddsAssignable.objects.count())
     escape = Slot.objects.get(name="Escape")
     captures = Pickable.objects.filter(name="Captured")
     assert not escape.follows_status
@@ -81,7 +94,16 @@ def test_standard_upgrade_reverse_restores_the_result_grant(default_pack, gang_t
     migration.update_standard_choices(apps, SimpleNamespace(connection=connection))
     assert gang_type.modifiers.filter(name="Captured models: Escape").exists()
     assert not captures.filter(modifiers__adds_assignable__slot=escape).exists()
+    renewed = Modifier.objects.get(name="Captured models: Escape")
+    scope_id, effect_id = renewed.targets_miniature_id, renewed.adds_assignable_id
     migration.restore_standard_choices(apps, SimpleNamespace(connection=connection))
+    assert (
+        TargetsMiniature.objects.count(),
+        AddsAssignable.objects.count(),
+    ) == parts_before
+    assert not TargetsMiniature.objects.filter(pk=scope_id).exists()
+    assert not HasStatus.objects.filter(scope_id=scope_id).exists()
+    assert not AddsAssignable.objects.filter(pk=effect_id).exists()
     assert all(
         result.modifiers.filter(adds_assignable__slot=escape).exists()
         for result in captures

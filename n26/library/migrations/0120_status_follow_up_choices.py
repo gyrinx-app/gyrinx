@@ -82,8 +82,16 @@ def restore_standard_choices(apps, schema_editor):
     )
     if slot is None:
         return
-    Modifier.objects.using(using).filter(
+    modifiers = Modifier.objects.using(using).filter(
         pack_id=slot.pack_id, name="Captured models: Escape"
+    )
+    parts = list(modifiers.values_list("targets_miniature_id", "adds_assignable_id"))
+    modifiers.delete()
+    apps.get_model("library", "TargetsMiniature").objects.using(using).filter(
+        pk__in=[scope_id for scope_id, _ in parts]
+    ).delete()
+    apps.get_model("library", "AddsAssignable").objects.using(using).filter(
+        pk__in=[effect_id for _, effect_id in parts]
     ).delete()
     captures = Pickable.objects.using(using).filter(
         pack_id=slot.pack_id,
