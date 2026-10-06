@@ -16,6 +16,8 @@ Two consequences follow, both deliberate:
   been forgotten. See ``n26.core.models.assignment``.
 """
 
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator
 from django.db import models
 from django.db.models.functions import Lower
 
@@ -916,7 +918,47 @@ class Subtype(Content, Assignable):
         ]
 
 
-class Skill(Content, Assignable, UsableBy):
+class D6Rollable(models.Model):
+    """A skill or power with an optional numbered result in its family."""
+
+    position = models.PositiveIntegerField(
+        default=0,
+        verbose_name="D6 roll number",
+        validators=[MaxValueValidator(6)],
+        help_text="The book's D6 result, from 1 to 6. Use 0 for a skill or power that cannot be rolled.",
+    )
+
+    class Meta:
+        abstract = True
+
+    def unarchive(self):
+        from n26.library.authoring import restore_rollable
+
+        restore_rollable(self)
+
+    def clean(self):
+        super().clean()
+        if not self.position or self.archived:
+            return
+        if not self.category_id:
+            raise ValidationError(
+                {"category": "Choose a category for a numbered result."}
+            )
+        for kind in (Skill, Power):
+            others = kind.objects.filter(
+                archived=False, category_id=self.category_id, position=self.position
+            )
+            if isinstance(self, kind):
+                others = others.exclude(pk=self.pk)
+            if others.exists():
+                raise ValidationError(
+                    {
+                        "position": f"Another skill or power in {self.category} already uses D6 result {self.position}."
+                    }
+                )
+
+
+class Skill(D6Rollable, Content, Assignable, UsableBy):
     """A skill a fighter has selected, homed in the set it comes from.
 
     That set is its home category — the taxonomy every collection
@@ -924,6 +966,9 @@ class Skill(Content, Assignable, UsableBy):
 
     family = Family.MODEL
     card_row = "skills"
+
+    def unarchive(self):
+        return super().unarchive()
 
     class Meta:
         verbose_name = "skill"
@@ -1089,13 +1134,13 @@ class Counter(Content, Assignable):
         ]
 
 
-class Power(Content, Assignable, UsableBy):
+class Power(D6Rollable, Content, Assignable, UsableBy):
     """A Wyrd power — manifested, not taught.
 
     Not a skill, but its family is a category, so it shows up in the
-    same fighter-sectioned views as the skill sets, with no special
-    casing (the rulebook: Wyrds treat the powers list as a Secondary
-    Skill Set).
+    same fighter-sectioned views as the skill sets. Category placements
+    determine its model's Primary or Secondary access. An offer may allow
+    a power in place of a skill, including for advancements.
 
     The annotation carries what the book prints in brackets after the
     name — "(Free), Continuous Effect" — action type and upkeep, never
@@ -1105,6 +1150,9 @@ class Power(Content, Assignable, UsableBy):
 
     family = Family.MODEL
     card_row = "powers"
+
+    def unarchive(self):
+        return super().unarchive()
 
     class Meta:
         verbose_name = "power"

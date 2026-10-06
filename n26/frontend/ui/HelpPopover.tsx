@@ -36,12 +36,14 @@ const TONES = {
 
 export function HelpPopover({
     label,
+    triggerId,
     tone = "help",
     cta,
     triggerContent,
     children,
 }: {
     label: string;
+    triggerId?: string;
     tone?: keyof typeof TONES;
     /** A link under the explanation, for what the reader can do next. */
     cta?: { label: string; href: string };
@@ -166,6 +168,7 @@ export function HelpPopover({
         >
             <button
                 ref={trigger}
+                id={triggerId}
                 type="button"
                 aria-label={label}
                 aria-expanded={open}

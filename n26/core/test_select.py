@@ -169,3 +169,24 @@ class TestReadableness:
         assert str(select.Has(melee)) == "has Melee"
         assert str(select.OfKind(Affiliation)) == "any affiliation"
         assert str(select.Not(select.Has(melee))) == "not (has Melee)"
+
+
+class TestHasStatus:
+    def test_reads_current_status_and_preserves_it_through_other_facts(self):
+        captured = select.Matchable(thing=None, status="captured")
+        condition = select.HasStatus("captured")
+        assert condition.matches(captured.also().counting([]))
+        assert not condition.matches(select.Matchable(thing=None, status="recovery"))
+        assert not condition.matches(select.Matchable(thing=None))
+        assert select.Not(condition).matches(
+            select.Matchable(thing=None, status="active")
+        )
+
+    def test_query_condition_only_applies_to_player_models(self):
+        from django.db.models import Q
+
+        from n26.core.models import Gang, Miniature
+
+        assert select.HasStatus("captured").as_q(Miniature) == Q(status="captured")
+        with pytest.raises(select.NotExpressibleAsQuery):
+            select.HasStatus("captured").as_q(Gang)

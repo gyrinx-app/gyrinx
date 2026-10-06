@@ -420,6 +420,9 @@ class LedgerEvent(Base):
         blank=True,
         related_name="+",
     )
+    #: The status transition this choice was rolled for. Empty for ordinary
+    #: tables and for rolls made before status choices tracked their revision.
+    status_revision = models.PositiveIntegerField(null=True, blank=True)
     #: The other gang in a transfer — who was paid, or who paid. Empty
     #: where the credits left for somebody the app does not know, and
     #: set to nothing if that gang goes: the payment still happened.

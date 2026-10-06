@@ -28,6 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from n26.library.models.profile import TYPE_NAMES
+from n26.write_pause import guarded_write
 
 
 def _limits(minimum, maximum):
@@ -1034,7 +1035,9 @@ def _skill_rows():
         yield INHERENT_SET, skill, 0
 
 
+@guarded_write
 def _create_skills():
+    from n26.library.authoring import create_skill
     from n26.library.models import Category, Section, Skill
     from n26.library.models.pack import get_default_pack
 
@@ -1046,12 +1049,9 @@ def _create_skills():
             section=section, name=set_name, defaults={"position": position}
         )
     for set_name, skill, number in _skill_rows():
-        Skill.objects.get_or_create(
-            pack=pack,
-            name=skill,
-            qualifier="",
-            defaults={"category": sets[set_name], "position": number},
-        )
+        category = Category.objects.select_for_update().get(pk=sets[set_name].pk)
+        if not Skill.objects.filter(pack=pack, name=skill, qualifier="").exists():
+            create_skill(skill, category=category, position=number, pack=pack)
 
 
 def _check_skills():
@@ -1118,15 +1118,31 @@ def _check_trading_post():
 
 
 def _create_gang_types():
-    from n26.library.models import GangType
+    from django.conf import settings
 
-    _named(GangType, GANG_TYPES)
+    from n26.library.models import GangType, Modifier, Slot
+    from n26.library.models.pack import get_default_pack
+
+    pack = get_default_pack()
+    for name in GANG_TYPES:
+        GangType.objects.get_or_create(pack=pack, name=name, qualifier="")
+    grant = Modifier.objects.filter(
+        name__iexact="Captured models: Escape",
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+    ).first()
+    if grant is not None:
+        slot = Slot.objects.filter(pack=pack, name="Escape", qualifier="").first()
+        _create_escape_status_modifier(slot)
 
 
 def _check_gang_types():
     from n26.library.models import GangType
+    from n26.library.models.pack import get_default_pack
 
-    return _count(GangType, name__in=GANG_TYPES), len(GANG_TYPES)
+    return (
+        _count(GangType, pack=get_default_pack(), name__in=GANG_TYPES, qualifier=""),
+        len(GANG_TYPES),
+    )
 
 
 def _all_subtypes():
@@ -1253,7 +1269,7 @@ DELEGATION_STATUSES = {"Critical Injury": "dead"}
 
 #: What happens to a captured model, rolled straight after the battle
 #: (core rules, the Wrap-up): a D6 band table of its own, under its own
-#: slot type, granted to the model by the Captured result itself.
+#: slot type, offered while Captured by the gang-carried status condition.
 ESCAPE_SLOT_TYPE = "Escape"
 ESCAPE_TABLE = [
     (1, 1, "Executed"),
@@ -1265,23 +1281,39 @@ ESCAPE_STATUSES = {
     "Ransomed": "ransomed",
     "Daring Escape": "recovery",
 }
-#: The results that hand a model to the Escape table.
+#: The results that set Captured status; the gang-carried condition offers Escape.
 CAPTURED_RESULTS = ("Captured",)
 
 
 def lasting_effect_status_modifiers():
-    """A filter for the status modifiers the lasting-effect seed attaches,
-    recognised by what they do and where they sit — a status effect on a
-    result of one of the tables — never by name, so rewording one does
-    not make it look imported."""
+    """Standard table status effects and the conditional gang-carried Escape grant.
+
+    Recognise their effects and carriers, so changing a modifier's name does
+    not make ingest clearing delete a foundation.
+    """
+    from django.conf import settings
     from django.db.models import Q
 
     tables = [name for name, _, _, _, _ in LASTING_EFFECT_TABLES] + [ESCAPE_SLOT_TYPE]
-    return Q(
-        op_sets_status__isnull=False, library_pickable_set__slot_type__name__in=tables
-    ) | Q(
-        adds_assignable__slot__slot_type__name=ESCAPE_SLOT_TYPE,
-        library_pickable_set__slot_type__name__in=tables,
+    return (
+        Q(
+            op_sets_status__isnull=False,
+            library_pickable_set__slot_type__name__in=tables,
+        )
+        | Q(
+            adds_assignable__slot__slot_type__name=ESCAPE_SLOT_TYPE,
+            library_pickable_set__slot_type__name__in=tables,
+        )
+        | Q(
+            pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+            adds_assignable__slot__name=ESCAPE_SLOT_TYPE,
+            adds_assignable__slot__qualifier="",
+            adds_assignable__slot__pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+            targets_miniature__reach="every_model",
+            targets_miniature__has_status__status="captured",
+            library_gangtype_set__name__in=GANG_TYPES,
+            library_gangtype_set__pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+        )
     )
 
 
@@ -1423,15 +1455,21 @@ def _create_lasting_effect_tables():
                     status,
                 )
     escape = _create_escape_table()
+    _create_escape_status_modifier(escape)
     for index, (_, _, rows, _, _) in enumerate(LASTING_EFFECT_TABLES):
         slot_type = SlotType.objects.get(name__iexact=LASTING_EFFECT_TABLES[index][0])
         for _, _, result in rows:
             if result in CAPTURED_RESULTS:
-                _grants_escape(
-                    _table_row(
-                        Pickable, result, _twin_qualifier(index, result), slot_type, {}
-                    ),
-                    escape,
+                pickable = _table_row(
+                    Pickable, result, _twin_qualifier(index, result), slot_type, {}
+                )
+                Pickable.objects.filter(pk=pickable.pk).update(record_only=True)
+                pickable.modifiers.remove(
+                    *pickable.modifiers.filter(
+                        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+                        name__iexact="Captured: rolls on the Escape table",
+                        adds_assignable__slot=escape,
+                    )
                 )
 
 
@@ -1465,29 +1503,67 @@ def _create_escape_table():
             pickable=pickable,
             defaults={"roll_low": low, "roll_high": high, "position": position},
         )
+        Pickable.objects.filter(pk=pickable.pk).update(record_only=True)
         _status_modifier(pickable, ESCAPE_STATUSES[result])
-    return _table_row(
+    slot = _table_row(
         Slot,
         ESCAPE_SLOT_TYPE,
         "",
         slot_type,
         {"picklist": table, "label": ESCAPE_SLOT_TYPE, "min_picks": 0, "max_picks": 1},
     )
+    Slot.objects.filter(pk=slot.pk).update(follows_status=True)
+    slot.follows_status = True
+    return slot
 
 
-def _grants_escape(pickable, slot):
-    """Attach "gives the model the Escape choice" to a Captured result,
-    once — found by name, as the status modifiers are."""
-    from n26.library.authoring import ef_adds, modifier, targets_model
-    from n26.library.models import Modifier
+def _create_escape_status_modifier(slot):
+    """One shared conditional grant, attached to the standard gang types."""
+    from django.conf import settings
 
-    name = f"{pickable}: rolls on the {slot.choice_label} table"
-    if pickable.modifiers.filter(name=name).exists():
-        return
-    row = Modifier.objects.filter(name=name).first()
+    from n26.core.status import Status
+    from n26.library.authoring import ef_adds, has_status, modifier, targets_every_model
+    from n26.library.models import HasStatus, Modifier
+
+    name = "Captured models: Escape"
+    row = Modifier.objects.filter(
+        name__iexact=name, pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+    ).first()
+    if row is not None:
+        scope = row.targets_miniature
+        conditions = scope._condition_rows() if scope is not None else []
+        if not (
+            slot is not None
+            and scope is not None
+            and scope.reach == "every_model"
+            and row.adds_assignable_id is not None
+            and row.adds_assignable.slot_id == slot.pk
+            and len(conditions) == 1
+            and isinstance(conditions[0], HasStatus)
+            and conditions[0].status == Status.CAPTURED
+        ):
+            raise RuntimeError(
+                'The modifier "Captured models: Escape" has a different scope or effect. '
+                "Rename it before changing standard Escape content."
+            )
     if row is None:
-        row = modifier(name, targets_model(), ef_adds(slot))
-    pickable.modifiers.add(row)
+        row = modifier(
+            name, targets_every_model(has_status(Status.CAPTURED)), ef_adds(slot)
+        )
+    _attach_escape_status_modifier(row)
+    return row
+
+
+def _attach_escape_status_modifier(grant):
+    """Either seed may create its rows first; link only standard gang types."""
+    from django.conf import settings
+
+    from n26.library.models import GangType
+
+    for gang_type in GangType.objects.filter(
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG, name__in=GANG_TYPES, qualifier=""
+    ):
+        gang_type.modifiers.add(grant)
 
 
 #: Suit Evolution's roll (Spyre Hunting Party gang list): a Spyrer spends
@@ -1773,6 +1849,7 @@ def _create_fighter_actions():
     from n26.library.models import (
         Action,
         ChangesStat,
+        Collection,
         CollectionSection,
         Counter,
         Modifier,
@@ -1792,6 +1869,9 @@ def _create_fighter_actions():
     from n26.library.models.pack import get_default_pack
 
     pack = get_default_pack()
+    power_access_collection = Collection.objects.get(
+        pack=pack, name=SKILLS_COLLECTION, qualifier=""
+    )
 
     def named(model, name, **defaults):
         lookup = {"pack": pack, "name__iexact": name}
@@ -1960,6 +2040,7 @@ def _create_fighter_actions():
                 isinstance(effect, OffersChoice)
                 and effect.of_kind.model_class() is Skill
                 and effect.from_section_id == getattr(section, "pk", None)
+                and effect.power_access_collection_id == power_access_collection.pk
                 and effect.mode
                 == (
                     OffersChoice.Mode.RANDOM
@@ -1973,6 +2054,7 @@ def _create_fighter_actions():
                     Skill,
                     from_section=section,
                     mode="random" if name.startswith("Random") else "select",
+                    power_access_collection=power_access_collection,
                 )
                 if existing_modifier is None:
                     existing_modifier = authoring.modifier(
@@ -2383,14 +2465,15 @@ def _check_fighter_actions():
     } != expected_advancements:
         return incomplete()
     characteristic_names = {full for _, full, _, _ in MODEL_CHARACTERISTICS}
-    skill_sections = dict(
+    skill_section_rows = list(
         CollectionSection.objects.filter(
             collection__pack=pack,
             collection__name=SKILLS_COLLECTION,
             collection__qualifier="",
             name__in=("Primary", "Secondary"),
-        ).values_list("name", "pk")
+        ).values_list("name", "pk", "collection_id")
     )
+    skill_sections = {name: pk for name, pk, _collection_id in skill_section_rows}
     if set(skill_sections) != {"Primary", "Secondary"}:
         return incomplete()
     for member in members:
@@ -2412,6 +2495,7 @@ def _check_fighter_actions():
             and modifier.pack_id == pack.pk
             and isinstance(modifier.effect, OffersChoice)
             and modifier.effect.of_kind.model_class() is Skill
+            and modifier.effect.power_access_collection_id == skill_section_rows[0][2]
             and modifier.effect.mode
             == (
                 OffersChoice.Mode.RANDOM

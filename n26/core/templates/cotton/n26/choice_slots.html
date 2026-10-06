@@ -23,7 +23,7 @@ A settled slot with an href is still a control. Clicking it is how that choice i
                                href="{{ choice.href }}"
                                variant="ghost"
                                class="{{ class }}"
-                               value="{% if choice.is_resolved %}{{ choice.chosen }}{% else %}{{ choose_label }}{% endif %}">
+                               value="{% if choice.is_resolved %}{{ choice.chosen }}{% elif choice.follows_status %}Resolve →{% else %}{{ choose_label }}{% endif %}">
             <c-slot name="trailing"><c-n26.choice-dismiss :choice="choice" /></c-slot>
         </c-n26.detail-list.row>
     {% else %}

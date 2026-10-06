@@ -838,9 +838,7 @@ class TestPickingASkill:
 
         few = measure()
         for index in range(8):
-            create_skill(
-                f"Filler {index}", category=sets["agility"], position=index + 10
-            )
+            create_skill(f"Filler {index}", category=sets["agility"])
         assert measure() == few
 
 

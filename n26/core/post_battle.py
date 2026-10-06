@@ -8,7 +8,7 @@ the gang's later earnings or spending.
 import json
 from collections import defaultdict
 from contextlib import contextmanager
-from copy import deepcopy
+from copy import copy, deepcopy
 from dataclasses import asdict, dataclass, field, replace
 from hashlib import sha256
 from uuid import UUID, uuid4
@@ -70,6 +70,7 @@ class ChoiceQuestion:
     selected: list[str]
     min_picks: int
     max_picks: int
+    follows_status: bool = False
 
     @property
     def multiple(self):
@@ -91,6 +92,18 @@ class EffectResult:
     pick: str
     questions: list[ChoiceQuestion] = field(default_factory=list)
     statuses: list[str] = field(default_factory=list)
+    status_from_follow_up: bool = False
+
+    @property
+    def display_name(self):
+        outcomes = [
+            option.label
+            for question in self.questions
+            if question.follows_status
+            for option in question.options
+            if option.value in question.selected
+        ]
+        return " → ".join([self.name, *outcomes])
 
 
 @dataclass
@@ -219,6 +232,8 @@ class PostBattlePlan:
     # Resolved objects are private execution data, never template inputs.
     _writes: list = field(default_factory=list, repr=False)
     _removals: list = field(default_factory=list, repr=False)
+    _status_restores: dict = field(default_factory=dict, repr=False)
+    _effect_statuses: dict = field(default_factory=dict, repr=False)
     _status_writes: dict = field(default_factory=dict, repr=False)
     _equipment: dict = field(default_factory=dict, repr=False)
     _retained: dict = field(default_factory=dict, repr=False)
@@ -568,13 +583,27 @@ def _effect_steps(thing, index, errors, facts, active):
     return statuses
 
 
+def _project_status(card, statuses):
+    for status in statuses:
+        if card.miniature.status != status:
+            card.miniature.status = status
+            card.miniature.status_revision += 1
+
+
 def _project_effect(
     card, computed, slot, thing, raw, result, index, writes, facts, active
 ):
     """Add hypothetical nodes and resolve only the questions this occurrence adds."""
     occurrence = result.id
+    starting_status_revision = card.current_status_revision
     root_key = f"post-battle:{occurrence}"
     nodes = {root_key}
+    starting = compute(card, index)
+    earlier_status_choices = {
+        (q.anchor.key, q.identity.pk, q.status_revision)
+        for q in starting.choices
+        if q.status_revision is not None
+    }
     card.roots.append(
         Node(
             thing,
@@ -582,34 +611,69 @@ def _project_effect(
             caused_by_key=slot.anchor.key,
             chosen_for_key=slot.anchor.key,
             chosen_for_slot_id=slot.slot.pk,
+            chosen_for_status_revision=slot.status_revision,
             acquired=timezone.now(),
         )
     )
     writes.append(
-        (occurrence, root_key, slot.anchor.key, slot.slot, None, thing, card.miniature)
+        (
+            occurrence,
+            root_key,
+            slot.anchor.key,
+            slot.slot,
+            None,
+            thing,
+            card.miniature,
+            slot.anchor.key,
+        )
     )
-    result.statuses.extend(
-        _effect_steps(thing, index, result_errors := [], facts, active)
-    )
+    statuses = _effect_steps(thing, index, result_errors := [], facts, active)
+    result.statuses.extend(statuses)
+    if statuses:
+        result.status_from_follow_up = slot.slot.follows_status
+    _project_status(card, statuses)
     answers = raw.get("choices") or {}
     if not isinstance(answers, dict):
         result_errors.append(f"The choices for {thing} are invalid.")
         answers = {}
     asked = set()
+    legacy_keys = set()
     for _ in range(5):
         computed = compute(card, index)
         pending = [
             q
             for q in computed.choices
-            if q.anchor.key in nodes and (q.anchor.key, q.identity.pk) not in asked
+            if (
+                q.anchor.key in nodes
+                or (
+                    q.status_revision is not None
+                    and (q.anchor.key, q.identity.pk, q.status_revision)
+                    not in earlier_status_choices
+                    and not q.is_full
+                )
+            )
+            and (q.anchor.key, q.identity.pk, q.status_revision) not in asked
         ]
         if not pending:
             break
         for question in pending:
-            asked.add((question.anchor.key, question.identity.pk))
+            asked.add(
+                (question.anchor.key, question.identity.pk, question.status_revision)
+            )
             key = f"{question.anchor.key}:{question.identity._meta.model_name}:{question.identity.pk}"
+            legacy_chosen = []
+            if question.status_revision is not None:
+                base_key = key
+                # Relative revisions distinguish transitions within this result
+                # and keep selections stable when a correction replays it.
+                key = f"{root_key}:{base_key}:status-{question.status_revision - starting_status_revision}"
+                # Drafts written before revision keys identify only the first
+                # use of a status choice, never a later transition's selection.
+                if base_key in answers and base_key not in legacy_keys:
+                    legacy_keys.add(base_key)
+                    legacy_chosen = answers[base_key]
             offered = _options(question, computed)
-            chosen = answers.get(key, [])
+            chosen = answers.get(key, legacy_chosen)
             if not isinstance(chosen, list) or any(
                 not isinstance(value, str) for value in chosen
             ):
@@ -623,6 +687,7 @@ def _project_effect(
                     chosen,
                     question.min_picks,
                     question.max_picks,
+                    follows_status=question.status_revision is not None,
                 )
             )
             if not question.min_picks <= len(chosen) <= question.max_picks:
@@ -656,8 +721,11 @@ def _project_effect(
                     Node(
                         option.thing,
                         node_key,
-                        caused_by_key=question.anchor.key,
+                        caused_by_key=root_key
+                        if question.status_revision is not None
+                        else question.anchor.key,
                         chosen_for_key=question.anchor.key,
+                        chosen_for_status_revision=question.status_revision,
                         chosen_for_slot_id=question.slot.pk if question.slot else None,
                         chosen_for_offer_id=question.offer.pk
                         if question.offer
@@ -674,14 +742,21 @@ def _project_effect(
                         question.offer,
                         option.thing,
                         card.miniature,
+                        root_key
+                        if question.status_revision is not None
+                        else question.anchor.key,
                     )
                 )
-                result.statuses.extend(
-                    _effect_steps(option.thing, index, result_errors, facts, active)
+                statuses = _effect_steps(
+                    option.thing, index, result_errors, facts, active
                 )
+                result.statuses.extend(statuses)
+                if statuses:
+                    result.status_from_follow_up = question.status_revision is not None
+                _project_status(card, statuses)
     else:
         result_errors.append(f"{thing} has too many linked choices to record here.")
-    known = {q.key for q in result.questions}
+    known = {q.key for q in result.questions} | legacy_keys
     if any(value for key, value in answers.items() if key not in known):
         result_errors.append(
             f"Some choices no longer belong to {thing}. Check its choices again."
@@ -755,7 +830,7 @@ def _project_counters(card, index, plan, result, facts, manual=None):
         result.errors.append(
             "These corrections would take a counter below zero. Correct its later changes first."
         )
-    for _, _, _, _, _, thing, miniature in plan._writes:
+    for _, _, _, _, _, thing, miniature, _ in plan._writes:
         if str(miniature.pk) != result.id:
             continue
         for modifier, _ in index.for_thing(thing):
@@ -1172,6 +1247,29 @@ def preview_report(report, *, actor, payload=None):
                 earlier_results[str(root.miniature_root_id)][
                     str(event.assignment_id)
                 ] += event.counter_delta
+    status_removals = {
+        str(root.miniature_root_id)
+        for _, root, events in plan._removals
+        if any(event.kind == LedgerEvent.Kind.STATUS_SET for event in events)
+    }
+    recorded_models = {
+        m["id"]: m for m in (previous.receipt if previous else {}).get("models", [])
+    }
+    legacy_status_models = {
+        model_id
+        for model_id in status_removals
+        if model_id in started
+        and recorded_models.get(model_id, {}).get("status_revision_after") is None
+    }
+    latest_status_reports = {
+        str(model_id): report_id
+        for model_id, report_id in LedgerEvent.objects.filter(
+            miniature_id__in=legacy_status_models, kind=LedgerEvent.Kind.STATUS_SET
+        )
+        .order_by("miniature_id", "-created", "-pk")
+        .distinct("miniature_id")
+        .values_list("miniature_id", "post_battle_revision__report_id")
+    }
     for model_id, card in gang_card.members.items():
         model_id = str(model_id)
         miniature = card.miniature
@@ -1179,6 +1277,49 @@ def preview_report(report, *, actor, payload=None):
         before = old_models.get(model_id, {})
         model_errors = []
         card.roots = _remove_nodes(card.roots, removed)
+        card.miniature = copy(miniature)
+        facts.append(["status-revision", model_id, miniature.status_revision])
+        # Re-open a status condition before replacing the result that settled it.
+        # This is a real correction transition when applied, not a reuse of an
+        # earlier choice revision.
+        if model_id in status_removals and model_id in started:
+            recorded = recorded_models.get(model_id, {})
+            expected_revision = recorded.get("status_revision_after")
+            # Legacy receipts have no revision; their latest status transition
+            # must still belong to this report.
+            changed_since = (
+                miniature.status_revision != expected_revision
+                if expected_revision is not None
+                else latest_status_reports.get(model_id) != report.pk
+            )
+            if miniature.status != recorded.get("status_after") or changed_since:
+                model_errors.append(
+                    "This model's status has changed since these results. Keep its recorded status results when correcting this report."
+                )
+            else:
+                # Restore the status before the earliest removed result.
+                # A deferred follow-up starts in its condition's status;
+                # removing its earlier parent result also reverses that status.
+                # Receipt mappings do not preserve chronological order.
+                restore = next(
+                    (
+                        old_occurrences[occurrence].get(
+                            "status_before", started[model_id]
+                        )
+                        for occurrence, root, events in sorted(
+                            plan._removals,
+                            key=lambda removal: (removal[1].created, removal[1].pk),
+                        )
+                        if str(root.miniature_root_id) == model_id
+                        and any(
+                            event.kind == LedgerEvent.Kind.STATUS_SET
+                            for event in events
+                        )
+                    ),
+                    started[model_id],
+                )
+                plan._status_restores[model_id] = restore
+                _project_status(card, [restore])
         computed = compute(card, index)
         xp_nodes = [
             n
@@ -1242,7 +1383,9 @@ def preview_report(report, *, actor, payload=None):
         for slot in computed.choices:
             if (
                 slot.slot is None
-                or not slot.slot.slot_type.is_lasting_effect
+                or not (
+                    slot.slot.slot_type.is_lasting_effect or slot.slot.follows_status
+                )
                 or slot.slot.assigned_to == Slot.WillBeAssignedTo.GANG
             ):
                 continue
@@ -1252,6 +1395,11 @@ def preview_report(report, *, actor, payload=None):
             if anchor is None:
                 continue
             key = f"{anchor.pk}:{slot.slot.pk}"
+            if slot.slot.follows_status and slot.is_full:
+                result.effect_slots.append(
+                    EffectSlot(key, slot.slot.slot_type.name, [])
+                )
+                continue
             cache_key = str(slot.slot.pk)
             if cache_key not in choices_cache:
                 choices_cache[cache_key] = _options(replace(slot, picks=[]), computed)
@@ -1270,6 +1418,7 @@ def preview_report(report, *, actor, payload=None):
         normalized_effects = []
         implied = []
         implied_by = []
+        implied_follow_ups = []
         new_counts = defaultdict(int)
         for raw_effect in raw.get("effects", []):
             try:
@@ -1330,6 +1479,7 @@ def preview_report(report, *, actor, payload=None):
             effect = EffectResult(occurrence, option.name, spec["slot"], spec["pick"])
             result.effects.append(effect)
             facts.append(["effect", model_id, spec])
+            plan._effect_statuses[occurrence] = card.miniature.status
             model_errors.extend(
                 _project_effect(
                     card,
@@ -1344,17 +1494,15 @@ def preview_report(report, *, actor, payload=None):
                     active,
                 )
             )
-            implied.extend(effect.statuses)
-            implied_by.extend((effect.name, status) for status in effect.statuses)
+            implied.extend(effect.statuses[-1:])
+            implied_by.extend((effect.name, status) for status in effect.statuses[-1:])
+            if effect.statuses:
+                implied_follow_ups.append(effect.status_from_follow_up)
         explicit = str(raw.get("status", ""))
         if explicit and explicit not in Status.values:
             model_errors.append("Choose a valid final status.")
             explicit = ""
-        removing_status = any(
-            str(root.miniature_root_id) == model_id
-            and any(e.kind == LedgerEvent.Kind.STATUS_SET for e in events)
-            for _, root, events in plan._removals
-        )
+        removing_status = model_id in status_removals
         # A result this correction replaces set the status the model has
         # now. The status follows the new results instead: the last one
         # that sets a status, or the status the model had before this
@@ -1367,6 +1515,8 @@ def preview_report(report, *, actor, payload=None):
             )
             if implied:
                 followed = implied[-1]
+            elif model_id in plan._status_restores:
+                followed = plan._status_restores[model_id]
             elif not keeps_a_result:
                 followed = started.get(model_id)
         current_label = label_for(miniature.status, vehicle)
@@ -1392,6 +1542,7 @@ def preview_report(report, *, actor, payload=None):
                 and miniature.status != Status.ACTIVE
                 and implied
                 and implied[-1] != miniature.status
+                and not all(implied_follow_ups)
             ):
                 name, status = implied_by[-1]
                 verb = "leaves" if status == Status.ACTIVE else "makes"
@@ -1623,6 +1774,13 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
             for occurrence, root, _ in plan._removals:
                 op.post_battle_occurrence = UUID(occurrence)
                 op.remove(root, note="Post-battle correction")
+            op.post_battle_occurrence = None
+            for model_id, status in plan._status_restores.items():
+                op.set_status(
+                    Miniature.objects.get(pk=model_id),
+                    status,
+                    note="Post-battle correction",
+                )
             for (
                 occurrence,
                 key,
@@ -1631,6 +1789,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                 offer,
                 thing,
                 miniature,
+                cause_key,
             ) in plan._writes:
                 op.post_battle_occurrence = UUID(occurrence)
                 anchor = assigned.get(anchor_key)
@@ -1639,7 +1798,12 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                         pk=anchor_key, archived=False, gang_root=gang
                     )
                 assigned[key] = op.choose(
-                    anchor, thing, slot=slot, offer=offer, miniature=miniature
+                    anchor,
+                    thing,
+                    slot=slot,
+                    offer=offer,
+                    miniature=miniature,
+                    caused_by=assigned.get(cause_key, anchor),
                 )
                 roots.setdefault(occurrence, assigned[key])
             op.post_battle_occurrence = None
@@ -1680,6 +1844,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                 "input": spec,
                 "name": effects[occurrence].name,
                 "model_id": model_id,
+                "status_before": plan._effect_statuses[occurrence],
                 "questions": [asdict(q) for q in effects[occurrence].questions],
                 "root_id": str(root.pk),
                 "assignment_ids": [
@@ -1699,12 +1864,29 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
             counter.id: counter.reading
             for counter in held_counters(final_card.all_nodes(), final_gang.counters)
         }
-        final_statuses = dict(
-            Miniature.objects.filter(pk__in=[m.id for m in plan.models]).values_list(
-                "pk", "status"
-            )
+        prior = (
+            report.revisions.get(sequence=report.latest_sequence)
+            if report.latest_sequence
+            else None
         )
-        final_statuses = {str(pk): status for pk, status in final_statuses.items()}
+        prior_models = (
+            {model["id"]: model for model in prior.receipt.get("models", [])}
+            if prior
+            else {}
+        )
+        # A credits-only correction cannot adopt a later status transition
+        # as one this report may subsequently reverse.
+        changed_statuses = {
+            str(event.miniature_id)
+            for event in events
+            if event.kind == LedgerEvent.Kind.STATUS_SET
+        }
+        final_states = {
+            str(pk): (status, revision)
+            for pk, status, revision in Miniature.objects.filter(
+                pk__in=[m.id for m in plan.models]
+            ).values_list("pk", "status", "status_revision")
+        }
         final_readings = {}
         for pk, card in final_card.members.items():
             readings = counter_readings(card, compute(card, final_index))
@@ -1719,7 +1901,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
             )
         for model in plan.models:
             model.xp_after = final_readings.get(model.id, 0)
-            model.final_status = final_statuses[model.id]
+            model.final_status = final_states[model.id][0]
         receipt = {
             "gang": gang.name,
             "reference": report.reference,
@@ -1752,9 +1934,14 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                     "xp_award_assignment_id": m.xp_award_assignment_id,
                     "status_before": m.status,
                     "status_after": m.final_status,
+                    "status_revision_after": (
+                        final_states[m.id][1]
+                        if m.id in changed_statuses or m.id not in prior_models
+                        else prior_models[m.id].get("status_revision_after")
+                    ),
                     "status_before_label": m.status_label,
                     "status_after_label": label_for(m.final_status, m.is_vehicle),
-                    "effects": [e.name for e in m.effects],
+                    "effects": [e.display_name for e in m.effects],
                     "equipment_disposition": m.equipment_disposition,
                     "equipment_changed": m.equipment_changed,
                     "equipment_names": m.equipment_affected_names,

@@ -168,7 +168,7 @@ Trait lines under a named weapon profile start with an empty cell so they sit un
                         {% if choice.takes_several %}
                             {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Add</c-ui.button>{% else %}<span class="text-xs text-muted">Add</span>{% endif %}
                         {% elif not choice.is_resolved %}
-                            {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">Choose</c-ui.button>{% else %}<span class="text-xs text-muted">Choose</span>{% endif %}
+                            {% if choice.href %}<c-ui.button href="{{ choice.href }}" variant="ghost" size="xs">{% if choice.follows_status %}<span class="inline-flex items-center gap-1">Resolve <c-n26.icon name="arrow-right" class="size-3.5 shrink-0" /></span>{% else %}Choose{% endif %}</c-ui.button>{% else %}<span class="text-xs text-muted">Choose</span>{% endif %}
                         {% endif %}
                     {% endif %}
 

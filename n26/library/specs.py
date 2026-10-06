@@ -106,6 +106,22 @@ class _Sourced:
         return 0 if isinstance(field, positive) else None
 
     @property
+    def max_value(self):
+        """The smallest upper bound declared on the model field."""
+        from django.core.validators import MaxValueValidator
+
+        if self.source is None:
+            return None
+        model, field_name = self.source
+        limits = [
+            validator.limit_value
+            for validator in model._meta.get_field(field_name).validators
+            if isinstance(validator, MaxValueValidator)
+            and not callable(validator.limit_value)
+        ]
+        return min(limits) if limits else None
+
+    @property
     def label(self):
         """What the model field calls itself, where it calls itself
         anything — ``None`` otherwise, leaving the form to derive one.
@@ -401,6 +417,7 @@ def _build_registry():
         GangHasPickable,
         GangType,
         HasPickable,
+        HasStatus,
         HasSubtypes,
         HasTraits,
         Hidden,
@@ -481,6 +498,7 @@ def _build_registry():
                         "is_profile_type",
                         "has_pickable",
                         "counter_at_least",
+                        "has_status",
                     )
                 ),
             },
@@ -506,6 +524,7 @@ def _build_registry():
                         "is_profile_type",
                         "has_pickable",
                         "counter_at_least",
+                        "has_status",
                     )
                 ),
             },
@@ -551,6 +570,7 @@ def _build_registry():
                 "negate": Bool(source=(HasPickable, "negate")),
             },
         ),
+        Spec(authoring.has_status, {"status": Choice(source=(HasStatus, "status"))}),
         Spec(
             authoring.counter_at_least,
             {
@@ -713,6 +733,11 @@ def _build_registry():
                     source=(OffersChoice, "from_section"),
                 ),
                 "label": Text(source=(OffersChoice, "label")),
+                "power_access_collection": One(
+                    model=Collection,
+                    optional=True,
+                    source=(OffersChoice, "power_access_collection"),
+                ),
                 "mode": Choice(source=(OffersChoice, "mode")),
                 "will_be_assigned_to": Choice(
                     source=(OffersChoice, "will_be_assigned_to")
@@ -924,6 +949,7 @@ def _build_registry():
                 "category": One(
                     model=Category, optional=True, source=(Skill, "category")
                 ),
+                "position": Int(source=(Skill, "position")),
                 **use_lists(Skill),
                 "qualifier": Text(source=(Skill, "qualifier")),
                 "library_author_help": Text(
@@ -939,6 +965,7 @@ def _build_registry():
                 "category": One(
                     model=Category, optional=True, source=(Power, "category")
                 ),
+                "position": Int(source=(Power, "position")),
                 **use_lists(Power),
                 "qualifier": Text(source=(Power, "qualifier")),
                 "library_author_help": Text(
@@ -1309,6 +1336,7 @@ def _build_registry():
                 ),
                 "qualifier": Text(source=(Pickable, "qualifier")),
                 "summary": Text(source=(Pickable, "summary"), long=True),
+                "record_only": Bool(source=(Pickable, "record_only")),
                 "rating_contribution": Int(source=(Pickable, "rating_contribution")),
                 "library_author_help": Text(
                     source=(Pickable, "library_author_help"), long=True
@@ -1373,6 +1401,7 @@ def _build_registry():
                 "max_picks": Int(source=(Slot, "max_picks")),
                 "assigned_to": Choice(source=(Slot, "assigned_to")),
                 "hidden": Bool(source=(Slot, "hidden")),
+                "follows_status": Bool(source=(Slot, "follows_status")),
                 "mode": Choice(source=(Slot, "mode")),
                 "position": Int(source=(Slot, "position")),
                 "qualifier": Text(source=(Slot, "qualifier")),

@@ -590,7 +590,10 @@ def revise(row, **fields):
             )
         setattr(row, name, value)
     from n26.library.models import PicklistMember
+    from n26.library.models.assignable import D6Rollable
 
+    if isinstance(row, D6Rollable):
+        return _save_rollable(row)
     if isinstance(row, PicklistMember):
         row.full_clean()
     row.save()
@@ -771,6 +774,29 @@ def create_subtype(name, qualifier="", library_author_help="", **kwargs):
     )
 
 
+def _save_rollable(row):
+    from n26.library.models import Category
+
+    # Serialise numbered writes within a category, including across kinds.
+    if row.category_id:
+        Category.objects.select_for_update().get(pk=row.category_id)
+    row.full_clean()
+    row.save()
+    return row
+
+
+@guarded_write
+def restore_rollable(row):
+    """Restore a skill or power only if its D6 number is available."""
+    row.archived = False
+    row.archived_at = None
+    _save_rollable(row)
+    for related in getattr(row, "archive_with", []):
+        if hasattr(related, "unarchive"):
+            related.unarchive()
+    return row
+
+
 @guarded_write
 def create_skill(
     name,
@@ -780,6 +806,7 @@ def create_skill(
     usable_by_profiles=(),
     qualifier="",
     library_author_help="",
+    position=0,
     **kwargs,
 ):
     """A skill, homed in its set — ``create_skill("Catfall", agility)``.
@@ -792,12 +819,15 @@ def create_skill(
     from n26.library.models import Skill
 
     return set_usable_by(
-        Skill.objects.create(
-            name=name,
-            category=category,
-            qualifier=qualifier,
-            library_author_help=library_author_help,
-            **kwargs,
+        _save_rollable(
+            Skill(
+                name=name,
+                category=category,
+                position=position,
+                qualifier=qualifier,
+                library_author_help=library_author_help,
+                **kwargs,
+            )
         ),
         usable_by_profile_types=usable_by_profile_types,
         usable_by_subtypes=usable_by_subtypes,
@@ -815,6 +845,7 @@ def create_power(
     usable_by_profiles=(),
     qualifier="",
     library_author_help="",
+    position=0,
     **kwargs,
 ):
     """A Wyrd power — ``create_power("Force Blast", "(Free), Continuous")``.
@@ -825,13 +856,16 @@ def create_power(
     from n26.library.models import Power
 
     return set_usable_by(
-        Power.objects.create(
-            name=name,
-            annotation=annotation,
-            category=category,
-            qualifier=qualifier,
-            library_author_help=library_author_help,
-            **kwargs,
+        _save_rollable(
+            Power(
+                name=name,
+                annotation=annotation,
+                category=category,
+                position=position,
+                qualifier=qualifier,
+                library_author_help=library_author_help,
+                **kwargs,
+            )
         ),
         usable_by_profile_types=usable_by_profile_types,
         usable_by_subtypes=usable_by_subtypes,
@@ -1254,6 +1288,7 @@ def create_pickable(
     category=None,
     rating_contribution=0,
     summary="",
+    record_only=False,
     **kwargs,
 ):
     """One pickable a choice offers; ``effects`` are (scope, effect) pairs.
@@ -1277,6 +1312,7 @@ def create_pickable(
         slot_type=slot_type,
         qualifier=qualifier,
         summary=summary,
+        record_only=record_only,
         library_author_help=library_author_help,
         category=category,
         rating_contribution=rating_contribution,
@@ -1389,6 +1425,7 @@ def create_slot(
     max_picks=1,
     assigned_to="bearer",
     hidden=False,
+    follows_status=False,
     mode="standard",
     position=0,
     qualifier="",
@@ -1420,6 +1457,7 @@ def create_slot(
         max_picks=max_picks,
         assigned_to=assigned_to,
         hidden=hidden,
+        follows_status=follows_status,
         mode=mode,
         position=position,
         qualifier=qualifier,
@@ -2426,6 +2464,14 @@ def has_pickable(*pickables, negate=False):
     return condition
 
 
+def has_status(status):
+    """Condition: the model has this current status."""
+    from n26.core.status import Status
+    from n26.library.models import HasStatus
+
+    return HasStatus(status=Status(status))
+
+
 def counter_at_least(counter, at_least):
     """Condition: the model's counter has reached this value —
     ``targets_model(counter_at_least(xp, 75))``."""
@@ -2697,7 +2743,12 @@ def ef_contributes_to_counter(counter, amount=0):
 
 @guarded_write
 def ef_offers_choice(
-    model, from_section=None, label="", will_be_assigned_to="bearer", mode="select"
+    model,
+    from_section=None,
+    label="",
+    will_be_assigned_to="bearer",
+    mode="select",
+    power_access_collection=None,
 ):
     """Offers one assignable for the bearer to select or roll randomly —
     ``ef_offers_choice(Skill, from_section=primary)`` for "a skill from a
@@ -2713,6 +2764,7 @@ def ef_offers_choice(
         label=label,
         will_be_assigned_to=will_be_assigned_to,
         mode=mode,
+        power_access_collection=power_access_collection,
     )
 
 

@@ -17,7 +17,8 @@ The address holds the slot::
 
 ``card`` is the model whose card was clicked, or ``gang`` for the gang's
 own card; ``carrier`` is the assignment offering the choice; ``offer`` is
-which of its offers. Everything the page needs is in the URL, so it is a
+which of its offers. Status follow-ups append the model’s status revision.
+Everything the page needs is in the URL, so it is a
 link, it survives a reload, and it works with scripting off.
 """
 
@@ -32,6 +33,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from n26.core.arrivals import arriving, onward, toward
+from n26.core.models.dismissed_offer import identity_key
 from n26.core.owned import with_query
 from n26.core.views.permissions import _own_gang_or_404, _safe_redirect, own_address
 from n26.library.staged import sees_staged
@@ -200,14 +202,15 @@ def find_slot(gang, key):
         anchor = getattr(slot.anchor, "assignment", None)
         if anchor is None or slot.identity is None:
             continue
-        if str(anchor.pk) == anchor_pk and str(slot.identity.pk) == offer_pk:
+        identity = identity_key(slot.identity.pk, slot.status_revision)
+        if str(anchor.pk) == anchor_pk and identity == offer_pk:
             return _Found(
                 slot=slot, computed=computed, anchor=anchor, miniature=miniature
             )
     raise Http404("No such choice")
 
 
-def _landing(request, gang, key, offer, op, here, back):
+def _landing(request, gang, key, offer, op, here, back, found):
     """Where a settled click goes, by way of the screen for whatever the
     pick itself brought, where any of it asks for one.
 
@@ -226,6 +229,14 @@ def _landing(request, gang, key, offer, op, here, back):
     derivation, and only once the pick has brought a screen: a click
     that brought nothing must not pay for it.
     """
+    if (
+        found.slot.slot
+        and found.slot.slot.slot_type.is_lasting_effect
+        and found.miniature
+    ):
+        return onward(
+            request, gang, op, reverse("n26-edit-fighter", args=[found.miniature.pk])
+        )
     if not offer.takes_several:
         return onward(request, gang, op, back)
     keys = arriving(request, gang, op)
@@ -300,7 +311,8 @@ def find_slots(gang, keys):
             anchor = getattr(slot.anchor, "assignment", None)
             if anchor is None or slot.identity is None:
                 continue
-            key = wanted[where].get((str(anchor.pk), str(slot.identity.pk)))
+            identity = identity_key(slot.identity.pk, slot.status_revision)
+            key = wanted[where].get((str(anchor.pk), identity))
             if key is not None:
                 found[key] = _Found(
                     slot=slot, computed=done, anchor=anchor, miniature=miniature
@@ -369,6 +381,11 @@ def _roll_at(key, gang, found, select_related=()):
             kind=LedgerEvent.Kind.ROLLED,
             slot=found.slot.slot,
             miniature=found.miniature,
+            **(
+                {"status_revision": found.slot.status_revision}
+                if found.slot.slot.follows_status
+                else {}
+            ),
         )
     except ValidationError:
         raise Http404("No such roll") from None
@@ -597,7 +614,7 @@ def choose(request, pk, slot):
             found,
             offer,
             here=here,
-            land=lambda op: _landing(request, gang, slot, offer, op, here, back),
+            land=lambda op: _landing(request, gang, slot, offer, op, here, back, found),
         )
         from n26.core.views.htmx import is_htmx, no_update
 
@@ -938,6 +955,7 @@ def settle_pick(
     if wanted is None:
         wanted = request.POST.get("thing", "")
     wanted = dropped or wanted
+    status_before = found.miniature.status if found.miniature else None
     try:
         with operation(gang, actor=request.user) as op:
             picked = _write_pick(
@@ -950,7 +968,23 @@ def settle_pick(
         messages.error(request, str(refusal))
         return redirect(here)
     _record_pick(request, gang, offer, picked, dropped)
-    messages.success(request, _said_about(picked, offer, dropped))
+    confirmation = _said_about(picked, offer, dropped)
+    if found.miniature:
+        found.miniature.refresh_from_db(fields=["status"])
+        if found.miniature.status != status_before:
+            from n26.core.status import label_for
+
+            primary = next(
+                (
+                    n.assignable
+                    for n in found.computed.card.all_nodes()
+                    if n.is_primary_profile
+                ),
+                None,
+            )
+            vehicle = primary is not None and primary.profile_type.name == "Vehicle"
+            confirmation += f" {found.miniature.name} is now {label_for(found.miniature.status, vehicle)}."
+    messages.success(request, confirmation)
     return redirect(land(op))
 
 

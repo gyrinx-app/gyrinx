@@ -50,10 +50,10 @@ export function PostBattlePreview(initial: PreviewDisplay) {
                     {preview.rows.map((row) => (
                         <div
                             key={row.id}
-                            className="flex justify-between gap-3"
+                            className="flex min-w-0 justify-between gap-3"
                         >
-                            <dt>{row.label}</dt>
-                            <dd className="shrink-0 text-right tabular-nums">
+                            <dt className="min-w-0 break-words">{row.label}</dt>
+                            <dd className="min-w-0 break-words text-right tabular-nums">
                                 {row.value}
                             </dd>
                         </div>

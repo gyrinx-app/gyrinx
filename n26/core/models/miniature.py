@@ -20,6 +20,7 @@ class Miniature(Base, Owned, Rated):
     #: keeps its row and its card and counts nothing towards rating; leaving
     #: the roster is still the membership's archive.
     status = models.CharField(max_length=12, choices=Status, default=Status.ACTIVE)
+    status_revision = models.PositiveIntegerField(default=0)
     #: What a card shows only when the model keeps no XP counter. Where
     #: there is one, its value is the number and ``tally`` is what moves it.
     xp = models.PositiveIntegerField(default=0)

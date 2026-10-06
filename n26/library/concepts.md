@@ -177,7 +177,9 @@ A **Gives something** modifier can grant wargear as free kit. Each grant gives a
 
 *What a model has selected (skills) or manifests (powers), each with a home category.*
 
-Fields of their own: none. A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power is the same shape: its home is a category too, so it appears in the same fighter-sectioned views as the skill sets with no special casing (the book does the same: Wyrds treat the powers list as a Secondary Skill Set). A power's annotation carries what the book prints in brackets ("(Free)", "Continuous Effect").
+**D6 roll number** is the book's result from 1 to 6. Use 0 for a skill or power that cannot be rolled. Each numbered result must be unique among unarchived skills and powers within its category. Archived entries can retain their numbers. Archiving a pack does not release its content's numbers: archive the individual skill or power, or set its number to 0, to release a number. A gap has no random result.
+
+A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power has the same shape: its home is a category too. Category placements determine whether its family is Primary or Secondary for a model. Skill offers with **Also offers powers from** set to that collection allow its placed power families as substitutes, including in advancements. Skill-only and power-only offers remain separate choices. A power's annotation carries what the book prints in brackets ("(Free)", "Continuous Effect").
 
 Both print on the card under their own headings. They arrive built in, given by a modifier, or chosen through an offered choice, and reach whoever holds them.
 
@@ -259,6 +261,8 @@ The linked category is used for categorisation decisions: a rule that places "th
 
 The summary explains the option to players but does not create its effects; modifiers do that. Leave it blank if there is no useful explanation.
 
+**Record only** keeps a result in the model’s result history instead of its current choice rows. Its status changes and other effects still apply. Use it for resolved events such as Captured and Escape outcomes; permanent injuries remain current choices.
+
 ### Picklist
 
 > Draft, for review.
@@ -280,6 +284,8 @@ A roll table is a picklist that names its dice and how a roll finds its entry �
 Fields of its own: its **slot type** and **picklist**; the **label** shown on the card; an optional **introduction** shown below the choice page title; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; a **mode**; and a position among the slots on one card. A tier ladder holds one pick and gives every picklist member a unique numeric level. Level 0 means that the slot has no pick.
 
 One specific, named use of a slot type. Assigning one to a model or gang — built into a profile, given by a modifier, or brought by an option when something is bought — makes the slot appear. The card draws the label with what the player has picked, or what is set by default, or a control to pick, on the holder's own card and nowhere else: a slot the gang holds appears once rather than on every fighter. Picking under the minimum adds a note on the card and blocks nothing (no page prints these notes yet), and the picker stops offering at the maximum. A slot of one pick is settled by picking, and picking again replaces the pick. A slot of several picks is filled a pick at a time, each option on the picker adding or removing its own. A slot of 0 picks shows no choice. **Hidden** makes the slot invisible while the pick still does everything it does: grouped hidden assignables, under one name.
+
+**Follows status** gives each status change a fresh use of this choice. It takes one pick on the model. A modifier narrowed by **Has status** can show it only while that status applies. Earlier picks stay in history and do not settle a later occurrence.
 
 ### Interstitial
 

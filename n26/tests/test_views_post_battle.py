@@ -1,5 +1,6 @@
 """The actual report form saves unfinished work and applies a gang's results once."""
 
+import json
 from datetime import date
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
@@ -1505,11 +1506,18 @@ class TestXpBlockedModels:
             "2 models took part"
         )
         assert document.select_one(f'input[id="model-{visitor.pk}-xp"]') is None
-        why = document.select_one(f'button[id="model-{visitor.pk}-xp-why-button"]')
-        assert why["type"] == "button"
+        why = document.select_one(f'summary[id="model-{visitor.pk}-xp-why-button"]')
         assert why["aria-label"] == "Why Visitor cannot take XP"
-        assert why["aria-expanded"] == "false"
-        reason = document.find(id=why["aria-controls"])
+        assert not why.find_parent("details").has_attr("open")
+        host = why.find_parent(attrs={"data-react-module": True})
+        props = json.loads(document.find(id=host["data-react-props"]).string)
+        assert props == {
+            "label": "Why Visitor cannot take XP",
+            "paragraphs": ["Visitor has no XP counter, so XP cannot be recorded here."],
+            "triggerId": f"model-{visitor.pk}-xp-why-button",
+        }
+        assert host.select_one("[data-popover]") is None
+        reason = document.find(id=f"model-{visitor.pk}-xp-why")
         assert reason.get_text(" ", strip=True) == (
             "Visitor has no XP counter, so XP cannot be recorded here."
         )
@@ -1569,7 +1577,7 @@ class TestXpBlockedModels:
         page = client.get(corrected.url)
         document = BeautifulSoup(page.content, "html.parser")
         assert document.select_one(f'input[id="model-{model.pk}-xp"]') is None
-        assert document.select_one(f'button[id="model-{model.pk}-xp-why-button"]')
+        assert document.select_one(f'summary[id="model-{model.pk}-xp-why-button"]')
         assert html_fields(page)[f"model-{model.pk}-xp"] == ["2"]
         applied = client.post(
             editor_url(report), html_fields(page, intent="apply", credits="30")

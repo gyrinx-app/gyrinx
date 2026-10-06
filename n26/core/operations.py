@@ -372,6 +372,7 @@ class Operation:
         chosen_for=None,
         chosen_for_slot=None,
         chosen_for_offer=None,
+        chosen_for_status_revision=None,
         materialised_from=None,
         materialised_for=None,
         paid=0,
@@ -430,6 +431,7 @@ class Operation:
             chosen_for=chosen_for,
             chosen_for_slot=chosen_for_slot,
             chosen_for_offer=chosen_for_offer,
+            chosen_for_status_revision=chosen_for_status_revision,
             materialised_from=materialised_from,
             materialised_for=materialised_for,
             removes=removes,
@@ -790,12 +792,13 @@ class Operation:
         # line, and two clicks on one button arrive together: what it
         # stands in is decided on what the line now holds, so the second
         # of two identical acts finds nothing to do and writes nothing.
-        miniature.refresh_from_db(fields=["status"])
+        miniature.refresh_from_db(fields=["status", "status_revision"])
         was = Status(miniature.status)
         if was == status:
             return miniature
         miniature.status = status
-        miniature.save(update_fields=["status", "modified"])
+        miniature.status_revision += 1
+        miniature.save(update_fields=["status", "status_revision", "modified"])
         self.touched(miniature)
         self.event(
             miniature,
@@ -803,34 +806,6 @@ class Operation:
             note=_movement_note(f"{was} → {status}", note),
         )
         return miniature
-
-    def release_capture(self, miniature, note=""):
-        """Take away a Captured result the Escape table has not settled.
-
-        A capture is resolved by one Escape roll. A model the owner takes
-        out of Captured by hand before that roll is no longer captured, so
-        the result goes, and the Escape choice it gave goes with it.
-
-        A result whose Escape roll has been recorded stays: the roll is
-        what moved the model on, and the two together are the record of
-        it. Other lasting effects are never touched. Recognised by what the
-        result does — puts the model into Captured — never by its name.
-        Returns the results removed.
-        """
-        from n26.core.models import Assignment
-
-        unsettled = [
-            captured
-            for captured in Assignment.objects.filter(
-                miniature=miniature,
-                archived=False,
-                pickable__modifiers__op_sets_status__status=Status.CAPTURED,
-            ).distinct()
-            if not captured.picks.filter(archived=False).exists()
-        ]
-        for captured in unsettled:
-            self.remove(captured, note=note)
-        return unsettled
 
     def transfer(self, to, credits, note="", about=None):
         """Pay another gang: credits leave this one and arrive at ``to``.
@@ -2424,7 +2399,7 @@ class Operation:
             _clear_dismissal(anchor, settled, kwargs)
         return self.assign(
             chosen,
-            caused_by=anchor,
+            caused_by=kwargs.pop("caused_by", anchor),
             # Which question this answers. One line may ask twice over one
             # kind, and nothing about the answer tells the two apart, so a
             # caller that knows says — and where the line asks once there
@@ -2534,10 +2509,20 @@ class Operation:
             kwargs["rating"] = (
                 0 if kwargs.get("gang") is not None else chosen.rating_contribution
             )
+        host = kwargs.get("miniature")
+        if slot.follows_status:
+            if host is None:
+                raise ValueError("A status choice belongs to a model.")
+            host.refresh_from_db(fields=["status", "status_revision"])
+            if roll is not None and roll.status_revision != host.status_revision:
+                raise Refusal(
+                    "That roll does not match this status change. Roll again for this choice."
+                )
+            kwargs.setdefault("chosen_for_status_revision", host.status_revision)
         _clear_dismissal(anchor, slot, kwargs)
         return self.assign(
             chosen,
-            caused_by=anchor,
+            caused_by=kwargs.pop("caused_by", anchor),
             chosen_for=anchor,
             chosen_for_slot=slot,
             paid=0,
@@ -2895,9 +2880,16 @@ class Operation:
             raise Refusal(f"You cannot roll {rolled} on a {dice.label}.")
         else:
             note = note or ROLL_ENTERED
+        status_revision = None
+        if slot.follows_status:
+            if miniature is None:
+                raise ValueError("A status choice belongs to a model.")
+            miniature.refresh_from_db(fields=["status_revision"])
+            status_revision = miniature.status_revision
         return self.event(
             miniature,
             LedgerEvent.Kind.ROLLED,
+            status_revision=status_revision,
             roll=rolled,
             dice=dice.value,
             slot=slot,
@@ -3355,6 +3347,7 @@ def _clear_dismissal(anchor, identity, kwargs):
         host=str(bearer.pk) if bearer is not None else GANG_SLOT_HOST,
         anchor=anchor,
         identity=identity,
+        status_revision=kwargs.get("chosen_for_status_revision"),
     )
 
 

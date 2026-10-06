@@ -1480,6 +1480,7 @@ def _describe_interstitial(interstitial):
 
 LEAF_DESCRIBE = {
     "skill": _describe_skill,
+    "power": _describe_skill,
     "profile": _describe_profile,
     "gang-type": _describe_gang_type,
     "campaign-type": _describe_campaign_type,
@@ -5541,9 +5542,13 @@ def foundations(request):
         item = STANDARD_CONTENT.get(request.POST.get("create", ""))
         if item is None:
             raise Http404("No such standard content")
-        with transaction.atomic():
-            item.create()
-        messages.success(request, f"Created {item.name}.")
+        try:
+            with transaction.atomic():
+                item.create()
+        except ValidationError as error:
+            messages.error(request, " ".join(error.messages))
+        else:
+            messages.success(request, f"Created {item.name}.")
         return redirect("authoring-foundations")
 
     entries = []
