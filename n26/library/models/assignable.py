@@ -967,6 +967,9 @@ class Skill(D6Rollable, Content, Assignable, UsableBy):
     family = Family.MODEL
     card_row = "skills"
 
+    def unarchive(self):
+        return super().unarchive()
+
     class Meta:
         verbose_name = "skill"
         verbose_name_plural = "skills"
@@ -1147,6 +1150,9 @@ class Power(D6Rollable, Content, Assignable, UsableBy):
 
     family = Family.MODEL
     card_row = "powers"
+
+    def unarchive(self):
+        return super().unarchive()
 
     class Meta:
         verbose_name = "power"
