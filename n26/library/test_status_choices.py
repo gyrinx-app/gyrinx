@@ -156,23 +156,29 @@ def test_standard_gang_types_offer_escape_in_either_seed_order(
     homebrew = create_pack("Homebrew")
     custom = create_gang_type("Custom gang", pack=homebrew)
     custom_default = create_gang_type("Authored default-pack gang")
+    qualified = create_gang_type("Escher", qualifier="Custom")
     keys = ["lasting-effect-tables", "gang-types"]
     if not tables_first:
         keys.reverse()
     for key in keys:
         STANDARD_CONTENT[key].create()
     grant = Modifier.objects.get(name="Captured models: Escape", pack=default_pack)
-    standard = GangType.objects.filter(pack=default_pack, name__in=GANG_TYPES)
+    standard = GangType.objects.filter(
+        pack=default_pack, name__in=GANG_TYPES, qualifier=""
+    )
     assert standard.count() == len(GANG_TYPES)
+    assert STANDARD_CONTENT["gang-types"].check() == (len(GANG_TYPES), len(GANG_TYPES))
     assert all(gang.modifiers.filter(pk=grant.pk).exists() for gang in standard)
     assert not custom.modifiers.filter(pk=grant.pk).exists()
     assert not custom_default.modifiers.filter(pk=grant.pk).exists()
+    assert not qualified.modifiers.filter(pk=grant.pk).exists()
     before = Modifier.objects.count()
     for key in keys:
         STANDARD_CONTENT[key].create()
     assert Modifier.objects.count() == before
     assert all(gang.modifiers.filter(pk=grant.pk).count() == 1 for gang in standard)
     assert not custom_default.modifiers.filter(pk=grant.pk).exists()
+    assert not qualified.modifiers.filter(pk=grant.pk).exists()
 
 
 @pytest.mark.parametrize("reverse", [False, True])
@@ -227,6 +233,7 @@ def test_standard_upgrade_does_not_grant_escape_to_authored_default_pack_gangs(
 ):
     STANDARD_CONTENT["lasting-effect-tables"].create()
     custom = create_gang_type("Authored default-pack gang")
+    qualified = create_gang_type("Escher", qualifier="Custom")
     grant = Modifier.objects.get(name="Captured models: Escape", pack=default_pack)
     assert not custom.modifiers.filter(pk=grant.pk).exists()
     upgrade = import_module(
@@ -235,6 +242,7 @@ def test_standard_upgrade_does_not_grant_escape_to_authored_default_pack_gangs(
     upgrade(apps, SimpleNamespace(connection=connection))
     assert gang_type.modifiers.filter(pk=grant.pk).exists()
     assert not custom.modifiers.filter(pk=grant.pk).exists()
+    assert not qualified.modifiers.filter(pk=grant.pk).exists()
 
 
 @pytest.mark.parametrize("source", ["migration", "seed"])

@@ -1121,8 +1121,11 @@ def _create_gang_types():
     from django.conf import settings
 
     from n26.library.models import GangType, Modifier
+    from n26.library.models.pack import get_default_pack
 
-    _named(GangType, GANG_TYPES)
+    pack = get_default_pack()
+    for name in GANG_TYPES:
+        GangType.objects.get_or_create(pack=pack, name=name, qualifier="")
     grant = Modifier.objects.filter(
         name="Captured models: Escape", pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
     ).first()
@@ -1132,8 +1135,12 @@ def _create_gang_types():
 
 def _check_gang_types():
     from n26.library.models import GangType
+    from n26.library.models.pack import get_default_pack
 
-    return _count(GangType, name__in=GANG_TYPES), len(GANG_TYPES)
+    return (
+        _count(GangType, pack=get_default_pack(), name__in=GANG_TYPES, qualifier=""),
+        len(GANG_TYPES),
+    )
 
 
 def _all_subtypes():
@@ -1551,7 +1558,7 @@ def _attach_escape_status_modifier(grant):
     from n26.library.models import GangType
 
     for gang_type in GangType.objects.filter(
-        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG, name__in=GANG_TYPES
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG, name__in=GANG_TYPES, qualifier=""
     ):
         gang_type.modifiers.add(grant)
 

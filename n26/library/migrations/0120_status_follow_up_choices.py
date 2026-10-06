@@ -127,7 +127,7 @@ def update_standard_choices(apps, schema_editor):
             adds_assignable_id=effect.pk,
         )
     for gang_type in GangType.objects.using(using).filter(
-        pack_id=slot.pack_id, name__in=STANDARD_GANG_TYPES
+        pack_id=slot.pack_id, name__in=STANDARD_GANG_TYPES, qualifier=""
     ):
         gang_type.modifiers.add(modifier)
 
