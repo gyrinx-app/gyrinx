@@ -4,8 +4,8 @@ The rules resolve a capture straight after the battle: the captured model
 rolls a D6 on the Escape table and is executed, ransomed, or escapes into
 Recovery (core rules, the Wrap-up). The app makes that one more roll
 table on the machinery the injury tables use: the Captured result carries
-a modifier that gives the model an Escape choice, so the card grows an
-Escape row with Roll the moment Captured is added; each Escape result
+a status effect; an authored gang modifier offers Escape while the model
+is Captured. Each Escape result
 sets the status when its pick lands.
 """
 
@@ -20,7 +20,7 @@ from n26.core.effects import compute
 from n26.core.models import LedgerEvent, Miniature
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
-from n26.core.render import build_model_card, option_key
+from n26.core.render import build_model_card, option_key, slot_key
 from n26.core.status import Status
 from n26.library.models import Picklist, Slot
 from n26.library.standard_content import STANDARD_CONTENT
@@ -86,6 +86,7 @@ def rig(gang, gang_type, vehicle_type):
 
 
 def computed_for(miniature):
+    miniature.refresh_from_db(fields=["status", "status_revision"])
     card = build_card(miniature, with_statlines=True)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     return compute(card, index)
@@ -144,7 +145,7 @@ class TestTheTableAsSeeded:
             ]
             assert carried == [ESCAPE_STATUSES[member.pickable.name]]
 
-    def test_captured_on_both_tables_grants_the_escape_choice(self, tables):
+    def test_captured_on_both_tables_is_recorded_without_a_standing_grant(self, tables):
         for table in (tables["injury"], tables["damage"]):
             captured = result_named(table, "Captured")
             grants = [
@@ -152,7 +153,8 @@ class TestTheTableAsSeeded:
                 for m in captured.modifiers.all()
                 if m.adds_assignable_id is not None
             ]
-            assert grants == [tables["escape_slot"]]
+            assert grants == []
+            assert captured.record_only
 
     def test_the_seed_runs_again_without_doubling(self, tables):
         from n26.library.models import Modifier
@@ -231,7 +233,7 @@ class TestThePage:
             "n26-choose",
             args=[
                 gang.pk,
-                f"{krago.pk}:{escape.anchor.assignment.pk}:{escape.identity.pk}",
+                slot_key(escape, str(krago.pk)),
             ],
         )
         client.force_login(owner)
@@ -312,9 +314,7 @@ def held_names(miniature):
 
 
 class TestLeavingCapturedByHand:
-    """Captured only sets up the Escape roll. A model the owner takes out
-    of Captured before that roll is no longer captured, so the result and
-    its Escape choice go; once the roll is recorded, both stay."""
+    """Leaving a status removes its conditional choices, retaining result history."""
 
     @pytest.fixture(autouse=True)
     def admitted(self, owner):
@@ -326,18 +326,18 @@ class TestLeavingCapturedByHand:
             reverse("n26-mark-fighter", args=[miniature.pk]), {"status": status}
         )
 
-    def test_the_unrolled_capture_goes_with_its_escape_row(
+    def test_leaving_captured_keeps_history_and_hides_escape(
         self, client, owner, gang, krago, tables
     ):
         add_result(krago, "Lasting Injuries", tables["injury"], "Eye Injury")
         add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
         self.mark(client, owner, krago, "active")
         assert fresh(krago).status == Status.ACTIVE
-        assert held_names(krago) == ["Eye Injury"]
+        assert held_names(krago) == ["Captured", "Eye Injury"]
         assert choice_of(krago, "Escape") is None
         assert_reconciled(gang)
 
-    def test_the_history_keeps_the_capture_and_its_removal(
+    def test_leaving_captured_records_status_without_removing_history(
         self, client, owner, gang, krago, tables
     ):
         add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
@@ -348,20 +348,20 @@ class TestLeavingCapturedByHand:
             .values_list("kind", flat=True)
         )
         assert LedgerEvent.Kind.GRANTED in kinds
-        assert kinds[-2:] == [LedgerEvent.Kind.REMOVED, LedgerEvent.Kind.STATUS_SET]
+        assert kinds[-1] == LedgerEvent.Kind.STATUS_SET
+        assert LedgerEvent.Kind.REMOVED not in kinds
 
     def test_a_rolled_capture_stays(self, client, owner, gang, krago, tables):
         add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
         add_result(krago, "Escape", tables["escape"], "Ransomed")
-        # The Escape result moved the model on; put it back in Captured
-        # so marking it Active goes through the release.
+        # A later capture must not reuse the previous Escape pick.
         with operation(gang, actor=owner) as op:
             op.set_status(krago, Status.CAPTURED)
         self.mark(client, owner, krago, "active")
         assert fresh(krago).status == Status.ACTIVE
         assert held_names(krago) == ["Captured", "Ransomed"]
 
-    def test_something_else_the_capture_brought_is_not_an_escape_result(
+    def test_leaving_captured_preserves_other_grants(
         self, client, owner, gang, krago, tables
     ):
         from n26.tests.sandbox.actions import (
@@ -374,7 +374,7 @@ class TestLeavingCapturedByHand:
         brand = create_pickable("Brand", create_slot_type("Mark"))
         assign(brand, miniature=krago, caused_by=captured)
         self.mark(client, owner, krago, "active")
-        assert held_names(krago) == []
+        assert held_names(krago) == ["Brand", "Captured"]
         assert choice_of(krago, "Escape") is None
 
     @pytest.mark.parametrize("status", ["ransomed", "dead"])
@@ -385,7 +385,7 @@ class TestLeavingCapturedByHand:
         self.mark(client, owner, krago, status)
         assert held_names(krago) == ["Captured"]
 
-    def test_only_a_captured_model_is_released(
+    def test_a_later_status_change_preserves_history(
         self, client, owner, gang, krago, tables
     ):
         add_result(krago, "Lasting Injuries", tables["injury"], "Captured")
@@ -394,8 +394,10 @@ class TestLeavingCapturedByHand:
         self.mark(client, owner, krago, "active")
         assert held_names(krago) == ["Captured"]
 
-    def test_a_vehicle_is_released_too(self, client, owner, gang, rig, tables):
+    def test_a_vehicle_keeps_capture_history_too(
+        self, client, owner, gang, rig, tables
+    ):
         add_result(rig, "Lasting Damage", tables["damage"], "Captured")
         self.mark(client, owner, rig, "active")
-        assert held_names(rig) == []
+        assert held_names(rig) == ["Captured"]
         assert choice_of(rig, "Escape") is None

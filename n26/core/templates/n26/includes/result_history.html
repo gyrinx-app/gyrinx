@@ -1,0 +1,23 @@
+{% load humanize %}
+<div id="n26-result-history" {% if oob %}hx-swap-oob="true"{% endif %}>
+    {% if result_history %}
+        <c-ui.card>
+            <c-slot name="header">
+                <span class="font-semibold">Result history</span>
+            </c-slot>
+            <ul class="divide-y divide-box-border text-sm">
+                {% for result in result_history %}
+                    <li class="py-3 first:pt-0 last:pb-0">
+                        <div class="flex items-baseline justify-between gap-3">
+                            <span class="font-medium">{{ result.name }}</span>
+                            <time datetime="{{ result.when|date:'c' }}"
+                                  title="{{ result.when }}"
+                                  class="shrink-0 text-xs text-muted">{{ result.when|naturaltime }}</time>
+                        </div>
+                        <p class="mt-0.5 text-muted">{{ result.kind }}{% if result.removed %} · Removed{% endif %}</p>
+                    </li>
+                {% endfor %}
+            </ul>
+        </c-ui.card>
+    {% endif %}
+</div>

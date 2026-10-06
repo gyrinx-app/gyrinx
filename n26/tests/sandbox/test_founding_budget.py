@@ -1159,8 +1159,9 @@ class TestTheRosterReadInOneGo:
     #: What drawing this gang's sheet reads. Pinned so it changes
     #: deliberately: the rows, the fold's own lookups, the gang's open
     #: actions, the campaign it is playing, the standard counter and the
-    #: one sum of what has been spent against the founding action.
-    SHEET = 35
+    #: one sum of what has been spent against the founding action, plus
+    #: the modifier index’s one read of authored status conditions.
+    SHEET = 36
 
     def test_the_allowances_are_two_of_those_reads(
         self, gang, hire_into, leader, django_assert_num_queries

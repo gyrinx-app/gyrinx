@@ -515,6 +515,7 @@ def render_card_update(request, miniature, at):
     from n26.core.effects import compute
     from n26.core.owned import EquipHost
     from n26.core.progression import progression_for
+    from n26.core.result_history import result_history
     from n26.core.views.htmx import with_toasts
 
     gang = miniature.membership.gang
@@ -550,6 +551,7 @@ def render_card_update(request, miniature, at):
             "card": card,
             "miniature": miniature,
             "progression": progression,
+            **({"result_history": result_history(miniature)} if on_edit else {}),
             **(
                 action_panel_context(miniature, own, computed)
                 if on_edit or on_equip
@@ -955,11 +957,13 @@ def edit_fighter(request, pk):
     progression = progression_for(miniature, card=own, computed=computed)
 
     from n26.core.counter_tracking import is_active as counter_tracking_is_active
+    from n26.core.result_history import result_history
 
     counter_tracking_active = counter_tracking_is_active()
     panels = action_panel_context(
         miniature, own, computed, counter_tracking_active=counter_tracking_active
     )
+    panels["result_history"] = result_history(miniature)
 
     # The same acts the equip listing offers, pointed at this page so
     # the confirmations open over it. A gang sheet and a print sheet

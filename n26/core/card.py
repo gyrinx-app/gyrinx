@@ -63,6 +63,7 @@ class Node:
     #: line may ask more than once — a thing giving two choices of one
     #: slot type — and then this is what tells the answers apart.
     chosen_for_slot_id: object = None
+    chosen_for_status_revision: int | None = None
     #: The same, for the other way a choice is asked: the offer this pick
     #: settles. Unset on a pick written before the question could be
     #: named, and then what it answers is read from the offers' own
@@ -176,6 +177,7 @@ def node_for(assignment):
         caused_by_key=assignment.caused_by_id,
         chosen_for_key=assignment.chosen_for_id,
         chosen_for_slot_id=assignment.chosen_for_slot_id,
+        chosen_for_status_revision=assignment.chosen_for_status_revision,
         chosen_for_offer_id=assignment.chosen_for_offer_id,
         reason=entry.reason if entry else None,
         is_weapon_profile=assignment.weapon_profile_id is not None,
@@ -236,6 +238,10 @@ class Card:
     #: a held asset's modifiers scoped to models reach this model through
     #: them, as the gang's guest. Never lines, never worth anything here.
     holdings: list = field(default_factory=list, repr=False)
+    #: Batched cards carry two model facts without a separate roster query.
+    #: A bound miniature supplies them instead, including preview projections.
+    status: str | None = None
+    status_revision: int = 0
 
     #: What kind of thing this card belongs to. Scopes read it — an
     #: unfiltered ``TargetsMiniature`` must not swallow a gang, nor
@@ -247,6 +253,14 @@ class Card:
         """Everything on *this* card. For an unfiltered card this equals
         ``full_rating``; for a named selection it may be less."""
         return sum(node.rating_with_extras for node in self.roots if not node.broadcast)
+
+    @property
+    def current_status(self):
+        return getattr(self.miniature, "status", self.status)
+
+    @property
+    def current_status_revision(self):
+        return getattr(self.miniature, "status_revision", self.status_revision)
 
     def all_nodes(self):
         for root in (*self.roots, *self.granted):
@@ -319,7 +333,10 @@ class Card:
                 counts.append((select.key(node.assignable), held.value if held else 0))
         base = select.matchable(profile, assignables=possessions)
         return select.Matchable(
-            thing=base.thing, assignables=base.assignables, counts=tuple(counts)
+            thing=base.thing,
+            assignables=base.assignables,
+            counts=tuple(counts),
+            status=self.current_status,
         )
 
 
@@ -394,6 +411,8 @@ class GangCard:
             miniature_id: assemble(
                 None,
                 rows,
+                status=self.members[miniature_id].current_status,
+                status_revision=self.members[miniature_id].current_status_revision,
                 assignment_set=assignment_set,
                 broadcast=self.shared_rows,
                 gang_card=self,
@@ -452,14 +471,15 @@ class GangCard:
         )
 
 
-def _flat_rows(**filters):
+def _flat_rows(*, with_status=False, **filters):
     """The bare assignment fetch a card build starts from — one query.
 
-    Only the money rides the join: every build reads each assignment's
-    ledger entry and the table is narrow. The assignable an assignment
+    Money rides the join: every build reads each assignment's ledger
+    entry. A batched card also joins its membership model for two status
+    facts. The assignable an assignment
     names is loaded afterwards, in narrow passes — see ``hydrate_rows``.
     """
-    from django.db.models import Case, Exists, OuterRef, Q, Subquery, Sum, When
+    from django.db.models import Case, Exists, F, OuterRef, Q, Subquery, Sum, When
     from django.db.models.functions import Coalesce
 
     from n26.core.models import AdvancementSelection, LedgerEvent
@@ -474,10 +494,16 @@ def _flat_rows(**filters):
         .annotate(total=Sum("rating_delta"))
         .values("total")
     )
+    rows = Assignment.objects.filter(archived=False, **filters)
+    if with_status:
+        # Only the membership row joins a model; two scalar facts keep the
+        # batched card usable without loading a second roster.
+        rows = rows.annotate(
+            member_status=F("member__status"),
+            member_status_revision=F("member__status_revision"),
+        )
     return list(
-        Assignment.objects.filter(archived=False, **filters)
-        .select_related("ledger_entry")
-        .annotate(
+        rows.select_related("ledger_entry").annotate(
             rating_from_advancement=Exists(
                 AdvancementSelection.objects.filter(
                     Q(pick_assignment_id=OuterRef("pk"))
@@ -680,6 +706,8 @@ def assemble(
     broadcast=(),
     gang_card=None,
     stat_overrides=None,
+    status=None,
+    status_revision=0,
 ):
     """Reassemble a flat list of assignments into a tree. No queries beyond
     the set's selection, when one is given.
@@ -732,6 +760,8 @@ def assemble(
             parent.children.append(node)
     card = Card(
         miniature=miniature,
+        status=status,
+        status_revision=status_revision,
         roots=roots,
         gang_card=gang_card,
         stat_overrides=stat_overrides or {},
@@ -843,7 +873,7 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
     """
     grouped = {}
     shared = []
-    rows = _flat_rows(gang_root=gang, stash_root__isnull=True)
+    rows = _flat_rows(gang_root=gang, stash_root__isnull=True, with_status=True)
     # The stash's assignments ride the same hydration pass as everyone's
     # — a second pass would repeat every narrow query for a handful.
     stash_rows = _flat_rows(gang_root=gang, stash_root__isnull=False)
@@ -869,10 +899,17 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
     )
     # Every member's card carries the gang's, so what the gang holds by
     # grant is dealt onto all of them from one computation of it.
+    statuses = {
+        row.miniature_root_id: (row.member_status, row.member_status_revision)
+        for row in rows
+        if row.member_status is not None
+    }
     card.members = {
         miniature_id: assemble(
             None,
             rows,
+            status=statuses.get(miniature_id, (None, 0))[0],
+            status_revision=statuses.get(miniature_id, (None, 0))[1],
             assignment_set=assignment_set,
             broadcast=shared,
             gang_card=card,
@@ -1096,6 +1133,7 @@ def build_modifier_index(assignables, max_depth=3):
             queryset=CounterAtLeast.objects.select_related("counter"),
         ),
         "targets_miniature__has_pickable__pickables",
+        "targets_miniature__has_status",
         "targets_gang__has_gang_pickable__pickables",
         "targets_weapons__has_traits__traits",
         # A given slot draws a choice row worked out by ``compute``,

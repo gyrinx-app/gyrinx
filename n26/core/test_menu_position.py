@@ -107,7 +107,7 @@ class TestPopoversUseTheSamePlacer:
         assert 'strategy="absolute"' in source
         assert "{% if strategy == 'fixed' %}" in source
 
-    def test_the_post_battle_reason_popover_asks_for_it(self):
-        assert '<c-ui.popover strategy="fixed"' in source_of(
-            "n26/includes/post_battle_model.html"
-        )
+    def test_the_post_battle_reason_uses_the_react_help_island(self):
+        source = source_of("n26/includes/post_battle_model.html")
+        assert '{% react_host "help" model.xp_help' in source
+        assert "<c-ui.popover" not in source

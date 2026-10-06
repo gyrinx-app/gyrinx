@@ -60,6 +60,7 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     ef_requires_companions,
     has_gang_pickable,
     has_pickable,
+    has_status,
     has_subtypes,
     has_traits,
     is_profile,

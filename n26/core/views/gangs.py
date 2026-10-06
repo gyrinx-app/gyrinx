@@ -929,17 +929,6 @@ def mark_fighter(request, pk):
                         op.move(root, gang.stash, note=f"{miniature.name} died")
                     else:
                         op.remove(root, note=f"lost with {miniature.name}")
-            # Read under the gang's line: two clicks on one button must not
-            # both find the model still captured.
-            miniature.refresh_from_db(fields=["status"])
-            # Only a model that is free again is no longer captured.
-            # Ransomed and Dead are outcomes of the capture, so the
-            # Captured result stays as the record of it.
-            if miniature.status == Status.CAPTURED and status in (
-                Status.ACTIVE,
-                Status.RECOVERY,
-            ):
-                op.release_capture(miniature, note="no longer captured")
             op.set_status(miniature, status)
     except Refusal as refusal:
         messages.error(request, str(refusal))

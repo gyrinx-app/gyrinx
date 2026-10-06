@@ -271,6 +271,14 @@ class ReportModel:
         return {"hx-post": self.refresh_url} if self.refresh_url else {}
 
     @property
+    def xp_help(self):
+        return {
+            "label": self.xp_why_label,
+            "paragraphs": [self.result.xp_blocked_message],
+            "triggerId": f"{self.prefix}-xp-why-button",
+        }
+
+    @property
     def xp_why_label(self):
         return f"Why {self.name} cannot take XP"
 
@@ -420,6 +428,15 @@ def editor_models(plan, payload, refresh_url=""):
         effects = []
         for number, effect in enumerate(values.get("effects", []), start=1):
             found = proposed.get(str(effect.get("id")))
+            questions = found.questions if found else []
+            shown_keys = {question.key for question in questions}
+            shown_keys.update(
+                question.key.removeprefix(f"post-battle:{found.id}:").rsplit(
+                    ":status-", 1
+                )[0]
+                for question in questions
+                if question.follows_status
+            )
             selected = f"{effect.get('slot', '')}|{effect.get('pick', '')}"
             if selected == "|":
                 selected = ""
@@ -429,16 +446,12 @@ def editor_models(plan, payload, refresh_url=""):
                     id=str(effect.get("id", "")),
                     selected=selected,
                     label=f"{label} {number}".strip(),
-                    questions=found.questions if found else [],
-                    name=found.name if found else "",
+                    questions=questions,
+                    name=found.display_name if found else "",
                     retained_choices=[
                         (key, selected)
                         for key, selected in (effect.get("choices") or {}).items()
-                        if key
-                        not in {
-                            question.key
-                            for question in (found.questions if found else [])
-                        }
+                        if key not in shown_keys
                     ],
                 )
             )

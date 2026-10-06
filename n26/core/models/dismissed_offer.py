@@ -28,12 +28,21 @@ from n26.core.models.abstract import Base
 GANG_SLOT_HOST = "gang"
 
 
-def slot_key(host, anchor_pk, identity_pk):
+def identity_key(identity_pk, status_revision=None):
+    """An authored choice, optionally scoped to one status transition."""
+    return (
+        f"{identity_pk}:{status_revision}"
+        if status_revision is not None
+        else str(identity_pk)
+    )
+
+
+def slot_key(host, anchor_pk, identity_pk, status_revision=None):
     """One slot's address: the card it is drawn on (a model's id, or the
     gang's own word), the assignment carrying the offer, and the offer or
     slot itself. The one place the shape is written, so the renderer that
     draws a slot and the operation that settles one cannot disagree."""
-    return f"{host}:{anchor_pk}:{identity_pk}"
+    return f"{host}:{anchor_pk}:{identity_key(identity_pk, status_revision)}"
 
 
 class DismissedOffer(Base):
@@ -61,12 +70,12 @@ class DismissedOffer(Base):
         return f"{self.slot_key} ({self.gang})"
 
     @classmethod
-    def clear(cls, gang, *, host, anchor, identity):
+    def clear(cls, gang, *, host, anchor, identity, status_revision=None):
         """Take off any dismissal of one slot, because a pick has landed
         on it: taking that pick back later should leave the offer open
         rather than hide it again."""
         cls.objects.filter(
-            gang=gang, slot_key=slot_key(host, anchor.pk, identity.pk)
+            gang=gang, slot_key=slot_key(host, anchor.pk, identity.pk, status_revision)
         ).delete()
 
     @classmethod

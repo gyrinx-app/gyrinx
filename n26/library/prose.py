@@ -738,6 +738,12 @@ def _names_pick(row, found):
         found.picks.append((row.negate, _and_then(picks, "or")))
 
 
+def _names_status(row, found):
+    from n26.core.status import Status
+
+    found.clauses.append(f"while their status is {Status(row.status).label}")
+
+
 def _names_threshold(row, found):
     found.clauses.append(f"while their {row.counter} is {row.at_least} or more")
 
@@ -754,6 +760,7 @@ MODEL_NARROWINGS = {
     "is_profile_type": _names_type,
     "has_pickable": _names_pick,
     "counter_at_least": _names_threshold,
+    "has_status": _names_status,
 }
 
 

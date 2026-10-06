@@ -245,6 +245,7 @@ class ChoiceSlot:
     #: modifier's offer is one and exactly one; a slot says for itself.
     min_picks: int = 1
     max_picks: int = 1
+    status_revision: int | None = None
 
     @property
     def resolved_with(self):
@@ -261,8 +262,22 @@ class ChoiceSlot:
         return len(self.picks) >= self.max_picks
 
     @property
+    def current_picks(self):
+        """The picks that belong among current choices rather than in history."""
+        return [
+            node
+            for node in self.picks
+            if not getattr(getattr(node, "assignable", None), "record_only", False)
+        ]
+
+    @property
+    def is_history_only(self):
+        return self.is_full and bool(self.picks) and not self.current_picks
+
+    @property
     def chosen_name(self):
-        return stacked_names(node.name for node in self.picks) if self.picks else None
+        picks = self.current_picks
+        return stacked_names(node.name for node in picks) if picks else None
 
     @property
     def identity(self):
@@ -1779,15 +1794,28 @@ def _fill_slot_choices(computed, given, by_choice):
     asked.sort(key=lambda part: (part[0].position, part[0].name))
 
     for slot, anchor, source, source_kind in asked:
-        if slot.hidden:
+        if slot.hidden or (slot.follows_status and computed.card.host_kind == GANG):
             continue
         picks = [
             node
             for node in by_choice.get(anchor.key, ())
             if node.chosen_for_slot_id == slot.pk
         ]
+        revision = (
+            computed.card.current_status_revision if slot.follows_status else None
+        )
+        picks = (
+            [node for node in picks if node.chosen_for_status_revision == revision]
+            if slot.follows_status
+            else [
+                node
+                for node in picks
+                if not getattr(node.assignable, "record_only", False)
+            ]
+        )
         computed.choices.append(
             ChoiceSlot(
+                status_revision=revision,
                 kind_label=slot.choice_label,
                 source=source,
                 source_kind=source_kind,

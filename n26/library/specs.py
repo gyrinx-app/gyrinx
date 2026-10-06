@@ -401,6 +401,7 @@ def _build_registry():
         GangHasPickable,
         GangType,
         HasPickable,
+        HasStatus,
         HasSubtypes,
         HasTraits,
         Hidden,
@@ -481,6 +482,7 @@ def _build_registry():
                         "is_profile_type",
                         "has_pickable",
                         "counter_at_least",
+                        "has_status",
                     )
                 ),
             },
@@ -506,6 +508,7 @@ def _build_registry():
                         "is_profile_type",
                         "has_pickable",
                         "counter_at_least",
+                        "has_status",
                     )
                 ),
             },
@@ -551,6 +554,7 @@ def _build_registry():
                 "negate": Bool(source=(HasPickable, "negate")),
             },
         ),
+        Spec(authoring.has_status, {"status": Choice(source=(HasStatus, "status"))}),
         Spec(
             authoring.counter_at_least,
             {
@@ -1309,6 +1313,7 @@ def _build_registry():
                 ),
                 "qualifier": Text(source=(Pickable, "qualifier")),
                 "summary": Text(source=(Pickable, "summary"), long=True),
+                "record_only": Bool(source=(Pickable, "record_only")),
                 "rating_contribution": Int(source=(Pickable, "rating_contribution")),
                 "library_author_help": Text(
                     source=(Pickable, "library_author_help"), long=True
@@ -1373,6 +1378,7 @@ def _build_registry():
                 "max_picks": Int(source=(Slot, "max_picks")),
                 "assigned_to": Choice(source=(Slot, "assigned_to")),
                 "hidden": Bool(source=(Slot, "hidden")),
+                "follows_status": Bool(source=(Slot, "follows_status")),
                 "mode": Choice(source=(Slot, "mode")),
                 "position": Int(source=(Slot, "position")),
                 "qualifier": Text(source=(Slot, "qualifier")),

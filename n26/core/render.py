@@ -638,6 +638,7 @@ class ChoiceLine:
     #: Most models carry one, so a card away from the model's own screens
     #: draws it only once something has been chosen.
     is_lasting_effect: bool = False
+    follows_status: bool = False
     #: Dismissed choices are kept off the model card. The model's Edit page
     #: and the gang's Dismissed choices tab offer Restore instead of Choose.
     dismissed: bool = False
@@ -2110,7 +2111,7 @@ def slot_key(slot, host):
     anchor = getattr(slot.anchor, "assignment", None)
     if not host or anchor is None or slot.identity is None:
         return ""
-    return _address(host, anchor.pk, slot.identity.pk)
+    return _address(host, anchor.pk, slot.identity.pk, slot.status_revision)
 
 
 def _choice_line(slot, host):
@@ -2121,6 +2122,7 @@ def _choice_line(slot, host):
         takes_several=slot.max_picks > 1,
         is_tier_ladder=is_tier_ladder(slot),
         is_lasting_effect=is_lasting_effect(slot),
+        follows_status=bool(slot.slot and slot.slot.follows_status),
         key=slot_key(slot, host),
         provenance=Provenance(
             source=slot.source,
@@ -2253,7 +2255,11 @@ def choice_lines(computed, host=""):
     """
     if not computed:
         return []
-    return [_choice_line(slot, host) for slot in computed.choices]
+    return [
+        _choice_line(slot, host)
+        for slot in computed.choices
+        if not slot.is_history_only
+    ]
 
 
 def hide_dismissed(keys, holder, *, reveal=False, removed=None):
@@ -3184,6 +3190,8 @@ def card_to_model_card(
     # the rows below leave out what was filed.
     item_hosted = set()
     for slot in computed.choices if computed else []:
+        if slot.is_history_only:
+            continue
         if question_row(slot) is not None:
             continue
         home = weapon_home(slot, weapons_by_key)
@@ -3267,7 +3275,9 @@ def card_to_model_card(
             *(
                 _choice_line(slot, id)
                 for slot in (computed.choices if computed else [])
-                if question_row(slot) is None and id_of(slot) not in item_hosted
+                if not slot.is_history_only
+                and question_row(slot) is None
+                and id_of(slot) not in item_hosted
             ),
             # What the gang picked, where a modifier says this model's
             # card draws it. After the card's own questions: they are

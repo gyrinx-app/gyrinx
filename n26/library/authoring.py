@@ -1254,6 +1254,7 @@ def create_pickable(
     category=None,
     rating_contribution=0,
     summary="",
+    record_only=False,
     **kwargs,
 ):
     """One pickable a choice offers; ``effects`` are (scope, effect) pairs.
@@ -1277,6 +1278,7 @@ def create_pickable(
         slot_type=slot_type,
         qualifier=qualifier,
         summary=summary,
+        record_only=record_only,
         library_author_help=library_author_help,
         category=category,
         rating_contribution=rating_contribution,
@@ -1389,6 +1391,7 @@ def create_slot(
     max_picks=1,
     assigned_to="bearer",
     hidden=False,
+    follows_status=False,
     mode="standard",
     position=0,
     qualifier="",
@@ -1420,6 +1423,7 @@ def create_slot(
         max_picks=max_picks,
         assigned_to=assigned_to,
         hidden=hidden,
+        follows_status=follows_status,
         mode=mode,
         position=position,
         qualifier=qualifier,
@@ -2424,6 +2428,14 @@ def has_pickable(*pickables, negate=False):
     condition = HasPickable(negate=negate)
     condition._pending_m2m = {"pickables": pickables}
     return condition
+
+
+def has_status(status):
+    """Condition: the model has this current status."""
+    from n26.core.status import Status
+    from n26.library.models import HasStatus
+
+    return HasStatus(status=Status(status))
 
 
 def counter_at_least(counter, at_least):
