@@ -78,7 +78,10 @@ To test the real webhook and paging route after merging the workflow:
    on-call recipient, then resolve the test alert in incident.io.
 
 The manual run sends a real page using the alert source's routing rules.
-Leaving the send checkbox unchecked skips every job and sends nothing.
+On `main`, leaving the send checkbox unchecked skips every job and sends
+nothing. Manual runs on other branches or tags execute the test and database
+jobs and send no paging test alert. This keeps a manual run on a pull request
+branch from satisfying the required `test` check without running the suite.
 
 ### The Core Suite
 
