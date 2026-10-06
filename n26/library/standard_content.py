@@ -1277,18 +1277,34 @@ CAPTURED_RESULTS = ("Captured",)
 
 
 def lasting_effect_status_modifiers():
-    """A filter for the status modifiers the lasting-effect seed attaches,
-    recognised by what they do and where they sit — a status effect on a
-    result of one of the tables — never by name, so rewording one does
-    not make it look imported."""
+    """Standard table status effects and the conditional gang-carried Escape grant.
+
+    Recognise their effects and carriers, so changing a modifier's name does
+    not make ingest clearing delete a foundation.
+    """
+    from django.conf import settings
     from django.db.models import Q
 
     tables = [name for name, _, _, _, _ in LASTING_EFFECT_TABLES] + [ESCAPE_SLOT_TYPE]
-    return Q(
-        op_sets_status__isnull=False, library_pickable_set__slot_type__name__in=tables
-    ) | Q(
-        adds_assignable__slot__slot_type__name=ESCAPE_SLOT_TYPE,
-        library_pickable_set__slot_type__name__in=tables,
+    return (
+        Q(
+            op_sets_status__isnull=False,
+            library_pickable_set__slot_type__name__in=tables,
+        )
+        | Q(
+            adds_assignable__slot__slot_type__name=ESCAPE_SLOT_TYPE,
+            library_pickable_set__slot_type__name__in=tables,
+        )
+        | Q(
+            pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+            adds_assignable__slot__name=ESCAPE_SLOT_TYPE,
+            adds_assignable__slot__qualifier="",
+            adds_assignable__slot__pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+            targets_miniature__reach="every_model",
+            targets_miniature__has_status__status="captured",
+            library_gangtype_set__name__in=GANG_TYPES,
+            library_gangtype_set__pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+        )
     )
 
 

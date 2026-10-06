@@ -2474,3 +2474,76 @@ def _found_a_gang_holding_a_weapon():
     )
     model = hire(gang, Profile.objects.get(name="Gang Queen"), "Yolanda")
     give_weapon(model, Weapon.objects.get(name="Autogun"))
+
+
+@pytest.mark.django_db
+def test_ingest_clear_preserves_the_gang_status_choice_without_reseeding(foundation):
+    from django.contrib.auth import get_user_model
+
+    from n26.core.card import build_card, build_modifier_index, carriers
+    from n26.core.effects import compute
+    from n26.core.operations import operation
+    from n26.core.reconcile import assert_reconciled
+    from n26.core.status import Status
+    from n26.library.authoring import (
+        create_profile,
+        ef_adds,
+        has_status,
+        modifier,
+        revise,
+        targets_every_model,
+    )
+    from n26.library.ingest import clear_imported
+    from n26.library.models import (
+        AddsAssignable,
+        GangType,
+        HasStatus,
+        Modifier,
+        Pickable,
+        ProfileType,
+        Slot,
+        TargetsMiniature,
+    )
+    from n26.tests.sandbox.actions import found_gang, hire
+
+    gang_type = GangType.objects.get(name="Escher")
+    escape = Slot.objects.get(name="Escape", qualifier="")
+    grant = gang_type.modifiers.get(name="Captured models: Escape")
+    scope_id, effect_id = grant.targets_miniature_id, grant.adds_assignable_id
+    revise(grant, name="Renamed prisoner choice")
+    imported = modifier(
+        "Imported critical choice",
+        targets_every_model(has_status(Status.CRITICAL)),
+        ef_adds(escape),
+        attach_to=gang_type,
+    )
+    clear_imported()
+    assert Modifier.objects.filter(pk=grant.pk).exists()
+    assert gang_type.modifiers.filter(pk=grant.pk).exists()
+    assert TargetsMiniature.objects.filter(pk=scope_id).exists()
+    assert HasStatus.objects.filter(scope_id=scope_id, status=Status.CAPTURED).exists()
+    assert AddsAssignable.objects.filter(pk=effect_id).exists()
+    assert not Modifier.objects.filter(pk=imported.pk).exists()
+
+    owner = get_user_model().objects.create_user(username="cleared-escape")
+    gang = found_gang("After import clear", gang_type, owner=owner)
+    profile = create_profile("New fighter", ProfileType.objects.first(), gang_type)
+    model = hire(gang, profile, "Prisoner")
+    with operation(gang, actor=owner) as op:
+        op.set_status(model, Status.CAPTURED)
+    card = build_card(model)
+    computed = compute(card, build_modifier_index(carriers(card)))
+    question = next(
+        q for q in computed.choices if q.slot is not None and q.slot.pk == escape.pk
+    )
+    assert not question.picks
+    with operation(gang, actor=owner) as op:
+        op.choose(
+            question.anchor.assignment,
+            Pickable.objects.get(name="Daring Escape"),
+            slot=escape,
+            miniature=model,
+        )
+    model.refresh_from_db()
+    assert model.status == Status.RECOVERY
+    assert_reconciled(gang)
