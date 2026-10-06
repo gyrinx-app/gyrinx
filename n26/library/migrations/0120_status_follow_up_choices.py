@@ -43,6 +43,32 @@ def standard_escape_results(Pickable, using, slot):
     )
 
 
+def validate_status_modifier(Modifier, using, slot, modifier):
+    expected = (
+        Modifier.objects.using(using)
+        .filter(
+            pk=modifier.pk,
+            targets_miniature__reach="every_model",
+            adds_assignable__slot_id=slot.pk,
+        )
+        .annotate(status_conditions=models.Count("targets_miniature__has_status"))
+        .filter(
+            status_conditions=1,
+            targets_miniature__has_status__status="captured",
+            targets_miniature__has_subtypes__isnull=True,
+            targets_miniature__is_profile__isnull=True,
+            targets_miniature__is_profile_type__isnull=True,
+            targets_miniature__has_pickable__isnull=True,
+            targets_miniature__counter_at_least__isnull=True,
+        )
+    )
+    if not expected.exists():
+        raise RuntimeError(
+            'The modifier "Captured models: Escape" has a different scope or effect. '
+            "Rename it before changing standard Escape content."
+        )
+
+
 def update_standard_choices(apps, schema_editor):
     """Change standard content only; existing player history stays untouched."""
     from django.conf import settings
@@ -61,6 +87,13 @@ def update_standard_choices(apps, schema_editor):
     )
     if slot is None:
         return
+    modifier = (
+        Modifier.objects.using(using)
+        .filter(pack_id=slot.pack_id, name__iexact="Captured models: Escape")
+        .first()
+    )
+    if modifier is not None:
+        validate_status_modifier(Modifier, using, slot, modifier)
     Slot.objects.using(using).filter(pk=slot.pk).update(follows_status=True)
     captures = standard_captures(Pickable, using, slot.pack_id)
     captures.update(record_only=True)
@@ -73,11 +106,6 @@ def update_standard_choices(apps, schema_editor):
             )
         )
     standard_escape_results(Pickable, using, slot).update(record_only=True)
-    modifier = (
-        Modifier.objects.using(using)
-        .filter(pack_id=slot.pack_id, name="Captured models: Escape")
-        .first()
-    )
     if modifier is None:
         scope = (
             apps.get_model("library", "TargetsMiniature")
@@ -122,8 +150,10 @@ def restore_standard_choices(apps, schema_editor):
     if slot is None:
         return
     modifiers = Modifier.objects.using(using).filter(
-        pack_id=slot.pack_id, name="Captured models: Escape"
+        pack_id=slot.pack_id, name__iexact="Captured models: Escape"
     )
+    for modifier in modifiers:
+        validate_status_modifier(Modifier, using, slot, modifier)
     parts = list(modifiers.values_list("targets_miniature_id", "adds_assignable_id"))
     modifiers.delete()
     apps.get_model("library", "TargetsMiniature").objects.using(using).filter(

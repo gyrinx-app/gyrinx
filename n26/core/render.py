@@ -2255,7 +2255,11 @@ def choice_lines(computed, host=""):
     """
     if not computed:
         return []
-    return [_choice_line(slot, host) for slot in computed.choices]
+    return [
+        _choice_line(slot, host)
+        for slot in computed.choices
+        if not slot.is_history_only
+    ]
 
 
 def hide_dismissed(keys, holder, *, reveal=False, removed=None):
@@ -3186,6 +3190,8 @@ def card_to_model_card(
     # the rows below leave out what was filed.
     item_hosted = set()
     for slot in computed.choices if computed else []:
+        if slot.is_history_only:
+            continue
         if question_row(slot) is not None:
             continue
         home = weapon_home(slot, weapons_by_key)
@@ -3269,7 +3275,9 @@ def card_to_model_card(
             *(
                 _choice_line(slot, id)
                 for slot in (computed.choices if computed else [])
-                if question_row(slot) is None and id_of(slot) not in item_hosted
+                if not slot.is_history_only
+                and question_row(slot) is None
+                and id_of(slot) not in item_hosted
             ),
             # What the gang picked, where a modifier says this model's
             # card draws it. After the card's own questions: they are

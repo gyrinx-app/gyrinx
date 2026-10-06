@@ -935,3 +935,34 @@ def test_legacy_status_ownership_uses_one_ledger_query_for_all_models(
     ]
     assert len(status_queries) == 1, status_queries
     assert_reconciled(report.gang)
+
+
+@pytest.mark.parametrize("max_picks", [1, 2])
+def test_a_history_only_status_result_settles_without_appearing_on_the_current_card(
+    model, follow_up, max_picks
+):
+    from n26.core.render import choice_lines
+    from n26.library.authoring import revise
+
+    _, slot, _, _ = follow_up
+    revise(slot, max_picks=max_picks)
+    waiting = create_pickable("Awaiting rescue", slot.slot_type, record_only=True)
+    add_picklist_member(slot.picklist, waiting)
+    mark(model, Status.CAPTURED)
+    result = choose(model, slot, waiting)
+    reading = computed(model)
+    settled = next(
+        q for q in reading.choices if q.slot is not None and q.slot.pk == slot.pk
+    )
+    assert settled.is_full == (max_picks == 1)
+    assert settled.is_resolved
+    assert [node.assignment.pk for node in settled.picks] == [result.pk]
+    card = build_model_card(model, computed=reading)
+    for lines in [card.row_questions, choice_lines(reading, str(model.pk))]:
+        shown = [q for q in lines if q.follows_status]
+        if max_picks == 1:
+            assert not shown
+        else:
+            assert len(shown) == 1
+            assert not shown[0].chosen and not shown[0].is_full
+    assert any(entry.name == waiting.name for entry in result_history(model))

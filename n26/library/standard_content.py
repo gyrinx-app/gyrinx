@@ -1514,12 +1514,28 @@ def _create_escape_status_modifier(slot):
 
     from n26.core.status import Status
     from n26.library.authoring import ef_adds, has_status, modifier, targets_every_model
-    from n26.library.models import Modifier
+    from n26.library.models import HasStatus, Modifier
 
     name = "Captured models: Escape"
     row = Modifier.objects.filter(
-        name=name, pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+        name__iexact=name, pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
     ).first()
+    if row is not None:
+        scope = row.targets_miniature
+        conditions = scope._condition_rows() if scope is not None else []
+        if not (
+            scope is not None
+            and scope.reach == "every_model"
+            and row.adds_assignable_id is not None
+            and row.adds_assignable.slot_id == slot.pk
+            and len(conditions) == 1
+            and isinstance(conditions[0], HasStatus)
+            and conditions[0].status == Status.CAPTURED
+        ):
+            raise RuntimeError(
+                'The modifier "Captured models: Escape" has a different scope or effect. '
+                "Rename it before changing standard Escape content."
+            )
     if row is None:
         row = modifier(
             name, targets_every_model(has_status(Status.CAPTURED)), ef_adds(slot)

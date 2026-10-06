@@ -17,6 +17,7 @@ from n26.library.authoring import (
     ef_adds,
     has_status,
     modifier,
+    op_sets_status,
     revise,
     targets_every_model,
     targets_model,
@@ -265,3 +266,44 @@ def test_upgrading_capture_detaches_only_the_legacy_seeded_escape_grant(
         for result in captures:
             assert result.modifiers.filter(pk=legacy.pk).exists()
             assert result.modifiers.filter(pk=custom.pk).exists()
+
+
+@pytest.mark.parametrize("source", ["migration", "seed", "rollback"])
+def test_a_conflicting_escape_modifier_fails_without_changing_authored_content(
+    default_pack, gang_type, source
+):
+    from django.db import transaction
+
+    STANDARD_CONTENT["lasting-effect-tables"].create()
+    seeded = Modifier.objects.get(name="Captured models: Escape")
+    revise(seeded, name="Existing standard grant")
+    custom = modifier(
+        "Captured models: Escape", targets_model(), op_sets_status(Status.DEAD)
+    )
+    scope_id, effect_id = custom.targets_miniature_id, custom.op_sets_status_id
+    escape = Slot.objects.get(name="Escape", qualifier="")
+    captured = Pickable.objects.get(name="Captured", qualifier="")
+    revise(escape, follows_status=False)
+    revise(captured, record_only=False)
+    migration = import_module("n26.library.migrations.0120_status_follow_up_choices")
+    with pytest.raises(RuntimeError, match="different scope or effect"):
+        with transaction.atomic():
+            if source == "seed":
+                STANDARD_CONTENT["lasting-effect-tables"].create()
+            else:
+                action = (
+                    migration.restore_standard_choices
+                    if source == "rollback"
+                    else migration.update_standard_choices
+                )
+                action(apps, SimpleNamespace(connection=connection))
+    custom.refresh_from_db()
+    assert (custom.targets_miniature_id, custom.op_sets_status_id) == (
+        scope_id,
+        effect_id,
+    )
+    assert not custom.library_gangtype_set.exists()
+    assert gang_type.modifiers.filter(pk=seeded.pk).exists()
+    escape.refresh_from_db()
+    captured.refresh_from_db()
+    assert not escape.follows_status and not captured.record_only

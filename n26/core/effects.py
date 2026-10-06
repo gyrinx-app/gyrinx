@@ -262,8 +262,22 @@ class ChoiceSlot:
         return len(self.picks) >= self.max_picks
 
     @property
+    def current_picks(self):
+        """The picks that belong among current choices rather than in history."""
+        return [
+            node
+            for node in self.picks
+            if not getattr(getattr(node, "assignable", None), "record_only", False)
+        ]
+
+    @property
+    def is_history_only(self):
+        return self.is_full and bool(self.picks) and not self.current_picks
+
+    @property
     def chosen_name(self):
-        return stacked_names(node.name for node in self.picks) if self.picks else None
+        picks = self.current_picks
+        return stacked_names(node.name for node in picks) if picks else None
 
     @property
     def identity(self):
