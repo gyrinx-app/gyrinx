@@ -28,6 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from n26.library.models.profile import TYPE_NAMES
+from n26.write_pause import guarded_write
 
 
 def _limits(minimum, maximum):
@@ -1034,7 +1035,9 @@ def _skill_rows():
         yield INHERENT_SET, skill, 0
 
 
+@guarded_write
 def _create_skills():
+    from n26.library.authoring import create_skill
     from n26.library.models import Category, Section, Skill
     from n26.library.models.pack import get_default_pack
 
@@ -1046,12 +1049,9 @@ def _create_skills():
             section=section, name=set_name, defaults={"position": position}
         )
     for set_name, skill, number in _skill_rows():
-        Skill.objects.get_or_create(
-            pack=pack,
-            name=skill,
-            qualifier="",
-            defaults={"category": sets[set_name], "position": number},
-        )
+        category = Category.objects.select_for_update().get(pk=sets[set_name].pk)
+        if not Skill.objects.filter(pack=pack, name=skill, qualifier="").exists():
+            create_skill(skill, category=category, position=number, pack=pack)
 
 
 def _check_skills():
