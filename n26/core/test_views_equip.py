@@ -614,7 +614,7 @@ def price_box(body, name):
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(body, "html.parser")
-    for host in soup.select("[data-react-module*='/equip-price-']"):
+    for host in soup.select('[data-react-name="equip-price"]'):
         box = host.find("input", attrs={"name": name})
         if box is None:
             continue

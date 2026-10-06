@@ -99,6 +99,48 @@ describe("mounting over the server-drawn box", () => {
         host.remove();
     });
 
+    it("puts focus back when the box was being typed into", () => {
+        const host = document.createElement("div");
+        host.innerHTML = '<input type="number" name="sword:price" value="35">';
+        document.body.appendChild(host);
+        const original = host.querySelector("input") as HTMLInputElement;
+        original.value = "8";
+        original.focus();
+
+        let unmount: () => void = () => {};
+        act(() => {
+            unmount = mount(host, props);
+        });
+
+        const box = host.querySelector<HTMLInputElement>(
+            'input[name="sword:price"]',
+        );
+        expect(box?.value).toBe("8");
+        expect(document.activeElement).toBe(box);
+        act(() => unmount());
+        host.remove();
+    });
+
+    it("leaves focus alone when another control is active", () => {
+        const other = document.createElement("button");
+        other.textContent = "Buy";
+        document.body.appendChild(other);
+        other.focus();
+        const host = document.createElement("div");
+        host.innerHTML = '<input type="number" name="sword:price" value="35">';
+        document.body.appendChild(host);
+
+        let unmount: () => void = () => {};
+        act(() => {
+            unmount = mount(host, props);
+        });
+
+        expect(document.activeElement).toBe(other);
+        act(() => unmount());
+        host.remove();
+        other.remove();
+    });
+
     it("keeps an emptied box empty", () => {
         render(<EquipPrice {...props} initial="" />);
         expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe(
