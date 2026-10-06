@@ -1037,7 +1037,7 @@ def _skill_rows():
 
 @guarded_write
 def _create_skills():
-    from n26.library.authoring import create_skill
+    from n26.library.authoring import create_skill, revise
     from n26.library.models import Category, Section, Skill
     from n26.library.models.pack import get_default_pack
 
@@ -1051,6 +1051,19 @@ def _create_skills():
     for set_name, skill, number in _skill_rows():
         category = Category.objects.select_for_update().get(pk=sets[set_name].pk)
         if not Skill.objects.filter(pack=pack, name=skill, qualifier="").exists():
+            # A qualified copy can still sit on the book's D6 result. Two
+            # results cannot share a number, so the copy becomes unnumbered
+            # and the book row takes its result back.
+            if number:
+                holders = Skill.objects.filter(
+                    pack=pack,
+                    category=category,
+                    name=skill,
+                    position=number,
+                    archived=False,
+                ).exclude(qualifier="")
+                for holder in holders:
+                    revise(holder, position=0)
             create_skill(skill, category=category, position=number, pack=pack)
 
 

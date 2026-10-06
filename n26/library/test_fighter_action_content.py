@@ -427,12 +427,10 @@ def test_qualified_skill_does_not_satisfy_standard_skill_completeness(default_pa
     assert content.status() == "incomplete"
     content.create()
 
-    assert Skill.objects.filter(
-        pack=default_pack, name="Catfall", qualifier=""
-    ).exists()
-    assert Skill.objects.filter(
-        pack=default_pack, name="Catfall", qualifier="Custom"
-    ).exists()
+    book = Skill.objects.get(pack=default_pack, name="Catfall", qualifier="")
+    custom = Skill.objects.get(pack=default_pack, name="Catfall", qualifier="Custom")
+    assert book.position == 1
+    assert custom.position == 0
     assert content.status() == "complete"
 
 
