@@ -23,11 +23,38 @@ def standard_offers(apps):
         slot_type__name="Advancement",
         listed_on__picklist__name="Fighter advancement table",
     )
-    return OffersChoice.objects.filter(
-        of_kind__app_label="library",
-        of_kind__model="skill",
-        modifier__library_pickable_set__in=picks,
-    ).distinct()
+    ids = []
+    for pick in picks:
+        names = (
+            f"Advancement: {pick.name}",
+            f"Standard fighter advancement: {pick.name}",
+            f"Standard fighter advancement: {pick.name} ({str(pick.pk)[:8]})",
+        )
+        for modifier in pick.modifiers.filter(
+            pack_id=pick.pack_id,
+            offers_choice__of_kind__app_label="library",
+            offers_choice__of_kind__model="skill",
+        ):
+            if modifier.name.casefold() not in {name.casefold() for name in names}:
+                continue
+            if exclusive_to(modifier, pick):
+                ids.append(modifier.offers_choice_id)
+    return OffersChoice.objects.filter(pk__in=ids)
+
+
+def exclusive_to(modifier, pick):
+    """Do not change an offer that another carrier also uses."""
+    for relation in modifier._meta.related_objects:
+        if not relation.many_to_many:
+            continue
+        modifier_field = relation.field.m2m_reverse_field_name()
+        carrier_field = relation.field.m2m_field_name()
+        links = relation.through.objects.filter(**{f"{modifier_field}_id": modifier.pk})
+        if relation.related_model is type(pick):
+            links = links.exclude(**{f"{carrier_field}_id": pick.pk})
+        if links.exists():
+            return False
+    return True
 
 
 def enable_standard_power_choices(apps, schema_editor):

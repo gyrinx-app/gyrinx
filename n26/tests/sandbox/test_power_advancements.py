@@ -7,9 +7,9 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from n26.core.advancements import skill_options
+from n26.core.advancements import preview_advancement, skill_options
 from n26.core.models import ActionRecord, Assignment, LedgerEvent
-from n26.core.operations import operation
+from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
 from n26.library.models import Power, Skill
@@ -92,6 +92,23 @@ def _confirm(client, response):
     completed = client.post(response.url, {"review": token})
     assert completed.status_code == 302
     return response.url, token
+
+
+def test_a_stale_power_selection_uses_power_aware_wording(client, monkeypatch, wyrd):
+    data = wyrd.advancement
+    _load_rolls(monkeypatch, 12)
+    record = _start(client, data)
+    _post_roll(client, data, record)
+    _choose_result(client, data, record, data.results["primary"])
+    record.refresh_from_db()
+    power = wyrd.powers["primary"]
+    power.archive()
+    with pytest.raises(Refusal, match="Choose an available skill or power"):
+        preview_advancement(
+            record,
+            data.outcome.resolve_advancement,
+            {"pickable_id": str(data.results["primary"].pk), "skill_id": str(power.pk)},
+        )
 
 
 def test_a_saved_roll_from_before_power_support_can_offer_powers(

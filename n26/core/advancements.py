@@ -939,12 +939,13 @@ def _resolved(record, configured, terms):
     )
     offer, skill = _skill_offer(pickable), None
     if offer is not None:
+        kind_name = "skill or power" if offer.power_access_collection_id else "skill"
         options = skill_options(record, configured, pickable_id)
         if offer.mode == offer.Mode.RANDOM:
             skill = recorded_skill(record, configured, pickable_id)
             available = {row.pk for rows in options.values() for row in rows}
             if skill is None or skill.pk not in available:
-                raise Refusal("Roll D6 again for an available skill.")
+                raise Refusal(f"Roll D6 again for an available {kind_name}.")
         else:
             skill_id = str(terms.get("skill_id", ""))
             skill = next(
@@ -961,7 +962,7 @@ def _resolved(record, configured, terms):
                 None,
             )
             if skill is None:
-                raise Refusal("Choose an available skill.")
+                raise Refusal(f"Choose an available {kind_name}.")
     return pickable, offer, skill
 
 
