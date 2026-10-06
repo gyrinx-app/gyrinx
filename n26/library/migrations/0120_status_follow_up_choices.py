@@ -164,7 +164,9 @@ def restore_standard_choices(apps, schema_editor):
     ):
         raise RuntimeError(
             "Cannot roll back status choices while other status conditions remain. "
-            "Remove those conditions before rolling back."
+            'Restore the standard modifier name "Captured models: Escape" if renamed, '
+            "or remove the affected authored modifiers in full before rolling back. "
+            "Do not delete status conditions alone; that makes their modifiers unconditional."
         )
     if slot is None:
         return

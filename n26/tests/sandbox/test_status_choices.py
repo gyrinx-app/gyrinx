@@ -986,29 +986,50 @@ def test_post_battle_offers_only_status_choices_with_remaining_capacity(
     ) == (max_picks == 2)
 
 
+@pytest.mark.parametrize("outcome", ["waiting", "released", "ransom", "escape"])
 def test_a_correction_retains_a_settled_status_result_without_offering_it_again(
-    report, owner, model, follow_up
+    report, owner, model, follow_up, gang_type, outcome
 ):
-    _, slot, _, _ = follow_up
-    waiting = create_pickable("Awaiting rescue", slot.slot_type, record_only=True)
-    add_picklist_member(slot.picklist, waiting)
+    _, slot, released, ransom = follow_up
+    if outcome == "waiting":
+        result = create_pickable("Awaiting rescue", slot.slot_type, record_only=True)
+        add_picklist_member(slot.picklist, result)
+    elif outcome == "escape":
+        from n26.library.models import Pickable, Slot
+        from n26.library.standard_content import STANDARD_CONTENT
+
+        STANDARD_CONTENT["lasting-effect-tables"].create()
+        slot = Slot.objects.get(name="Escape", qualifier="")
+        result = Pickable.objects.get(name="Daring Escape", slot_type=slot.slot_type)
+        modifier(
+            "Prisoners may resolve Escape",
+            targets_every_model(has_status(Status.CAPTURED)),
+            ef_adds(slot),
+            attach_to=gang_type,
+        )
+    else:
+        result = released if outcome == "released" else ransom
     mark(model, Status.CAPTURED)
-    payload = payload_for(model, effects=[effect_for(report, owner, waiting)])
+    payload = payload_for(model, effects=[effect_for(report, owner, result)])
     report = save(report, owner, payload)
     apply(report, owner)
     report = start_correction(report, actor=owner)
     plan = preview_report(report, actor=owner)
     assert plan.valid, plan.errors
-    assert plan.models[0].effects[0].display_name == waiting.name
+    assert plan.models[0].effects[0].display_name == result.name
     from n26.core.post_battle_forms import editor_models
 
     shown = editor_models(plan, report.draft)[0]
     assert shown.effects[0].retained_option
-    assert shown.effects[0].name == waiting.name
+    assert shown.effects[0].name == result.name
     assert shown.effects[0].label == f"{slot.slot_type.name} 1"
-    assert not any(
-        value.endswith(f"|{waiting.pk}") for value, _ in shown.effect_options
-    )
+    assert not any(value.endswith(f"|{result.pk}") for value, _ in shown.effect_options)
     assert not any(
         s.key.endswith(f":{slot.pk}") and s.options for s in plan.models[0].effect_slots
     )
+
+    from django.template.loader import render_to_string
+
+    html = render_to_string("n26/includes/post_battle_model.html", {"model": shown})
+    assert f'aria-label="Remove {slot.slot_type.name} 1"' in html
+    assert_reconciled(report.gang)
