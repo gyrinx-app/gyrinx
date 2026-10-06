@@ -1387,6 +1387,7 @@ def preview_report(report, *, actor, payload=None):
                     slot.slot.slot_type.is_lasting_effect or slot.slot.follows_status
                 )
                 or slot.slot.assigned_to == Slot.WillBeAssignedTo.GANG
+                or (slot.slot.follows_status and slot.is_full)
             ):
                 continue
             anchor = slot.anchor.assignment

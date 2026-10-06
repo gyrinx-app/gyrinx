@@ -218,6 +218,7 @@ class ReportEffect:
     questions: list = field(default_factory=list)
     name: str = ""
     retained_choices: list = field(default_factory=list)
+    retained_option: bool = False
 
 
 @dataclass
@@ -448,6 +449,9 @@ def editor_models(plan, payload, refresh_url=""):
                     label=f"{label} {number}".strip(),
                     questions=questions,
                     name=found.display_name if found else "",
+                    retained_option=bool(
+                        selected and found and selected not in dict(options)
+                    ),
                     retained_choices=[
                         (key, selected)
                         for key, selected in (effect.get("choices") or {}).items()
