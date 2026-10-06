@@ -1069,6 +1069,7 @@ def build_modifier_index(assignables, max_depth=3):
         # Without these, naming a choice's kind or a placed category
         # queries once per slot or placement.
         "offers_choice__of_kind",
+        "offers_choice__power_access_collection",
         "places_category__category",
         "hides_categories__collection",
         "places_category__section__collection",

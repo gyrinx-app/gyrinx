@@ -960,7 +960,7 @@ def test_noop_foundation_reseed_preserves_a_recorded_roll(fighter):
     assert advancement_options(record, configured)
 
 
-@pytest.mark.parametrize("edited", ["effect", "scope"])
+@pytest.mark.parametrize("edited", ["effect", "scope", "power_access"])
 def test_advancement_roll_fingerprints_modifier_configuration(fighter, edited):
     action, outcome, allowance = _advancement(fighter)
     configured = outcome.resolve_advancement
@@ -974,6 +974,9 @@ def test_advancement_roll_fingerprints_modifier_configuration(fighter, edited):
     if edited == "effect":
         modifier.offers_choice.mode = modifier.offers_choice.Mode.SELECT
         modifier.offers_choice.save(update_fields=["mode"])
+    elif edited == "power_access":
+        modifier.offers_choice.power_access_collection = None
+        modifier.offers_choice.save(update_fields=["power_access_collection"])
     else:
         modifier.scope.reach = modifier.scope.Reach.EVERY_MODEL
         modifier.scope.save(update_fields=["reach"])

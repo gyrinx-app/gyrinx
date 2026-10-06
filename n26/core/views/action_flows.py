@@ -124,7 +124,7 @@ def _steps(record=None, *, action=None, stage="start", correction=False):
         stages = [] if correction else [("start", "Choice"), ("roll", "Roll")]
         stages += [
             ("advancement", "Promotion" if promotion else "Advancement"),
-            ("skill", "Skill"),
+            ("skill", "Skill or power"),
             ("review", "Review"),
             ("done", "Completed"),
         ]
@@ -340,9 +340,9 @@ def _selection_summary(record, stage):
         if advancement and advancement.intended_pick:
             skill = getattr(record, "skill_selection", None)
             return (
-                f"{advancement.intended_pick}: {skill.selected_skill}."
+                f"{advancement.intended_pick}: {skill.selected}."
                 if skill
-                and skill.selected_skill
+                and skill.selected
                 and skill.skill_assignment_id
                 and not skill.skill_assignment.archived
                 else str(advancement.intended_pick)

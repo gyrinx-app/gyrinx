@@ -46,7 +46,7 @@ def test_a_promotion_skips_the_roll_and_review_keeps_its_number(promotion):
         ("Choice", False, True, False),
         ("Roll", False, False, True),
         ("Promotion", False, True, False),
-        ("Skill", False, False, True),
+        ("Skill or power", False, False, True),
         ("Review", True, False, False),
         ("Completed", False, False, False),
     ]
@@ -59,7 +59,7 @@ def test_a_result_that_grants_a_skill_takes_the_skill_step(no_promotion):
         "Choice",
         "Roll",
         "Advancement",
-        "Skill",
+        "Skill or power",
         "Review",
         "Completed",
     ]

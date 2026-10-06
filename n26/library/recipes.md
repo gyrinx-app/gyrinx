@@ -93,10 +93,12 @@ open its built-in set and add the same Action, RankTable, or Slot as a default
 member. Use one route for each definition; duplicate routes are collapsed for
 access but make the authored source harder to explain.
 
-The five skill advancement results are already configured. Primary and
-Secondary results point at those exact Skills & Powers sections. Random results
-record a D6 roll; select results let the player pick. The any-skill result
-leaves the section blank deliberately.
+The five skill advancement results are already configured to allow powers
+in place of skills. **Also offers powers from** points at **Skills & Powers**.
+Primary and Secondary results point at those exact collection sections.
+Random results record a D6 roll within the chosen skill set or power family;
+select results let the player select one. The any-skill result leaves the
+section blank: it offers all skills and the power families placed for this model.
 
 ## Create an advancement action
 
@@ -532,6 +534,14 @@ what puts the family there. An offer without a placement gives the
 player an empty page when they click Choose. A placement without an
 offer is a valid setup: the model may select powers from the family at
 any time, but is not given a first one.
+
+For advancement, use the existing skill results. Their **Also offers powers
+from** setting includes the power families placed for this model, alongside
+its skill sets. A Primary result includes Primary power families; a Secondary
+result includes Secondary families. **Select any skill** includes the model's
+placed power families too. Other families remain outside these choices.
+When two modifiers place the same family, the section with the lowest
+position takes precedence; two placements do not put a family in both sections.
 
 ## An item's augmentation tiers
 

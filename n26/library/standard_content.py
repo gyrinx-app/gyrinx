@@ -1773,6 +1773,7 @@ def _create_fighter_actions():
     from n26.library.models import (
         Action,
         ChangesStat,
+        Collection,
         CollectionSection,
         Counter,
         Modifier,
@@ -1792,6 +1793,9 @@ def _create_fighter_actions():
     from n26.library.models.pack import get_default_pack
 
     pack = get_default_pack()
+    power_access_collection = Collection.objects.get(
+        pack=pack, name=SKILLS_COLLECTION, qualifier=""
+    )
 
     def named(model, name, **defaults):
         lookup = {"pack": pack, "name__iexact": name}
@@ -1960,6 +1964,7 @@ def _create_fighter_actions():
                 isinstance(effect, OffersChoice)
                 and effect.of_kind.model_class() is Skill
                 and effect.from_section_id == getattr(section, "pk", None)
+                and effect.power_access_collection_id == power_access_collection.pk
                 and effect.mode
                 == (
                     OffersChoice.Mode.RANDOM
@@ -1973,6 +1978,7 @@ def _create_fighter_actions():
                     Skill,
                     from_section=section,
                     mode="random" if name.startswith("Random") else "select",
+                    power_access_collection=power_access_collection,
                 )
                 if existing_modifier is None:
                     existing_modifier = authoring.modifier(
@@ -2383,14 +2389,15 @@ def _check_fighter_actions():
     } != expected_advancements:
         return incomplete()
     characteristic_names = {full for _, full, _, _ in MODEL_CHARACTERISTICS}
-    skill_sections = dict(
+    skill_section_rows = list(
         CollectionSection.objects.filter(
             collection__pack=pack,
             collection__name=SKILLS_COLLECTION,
             collection__qualifier="",
             name__in=("Primary", "Secondary"),
-        ).values_list("name", "pk")
+        ).values_list("name", "pk", "collection_id")
     )
+    skill_sections = {name: pk for name, pk, _collection_id in skill_section_rows}
     if set(skill_sections) != {"Primary", "Secondary"}:
         return incomplete()
     for member in members:
@@ -2412,6 +2419,7 @@ def _check_fighter_actions():
             and modifier.pack_id == pack.pk
             and isinstance(modifier.effect, OffersChoice)
             and modifier.effect.of_kind.model_class() is Skill
+            and modifier.effect.power_access_collection_id == skill_section_rows[0][2]
             and modifier.effect.mode
             == (
                 OffersChoice.Mode.RANDOM

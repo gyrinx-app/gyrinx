@@ -177,7 +177,7 @@ A **Gives something** modifier can grant wargear as free kit. Each grant gives a
 
 *What a model has selected (skills) or manifests (powers), each with a home category.*
 
-Fields of their own: none. A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power is the same shape: its home is a category too, so it appears in the same fighter-sectioned views as the skill sets with no special casing (the book does the same: Wyrds treat the powers list as a Secondary Skill Set). A power's annotation carries what the book prints in brackets ("(Free)", "Continuous Effect").
+Fields of their own: none. A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power has the same shape: its home is a category too. Category placements determine whether its family is Primary or Secondary for a model. Skill offers with **Also offers powers from** set to that collection allow its placed power families as substitutes, including in advancements. Skill-only and power-only offers remain separate choices. A power's annotation carries what the book prints in brackets ("(Free)", "Continuous Effect").
 
 Both print on the card under their own headings. They arrive built in, given by a modifier, or chosen through an offered choice, and reach whoever holds them.
 

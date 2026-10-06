@@ -1261,7 +1261,8 @@ class OffersChoice(models.Model):
     """Puts an open question on the card for one assignable of a given kind.
 
     Select mode lets the player choose from the offered set. Random mode
-    records a roll against a skill set before storing the available result.
+    records a roll against a set before storing the available result. A skill
+    offer can also permit powers from explicitly placed families.
 
     Computed: the offer is a *slot* on the card, present while the carrier
     is; only what was chosen is ever stored (an assignment caused by the
@@ -1314,6 +1315,20 @@ class OffersChoice(models.Model):
             "than restating a name. Blank offers the whole kind."
         ),
     )
+    power_access_collection = models.ForeignKey(
+        "library.Collection",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="also offers powers from",
+        help_text=(
+            "Allows a power in place of a skill. Choose the collection whose "
+            "category placements give this model access to power families. "
+            "A section narrows both skills and powers; without a section, "
+            "all skills and explicitly placed power families are offered."
+        ),
+    )
     label = models.CharField(
         max_length=200,
         blank=True,
@@ -1356,9 +1371,12 @@ class OffersChoice(models.Model):
         verbose_name_plural = "offers choices"
 
     def __str__(self):
+        kind_name = (
+            "skill or power" if self.power_access_collection_id else self.of_kind.name
+        )
         if self.from_section_id is not None:
-            return f"offers a choice of {self.of_kind.name} from {self.from_section}"
-        return f"offers a choice of {self.of_kind.name}"
+            return f"offers a choice of {kind_name} from {self.from_section}"
+        return f"offers a choice of {kind_name}"
 
     def save(self, *args, **kwargs):
         """Store the label the way a card has to show it.
@@ -1384,16 +1402,22 @@ class OffersChoice(models.Model):
         label="",
         will_be_assigned_to=WillBeAssignedTo.BEARER,
         mode=Mode.SELECT,
+        power_access_collection=None,
     ):
         from django.contrib.contenttypes.models import ContentType
 
-        return cls.objects.create(
+        effect = cls(
             of_kind=ContentType.objects.get_for_model(model),
             from_section=from_section,
             label=label,
             will_be_assigned_to=will_be_assigned_to,
             mode=mode,
+            power_access_collection=power_access_collection,
         )
+        if power_access_collection is not None:
+            effect.full_clean()
+        effect.save()
+        return effect
 
     @property
     def kind_label(self):
@@ -1407,9 +1431,19 @@ class OffersChoice(models.Model):
         """
         if self.label:
             return self.label
+        kind_name = (
+            "skill or power" if self.power_access_collection_id else self.of_kind.name
+        )
         if self.from_section_id is not None:
-            return capfirst(f"{self.from_section.name} {self.of_kind.name}")
-        return capfirst(self.of_kind.name)
+            return capfirst(f"{self.from_section.name} {kind_name}")
+        return capfirst(kind_name)
+
+    @property
+    def offered_kinds(self):
+        from n26.library.models.assignable import Power
+
+        kind = self.of_kind.model_class()
+        return (kind, Power) if self.power_access_collection_id else (kind,)
 
     def accepts(self, target_kind):
         # A model picks its skills; a gang picks its affiliation.
@@ -1429,7 +1463,9 @@ class OffersChoice(models.Model):
         """
         from n26.core import select
 
-        return select.OfKind(self.of_kind.model_class())
+        if not self.power_access_collection_id:
+            return select.OfKind(self.of_kind.model_class())
+        return select.Any(*(select.OfKind(kind) for kind in self.offered_kinds))
 
     def choosables(self):
         """Every pickable of the kind, ignoring any section narrowing.
@@ -1438,7 +1474,11 @@ class OffersChoice(models.Model):
         answer. Ask ``n26.core.browse.offered_by`` for the list a *particular*
         fighter should see.
         """
-        return self.selector().choosables()
+        if self.power_access_collection_id:
+            raise ValueError(
+                "A skill or power offer needs the model's category placements."
+            )
+        return self.of_kind.model_class().objects.all()
 
     def clean(self):
         if self.of_kind_id and self.of_kind.model not in OFFERABLE_KINDS:
@@ -1447,6 +1487,16 @@ class OffersChoice(models.Model):
                 f"A choice of {self.of_kind.name} cannot be offered. "
                 f"Offerable kinds: {allowed}."
             )
+        if self.power_access_collection_id:
+            if self.of_kind_id and self.of_kind.model != "skill":
+                raise ValidationError("Only a skill offer can also offer powers.")
+            if (
+                self.from_section_id
+                and self.from_section.collection_id != self.power_access_collection_id
+            ):
+                raise ValidationError(
+                    "Choose a section from the power access collection."
+                )
 
 
 class PlacesCategory(models.Model):

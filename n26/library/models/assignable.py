@@ -1093,9 +1093,9 @@ class Power(Content, Assignable, UsableBy):
     """A Wyrd power — manifested, not taught.
 
     Not a skill, but its family is a category, so it shows up in the
-    same fighter-sectioned views as the skill sets, with no special
-    casing (the rulebook: Wyrds treat the powers list as a Secondary
-    Skill Set).
+    same fighter-sectioned views as the skill sets. Category placements
+    determine its model's Primary or Secondary access. An offer may allow
+    a power in place of a skill, including for advancements.
 
     The annotation carries what the book prints in brackets after the
     name — "(Free), Continuous Effect" — action type and upkeep, never

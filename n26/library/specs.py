@@ -713,6 +713,11 @@ def _build_registry():
                     source=(OffersChoice, "from_section"),
                 ),
                 "label": Text(source=(OffersChoice, "label")),
+                "power_access_collection": One(
+                    model=Collection,
+                    optional=True,
+                    source=(OffersChoice, "power_access_collection"),
+                ),
                 "mode": Choice(source=(OffersChoice, "mode")),
                 "will_be_assigned_to": Choice(
                     source=(OffersChoice, "will_be_assigned_to")

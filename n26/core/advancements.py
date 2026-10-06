@@ -1,4 +1,4 @@
-"""Persist and resolve fighter advancement rolls and skill choices."""
+"""Persist and resolve fighter advancement rolls and skill or power choices."""
 
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -190,6 +190,16 @@ def _fighter_state(record, additions=()):
                 if getattr(contribution.thing, "pk", None) is not None
             }
         ),
+        "powers": sorted(
+            {
+                str(node.assignable.pk)
+                for node in card.all_nodes()
+                if not node.suppressed
+                and node.assignment is not None
+                and node.assignable._meta.label_lower == "library.power"
+            }
+            | {str(contribution.thing.pk) for contribution in computed.powers}
+        ),
         "placements": sorted(
             [str(row.category.pk), str(row.section.pk)] for row in computed.placements
         ),
@@ -197,13 +207,13 @@ def _fighter_state(record, additions=()):
 
 
 def _skill_offer(pickable):
-    from n26.library.models import OffersChoice, Skill
+    from n26.library.models import OffersChoice, Power, Skill
 
     found = [
         modifier.effect
         for modifier in pickable.modifiers.all()
         if isinstance(modifier.effect, OffersChoice)
-        and modifier.effect.of_kind.model_class() is Skill
+        and modifier.effect.of_kind.model_class() in (Skill, Power)
     ]
     if len(found) > 1:
         raise ValueError(f"{pickable} offers more than one skill choice.")
@@ -254,7 +264,6 @@ def _stat_gainable(fighter, pickable, *, evaluation=None):
 
 def _listed_skills(record, offer, *, computed=None, owned=None):
     from n26.core.browse import offered_by, usability_for
-    from n26.library.models import Skill
     from n26.library.models.assignable import USABLE_BY_LISTS
 
     card = None
@@ -271,34 +280,41 @@ def _listed_skills(record, offer, *, computed=None, owned=None):
             node.assignable.pk
             for node in card.all_nodes()
             if node.assignment is not None
-            and getattr(node.assignable._meta, "label_lower", "") == "library.skill"
+            and getattr(node.assignable._meta, "label_lower", "")
+            in ("library.skill", "library.power")
         }
         owned.update(
             contribution.thing.pk
-            for contribution in computed.skills
+            for contribution in [*computed.skills, *computed.powers]
             if getattr(contribution.thing, "pk", None) is not None
         )
-    ids = [
-        getattr(row, "thing", row).pk
+    things = [
+        getattr(row, "thing", row)
         for row in rows
-        if isinstance(getattr(row, "thing", row), Skill)
+        if isinstance(getattr(row, "thing", row), offer.offered_kinds)
         and getattr(row, "thing", row).pk not in owned
     ]
-    hydrated = {
-        skill.pk: skill
-        for skill in Skill.objects.filter(pk__in=ids)
-        .select_related("category")
-        .prefetch_related(*USABLE_BY_LISTS)
-    }
+    hydrated = {}
+    for kind in offer.offered_kinds:
+        ids = [thing.pk for thing in things if isinstance(thing, kind)]
+        if ids:
+            hydrated.update(
+                {
+                    thing.pk: thing
+                    for thing in kind.objects.filter(pk__in=ids)
+                    .select_related("category")
+                    .prefetch_related(*USABLE_BY_LISTS)
+                }
+            )
     # A random roll is a D6 within one set, so a skill with no set cannot be
     # rolled for.
     random = offer.mode == offer.Mode.RANDOM
     return [
-        hydrated[pk]
-        for pk in ids
-        if pk in hydrated
-        and hydrated[pk].is_usable_by(fighter)
-        and not (random and hydrated[pk].category_id is None)
+        hydrated[thing.pk]
+        for thing in things
+        if thing.pk in hydrated
+        and hydrated[thing.pk].is_usable_by(fighter)
+        and not (random and hydrated[thing.pk].category_id is None)
     ]
 
 
@@ -401,6 +417,40 @@ def _roll_table(configured):
     return members, state
 
 
+def _same_roll_table(stored, current):
+    """Keep a saved roll valid when its offer gains the power substitution field."""
+    if stored == current:
+        return True
+    if not isinstance(stored, dict):
+        return False
+
+    def offers(state):
+        return [
+            modifier[3]
+            for member in state.get("members", [])
+            for modifier in member.get("modifiers", [])
+            if len(modifier) == 4 and modifier[3][0] == "library.offerschoice"
+        ]
+
+    previous = offers(stored)
+    if not previous or any(
+        name == "power_access_collection_id"
+        for configuration in previous
+        for name, _value in configuration[1]
+    ):
+        return False
+    from copy import deepcopy
+
+    legacy = deepcopy(current)
+    for configuration in offers(legacy):
+        configuration[1] = [
+            field
+            for field in configuration[1]
+            if field[0] != "power_access_collection_id"
+        ]
+    return stored == legacy
+
+
 def record_action_roll(
     op,
     record,
@@ -497,7 +547,7 @@ def record_action_roll(
         record.terms = {
             key: value
             for key, value in record.terms.items()
-            if key not in {"pickable_id", "skill_id", "skill_set_id"}
+            if key not in {"pickable_id", "skill_id", "skill_kind", "skill_set_id"}
         }
         record.review = {}
         record.revision += 1
@@ -553,7 +603,7 @@ def advancement_options(record, configured):
         if not selection.roll_event_id:
             raise Refusal("Roll 2D6 for this advancement first.")
         members, table_state = _roll_table(configured)
-        if record.terms.get("advancement_table") != table_state:
+        if not _same_roll_table(record.terms.get("advancement_table"), table_state):
             raise Refusal("This advancement table changed after the roll was recorded.")
         landed = configured.slot.picklist.landing(selection.roll_event.roll, members)
     card, _selection, _skill_selection = _counterfactual_card(record)
@@ -574,11 +624,12 @@ def advancement_options(record, configured):
         node.assignable.pk
         for node in card.all_nodes()
         if node.assignment is not None
-        and getattr(node.assignable._meta, "label_lower", "") == "library.skill"
+        and getattr(node.assignable._meta, "label_lower", "")
+        in ("library.skill", "library.power")
     }
     owned.update(
         contribution.thing.pk
-        for contribution in computed.skills
+        for contribution in [*computed.skills, *computed.powers]
         if getattr(contribution.thing, "pk", None) is not None
     )
     skill_cache = {}
@@ -683,7 +734,7 @@ def recorded_skill(record, configured, pickable_id):
     if record.state != ActionRecord.State.COMPLETED:
         if selection.mode != offer.Mode.RANDOM:
             return None
-        skill = selection.selected_skill
+        skill = selection.selected
         if (
             skill is None
             or selection.access != access
@@ -694,6 +745,7 @@ def recorded_skill(record, configured, pickable_id):
             attempt.get("is_available")
             and attempt.get("pickable_id") == str(pickable.pk)
             and attempt.get("skill_id") == str(skill.pk)
+            and attempt.get("skill_kind", "skill") == skill._meta.model_name
             and attempt.get("skill_set_id") == str(skill.category_id)
             for attempt in selection.random_attempts
         )
@@ -712,11 +764,17 @@ def recorded_skill(record, configured, pickable_id):
     )
     if accepted is None:
         return None
-    from n26.library.models import Skill
+    return (
+        _attempt_kind(accepted)
+        .objects.filter(pk=accepted["skill_id"], category_id=accepted["skill_set_id"])
+        .first()
+    )
 
-    return Skill.objects.filter(
-        pk=accepted["skill_id"], category_id=accepted["skill_set_id"]
-    ).first()
+
+def _attempt_kind(attempt):
+    from n26.library.models import Power, Skill
+
+    return Power if attempt.get("skill_kind") == "power" else Skill
 
 
 def record_skill_roll(
@@ -790,11 +848,11 @@ def record_skill_roll(
         None,
     )
     if accepted is not None:
-        from n26.library.models import Skill
-
         selection.access = access
         selection.skill_set = category
-        selection.selected_skill = Skill.objects.get(pk=accepted["skill_id"])
+        selection.selected = _attempt_kind(accepted).objects.get(
+            pk=accepted["skill_id"]
+        )
         selection.save()
         return accepted
     from n26.library.models import Dice
@@ -819,9 +877,18 @@ def record_skill_roll(
             action_record=record,
         )
         event_id, result = str(event.pk), event.roll
-    from n26.library.models import Skill
-
-    rolled_skill = Skill.objects.filter(category=category, position=result).first()
+    rolled = [
+        thing
+        for kind in offer.offered_kinds
+        for thing in kind.objects.unarchived()
+        .live()
+        .filter(category=category, position=result)
+    ]
+    if len(rolled) > 1:
+        raise ValueError(
+            f"{category} has more than one result at D6 position {result}."
+        )
+    rolled_skill = rolled[0] if rolled else None
     available = next(
         (
             row
@@ -838,15 +905,22 @@ def record_skill_roll(
         "skill_set_id": str(category.pk),
         "roll": result,
         "skill_id": str(rolled_skill.pk) if rolled_skill else None,
+        "skill_kind": rolled_skill._meta.model_name if rolled_skill else None,
         "result_name": str(rolled_skill) if rolled_skill else None,
         "is_available": available is not None,
         "unavailable_reason": (
-            None if available is not None else "No available skill was rolled."
+            None
+            if available is not None
+            else (
+                "No available skill or power was rolled."
+                if offer.power_access_collection_id
+                else "No available skill was rolled."
+            )
         ),
     }
     selection.random_attempts = [*selection.random_attempts, attempt]
     selection.access = access
-    selection.skill_set, selection.selected_skill = category, available
+    selection.skill_set, selection.selected = category, available
     selection.save()
     return attempt
 
@@ -879,6 +953,10 @@ def _resolved(record, configured, terms):
                     for rows in options.values()
                     for row in rows
                     if str(row.pk) == skill_id
+                    and (
+                        terms.get("skill_kind") is None
+                        or terms["skill_kind"] == row._meta.model_name
+                    )
                 ),
                 None,
             )
@@ -909,6 +987,7 @@ def preview_advancement(record, configured, terms):
         "effect": _effect_text(pickable),
         "rating": pickable.rating_contribution,
         "skill_id": str(skill.pk) if skill else None,
+        "skill_kind": skill._meta.model_name if skill else None,
         "skill": str(skill) if skill else None,
         "skill_mode": offer.mode if offer else None,
         "skill_from_section_id": str(offer.from_section_id) if offer else None,
@@ -980,7 +1059,7 @@ def apply_advancement(op, record, configured, terms):
             offer.mode,
             _skill_access(record, configured, pickable.pk),
         )
-        skill_selection.skill_set, skill_selection.selected_skill = (
+        skill_selection.skill_set, skill_selection.selected = (
             skill.category,
             skill,
         )
@@ -1012,11 +1091,13 @@ def correct_advancement(op, record, configured, terms):
     if skill_selection is not None:
         skill_selection.skill_set = None
         skill_selection.selected_skill = None
+        skill_selection.selected_power = None
         skill_selection.skill_assignment = None
         skill_selection.save(
             update_fields=[
                 "skill_set",
                 "selected_skill",
+                "selected_power",
                 "skill_assignment",
                 "modified",
             ]
@@ -1040,7 +1121,7 @@ def correct_advancement(op, record, configured, terms):
             offer.mode,
             _skill_access(record, configured, pickable.pk),
         )
-        skill_selection.skill_set, skill_selection.selected_skill = (
+        skill_selection.skill_set, skill_selection.selected = (
             skill.category,
             skill,
         )

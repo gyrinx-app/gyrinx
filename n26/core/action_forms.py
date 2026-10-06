@@ -105,6 +105,12 @@ class SkillSelectionForm(forms.Form):
 
     def __init__(self, *args, groups, **kwargs):
         super().__init__(*args, **kwargs)
+        if any(
+            skill._meta.model_name == "power"
+            for skills in groups.values()
+            for skill in skills
+        ):
+            self.fields["skill_id"].label = "Select a skill or power"
         self.fields["skill_id"].choices = [
             (str(skill.pk), str(skill))
             for skills in groups.values()
@@ -117,6 +123,12 @@ class SkillRollForm(ActionRollForm):
 
     def __init__(self, *args, groups, **kwargs):
         super().__init__(*args, **kwargs)
+        if any(
+            skill._meta.model_name == "power"
+            for skills in groups.values()
+            for skill in skills
+        ):
+            self.fields["skill_set_id"].label = "Select a skill set or power family"
         self.fields["skill_set_id"].choices = [
             (str(group.pk), str(group)) for group in groups
         ]
