@@ -1480,6 +1480,7 @@ def _describe_interstitial(interstitial):
 
 LEAF_DESCRIBE = {
     "skill": _describe_skill,
+    "power": _describe_skill,
     "profile": _describe_profile,
     "gang-type": _describe_gang_type,
     "campaign-type": _describe_campaign_type,

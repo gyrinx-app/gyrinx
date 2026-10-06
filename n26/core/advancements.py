@@ -926,6 +926,8 @@ def record_skill_roll(
         "unavailable_reason": (
             None
             if available is not None
+            else f"No {_choice_noun(offer)} has D6 result {result} in {category.name}."
+            if rolled_skill is None
             else f"No available {_choice_noun(offer)} was rolled."
         ),
     }

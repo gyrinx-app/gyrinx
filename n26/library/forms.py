@@ -213,6 +213,7 @@ def _form_fields(spec, name, kind):
                 # field's error rather than the database refusing the
                 # INSERT as a 500.
                 min_value=kind.min_value,
+                max_value=kind.max_value,
             )
         }
     if isinstance(kind, Bool):

@@ -590,7 +590,10 @@ def revise(row, **fields):
             )
         setattr(row, name, value)
     from n26.library.models import PicklistMember
+    from n26.library.models.assignable import D6Rollable
 
+    if isinstance(row, D6Rollable):
+        return _save_rollable(row)
     if isinstance(row, PicklistMember):
         row.full_clean()
     row.save()
@@ -771,6 +774,17 @@ def create_subtype(name, qualifier="", library_author_help="", **kwargs):
     )
 
 
+def _save_rollable(row):
+    from n26.library.models import Category
+
+    # Serialise numbered writes within a category, including across kinds.
+    if row.category_id:
+        Category.objects.select_for_update().get(pk=row.category_id)
+    row.full_clean()
+    row.save()
+    return row
+
+
 @guarded_write
 def create_skill(
     name,
@@ -780,6 +794,7 @@ def create_skill(
     usable_by_profiles=(),
     qualifier="",
     library_author_help="",
+    position=0,
     **kwargs,
 ):
     """A skill, homed in its set — ``create_skill("Catfall", agility)``.
@@ -792,12 +807,15 @@ def create_skill(
     from n26.library.models import Skill
 
     return set_usable_by(
-        Skill.objects.create(
-            name=name,
-            category=category,
-            qualifier=qualifier,
-            library_author_help=library_author_help,
-            **kwargs,
+        _save_rollable(
+            Skill(
+                name=name,
+                category=category,
+                position=position,
+                qualifier=qualifier,
+                library_author_help=library_author_help,
+                **kwargs,
+            )
         ),
         usable_by_profile_types=usable_by_profile_types,
         usable_by_subtypes=usable_by_subtypes,
@@ -815,6 +833,7 @@ def create_power(
     usable_by_profiles=(),
     qualifier="",
     library_author_help="",
+    position=0,
     **kwargs,
 ):
     """A Wyrd power — ``create_power("Force Blast", "(Free), Continuous")``.
@@ -825,13 +844,16 @@ def create_power(
     from n26.library.models import Power
 
     return set_usable_by(
-        Power.objects.create(
-            name=name,
-            annotation=annotation,
-            category=category,
-            qualifier=qualifier,
-            library_author_help=library_author_help,
-            **kwargs,
+        _save_rollable(
+            Power(
+                name=name,
+                annotation=annotation,
+                category=category,
+                position=position,
+                qualifier=qualifier,
+                library_author_help=library_author_help,
+                **kwargs,
+            )
         ),
         usable_by_profile_types=usable_by_profile_types,
         usable_by_subtypes=usable_by_subtypes,
