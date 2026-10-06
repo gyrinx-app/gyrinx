@@ -183,8 +183,8 @@ def _result_for(record):
     # A random skill may have been rolled, then left behind when the player
     # went back and completed a different result. Only its written assignment
     # confirms that the skill was the advancement actually taken.
-    if skill is not None and skill.skill_assignment_id and skill.selected_skill_id:
-        return str(skill.selected_skill)
+    if skill is not None and skill.skill_assignment_id and skill.selected:
+        return str(skill.selected)
     advancement = getattr(record, "advancement_selection", None)
     if advancement is not None and advancement.intended_pick_id:
         return str(advancement.intended_pick)
@@ -210,6 +210,7 @@ def progression_for(fighter, *, card=None, computed=None):
         "outcome",
         "advancement_selection__intended_pick",
         "skill_selection__selected_skill",
+        "skill_selection__selected_power",
     )
     allowances = list(
         ActionAllowance.objects.filter(

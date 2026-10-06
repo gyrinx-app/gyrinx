@@ -853,12 +853,9 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
     ``Operation.choose`` checks the kind and nothing else, so an
     owner may still hand over something off-list.
 
-    Both branches offer the offer's own kind and nothing else. A tier is
-    not a kind: a fighter whose Primary sets include a family of powers
-    browses skills and powers under one heading, and a slot asking for a
-    skill is not settled by choosing a power — it would read as open
-    whatever was chosen. Narrowing the list is not policing it; drawing a
-    button that cannot work is the harm.
+    A skill offer may explicitly allow powers as substitutes. Their families
+    must be placed for this model in the offer's power access collection.
+    An offer without that setting remains restricted to its own kind.
 
     A choice borne by a ``Slot`` draws its picklist, in the list's own
     order, each pickable under the wording that list gives it
@@ -893,6 +890,21 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
     if section is None:
         if offer is None:
             return None
+        if offer.power_access_collection_id:
+            from n26.library.models import Power, Skill
+
+            skills = Skill.objects.unarchived()
+            if not include_staged:
+                skills = skills.live()
+            collection = offer.power_access_collection
+            placements = placements_for(computed, collection)
+            view = browse(collection, terms, include_staged=include_staged)
+            powers = [
+                line.thing
+                for line in view.all_lines()
+                if isinstance(line.thing, Power) and line.thing.category in placements
+            ]
+            return [*skills, *powers]
         # The whole kind, read as every discovery surface reads it: never
         # an archived row, and a staged one only for a reader who may see it.
         found = offer.choosables().unarchived()
@@ -906,12 +918,25 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
         fallback=collection.default_section(),
         name=slot.kind_label,
     )
-    return narrow(
+    found = narrow(
         placed,
         sections=[section.name],
-        kinds=offer.of_kind.model_class(),
+        kinds=offer.offered_kinds,
         name=slot.kind_label,
     )
+    if offer.power_access_collection_id:
+        from n26.library.models import Power
+
+        placements = placements_for(computed, collection)
+        for group in found.sections:
+            for category in group.categories:
+                category.lines = [
+                    line
+                    for line in category.lines
+                    if not isinstance(line.thing, Power)
+                    or line.thing.category in placements
+                ]
+    return found
 
 
 def with_fit_notes(view, weapon):

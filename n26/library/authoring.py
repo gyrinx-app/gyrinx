@@ -2709,7 +2709,12 @@ def ef_contributes_to_counter(counter, amount=0):
 
 @guarded_write
 def ef_offers_choice(
-    model, from_section=None, label="", will_be_assigned_to="bearer", mode="select"
+    model,
+    from_section=None,
+    label="",
+    will_be_assigned_to="bearer",
+    mode="select",
+    power_access_collection=None,
 ):
     """Offers one assignable for the bearer to select or roll randomly —
     ``ef_offers_choice(Skill, from_section=primary)`` for "a skill from a
@@ -2725,6 +2730,7 @@ def ef_offers_choice(
         label=label,
         will_be_assigned_to=will_be_assigned_to,
         mode=mode,
+        power_access_collection=power_access_collection,
     )
 
 

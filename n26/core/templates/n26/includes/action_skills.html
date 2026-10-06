@@ -1,4 +1,4 @@
-<c-n26.form-section title="Select a skill">
+<c-n26.form-section :title="skill_title">
     {% if skill_attempts %}
         <ol class="space-y-2">
             {% for attempt in skill_attempts %}
@@ -14,9 +14,9 @@
         {% if skill_resolved %}
             <p class="font-semibold">{{ skill_selected }}</p>
         {% elif correction %}
-            <p class="text-muted">This result needs a recorded skill roll. Choose a result supported by the existing rolls.</p>
+            <p class="text-muted">This result needs a recorded D6 roll. Choose a result supported by the existing rolls.</p>
         {% else %}
-            <c-n26.radio-cards label="Select a skill set"
+            <c-n26.radio-cards :label="skill_set_label"
                                :form="form"
                                name="skill_set_id"
                                min="min(100%, 18rem)">
@@ -26,7 +26,7 @@
                                             label="{{ group.name }}"
                                             :checked="group.checked" />
                 {% empty %}
-                    <p class="text-muted">No skill set has an available skill for this result.</p>
+                    <p class="text-muted">{{ skill_empty }}</p>
                 {% endfor %}
             </c-n26.radio-cards>
         {% endif %}
@@ -42,7 +42,7 @@
                 {% endfor %}
             </c-n26.radio-cards>
         {% empty %}
-            <p class="text-muted">No skill is available for this result.</p>
+            <p class="text-muted">{{ skill_empty }}</p>
         {% endfor %}
     {% endif %}
 </c-n26.form-section>

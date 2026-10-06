@@ -266,6 +266,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
             "slot_selection__intended_pick",
             "advancement_selection__intended_pick",
             "skill_selection__selected_skill",
+            "skill_selection__selected_power",
         )
         .order_by("-created", "-pk")
     )
@@ -379,8 +380,8 @@ def _completed_detail(record):
     advancement = getattr(record, "advancement_selection", None)
     if advancement is not None and advancement.intended_pick_id:
         skill = getattr(record, "skill_selection", None)
-        if skill is not None and skill.skill_assignment_id and skill.selected_skill_id:
-            return f"{advancement.intended_pick}: {skill.selected_skill}"
+        if skill is not None and skill.skill_assignment_id and skill.selected:
+            return f"{advancement.intended_pick}: {skill.selected}"
         return str(advancement.intended_pick)
     if record.review.get("correction"):
         return ""

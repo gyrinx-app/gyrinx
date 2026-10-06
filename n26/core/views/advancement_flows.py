@@ -226,6 +226,7 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         form = SkillRollForm(
             request.POST or None,
             groups=groups,
+            label=f"Select a {chosen.choice_set_noun}",
             initial={
                 "request_key": uuid4(),
                 "skill_set_id": str(selection.skill_set_id)
@@ -244,6 +245,7 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         form = SkillSelectionForm(
             request.POST or None,
             groups=groups,
+            label=f"Select a {chosen.choice_noun}",
             initial={"skill_id": previous.get("skill_id")},
         )
         submit_label = "Review"
@@ -262,6 +264,12 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
                     return redirect(flow_url(fighter, record, "skill"))
                 if not random:
                     terms["skill_id"] = form.cleaned_data["skill_id"]
+                    terms["skill_kind"] = next(
+                        skill._meta.model_name
+                        for skills in groups.values()
+                        for skill in skills
+                        if str(skill.pk) == terms["skill_id"]
+                    )
                 if correction:
                     op.review_action_correction(record, terms=terms)
                 else:
@@ -284,6 +292,9 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         skill_random=random,
         skill_resolved=resolved,
         skill_selected=str(selected) if resolved else "",
+        skill_title=f"Select a {chosen.choice_noun}",
+        skill_set_label=f"Select a {chosen.choice_set_noun}",
+        skill_empty=f"No {chosen.choice_noun} is available for this result.",
         skill_attempts=attempts,
         skill_groups=[
             {

@@ -275,7 +275,7 @@ class AdvancementSelection(Base):
 
 
 class SkillSelection(Base):
-    """The selection mode, access, skill set and final skill for an advancement."""
+    """The mode, access, set and selected skill or power for an advancement."""
 
     class Mode(models.TextChoices):
         SELECT = "select", "Select"
@@ -305,6 +305,13 @@ class SkillSelection(Base):
         blank=True,
         related_name="action_skill_results",
     )
+    selected_power = models.ForeignKey(
+        "library.Power",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="action_power_results",
+    )
     skill_assignment = models.ForeignKey(
         "n26.Assignment",
         on_delete=models.RESTRICT,
@@ -313,3 +320,25 @@ class SkillSelection(Base):
         related_name="action_skill_assignments",
     )
     random_attempts = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(selected_skill__isnull=True)
+                | models.Q(selected_power__isnull=True),
+                name="advancement_selects_one_skill_or_power",
+            ),
+        ]
+
+    @property
+    def selected(self):
+        return self.selected_skill or self.selected_power
+
+    @selected.setter
+    def selected(self, value):
+        self.selected_skill = (
+            value if value is not None and value._meta.model_name == "skill" else None
+        )
+        self.selected_power = (
+            value if value is not None and value._meta.model_name == "power" else None
+        )

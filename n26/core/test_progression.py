@@ -193,12 +193,14 @@ class TestRosterRankSummaries:
 class TestCompletedRankResults:
     """A discarded random roll is not the result of a later chosen advance."""
 
-    def test_an_abandoned_skill_roll_does_not_replace_the_completed_pick(self):
+    @pytest.mark.parametrize("selected", ["Dodge", "Force Blast"])
+    def test_an_abandoned_skill_roll_does_not_replace_the_completed_pick(
+        self, selected
+    ):
         record = SimpleNamespace(
             state=ActionRecord.State.COMPLETED,
             skill_selection=SimpleNamespace(
-                selected_skill_id="rolled",
-                selected_skill="Dodge",
+                selected=selected,
                 skill_assignment_id=None,
             ),
             advancement_selection=SimpleNamespace(
@@ -211,4 +213,4 @@ class TestCompletedRankResults:
 
         assert _result_for(record) == "Strength"
         record.skill_selection.skill_assignment_id = "applied"
-        assert _result_for(record) == "Dodge"
+        assert _result_for(record) == selected
