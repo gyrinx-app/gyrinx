@@ -177,7 +177,7 @@ A **Gives something** modifier can grant wargear as free kit. Each grant gives a
 
 *What a model has selected (skills) or manifests (powers), each with a home category.*
 
-**D6 roll number** is the book's result from 1 to 6. Use 0 for a skill or power that cannot be rolled. Each numbered result must be unique within its category, across skills and powers. A gap has no random result.
+**D6 roll number** is the book's result from 1 to 6. Use 0 for a skill or power that cannot be rolled. Each numbered result must be unique among unarchived skills and powers within its category. Archived entries can retain their numbers. A gap has no random result.
 
 A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power has the same shape: its home is a category too. Category placements determine whether its family is Primary or Secondary for a model. Skill offers with **Also offers powers from** set to that collection allow its placed power families as substitutes, including in advancements. Skill-only and power-only offers remain separate choices. A power's annotation carries what the book prints in brackets ("(Free)", "Continuous Effect").
 
