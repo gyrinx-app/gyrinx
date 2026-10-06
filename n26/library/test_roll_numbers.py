@@ -130,3 +130,42 @@ def test_authoring_pages_save_and_display_roll_numbers(
     assert "already uses D6 result 4" in duplicate_edit.content.decode()
     other.refresh_from_db()
     assert other.position == 0
+
+
+@pytest.mark.parametrize(
+    "first_kind, second_kind",
+    [(Skill, Skill), (Power, Power), (Skill, Power), (Power, Skill)],
+)
+def test_restoring_a_numbered_result_cannot_reuse_an_active_number(
+    default_pack, first_kind, second_kind
+):
+    category = a.create_category("Skills & Powers", "Shared family")
+    first = getattr(a, f"create_{first_kind._meta.model_name}")(
+        "First", category=category, position=2
+    )
+    first.archive()
+    archived_at = first.archived_at
+    second = getattr(a, f"create_{second_kind._meta.model_name}")(
+        "Second", category=category, position=2
+    )
+    with pytest.raises(ValidationError, match="already uses D6 result 2"):
+        first.unarchive()
+    first.refresh_from_db()
+    assert first.archived
+    assert first.archived_at == archived_at
+    second.archive()
+    first.unarchive()
+    first.refresh_from_db()
+    assert not first.archived
+    assert first.archived_at is None
+
+
+def test_restoring_rollable_content_preserves_related_restoration(default_pack):
+    first = a.create_skill("First", archived=True)
+    related = a.create_power("Related", archived=True)
+    first.archive_with = [related]
+    first.unarchive()
+    first.refresh_from_db()
+    related.refresh_from_db()
+    assert not first.archived
+    assert not related.archived

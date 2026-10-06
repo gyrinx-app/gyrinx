@@ -931,6 +931,11 @@ class D6Rollable(models.Model):
     class Meta:
         abstract = True
 
+    def unarchive(self):
+        from n26.library.authoring import restore_rollable
+
+        restore_rollable(self)
+
     def clean(self):
         super().clean()
         if not self.position or self.archived:
@@ -953,7 +958,7 @@ class D6Rollable(models.Model):
                 )
 
 
-class Skill(Content, D6Rollable, Assignable, UsableBy):
+class Skill(D6Rollable, Content, Assignable, UsableBy):
     """A skill a fighter has selected, homed in the set it comes from.
 
     That set is its home category — the taxonomy every collection
@@ -1126,7 +1131,7 @@ class Counter(Content, Assignable):
         ]
 
 
-class Power(Content, D6Rollable, Assignable, UsableBy):
+class Power(D6Rollable, Content, Assignable, UsableBy):
     """A Wyrd power — manifested, not taught.
 
     Not a skill, but its family is a category, so it shows up in the

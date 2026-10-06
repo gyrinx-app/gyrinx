@@ -786,6 +786,18 @@ def _save_rollable(row):
 
 
 @guarded_write
+def restore_rollable(row):
+    """Restore a skill or power only if its D6 number is available."""
+    row.archived = False
+    row.archived_at = None
+    _save_rollable(row)
+    for related in getattr(row, "archive_with", []):
+        if hasattr(related, "unarchive"):
+            related.unarchive()
+    return row
+
+
+@guarded_write
 def create_skill(
     name,
     category=None,
