@@ -345,6 +345,11 @@ def _says_adds(effect, parts):
         "Applies while the item carrying this modifier is assigned, and "
         "goes with it. Free — adds nothing to any rating."
     )
+    if type(thing)._meta.model_name == "asset":
+        hint += (
+            " Given only while the gang belongs to a campaign using this "
+            "asset type. The asset’s boons can affect the gang and its models."
+        )
     if parts.target == WEAPON_PROFILE:
         return f"{who.weapons} gain {thing}{_while(who)}{tail}.", hint
     if parts.target == GANG_TARGET:
@@ -378,6 +383,19 @@ def _says_removes(effect, parts):
         return f"the gang loses {gone}.", f"{hint} {_GANG_REACH}"
     verb = _agrees(who, "loses", "lose")
     return f"{who.subject} {verb} {gone}.", hint
+
+
+@_renders("excludes_campaign_assets")
+def _says_excludes_campaign_assets(effect, parts):
+    return (
+        f"the gang’s campaign-provided {effect.asset_type.plural} are hidden, "
+        "and their boons stop.",
+        (
+            "Their assignments remain in history. Removing this modifier restores "
+            "the hidden assets and their boons. Assets given by a modifier remain. "
+            "Purchased assignments and assets with purchased attachments are preserved."
+        ),
+    )
 
 
 @_renders("changes_stat")

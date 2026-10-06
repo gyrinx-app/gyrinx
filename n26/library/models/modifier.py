@@ -46,6 +46,7 @@ SCOPE_FIELDS = (
 COMPUTED_EFFECT_FIELDS = (
     "adds_assignable",
     "removes_assignable",
+    "excludes_campaign_assets",
     "changes_stat",
     "changes_category",
     "hides_categories",
@@ -123,6 +124,7 @@ GRANTABLE_FIELDS = {
     # Goliath Territories, given to every gang of that House by a modifier
     # on the House pick. A fact on the gang's card that draws no line.
     "asset_table": "library.AssetTable",
+    "asset": "library.Asset",
     "action": "library.Action",
     "rank_table": "library.RankTable",
 }
@@ -1015,6 +1017,13 @@ class AssignableChoice(models.Model):
 
     is_stored = False
 
+    asset = models.ForeignKey(
+        "library.Asset",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     subtype = models.ForeignKey(
         "library.Subtype",
         on_delete=models.PROTECT,
@@ -1120,6 +1129,15 @@ class AssignableChoice(models.Model):
                 return getattr(self, name)
         return None
 
+    def clean(self):
+        super().clean()
+        if self.asset_id is not None and not self.asset.is_possession:
+            raise ValidationError(
+                {
+                    "asset": "Select an inherent asset. Use the campaign’s asset controls to distribute transferable assets."
+                }
+            )
+
     def accepts(self, target_kind):
         """A trait goes on a weapon profile; most things go on a model; a
         rule, a collection or a hidden carrier may also land on the gang
@@ -1138,6 +1156,8 @@ class AssignableChoice(models.Model):
         """
         if self.trait_id is not None:
             return target_kind == WEAPON_PROFILE
+        if self.asset_id is not None:
+            return target_kind == GANG and self.asset.is_possession
         if self.asset_table_id is not None:
             return target_kind == GANG
         if target_kind == GANG:
@@ -1279,6 +1299,41 @@ class RemovesAssignable(AssignableChoice):
 
     def __str__(self):
         return f"removes {super().__str__()}"
+
+
+class ExcludesCampaignAssets(models.Model):
+    """Excludes the campaign's inherent assets of one asset type.
+
+    Core assets and assets added by an arbitrator are excluded together.
+    Assets given by another modifier remain. Removing this modifier restores
+    the campaign's assets and their boons.
+    """
+
+    is_stored = False
+
+    asset_type = models.ForeignKey(
+        "library.AssetType",
+        on_delete=models.PROTECT,
+        related_name="+",
+        help_text="The inherent asset type to hide from the gang’s campaign-provided assets.",
+    )
+
+    def __str__(self):
+        return f"excludes campaign assets of type {self.asset_type}"
+
+    def accepts(self, target_kind):
+        return target_kind == GANG and (
+            self.asset_type_id is None or not self.asset_type.is_holding
+        )
+
+    def clean(self):
+        super().clean()
+        if self.asset_type_id is not None and self.asset_type.is_holding:
+            raise ValidationError(
+                {
+                    "asset_type": "Select an inherent asset type. Use the campaign’s asset controls to distribute transferable assets."
+                }
+            )
 
 
 class OffersChoice(models.Model):
@@ -2138,6 +2193,13 @@ class Modifier(Content):
     )
     removes_assignable = models.OneToOneField(
         RemovesAssignable,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="modifier",
+    )
+    excludes_campaign_assets = models.OneToOneField(
+        ExcludesCampaignAssets,
         on_delete=models.CASCADE,
         null=True,
         blank=True,

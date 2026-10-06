@@ -1,14 +1,9 @@
-"""A possession is given to every gang without an author's step.
+"""Give inherent assets to every gang when their distribution flag is enabled.
 
-An asset of a Possession asset type — a Settlement, a home territory —
-is something every gang in a campaign has its own of. The way a campaign
-type gives anything to every gang that joins is its built-ins, so the
-asset has to be a member of the type's built-in set; before this module
-an author created the asset and then had to remember to add it there,
-and a Settlement appeared twice on the type's page. Now creating the
-asset builds it in, and deleting or archiving the asset takes it out.
-The member is an ordinary ``DefaultAssignment`` naming the asset, so
-joining, catch-up propagation and the gang sheet need nothing new.
+An inherent asset with Give to every gang enabled joins its campaign
+type’s built-in set. Joining and catch-up propagation give each gang
+its own stored assignment. Disabling distribution, deleting or archiving
+the asset stops future defaults; existing assignments remain.
 
 Which campaign type gives an asset is decided by the asset's pack. An
 asset in its asset type's own pack is given by that asset type's
@@ -77,14 +72,18 @@ def give_back(asset):
     instead — nothing had come from it — a new one is added through the
     authoring verb, which files the pass itself.
 
-    Does nothing for a holding, which is never built in, and nothing
-    where the asset is already given.
+    Does nothing for a transferable or archived asset, one with automatic
+    distribution disabled, or one already given.
     """
     from n26.core.propagation import file_propagation_task
     from n26.library.authoring import add_built_in
     from n26.library.models import AssetType, DefaultAssignment
 
-    if asset.asset_type.ownership != AssetType.Ownership.POSSESSION:
+    if (
+        asset.asset_type.ownership != AssetType.Ownership.POSSESSION
+        or not asset.given_to_every_gang
+        or asset.archived
+    ):
         return
     members = DefaultAssignment.objects.filter(asset=asset)
     if members.filter(archived=False).exists():
@@ -133,6 +132,9 @@ def build_in_missing(apps, campaign_type=None):
     ).select_related(f"{asset_type_field}__campaign_type")
     if campaign_type is not None:
         assets = assets.filter(**{f"{asset_type_field}__campaign_type": campaign_type})
+
+    if any(field.name == "given_to_every_gang" for field in Asset._meta.fields):
+        assets = assets.filter(given_to_every_gang=True)
 
     made = []
     # One instance per giver for the whole pass. Each asset row arrives

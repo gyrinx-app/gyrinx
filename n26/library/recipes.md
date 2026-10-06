@@ -849,3 +849,34 @@ and a roll is applied once — a second roll is a second line in the
 history, whether or not the first was used. The result the roll landed on
 is shown, never enforced: a rule that says a result counts as Out Cold is
 followed by adding Out Cold, and the history shows the roll beside it.
+
+## Replace a campaign settlement with a base camp
+
+A base camp can be a separate asset under the campaign type’s inherent
+Settlement asset type. It belongs to its gang and cannot be transferred to
+another gang through the campaign’s asset controls.
+
+1. Open the campaign type and add Spyrer Base Camp under Settlement. Switch
+   off **Give to every gang**. Add its income and other boons on the asset’s
+   own page.
+2. On Spyre Hunting Party, add a modifier with scope **The gang carrying it**
+   and effect **Excludes campaign assets**. Select the Settlement asset type.
+3. Add another modifier with the same scope and effect **Gives something**.
+   Select the Spyrer Base Camp asset.
+
+The first modifier excludes settlements supplied by the campaign, including
+settlements an arbitrator adds later under that same asset type. Other
+inherent asset types still arrive. The second modifier gives the base camp
+only to this gang, while it plays a campaign using that asset type.
+
+The excluded settlements’ income and boons stop too. Their assignments stay
+in the gang’s history. Removing the exclusion restores them. Removing the
+modifier that gives the base camp removes the base camp and its boons.
+As with **Takes something away**, purchased assignments and assets with
+purchased attachments are preserved.
+
+**Inherent** describes ownership. **Give to every gang** describes distribution.
+Switching distribution off stops future campaign defaults; gangs already given
+that asset keep their assignments. A granted asset lasts as long as its source
+and the applicable campaign membership. This does not protect a transferable
+territory against loss; that needs a separate campaign rule.

@@ -91,7 +91,10 @@ class TestOwnershipCopy:
                 "Transferable",
                 "One gang holds it at a time, and it can change hands.",
             ),
-            "held-one-each": ("Inherent", "Every gang has its own."),
+            "held-one-each": (
+                "Inherent",
+                "Each gang that receives an asset owns its own.",
+            ),
         }
         radios = document.select('input[type="radio"][name="ownership"]')
         assert len(radios) == 2
@@ -118,7 +121,7 @@ class TestOwnershipCopy:
             description = (
                 "Owned by one gang at a time and can be transferred."
                 if asset_type.is_holding
-                else f"Each gang always has one of every {asset_type.label_singular} asset."
+                else f"Each gang owns its own {asset_type.label_singular} assets."
             )
             assert description in card.get_text(" ", strip=True)
             assert not card.select(".truncate")
