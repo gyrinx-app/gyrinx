@@ -26,6 +26,10 @@ styles.
   `{% react_island "authoring-list" authoring_list %}`. This tag safely embeds
   JSON, preloads the entry and shared runtime, and installs the lifecycle loader.
   Never use `|safe`, an inline JS object, or `dangerouslySetInnerHTML` for props.
+  The host sets `data-react-name` to that island name. `data-react-module` is
+  the hashed asset URL. Select `[data-react-name="authoring-list"]` in Django
+  tests and Playwright, then read JSON from the element named by
+  `data-react-props`.
 - Co-locate a component, its tests and a small `mount(element, props)` export in
   `n26/frontend/islands/<name>/`. Copy the existing authoring-list shape; use
   the shared `runtime/mount` helper and return its disposal function. Vite
