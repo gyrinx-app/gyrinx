@@ -1387,7 +1387,6 @@ def preview_report(report, *, actor, payload=None):
                     slot.slot.slot_type.is_lasting_effect or slot.slot.follows_status
                 )
                 or slot.slot.assigned_to == Slot.WillBeAssignedTo.GANG
-                or (slot.slot.follows_status and slot.is_full)
             ):
                 continue
             anchor = slot.anchor.assignment
@@ -1396,6 +1395,11 @@ def preview_report(report, *, actor, payload=None):
             if anchor is None:
                 continue
             key = f"{anchor.pk}:{slot.slot.pk}"
+            if slot.slot.follows_status and slot.is_full:
+                result.effect_slots.append(
+                    EffectSlot(key, slot.slot.slot_type.name, [])
+                )
+                continue
             cache_key = str(slot.slot.pk)
             if cache_key not in choices_cache:
                 choices_cache[cache_key] = _options(replace(slot, picks=[]), computed)
