@@ -315,3 +315,84 @@ def test_a_conflicting_escape_modifier_fails_without_changing_authored_content(
     escape.refresh_from_db()
     captured.refresh_from_db()
     assert not escape.follows_status and not captured.record_only
+
+
+@pytest.mark.parametrize("tables_exist", [False, True])
+def test_the_gang_seed_rejects_an_unrelated_escape_modifier(default_pack, tables_exist):
+    if tables_exist:
+        STANDARD_CONTENT["lasting-effect-tables"].create()
+        revise(
+            Modifier.objects.get(name="Captured models: Escape"), name="Standard grant"
+        )
+    custom = modifier(
+        "Captured models: Escape", targets_model(), op_sets_status(Status.DEAD)
+    )
+    with pytest.raises(RuntimeError, match="different scope or effect"):
+        STANDARD_CONTENT["gang-types"].create()
+    assert not custom.library_gangtype_set.exists()
+
+
+@pytest.mark.parametrize("content", ["clean", "renamed", "authored", "missing-table"])
+def test_schema_rollback_refuses_surviving_status_conditions(
+    default_pack, content, monkeypatch
+):
+    from unittest.mock import Mock
+
+    from django.db import transaction
+    from django.db.migrations.executor import MigrationExecutor
+    from django.test import override_settings
+
+    if content == "missing-table":
+        modifier(
+            "Authored status grant",
+            targets_every_model(has_status(Status.CAPTURED)),
+            op_sets_status(Status.RECOVERY),
+        )
+    else:
+        STANDARD_CONTENT["lasting-effect-tables"].create()
+        if content == "renamed":
+            revise(
+                Modifier.objects.get(name="Captured models: Escape"),
+                name="Renamed grant",
+            )
+        elif content == "authored":
+            modifier(
+                "Authored status grant",
+                targets_model(has_status(Status.CAPTURED)),
+                op_sets_status(Status.RECOVERY),
+            )
+    before = (
+        list(Modifier.objects.values_list("pk", "name")),
+        list(HasStatus.objects.values_list("pk", "scope_id", "status")),
+        list(Slot.objects.values_list("pk", "follows_status")),
+        list(Pickable.objects.values_list("pk", "record_only")),
+    )
+    migration = import_module("n26.library.migrations.0120_status_follow_up_choices")
+    with override_settings(MIGRATION_MODULES={}):
+        state = MigrationExecutor(connection).loader.project_state(
+            [("library", "0119_hide_equipment_categories")]
+        )
+
+    class ReachedSchemaRemoval(Exception):
+        pass
+
+    delete_model = Mock(side_effect=ReachedSchemaRemoval)
+    expected = ReachedSchemaRemoval if content == "clean" else RuntimeError
+    with pytest.raises(expected) as raised:
+        with transaction.atomic(), connection.schema_editor() as editor:
+            monkeypatch.setattr(editor, "delete_model", delete_model)
+            migration.Migration("0120_status_follow_up_choices", "library").unapply(
+                state, editor
+            )
+    if content != "clean":
+        message = str(raised.value)
+        assert 'Restore the standard modifier name "Captured models: Escape"' in message
+        assert "remove the affected authored modifiers in full" in message
+        assert "Do not delete status conditions alone" in message
+    assert delete_model.call_count == (1 if content == "clean" else 0)
+    assert before == (
+        list(Modifier.objects.values_list("pk", "name")),
+        list(HasStatus.objects.values_list("pk", "scope_id", "status")),
+        list(Slot.objects.values_list("pk", "follows_status")),
+        list(Pickable.objects.values_list("pk", "record_only")),
+    )

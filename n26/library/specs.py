@@ -106,6 +106,22 @@ class _Sourced:
         return 0 if isinstance(field, positive) else None
 
     @property
+    def max_value(self):
+        """The smallest upper bound declared on the model field."""
+        from django.core.validators import MaxValueValidator
+
+        if self.source is None:
+            return None
+        model, field_name = self.source
+        limits = [
+            validator.limit_value
+            for validator in model._meta.get_field(field_name).validators
+            if isinstance(validator, MaxValueValidator)
+            and not callable(validator.limit_value)
+        ]
+        return min(limits) if limits else None
+
+    @property
     def label(self):
         """What the model field calls itself, where it calls itself
         anything — ``None`` otherwise, leaving the form to derive one.
@@ -933,6 +949,7 @@ def _build_registry():
                 "category": One(
                     model=Category, optional=True, source=(Skill, "category")
                 ),
+                "position": Int(source=(Skill, "position")),
                 **use_lists(Skill),
                 "qualifier": Text(source=(Skill, "qualifier")),
                 "library_author_help": Text(
@@ -948,6 +965,7 @@ def _build_registry():
                 "category": One(
                     model=Category, optional=True, source=(Power, "category")
                 ),
+                "position": Int(source=(Power, "position")),
                 **use_lists(Power),
                 "qualifier": Text(source=(Power, "qualifier")),
                 "library_author_help": Text(

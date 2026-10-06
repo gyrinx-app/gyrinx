@@ -147,13 +147,29 @@ def restore_standard_choices(apps, schema_editor):
         )
         .first()
     )
-    if slot is None:
-        return
-    modifiers = Modifier.objects.using(using).filter(
-        pack_id=slot.pack_id, name__iexact="Captured models: Escape"
+    modifiers = (
+        Modifier.objects.using(using).filter(
+            pack_id=slot.pack_id, name__iexact="Captured models: Escape"
+        )
+        if slot is not None
+        else Modifier.objects.using(using).none()
     )
     for modifier in modifiers:
         validate_status_modifier(Modifier, using, slot, modifier)
+    if (
+        apps.get_model("library", "HasStatus")
+        .objects.using(using)
+        .exclude(scope_id__in=modifiers.values("targets_miniature_id"))
+        .exists()
+    ):
+        raise RuntimeError(
+            "Cannot roll back status choices while other status conditions remain. "
+            'Restore the standard modifier name "Captured models: Escape" if renamed, '
+            "or remove the affected authored modifiers in full before rolling back. "
+            "Do not delete status conditions alone; that makes their modifiers unconditional."
+        )
+    if slot is None:
+        return
     parts = list(modifiers.values_list("targets_miniature_id", "adds_assignable_id"))
     modifiers.delete()
     apps.get_model("library", "TargetsMiniature").objects.using(using).filter(

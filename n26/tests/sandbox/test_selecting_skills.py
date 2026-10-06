@@ -596,7 +596,7 @@ class TestSelecting:
     def test_the_rating_follows_the_thing_s_own_price(self, gang, yolanda, sets):
         """Zero for a skill the rules hand out; whatever content says for
         something worth something."""
-        plain = create_skill("Spring Up", category=sets["agility"], position=9)
+        plain = create_skill("Spring Up", category=sets["agility"])
         dear = create_power("Ember Storm", "Double", category=sets["powers"], price=30)
 
         assert select(yolanda, plain).ledger_entry.rating_contribution == 0

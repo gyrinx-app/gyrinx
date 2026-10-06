@@ -1062,7 +1062,7 @@ class TestTheQueryBudget:
         measure()
         small = measure()
         for index in range(2, 30):
-            create_skill(f"Trick {index}", category=sets["brawn"], position=index)
+            create_skill(f"Trick {index}", category=sets["brawn"])
 
         assert measure() == small
 
@@ -1074,7 +1074,7 @@ class TestTheQueryBudget:
 
         client.force_login(player)
         stock = [
-            create_skill(f"Trick {index}", category=sets["agility"], position=index)
+            create_skill(f"Trick {index}", category=sets["agility"])
             for index in range(2, 10)
         ]
 
@@ -1219,7 +1219,7 @@ class TestAnsweringDoesNotTouchTheReadPath:
 
         monkeypatch.setattr(skills_views, "_offered_keys", wrapped)
         extras = [
-            create_skill(f"Trick {index}", category=sets["agility"], position=index)
+            create_skill(f"Trick {index}", category=sets["agility"])
             for index in range(10, 18)
         ]
         client.force_login(player)

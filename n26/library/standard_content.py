@@ -28,6 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from n26.library.models.profile import TYPE_NAMES
+from n26.write_pause import guarded_write
 
 
 def _limits(minimum, maximum):
@@ -1034,7 +1035,9 @@ def _skill_rows():
         yield INHERENT_SET, skill, 0
 
 
+@guarded_write
 def _create_skills():
+    from n26.library.authoring import create_skill
     from n26.library.models import Category, Section, Skill
     from n26.library.models.pack import get_default_pack
 
@@ -1046,12 +1049,9 @@ def _create_skills():
             section=section, name=set_name, defaults={"position": position}
         )
     for set_name, skill, number in _skill_rows():
-        Skill.objects.get_or_create(
-            pack=pack,
-            name=skill,
-            qualifier="",
-            defaults={"category": sets[set_name], "position": number},
-        )
+        category = Category.objects.select_for_update().get(pk=sets[set_name].pk)
+        if not Skill.objects.filter(pack=pack, name=skill, qualifier="").exists():
+            create_skill(skill, category=category, position=number, pack=pack)
 
 
 def _check_skills():
@@ -1120,17 +1120,19 @@ def _check_trading_post():
 def _create_gang_types():
     from django.conf import settings
 
-    from n26.library.models import GangType, Modifier
+    from n26.library.models import GangType, Modifier, Slot
     from n26.library.models.pack import get_default_pack
 
     pack = get_default_pack()
     for name in GANG_TYPES:
         GangType.objects.get_or_create(pack=pack, name=name, qualifier="")
     grant = Modifier.objects.filter(
-        name="Captured models: Escape", pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+        name__iexact="Captured models: Escape",
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
     ).first()
     if grant is not None:
-        _attach_escape_status_modifier(grant)
+        slot = Slot.objects.filter(pack=pack, name="Escape", qualifier="").first()
+        _create_escape_status_modifier(slot)
 
 
 def _check_gang_types():
@@ -1531,7 +1533,8 @@ def _create_escape_status_modifier(slot):
         scope = row.targets_miniature
         conditions = scope._condition_rows() if scope is not None else []
         if not (
-            scope is not None
+            slot is not None
+            and scope is not None
             and scope.reach == "every_model"
             and row.adds_assignable_id is not None
             and row.adds_assignable.slot_id == slot.pk

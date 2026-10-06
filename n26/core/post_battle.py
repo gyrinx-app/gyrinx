@@ -1395,6 +1395,11 @@ def preview_report(report, *, actor, payload=None):
             if anchor is None:
                 continue
             key = f"{anchor.pk}:{slot.slot.pk}"
+            if slot.slot.follows_status and slot.is_full:
+                result.effect_slots.append(
+                    EffectSlot(key, slot.slot.slot_type.name, [])
+                )
+                continue
             cache_key = str(slot.slot.pk)
             if cache_key not in choices_cache:
                 choices_cache[cache_key] = _options(replace(slot, picks=[]), computed)
@@ -1439,6 +1444,17 @@ def preview_report(report, *, actor, payload=None):
                 if held["model_id"] != model_id:
                     model_errors.append(
                         f"{held['name']} was recorded on another model and cannot move."
+                    )
+                # A resolved status can hide its table. The recorded result
+                # still carries its kind, already hydrated with the gang card.
+                root = assignments.get(held["root_id"])
+                if (
+                    root is not None
+                    and root.pickable is not None
+                    and not any(s.key == spec["slot"] for s in result.effect_slots)
+                ):
+                    result.effect_slots.append(
+                        EffectSlot(spec["slot"], root.pickable.slot_type.name, [])
                     )
                 questions = [
                     ChoiceQuestion(

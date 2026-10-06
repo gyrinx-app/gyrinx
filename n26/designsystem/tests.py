@@ -98,7 +98,7 @@ class TestReactDemo:
         assert response.status_code == 200
         soup = BeautifulSoup(response.content, "html.parser")
         assert len(soup.select("table tr")) == 3
-        host = soup.select_one("[data-react-module]")
+        host = soup.select_one("[data-react-name='authoring-list']")
         props = json.loads(soup.find(id=host["data-react-props"]).string)
         assert len(props["rows"]) == 3
         assert props["bulkActionUrl"] is None

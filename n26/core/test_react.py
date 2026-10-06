@@ -35,6 +35,7 @@ def test_island_props_are_inert_json_and_asset_urls_are_rooted(monkeypatch):
         "/static/n26/react/assets/list-12345678.js",
         "/static/n26/react/assets/react-12345678.js",
     ]
+    assert host["data-react-name"] == "authoring-list"
     assert host["data-react-module"] == "/static/n26/react/assets/list-12345678.js"
     assert soup.select_one('script[type="module"]')["src"].startswith("/static/")
 
@@ -113,7 +114,8 @@ def test_a_host_draws_its_body_until_the_island_replaces_it(monkeypatch):
         "<a href='/here'>{{ name }}</a>{% endreact_host %}"
     ).render(Context({"props": {"label": "Here"}, "name": "<b>Vex</b>"}))
     soup = BeautifulSoup(result, "html.parser")
-    host = soup.select_one("[data-react-module]")
+    host = soup.select_one("[data-react-name='quick-switcher']")
+    assert host["data-react-module"] == "/static/n26/react/assets/qs-1.js"
     assert host["class"] == ["min-w-0"]
     assert host.has_attr("x-ignore") and host.has_attr("hx-disable")
     assert host.a.string == "<b>Vex</b>"

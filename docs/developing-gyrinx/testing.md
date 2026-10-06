@@ -47,6 +47,42 @@ ptw .
 CI runs the suite against a GitHub Actions service container Postgres in two
 jobs — see [.github/workflows/test.yaml](https://github.com/gyrinx-app/gyrinx/blob/main/.github/workflows/test.yaml).
 
+### Paging for failures on main
+
+The `page-on-main-failure` job sends an incident.io alert when `test` (core)
+or `test-full` fails on a push to `main`. It waits for both jobs and sends one
+alert listing the failed suites, commit and Actions run link. Pull requests,
+merge queue runs and failures confined to `fresh-database` do not page.
+
+Store the HTTP alert source's bearer token in the repository Actions secret
+`INCIDENT_IO_ALERT_TOKEN` (Settings → Secrets and variables → Actions).
+The webhook URL is configured in `test.yaml`. A missing token or rejected
+webhook request fails the paging job, making delivery failures visible.
+
+Alerts are deduplicated by repository and test run ID, so delivery retries
+and reruns of the same failing run share an alert. Each new failing run
+creates a separate alert. Successful runs do not automatically resolve
+previous alerts.
+
+To test the real webhook and paging route after merging the workflow:
+
+1. Open **Actions → Tests → Run workflow** and select `main`.
+2. Check **Send a real test page via incident.io** and choose the simulated
+   failing suite (`core`, `full` or `both`).
+3. Run the workflow. Only the paging job runs; the suites and database job
+   are skipped. It sends a `[TEST] Gyrinx test paging` alert with
+   `test_alert: true` metadata using the same token, webhook, service,
+   environment and delivery code as real failures. Its deduplication key
+   uses a separate `ci-test` prefix.
+4. Check that the paging job succeeds and the alert reaches the expected
+   on-call recipient, then resolve the test alert in incident.io.
+
+The manual run sends a real page using the alert source's routing rules.
+On `main`, leaving the send checkbox unchecked skips every job and sends
+nothing. Manual runs on other branches or tags execute the test and database
+jobs and send no paging test alert. This keeps a manual run on a pull request
+branch from satisfying the required `test` check without running the suite.
+
 ### The Core Suite
 
 Pull requests are gated on the `test` job, which runs the tests marked `core`
@@ -94,7 +130,10 @@ pytest as `.venv/bin/python -m pytest` from the worktree you mean: a sibling
 worktree's `pytest` on PATH imports that checkout's code and fails with
 phantom errors. The root conftest refuses to start when it detects that
 mismatch. Two pytest runs in the same worktree also share `test_<DB>_gwN`
-names — wait for the first to finish, then run one suite.
+names. pytest holds `logs/pytest.lock` for the session, and a
+second process exits immediately with the pid that holds it. Wait for that
+process, then run one suite. Workers from `-n` are part of the same run and
+do not take a second lock.
 
 On a shared Postgres cluster, prefer `-n 4` while another agent is testing.
 `out of shared memory` during schema creation, on a cluster that already has

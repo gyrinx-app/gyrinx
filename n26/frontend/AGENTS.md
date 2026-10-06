@@ -46,7 +46,9 @@ at the root instead of copying them.
 Create `islands/<kebab-name>/entry.tsx` and co-locate its component and tests.
 The entry is deliberately small: import the feature, call `runtime/mount`, and
 return its disposer. Vite discovers island directories automatically, and the
-Django tag resolves the same kebab-case name. Add no registry by hand.
+Django tag resolves the same kebab-case name. The rendered host exposes that
+name as `data-react-name`. `data-react-module` is the built file URL. Add no
+registry by hand.
 
 Use `npm run js:dev` for a local one-shot JavaScript build. It selects React's
 development runtime and emits unminified code with source maps, so React DevTools

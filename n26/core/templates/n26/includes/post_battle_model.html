@@ -122,6 +122,9 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                                             size="lg"
                                             :attrs="model.refresh_attrs">
                             <option value="">Choose a result</option>
+                            {% if effect.retained_option %}
+                                <option value="{{ effect.selected }}" selected>{{ effect.name }}</option>
+                            {% endif %}
                             {% for group_label, options in model.effect_groups %}
                                 <optgroup label="{{ group_label }}">
                                     {% for value, text in options %}

@@ -13,7 +13,9 @@ from n26.core.models import ActionRecord, Assignment, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
+from n26.library.forms import generate_form
 from n26.library.models import Power, Skill
+from n26.library.specs import specs
 from n26.tests.sandbox import test_advancement_action_flows as skill_flows
 from n26.tests.sandbox.test_advancement_action_flows import (
     _choose_result,
@@ -272,7 +274,7 @@ def test_random_powers_keep_their_roll_when_resumed_or_submitted_twice(
     category = wyrd.powers["secondary"].category if secondary else wyrd.family
     power = wyrd.powers["secondary" if secondary else "primary"]
     archived = a.create_power(
-        "Superseded power", category=category, position=power.position
+        "Superseded power", category=category, position=power.position, archived=True
     )
     archived.archive()
     _load_rolls(monkeypatch, 12, *([1] if secondary else [1, 2]))
@@ -365,7 +367,7 @@ def test_more_powers_do_not_add_a_query_for_each_choice(client, monkeypatch, wyr
     with CaptureQueriesContext(connection) as small:
         assert client.get(choice_url).status_code == 200
     for index in range(12):
-        a.create_power(f"Extra power {index}", category=wyrd.family, position=index + 3)
+        a.create_power(f"Extra power {index}", category=wyrd.family)
     with CaptureQueriesContext(connection) as large:
         assert client.get(choice_url).status_code == 200
     assert len(large) == len(small)
@@ -395,3 +397,110 @@ def test_power_access_uses_the_resolved_grade_and_usability(
     assert wyrd.powers["primary"] in primary[wyrd.family]
     assert wyrd.family not in secondary
     assert restricted not in primary[wyrd.family]
+
+
+@pytest.mark.parametrize(
+    "wyrd",
+    [
+        ("Psy-Gheist", "Psychoteric Whispers"),
+        ("Outcast Leader", "Wyrd Powers"),
+        ("Malstrain Coalescence", "Malstrain Wyrd Powers"),
+        ("Haunt", "Psyrender Wyrd Powers"),
+    ],
+    indirect=True,
+)
+@pytest.mark.parametrize("rolled", range(1, 7))
+def test_authoring_a_family_table_makes_every_random_result_complete_and_show_in_history(
+    client, monkeypatch, wyrd, rolled
+):
+    data = wyrd.advancement
+    a.revise(wyrd.powers["owned"], position=0)
+    a.revise(wyrd.powers["primary"], position=0)
+    form_class = generate_form(specs()["create_power"])
+    family_names = {
+        "Psychoteric Whispers": (
+            "Terrible Truths",
+            "Psychotic Lure",
+            "Deceitful Thoughts",
+            "Cacophony of Silence",
+            "A Perfect Void",
+            "Eternal Slumber",
+        ),
+        "Malstrain Wyrd Powers": (
+            "Catalyst",
+            "Hypnotic Gaze",
+            "The Horror",
+            "Leech Essence",
+            "Paroxysm",
+            "Aura of Despair",
+        ),
+    }
+    names = family_names.get(
+        wyrd.family.name, tuple(f"Authored result {number}" for number in range(1, 7))
+    )
+    powers = {}
+    for number, name in enumerate(names, start=1):
+        form = form_class(
+            {
+                "name": name,
+                "category": str(wyrd.family.pk),
+                "position": number,
+            }
+        )
+        assert form.is_valid(), form.errors
+        powers[number] = form.compile()
+    _load_rolls(monkeypatch, 12, rolled)
+    record = _start(client, data)
+    _post_roll(client, data, record)
+    url = _choose_result(client, data, record, data.results["random"])
+    page = client.get(url)
+    response = client.post(
+        url,
+        {
+            "request_key": page.context["form"]["request_key"].value(),
+            "skill_set_id": str(wyrd.family.pk),
+        },
+    )
+    assert response.status_code == 302
+    record.refresh_from_db()
+    assert record.skill_selection.selected_power == powers[rolled]
+    assert record.skill_selection.random_attempts[-1]["roll"] == rolled
+    _confirm(client, client.post(url, {"continue": "1"}))
+    record.refresh_from_db()
+    assert record.skill_selection.skill_assignment.power == powers[rolled]
+    history = client.get(reverse("n26-edit-fighter", args=[data.fighter.pk]))
+    panel = next(
+        panel
+        for panel in history.context["action_history_panels"]
+        if panel.action_id == str(data.action.pk)
+    )
+    assert powers[rolled].name in panel.completed[0].detail
+    data.gang.refresh_from_db()
+    assert_reconciled(data.gang)
+
+
+@pytest.mark.parametrize("wyrd", [("Haunt", "Psyrender Wyrd Powers")], indirect=True)
+def test_an_unnumbered_family_reports_the_missing_d6_result_without_granting_a_power(
+    client, monkeypatch, wyrd
+):
+    data = wyrd.advancement
+    a.revise(wyrd.powers["owned"], position=0)
+    a.revise(wyrd.powers["primary"], position=0)
+    _load_rolls(monkeypatch, 12, 3)
+    record = _start(client, data)
+    _post_roll(client, data, record)
+    url = _choose_result(client, data, record, data.results["random"])
+    page = client.get(url)
+    response = client.post(
+        url,
+        {
+            "request_key": page.context["form"]["request_key"].value(),
+            "skill_set_id": str(wyrd.family.pk),
+        },
+    )
+    assert response.status_code == 302
+    record.refresh_from_db()
+    assert record.skill_selection.selected_power is None
+    assert record.skill_selection.random_attempts[-1]["unavailable_reason"] == (
+        "No skill or power has D6 result 3 in Psyrender Wyrd Powers."
+    )
