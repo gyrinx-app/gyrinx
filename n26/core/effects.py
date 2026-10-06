@@ -2068,11 +2068,12 @@ def _retract(computed, log):
     down the chain. A thing two carriers gave survives losing one, and
     changes hands: the entry keeps its place and names the survivor.
 
-    Removals are taken in the order they settled, so an earlier round's
+    Named removals are taken in the order they settled, so an earlier round's
     removal is never undone by a later one, and two things cancelling
     each other both go rather than the answer depending on which was
     read first. A removal whose own carrier turns out to have been
-    cancelled never happened, and what it took is put back.
+    cancelled never happened, and what it took is put back. Campaign-default
+    exclusions settle afterwards, once those source cancellations are known.
 
     Nothing here queries, and nothing here is written down: the card
     keeps every assignment it had, and a card computed again from the same
@@ -2085,6 +2086,14 @@ def _retract(computed, log):
         return set()
 
     card = computed.card
+    ordinary = [record for record in log.removals if not record.defaults_only]
+    exclusions = [record for record in log.removals if record.defaults_only]
+    # Settle source cancellations before exclusions. Clear their provisional
+    # hides while preserving any hide made by a named removal.
+    hidden_by_name = {node.key for record in ordinary for node in record.hidden}
+    for record in exclusions:
+        for node in record.hidden:
+            node.suppressed = node.key in hidden_by_name
     #: Stored assignments by the thing they name. Granted lines are the grants'
     #: own output and are retracted through the log instead.
     stored = {}
@@ -2122,12 +2131,16 @@ def _retract(computed, log):
                 return
             dead.update(starved)
 
-    for record in log.removals:
+    for record in (*ordinary, *exclusions):
         step = record.step
         if record.source_key in dead:
-            _put_back(record)
+            if not record.defaults_only:
+                _put_back(record)
             step.outcome = "retracted"
             continue
+        if record.defaults_only:
+            for node in record.hidden:
+                node.suppressed = True
         if record.kind == WEAPON_PROFILE:
             step.took_away = (*step.took_away, str(record.thing))
             continue

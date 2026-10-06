@@ -16,10 +16,15 @@ from n26.library.authoring import (
     add_built_in,
     create_asset,
     create_gang_type,
+    create_pickable,
+    create_picklist,
     create_rule,
+    create_slot,
+    create_slot_type,
     ef_adds,
     ef_excludes_campaign_assets,
     ef_removes,
+    has_gang_pickable,
     modifier,
     set_given_to_every_gang,
     set_income,
@@ -439,7 +444,17 @@ def test_authoring_pages_describe_the_replacement(setup, client):
     assert "Assets given by a modifier remain" in response.content.decode()
 
 
-def test_cancelling_the_replacement_source_restores_default_assets(setup):
+@pytest.mark.parametrize("also_grant_default", [False, True])
+def test_cancelling_the_replacement_source_restores_default_assets(
+    setup, also_grant_default
+):
+    if also_grant_default:
+        modifier(
+            "Explicit settlement",
+            targets_gang_alone(),
+            ef_adds(setup["settlement"]),
+            attach_to=setup["replacement"],
+        )
     cancellation = create_rule("Cancel replacement")
     modifier(
         "Cancel replacement rule",
@@ -452,8 +467,11 @@ def test_cancelling_the_replacement_source_restores_default_assets(setup):
     assert names(setup["gang"]) == ["Settlement"]
     assert income(setup["gang"]) == 10
     remove(assignment)
-    assert names(setup["gang"]) == ["Test base camp"]
-    assert income(setup["gang"]) == 25
+    expected = (
+        {"Test base camp", "Settlement"} if also_grant_default else {"Test base camp"}
+    )
+    assert set(names(setup["gang"])) == expected
+    assert income(setup["gang"]) == (35 if also_grant_default else 25)
 
 
 def test_exclusion_preserves_a_default_with_money_behind_it(setup):
@@ -475,3 +493,67 @@ def test_exclusion_preserves_a_default_with_money_behind_it(setup):
         == 35
     )
     assert any("Settlement" in step.refused for step in computed.plan)
+
+
+@pytest.mark.parametrize(
+    "independent_name", ["Independent exclusion", "Zulu exclusion"]
+)
+def test_cancelling_one_exclusion_leaves_another_exclusion_in_force(
+    setup, independent_name
+):
+    independent = create_rule(independent_name)
+    modifier(
+        "Independent exclusion",
+        targets_gang_alone(),
+        ef_excludes_campaign_assets(setup["settlement_type"]),
+        attach_to=independent,
+    )
+    cancellation = create_rule("Cancel replacement")
+    modifier(
+        "Cancel replacement rule",
+        targets_gang_alone(),
+        ef_removes(setup["replacement"]),
+        attach_to=cancellation,
+    )
+    join_both(setup)
+    assign(independent, gang=setup["gang"])
+    cancelled = assign(cancellation, gang=setup["gang"])
+    assert names(setup["gang"]) == []
+    assert income(setup["gang"]) == 0
+    remove(cancelled)
+    assert names(setup["gang"]) == ["Test base camp"]
+    assert income(setup["gang"]) == 25
+
+
+def test_a_later_round_cancellation_restores_campaign_defaults(setup):
+    marker_type = create_slot_type("Cancellation marker")
+    marker = create_pickable("Cancel replacement", marker_type)
+    choices = create_picklist("Cancellation markers", marker_type, members=[marker])
+    slot = create_slot(
+        "Cancellation marker", marker_type, choices, assigned_to="gang", hidden=True
+    )
+    cancellation = create_rule("Conditional cancellation")
+    modifier(
+        "Give cancellation marker",
+        targets_gang_alone(),
+        ef_adds(slot, with_pick=marker),
+        attach_to=cancellation,
+    )
+    cancel = modifier(
+        "Cancel replacement in a later round",
+        targets_gang_alone(has_gang_pickable(marker)),
+        ef_removes(setup["replacement"]),
+        attach_to=cancellation,
+    )
+    join_both(setup)
+    assign(cancellation, gang=setup["gang"])
+    card = build_gang_card(setup["gang"], with_statlines=False)
+    computed = compute(card, build_modifier_index(carriers(card)))
+    exclusion_step = next(
+        step for step in computed.plan if step.modifier == setup["exclude"]
+    )
+    cancellation_step = next(step for step in computed.plan if step.modifier == cancel)
+    assert cancellation_step.ran_in > exclusion_step.ran_in
+    assert exclusion_step.outcome == "retracted"
+    assert names(setup["gang"]) == ["Settlement"]
+    assert income(setup["gang"]) == 10

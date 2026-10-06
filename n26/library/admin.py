@@ -133,18 +133,19 @@ class AssetAdmin(admin.ModelAdmin):
     list_select_related = ["pack", "asset_type", "asset_type__campaign_type"]
 
     def save_model(self, request, obj, form, change):
-        """Ticking Archived here is the one way a person archives an asset,
-        and unticking it the one way they bring one back. The change form
-        saves the row rather than calling ``archive`` or ``unarchive``, so
-        the memberships that give a possession are taken out and put back
-        here, as those two methods do it."""
-        from n26.library.authoring import take_out_of_built_ins
+        """Keep automatic distribution in step with admin field changes."""
+        from n26.library.authoring import (
+            set_given_to_every_gang,
+            take_out_of_built_ins,
+        )
         from n26.library.possessions import give_back
 
         if obj.archived:
             take_out_of_built_ins(obj)
         super().save_model(request, obj, form, change)
-        if not obj.archived and "archived" in form.changed_data:
+        if not obj.archived and "given_to_every_gang" in form.changed_data:
+            set_given_to_every_gang(obj, obj.given_to_every_gang)
+        elif not obj.archived and "archived" in form.changed_data:
             give_back(obj)
 
 
