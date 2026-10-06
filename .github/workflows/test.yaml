@@ -6,6 +6,19 @@ on:
   push:
     branches: ["main"]
   merge_group:
+  workflow_dispatch:
+    inputs:
+      send_test_page:
+        description: "Send a real test page via incident.io"
+        type: boolean
+        required: true
+        default: false
+      failed_suite:
+        description: "Simulated failing suite"
+        type: choice
+        required: true
+        default: both
+        options: [core, full, both]
 
 permissions:
   id-token: write
@@ -19,6 +32,7 @@ permissions:
 # only job here that applies the migration graph.
 jobs:
   test:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -100,6 +114,7 @@ jobs:
           pytest -m core --durations=20 -v -n logical
 
   test-full:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     # One group per pull request, so a new push cancels the run in flight.
     # Every other run gets a group of its own: a group holds at most one
@@ -143,9 +158,83 @@ jobs:
           source .venv/bin/activate
           pytest --durations=20 -v -n logical
 
-      # TODO: post to Slack when this fails on main. A pull request can merge
-      # with a red non-core test, so main needs a louder signal than a red
-      # tick on the commit list.
+  page-on-main-failure:
+    needs: [test, test-full]
+    if: >-
+      always() &&
+      ((github.event_name == 'workflow_dispatch' && inputs.send_test_page) ||
+       (github.event_name == 'push' &&
+        github.ref == 'refs/heads/main' &&
+        (needs.test.result == 'failure' || needs.test-full.result == 'failure')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Page incident.io for failed suites
+        env:
+          INCIDENT_IO_ALERT_TOKEN: ${{ secrets.INCIDENT_IO_ALERT_TOKEN }}
+          CORE_RESULT: ${{ needs.test.result }}
+          FULL_RESULT: ${{ needs.test-full.result }}
+          EVENT_NAME: ${{ github.event_name }}
+          TEST_SUITE: ${{ inputs.failed_suite }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$INCIDENT_IO_ALERT_TOKEN" ]; then
+            echo "::error::Set the repository Actions secret INCIDENT_IO_ALERT_TOKEN to enable paging."
+            exit 1
+          fi
+
+          alert_scope=main
+          alert_title="Gyrinx main tests failed"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            alert_scope=ci-test
+            alert_title="[TEST] Gyrinx test paging"
+            CORE_RESULT=success
+            FULL_RESULT=success
+            case "$TEST_SUITE" in
+              core) CORE_RESULT=failure ;;
+              full) FULL_RESULT=failure ;;
+              both) CORE_RESULT=failure; FULL_RESULT=failure ;;
+              *) echo "::error::Unknown simulated failing suite: $TEST_SUITE"; exit 1 ;;
+            esac
+          fi
+
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg sha "$GITHUB_SHA" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_url "$RUN_URL" \
+            --arg alert_scope "$alert_scope" \
+            --arg title "$alert_title" \
+            --arg core_result "$CORE_RESULT" \
+            --arg full_result "$FULL_RESULT" \
+            '([{suite: "core", result: $core_result}, {suite: "full", result: $full_result}] |
+              map(select(.result == "failure") | .suite) | join(", ")) as $suites |
+            {
+              title: ($title + ": " + $suites),
+              description: ("Failed suites: " + $suites + ". Commit: " + $sha + ". Run: " + $run_url),
+              deduplication_key: ($repository + ":" + $alert_scope + ":tests:" + $run_id),
+              status: "firing",
+              source_url: $run_url,
+              metadata: {
+                service: "gyrinx",
+                environment: "main",
+                test_alert: ($alert_scope == "ci-test"),
+                repository: $repository,
+                commit: $sha,
+                failed_suites: $suites,
+                core_result: $core_result,
+                full_result: $full_result
+              }
+            }' > alert.json
+
+          curl --fail-with-body --silent --show-error \
+            --connect-timeout 10 --max-time 30 --retry 3 --retry-max-time 120 \
+            --request POST \
+            --header "Authorization: Bearer $INCIDENT_IO_ALERT_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data-binary @alert.json \
+            https://api.incident.io/v2/alert_events/http/01M49CV2PWF1478S7W23RXSFSN
 
   # Applies the whole migration graph to an empty database, which nothing else
   # here does: pytest builds the schema straight from the models
@@ -166,6 +255,7 @@ jobs:
   # that touches none of those cannot change. Every other event runs it
   # unconditionally.
   fresh-database:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     services:
       postgres:

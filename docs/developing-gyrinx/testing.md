@@ -47,6 +47,39 @@ ptw .
 CI runs the suite against a GitHub Actions service container Postgres in two
 jobs — see [.github/workflows/test.yaml](https://github.com/gyrinx-app/gyrinx/blob/main/.github/workflows/test.yaml).
 
+### Paging for failures on main
+
+The `page-on-main-failure` job sends an incident.io alert when `test` (core)
+or `test-full` fails on a push to `main`. It waits for both jobs and sends one
+alert listing the failed suites, commit and Actions run link. Pull requests,
+merge queue runs and failures confined to `fresh-database` do not page.
+
+Store the HTTP alert source's bearer token in the repository Actions secret
+`INCIDENT_IO_ALERT_TOKEN` (Settings → Secrets and variables → Actions).
+The webhook URL is configured in `test.yaml`. A missing token or rejected
+webhook request fails the paging job, making delivery failures visible.
+
+Alerts are deduplicated by repository and test run ID, so delivery retries
+and reruns of the same failing run share an alert. Each new failing run
+creates a separate alert. Successful runs do not automatically resolve
+previous alerts.
+
+To test the real webhook and paging route after merging the workflow:
+
+1. Open **Actions → Tests → Run workflow** and select `main`.
+2. Check **Send a real test page via incident.io** and choose the simulated
+   failing suite (`core`, `full` or `both`).
+3. Run the workflow. Only the paging job runs; the suites and database job
+   are skipped. It sends a `[TEST] Gyrinx test paging` alert with
+   `test_alert: true` metadata using the same token, webhook, service,
+   environment and delivery code as real failures. Its deduplication key
+   uses a separate `ci-test` prefix.
+4. Check that the paging job succeeds and the alert reaches the expected
+   on-call recipient, then resolve the test alert in incident.io.
+
+The manual run sends a real page using the alert source's routing rules.
+Leaving the send checkbox unchecked skips every job and sends nothing.
+
 ### The Core Suite
 
 Pull requests are gated on the `test` job, which runs the tests marked `core`
