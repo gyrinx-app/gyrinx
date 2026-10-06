@@ -16,7 +16,7 @@ def test_404_handler(client):
     response = client.get("/this-page-definitely-does-not-exist/")
     assert response.status_code == 404
     assert "404" in response.content.decode()
-    assert "Page Not Found" in response.content.decode()
+    assert "Page not found" in response.content.decode()
     # Check that one of the jokes appears in the response
     content = response.content.decode()
     assert 'data-test-id="the-joke"' in content
@@ -136,7 +136,7 @@ def test_error_handlers_with_debug_false():
     response = client.get("/this-page-definitely-does-not-exist/")
     assert response.status_code == 404
     assert "404" in response.content.decode()
-    assert "Page Not Found" in response.content.decode()
+    assert "Page not found" in response.content.decode()
 
     # Test that the error pages use the correct template
     assert "Home" in response.content.decode()
@@ -158,7 +158,7 @@ def test_error_page_urls_exist(client):
     response = client.get(reverse("error_404"))
     assert response.status_code == 404
     assert "404" in response.content.decode()
-    assert "Page Not Found" in response.content.decode()
+    assert "Page not found" in response.content.decode()
 
     response = client.get(reverse("error_500"))
     assert response.status_code == 500
@@ -192,7 +192,7 @@ def test_error_handlers_context():
     response = error_404(request, exception=None)
     assert response.status_code == 404
     assert "404" in response.content.decode()
-    assert "Page Not Found" in response.content.decode()
+    assert "Page not found" in response.content.decode()
 
     # Test 500 handler (uses standalone template)
     response = error_500(request)
