@@ -64,6 +64,22 @@ and reruns of the same failing run share an alert. Each new failing run
 creates a separate alert. Successful runs do not automatically resolve
 previous alerts.
 
+To test the real webhook and paging route after merging the workflow:
+
+1. Open **Actions → Tests → Run workflow** and select `main`.
+2. Check **Send a real test page via incident.io** and choose the simulated
+   failing suite (`core`, `full` or `both`).
+3. Run the workflow. Only the paging job runs; the suites and database job
+   are skipped. It sends a `[TEST] Gyrinx test paging` alert with
+   `test_alert: true` metadata using the same token, webhook, service,
+   environment and delivery code as real failures. Its deduplication key
+   uses a separate `ci-test` prefix.
+4. Check that the paging job succeeds and the alert reaches the expected
+   on-call recipient, then resolve the test alert in incident.io.
+
+The manual run sends a real page using the alert source's routing rules.
+Leaving the send checkbox unchecked skips every job and sends nothing.
+
 ### The Core Suite
 
 Pull requests are gated on the `test` job, which runs the tests marked `core`
