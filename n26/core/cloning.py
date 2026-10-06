@@ -5,6 +5,7 @@ Writing it is an operation's job; keeping selection here makes the boundary
 between a snapshot and a replay explicit.
 """
 
+from copy import copy
 from dataclasses import dataclass
 
 from n26.core.models import Assignment, Gang, Miniature, PrintConfig, Reason
@@ -106,6 +107,9 @@ def plan_gang_clone(source):
     }
     included.update(structural)
     guards = _include_materialisation_guards(included, assignments)
+    standing = _standing_assignments(
+        assignments, included, guards, miniature_by_membership
+    )
     neutral = guards | structural
 
     return ClonePlan(
@@ -113,7 +117,7 @@ def plan_gang_clone(source):
         miniatures=tuple(
             sorted(copied_miniatures.values(), key=lambda miniature: str(miniature.pk))
         ),
-        assignments=_ordered(assignments, included),
+        assignments=standing,
         guards=frozenset(guards),
         neutral=frozenset(neutral),
         print_configs=tuple(
@@ -172,13 +176,16 @@ def plan_miniature_clone(source):
         changed = before != (len(included), len(miniatures))
 
     guards = _include_materialisation_guards(included, assignments)
+    standing = _standing_assignments(
+        assignments, included, guards, miniature_by_membership
+    )
 
     return ClonePlan(
         source_gang=gang,
         miniatures=tuple(
             sorted(miniatures.values(), key=lambda miniature: str(miniature.pk))
         ),
-        assignments=_ordered(assignments, included),
+        assignments=standing,
         guards=frozenset(guards),
         neutral=frozenset(guards),
         primary=source,
@@ -186,21 +193,17 @@ def plan_miniature_clone(source):
 
 
 def _gang_assignments(gang):
-    """Standing assignments once; recorded results belong to the source's history."""
-    queryset = (
-        Assignment.objects.filter(gang_root=gang)
-        .exclude(pickable__record_only=True)
-        .select_related(
-            "ledger_entry",
-            "profile_role",
-            "counter_value",
-            "parent",
-            "caused_by",
-            "chosen_for",
-            "materialised_for",
-            "miniature",
-            "stash",
-        )
+    """Read the full graph so historical results can lead to standing effects."""
+    queryset = Assignment.objects.filter(gang_root=gang).select_related(
+        "ledger_entry",
+        "profile_role",
+        "counter_value",
+        "parent",
+        "caused_by",
+        "chosen_for",
+        "materialised_for",
+        "miniature",
+        "stash",
     )
     return tuple(
         Assignment.with_assignables(queryset)
@@ -301,5 +304,60 @@ def _is_live_gang_wide_materialisation(assignment, included, assignment_by_id):
     return carrier is not None and _is_gang_wide(carrier)
 
 
-def _ordered(assignments, included):
-    return tuple(assignment for assignment in assignments if assignment.pk in included)
+def _standing_assignments(assignments, included, guards, miniature_by_membership):
+    """Remove history after traversal, keeping its live consequences on their host.
+
+    Status-scoped standing results retain their effects but no longer answer
+    the source model's choice. Historical parents and causes collapse to the
+    nearest standing ancestor instead of attaching a clone to source history.
+    """
+    by_id = {assignment.pk: assignment for assignment in assignments}
+    memberships = {
+        model.pk: by_id[model.membership_id]
+        for model in miniature_by_membership.values()
+    }
+    history = {
+        assignment.pk
+        for assignment in assignments
+        if assignment.pickable_id and assignment.pickable.record_only
+    }
+    omitted = history | {
+        assignment.pk
+        for assignment in assignments
+        if assignment.pk in guards and assignment.materialised_for_id in history
+    }
+    included.difference_update(omitted)
+    guards.difference_update(omitted)
+    standing = []
+    for source in assignments:
+        if source.pk not in included:
+            continue
+        assignment = copy(source)
+        assignment._state = copy(source._state)
+        assignment._state.fields_cache = source._state.fields_cache.copy()
+        cause = source.caused_by
+        while cause is not None and cause.pk in omitted:
+            historical = by_id[cause.pk]
+            cause = memberships.get(historical.miniature_root_id, historical.caused_by)
+        assignment.caused_by = cause
+        host = source
+        while host.parent_id in omitted:
+            host = by_id[host.parent_id]
+        if host is not source:
+            assignment.parent = host.parent
+            assignment.miniature = host.miniature
+            assignment.stash = host.stash
+            assignment.gang = host.gang
+        if (
+            source.chosen_for_status_revision is not None
+            or source.chosen_for_id in omitted
+        ):
+            assignment.chosen_for = None
+            assignment.chosen_for_slot_id = None
+            assignment.chosen_for_offer_id = None
+            assignment.chosen_for_status_revision = None
+        if source.materialised_for_id in omitted:
+            assignment.materialised_for = None
+            assignment.materialised_from_id = None
+        standing.append(assignment)
+    return tuple(standing)

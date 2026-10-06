@@ -1257,23 +1257,32 @@ def preview_report(report, *, actor, payload=None):
         if (
             any(
                 str(root.miniature_root_id) == model_id
-                and root.chosen_for_status_revision is not None
                 and any(event.kind == LedgerEvent.Kind.STATUS_SET for event in events)
                 for _, root, events in plan._removals
             )
             and model_id in started
         ):
-            expected = next(
-                (
-                    m["status_after"]
-                    for m in previous.receipt.get("models", [])
-                    if m["id"] == model_id
-                ),
-                None,
+            recorded = next(
+                (m for m in previous.receipt.get("models", []) if m["id"] == model_id),
+                {},
             )
-            if miniature.status != expected:
+            expected_revision = recorded.get("status_revision_after")
+            # Legacy receipts have no revision; their latest status transition
+            # must still belong to this report.
+            changed_since = (
+                miniature.status_revision != expected_revision
+                if expected_revision is not None
+                else LedgerEvent.objects.filter(
+                    miniature=miniature, kind=LedgerEvent.Kind.STATUS_SET
+                )
+                .order_by("-created", "-pk")
+                .values_list("post_battle_revision__report_id", flat=True)
+                .first()
+                != report.pk
+            )
+            if miniature.status != recorded.get("status_after") or changed_since:
                 model_errors.append(
-                    "This model's status has changed since these results. Correct its status separately first."
+                    "This model's status has changed since these results. Keep its recorded status results when correcting this report."
                 )
             else:
                 # Restore the status before the earliest removed result.
@@ -1848,12 +1857,29 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
             counter.id: counter.reading
             for counter in held_counters(final_card.all_nodes(), final_gang.counters)
         }
-        final_statuses = dict(
-            Miniature.objects.filter(pk__in=[m.id for m in plan.models]).values_list(
-                "pk", "status"
-            )
+        prior = (
+            report.revisions.get(sequence=report.latest_sequence)
+            if report.latest_sequence
+            else None
         )
-        final_statuses = {str(pk): status for pk, status in final_statuses.items()}
+        prior_models = (
+            {model["id"]: model for model in prior.receipt.get("models", [])}
+            if prior
+            else {}
+        )
+        # A credits-only correction cannot adopt a later status transition
+        # as one this report may subsequently reverse.
+        changed_statuses = {
+            str(event.miniature_id)
+            for event in events
+            if event.kind == LedgerEvent.Kind.STATUS_SET
+        }
+        final_states = {
+            str(pk): (status, revision)
+            for pk, status, revision in Miniature.objects.filter(
+                pk__in=[m.id for m in plan.models]
+            ).values_list("pk", "status", "status_revision")
+        }
         final_readings = {}
         for pk, card in final_card.members.items():
             readings = counter_readings(card, compute(card, final_index))
@@ -1868,7 +1894,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
             )
         for model in plan.models:
             model.xp_after = final_readings.get(model.id, 0)
-            model.final_status = final_statuses[model.id]
+            model.final_status = final_states[model.id][0]
         receipt = {
             "gang": gang.name,
             "reference": report.reference,
@@ -1901,6 +1927,11 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                     "xp_award_assignment_id": m.xp_award_assignment_id,
                     "status_before": m.status,
                     "status_after": m.final_status,
+                    "status_revision_after": (
+                        final_states[m.id][1]
+                        if m.id in changed_statuses or m.id not in prior_models
+                        else prior_models[m.id].get("status_revision_after")
+                    ),
                     "status_before_label": m.status_label,
                     "status_after_label": label_for(m.final_status, m.is_vehicle),
                     "effects": [e.display_name for e in m.effects],

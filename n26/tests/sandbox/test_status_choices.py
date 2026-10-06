@@ -23,11 +23,14 @@ from n26.library.authoring import (
     add_picklist_member,
     create_pickable,
     create_picklist,
+    create_profile,
     create_slot,
     create_slot_type,
+    create_wargear,
     ef_adds,
     has_status,
     modifier,
+    op_adds_model,
     op_sets_status,
     targets_every_model,
     targets_model,
@@ -227,12 +230,22 @@ def test_deferred_choice_is_available_to_a_later_report(
     assert picked.chosen_for_slot_id == slot.pk
 
 
-def test_a_carried_choice_can_be_corrected_and_removed(report, owner, model, follow_up):
+@pytest.mark.parametrize("legacy_receipt", [False, True])
+def test_a_carried_choice_can_be_corrected_and_removed(
+    report, owner, model, follow_up, legacy_receipt
+):
     _, slot, released, ransom = follow_up
     mark(model, Status.CAPTURED)
     effect = effect_for(report, owner, released)
     report = save(report, owner, payload_for(model, effects=[effect]))
-    apply(report, owner)
+    revision = apply(report, owner)
+    if legacy_receipt:
+        from n26.core.models import PostBattleRevision
+
+        receipt = deepcopy(revision.receipt)
+        for recorded in receipt["models"]:
+            recorded.pop("status_revision_after", None)
+        PostBattleRevision.objects.filter(pk=revision.pk).update(receipt=receipt)
     report = start_correction(report, actor=owner)
     payload = deepcopy(report.draft)
     payload["models"][0]["effects"][0]["pick"] = str(ransom.pk)
@@ -701,3 +714,129 @@ def test_clones_keep_permanent_results_without_copying_capture_history(
     assert len(result_history(model)) == 2
     assert_reconciled(model.gang)
     assert_reconciled(destination)
+
+
+@pytest.mark.parametrize("whole_gang", [False, True], ids=["model", "gang"])
+def test_a_cloned_standing_status_result_does_not_settle_a_fresh_capture(
+    owner, model, follow_up, whole_gang
+):
+    _, slot, released, _ = follow_up
+    released.record_only = False
+    released.save(update_fields=["record_only"])
+    mark(model, Status.CAPTURED)
+    choose(model, slot, released)
+    if whole_gang:
+        destination = clone_gang(model.gang, name="New gang", owner=owner, actor=owner)
+        clone = Miniature.objects.get(membership__gang=destination, name=model.name)
+    else:
+        destination = model.gang
+        with operation(destination, actor=owner) as op:
+            clone = op.clone_miniature(model)
+    result = Assignment.objects.get(miniature=clone, pickable=released, archived=False)
+    assert result.chosen_for_slot_id is None
+    assert result.chosen_for_id is None
+    assert result.chosen_for_status_revision is None
+    assert clone.status == Status.ACTIVE
+    mark(clone, Status.CAPTURED)
+    assert not next(q for q in computed(clone).choices if q.slot.pk == slot.pk).picks
+    assert_reconciled(destination)
+
+
+@pytest.mark.parametrize("whole_gang", [False, True], ids=["model", "gang"])
+def test_cloning_keeps_live_models_and_nested_gear_brought_by_a_historical_result(
+    owner, model, content, follow_up, whole_gang
+):
+    captured, _, _, _ = follow_up
+    profile = content["profile"]
+    pet_profile = create_profile(
+        "Rescued companion", profile.profile_type, profile.gang_type
+    )
+    modifier(
+        "A capture brings a companion",
+        targets_model(),
+        op_adds_model(pet_profile),
+        attach_to=captured,
+    )
+    result = choose(model, content["slot"], captured)
+    pet = Miniature.objects.get(membership__caused_by=result)
+    gear = create_wargear("Retained equipment")
+    with operation(model.gang, actor=owner) as op:
+        source_gear = op.assign(gear, parent=result, caused_by=result)
+    if whole_gang:
+        destination = clone_gang(model.gang, name="New gang", owner=owner, actor=owner)
+        clone = Miniature.objects.get(membership__gang=destination, name=model.name)
+    else:
+        destination = model.gang
+        with operation(destination, actor=owner) as op:
+            clone = op.clone_miniature(model)
+    companion = Miniature.objects.get(
+        membership__gang=destination,
+        membership__caused_by=clone.membership,
+        name=pet.name,
+    )
+    copied_gear = Assignment.objects.get(miniature=clone, wargear=gear, archived=False)
+    assert copied_gear.caused_by_id == clone.membership_id
+    assert copied_gear.parent_id is None
+    assert companion.membership.caused_by_id == clone.membership_id
+    assert result_history(clone) == []
+    source_gear.refresh_from_db()
+    assert source_gear.parent_id == result.pk
+    assert source_gear.caused_by_id == result.pk
+    assert_reconciled(model.gang)
+    assert_reconciled(destination)
+
+
+@pytest.mark.parametrize("legacy_receipt", [False, True], ids=["revision", "legacy"])
+@pytest.mark.parametrize(
+    "intervening_correction", [False, True], ids=["direct", "credits-correction"]
+)
+@pytest.mark.parametrize("immediate", [False, True], ids=["deferred", "immediate"])
+def test_correcting_an_old_escape_does_not_overwrite_a_later_escape_to_the_same_status(
+    report, owner, model, follow_up, legacy_receipt, intervening_correction, immediate
+):
+    from n26.core.models import PostBattleRevision
+
+    captured, slot, released, _ = follow_up
+    if immediate:
+        effect = effect_for(report, owner, captured)
+        payload = payload_for(model, effects=[effect])
+        question = (
+            preview_report(report, actor=owner, payload=payload)
+            .models[0]
+            .effects[0]
+            .questions[0]
+        )
+        effect["choices"][question.key] = [f"library.pickable:{released.pk}"]
+    else:
+        mark(model, Status.CAPTURED)
+        effect = effect_for(report, owner, released)
+        payload = payload_for(model, effects=[effect])
+    report = save(report, owner, payload)
+    revision = apply(report, owner)
+    if legacy_receipt:
+        receipt = deepcopy(revision.receipt)
+        for recorded in receipt["models"]:
+            recorded.pop("status_revision_after", None)
+        PostBattleRevision.objects.filter(pk=revision.pk).update(receipt=receipt)
+    mark(model, Status.CAPTURED)
+    choose(model, slot, released)
+    model.refresh_from_db()
+    later_revision = model.status_revision
+    if intervening_correction:
+        report = start_correction(report, actor=owner)
+        payload = deepcopy(report.draft)
+        payload["credit_lines"] = [
+            {"id": str(uuid4()), "amount": 3, "reason": "Extra income"}
+        ]
+        report = save(report, owner, payload)
+        apply(report, owner)
+    report = start_correction(report, actor=owner)
+    payload = deepcopy(report.draft)
+    payload["models"][0]["effects"] = []
+    payload["models"][0]["status"] = ""
+    plan = preview_report(report, actor=owner, payload=payload)
+    assert not plan.valid
+    assert any("status has changed" in error for error in plan.errors)
+    model.refresh_from_db()
+    assert model.status == Status.RECOVERY
+    assert model.status_revision == later_revision
