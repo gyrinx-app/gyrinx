@@ -213,11 +213,6 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
     selection = getattr(record, "skill_selection", None)
     attempts = selection.random_attempts if selection else []
     random = chosen.skill_mode == "random"
-    has_powers = any(
-        skill._meta.model_name == "power"
-        for skills in groups.values()
-        for skill in skills
-    )
     selected = recorded_skill(record, configured, chosen.id) if random else None
     resolved = selected is not None
     if (
@@ -231,6 +226,7 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         form = SkillRollForm(
             request.POST or None,
             groups=groups,
+            label=f"Select a {chosen.choice_set_noun}",
             initial={
                 "request_key": uuid4(),
                 "skill_set_id": str(selection.skill_set_id)
@@ -249,6 +245,7 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         form = SkillSelectionForm(
             request.POST or None,
             groups=groups,
+            label=f"Select a {chosen.choice_noun}",
             initial={"skill_id": previous.get("skill_id")},
         )
         submit_label = "Review"
@@ -295,13 +292,9 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         skill_random=random,
         skill_resolved=resolved,
         skill_selected=str(selected) if resolved else "",
-        skill_title="Select a skill or power" if has_powers else "Select a skill",
-        skill_set_label="Select a skill set or power family"
-        if has_powers
-        else "Select a skill set",
-        skill_empty="No skill or power is available for this result."
-        if has_powers
-        else "No skill is available for this result.",
+        skill_title=f"Select a {chosen.choice_noun}",
+        skill_set_label=f"Select a {chosen.choice_set_noun}",
+        skill_empty=f"No {chosen.choice_noun} is available for this result.",
         skill_attempts=attempts,
         skill_groups=[
             {

@@ -103,14 +103,10 @@ class AdvancementForm(forms.Form):
 class SkillSelectionForm(forms.Form):
     skill_id = forms.ChoiceField(label="Select a skill")
 
-    def __init__(self, *args, groups, **kwargs):
+    def __init__(self, *args, groups, label=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if any(
-            skill._meta.model_name == "power"
-            for skills in groups.values()
-            for skill in skills
-        ):
-            self.fields["skill_id"].label = "Select a skill or power"
+        if label:
+            self.fields["skill_id"].label = label
         self.fields["skill_id"].choices = [
             (str(skill.pk), str(skill))
             for skills in groups.values()
@@ -121,14 +117,10 @@ class SkillSelectionForm(forms.Form):
 class SkillRollForm(ActionRollForm):
     skill_set_id = forms.ChoiceField(label="Select a skill set")
 
-    def __init__(self, *args, groups, **kwargs):
+    def __init__(self, *args, groups, label=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if any(
-            skill._meta.model_name == "power"
-            for skills in groups.values()
-            for skill in skills
-        ):
-            self.fields["skill_set_id"].label = "Select a skill set or power family"
+        if label:
+            self.fields["skill_set_id"].label = label
         self.fields["skill_set_id"].choices = [
             (str(group.pk), str(group)) for group in groups
         ]

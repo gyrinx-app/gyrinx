@@ -37,6 +37,15 @@ class AdvancementOption:
     effect: str = ""
     roll_minimum: int | None = None
     landed: bool = True
+    choice_noun: str = "skill"
+
+    @property
+    def choice_set_noun(self):
+        return {
+            "skill": "skill set",
+            "power": "power family",
+            "skill or power": "skill set or power family",
+        }[self.choice_noun]
 
 
 def _validate_draft(op, record, configured):
@@ -218,6 +227,11 @@ def _skill_offer(pickable):
     if len(found) > 1:
         raise ValueError(f"{pickable} offers more than one skill choice.")
     return found[0] if found else None
+
+
+def _choice_noun(offer):
+    kinds = {kind._meta.model_name for kind in offer.offered_kinds}
+    return "skill or power" if len(kinds) == 2 else next(iter(kinds))
 
 
 def _stat_gainable(fighter, pickable, *, evaluation=None):
@@ -677,6 +691,7 @@ def advancement_options(record, configured):
             _effect_text(member.pickable, index),
             member.roll_low,
             member in landed,
+            _choice_noun(offers[member.pk]) if offers[member.pk] else "skill",
         )
         for member in offered
     )
@@ -911,11 +926,7 @@ def record_skill_roll(
         "unavailable_reason": (
             None
             if available is not None
-            else (
-                "No available skill or power was rolled."
-                if offer.power_access_collection_id
-                else "No available skill was rolled."
-            )
+            else f"No available {_choice_noun(offer)} was rolled."
         ),
     }
     selection.random_attempts = [*selection.random_attempts, attempt]
@@ -939,7 +950,7 @@ def _resolved(record, configured, terms):
     )
     offer, skill = _skill_offer(pickable), None
     if offer is not None:
-        kind_name = "skill or power" if offer.power_access_collection_id else "skill"
+        kind_name = _choice_noun(offer)
         options = skill_options(record, configured, pickable_id)
         if offer.mode == offer.Mode.RANDOM:
             skill = recorded_skill(record, configured, pickable_id)

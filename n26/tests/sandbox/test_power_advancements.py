@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 
 import pytest
+from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -92,6 +93,51 @@ def _confirm(client, response):
     completed = client.post(response.url, {"review": token})
     assert completed.status_code == 302
     return response.url, token
+
+
+@pytest.mark.parametrize("random", [False, True])
+def test_a_power_only_advancement_uses_power_wording(client, monkeypatch, wyrd, random):
+    data = wyrd.advancement
+    result = data.results["random" if random else "primary"]
+    a.revise(
+        result.modifiers.get().effect,
+        of_kind=ContentType.objects.get_for_model(Power),
+        power_access_collection=None,
+    )
+    _load_rolls(monkeypatch, 12, 1, 2)
+    record = _start(client, data)
+    _post_roll(client, data, record)
+    choice_url = _choose_result(client, data, record, result)
+    page = client.get(choice_url)
+    assert page.context["skill_title"] == "Select a power"
+    assert "Select a power" in page.content.decode()
+    if random:
+        assert (
+            page.context["form"].fields["skill_set_id"].label == "Select a power family"
+        )
+        client.post(
+            choice_url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": str(wyrd.family.pk),
+            },
+        )
+        page = client.get(choice_url)
+        assert "No available power was rolled." in page.content.decode()
+        client.post(
+            choice_url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": str(wyrd.family.pk),
+            },
+        )
+        response = client.post(choice_url, {"continue": "1"})
+    else:
+        assert page.context["form"].fields["skill_id"].label == "Select a power"
+        response = client.post(choice_url, {"skill_id": str(wyrd.powers["primary"].pk)})
+    _confirm(client, response)
+    record.refresh_from_db()
+    assert record.skill_selection.selected_power == wyrd.powers["primary"]
 
 
 def test_a_stale_power_selection_uses_power_aware_wording(client, monkeypatch, wyrd):
