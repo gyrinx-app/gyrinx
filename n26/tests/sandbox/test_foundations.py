@@ -502,3 +502,38 @@ class TestTheSkills:
         assert item.status() == "complete"
         item.create()  # twice is harmless
         assert item.status() == "complete"
+
+
+@pytest.mark.parametrize("kind", ["skill", "power"])
+def test_skill_foundations_reject_an_occupied_result_without_partial_seeding(
+    default_pack, kind
+):
+    from django.core.exceptions import ValidationError
+
+    from n26.library import authoring as a
+    from n26.library.models import Category, Skill
+
+    category = a.create_category("Skills", "Agility")
+    getattr(a, f"create_{kind}")("Authored result", category=category, position=3)
+    skill_count = Skill.objects.count()
+    with pytest.raises(ValidationError, match="already uses D6 result 3"):
+        STANDARD_CONTENT["skills"].create()
+    assert Skill.objects.count() == skill_count
+    assert not Skill.objects.filter(name="Catfall").exists()
+    assert Category.objects.count() == 1
+
+
+def test_foundations_page_reports_a_number_collision_to_the_author(
+    client, author, default_pack
+):
+    from n26.library import authoring as a
+    from n26.library.models import Skill
+
+    category = a.create_category("Skills", "Agility")
+    a.create_power("Authored result", category=category, position=3)
+    response = client.post(
+        "/n26/authoring/foundations/", {"create": "skills"}, follow=True
+    )
+    assert response.status_code == 200
+    assert "already uses D6 result 3" in response.content.decode()
+    assert not Skill.objects.exists()
