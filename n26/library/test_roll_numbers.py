@@ -6,7 +6,7 @@ from django.urls import reverse
 
 from n26.library import authoring as a
 from n26.library.forms import generate_form
-from n26.library.models import Power, Skill
+from n26.library.models import ContentPack, Power, Skill
 from n26.library.specs import specs
 
 pytestmark = pytest.mark.django_db
@@ -169,3 +169,39 @@ def test_restoring_rollable_content_preserves_related_restoration(default_pack):
     related.refresh_from_db()
     assert not first.archived
     assert not related.archived
+
+
+@pytest.mark.parametrize(
+    "first_kind, second_kind",
+    [(Skill, Skill), (Power, Power), (Skill, Power), (Power, Skill)],
+)
+def test_archiving_a_pack_keeps_its_numbered_entries_reserved(
+    default_pack, first_kind, second_kind
+):
+    category = a.create_category("Skills & Powers", "Shared family")
+    pack = ContentPack.objects.create(name="Other pack", slug="other-pack")
+    first = getattr(a, f"create_{first_kind._meta.model_name}")(
+        "First", category=category, position=2, pack=pack
+    )
+    pack.archive()
+    create = getattr(a, f"create_{second_kind._meta.model_name}")
+    with pytest.raises(ValidationError, match="already uses D6 result 2"):
+        create("Second", category=category, position=2)
+    with pytest.raises(ValidationError, match="already uses D6 result 2"):
+        create("Second", category=category, position=2, pack=pack)
+    second = create("Second", category=category)
+    with pytest.raises(ValidationError, match="already uses D6 result 2"):
+        a.revise(second, position=2)
+    pack.unarchive()
+    first.refresh_from_db()
+    assert first.position == 2
+    second.refresh_from_db()
+    assert second.position == 0
+    pack.archive()
+    first.archive()
+    a.revise(second, position=2)
+    pack.unarchive()
+    first.refresh_from_db()
+    assert first.archived
+    with pytest.raises(ValidationError, match="already uses D6 result 2"):
+        first.unarchive()

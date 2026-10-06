@@ -945,8 +945,8 @@ class D6Rollable(models.Model):
                 {"category": "Choose a category for a numbered result."}
             )
         for kind in (Skill, Power):
-            others = kind.objects.unarchived().filter(
-                category_id=self.category_id, position=self.position
+            others = kind.objects.filter(
+                archived=False, category_id=self.category_id, position=self.position
             )
             if isinstance(self, kind):
                 others = others.exclude(pk=self.pk)
