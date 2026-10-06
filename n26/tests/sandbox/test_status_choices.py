@@ -966,3 +966,49 @@ def test_a_history_only_status_result_settles_without_appearing_on_the_current_c
             assert len(shown) == 1
             assert not shown[0].chosen and not shown[0].is_full
     assert any(entry.name == waiting.name for entry in result_history(model))
+
+
+@pytest.mark.parametrize("max_picks", [1, 2])
+def test_post_battle_offers_only_status_choices_with_remaining_capacity(
+    report, owner, model, follow_up, max_picks
+):
+    from n26.library.authoring import revise
+
+    _, slot, _, _ = follow_up
+    revise(slot, max_picks=max_picks)
+    waiting = create_pickable("Awaiting rescue", slot.slot_type, record_only=True)
+    add_picklist_member(slot.picklist, waiting)
+    mark(model, Status.CAPTURED)
+    choose(model, slot, waiting)
+    plan = preview_report(report, actor=owner, payload=payload_for(model))
+    assert any(
+        s.key.endswith(f":{slot.pk}") and s.options for s in plan.models[0].effect_slots
+    ) == (max_picks == 2)
+
+
+def test_a_correction_retains_a_settled_status_result_without_offering_it_again(
+    report, owner, model, follow_up
+):
+    _, slot, _, _ = follow_up
+    waiting = create_pickable("Awaiting rescue", slot.slot_type, record_only=True)
+    add_picklist_member(slot.picklist, waiting)
+    mark(model, Status.CAPTURED)
+    payload = payload_for(model, effects=[effect_for(report, owner, waiting)])
+    report = save(report, owner, payload)
+    apply(report, owner)
+    report = start_correction(report, actor=owner)
+    plan = preview_report(report, actor=owner)
+    assert plan.valid, plan.errors
+    assert plan.models[0].effects[0].display_name == waiting.name
+    from n26.core.post_battle_forms import editor_models
+
+    shown = editor_models(plan, report.draft)[0]
+    assert shown.effects[0].retained_option
+    assert shown.effects[0].name == waiting.name
+    assert shown.effects[0].label == f"{slot.slot_type.name} 1"
+    assert not any(
+        value.endswith(f"|{waiting.pk}") for value, _ in shown.effect_options
+    )
+    assert not any(
+        s.key.endswith(f":{slot.pk}") and s.options for s in plan.models[0].effect_slots
+    )
