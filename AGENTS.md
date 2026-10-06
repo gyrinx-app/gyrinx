@@ -68,7 +68,7 @@ artifacts when the IDE Canvas surface is unavailable.
   pytest with xdist and `--nomigrations`.
 - Run pytest via this worktree's interpreter: `.venv/bin/python -m pytest`. A
   sibling worktree's `pytest` on PATH imports that checkout's code. The root
-  conftest exits if it detects that mismatch. It also exits when another
+  conftest exits if it detects that mismatch. pytest also exits when another
   pytest already holds this worktree's `logs/pytest.lock`, because both would
   share `test_<DB>_gwN`. Wait for the pid it names, then run one suite. Add
   `-n 0 -s <test>` when

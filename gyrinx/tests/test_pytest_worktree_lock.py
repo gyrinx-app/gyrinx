@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-import conftest
+from gyrinx import pytest_worktree_lock
 from gyrinx.pytest_worktree_lock import (
     WorktreePytestLock,
     busy_message,
@@ -134,7 +134,7 @@ def test_configure_exits_when_this_worktree_lock_is_held(tmp_path):
     assert holder.acquire() is None
     try:
         with pytest.raises(pytest.exit.Exception) as raised:
-            conftest.pytest_configure(_config(tmp_path))
+            pytest_worktree_lock.pytest_configure(_config(tmp_path))
     finally:
         holder.release()
 
@@ -144,11 +144,11 @@ def test_configure_exits_when_this_worktree_lock_is_held(tmp_path):
 
 def test_configure_locks_and_unconfigure_releases(tmp_path):
     config = _config(tmp_path)
-    conftest.pytest_configure(config)
+    pytest_worktree_lock.pytest_configure(config)
     try:
         assert WorktreePytestLock(tmp_path).acquire() == busy_message(os.getpid())
     finally:
-        conftest.pytest_unconfigure(config)
+        pytest_worktree_lock.pytest_unconfigure(config)
 
     released = WorktreePytestLock(tmp_path)
     assert released.acquire() is None
@@ -160,8 +160,8 @@ def test_configure_on_a_worker_leaves_the_controllers_lock_alone(tmp_path):
     assert holder.acquire() is None
     try:
         config = _config(tmp_path, worker=True)
-        conftest.pytest_configure(config)
-        conftest.pytest_unconfigure(config)
+        pytest_worktree_lock.pytest_configure(config)
+        pytest_worktree_lock.pytest_unconfigure(config)
         assert WorktreePytestLock(tmp_path).acquire() == busy_message(os.getpid())
     finally:
         holder.release()

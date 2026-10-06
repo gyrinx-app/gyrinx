@@ -1,5 +1,9 @@
 """One pytest process per worktree.
 
+Loaded with ``-p gyrinx.pytest_worktree_lock`` so the guard is not in the
+root conftest. A root conftest edit makes the required CI job run the
+whole suite.
+
 xdist workers inside one invocation share ``test_<DB>_gwN`` on purpose.
 A second pytest process in the same checkout collides on those names
 during schema creation. The controller holds an exclusive lock for the
@@ -11,10 +15,33 @@ import fcntl
 import os
 from pathlib import Path
 
+import pytest
+
 
 def is_xdist_worker(config) -> bool:
     """Workers share the controller's test databases on purpose."""
     return getattr(config, "workerinput", None) is not None
+
+
+_LOCK = pytest.StashKey()
+
+
+def pytest_configure(config):
+    """Hold the worktree lock for this session, or exit if it is taken."""
+    if is_xdist_worker(config):
+        return
+    lock = WorktreePytestLock(config.rootpath)
+    message = lock.acquire()
+    if message:
+        pytest.exit(message, returncode=2)
+    config.stash[_LOCK] = lock
+
+
+def pytest_unconfigure(config):
+    """Drop the worktree lock when this process is finished."""
+    lock = config.stash.get(_LOCK, None)
+    if lock is not None:
+        lock.release()
 
 
 class WorktreePytestLock:

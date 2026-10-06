@@ -39,36 +39,29 @@ from scripts.changed_test_paths import ChangedTestPaths, parse_changed_test_path
 User = get_user_model()
 
 
-def _load_checkout_module(name, filename):
-    """Load a guard from this checkout's file, not the installed package.
+def _foreign_venv_message(rootpath, executable):
+    """Run the guard from this checkout's file, not the installed package.
 
     Under a sibling's interpreter, ``import gyrinx`` can resolve to that
     sibling's editable install, which may not have the guard at all.
     """
     spec = importlib.util.spec_from_file_location(
-        name, Path(__file__).parent / "gyrinx" / filename
+        "_gyrinx_pytest_venv", Path(__file__).parent / "gyrinx" / "pytest_venv.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module
-
-
-def _foreign_venv_message(rootpath, executable):
-    module = _load_checkout_module("_gyrinx_pytest_venv", "pytest_venv.py")
     return module.foreign_venv_message(rootpath, executable)
 
 
 # Filled by pytest_configure from GYRINX_CHANGED_TEST_PATHS.
 _CHANGED_TEST_PATHS = pytest.StashKey[ChangedTestPaths]()
-_WORKTREE_PYTEST_LOCK = pytest.StashKey()
 
 
 def pytest_configure(config):
-    """Refuse a bad interpreter or a second pytest, then mark PR tests core.
+    """Refuse a sibling worktree's interpreter, then mark the PR's tests core.
 
-    A sibling checkout's ``pytest`` on PATH imports that tree's code. A
-    second pytest in this worktree shares ``test_<DB>_gwN`` and dies during
-    schema creation. Exit before collection so neither runs. The required CI
+    A sibling checkout's ``pytest`` on PATH imports that tree's code. Exit
+    before collection so those phantom failures never run. The required CI
     job runs `pytest -m core`. scripts/changed_test_paths.py lists the test
     files the change added or modified, plus the directories whose conftest
     or fixtures module changed, in GYRINX_CHANGED_TEST_PATHS.
@@ -76,25 +69,9 @@ def pytest_configure(config):
     message = _foreign_venv_message(config.rootpath, sys.executable)
     if message:
         pytest.exit(message, returncode=2)
-    lock_mod = _load_checkout_module(
-        "_gyrinx_pytest_worktree_lock", "pytest_worktree_lock.py"
-    )
-    if not lock_mod.is_xdist_worker(config):
-        lock = lock_mod.WorktreePytestLock(config.rootpath)
-        message = lock.acquire()
-        if message:
-            pytest.exit(message, returncode=2)
-        config.stash[_WORKTREE_PYTEST_LOCK] = lock
     config.stash[_CHANGED_TEST_PATHS] = parse_changed_test_paths(
         os.environ.get("GYRINX_CHANGED_TEST_PATHS", "")
     )
-
-
-def pytest_unconfigure(config):
-    """Drop the worktree lock when this process is finished."""
-    lock = config.stash.get(_WORKTREE_PYTEST_LOCK, None)
-    if lock is not None:
-        lock.release()
 
 
 def pytest_itemcollected(item):
