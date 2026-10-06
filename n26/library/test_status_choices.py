@@ -166,3 +166,50 @@ def test_standard_gang_types_offer_escape_in_either_seed_order(
         STANDARD_CONTENT[key].create()
     assert Modifier.objects.count() == before
     assert all(gang.modifiers.filter(pk=grant.pk).count() == 1 for gang in standard)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_standard_upgrade_preserves_custom_results_in_the_default_pack(
+    default_pack, gang_type, reverse
+):
+    STANDARD_CONTENT["lasting-effect-tables"].create()
+    escape = Slot.objects.get(name="Escape")
+    injury_kind = Pickable.objects.get(name="Captured", qualifier="").slot_type
+    custom = [
+        create_pickable("Captured", injury_kind, qualifier="custom"),
+        create_pickable(
+            "Captured",
+            Pickable.objects.get(name="Captured", qualifier="vehicle").slot_type,
+            qualifier="custom damage",
+        ),
+        create_pickable("Executed", escape.slot_type, qualifier="custom"),
+        create_pickable("Released unharmed", escape.slot_type),
+    ]
+    for result in custom:
+        revise(result, record_only=reverse)
+        modifier(
+            f"Custom grant {result.pk}",
+            targets_model(),
+            ef_adds(escape),
+            attach_to=result,
+        )
+    before = {
+        result.pk: (
+            result.record_only,
+            set(result.modifiers.values_list("pk", flat=True)),
+        )
+        for result in custom
+    }
+    migration = import_module("n26.library.migrations.0120_status_follow_up_choices")
+    action = (
+        migration.restore_standard_choices
+        if reverse
+        else migration.update_standard_choices
+    )
+    action(apps, SimpleNamespace(connection=connection))
+    for result in custom:
+        result.refresh_from_db()
+        assert (
+            result.record_only,
+            set(result.modifiers.values_list("pk", flat=True)),
+        ) == before[result.pk]

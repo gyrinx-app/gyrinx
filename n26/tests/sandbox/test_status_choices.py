@@ -840,3 +840,43 @@ def test_correcting_an_old_escape_does_not_overwrite_a_later_escape_to_the_same_
     model.refresh_from_db()
     assert model.status == Status.RECOVERY
     assert model.status_revision == later_revision
+
+
+@pytest.mark.parametrize("nested", [False, True], ids=["separate", "nested"])
+def test_a_status_choice_without_a_status_effect_does_not_hide_a_conflict(
+    report, owner, model, follow_up, gang_type, nested
+):
+    captured, _, _, _ = follow_up
+    kind = create_slot_type("Treatment result")
+    waiting = create_pickable("Wait for treatment", kind, record_only=True)
+    table = create_picklist("Treatment table", kind, members=[waiting])
+    treatment = create_slot(
+        "Treatment", kind, table, min_picks=0, max_picks=1, follows_status=True
+    )
+    modifier(
+        "Critical models may choose treatment",
+        targets_every_model(has_status(Status.CAPTURED if nested else Status.CRITICAL)),
+        ef_adds(treatment),
+        attach_to=gang_type,
+    )
+    mark(model, Status.CRITICAL)
+    effect = effect_for(report, owner, captured)
+    if nested:
+        payload = payload_for(model, effects=[effect])
+        plan = preview_report(report, actor=owner, payload=payload)
+        question = next(
+            q
+            for q in plan.models[0].effects[0].questions
+            if any(option.label == waiting.name for option in q.options)
+        )
+        effect["choices"][question.key] = [question.options[0].value]
+    else:
+        wait = effect_for(report, owner, waiting)
+        payload = payload_for(model, effects=[wait, effect])
+    plan = preview_report(report, actor=owner, payload=payload)
+    assert not plan.valid
+    assert plan.models[0].status_conflict
+    assert "Critically Injured" in plan.models[0].status_conflict
+    assert plan.models[0].final_status == Status.CAPTURED
+    model.refresh_from_db()
+    assert model.status == Status.CRITICAL

@@ -4,6 +4,25 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+def standard_captures(Pickable, using, pack_id):
+    return Pickable.objects.using(using).filter(
+        models.Q(qualifier="", slot_type__name="Lasting Injury")
+        | models.Q(qualifier="vehicle", slot_type__name="Lasting Damage"),
+        pack_id=pack_id,
+        name="Captured",
+        slot_type__pack_id=pack_id,
+    )
+
+
+def standard_escape_results(Pickable, using, slot):
+    return Pickable.objects.using(using).filter(
+        pack_id=slot.pack_id,
+        slot_type_id=slot.slot_type_id,
+        name__in=["Executed", "Ransomed", "Daring Escape"],
+        qualifier="",
+    )
+
+
 def update_standard_choices(apps, schema_editor):
     """Change standard content only; existing player history stays untouched."""
     from django.conf import settings
@@ -23,19 +42,13 @@ def update_standard_choices(apps, schema_editor):
     if slot is None:
         return
     Slot.objects.using(using).filter(pk=slot.pk).update(follows_status=True)
-    captures = Pickable.objects.using(using).filter(
-        pack_id=slot.pack_id,
-        name="Captured",
-        slot_type__name__in=["Lasting Injury", "Lasting Damage"],
-    )
+    captures = standard_captures(Pickable, using, slot.pack_id)
     captures.update(record_only=True)
     for result in captures:
         result.modifiers.remove(
             *result.modifiers.using(using).filter(adds_assignable__slot_id=slot.pk)
         )
-    Pickable.objects.using(using).filter(
-        pack_id=slot.pack_id, slot_type_id=slot.slot_type_id
-    ).update(record_only=True)
+    standard_escape_results(Pickable, using, slot).update(record_only=True)
     modifier = (
         Modifier.objects.using(using)
         .filter(pack_id=slot.pack_id, name="Captured models: Escape")
@@ -93,11 +106,7 @@ def restore_standard_choices(apps, schema_editor):
     apps.get_model("library", "AddsAssignable").objects.using(using).filter(
         pk__in=[effect_id for _, effect_id in parts]
     ).delete()
-    captures = Pickable.objects.using(using).filter(
-        pack_id=slot.pack_id,
-        name="Captured",
-        slot_type__name__in=["Lasting Injury", "Lasting Damage"],
-    )
+    captures = standard_captures(Pickable, using, slot.pack_id)
     for result in captures:
         label = (
             f"{result.name} ({result.annotation})" if result.annotation else result.name
@@ -127,9 +136,7 @@ def restore_standard_choices(apps, schema_editor):
             )
         result.modifiers.add(grant)
     captures.update(record_only=False)
-    Pickable.objects.using(using).filter(
-        pack_id=slot.pack_id, slot_type_id=slot.slot_type_id
-    ).update(record_only=False)
+    standard_escape_results(Pickable, using, slot).update(record_only=False)
     Slot.objects.using(using).filter(pk=slot.pk).update(follows_status=False)
 
 

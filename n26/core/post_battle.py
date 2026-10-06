@@ -92,6 +92,7 @@ class EffectResult:
     pick: str
     questions: list[ChoiceQuestion] = field(default_factory=list)
     statuses: list[str] = field(default_factory=list)
+    status_from_follow_up: bool = False
 
     @property
     def display_name(self):
@@ -628,6 +629,8 @@ def _project_effect(
     )
     statuses = _effect_steps(thing, index, result_errors := [], facts, active)
     result.statuses.extend(statuses)
+    if statuses:
+        result.status_from_follow_up = slot.slot.follows_status
     _project_status(card, statuses)
     answers = raw.get("choices") or {}
     if not isinstance(answers, dict):
@@ -748,6 +751,8 @@ def _project_effect(
                     option.thing, index, result_errors, facts, active
                 )
                 result.statuses.extend(statuses)
+                if statuses:
+                    result.status_from_follow_up = question.status_revision is not None
                 _project_status(card, statuses)
     else:
         result_errors.append(f"{thing} has too many linked choices to record here.")
@@ -1401,6 +1406,7 @@ def preview_report(report, *, actor, payload=None):
         normalized_effects = []
         implied = []
         implied_by = []
+        implied_follow_ups = []
         new_counts = defaultdict(int)
         for raw_effect in raw.get("effects", []):
             try:
@@ -1478,6 +1484,8 @@ def preview_report(report, *, actor, payload=None):
             )
             implied.extend(effect.statuses[-1:])
             implied_by.extend((effect.name, status) for status in effect.statuses[-1:])
+            if effect.statuses:
+                implied_follow_ups.append(effect.status_from_follow_up)
         explicit = str(raw.get("status", ""))
         if explicit and explicit not in Status.values:
             model_errors.append("Choose a valid final status.")
@@ -1526,16 +1534,7 @@ def preview_report(report, *, actor, payload=None):
                 and miniature.status != Status.ACTIVE
                 and implied
                 and implied[-1] != miniature.status
-                and not any(
-                    eligible.get(spec["slot"], (None, {}))[0] is not None
-                    and eligible[spec["slot"]][0].slot.follows_status
-                    for spec in normalized_effects
-                )
-                and not any(
-                    question.follows_status and question.selected
-                    for effect in result.effects
-                    for question in effect.questions
-                )
+                and not all(implied_follow_ups)
             ):
                 name, status = implied_by[-1]
                 verb = "leaves" if status == Status.ACTIVE else "makes"
