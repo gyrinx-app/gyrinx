@@ -204,28 +204,39 @@ def _describe_built_in(member):
     return _label_for(thing), notes
 
 
+def _library_content(model):
+    """Rows staff maintain, not what one campaign wrote for itself.
+
+    An arbitrator's asset or table keeps the shared asset type and lives
+    in the campaign's pack. The campaign type pages list the library's
+    copy; the campaign's own pages list the one it wrote.
+    """
+    return model.objects.outside_campaign_packs()
+
+
 def _asset_type_parts(parts):
-    """Each asset type's assets, with what describing one reads — its
-    modifiers and, among them, its Income contribution — loaded along."""
+    """Each asset type's library assets, with what describing one reads —
+    its modifiers and, among them, its Income contribution — loaded along.
+    Tables the same way: a campaign's own table is not listed here."""
     from django.db.models import Prefetch
 
     from n26.library.income import with_income
     from n26.library.models import Asset
 
     return parts.prefetch_related(
-        Prefetch("assets", queryset=with_income(Asset.objects.all())),
+        Prefetch("assets", queryset=with_income(_library_content(Asset))),
         Prefetch("tables", queryset=_tables_with_entry_counts()),
     )
 
 
 def _tables_with_entry_counts():
-    """A type's tables with how many entries each has, read along with
-    the tables rather than once per row."""
+    """A type's library tables with how many entries each has, read along
+    with the tables rather than once per row."""
     from django.db.models import Count
 
     from n26.library.models import AssetTable
 
-    return AssetTable.objects.annotate(entry_count=Count("entries"))
+    return _library_content(AssetTable).annotate(entry_count=Count("entries"))
 
 
 def _describe_asset_table(table):
@@ -1343,10 +1354,12 @@ def _describe_gang_type(gang_type):
 
 def _describe_campaign_type(campaign_type):
     """A campaign type, as a listing needs to tell one from the next:
-    the asset types it has and how many assets it hands out.
+    the asset types it has and how many library assets it hands out.
 
     Reads the asset types and their assets with ``.all()``, so a listing
     that prefetched them describes every type without a query per row.
+    The prefetch is the library's assets only (``_campaign_type_listing``):
+    an asset a campaign wrote under a shared asset type is not counted.
     """
     asset_types = list(campaign_type.asset_types.all())
     count = sum(len(asset_type.assets.all()) for asset_type in asset_types)
@@ -1360,6 +1373,27 @@ def _describe_campaign_type(campaign_type):
     else:
         notes.append(f"{count} asset" if count == 1 else f"{count} assets")
     return notes
+
+
+def _campaign_type_listing(rows):
+    """Campaign types with the library assets under each asset type.
+
+    The listing's count reads ``assets.all()``, so this prefetch is the
+    same set the type page draws. An asset a campaign wrote under a
+    shared asset type is not in it.
+    """
+    from django.db.models import Prefetch
+
+    from n26.library.models import Asset, AssetType
+
+    return rows.prefetch_related(
+        Prefetch(
+            "asset_types",
+            queryset=AssetType.objects.prefetch_related(
+                Prefetch("assets", queryset=_library_content(Asset))
+            ),
+        )
+    )
 
 
 def _describe_slot_type(slot_type):
@@ -1569,10 +1603,11 @@ LEAF_LISTING_HINTS = {
     ),
     "slot": lambda rows: rows.select_related("slot_type", "picklist"),
     "interstitial": _interstitial_listing,
-    # A campaign type says its asset types and counts the assets under
-    # them. A campaign's own type is held back with everything else in
-    # its campaign pack.
-    "campaign-type": lambda rows: rows.prefetch_related("asset_types__assets"),
+    # A campaign type says its asset types and counts the library assets
+    # under them. A campaign's own type is held back with everything else
+    # in its campaign pack, and so are assets a campaign wrote under a
+    # shared asset type.
+    "campaign-type": lambda rows: _campaign_type_listing(rows),
 }
 
 
