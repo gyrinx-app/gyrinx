@@ -1456,7 +1456,11 @@ def _create_lasting_effect_tables():
                 )
                 Pickable.objects.filter(pk=pickable.pk).update(record_only=True)
                 pickable.modifiers.remove(
-                    *pickable.modifiers.filter(adds_assignable__slot=escape)
+                    *pickable.modifiers.filter(
+                        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+                        name__iexact="Captured: rolls on the Escape table",
+                        adds_assignable__slot=escape,
+                    )
                 )
 
 

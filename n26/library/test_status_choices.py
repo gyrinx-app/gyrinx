@@ -53,7 +53,10 @@ def test_standard_upgrade_is_idempotent_and_leaves_other_packs(default_pack, gan
     revise(captured, record_only=False)
     revise(escape, follows_status=False)
     modifier(
-        "Old capture grant", targets_every_model(), ef_adds(escape), attach_to=captured
+        "Captured: rolls on the Escape table",
+        targets_model(),
+        ef_adds(escape),
+        attach_to=captured,
     )
     homebrew = create_pack("Homebrew")
     other = create_pickable(
@@ -231,3 +234,34 @@ def test_standard_upgrade_does_not_grant_escape_to_authored_default_pack_gangs(
     upgrade(apps, SimpleNamespace(connection=connection))
     assert gang_type.modifiers.filter(pk=grant.pk).exists()
     assert not custom.modifiers.filter(pk=grant.pk).exists()
+
+
+@pytest.mark.parametrize("source", ["migration", "seed"])
+def test_upgrading_capture_detaches_only_the_legacy_seeded_escape_grant(
+    default_pack, gang_type, source
+):
+    STANDARD_CONTENT["lasting-effect-tables"].create()
+    escape = Slot.objects.get(name="Escape", qualifier="")
+    captures = list(Pickable.objects.filter(name="Captured"))
+    legacy = modifier(
+        "Captured: rolls on the Escape table", targets_model(), ef_adds(escape)
+    )
+    custom = modifier("Authored prisoner choice", targets_model(), ef_adds(escape))
+    for result in captures:
+        attach_modifiers_to(result, [legacy, custom])
+    custom_parts = (custom.targets_miniature_id, custom.adds_assignable_id)
+    migration = import_module("n26.library.migrations.0120_status_follow_up_choices")
+    if source == "migration":
+        migration.update_standard_choices(apps, SimpleNamespace(connection=connection))
+    else:
+        STANDARD_CONTENT["lasting-effect-tables"].create()
+    for result in captures:
+        assert not result.modifiers.filter(pk=legacy.pk).exists()
+        assert result.modifiers.filter(pk=custom.pk).exists()
+    custom.refresh_from_db()
+    assert (custom.targets_miniature_id, custom.adds_assignable_id) == custom_parts
+    if source == "migration":
+        migration.restore_standard_choices(apps, SimpleNamespace(connection=connection))
+        for result in captures:
+            assert result.modifiers.filter(pk=legacy.pk).exists()
+            assert result.modifiers.filter(pk=custom.pk).exists()

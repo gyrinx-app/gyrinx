@@ -66,7 +66,11 @@ def update_standard_choices(apps, schema_editor):
     captures.update(record_only=True)
     for result in captures:
         result.modifiers.remove(
-            *result.modifiers.using(using).filter(adds_assignable__slot_id=slot.pk)
+            *result.modifiers.using(using).filter(
+                pack_id=slot.pack_id,
+                name__iexact="Captured: rolls on the Escape table",
+                adds_assignable__slot_id=slot.pk,
+            )
         )
     standard_escape_results(Pickable, using, slot).update(record_only=True)
     modifier = (
