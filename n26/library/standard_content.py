@@ -1531,7 +1531,7 @@ def _attach_escape_status_modifier(grant):
     from n26.library.models import GangType
 
     for gang_type in GangType.objects.filter(
-        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG, name__in=GANG_TYPES
     ):
         gang_type.modifiers.add(grant)
 

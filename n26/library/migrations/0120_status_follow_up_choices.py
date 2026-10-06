@@ -3,6 +3,26 @@
 import django.db.models.deletion
 from django.db import migrations, models
 
+STANDARD_GANG_TYPES = (
+    "Ash Waste Nomads",
+    "Cawdor",
+    "Chaos Helot Cult",
+    "Corpse Grinder Cults",
+    "Delaque",
+    "Escher",
+    "Free Ogryn",
+    "Genestealer Cults",
+    "Goliath",
+    "Ironhead Squats",
+    "Malstrain",
+    "Orlock",
+    "Outcast",
+    "Palanite Enforcers",
+    "Spyre Hunters",
+    "Van Saar",
+    "Venators",
+)
+
 
 def standard_captures(Pickable, using, pack_id):
     return Pickable.objects.using(using).filter(
@@ -74,7 +94,9 @@ def update_standard_choices(apps, schema_editor):
             targets_miniature_id=scope.pk,
             adds_assignable_id=effect.pk,
         )
-    for gang_type in GangType.objects.using(using).filter(pack_id=slot.pack_id):
+    for gang_type in GangType.objects.using(using).filter(
+        pack_id=slot.pack_id, name__in=STANDARD_GANG_TYPES
+    ):
         gang_type.modifiers.add(modifier)
 
 

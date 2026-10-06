@@ -880,3 +880,58 @@ def test_a_status_choice_without_a_status_effect_does_not_hide_a_conflict(
     assert plan.models[0].final_status == Status.CAPTURED
     model.refresh_from_db()
     assert model.status == Status.CRITICAL
+
+
+@pytest.mark.parametrize("model_count", [1, 4])
+def test_legacy_status_ownership_uses_one_ledger_query_for_all_models(
+    report, owner, model, content, follow_up, model_count
+):
+    from n26.core.models import PostBattleRevision
+
+    captured, _, _, _ = follow_up
+    models = [
+        model,
+        *[
+            hire(model.gang, content["profile"], f"Prisoner {i}")
+            for i in range(1, model_count)
+        ],
+    ]
+    payload = report_tests.payload_for_all(models)
+    initial = preview_report(report, actor=owner, payload=payload)
+    for entered in payload["models"]:
+        result = next(m for m in initial.models if m.id == entered["id"])
+        slot = next(
+            s
+            for s in result.effect_slots
+            if any(o.value == str(captured.pk) for o in s.options)
+        )
+        entered["effects"] = [
+            {
+                "id": str(uuid4()),
+                "slot": slot.key,
+                "pick": str(captured.pk),
+                "choices": {},
+            }
+        ]
+    report = save(report, owner, payload)
+    revision = apply(report, owner)
+    receipt = deepcopy(revision.receipt)
+    for recorded in receipt["models"]:
+        recorded.pop("status_revision_after", None)
+    PostBattleRevision.objects.filter(pk=revision.pk).update(receipt=receipt)
+    report = start_correction(report, actor=owner)
+    payload = deepcopy(report.draft)
+    for entered in payload["models"]:
+        entered["effects"] = []
+    with CaptureQueriesContext(connection) as queries:
+        plan = preview_report(report, actor=owner, payload=payload)
+    assert plan.valid, plan.errors
+    status_queries = [
+        q["sql"]
+        for q in queries
+        if LedgerEvent._meta.db_table in q["sql"]
+        and str(LedgerEvent.Kind.STATUS_SET) in q["sql"]
+        and "post_battle_revision" in q["sql"]
+    ]
+    assert len(status_queries) == 1, status_queries
+    assert_reconciled(report.gang)

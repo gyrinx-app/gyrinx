@@ -1247,6 +1247,29 @@ def preview_report(report, *, actor, payload=None):
                 earlier_results[str(root.miniature_root_id)][
                     str(event.assignment_id)
                 ] += event.counter_delta
+    status_removals = {
+        str(root.miniature_root_id)
+        for _, root, events in plan._removals
+        if any(event.kind == LedgerEvent.Kind.STATUS_SET for event in events)
+    }
+    recorded_models = {
+        m["id"]: m for m in (previous.receipt if previous else {}).get("models", [])
+    }
+    legacy_status_models = {
+        model_id
+        for model_id in status_removals
+        if model_id in started
+        and recorded_models.get(model_id, {}).get("status_revision_after") is None
+    }
+    latest_status_reports = {
+        str(model_id): report_id
+        for model_id, report_id in LedgerEvent.objects.filter(
+            miniature_id__in=legacy_status_models, kind=LedgerEvent.Kind.STATUS_SET
+        )
+        .order_by("miniature_id", "-created", "-pk")
+        .distinct("miniature_id")
+        .values_list("miniature_id", "post_battle_revision__report_id")
+    }
     for model_id, card in gang_card.members.items():
         model_id = str(model_id)
         miniature = card.miniature
@@ -1259,31 +1282,15 @@ def preview_report(report, *, actor, payload=None):
         # Re-open a status condition before replacing the result that settled it.
         # This is a real correction transition when applied, not a reuse of an
         # earlier choice revision.
-        if (
-            any(
-                str(root.miniature_root_id) == model_id
-                and any(event.kind == LedgerEvent.Kind.STATUS_SET for event in events)
-                for _, root, events in plan._removals
-            )
-            and model_id in started
-        ):
-            recorded = next(
-                (m for m in previous.receipt.get("models", []) if m["id"] == model_id),
-                {},
-            )
+        if model_id in status_removals and model_id in started:
+            recorded = recorded_models.get(model_id, {})
             expected_revision = recorded.get("status_revision_after")
             # Legacy receipts have no revision; their latest status transition
             # must still belong to this report.
             changed_since = (
                 miniature.status_revision != expected_revision
                 if expected_revision is not None
-                else LedgerEvent.objects.filter(
-                    miniature=miniature, kind=LedgerEvent.Kind.STATUS_SET
-                )
-                .order_by("-created", "-pk")
-                .values_list("post_battle_revision__report_id", flat=True)
-                .first()
-                != report.pk
+                else latest_status_reports.get(model_id) != report.pk
             )
             if miniature.status != recorded.get("status_after") or changed_since:
                 model_errors.append(
@@ -1490,11 +1497,7 @@ def preview_report(report, *, actor, payload=None):
         if explicit and explicit not in Status.values:
             model_errors.append("Choose a valid final status.")
             explicit = ""
-        removing_status = any(
-            str(root.miniature_root_id) == model_id
-            and any(e.kind == LedgerEvent.Kind.STATUS_SET for e in events)
-            for _, root, events in plan._removals
-        )
+        removing_status = model_id in status_removals
         # A result this correction replaces set the status the model has
         # now. The status follows the new results instead: the last one
         # that sets a status, or the status the model had before this
