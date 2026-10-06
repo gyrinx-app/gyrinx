@@ -130,7 +130,10 @@ pytest as `.venv/bin/python -m pytest` from the worktree you mean: a sibling
 worktree's `pytest` on PATH imports that checkout's code and fails with
 phantom errors. The root conftest refuses to start when it detects that
 mismatch. Two pytest runs in the same worktree also share `test_<DB>_gwN`
-names — wait for the first to finish, then run one suite.
+names. pytest holds `logs/pytest.lock` for the session, and a
+second process exits immediately with the pid that holds it. Wait for that
+process, then run one suite. Workers from `-n` are part of the same run and
+do not take a second lock.
 
 On a shared Postgres cluster, prefer `-n 4` while another agent is testing.
 `out of shared memory` during schema creation, on a cluster that already has
