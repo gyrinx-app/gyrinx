@@ -1607,7 +1607,7 @@ LEAF_LISTING_HINTS = {
     # under them. A campaign's own type is held back with everything else
     # in its campaign pack, and so are assets a campaign wrote under a
     # shared asset type.
-    "campaign-type": lambda rows: _campaign_type_listing(rows),
+    "campaign-type": _campaign_type_listing,
 }
 
 
