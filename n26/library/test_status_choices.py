@@ -378,12 +378,17 @@ def test_schema_rollback_refuses_surviving_status_conditions(
 
     delete_model = Mock(side_effect=ReachedSchemaRemoval)
     expected = ReachedSchemaRemoval if content == "clean" else RuntimeError
-    with pytest.raises(expected):
+    with pytest.raises(expected) as raised:
         with transaction.atomic(), connection.schema_editor() as editor:
             monkeypatch.setattr(editor, "delete_model", delete_model)
             migration.Migration("0120_status_follow_up_choices", "library").unapply(
                 state, editor
             )
+    if content != "clean":
+        message = str(raised.value)
+        assert 'Restore the standard modifier name "Captured models: Escape"' in message
+        assert "remove the affected authored modifiers in full" in message
+        assert "Do not delete status conditions alone" in message
     assert delete_model.call_count == (1 if content == "clean" else 0)
     assert before == (
         list(Modifier.objects.values_list("pk", "name")),

@@ -1445,6 +1445,17 @@ def preview_report(report, *, actor, payload=None):
                     model_errors.append(
                         f"{held['name']} was recorded on another model and cannot move."
                     )
+                # A resolved status can hide its table. The recorded result
+                # still carries its kind, already hydrated with the gang card.
+                root = assignments.get(held["root_id"])
+                if (
+                    root is not None
+                    and root.pickable is not None
+                    and not any(s.key == spec["slot"] for s in result.effect_slots)
+                ):
+                    result.effect_slots.append(
+                        EffectSlot(spec["slot"], root.pickable.slot_type.name, [])
+                    )
                 questions = [
                     ChoiceQuestion(
                         **(
