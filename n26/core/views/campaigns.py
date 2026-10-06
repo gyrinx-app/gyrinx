@@ -1915,7 +1915,7 @@ def new_asset(request, pk):
                 "description": (
                     "Owned by one gang at a time and can be transferred."
                     if asset_type.is_holding
-                    else f"Each gang owns its own {asset_type.label_singular} assets."
+                    else f"Each gang owns the {asset_type.label_singular} assets it receives."
                 ),
                 "checked": str(asset_type.pk) == picked,
             }

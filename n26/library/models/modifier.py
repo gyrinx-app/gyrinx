@@ -1173,12 +1173,16 @@ class AssignableChoice(models.Model):
 class AddsAssignable(AssignableChoice):
     """Gives the target something it would not otherwise have.
 
-    A subtype, skill, trait, collection, rule, weapon or wargear. Granted
-    weapons and wargear are free kit: they add zero rating and last as
-    long as their source is held. Each grant gives a separate copy.
+    A subtype, skill, trait, collection, rule, weapon, wargear or inherent asset.
+    Granted weapons and wargear are free kit: they add zero rating and last
+    as long as their source is held. Each grant gives a separate copy.
     Their modifiers apply, and weapons include their free profiles.
     Built-ins and option sets are only included when an item is acquired
     through an assignment. Granted kit cannot be sold or moved independently.
+
+    An inherent asset is granted to the gang while it belongs to a campaign
+    using that asset type. Multiple grants of the same asset give the gang
+    one copy. Its income and boons apply once.
 
     Naming a hidden carrier gives a *bundle*: it draws no row, so what
     arrives is everything it in turn does.

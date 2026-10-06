@@ -557,3 +557,54 @@ def test_a_later_round_cancellation_restores_campaign_defaults(setup):
     assert exclusion_step.outcome == "retracted"
     assert names(setup["gang"]) == ["Settlement"]
     assert income(setup["gang"]) == 10
+
+
+@pytest.mark.parametrize("cancel_remover", [False, True])
+def test_a_named_removal_cancels_and_restores_a_granted_camp(
+    setup, make_profile, cancel_remover
+):
+    from n26.library.authoring import targets_every_model
+    from n26.tests.sandbox.actions import hire
+
+    boon = create_rule("Camp fighter boon")
+    modifier(
+        "Give camp boon", targets_every_model(), ef_adds(boon), attach_to=setup["camp"]
+    )
+    cancellation = create_rule("Remove named camp")
+    modifier(
+        "Remove camp",
+        targets_gang_alone(),
+        ef_removes(setup["camp"]),
+        attach_to=cancellation,
+    )
+    join_both(setup)
+    fighter = hire(setup["gang"], make_profile("Test fighter", price=0), "Test fighter")
+
+    def fighter_rules():
+        card = build_gang_card(setup["gang"])
+        computed = compute(
+            card.members[fighter.pk], build_modifier_index(carriers(card))
+        )
+        return [entry.name for entry in computed.rules]
+
+    assert names(setup["gang"]) == ["Test base camp"]
+    assert income(setup["gang"]) == 25
+    assert fighter_rules() == ["Camp fighter boon"]
+    assignment = assign(cancellation, gang=setup["gang"])
+    assert names(setup["gang"]) == []
+    assert income(setup["gang"]) == 0
+    assert fighter_rules() == []
+    if cancel_remover:
+        restore = create_rule("Cancel camp removal")
+        modifier(
+            "Cancel camp removal",
+            targets_gang_alone(),
+            ef_removes(cancellation),
+            attach_to=restore,
+        )
+        assign(restore, gang=setup["gang"])
+    else:
+        remove(assignment)
+    assert names(setup["gang"]) == ["Test base camp"]
+    assert income(setup["gang"]) == 25
+    assert fighter_rules() == ["Camp fighter boon"]
