@@ -47,6 +47,23 @@ ptw .
 CI runs the suite against a GitHub Actions service container Postgres in two
 jobs — see [.github/workflows/test.yaml](https://github.com/gyrinx-app/gyrinx/blob/main/.github/workflows/test.yaml).
 
+### Paging for failures on main
+
+The `page-on-main-failure` job sends an incident.io alert when `test` (core)
+or `test-full` fails on a push to `main`. It waits for both jobs and sends one
+alert listing the failed suites, commit and Actions run link. Pull requests,
+merge queue runs and failures confined to `fresh-database` do not page.
+
+Store the HTTP alert source's bearer token in the repository Actions secret
+`INCIDENT_IO_ALERT_TOKEN` (Settings → Secrets and variables → Actions).
+The webhook URL is configured in `test.yaml`. A missing token or rejected
+webhook request fails the paging job, making delivery failures visible.
+
+Alerts are deduplicated by repository and test run ID, so delivery retries
+and reruns of the same failing run share an alert. Each new failing run
+creates a separate alert. Successful runs do not automatically resolve
+previous alerts.
+
 ### The Core Suite
 
 Pull requests are gated on the `test` job, which runs the tests marked `core`
