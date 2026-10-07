@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import cotton from "../generated/cotton.json";
@@ -167,6 +167,49 @@ describe("ActionMenu pointer", () => {
         expect(document.activeElement).toBe(trigger);
         await user.click(trigger);
         expect(screen.queryByRole("menu")).toBeNull();
+    });
+
+    it("a pointer click (detail 1) leaves focus on the trigger", () => {
+        const { trigger } = setup();
+        trigger.focus();
+        fireEvent.click(trigger, { detail: 1 });
+        expect(screen.getByRole("menu")).toBeTruthy();
+        expect(document.activeElement).toBe(trigger);
+    });
+
+    it("a click with no pointer (detail 0) opens at the first link", () => {
+        // Screen readers and other assistive technology activate a button
+        // with a synthetic click, as element.click() does.
+        const { trigger } = setup();
+        act(() => trigger.click());
+        expect(screen.getByRole("menu")).toBeTruthy();
+        expect(document.activeElement).toBe(item("View gang"));
+        act(() => trigger.click());
+        expect(screen.queryByRole("menu")).toBeNull();
+        // The focused link went with the panel; focus is back on the button.
+        expect(document.activeElement).toBe(trigger);
+    });
+
+    it("Enter opens the menu once, not again through a click", async () => {
+        const { user, trigger } = setup();
+        const clicks = vi.fn();
+        trigger.addEventListener("click", clicks);
+        trigger.focus();
+        await user.keyboard("{Enter}");
+        expect(clicks).not.toHaveBeenCalled();
+        expect(screen.getByRole("menu")).toBeTruthy();
+        expect(document.activeElement).toBe(item("View gang"));
+    });
+
+    it("Space opens the menu once, not again through a click", async () => {
+        const { user, trigger } = setup();
+        const clicks = vi.fn();
+        trigger.addEventListener("click", clicks);
+        trigger.focus();
+        await user.keyboard(" ");
+        expect(clicks).not.toHaveBeenCalled();
+        expect(screen.getByRole("menu")).toBeTruthy();
+        expect(document.activeElement).toBe(item("View gang"));
     });
 
     it("a pointer outside closes the menu", async () => {

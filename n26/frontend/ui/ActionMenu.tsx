@@ -191,7 +191,22 @@ export function ActionMenu({
                 aria-haspopup="menu"
                 aria-expanded={open}
                 aria-controls={open ? panelId : undefined}
-                onClick={() => setOpen((previous) => !previous)}
+                onClick={(event) => {
+                    if (open) {
+                        // Closing takes the focused link away. Keep focus
+                        // on the button, not the page.
+                        if (panel.current?.contains(document.activeElement))
+                            button.current?.focus();
+                        setOpen(false);
+                        return;
+                    }
+                    // A click with no pointer behind it (detail 0) comes from
+                    // a screen reader or other assistive technology, so it
+                    // opens at the first link as the keyboard does. Enter and
+                    // Space never get here: their keydown prevents the click.
+                    if (event.detail === 0) pendingFocus.current = "first";
+                    setOpen(true);
+                }}
                 onKeyDown={onTriggerKeyDown}
                 onKeyUp={(event) => {
                     // Firefox clicks a button on Space's keyup; the keydown
