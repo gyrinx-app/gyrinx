@@ -48,6 +48,39 @@
                                 {% endfor %}
                             </p>
                             {% if panel.problem %}<p class="text-sm text-muted">{{ panel.problem }}</p>{% endif %}
+                            {% if panel.by_hand_href %}
+                                <form method="post"
+                                      action="{{ panel.by_hand_href }}"
+                                      class="flex flex-wrap items-center justify-between gap-2">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="request_key" value="{{ panel.by_hand_key }}">
+                                    <span class="text-muted">Did you apply the result to this model outside Gyrinx?</span>
+                                    <c-ui.button type="submit"
+                                                 variant="ghost"
+                                                 size="xs"
+                                                 aria-label="Mark {{ panel.name }} as applied by hand">
+                                        Mark as applied by hand
+                                    </c-ui.button>
+                                </form>
+                            {% endif %}
+                            {% if panel.drafts|length == 1 %}
+                                {% for draft in panel.drafts %}
+                                    {% if draft.by_hand_href %}
+                                        <form method="post"
+                                              action="{{ draft.by_hand_href }}"
+                                              class="flex flex-wrap items-center justify-between gap-2">
+                                            {% csrf_token %}
+                                            <span class="text-muted">Did you apply the result to this model outside Gyrinx?</span>
+                                            <c-ui.button type="submit"
+                                                         variant="ghost"
+                                                         size="xs"
+                                                         aria-label="Mark {{ panel.name }} as applied by hand">
+                                                Mark as applied by hand
+                                            </c-ui.button>
+                                        </form>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
                             {% if panel.drafts|length > 1 %}
                                 <div class="space-y-2">
                                     {% for draft in panel.drafts %}
@@ -55,12 +88,25 @@
                                             <time datetime="{{ draft.when|date:'c' }}"
                                                   title="{{ draft.when }}"
                                                   class="text-muted">Started {{ draft.when|naturaltime }}</time>
-                                            <c-ui.button href="{{ draft.href }}"
-                                                         variant="primary"
-                                                         size="sm"
-                                                         aria-label="{{ draft.label }} {{ forloop.counter }}">
-                                                Resume {{ forloop.counter }} <span aria-hidden="true">→</span>
-                                            </c-ui.button>
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                {% if draft.by_hand_href %}
+                                                    <form method="post" action="{{ draft.by_hand_href }}">
+                                                        {% csrf_token %}
+                                                        <c-ui.button type="submit"
+                                                                     variant="ghost"
+                                                                     size="xs"
+                                                                     aria-label="Mark {{ panel.name }} {{ forloop.counter }} as applied by hand">
+                                                            Mark as applied by hand
+                                                        </c-ui.button>
+                                                    </form>
+                                                {% endif %}
+                                                <c-ui.button href="{{ draft.href }}"
+                                                             variant="primary"
+                                                             size="sm"
+                                                             aria-label="{{ draft.label }} {{ forloop.counter }}">
+                                                    Resume {{ forloop.counter }} <span aria-hidden="true">→</span>
+                                                </c-ui.button>
+                                            </div>
                                         </div>
                                     {% endfor %}
                                 </div>

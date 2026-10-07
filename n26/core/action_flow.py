@@ -26,6 +26,12 @@ class ActionUseLink:
     href: str = ""
     detail: str = ""
     when: datetime | None = None
+    #: An earned use the player can mark as applied by hand.
+    earned: bool = False
+    by_hand_href: str = ""
+    #: Settled outside Gyrinx: there is no receipt, only an undo.
+    applied_by_hand: bool = False
+    reopen_href: str = ""
 
 
 @dataclass
@@ -38,6 +44,8 @@ class ActionPanel:
     available_uses: int | None = None
     problem: str = ""
     start_href: str = ""
+    by_hand_href: str = ""
+    by_hand_key: str = ""
     #: Carries the roster's action mark: an earned use, an unfinished draft, or
     #: an affordable counter price.
     flagged: bool = False
@@ -240,7 +248,13 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
         .order_by("-created", "-pk")
     )
     completed = list(
-        ActionRecord.objects.filter(fighter=fighter, state=ActionRecord.State.COMPLETED)
+        ActionRecord.objects.filter(
+            fighter=fighter,
+            state__in=(
+                ActionRecord.State.COMPLETED,
+                ActionRecord.State.APPLIED_BY_HAND,
+            ),
+        )
         .annotate(
             action_position=Window(
                 expression=RowNumber(),
@@ -312,7 +326,23 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
             if record.state == ActionRecord.State.STARTED:
                 panel.drafts.append(
                     ActionUseLink(
-                        str(record.pk), f"Resume {action} flow", when=record.created
+                        str(record.pk),
+                        f"Resume {action} flow",
+                        when=record.created,
+                        earned=record.allowance_id is not None
+                        and record.payment_id is None,
+                    )
+                )
+            elif (
+                record.state == ActionRecord.State.APPLIED_BY_HAND
+                and len(panel.completed) < 3
+            ):
+                panel.completed.append(
+                    ActionUseLink(
+                        str(record.pk),
+                        "Applied by hand",
+                        when=record.modified,
+                        applied_by_hand=True,
                     )
                 )
             elif (

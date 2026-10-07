@@ -402,7 +402,12 @@ def active_action_record(fighter, action):
     )
 
 
-def start_action(op, fighter, action, request_key, allowance=None):
+def start_action(op, fighter, action, request_key, allowance=None, *, by_hand=False):
+    """Reserve an earned use, or open a priced flow, as a new action record.
+
+    ``by_hand`` settles the earned use at once as applied by hand: the
+    player gave the fighter the result outside Gyrinx, so no flow opens.
+    """
     fighter = Miniature.objects.select_related("membership").get(pk=fighter.pk)
     _refuse_unless_owned(op, fighter)
     existing = ActionRecord.objects.filter(
@@ -429,8 +434,15 @@ def start_action(op, fighter, action, request_key, allowance=None):
             or allowance.source_kind != source_kind
         ):
             raise Refusal("That allowance belongs to another action use.")
+    if by_hand and rule is None:
+        raise Refusal("Only an earned use can be marked as applied by hand.")
     existing = active_action_record(fighter, action)
     if existing is not None:
+        if by_hand:
+            raise Refusal(
+                "This fighter has a started flow for that action. "
+                "Resume it, or mark that flow as applied by hand."
+            )
         return existing
     if allowance is not None:
         if not ActionAllowance.objects.filter(pk=allowance.pk).unused().exists():
@@ -463,6 +475,11 @@ def start_action(op, fighter, action, request_key, allowance=None):
         action=action,
         allowance=allowance,
         request_key=request_key,
+        state=(
+            ActionRecord.State.APPLIED_BY_HAND
+            if by_hand
+            else ActionRecord.State.STARTED
+        ),
         source_assignment=source_assignment,
         source={
             "action": str(action.pk),
@@ -470,6 +487,14 @@ def start_action(op, fighter, action, request_key, allowance=None):
             "assignment": str(source_assignment.pk) if source_assignment else None,
         },
     )
+    if by_hand:
+        op.event(
+            fighter,
+            LedgerEvent.Kind.ACTION_USE_APPLIED_BY_HAND,
+            action_record=record,
+            note=str(action),
+        )
+        return record
     record.started_event = op.event(
         fighter,
         LedgerEvent.Kind.ACTION_USE_STARTED,
@@ -876,6 +901,62 @@ def cancel_action(op, record):
     op.event(
         record.fighter,
         LedgerEvent.Kind.ACTION_USE_CANCELLED,
+        action_record=record,
+        note=str(record.action),
+    )
+    record.save(update_fields=["state", "modified"])
+    return record
+
+
+def apply_action_by_hand(op, record):
+    """Settle a started flow whose result the player applied outside Gyrinx.
+
+    Any roll already recorded stays in the history. A promotion slot the
+    flow opened is removed, as cancelling would.
+    """
+    record = _locked(op, record)
+    _refuse_unless_owned(op, record.fighter)
+    if record.state == ActionRecord.State.APPLIED_BY_HAND:
+        return record
+    if record.state != ActionRecord.State.STARTED:
+        raise Refusal("That action use is no longer waiting.")
+    if record.allowance_id is None or record.payment_id is not None:
+        raise Refusal("Only an earned use can be marked as applied by hand.")
+    from n26.core.promotions import remove_unfinished_promotion
+
+    remove_unfinished_promotion(
+        op, record, getattr(record, "advancement_selection", None)
+    )
+    record.state = ActionRecord.State.APPLIED_BY_HAND
+    op.event(
+        record.fighter,
+        LedgerEvent.Kind.ACTION_USE_APPLIED_BY_HAND,
+        action_record=record,
+        note=str(record.action),
+    )
+    record.save(update_fields=["state", "modified"])
+    return record
+
+
+def reopen_action(op, record):
+    """Undo applied by hand: the earned use is waiting again.
+
+    A use marked from a started flow goes back to that flow, so its choices
+    and rolls resume. A use marked straight from the Edit page frees its
+    allowance, as if it had never been touched.
+    """
+    record = _locked(op, record)
+    _refuse_unless_owned(op, record.fighter)
+    if record.state != ActionRecord.State.APPLIED_BY_HAND:
+        raise Refusal("That action use was not applied by hand.")
+    record.state = (
+        ActionRecord.State.STARTED
+        if record.started_event_id
+        else ActionRecord.State.CANCELLED
+    )
+    op.event(
+        record.fighter,
+        LedgerEvent.Kind.ACTION_USE_REOPENED,
         action_record=record,
         note=str(record.action),
     )

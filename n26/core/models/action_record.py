@@ -12,10 +12,10 @@ from django.db import models
 from n26.core.models.abstract import Base
 
 #: Record states that use up an allowance: it cannot back another record.
-RESERVING_STATES = ["started", "completed"]
+RESERVING_STATES = ["started", "completed", "applied_by_hand"]
 #: Record states that leave an allowance finished, so a later rank's flow
 #: no longer waits for it.
-SETTLED_STATES = ["completed"]
+SETTLED_STATES = ["completed", "applied_by_hand"]
 
 
 class ActionAllowanceQuerySet(models.QuerySet):
@@ -105,12 +105,15 @@ class ActionAllowance(Base):
 
 
 class ActionRecord(Base):
-    """One started, completed or cancelled use of an assignable action."""
+    """One started, completed, cancelled or applied-by-hand use of an action."""
 
     class State(models.TextChoices):
         STARTED = "started", "Started"
         COMPLETED = "completed", "Completed"
         CANCELLED = "cancelled", "Cancelled"
+        #: The player gave the fighter the result outside Gyrinx. The earned
+        #: use stays spent; nothing on the fighter changed here.
+        APPLIED_BY_HAND = "applied_by_hand", "Applied by hand"
 
     gang = models.ForeignKey(
         "n26.Gang", on_delete=models.CASCADE, related_name="action_records"

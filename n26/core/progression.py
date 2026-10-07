@@ -46,6 +46,7 @@ class RankHistory:
     title: str
     action_name: str
     state: str
+    state_label: str
     result: str
     record_id: object | None
 
@@ -248,6 +249,9 @@ def progression_for(fighter, *, card=None, computed=None):
                 title=titles.get((allowance.rank_table_id, allowance.threshold), ""),
                 action_name=str(allowance.action),
                 state=record.state if record is not None else "available",
+                state_label=(
+                    record.get_state_display() if record is not None else "Available"
+                ),
                 result=_result_for(record),
                 record_id=record.pk if record is not None else None,
             )

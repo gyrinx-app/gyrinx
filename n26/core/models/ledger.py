@@ -230,6 +230,8 @@ class LedgerEvent(Base):
         ACTION_USE_CANCELLED = "use_cancelled", "Action use cancelled"
         ACTION_USE_PAID = "use_paid", "Action use paid"
         ACTION_USE_CORRECTED = "use_corrected", "Action use corrected"
+        ACTION_USE_APPLIED_BY_HAND = "use_by_hand", "Action use applied by hand"
+        ACTION_USE_REOPENED = "use_reopened", "Action use reopened"
 
         # Where the gang plays. Its own acts, because a gang joining or
         # leaving is something that happened to the gang — the campaign it
