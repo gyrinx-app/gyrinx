@@ -1,3 +1,4 @@
+{% load react %}
 <c-n26.form-section :title="skill_title">
     {% if skill_attempts %}
         <ol class="space-y-2">
@@ -16,19 +17,11 @@
         {% elif correction %}
             <p class="text-muted">This result needs a recorded D6 roll. Choose a result supported by the existing rolls.</p>
         {% else %}
-            <c-n26.radio-cards :label="skill_set_label"
-                               :form="form"
-                               name="skill_set_id"
-                               min="min(100%, 18rem)">
-                {% for group in skill_groups %}
-                    <c-n26.radio-cards.card name="skill_set_id"
-                                            value="{{ group.key }}"
-                                            label="{{ group.name }}"
-                                            :checked="group.checked" />
-                {% empty %}
-                    <p class="text-muted">{{ skill_empty }}</p>
-                {% endfor %}
-            </c-n26.radio-cards>
+            {% if skill_roll.choices.options %}
+                {% react_island "advancement-roll" skill_roll %}
+            {% else %}
+                <p class="text-muted">{{ skill_empty }}</p>
+            {% endif %}
         {% endif %}
     {% else %}
         <c-ui.error :form="form" name="skill_id" />

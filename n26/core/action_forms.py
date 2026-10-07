@@ -58,21 +58,24 @@ class ActionRollForm(forms.Form):
     )
 
 
-class AdvancementRollForm(ActionRollForm):
-    previous_roll = forms.CharField(
-        required=False, max_length=26, widget=forms.HiddenInput
-    )
+class RecordedRollForm(ActionRollForm):
+    """A roll Gyrinx makes, or one the player already made at the table.
+
+    Subclasses declare `rolled` with the die's bounds and set the message for
+    a missing roll.
+    """
+
     roll_mode = forms.ChoiceField(
         label="How would you like to roll?",
         choices=[("roll", "Roll in Gyrinx"), ("record", "Record my roll")],
         error_messages={"required": "Choose how to roll."},
     )
-    rolled = forms.IntegerField(
-        label="Your 2D6 total", min_value=2, max_value=12, required=False
-    )
+    rolled_missing = ""
+    roll_mode_required = True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["roll_mode"].required = self.roll_mode_required
         mode = (
             self.data.get("roll_mode")
             if self.is_bound
@@ -84,10 +87,20 @@ class AdvancementRollForm(ActionRollForm):
         data = super().clean()
         if data.get("roll_mode") == "record" and data.get("rolled") is None:
             if "rolled" not in self.errors:
-                self.add_error("rolled", "Enter the total of your two dice.")
+                self.add_error("rolled", self.rolled_missing)
         if data.get("roll_mode") != "record":
             data["rolled"] = None
         return data
+
+
+class AdvancementRollForm(RecordedRollForm):
+    previous_roll = forms.CharField(
+        required=False, max_length=26, widget=forms.HiddenInput
+    )
+    rolled = forms.IntegerField(
+        label="Your 2D6 total", min_value=2, max_value=12, required=False
+    )
+    rolled_missing = "Enter the total of your two dice."
 
 
 class AdvancementForm(forms.Form):
@@ -114,8 +127,15 @@ class SkillSelectionForm(forms.Form):
         ]
 
 
-class SkillRollForm(ActionRollForm):
+class SkillRollForm(RecordedRollForm):
     skill_set_id = forms.ChoiceField(label="Select a skill set")
+    rolled = forms.IntegerField(
+        label="Your D6 roll", min_value=1, max_value=6, required=False
+    )
+    rolled_missing = "Enter the number on your die."
+    # A blank mode means Gyrinx rolls, so a set whose earlier roll carries
+    # over needs no roll controls.
+    roll_mode_required = False
 
     def __init__(self, *args, groups, label=None, **kwargs):
         super().__init__(*args, **kwargs)

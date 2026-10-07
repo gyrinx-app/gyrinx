@@ -103,6 +103,7 @@ def advancement(default_pack, gang_type, make_profile, make_statline, counter_tr
         owner=owner,
         gang=gang,
         fighter=fighter,
+        profile=profile,
         action=action,
         outcome=outcome,
         results=results,
@@ -522,6 +523,181 @@ class TestSelectingSkills:
         assert [
             attempt["roll"] for attempt in record.skill_selection.random_attempts
         ] == [1, 2]
+
+
+class TestRecordingASkillRoll:
+    """A random skill result takes the D6 the player rolled at the table."""
+
+    def _skill_page(self, client, monkeypatch, advancement, *rolls):
+        _load_rolls(monkeypatch, 12, *rolls)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["random"]
+        )
+        return record, skill_url, client.get(skill_url)
+
+    def test_the_random_skill_step_offers_a_recorded_d6(
+        self, client, monkeypatch, advancement
+    ):
+        record, skill_url, page = self._skill_page(client, monkeypatch, advancement)
+        props = page.context["skill_roll"]
+        assert props["dice"] == "D6"
+        assert (props["minimum"], props["maximum"]) == (1, 6)
+        assert props["totalLabel"] == "Your D6 roll"
+        assert props["mode"] == "roll"
+        assert props["choices"]["name"] == "skill_set_id"
+        assert props["choices"]["legend"] == "Select a skill set"
+        assert [option["label"] for option in props["choices"]["options"]] == [
+            "Skills: Agility"
+        ]
+        assert all(not option["carried"] for option in props["choices"]["options"])
+        assert page.context["submit_label"] == "Continue"
+        assert 'data-react-name="advancement-roll"' in page.content.decode()
+
+    def test_an_entered_roll_lands_as_the_d6_result(
+        self, client, monkeypatch, advancement
+    ):
+        record, skill_url, page = self._skill_page(client, monkeypatch, advancement)
+        agility = page.context["skill_roll"]["choices"]["options"][0]["value"]
+        response = client.post(
+            skill_url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": agility,
+                "roll_mode": "record",
+                "rolled": "2",
+            },
+        )
+        assert response.status_code == 302
+        record.refresh_from_db()
+        attempt = record.skill_selection.random_attempts[-1]
+        assert attempt["roll"] == 2
+        assert attempt["skill_id"] == str(advancement.skills["primary"].pk)
+        assert LedgerEvent.objects.get(pk=attempt["event_id"]).roll == 2
+        resolved = client.get(skill_url)
+        assert resolved.context["skill_resolved"] is True
+        assert resolved.context["skill_roll"] is None
+
+    @pytest.mark.parametrize("rolled", ["", "0", "7"])
+    def test_an_impossible_entered_roll_writes_nothing(
+        self, client, monkeypatch, advancement, rolled
+    ):
+        record, skill_url, page = self._skill_page(client, monkeypatch, advancement)
+        agility = page.context["skill_roll"]["choices"]["options"][0]["value"]
+        response = client.post(
+            skill_url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": agility,
+                "roll_mode": "record",
+                "rolled": rolled,
+            },
+        )
+        assert response.status_code == 200
+        assert response.context["skill_roll"]["rolledErrors"]
+        assert response.context["skill_roll"]["mode"] == "record"
+        assert response.context["skill_roll"]["choices"]["value"] == agility
+        assert (
+            LedgerEvent.objects.filter(
+                action_record=record, kind=LedgerEvent.Kind.ROLLED
+            ).count()
+            == 1
+        )
+
+    def test_gyrinx_still_rolls_when_asked(self, client, monkeypatch, advancement):
+        record, skill_url, page = self._skill_page(client, monkeypatch, advancement, 2)
+        agility = page.context["skill_roll"]["choices"]["options"][0]["value"]
+        client.post(
+            skill_url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": agility,
+                "roll_mode": "roll",
+                "rolled": "5",
+            },
+        )
+        record.refresh_from_db()
+        assert record.skill_selection.random_attempts[-1]["roll"] == 2
+
+    def test_a_chosen_skill_has_no_roll_field(self, client, monkeypatch, advancement):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        page = client.get(skill_url)
+        assert page.context["skill_roll"] is None
+        assert "rolled" not in page.context["form"].fields
+        assert 'data-react-name="advancement-roll"' not in page.content.decode()
+
+    def test_a_set_that_reuses_the_last_die_says_so_and_refuses_another_number(
+        self, client, monkeypatch, advancement
+    ):
+        ferocity = a.create_category("Skills", "Ferocity", position=2)
+        berserker = a.create_skill("Berserker", category=ferocity, position=1)
+        a.modifier(
+            "Prospect: Ferocity is Primary",
+            a.targets_model(),
+            a.ef_places(ferocity, advancement.primary),
+            attach_to=advancement.profile,
+        )
+        record, skill_url, page = self._skill_page(client, monkeypatch, advancement)
+        options = {
+            option["label"]: option["value"]
+            for option in page.context["skill_roll"]["choices"]["options"]
+        }
+        # Catfall sits at 1 in Agility and the model already has it.
+        client.post(
+            skill_url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": options["Skills: Agility"],
+                "roll_mode": "record",
+                "rolled": "1",
+            },
+        )
+        page = client.get(skill_url)
+        carried = {
+            option["label"]: option["carried"]
+            for option in page.context["skill_roll"]["choices"]["options"]
+        }
+        assert carried == {
+            "Skills: Agility": "",
+            "Skills: Ferocity": "Your D6 roll of 1 carries over to this skill set.",
+        }
+
+        refused = client.post(
+            skill_url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": options["Skills: Ferocity"],
+                "roll_mode": "record",
+                "rolled": "5",
+            },
+        )
+        assert refused.status_code == 200
+        assert refused.context["form"].non_field_errors() == [
+            "You cannot record a different roll for Ferocity. "
+            "Your D6 roll of 1 carries over to it."
+        ]
+        record.refresh_from_db()
+        assert len(record.skill_selection.random_attempts) == 1
+
+        carried_over = client.post(
+            skill_url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": options["Skills: Ferocity"],
+            },
+        )
+        assert carried_over.status_code == 302
+        record.refresh_from_db()
+        first, second = record.skill_selection.random_attempts
+        assert second["roll"] == 1
+        assert second["event_id"] == first["event_id"]
+        assert second["skill_id"] == str(berserker.pk)
 
 
 class TestCompletingAndCorrecting:
