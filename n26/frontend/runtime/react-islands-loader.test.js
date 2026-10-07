@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mountWithin } from "../../core/static/n26/react-islands.js";
+import {
+    mountWithin,
+    pageInsertions,
+    watchInsertions,
+} from "../../core/static/n26/react-islands.js";
+
+// The page observer would import every host these tests append.
+pageInsertions?.disconnect();
 
 function cleanup(element = document.body) {
     document.dispatchEvent(
@@ -99,5 +106,30 @@ describe("island lifecycle", () => {
         await vi.waitFor(() => expect(element.textContent).toBe("one"));
         cleanup(element);
         expect(element.textContent).toBe("");
+    });
+
+    it("mounts a host inserted after the first paint and drops it when that node leaves", async () => {
+        const scope = document.createElement("div");
+        document.body.append(scope);
+        const observer = watchInsertions(scope);
+        try {
+            const wrap = document.createElement("div");
+            const element = document.createElement("div");
+            element.dataset.reactModule =
+                "data:text/javascript,export function mount(host, props) { host.textContent = props.label; return () => host.replaceChildren(); }";
+            element.dataset.reactProps = "props-late";
+            const props = document.createElement("script");
+            props.id = "props-late";
+            props.type = "application/json";
+            props.textContent = JSON.stringify({ label: "late" });
+            document.body.append(props);
+            wrap.append(element);
+            scope.append(wrap);
+            await vi.waitFor(() => expect(element.textContent).toBe("late"));
+            wrap.remove();
+            await vi.waitFor(() => expect(element.textContent).toBe(""));
+        } finally {
+            observer.disconnect();
+        }
     });
 });

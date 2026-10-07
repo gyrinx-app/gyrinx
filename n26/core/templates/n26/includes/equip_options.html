@@ -25,8 +25,7 @@ button is later made to say.
     phone. The price stays outside that label: a text field inside a label is a
     field that fights the thing the label toggles.
     {% endcomment %}
-    <div class="flex min-h-9 items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5"
-         x-data="{ quoted: {{ option.price }}, price: {{ option.price }} }">
+    <div class="flex min-h-9 items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
         <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
             <input type="checkbox"
                    name="{{ option.field }}"
@@ -57,9 +56,10 @@ button is later made to say.
             <span class="shrink-0 text-xs tabular-nums text-ink-900 dark:text-ink-100"
                   title="{{ option.trade_points }} trade points">{{ option.trade_points }}TP</span>
         {% endif %}
-        <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
+        {# A div: the price box is its own element, and a span cannot hold one. #}
+        <div class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
             {% include "n26/includes/equip_price.html" with field=option.price_field quoted=option.price label=option.name %}
-        </span>
+        </div>
         <span aria-hidden="true" class="invisible shrink-0">
             <c-ui.button size="sm" variant="success" type="button" tabindex="-1">
                 Buy

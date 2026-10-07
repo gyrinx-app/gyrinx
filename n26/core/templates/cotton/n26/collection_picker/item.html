@@ -93,7 +93,8 @@ Details bring their own inset. This pane does not indent, because a card with it
               title="{{ trade_points }} trade points">{{ trade_points }}TP</span>
     {% endif %}
 
-    <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">{% if price_control %}{{ price_control }}{% else %}{{ price }}¢{% endif %}</span>
+    {# A div: a price control is its own element, and a span cannot hold one. #}
+    <div class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">{% if price_control %}{{ price_control }}{% else %}{{ price }}¢{% endif %}</div>
 
     {% if actions %}<span class="flex shrink-0 items-center gap-1">{{ actions }}</span>{% endif %}
     </div>
