@@ -31,10 +31,10 @@ FORMAT = 2
 SCAN_DIR = "n26"
 KIT_PACKAGE = "django_cotton_ui"
 KIT_PREFIX = "ui."
-# Template roots searched before the kit's, in Django's loader order: the
-# TEMPLATES DIRS, then the apps listed above django_cotton_ui.
-# test_check_n26_alpine.py checks this against Django's own loader.
-OVERRIDE_ROOTS = ("gyrinx/templates", "gyrinx/pages/templates", "n26/core/templates")
+# Template roots searched before the kit's. Overrides live here only, inside
+# SCAN_DIR, so their own Alpine also counts as direct. test_check_n26_alpine.py
+# fails if Django's loader finds a kit tag anywhere else first.
+OVERRIDE_ROOTS = ("n26/core/templates",)
 # Page chrome that nearly every page uses. Charging it would fail the check for
 # every new page. The number is a cap: a kit upgrade that adds Alpine past it
 # fails the run.
