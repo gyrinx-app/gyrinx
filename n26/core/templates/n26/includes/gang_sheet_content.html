@@ -153,36 +153,10 @@
                                  href="{% url 'n26-print-setup' gang.pk %}">
                         Print
                     </c-ui.button>
-                    <c-ui.dropdown :scriptless="True">
-                        <c-slot name="trigger">
-                            <c-ui.button size="sm" variant="default" aria-label="More actions">
-                                <span class="n26-icon-only gap-0.5">
-                                    <c-n26.icon name="ellipsis-vertical" class="size-4" />
-                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                                </span>
-                            </c-ui.button>
-                        </c-slot>
-                        <c-ui.dropdown.item href="{% url 'n26-gang-history' gang.pk %}">
-                            History
-                        </c-ui.dropdown.item>
-                        <c-ui.dropdown.item href="{% url 'n26-gang-notes' gang.pk %}">
-                            Notes
-                        </c-ui.dropdown.item>
-                        <c-ui.dropdown.item href="{% url 'n26-gang-lore' gang.pk %}">
-                            Lore
-                        </c-ui.dropdown.item>
-                        <c-ui.dropdown.item href="{% url 'n26-clone-gang' gang.pk %}">
-                            Clone gang
-                        </c-ui.dropdown.item>
-                        {% comment %}
-                    A page that asks, not the act: following this link deletes
-                    nothing, and the POST it leads to is the only thing that
-                    does. Behind the second click because it cannot be undone.
-                        {% endcomment %}
-                        <c-ui.dropdown.item variant="danger" href="{% url 'n26-delete-gang' gang.pk %}">
-                            Delete gang
-                        </c-ui.dropdown.item>
-                    </c-ui.dropdown>
+                    <c-n26.action-menu :items="more_actions"
+                                       label="More actions"
+                                       align="end"
+                                       :scriptless="True" />
                 </c-n26.button-group>
             </c-slot>
         {% elif may_print %}
@@ -193,25 +167,10 @@
                                  href="{% url 'n26-print-setup' gang.pk %}">
                         Print
                     </c-ui.button>
-                    <c-ui.dropdown :scriptless="True">
-                        <c-slot name="trigger">
-                            <c-ui.button size="sm" variant="default" aria-label="More actions">
-                                <span class="n26-icon-only gap-0.5">
-                                    <c-n26.icon name="ellipsis-vertical" class="size-4" />
-                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                                </span>
-                            </c-ui.button>
-                        </c-slot>
-                        <c-ui.dropdown.item href="{% url 'n26-gang-notes' gang.pk %}">
-                            Notes
-                        </c-ui.dropdown.item>
-                        <c-ui.dropdown.item href="{% url 'n26-gang-lore' gang.pk %}">
-                            Lore
-                        </c-ui.dropdown.item>
-                        <c-ui.dropdown.item href="{% url 'n26-clone-gang' gang.pk %}">
-                            Clone gang
-                        </c-ui.dropdown.item>
-                    </c-ui.dropdown>
+                    <c-n26.action-menu :items="more_actions"
+                                       label="More actions"
+                                       align="end"
+                                       :scriptless="True" />
                 </c-n26.button-group>
             </c-slot>
         {% else %}

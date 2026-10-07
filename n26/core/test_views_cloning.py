@@ -55,7 +55,7 @@ class TestNamingAGangClone:
 
         assert url in sheet
         assert "Clone gang" in sheet
-        assert "data-dropdown-scriptless" in sheet
+        assert "data-action-menu-scriptless" in sheet
         assert response.status_code == 200
         assert f'action="{url}"' in response.content.decode()
         assert response.context["form"]["name"].value() == ("The Ashen Choir (Clone)")
@@ -65,7 +65,7 @@ class TestNamingAGangClone:
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
 
         assert gang_clone_url(gang) in body
-        assert "data-dropdown-scriptless" in body
+        assert "data-action-menu-scriptless" in body
         assert "Clone gang" in body
 
     def test_reading_the_form_creates_nothing(self, client, tester, gang):

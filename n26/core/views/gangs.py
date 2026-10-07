@@ -13,6 +13,7 @@ from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_POST
 
+from n26.core.listing import DANGER, LINK, SECONDARY, Action
 from n26.core.status import Status
 from n26.core.status import explains as status_explains
 from n26.core.views.changelog import CHANGELOG_TAG, changelog_entries
@@ -479,6 +480,9 @@ def gang_sheet(request, pk):
             # who does not own the gang is still offered it — but a
             # visitor who has not signed in is not.
             "may_print": request.user.is_authenticated,
+            "more_actions": more_actions(
+                gang, yours=yours, signed_in=request.user.is_authenticated
+            ),
             # A reader who does not own this gang reads it and nothing
             # more: the cards drop every control, and a choice still to
             # be made is the words alone.
@@ -500,6 +504,39 @@ def gang_sheet(request, pk):
             "campaign_budget": campaign_budget,
         },
     )
+
+
+def more_actions(gang, *, yours, signed_in):
+    """The links in the gang sheet header's More actions menu.
+
+    The owner gets every whole-gang detour, Delete gang last. A signed-in
+    reader who does not own the gang gets only the pages that change
+    nothing of the owner's: Notes, Lore and Clone gang. A visitor who has
+    not signed in gets no menu; the sheet draws Notes and Lore as buttons.
+    No separators, in either menu.
+    """
+
+    def link(label, route, tone=SECONDARY):
+        return Action(label, LINK, reverse(route, args=[gang.pk]), tone)
+
+    if yours:
+        return (
+            link("History", "n26-gang-history"),
+            link("Notes", "n26-gang-notes"),
+            link("Lore", "n26-gang-lore"),
+            link("Clone gang", "n26-clone-gang"),
+            # A page that asks, not the act: following this link deletes
+            # nothing. The POST it leads to does, behind a second click,
+            # because it cannot be undone.
+            link("Delete gang", "n26-delete-gang", DANGER),
+        )
+    if signed_in:
+        return (
+            link("Notes", "n26-gang-notes"),
+            link("Lore", "n26-gang-lore"),
+            link("Clone gang", "n26-clone-gang"),
+        )
+    return ()
 
 
 @dataclass(frozen=True)
