@@ -132,7 +132,9 @@ def test_kit_weight_survives_a_nesting_cycle(tree):
     write(tree["ui"] / "b.html", "<i x-b></i><c-ui.a />")
     kit = guard.Kit(tree["root"], tree["kit"])
 
+    # Each counts the other once, whichever is weighed first.
     assert kit.weight("ui.a") == 2
+    assert kit.weight("ui.b") == 2
 
 
 def test_inventory_charges_kit_uses_but_not_chrome_or_gallery(tree):

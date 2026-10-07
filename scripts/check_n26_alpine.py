@@ -148,26 +148,42 @@ class Kit:
         return None
 
     def weight(self, tag):
-        """Alpine that one use of <c-tag> renders, including kit tags it nests."""
-        return self._weight(tag, frozenset())
+        """Alpine that one use of <c-tag> renders, including kit tags it nests.
+
+        A tag nested inside itself counts once: the inner use is skipped.
+        """
+        return self._weight(tag, frozenset())[0]
 
     def _weight(self, tag, seen):
+        """Return (weight, tags skipped at or below tag to break a cycle).
+
+        A weight inside a cycle depends on which tag the walk started from,
+        so only a weight with no skip below it is cached.
+        """
         if tag in self.weights:
-            return self.weights[tag]
+            return self.weights[tag], frozenset()
         path = self.resolve(tag)
         if path is None:
             self.unresolved.add(tag)
             self.weights[tag] = 0
-            return 0
+            return 0, frozenset()
         seen = seen | {tag}
         directives, components, branches = scan(path.read_text())
-        items = [(pos, 1) for pos in directives] + [
-            (pos, self._weight(child, seen))
-            for pos, child in components
-            if child.startswith(KIT_PREFIX) and child not in seen
-        ]
-        self.weights[tag] = per_render(items, branches)
-        return self.weights[tag]
+        items = [(pos, 1) for pos in directives]
+        skipped = set()
+        for pos, child in components:
+            if not child.startswith(KIT_PREFIX):
+                continue
+            if child in seen:
+                skipped.add(child)
+                continue
+            child_weight, child_skipped = self._weight(child, seen)
+            items.append((pos, child_weight))
+            skipped |= child_skipped
+        weight = per_render(items, branches)
+        if not skipped:
+            self.weights[tag] = weight
+        return weight, frozenset(skipped)
 
 
 def charged(path, tag):
