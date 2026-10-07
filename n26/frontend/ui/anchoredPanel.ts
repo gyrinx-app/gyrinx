@@ -75,9 +75,10 @@ export type AnchoredPlacementOptions = {
     /** Space kept clear of the window's edges, in pixels. */
     margin?: number;
     /**
-     * Off: the panel opens below, or above when only above has room for all
-     * of it. On: the panel takes the side with more room when it overflows
-     * below, and its height is capped to the room on that side.
+     * Off: the panel opens below, or above when the whole panel fits there.
+     * With room on neither side it stays below and can overflow the window.
+     * On: the panel takes the side with more room when it overflows below,
+     * and its height is capped to the room on that side.
      */
     clampHeight?: boolean;
 };
@@ -122,10 +123,22 @@ function sameStyle(a: CSSProperties, b: CSSProperties) {
 }
 
 /**
- * Places a `position: fixed` panel beside its trigger, inside the window, so
- * no scrolling ancestor clips it. Returns the panel's style: transparent and
- * ignoring the pointer until the first placement, then placed again on every
- * resize and scroll.
+ * Places a `position: fixed` panel beside its trigger, so no scrolling
+ * ancestor clips it. Returns the panel's style: transparent and ignoring the
+ * pointer until the first placement, then placed again on every resize and
+ * scroll.
+ *
+ * Across, the panel always stays `margin` clear of both window edges.
+ *
+ * Down, it depends on `clampHeight`:
+ * - Off: the panel sits `gap` below the trigger, or above when the whole
+ *   panel fits there. The hook sets no height. When neither side has room, it
+ *   stays below and can run past the bottom of the window, unless the panel's
+ *   own CSS caps its height. It also follows a trigger scrolled out of view.
+ * - On: the top stays between `margin` and the window's height less
+ *   `margin`, and `maxHeight` is capped to the room on the chosen side. The
+ *   cap is never under 80px, so with less room than that the panel can still
+ *   pass the margin.
  */
 export function useAnchoredPlacement({
     open,
