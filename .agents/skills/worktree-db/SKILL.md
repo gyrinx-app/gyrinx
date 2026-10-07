@@ -116,7 +116,10 @@ Bash tool invocation, but a normal interactive terminal needs the same env or
 Run pytest as `.venv/bin/python -m pytest` from the worktree you mean: a
 sibling checkout's `pytest` on PATH imports that tree's code. The root
 conftest exits if this worktree has a `.venv` and the running interpreter is
-a different one.
+a different one. A second pytest process in the same worktree shares
+`test_<DB>_gwN` and dies during schema creation. pytest holds
+`logs/pytest.lock` for the session and the second process exits immediately,
+naming the pid that holds the lock. Wait for that process, then run one suite.
 
 - The hook reads `git rev-parse --show-toplevel` from your `$PWD` at
   activation time, so it picks up the correct worktree even when the venv is

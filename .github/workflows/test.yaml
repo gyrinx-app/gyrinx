@@ -32,7 +32,9 @@ permissions:
 # only job here that applies the migration graph.
 jobs:
   test:
-    if: github.event_name != 'workflow_dispatch'
+    # Only main can skip suites for a paging smoke test. A manual run on a
+    # PR branch must execute the required check: skipped jobs satisfy it.
+    if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -114,7 +116,7 @@ jobs:
           pytest -m core --durations=20 -v -n logical
 
   test-full:
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     # One group per pull request, so a new push cancels the run in flight.
     # Every other run gets a group of its own: a group holds at most one
@@ -162,7 +164,8 @@ jobs:
     needs: [test, test-full]
     if: >-
       always() &&
-      ((github.event_name == 'workflow_dispatch' && inputs.send_test_page) ||
+      ((github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/main' && inputs.send_test_page) ||
        (github.event_name == 'push' &&
         github.ref == 'refs/heads/main' &&
         (needs.test.result == 'failure' || needs.test-full.result == 'failure')))
@@ -255,7 +258,7 @@ jobs:
   # that touches none of those cannot change. Every other event runs it
   # unconditionally.
   fresh-database:
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     services:
       postgres:

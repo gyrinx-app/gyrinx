@@ -23,10 +23,12 @@ from django.apps import apps
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 
+from n26.core.render import render_campaign
 from n26.library.authoring import (
     add_asset_type,
     add_built_in,
     create_asset,
+    create_asset_table,
     create_campaign_type,
     create_counter,
     create_pack,
@@ -52,6 +54,12 @@ from n26.library.models import (
     Counter,
     DefaultAssignment,
     DefaultAssignmentSet,
+)
+from n26.tests.sandbox.actions import (
+    add_asset,
+    create_campaign_asset,
+    create_campaign_table,
+    found_campaign,
 )
 
 pytestmark = pytest.mark.django_db
@@ -922,6 +930,50 @@ class TestTheAuthoringPages:
         body = client.get("/n26/authoring/campaign-type/").content.decode()
         assert "Territories, Settlements" in body
         assert "1 asset" in body
+
+    def test_a_campaigns_own_assets_stay_off_the_type_pages(
+        self, author, client, dominion
+    ):
+        """An asset or table an arbitrator writes under a shared asset type
+        lives in the campaign's pack. The type's page and the listing count
+        show the library's own. The campaign still has what it wrote."""
+        create_asset("Old Ruins", dominion["territory"])
+        create_asset_table("Core Territories", dominion["territory"], dice="d6")
+        arbitrator = User.objects.create_user("arbitrator")
+        campaign = found_campaign("Dust Falls", dominion["type"], owner=arbitrator)
+        hole = create_campaign_asset(campaign, dominion["territory"], "Sump Hole")
+        home = create_campaign_asset(campaign, dominion["settlement"], "Sump Home")
+        table = create_campaign_table(
+            campaign, dominion["territory"], "House table", dice="d6"
+        )
+
+        body = client.get(
+            f"/n26/authoring/campaign-type/{dominion['type'].pk}/"
+        ).content.decode()
+        assert "Old Ruins" in body
+        assert "Core Territories" in body
+        assert "Sump Hole" not in body
+        assert "Sump Home" not in body
+        assert "House table" not in body
+
+        listing = client.get("/n26/authoring/campaign-type/").content.decode()
+        assert "1 asset" in listing
+        assert "Sump Hole" not in listing
+        assert "Sump Home" not in listing
+
+        assert hole.pack == campaign.pack
+        assert home.pack == campaign.pack
+        assert table.pack == campaign.pack
+        given = {member.assignable for member in campaign.additions.built_in_members}
+        assert home in given
+        assert table in given
+        add_asset(campaign, hole)
+        names = [
+            entry.name
+            for block in render_campaign(campaign).assets
+            for entry in block.entries
+        ]
+        assert "Sump Hole" in names
 
 
 def as_a_browser_would_post(body):
