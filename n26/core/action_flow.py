@@ -8,7 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from django.db.models import F, Window
+from django.db.models import Case, F, When, Window
 from django.db.models.functions import RowNumber
 
 from n26.core.access import actions_for
@@ -263,10 +263,16 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
             ),
         )
         .annotate(
+            settled_at=Case(
+                When(state=ActionRecord.State.APPLIED_BY_HAND, then=F("modified")),
+                default=F("created"),
+            )
+        )
+        .annotate(
             action_position=Window(
                 expression=RowNumber(),
                 partition_by=F("action_id"),
-                order_by=(F("created").desc(), F("pk").desc()),
+                order_by=(F("settled_at").desc(), F("pk").desc()),
             )
         )
         .filter(action_position__lte=3)
@@ -279,7 +285,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
             "skill_selection__selected_skill",
             "skill_selection__selected_power",
         )
-        .order_by("-created", "-pk")
+        .order_by("-settled_at", "-pk")
     )
     records = [*drafts, *completed]
     available = defaultdict(list)

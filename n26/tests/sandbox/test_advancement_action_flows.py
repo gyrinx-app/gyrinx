@@ -879,3 +879,57 @@ class TestApplyingByHand:
             "n26-action-by-hand", args=[advancement.fighter.pk, advancement.action.pk]
         )
         assert client.get(url).status_code == 405
+
+    def test_a_rolled_flow_loses_its_empty_slot_and_undo_lets_it_finish(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        rolled_slot = record.advancement_selection.slot_assignment
+
+        _flow(client, advancement, record, "by-hand")
+
+        rolled_slot.refresh_from_db()
+        assert rolled_slot.archived
+
+        _flow(client, advancement, record, "reopen")
+
+        record.refresh_from_db()
+        record.advancement_selection.refresh_from_db()
+        rebound = record.advancement_selection.slot_assignment
+        assert not rebound.archived
+        assert rebound.slot_id == rolled_slot.slot_id
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        review = client.post(
+            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        )
+        token = client.get(review.url).context["form"]["review"].value()
+        assert client.post(review.url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        advancement.gang.refresh_from_db()
+        assert_reconciled(advancement.gang)
+
+    def test_an_older_flow_marked_now_keeps_its_undo_above_newer_results(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        for _ in range(3):
+            ActionRecord.objects.create(
+                gang=advancement.gang,
+                fighter=advancement.fighter,
+                action=advancement.action,
+                outcome=advancement.outcome,
+                request_key=uuid4(),
+                state=ActionRecord.State.COMPLETED,
+            )
+
+        _flow(client, advancement, record, "by-hand")
+
+        assert "Undo marking Advance as applied by hand" in _edit_page(
+            client, advancement
+        )

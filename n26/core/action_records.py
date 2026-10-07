@@ -911,8 +911,8 @@ def cancel_action(op, record):
 def apply_action_by_hand(op, record):
     """Settle a started flow whose result the player applied outside Gyrinx.
 
-    Any roll already recorded stays in the history. A promotion slot the
-    flow opened is removed, as cancelling would.
+    Any roll already recorded stays in the history. An empty result slot
+    the flow added is removed, so the card does not offer it.
     """
     record = _locked(op, record)
     _refuse_unless_owned(op, record.fighter)
@@ -922,11 +922,7 @@ def apply_action_by_hand(op, record):
         raise Refusal("That action use is no longer waiting.")
     if record.allowance_id is None or record.payment_id is not None:
         raise Refusal("Only an earned use can be marked as applied by hand.")
-    from n26.core.promotions import remove_unfinished_promotion
-
-    remove_unfinished_promotion(
-        op, record, getattr(record, "advancement_selection", None)
-    )
+    _retire_unfinished_slot(op, record)
     record.state = ActionRecord.State.APPLIED_BY_HAND
     op.event(
         record.fighter,
@@ -936,6 +932,46 @@ def apply_action_by_hand(op, record):
     )
     record.save(update_fields=["state", "modified"])
     return record
+
+
+def _unfinished_selection(record):
+    selection = getattr(record, "advancement_selection", None)
+    if (
+        selection is None
+        or selection.pick_assignment_id
+        or selection.slot_assignment_id is None
+    ):
+        return None
+    return selection
+
+
+def _retire_unfinished_slot(op, record):
+    """Remove the empty result slot this flow added, leaving one it reused."""
+    selection = _unfinished_selection(record)
+    if selection is None or selection.slot_assignment.archived:
+        return
+    added = (
+        LedgerEvent.objects.filter(assignment=selection.slot_assignment)
+        .order_by("created", "pk")
+        .values_list("action_record_id", flat=True)
+        .first()
+    )
+    if added == record.pk:
+        op.remove(selection.slot_assignment, action_record=record)
+
+
+def _rebind_retired_slot(op, record):
+    """Give a reopened flow a live result slot in place of the one removed."""
+    selection = _unfinished_selection(record)
+    if selection is None or not selection.slot_assignment.archived:
+        return
+    selection.slot_assignment = op.assign(
+        selection.slot_assignment.slot,
+        miniature=record.fighter,
+        caused_by=record.fighter.membership,
+        action_record=record,
+    )
+    selection.save(update_fields=["slot_assignment", "modified"])
 
 
 def reopen_action(op, record):
@@ -949,11 +985,11 @@ def reopen_action(op, record):
     _refuse_unless_owned(op, record.fighter)
     if record.state != ActionRecord.State.APPLIED_BY_HAND:
         raise Refusal("That action use was not applied by hand.")
-    record.state = (
-        ActionRecord.State.STARTED
-        if record.started_event_id
-        else ActionRecord.State.CANCELLED
-    )
+    if record.started_event_id:
+        record.state = ActionRecord.State.STARTED
+        _rebind_retired_slot(op, record)
+    else:
+        record.state = ActionRecord.State.CANCELLED
     op.event(
         record.fighter,
         LedgerEvent.Kind.ACTION_USE_REOPENED,
