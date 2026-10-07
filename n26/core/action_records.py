@@ -441,7 +441,7 @@ def start_action(op, fighter, action, request_key, allowance=None, *, by_hand=Fa
     if existing is not None:
         if by_hand:
             raise Refusal(
-                "This fighter has a started flow for that action. "
+                "This model has a started flow for that action. "
                 "Resume it, or mark that flow as applied by hand."
             )
         return existing
