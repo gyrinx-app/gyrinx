@@ -1,15 +1,14 @@
 import {
     createElement,
-    type CSSProperties,
     type MouseEvent,
     type ReactNode,
     useEffect,
     useId,
-    useLayoutEffect,
     useRef,
     useState,
 } from "react";
 import cotton from "../generated/cotton.json";
+import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
 
 const OPEN_DELAY = 120;
 const CLOSE_DELAY = 200;
@@ -60,15 +59,11 @@ export function HelpPopover({
     const focusPanel = useRef(false);
     const [open, setOpen] = useState(false);
     const [pinned, setPinned] = useState(false);
-    const [panelStyle, setPanelStyle] = useState<CSSProperties>({
-        visibility: "hidden",
-    });
 
     function close() {
         window.clearTimeout(timer.current);
         setOpen(false);
         setPinned(false);
-        setPanelStyle({ visibility: "hidden" });
     }
 
     function later(next: boolean, delay: number) {
@@ -87,60 +82,14 @@ export function HelpPopover({
         panel.current?.focus();
     }, [open, pinned]);
 
-    useEffect(() => {
-        if (!open) return;
-
-        function dismissOutside(event: Event) {
-            if (!root.current?.contains(event.target as Node)) close();
-        }
-
-        function dismissOnEscape(event: KeyboardEvent) {
-            if (event.key !== "Escape") return;
-            close();
-            trigger.current?.focus();
-        }
-
-        document.addEventListener("pointerdown", dismissOutside);
-        document.addEventListener("focusin", dismissOutside);
-        document.addEventListener("keydown", dismissOnEscape);
-        return () => {
-            document.removeEventListener("pointerdown", dismissOutside);
-            document.removeEventListener("focusin", dismissOutside);
-            document.removeEventListener("keydown", dismissOnEscape);
-        };
-    }, [open]);
-
-    useLayoutEffect(() => {
-        if (!open) return;
-
-        function placePanel() {
-            if (!trigger.current || !panel.current) return;
-            const margin = 16;
-            const gap = 8;
-            const anchor = trigger.current.getBoundingClientRect();
-            const width = Math.min(288, window.innerWidth - margin * 2);
-            const height = panel.current.offsetHeight;
-            const below = anchor.bottom + gap;
-            const top =
-                below + height > window.innerHeight - margin &&
-                anchor.top - gap - height >= margin
-                    ? anchor.top - gap - height
-                    : below;
-            const left = Math.min(
-                Math.max(margin, anchor.left),
-                window.innerWidth - width - margin,
-            );
-            setPanelStyle({ visibility: "visible", left, top, width });
-        }
-
-        placePanel();
-        window.addEventListener("resize", placePanel);
-        window.addEventListener("scroll", placePanel, true);
-        return () => {
-            window.removeEventListener("resize", placePanel);
-            window.removeEventListener("scroll", placePanel, true);
-        };
-    }, [open]);
+    useDismiss(root, trigger, open, close);
+    const panelStyle = useAnchoredPlacement({
+        open,
+        trigger,
+        panel,
+        width: 288,
+        gap: 8,
+    });
 
     function onClick(event: MouseEvent<HTMLButtonElement>) {
         window.clearTimeout(timer.current);

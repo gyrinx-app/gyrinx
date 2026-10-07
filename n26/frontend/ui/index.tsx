@@ -944,3 +944,8 @@ export {
     type SwitcherRow,
 } from "./QuickSwitcher";
 export { HelpPopover } from "./HelpPopover";
+export {
+    useAnchoredPlacement,
+    useDismiss,
+    type AnchoredPlacementOptions,
+} from "./anchoredPanel";
