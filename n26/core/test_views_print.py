@@ -6,7 +6,10 @@ the print page draws exactly that, and a weapon left unticked takes its
 effects off the paper with it.
 """
 
+import json
+
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
@@ -58,38 +61,160 @@ def print_url(gang):
     return reverse("n26-print", args=[gang.pk])
 
 
+def picker(body):
+    """The props the setup screen hands its model and weapon picker."""
+    soup = BeautifulSoup(body, "html.parser")
+    host = soup.select_one('[data-react-name="print-picker"]')
+    assert host is not None, "No print picker on this page"
+    return json.loads(soup.find(id=host["data-react-props"]).string)
+
+
+def _form_pairs(form, skip=()):
+    """The pairs a browser sends for ``form`` as the server drew it.
+
+    Hidden and text inputs send their value, ticked boxes and radios
+    theirs, and a disabled input sends nothing. Inputs in ``skip`` are
+    left out.
+    """
+    sent = []
+    for field in form.find_all("input"):
+        name = field.get("name")
+        if name is None or field in skip or field.has_attr("disabled"):
+            continue
+        kind = field.get("type", "text")
+        if kind in ("checkbox", "radio"):
+            if field.has_attr("checked"):
+                sent.append((name, field.get("value", "on")))
+        else:
+            sent.append((name, field.get("value", "")))
+    return sent
+
+
+def no_js_submission(body):
+    """The print form's action, method and pairs before the picker mounts.
+
+    The picker's host holds server-drawn boxes until then, and a browser
+    with no JavaScript, or one whose Print beats the island, sends those.
+    """
+    soup = BeautifulSoup(body, "html.parser")
+    host = soup.select_one('[data-react-name="print-picker"]')
+    form = host.find_parent("form")
+    return form["action"], form["method"], _form_pairs(form)
+
+
+def submission(body, untick=()):
+    """The print form's action, method and the pairs a browser sends.
+
+    The form's own inputs are read from the page: hidden ones, ticked
+    boxes and radios, and text fields. The picker's boxes are read from
+    its props, as the island draws them, its server-drawn body being
+    replaced on mount: a ticked model posts ``fighters``, and a ticked
+    weapon posts ``weapons`` only while its model is ticked, the box
+    being disabled otherwise. ``untick`` holds ids the reader clears
+    first.
+    """
+    soup = BeautifulSoup(body, "html.parser")
+    host = soup.select_one('[data-react-name="print-picker"]')
+    form = host.find_parent("form")
+    props = picker(body)
+    sent = _form_pairs(form, skip=host.find_all("input"))
+    if props["marker"]:
+        sent.append((props["marker"], "1"))
+    for model in props["models"]:
+        if not model["ticked"] or model["id"] in untick:
+            continue
+        sent.append(("fighters", model["id"]))
+        for weapon in model["weapons"]:
+            if weapon["ticked"] and weapon["id"] not in untick:
+                sent.append(("weapons", weapon["id"]))
+    assert form["method"] in ("get", "post")
+    return form["action"], form["method"], sent
+
+
 class TestTheSetupScreen:
     def test_draws_every_model_with_its_weapons_ticked(
         self, client, tester, gang, roster
     ):
+        vex, sull = roster
         client.force_login(tester)
-        body = client.get(setup_url(gang)).content.decode()
-        assert "Vex" in body
-        assert "Sull" in body
-        assert "Lasgun" in body
-        # Everything starts ticked — asserted per input kind, because a
-        # bare count was once satisfied by the weapons and toggles alone
-        # while every model rendered unticked: a cotton :prop had been
-        # handed an `in` expression, which evaluates to nothing without
-        # erroring.
-        model_inputs = [
-            chunk for chunk in body.split("<input") if 'name="fighters"' in chunk
-        ]
-        weapon_inputs = [
-            chunk for chunk in body.split("<input") if 'name="weapons"' in chunk
-        ]
-        assert len(model_inputs) == 2
-        assert all("checked" in chunk for chunk in model_inputs)
-        assert len(weapon_inputs) == 2
-        assert all("checked" in chunk for chunk in weapon_inputs)
+        props = picker(client.get(setup_url(gang)).content.decode())
+        models = {model["name"]: model for model in props["models"]}
+        assert set(models) == {"Vex", "Sull"}
+        # Everything starts ticked, asserted per kind: a bare count was
+        # once satisfied by the weapons alone while every model rendered
+        # unticked.
+        assert all(model["ticked"] for model in models.values())
+        weapons = models["Vex"]["weapons"]
+        assert [weapon["label"] for weapon in weapons] == ["Lasgun", "Stub Gun"]
+        assert all(weapon["ticked"] for weapon in weapons)
+        assert models["Sull"]["weapons"] == []
+        assert models["Vex"]["id"] == str(vex.pk)
+        assert {weapon["id"] for weapon in weapons} == {
+            str(pk)
+            for pk in vex.assignments.filter(weapon__isnull=False).values_list(
+                "pk", flat=True
+            )
+        }
+
+    def test_hands_the_picker_ratings_slots_and_the_budget(
+        self, client, tester, gang, roster
+    ):
+        """The crew total starts from each model's weaponless rating and
+        adds the ticked weapons back; the slot count weighs them against
+        the per-card budget. The props carry every figure that needs."""
+        from n26.core.render import WEAPON_SLOTS_PER_CARD
+
+        client.force_login(tester)
+        props = picker(client.get(setup_url(gang)).content.decode())
+        vex = next(model for model in props["models"] if model["name"] == "Vex")
+
+        assert props["slotBudget"] == WEAPON_SLOTS_PER_CARD
+        assert props["marker"] == "picker"
+        assert vex["profileName"] == "Ganger"
+        assert vex["hasWeapons"] is True
+        assert {weapon["label"]: weapon["rating"] for weapon in vex["weapons"]} == {
+            "Lasgun": 15,
+            "Stub Gun": 5,
+        }
+        assert vex["baseRating"] == vex["rating"] - 20
+        assert all(weapon["slots"] == 1 for weapon in vex["weapons"])
+        # One slot goes unsaid beside the name.
+        assert all(weapon["slotsLabel"] == "" for weapon in vex["weapons"])
+
+    def test_a_bigger_roster_costs_no_more_queries_to_set_up(
+        self, client, tester, gang, roster, make_profile
+    ):
+        """The picker's props are read off the sheet the page already
+        builds, so more models and weapons add no queries."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import create_weapon
+
+        client.force_login(tester)
+        profile = make_profile("Reinforcement", price=40)
+        axe = create_weapon("Axe", price=10)
+
+        def measure():
+            with CaptureQueriesContext(connection) as captured:
+                assert client.get(setup_url(gang)).status_code == 200
+            return len(captured.captured_queries)
+
+        measure()
+        few = measure()
+        for index in range(3):
+            with operation(gang, actor=tester) as op:
+                hired = op.hire(profile, f"More {index}")
+                op.give_weapon(hired, axe, paid=10)
+        assert measure() == few
 
     def test_an_unnamed_post_rewrites_the_scratch_config(
         self, client, tester, gang, roster
     ):
         vex, sull = roster
         client.force_login(tester)
-        client.post(setup_url(gang), {"fighters": [str(vex.pk)]})
-        client.post(setup_url(gang), {"fighters": [str(sull.pk)]})
+        client.post(setup_url(gang), {"picker": "1", "fighters": [str(vex.pk)]})
+        client.post(setup_url(gang), {"picker": "1", "fighters": [str(sull.pk)]})
 
         scratches = PrintConfig.objects.filter(gang=gang, name="")
         assert scratches.count() == 1
@@ -100,7 +225,7 @@ class TestTheSetupScreen:
         client.force_login(tester)
         response = client.post(
             setup_url(gang),
-            {"name": "Tournament crew", "fighters": [str(vex.pk)]},
+            {"picker": "1", "name": "Tournament crew", "fighters": [str(vex.pk)]},
         )
         config = PrintConfig.objects.get(gang=gang, name="Tournament crew")
         assert response.url == f"{print_url(gang)}?config={config.pk}"
@@ -116,8 +241,14 @@ class TestTheSetupScreen:
         exactly would miss, insert, and trip the constraint."""
         vex, sull = roster
         client.force_login(tester)
-        client.post(setup_url(gang), {"name": "Roster", "fighters": [str(vex.pk)]})
-        client.post(setup_url(gang), {"name": "roster", "fighters": [str(sull.pk)]})
+        client.post(
+            setup_url(gang),
+            {"picker": "1", "name": "Roster", "fighters": [str(vex.pk)]},
+        )
+        client.post(
+            setup_url(gang),
+            {"picker": "1", "name": "roster", "fighters": [str(sull.pk)]},
+        )
 
         configs = PrintConfig.objects.filter(gang=gang, name__iexact="roster")
         assert configs.count() == 1
@@ -127,13 +258,22 @@ class TestTheSetupScreen:
 
     def test_loading_a_config_prefills_the_form(self, client, tester, gang, roster):
         vex, sull = roster
+        lasgun = vex.assignments.get(weapon__name="Lasgun")
         config = PrintConfig.objects.create(gang=gang, name="Crew", include_stash=False)
         config.miniatures.set([vex])
+        config.assignments.set([lasgun])
 
         client.force_login(tester)
         response = client.get(f"{setup_url(gang)}?config={config.pk}")
-        assert str(vex.pk) in response.context["ticked_models"]
-        assert str(sull.pk) not in response.context["ticked_models"]
+        models = picker(response.content.decode())["models"]
+        ticked = {model["id"]: model["ticked"] for model in models}
+        assert ticked == {str(vex.pk): True, str(sull.pk): False}
+        weapons = {
+            weapon["label"]: weapon["ticked"]
+            for model in models
+            for weapon in model["weapons"]
+        }
+        assert weapons == {"Lasgun": True, "Stub Gun": False}
         assert response.context["include_stash"] is False
         assert response.context["setup_name"] == "Crew"
 
@@ -153,7 +293,7 @@ class TestTheSetupScreen:
         client.force_login(tester)
         client.post(
             setup_url(gang),
-            {"fighters": [str(vex.pk), str(intruder.pk)]},
+            {"picker": "1", "fighters": [str(vex.pk), str(intruder.pk)]},
         )
         config = PrintConfig.objects.get(gang=gang, name="")
         assert list(config.miniatures.all()) == [vex]
@@ -421,6 +561,7 @@ class TestNotesOnPaper:
         client.post(
             setup_url(gang),
             {
+                "picker": "1",
                 "name": "no-notes",
                 "include_header": "on",
                 "fighters": [str(m.pk) for m in written],
@@ -481,6 +622,7 @@ class TestNotesOnPaper:
         client.post(
             setup_url(gang),
             {
+                "picker": "1",
                 "name": "no-notes",
                 "include_header": "on",
                 "fighters": [str(roster[0].pk)],
@@ -488,6 +630,14 @@ class TestNotesOnPaper:
         )
         listed = client.get(setup_url(gang)).content.decode()
         assert "no notes, pictures, or space to write" in listed
+
+
+def _as_post(pairs):
+    """Form pairs as the test client's POST data, repeated names kept."""
+    data = {}
+    for name, value in pairs:
+        data.setdefault(name, []).append(value)
+    return data
 
 
 class TestPrintingSomebodyElsesGang:
@@ -549,6 +699,9 @@ class TestPrintingSomebodyElsesGang:
         body = client.get(setup_url(gang)).content.decode()
 
         assert 'name="name"' not in body
+        # Nothing is saved from here, so the address carries no marker.
+        assert picker(body)["marker"] == ""
+        assert 'name="picker"' not in body
         assert f'action="{print_url(gang)}"' in body
         assert 'method="get"' in body
         # A token in a GET form would ride in the address, and so into
@@ -579,36 +732,17 @@ class TestPrintingSomebodyElsesGang:
         whole gang in place of the pick, which is the shape of the bug a
         both-boxes-ticked submission cannot see.
         """
-        import re
         from urllib.parse import urlencode
 
         _, sull = roster
         client.force_login(stranger)
         body = client.get(setup_url(gang)).content.decode()
 
-        # The print form alone, found by the marker only it carries — the
-        # layout's own forms and inputs would otherwise be read as part of
-        # this one, and a retargeted action would go unnoticed.
-        form = next(
-            piece for piece in body.split("<form ")[1:] if 'name="pick"' in piece
-        )
-        opening = form.split(">")[0]
-        assert 'method="get"' in opening
-        action = re.search(r'action="([^"]*)"', opening).group(1)
-        sent = []
-        for chunk in form.split("<input")[1:]:
-            chunk = chunk.split(">")[0]
-            name = re.search(r'name="([^"]+)"', chunk)
-            if name is None:
-                continue
-            value = re.search(r'value="([^"]*)"', chunk)
-            if 'type="hidden"' in chunk:
-                sent.append((name.group(1), value.group(1)))
-            elif "checked" in chunk:
-                sent.append((name.group(1), value.group(1) if value else "on"))
-
-        # As if the reader had unticked one of the two models.
-        sent = [pair for pair in sent if pair[1] != str(sull.pk)]
+        # The form holding the picker, so a picker moved out of it or a
+        # retargeted action fails here. One of the two models unticked.
+        action, method, sent = submission(body, untick={str(sull.pk)})
+        assert method == "get"
+        assert ("pick", "1") in sent
         paper = client.get(f"{action}?{urlencode(sent)}").content.decode()
 
         assert "Vex" in paper
@@ -618,6 +752,277 @@ class TestPrintingSomebodyElsesGang:
         assert "Lasgun" in paper
         assert "Stub Gun" in paper
         assert "Rating" in paper
+
+    def test_the_owners_boxes_save_and_print_what_they_say(
+        self, client, tester, gang, roster
+    ):
+        """The owner's form, posted the way a browser would, saves the
+        pick and prints it. Unticking a model keeps its weapons out of
+        the post, so the saved setup holds none of them."""
+        vex, sull = roster
+        stub = vex.assignments.get(weapon__name="Stub Gun")
+        lasgun = vex.assignments.get(weapon__name="Lasgun")
+        client.force_login(tester)
+        body = client.get(setup_url(gang)).content.decode()
+
+        action, method, sent = submission(body, untick={str(stub.pk)})
+        assert (action, method) == (setup_url(gang), "post")
+        sent = [pair for pair in sent if pair[0] != "name"] + [("name", "Vex")]
+        response = client.post(action, _as_post(sent))
+
+        config = PrintConfig.objects.get(gang=gang, name="Vex")
+        assert response.url == f"{print_url(gang)}?config={config.pk}"
+        assert set(config.miniatures.all()) == {vex, sull}
+        assert list(config.assignments.all()) == [lasgun]
+        paper = client.get(response.url).content.decode()
+        assert "Lasgun" in paper
+        assert "Stub Gun" not in paper
+        assert "Sull" in paper
+
+        # Loaded back, the screen ticks what was saved. Then Vex goes.
+        body = client.get(response.url.replace(print_url(gang), setup_url(gang)))
+        weapons = {
+            weapon["label"]: weapon["ticked"]
+            for model in picker(body.content.decode())["models"]
+            for weapon in model["weapons"]
+        }
+        assert weapons == {"Lasgun": True, "Stub Gun": False}
+        action, _, sent = submission(body.content.decode(), untick={str(vex.pk)})
+        client.post(action, _as_post(sent))
+
+        config.refresh_from_db()
+        assert list(config.miniatures.all()) == [sull]
+        assert not config.assignments.exists()
+        paper = client.get(f"{print_url(gang)}?config={config.pk}").content.decode()
+        assert "Vex" not in paper
+        assert "Lasgun" not in paper
+
+    def test_the_boxes_post_before_the_picker_mounts(
+        self, client, tester, gang, roster
+    ):
+        """Until the island mounts, and for good if it never loads, the
+        host holds the same boxes drawn by the server. A submission in
+        that window posts them, so a saved setup keeps what it ticked
+        rather than being emptied by a submission with no boxes."""
+        vex, sull = roster
+        lasgun = vex.assignments.get(weapon__name="Lasgun")
+        stub = vex.assignments.get(weapon__name="Stub Gun")
+        client.force_login(tester)
+
+        # A fresh run: everything ticked, everything posted.
+        body = client.get(setup_url(gang)).content.decode()
+        action, method, sent = no_js_submission(body)
+        assert (action, method) == (setup_url(gang), "post")
+        assert sorted(v for k, v in sent if k == "fighters") == sorted(
+            [str(vex.pk), str(sull.pk)]
+        )
+        assert sorted(v for k, v in sent if k == "weapons") == sorted(
+            [str(lasgun.pk), str(stub.pk)]
+        )
+
+        # A saved setup with one weapon left out posts back as it was.
+        config = PrintConfig.objects.create(gang=gang, name="Crew")
+        config.miniatures.set([vex])
+        config.assignments.set([lasgun])
+        body = client.get(f"{setup_url(gang)}?config={config.pk}").content.decode()
+        action, _, sent = no_js_submission(body)
+        assert ("name", "Crew") in sent
+        assert [v for k, v in sent if k == "fighters"] == [str(vex.pk)]
+        assert [v for k, v in sent if k == "weapons"] == [str(lasgun.pk)]
+        client.post(action, _as_post(sent))
+        config.refresh_from_db()
+        assert list(config.miniatures.all()) == [vex]
+        assert list(config.assignments.all()) == [lasgun]
+
+        # An unticked model's weapons stay usable here, since nothing
+        # would enable them again without the island. They post, and the
+        # server drops them because their model is not ticked.
+        config.miniatures.set([sull])
+        config.assignments.set([lasgun, stub])
+        body = client.get(f"{setup_url(gang)}?config={config.pk}").content.decode()
+        host = BeautifulSoup(body, "html.parser").select_one(
+            '[data-react-name="print-picker"]'
+        )
+        assert not host.select("input[disabled], [inert]")
+        _, _, sent = no_js_submission(body)
+        assert [v for k, v in sent if k == "fighters"] == [str(sull.pk)]
+        assert sorted(v for k, v in sent if k == "weapons") == sorted(
+            [str(lasgun.pk), str(stub.pk)]
+        )
+        client.post(action, _as_post(sent))
+        config.refresh_from_db()
+        assert list(config.miniatures.all()) == [sull]
+        assert not config.assignments.exists()
+
+    def test_the_server_drawn_boxes_match_the_props(self, client, tester, gang, roster):
+        """The fallback draws the island's starting state: the same
+        cards, ticks and figures, so the swap on mount changes nothing."""
+        vex, _ = roster
+        stub = vex.assignments.get(weapon__name="Stub Gun")
+        config = PrintConfig.objects.create(gang=gang, name="Crew")
+        config.miniatures.set([vex])
+        config.assignments.set(vex.assignments.filter(weapon__isnull=False))
+        config.assignments.remove(stub)
+        client.force_login(tester)
+
+        body = client.get(f"{setup_url(gang)}?config={config.pk}").content.decode()
+        soup = BeautifulSoup(body, "html.parser")
+        host = soup.select_one('[data-react-name="print-picker"]')
+        assert host.has_attr("data-react-fallback")
+        vex_props = next(m for m in picker(body)["models"] if m["name"] == "Vex")
+        card = host.find("input", attrs={"name": "fighters", "value": str(vex.pk)})
+        card = card.find_parent("div", class_="rounded-box")
+        assert "border-accent" in card["class"]
+        assert f"{vex_props['rating']}¢" in card.get_text()
+        assert "1/3 slots" in card.get_text()
+        assert f"Crew total {vex_props['baseRating'] + 15}¢" in " ".join(
+            host.get_text().split()
+        )
+
+    def test_a_save_without_the_picker_changes_nothing(
+        self, client, tester, gang, roster
+    ):
+        """A submission without the picker's marker carried no boxes: the
+        island failed and its error replaced them. Saving it would empty
+        the setup, so nothing is saved and the screen says why."""
+        from n26.core.views.printing import PICKER_MISSING
+
+        vex, sull = roster
+        lasgun = vex.assignments.get(weapon__name="Lasgun")
+        config = PrintConfig.objects.create(gang=gang, name="Crew")
+        config.miniatures.set([vex, sull])
+        config.assignments.set([lasgun])
+        client.force_login(tester)
+        body = client.get(f"{setup_url(gang)}?config={config.pk}").content.decode()
+        action, _, sent = no_js_submission(body)
+        # What the form holds once the island's error box replaced the boxes.
+        sent = [
+            pair for pair in sent if pair[0] not in ("picker", "fighters", "weapons")
+        ]
+
+        response = client.post(action, _as_post(sent))
+
+        assert response.status_code == 200
+        assert PICKER_MISSING in response.content.decode()
+        config.refresh_from_db()
+        assert set(config.miniatures.all()) == {vex, sull}
+        assert list(config.assignments.all()) == [lasgun]
+        assert PrintConfig.objects.filter(gang=gang).count() == 1
+        # Shown again as the setup it names, with the boxes and the marker
+        # back, so printing again from this page saves.
+        assert response.context["setup_name"] == "Crew"
+        assert 'name="picker"' in response.content.decode()
+        _, _, again = no_js_submission(response.content.decode())
+        assert ("picker", "1") in again
+        assert sorted(v for k, v in again if k == "fighters") == sorted(
+            [str(vex.pk), str(sull.pk)]
+        )
+
+    def test_the_error_page_ticks_the_setup_the_form_was_loaded_from(
+        self, client, tester, gang, roster, gang_type
+    ):
+        """Renamed or cleared before the failed save, the name matches no
+        setup; the form still says which one it was loaded from, and the
+        error page ticks that one rather than the whole gang."""
+        vex, sull = roster
+        config = PrintConfig.objects.create(gang=gang, name="Crew")
+        config.miniatures.set([vex])
+        client.force_login(tester)
+        body = client.get(f"{setup_url(gang)}?config={config.pk}").content.decode()
+        _, _, sent = no_js_submission(body)
+        assert ("config", str(config.pk)) in sent
+        sent = [
+            pair
+            for pair in sent
+            if pair[0] not in ("picker", "fighters", "weapons", "name")
+        ] + [("name", "Renamed")]
+
+        response = client.post(setup_url(gang), _as_post(sent))
+
+        ticked = {
+            model["id"]: model["ticked"]
+            for model in picker(response.content.decode())["models"]
+        }
+        assert ticked == {str(vex.pk): True, str(sull.pk): False}
+        assert response.context["setup_name"] == "Renamed"
+        assert f'name="config" value="{config.pk}"' in response.content.decode()
+
+        # Another gang's setup named there is ignored, and the name decides.
+        other = Gang.objects.create(
+            name="Someone else's",
+            owner=User.objects.create_user("other-owner"),
+            gang_type=gang_type,
+        )
+        theirs = PrintConfig.objects.create(gang=other, name="Theirs")
+        response = client.post(
+            setup_url(gang), {"config": str(theirs.pk), "name": "crew"}
+        )
+        ticked = {
+            model["id"]: model["ticked"]
+            for model in picker(response.content.decode())["models"]
+        }
+        assert ticked == {str(vex.pk): True, str(sull.pk): False}
+
+    def test_the_error_page_keeps_what_the_owner_posted(
+        self, client, tester, gang, roster
+    ):
+        """The name, toggles and orientation sent with the failed save
+        are drawn again, so printing from the page keeps the owner's
+        edits."""
+        from bs4 import BeautifulSoup
+
+        config = PrintConfig.objects.create(gang=gang, name="Crew")
+        client.force_login(tester)
+
+        response = client.post(
+            setup_url(gang),
+            {"name": "Crew", "include_stash": "on", "orientation": "landscape"},
+        )
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.select_one("input[name=name]")["value"] == "Crew"
+        assert soup.select_one("input[name=include_stash]").has_attr("checked")
+        assert not soup.select_one("input[name=include_header]").has_attr("checked")
+        assert not soup.select_one("input[name=include_notes]").has_attr("checked")
+        assert soup.select_one("input[name=orientation][value=landscape]").has_attr(
+            "checked"
+        )
+        assert soup.select_one("input[type=hidden][name=picker]")["value"] == "1"
+        # The setup itself is untouched until the page is printed again.
+        config.refresh_from_db()
+        assert config.include_header is True
+        assert config.orientation == "portrait"
+
+    def test_an_unnamed_save_without_the_picker_writes_no_scratch_setup(
+        self, client, tester, gang, roster
+    ):
+        client.force_login(tester)
+
+        response = client.post(setup_url(gang), {"include_header": "on"})
+
+        assert response.status_code == 200
+        assert not PrintConfig.objects.filter(gang=gang).exists()
+
+    def test_a_weapon_saves_only_with_its_model(self, client, tester, gang, roster):
+        """A weapon posted without its model's box is dropped: a card that
+        does not print has no weapons to show."""
+        vex, sull = roster
+        lasgun = vex.assignments.get(weapon__name="Lasgun")
+        client.force_login(tester)
+
+        client.post(
+            setup_url(gang),
+            {
+                "picker": "1",
+                "name": "Sull",
+                "fighters": [str(sull.pk)],
+                "weapons": [str(lasgun.pk)],
+            },
+        )
+
+        config = PrintConfig.objects.get(gang=gang, name="Sull")
+        assert list(config.miniatures.all()) == [sull]
+        assert not config.assignments.exists()
 
     def test_an_unreadable_id_costs_that_id_when_the_owner_saves_too(
         self, client, tester, gang, roster
@@ -630,7 +1035,11 @@ class TestPrintingSomebodyElsesGang:
 
         response = client.post(
             setup_url(gang),
-            {"name": "Vex alone", "fighters": [str(vex.pk), "not-an-id"]},
+            {
+                "picker": "1",
+                "name": "Vex alone",
+                "fighters": [str(vex.pk), "not-an-id"],
+            },
         )
 
         assert response.status_code == 302
@@ -641,7 +1050,9 @@ class TestPrintingSomebodyElsesGang:
         vex, _ = roster
         client.force_login(stranger)
 
-        response = client.post(setup_url(gang), {"fighters": [str(vex.pk)]})
+        response = client.post(
+            setup_url(gang), {"picker": "1", "fighters": [str(vex.pk)]}
+        )
 
         assert response.status_code == 404
         assert not PrintConfig.objects.filter(gang=gang).exists()
@@ -678,6 +1089,26 @@ class TestPrintingSomebodyElsesGang:
 
         assert "Lasgun" in body
         assert "Stub Gun" not in body
+
+    def test_a_strangers_pick_drops_a_weapon_whose_model_it_leaves_out(
+        self, client, stranger, gang, roster
+    ):
+        from n26.core.views.printing import _weapons_named
+
+        vex, sull = roster
+        lasgun = vex.assignments.get(weapon__name="Lasgun")
+        client.force_login(stranger)
+
+        body = client.get(
+            print_url(gang),
+            {"pick": "1", "fighters": [str(sull.pk)], "weapons": [str(lasgun.pk)]},
+        ).content.decode()
+
+        assert "Sull" in body
+        assert "Vex" not in body
+        assert "Lasgun" not in body
+        assert _weapons_named(gang, [str(lasgun.pk)], [str(sull.pk)]) == set()
+        assert _weapons_named(gang, [str(lasgun.pk)], [str(vex.pk)]) == {lasgun.pk}
 
     def test_a_strangers_pick_can_turn_the_blocks_off(
         self, client, stranger, gang, roster
@@ -887,7 +1318,9 @@ class TestPaperOrientation:
         from bs4 import BeautifulSoup
 
         client.force_login(tester)
-        client.post(setup_url(gang), {"name": "Wide", "orientation": "landscape"})
+        client.post(
+            setup_url(gang), {"picker": "1", "name": "Wide", "orientation": "landscape"}
+        )
         config = PrintConfig.objects.get(gang=gang, name="Wide")
         assert config.orientation == "landscape"
 
@@ -904,7 +1337,9 @@ class TestPaperOrientation:
         self, client, tester, gang, roster
     ):
         client.force_login(tester)
-        client.post(setup_url(gang), {"name": "Odd", "orientation": "sideways"})
+        client.post(
+            setup_url(gang), {"picker": "1", "name": "Odd", "orientation": "sideways"}
+        )
         config = PrintConfig.objects.get(gang=gang, name="Odd")
         assert config.orientation == "portrait"
 

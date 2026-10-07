@@ -16,6 +16,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Count
 from django.shortcuts import redirect, render
+from django.template.defaultfilters import pluralize
 from django.urls import reverse
 
 from n26.core.fields import to_ulid
@@ -147,7 +148,11 @@ def _print_rows(
 
 def _config_for(request, gang):
     """The print config the URL names, if it is this gang's own."""
-    config_id = request.GET.get("config")
+    return _gang_config(gang, request.GET.get("config"))
+
+
+def _gang_config(gang, config_id):
+    """The print config ``config_id`` names, if it is ``gang``'s own."""
     if not config_id:
         return None
     try:
@@ -171,18 +176,25 @@ def _ids(values):
     return kept
 
 
-def _weapons_named(gang, values):
-    """The gang's own weapon assignments among ``values``.
+def _weapons_named(gang, values, models):
+    """The gang's own weapon assignments among ``values``, carried by ``models``.
 
     Scoped to the gang, so an address naming somebody else's weapon adds
-    nothing to the paper.
+    nothing to the paper. Scoped to the picked models too: a weapon whose
+    model is not picked is dropped, even when its id was posted.
     """
+    return set(_picked_weapons(gang, values, models).values_list("pk", flat=True))
+
+
+def _picked_weapons(gang, values, models):
+    """The weapon assignments among ``values`` held by one of ``models``."""
     from n26.core.models import Assignment
 
-    return set(
-        Assignment.objects.filter(
-            gang_root=gang, weapon__isnull=False, pk__in=_ids(values)
-        ).values_list("pk", flat=True)
+    return Assignment.objects.filter(
+        gang_root=gang,
+        weapon__isnull=False,
+        pk__in=_ids(values),
+        miniature_root__in=_ids(models),
     )
 
 
@@ -229,13 +241,100 @@ def _what_to_print(request, gang, config):
     if request.GET.get("pick"):
         return (
             {str(model_id) for model_id in _ids(request.GET.getlist("fighters"))},
-            _weapons_named(gang, request.GET.getlist("weapons")),
+            _weapons_named(
+                gang,
+                request.GET.getlist("weapons"),
+                request.GET.getlist("fighters"),
+            ),
             bool(request.GET.get("include_header")),
             bool(request.GET.get("include_stash")),
             bool(request.GET.get("include_notes")),
             _orientation(request.GET.get("orientation")),
         )
     return None, None, True, True, True, _orientation(None)
+
+
+#: The hidden input the picker draws inside the form, both as server-drawn
+#: boxes and once mounted. A submission without it carried no picker at all
+#: (the island failed and its error box replaced the boxes), so its missing
+#: ``fighters`` and ``weapons`` say nothing about what was meant.
+PICKER_MARKER = "picker"
+
+#: Shown when a setup arrives without the picker: nothing was saved.
+PICKER_MISSING = (
+    "The model list did not load, so nothing was saved. "
+    "Check the models below and print again."
+)
+
+
+def _print_picker(sheet, ticked_models, ticked_weapons, slot_budget, marker):
+    """The setup screen's model and weapon boxes, as the picker island's props.
+
+    Each model carries its weaponless rating as ``baseRating``: the crew
+    total starts there and adds ticked weapons back in the browser, so an
+    unticked model adds nothing, weapons included, as it prints. The
+    totals are a preview; the print reckons its own.
+
+    Only stored weapons can be chosen. A computed line has no assignment
+    to key on, so it gets no box, though it still shows that the card has
+    weapons to count slots against.
+    """
+    return {
+        "marker": marker,
+        "slotBudget": slot_budget,
+        "models": [
+            {
+                "id": str(card.id),
+                "name": card.name,
+                "profileName": card.profile_name,
+                "rating": card.rating,
+                "baseRating": card.rating
+                - sum(weapon.total_rating for weapon in card.weapons),
+                "ticked": card.id in ticked_models,
+                "hasWeapons": bool(card.weapons),
+                "weapons": [
+                    {
+                        "id": str(weapon.id),
+                        "label": (
+                            f"{weapon.name}{weapon.slot_mark}"
+                            f"{weapon.total_brought_mark}"
+                        ),
+                        "slots": weapon.slots,
+                        "slotsLabel": (
+                            ""
+                            if weapon.slots == 1
+                            else f"{weapon.slots} slot{pluralize(weapon.slots)}"
+                        ),
+                        "rating": weapon.total_rating,
+                        "ticked": str(weapon.id) in ticked_weapons,
+                    }
+                    for weapon in card.weapons
+                    if weapon.id
+                ],
+            }
+            for card in sheet.models
+        ],
+    }
+
+
+def _picker_fallback(picker):
+    """The picker's boxes as the server draws them, before the island mounts.
+
+    The page's form posts these if it is submitted before the island
+    loads, or if it never does, so a saved setup is not emptied by a
+    submission that carried no boxes. Each card's slot count and the crew
+    total are the island's starting figures, reckoned the same way.
+    """
+    budget = picker["slotBudget"]
+    rows = []
+    total = 0
+    for model in picker["models"]:
+        ticked = [weapon for weapon in model["weapons"] if weapon["ticked"]]
+        slots = sum(weapon["slots"] for weapon in ticked)
+        rows.append({"model": model, "slots": slots, "over": slots > budget})
+        if model["ticked"]:
+            total += model["baseRating"] + sum(weapon["rating"] for weapon in ticked)
+    return {"rows": rows, "total": total}
 
 
 @login_required
@@ -251,6 +350,9 @@ def print_setup(request, pk):
     POST writes a config and redirects to the print page carrying its
     id. A named POST saves under that name; an unnamed one rewrites the
     gang's single scratch config, so ad-hoc prints never pile up rows.
+    A POST without the picker's marker saves nothing and shows the form
+    again with an error: its missing boxes are not a choice to print no
+    models.
 
     Two guards, because the screen and the act behind it are not the same
     permission. Anyone signed in may read the setup — the gang's saved
@@ -259,8 +361,7 @@ def print_setup(request, pk):
     same boxes to the print page as a GET, which prints the pick without
     keeping it.
     """
-    from n26.core.models import Assignment, Miniature, PrintConfig
-    from n26.core.render import render_gang
+    from n26.core.models import Miniature, PrintConfig
 
     if request.method == "POST":
         from django.db import transaction
@@ -269,15 +370,23 @@ def print_setup(request, pk):
 
         gang = _own_gang_or_404(request, pk)
         name = request.POST.get("name", "").strip()
+        if not request.POST.get(PICKER_MARKER):
+            # Saving this would empty the setup's models and weapons.
+            # Shown again ticked as the setup the form was loaded from,
+            # which the name may no longer match, else as the one it names.
+            loaded = _gang_config(gang, request.POST.get("config"))
+            if loaded is None and name:
+                loaded = gang.print_configs.filter(name__iexact=name).first()
+            return _setup_page(
+                request, gang, loaded, error=PICKER_MISSING, posted=request.POST
+            )
         miniatures = Miniature.objects.filter(
             membership__gang=gang,
             membership__archived=False,
             pk__in=_ids(request.POST.getlist("fighters")),
         )
-        weapons = Assignment.objects.filter(
-            gang_root=gang,
-            weapon__isnull=False,
-            pk__in=_ids(request.POST.getlist("weapons")),
+        weapons = _picked_weapons(
+            gang, request.POST.getlist("weapons"), request.POST.getlist("fighters")
         )
         # Matched on the lowercased name, which is what the gang is
         # unique over: saving "Roster" where the gang already holds
@@ -296,12 +405,30 @@ def print_setup(request, pk):
             config.assignments.set(weapons)
         return redirect(f"{reverse('n26-print', args=[gang.pk])}?config={config.pk}")
 
-    from n26.core.render import WEAPON_SLOTS_PER_CARD
-
     gang = _any_gang_or_404(request, pk)
+    return _setup_page(request, gang, _config_for(request, gang))
+
+
+def _setup_page(request, gang, loaded, error="", posted=None):
+    """The setup screen for ``gang``, pre-filled from ``loaded`` if set.
+
+    ``error`` is a non-field error drawn above the fields. ``posted`` is a
+    submission being shown again: its name, toggles and orientation win
+    over ``loaded``, so a retry keeps the owner's edits.
+    """
+    from django import forms
+
+    from n26.core.render import WEAPON_SLOTS_PER_CARD, render_gang
+
     yours = gang.owner_id == request.user.id
-    loaded = _config_for(request, gang)
     sheet = render_gang(gang)
+    errors = None
+    if error:
+        # An empty bound form carries the error to the form page's own
+        # non-field error slot.
+        errors = forms.Form(data={})
+        errors.is_valid()
+        errors.add_error(None, error)
     # The gang's named setups, whoever is reading: each is one click to
     # print, and a reader printing for somebody else wants the setup that
     # somebody else already settled on. The model count is counted in the
@@ -320,6 +447,15 @@ def print_setup(request, pk):
         # A fresh run prints everything: every box starts ticked.
         ticked_models = {card.id for card in sheet.models}
         ticked_weapons = {weapon.id for card in sheet.models for weapon in card.weapons}
+    # Only the owner's POST checks the marker. A reader's pick is an
+    # address that saves nothing, and it stays as short as before.
+    picker = _print_picker(
+        sheet,
+        ticked_models,
+        ticked_weapons,
+        WEAPON_SLOTS_PER_CARD,
+        PICKER_MARKER if yours else "",
+    )
 
     return render(
         request,
@@ -327,34 +463,34 @@ def print_setup(request, pk):
         {
             "gang": gang,
             "sheet": sheet,
-            # What each model is worth with no weapons ticked — the live
-            # crew total starts here and adds ticked weapons back on the
-            # client. Derived server-side so the template only reads it;
-            # `ticked` too, because a cotton :prop evaluates a variable,
-            # not an `in` expression — passed as one, every card rendered
-            # unticked and nothing errored.
-            "model_rows": [
-                {
-                    "card": card,
-                    "ticked": card.id in ticked_models,
-                    "base_rating": card.rating
-                    - sum(weapon.total_rating for weapon in card.weapons),
-                }
-                for card in sheet.models
-            ],
+            "print_picker": picker,
+            "print_fallback": _picker_fallback(picker),
+            "setup_errors": errors,
             "saved": saved,
             # Resolved here, not in the template: `loaded.include_header`
             # on a None resolves to the empty string, which default_if_none
             # does not catch — a template-side default silently unticks.
-            "setup_name": loaded.name if loaded else "",
-            "include_header": loaded.include_header if loaded else True,
-            "include_stash": loaded.include_stash if loaded else True,
-            "include_notes": loaded.include_notes if loaded else True,
-            "orientation": _orientation(loaded.orientation if loaded else None),
-            "ticked_models": ticked_models,
-            "ticked_weapons": ticked_weapons,
-            "slot_budget": WEAPON_SLOTS_PER_CARD,
+            **(
+                {
+                    "setup_name": posted.get("name", "").strip(),
+                    "include_header": bool(posted.get("include_header")),
+                    "include_stash": bool(posted.get("include_stash")),
+                    "include_notes": bool(posted.get("include_notes")),
+                    "orientation": _orientation(posted.get("orientation")),
+                }
+                if posted is not None
+                else {
+                    "setup_name": loaded.name if loaded else "",
+                    "include_header": loaded.include_header if loaded else True,
+                    "include_stash": loaded.include_stash if loaded else True,
+                    "include_notes": loaded.include_notes if loaded else True,
+                    "orientation": _orientation(loaded.orientation if loaded else None),
+                }
+            ),
             "yours": yours,
+            # The setup the boxes were ticked from, sent back with the
+            # owner's form so a failed save can show those ticks again.
+            "loaded_config": str(loaded.pk) if yours and loaded else "",
             # Where the boxes are submitted, and how. The owner's form
             # saves a setup and prints it; a reader who cannot save sends
             # the same boxes straight to the paper, as a query the address

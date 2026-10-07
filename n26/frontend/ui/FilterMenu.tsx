@@ -1,13 +1,6 @@
-import {
-    createElement,
-    useEffect,
-    useId,
-    useLayoutEffect,
-    useRef,
-    useState,
-    type CSSProperties,
-} from "react";
+import { createElement, useId, useRef, useState } from "react";
 import cotton from "../generated/cotton.json";
+import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
 
 export type FilterOption = {
     value: string;
@@ -48,100 +41,22 @@ export function FilterMenu({
     const panel = useRef<HTMLDivElement>(null);
     const snapshot = useRef<string[]>([]);
     const [open, setOpen] = useState(false);
-    const [panelStyle, setPanelStyle] = useState<CSSProperties>({
-        visibility: "hidden",
-    });
     const [values, setValues] = useState(() =>
         options.map((option) => option.value),
     );
 
-    useEffect(() => {
-        if (!open) return;
-
-        function dismissOnOutsideClick(event: PointerEvent) {
-            if (!root.current?.contains(event.target as Node)) setOpen(false);
-        }
-
-        function dismissOnOutsideFocus(event: FocusEvent) {
-            if (!root.current?.contains(event.target as Node)) setOpen(false);
-        }
-
-        function dismissOnEscape(event: KeyboardEvent) {
-            if (event.key !== "Escape") return;
-            setOpen(false);
-            trigger.current?.focus();
-        }
-
-        document.addEventListener("pointerdown", dismissOnOutsideClick);
-        document.addEventListener("focusin", dismissOnOutsideFocus);
-        document.addEventListener("keydown", dismissOnEscape);
-        return () => {
-            document.removeEventListener("pointerdown", dismissOnOutsideClick);
-            document.removeEventListener("focusin", dismissOnOutsideFocus);
-            document.removeEventListener("keydown", dismissOnEscape);
-        };
-    }, [open]);
-
-    useLayoutEffect(() => {
-        if (!open) return;
-
-        function placePanel() {
-            if (!trigger.current || !panel.current) return;
-            const margin = 16;
-            const gap = 4;
-            const anchor = trigger.current.getBoundingClientRect();
-            const width = Math.min(320, window.innerWidth - margin * 2);
-            const belowTop = Math.min(
-                Math.max(margin, anchor.bottom + gap),
-                window.innerHeight - margin,
-            );
-            const aboveBottom = Math.max(
-                margin,
-                Math.min(anchor.top - gap, window.innerHeight - margin),
-            );
-            const below = window.innerHeight - margin - belowTop;
-            const above = aboveBottom - margin;
-            const opensAbove =
-                panel.current.scrollHeight > below && above > below;
-            const maxHeight = Math.max(80, opensAbove ? above : below);
-            const height = Math.min(panel.current.scrollHeight, maxHeight);
-            const top = opensAbove
-                ? Math.max(margin, aboveBottom - height)
-                : belowTop;
-            const left = Math.min(
-                Math.max(margin, anchor.left),
-                window.innerWidth - width - margin,
-            );
-            const nextStyle = {
-                visibility: "visible",
-                left,
-                top,
-                width,
-                maxHeight,
-            } satisfies CSSProperties;
-            setPanelStyle((previous) =>
-                previous.visibility === nextStyle.visibility &&
-                previous.left === nextStyle.left &&
-                previous.top === nextStyle.top &&
-                previous.width === nextStyle.width &&
-                previous.maxHeight === nextStyle.maxHeight
-                    ? previous
-                    : nextStyle,
-            );
-        }
-
-        placePanel();
-        window.addEventListener("resize", placePanel);
-        window.addEventListener("scroll", placePanel, true);
-        return () => {
-            window.removeEventListener("resize", placePanel);
-            window.removeEventListener("scroll", placePanel, true);
-        };
-    }, [open]);
+    useDismiss(root, trigger, open, () => setOpen(false));
+    const panelStyle = useAnchoredPlacement({
+        open,
+        trigger,
+        panel,
+        width: 320,
+        gap: 4,
+        clampHeight: true,
+    });
 
     function show() {
         snapshot.current = values.slice();
-        setPanelStyle({ visibility: "hidden" });
         setOpen(true);
     }
 

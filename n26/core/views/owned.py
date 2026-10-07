@@ -684,7 +684,33 @@ def link_stash_actions(sheet, at, *, refunds=True, bound_items=frozenset()):
                 Action("Refund", LINK, with_query(at, refund=line.id), SECONDARY)
             )
         menu.append(Action("Delete", LINK, with_query(at, remove=line.id), DANGER))
-        line.menu = tuple(menu)
+        line.menu = stash_menu(menu)
+
+
+def stash_menu(actions):
+    """A stash line's menu, as entries for ``<c-n26.action-menu>``.
+
+    The others come first, then each danger act with a separator above it
+    whenever the line offers more than one act. A single pass would leave
+    a destructive act in the middle of the menu.
+    """
+    from n26.core.listing import DANGER, LINK
+
+    def entry(action, separator_before=False):
+        if action.kind != LINK:
+            raise ValueError(f"A stash menu draws links only, not {action.kind!r}")
+        return {
+            "label": action.label,
+            "href": action.target,
+            "tone": "danger" if action.tone == DANGER else "default",
+            "separator_before": separator_before,
+        }
+
+    actions = tuple(actions)
+    separate = len(actions) > 1
+    return tuple(entry(a) for a in actions if a.tone != DANGER) + tuple(
+        entry(a, separate) for a in actions if a.tone == DANGER
+    )
 
 
 def link_possession_actions(model_card, host, *, refunds=True):
@@ -1356,6 +1382,44 @@ def _campaign_counter_update(request, assignment, gang, back, *, close=False):
     )
 
 
+def _shown_counter_value(assignment, gang, miniature, recorded):
+    """The number a reader sees for this counter, contributions included.
+
+    The recorded half is what a tally moves. A rule can add the rest, and
+    the amount dialog previews the sum the card already shows. A card with
+    no line for this assignment falls back to the recorded value.
+    """
+    if miniature is None:
+        from n26.core.card import build_gang_card, build_modifier_index, carriers
+        from n26.core.effects import compute_gang
+        from n26.core.render import build_campaign_block
+
+        card = build_gang_card(gang)
+        index = build_modifier_index(carriers(card, *card.members.values()))
+        block = build_campaign_block(
+            card, index=index, computed=compute_gang(card, index)
+        )
+        lines = () if block is None else block.counters
+    else:
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+        from n26.core.render import build_model_card
+
+        own = build_card(miniature)
+        card = build_model_card(
+            miniature,
+            card=own,
+            computed=compute(own, build_modifier_index(carriers(own))),
+            rank_summaries=(),
+        )
+        lines = card.counters
+    line = next(
+        (item for item in lines if item.assignment_id == str(assignment.pk)),
+        None,
+    )
+    return recorded if line is None else line.value
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def tally_counter(request, pk):
@@ -1414,28 +1478,7 @@ def tally_counter(request, pk):
                 .first()
                 or 0
             )
-            from n26.core.card import build_gang_card, build_modifier_index, carriers
-            from n26.core.effects import compute_gang
-            from n26.core.render import build_campaign_block
-
-            total = value
-            if miniature is None:
-                card = build_gang_card(gang)
-                index = build_modifier_index(carriers(card, *card.members.values()))
-                block = build_campaign_block(
-                    card, index=index, computed=compute_gang(card, index)
-                )
-                if block is not None:
-                    line = next(
-                        (
-                            c
-                            for c in block.counters
-                            if c.assignment_id == str(assignment.pk)
-                        ),
-                        None,
-                    )
-                    if line is not None:
-                        total = line.value
+            total = _shown_counter_value(assignment, gang, miniature, value)
             preview = {
                 "value": total,
                 "recorded": value,
@@ -1519,15 +1562,22 @@ def tally_counter(request, pk):
         change=change,
     )
     if miniature is not None and is_htmx(request):
-        # No message queued: the number on the card moves where the
-        # reader is looking, and a toast for every step of a tally
-        # somebody is working through is noise. A refusal is the one
-        # thing they cannot see, and it is queued where it is raised.
-        return render_card_update(
-            request,
-            miniature,
-            back or reverse("n26-edit-fighter", args=[miniature.pk]),
-        )
+        # A one-point step moves the number where the reader is looking,
+        # so it sends no toast. An amount from the dialog is one deliberate
+        # change: say what it became, close the dialog, and put the address
+        # back on the page the pencil was drawn on.
+        landing = back or reverse("n26-edit-fighter", args=[miniature.pk])
+        if adjusting:
+            response = render_card_update(
+                request,
+                miniature,
+                landing,
+                close_counter_dialog=True,
+                announce_counter=str(assignment.pk),
+            )
+            response["HX-Replace-Url"] = landing
+            return response
+        return render_card_update(request, miniature, landing)
     if miniature is None and is_htmx(request):
         response = _campaign_counter_update(
             request, assignment, gang, back or here, close=adjusting

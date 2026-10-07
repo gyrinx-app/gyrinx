@@ -1,0 +1,8 @@
+{# title: Chevron and a danger link #}
+{# note: trigger="chevron" draws the chevron alone, and it turns while the menu is open. The danger link is drawn in red, with a separator above it only because this caller asks for one. #}
+{% load action_menu %}
+{% link_actions "Reassign" "#" "Refund" "#" danger_label="Delete" danger_href="#" danger_separator=True as items %}
+<c-n26.action-menu :items="items"
+                   label="Actions for Respirator"
+                   trigger="chevron"
+                   min_width="10rem" />

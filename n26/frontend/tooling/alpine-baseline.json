@@ -14,7 +14,6 @@
   "n26/core/templates/cotton/n26/quick_switcher/item.html": 5,
   "n26/core/templates/cotton/n26/range_menu.html": 18,
   "n26/core/templates/cotton/n26/range_slider.html": 4,
-  "n26/core/templates/cotton/n26/record_table/gang_row.html": 4,
   "n26/core/templates/cotton/n26/rich_text.html": 8,
   "n26/core/templates/cotton/n26/search_bar.html": 4,
   "n26/core/templates/cotton/n26/site/nav/index.html": 1,
@@ -27,8 +26,7 @@
   "n26/core/templates/n26/add_gang_to_campaign.html": 11,
   "n26/core/templates/n26/includes/campaign_roll_dialog.html": 5,
   "n26/core/templates/n26/includes/equip_owned_toggle.html": 1,
-  "n26/core/templates/n26/layouts/base.html": 2,
-  "n26/core/templates/n26/print_setup.html": 8,
+  "n26/core/templates/n26/layouts/base.html": 1,
   "n26/designsystem/templates/designsystem/_demo.html": 9,
   "n26/designsystem/templates/designsystem/base.html": 12,
   "n26/designsystem/templates/designsystem/demos/choice-menu/30-apply.html": 3,
@@ -47,6 +45,6 @@
   "n26/designsystem/templates/designsystem/demos/toast/20-overrides.html": 3,
   "n26/designsystem/templates/designsystem/shell/print.html": 1,
   "n26/designsystem/templates/designsystem/shell/shop.html": 1,
-  "n26/designsystem/templates/designsystem/theming.html": 11,
+  "n26/designsystem/templates/designsystem/theming.html": 10,
   "n26/designsystem/templates/designsystem/tokens.html": 5
 }

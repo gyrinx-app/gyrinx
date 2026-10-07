@@ -10,6 +10,7 @@ import {
     type KeyboardEvent,
 } from "react";
 import cotton from "../generated/cotton.json";
+import { useDismiss } from "./anchoredPanel";
 
 const recipe = cotton.quickSwitcher;
 
@@ -304,32 +305,10 @@ export function QuickSwitcher({
     }, [hotkey]);
 
     useEffect(() => {
-        if (!open) return;
-        input.current?.focus({ preventScroll: true });
-
-        function dismissOnOutsidePointer(event: PointerEvent) {
-            if (!root.current?.contains(event.target as Node)) setOpen(false);
-        }
-        function dismissOnOutsideFocus(event: FocusEvent) {
-            if (!root.current?.contains(event.target as Node)) setOpen(false);
-        }
-        function dismissOnEscape(event: globalThis.KeyboardEvent) {
-            if (event.key !== "Escape") return;
-            setOpen(false);
-            trigger.current?.focus();
-        }
-        document.addEventListener("pointerdown", dismissOnOutsidePointer);
-        document.addEventListener("focusin", dismissOnOutsideFocus);
-        document.addEventListener("keydown", dismissOnEscape);
-        return () => {
-            document.removeEventListener(
-                "pointerdown",
-                dismissOnOutsidePointer,
-            );
-            document.removeEventListener("focusin", dismissOnOutsideFocus);
-            document.removeEventListener("keydown", dismissOnEscape);
-        };
+        if (open) input.current?.focus({ preventScroll: true });
     }, [open]);
+
+    useDismiss(root, trigger, open, close);
 
     // Fixed to the window, beside the control, and inside the visual
     // viewport: the on-screen keyboard shrinks that without changing the

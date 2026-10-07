@@ -31,25 +31,19 @@ describe("AccessoriseLink", () => {
         heard.mockReset();
     });
 
-    it("draws the extra-small ghost link beside the weapon's name", () => {
+    it("draws the extra-small text link beside the weapon's name", () => {
         render(<AccessoriseLink {...props} />);
         const link = screen.getByRole("link", {
             name: "Add accessory to Autogun",
         });
         expect(link.getAttribute("href")).toBe(props.href);
-        expect(link.className).toContain(cotton.buttonLinkBySize.xs.ghost);
-        expect(link.className).toContain(
-            "ms-0.5 -mt-0.5 align-middle text-ink-500 dark:text-ink-400",
-        );
-        expect(link.querySelector("svg")?.getAttribute("class")).toContain(
-            "size-3.5",
-        );
+        expect(link.className).toContain(cotton.buttonLinkBySize.xs.text);
+        expect(link.className).toContain("ms-0.5 py-0!");
+        expect(link.querySelector(".n26-icon-inline svg")).not.toBeNull();
         expect(link.querySelector("svg")?.getAttribute("stroke-width")).toBe(
             "2.5",
         );
-        expect(screen.getByText("Add accessory").className).toContain(
-            "inline-flex",
-        );
+        expect(link.textContent).toContain("Add accessory");
     });
 
     it("opens the panel the page is already holding", () => {

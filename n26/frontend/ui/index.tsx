@@ -449,6 +449,8 @@ export function CheckboxCard({
     checkboxDescribedBy,
     notice,
     errors,
+    name,
+    value,
 }: {
     checked: boolean;
     onCheckedChange: (checked: boolean) => void;
@@ -462,6 +464,9 @@ export function CheckboxCard({
     checkboxDescribedBy?: string;
     notice?: ReactNode;
     errors?: ReactNode;
+    /** Posts the checkbox with its form, as the Cotton card's input does. */
+    name?: string;
+    value?: string;
 }) {
     const id = useId();
     const recipe = cotton.checkboxCard;
@@ -474,6 +479,8 @@ export function CheckboxCard({
                 <input
                     id={id}
                     type="checkbox"
+                    name={name}
+                    value={value}
                     checked={checked}
                     disabled={disabled}
                     onChange={(event) => onCheckedChange(event.target.checked)}
@@ -937,6 +944,11 @@ export function TickListOption({
     );
 }
 
+export {
+    ActionMenu,
+    type ActionMenuItem,
+    type ActionMenuProps,
+} from "./ActionMenu";
 export { FilterMenu, type FilterOption } from "./FilterMenu";
 export {
     QuickSwitcher,
@@ -944,3 +956,8 @@ export {
     type SwitcherRow,
 } from "./QuickSwitcher";
 export { HelpPopover } from "./HelpPopover";
+export {
+    useAnchoredPlacement,
+    useDismiss,
+    type AnchoredPlacementOptions,
+} from "./anchoredPanel";

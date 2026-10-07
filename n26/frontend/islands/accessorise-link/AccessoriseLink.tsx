@@ -8,9 +8,8 @@ export type AccessoriseLinkProps = {
     name: string;
 };
 
-// Sit the control in the name line. The ghost recipe is a blocky button;
-// these classes pull it back into the sentence beside the weapon.
-const IN_NAME = "ms-0.5 -mt-0.5 align-middle text-ink-500 dark:text-ink-400";
+// Sit the link in the name line, without the button's vertical padding.
+const IN_NAME = "ms-0.5 py-0!";
 
 export function AccessoriseLink({
     href,
@@ -45,16 +44,16 @@ export function AccessoriseLink({
     return (
         <ButtonLink
             href={href}
-            variant="ghost"
+            variant="text"
             size="xs"
             className={IN_NAME}
             aria-label={`${label} to ${name}`}
             onClick={open}
         >
-            <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                <Icon name="plus" className="size-3.5" strokeWidth={2.5} />
-                {label}
+            <span className="n26-icon-inline">
+                <Icon name="plus" strokeWidth={2.5} />
             </span>
+            {label}
         </ButtonLink>
     );
 }

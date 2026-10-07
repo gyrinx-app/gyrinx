@@ -13,6 +13,8 @@ to the gang, an affiliation the gang itself is asked — and the screens
 tell them apart by nothing at all. One route, one page, one click.
 """
 
+import json
+
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -1945,10 +1947,19 @@ class TestShowingDismissedOffers:
         )
         shown = f"{here}?dismissed=show" if screen == "edit" else here
         page = BeautifulSoup(client.get(shown).content, "html.parser")
+        # The gang sheet's stash menus are React action menus, whose links
+        # live in each host's props rather than in anchors.
+        hrefs = [link["href"] for link in page.find_all("a", href=True)] + [
+            item["href"]
+            for host in page.select('[data-react-name="action-menu"]')
+            for item in json.loads(page.find(id=host["data-react-props"]).string)[
+                "items"
+            ]
+        ]
         sell = next(
-            link["href"]
-            for link in page.find_all("a", href=True)
-            if parse_qs(urlsplit(link["href"]).query).get("sell") == [str(bought.pk)]
+            href
+            for href in hrefs
+            if parse_qs(urlsplit(href).query).get("sell") == [str(bought.pk)]
         )
         assert parse_qs(urlsplit(sell).query).get("dismissed", []) == (
             ["show"] if screen == "edit" else []

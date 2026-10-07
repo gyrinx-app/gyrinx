@@ -15,6 +15,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
+from n26.core.listing import LINK, SECONDARY, Action
 from n26.core.views.permissions import (
     _any_campaign_or_404,
     _own_campaign_or_404,
@@ -262,6 +263,7 @@ def campaign(request, pk):
             "sheet": sheet,
             "yours": yours,
             "log_href": reverse("n26-campaign-log", args=[found.pk]),
+            "more_actions": more_actions(found, yours=yours),
             # A player at the table brings their own gangs; the arbitrator
             # brings anybody's. Both reach the same screen.
             "may_add_gang": yours or at_the_table,
@@ -274,6 +276,39 @@ def campaign(request, pk):
             **_roll_context(found, rolling, starting, redrawn=False),
         },
     )
+
+
+def more_actions(campaign, *, yours):
+    """The links in the campaign header's More actions menu.
+
+    Every player at the table may read the log. Only the arbitrator manages
+    the campaign's counters and labels, or archives it. No separators.
+    """
+    actions = [
+        Action(
+            "View log",
+            LINK,
+            reverse("n26-campaign-log", args=[campaign.pk]),
+            SECONDARY,
+        )
+    ]
+    if yours:
+        actions += [
+            Action(
+                "Counters and labels",
+                LINK,
+                reverse("n26-edit-campaign", args=[campaign.pk])
+                + "?tab=counters-and-labels",
+                SECONDARY,
+            ),
+            Action(
+                "Archive campaign",
+                LINK,
+                reverse("n26-archive-campaign", args=[campaign.pk]),
+                SECONDARY,
+            ),
+        ]
+    return actions
 
 
 def _fill_addresses(sheet, campaign, *, yours, viewer):

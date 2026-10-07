@@ -30,19 +30,13 @@ Rating zero draws as nothing. A line that added nothing has no figure to state.
                         {# Without a script this link navigates, and the server draws the panel open. #}
                         {% accessorise_link_props href=copy.accessorise.target copy_id=copy.id label=copy.accessorise.label name=copy.marked_name as props_ %}
                         {% react_host "accessorise-link" props_ class="inline" %}
-                            <c-ui.button variant="ghost"
+                            <c-ui.button variant="text"
                                          size="xs"
-                                         class="ms-0.5 -mt-0.5 align-middle text-ink-500 dark:text-ink-400"
+                                         class="ms-0.5 py-0!"
                                          href="{{ copy.accessorise.target }}"
                                          aria-label="{{ copy.accessorise.label }} to {{ copy.marked_name }}">
-
-                                {# Keep icon and words in one span. The kit button is inline-block, and a reset makes an svg a block, so they would stack. #}
-                                <span class="inline-flex items-center gap-1 whitespace-nowrap">
-                                    <c-n26.icon name="plus"
-                                                class="size-3.5"
-                                                stroke_width="2.5" />
-                                    {{ copy.accessorise.label }}
-                                </span>
+                                <span class="n26-icon-inline"><c-n26.icon name="plus" stroke_width="2.5" /></span>
+                                {{ copy.accessorise.label }}
                             </c-ui.button>
                         {% endreact_host %}
                     {% endif %}

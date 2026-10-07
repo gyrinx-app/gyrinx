@@ -283,6 +283,7 @@ def link_model_card(
     among=None,
     dismissal_at=None,
     rank_summaries=None,
+    amount_dialog=False,
 ):
     """The model's card with every control addressed — the card each of
     the model's own screens draws above its tabs.
@@ -298,12 +299,14 @@ def link_model_card(
     and counter controls so the act returns the reader there. ``host``
     decides where the kit acts open: on ``host.at``, which is the
     screen's own address where it holds the dialog host, and the model's
-    own page otherwise.
+    own page otherwise. ``amount_dialog`` is set only where that page also
+    holds the amount-dialog host, so each counter pencil has somewhere to land.
 
     ``dismissal_at`` keeps dismissal controls on their current screen where
     other card actions return somewhere else, as on Options.
     """
     from n26.core.access import model_collections
+    from n26.core.owned import with_query
     from n26.core.render import build_model_card
     from n26.core.views.choose import link_slots, settle_dismissed
     from n26.core.views.owned import link_counters, link_possession_actions
@@ -329,6 +332,13 @@ def link_model_card(
     link_slots(gang, card, back=back, dismiss_back=dismissal_at)
     link_skills(card, among=model_collections() if among is None else among)
     link_counters(card, back=back)
+    # The amount dialog's host is on the Edit face. Options borrows this
+    # page's address for its counters and does not hold that host, so the
+    # pencil is opted into by the caller rather than inferred from ``back``.
+    if amount_dialog:
+        for line in card.counters:
+            if line.href:
+                line.adjust_href = with_query(line.href, back=back)
     link_possession_actions(card, host, refunds=not gang.credits_unlimited)
     # Options sends card actions to Edit; dismissal_at retains the screen
     # actually showing this card.
@@ -494,7 +504,9 @@ def action_panel_context(miniature, own, computed, *, counter_tracking_active=No
     }
 
 
-def render_card_update(request, miniature, at):
+def render_card_update(
+    request, miniature, at, *, close_counter_dialog=False, announce_counter=""
+):
     """The partial update for an act on one model's card.
 
     Why the whole card is sent back rather than the part that moved is
@@ -541,8 +553,18 @@ def render_card_update(request, miniature, at):
         host,
         back=back,
         rank_summaries=progression.summaries if progression is not None else None,
+        amount_dialog=on_edit,
     )
     link_model_cards(gang, [card], request.user)
+    if announce_counter:
+        # The toast names the reading on the card, contributions included,
+        # which is the number the reader is looking at.
+        announced = next(
+            (line for line in card.counters if line.assignment_id == announce_counter),
+            None,
+        )
+        if announced is not None:
+            messages.success(request, f"{announced.name} is now {announced.value}.")
 
     response = render(
         request,
@@ -561,6 +583,7 @@ def render_card_update(request, miniature, at):
             "update_progression_status": on_edit,
             "update_progression_history": on_edit,
             "update_dismissed_choices": on_edit,
+            "close_counter_dialog": close_counter_dialog,
             "status_href": (
                 status_href(gang, miniature, back="edit")
                 if may_mark_status(gang, request.user)
@@ -1057,6 +1080,7 @@ def edit_fighter(request, pk):
         back=request.get_full_path(),
         among=sets,
         rank_summaries=progression.summaries,
+        amount_dialog=True,
     )
     link_model_cards(gang, [card], request.user)
 

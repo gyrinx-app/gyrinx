@@ -6,8 +6,13 @@ in the header: that they are there, that they say what they are, and that they
 sit on the correct side of the button at each width.
 """
 
+import json
+
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from n26.core import icons
@@ -122,13 +127,40 @@ class TestTheGangRows:
     def test_a_home_row_has_a_menu_of_gang_actions(self, client, tester, gang):
         client.force_login(tester)
         body = client.get(reverse("n26-dashboard")).content.decode()
-        assert 'aria-label="Actions for The Ashen Choir"' in body
-        assert ">Viewgang<" in flat(body)
-        assert ">Editgangsettings<" in flat(body)
-        assert ">Print<" in flat(body)
-        assert reverse("n26-gang", args=[gang.pk]) in body
-        assert reverse("n26-edit-gang", args=[gang.pk]) in body
-        assert reverse("n26-print-setup", args=[gang.pk]) in body
+        # The page draws the menu's button until the island mounts.
+        assert body.count('aria-label="Actions for The Ashen Choir"') == 1
+        soup = BeautifulSoup(body, "html.parser")
+        (host,) = soup.select('[data-react-name="action-menu"]')
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+        assert props["label"] == "Actions for The Ashen Choir"
+        assert props["align"] == "end"
+        assert props["variant"] == "ghost"
+        assert [(item["label"], item["href"]) for item in props["items"]] == [
+            ("View gang", reverse("n26-gang", args=[gang.pk])),
+            ("Edit gang settings", reverse("n26-edit-gang", args=[gang.pk])),
+            ("Print", reverse("n26-print-setup", args=[gang.pk])),
+        ]
+        assert not any(item["separatorBefore"] for item in props["items"])
+
+    def test_the_home_rows_cost_no_query_per_gang(
+        self, client, tester, gang, gang_type
+    ):
+        """Each row draws its menu from the row's own addresses, so the
+        page asks the database the same questions however many gangs it
+        lists."""
+        client.force_login(tester)
+        url = reverse("n26-dashboard")
+        client.get(url)
+        with CaptureQueriesContext(connection) as one:
+            client.get(url)
+
+        for name in ("The Bad Girls", "Cold Iron", "Rust Choir"):
+            Gang.objects.create(name=name, owner=tester, gang_type=gang_type)
+        with CaptureQueriesContext(connection) as four:
+            body = client.get(url).content.decode()
+
+        assert body.count('data-react-name="action-menu"') == 4
+        assert len(four) == len(one)
 
     def test_a_home_row_draws_the_gang_type_artwork(
         self, client, tester, gang, store_artwork

@@ -39,3 +39,17 @@ def test_radio_card_recipes_keep_the_cotton_layout_and_states():
     assert "whitespace-nowrap" not in radio["card"]["flairText"]
     assert "bg-amber-100" in form["badge"]
     assert form["buttonSmall"]["primary"] != form["button"]["primary"]
+
+
+def test_action_menu_recipe_reads_the_kit_dropdown():
+    form = recipes()
+    menu = form["actionMenu"]
+
+    assert menu["separator"] == "h-px my-1 bg-ink-200 dark:bg-ink-700"
+    assert "z-50" in menu["panel"]
+    assert "overscroll-contain" in menu["panel"]
+    assert "focus-visible:bg-ink-100" in menu["item"]
+    assert "text-red-600" in menu["itemDanger"]
+    assert "text-red-600" not in menu["item"]
+    assert menu["itemLabel"] == "flex-1"
+    assert [e["tag"] for e in form["icons"]["ellipsis-vertical"]] == ["circle"] * 3

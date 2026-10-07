@@ -1842,13 +1842,12 @@ def model_card():
                 name="XP", value=61, tallied=61, assignment_id="xp", is_xp=True
             ),
             CounterLine(name="Kill Count", value=3, tallied=3, assignment_id="kills"),
-            # Nothing tallied, so the editable card shows that the minus
-            # is not drawn: a tally floors at zero and the control would
-            # offer nothing.
+            # Nothing written down. A tally floors at zero, so there is
+            # nothing to take off.
             CounterLine(name="Glitch Count", value=0, assignment_id="glitch"),
             # Assigned but never tallied, with a rule contributing 2 on
-            # top. It reads 2 and still draws no minus: a tally can only
-            # move the half that is written down, and that half is zero.
+            # top. It reads 2. A tally can only move the half that is
+            # written down, and that half is zero.
             CounterLine(name="Bounty", value=2, assignment_id="bounty"),
         ],
         xp=61,
@@ -2568,7 +2567,8 @@ def model_card_editable():
             kind_label="Archetype", chosen=None, dismissed=True, restore_href="#"
         )
     ]
-    card.counters = [replace(line, href="#") for line in card.counters]
+    # Every counter on this page opens an amount dialog.
+    card.counters = [replace(line, href="#", adjust_href="#") for line in card.counters]
     # The base card draws several of one thing as one line with a count.
     # The model's own page draws one line per assignment, each with the
     # menu that names it, so a stacked line is opened back out here.
