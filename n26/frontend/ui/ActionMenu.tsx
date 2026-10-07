@@ -60,6 +60,28 @@ export type ActionMenuProps = {
 type Edge = "first" | "last";
 
 /**
+ * Whether a click came from a screen reader or other assistive technology
+ * rather than a pointer, after React Aria's `isVirtualClick`:
+ * - Firefox marks a trusted virtual click with `mozInputSource` 0, which
+ *   catches NVDA and JAWS there although their click has `detail` 1.
+ * - On Android, TalkBack sends a click with a `pointerType` and `buttons` 1.
+ *   This check is Android-only, so a desktop mouse click never matches it.
+ * - Elsewhere, a click with `detail` 0 and no `pointerType`, as
+ *   `element.click()` sends. A real pointer click that reports `detail` 0
+ *   still has a `pointerType`, so it does not count.
+ */
+export function isVirtualClick(event: MouseEvent) {
+    const { pointerType } = event as PointerEvent;
+    const { mozInputSource } = event as MouseEvent & {
+        mozInputSource?: number;
+    };
+    if (mozInputSource === 0 && event.isTrusted) return true;
+    if (/Android/i.test(navigator.userAgent) && pointerType)
+        return event.type === "click" && event.buttons === 1;
+    return event.detail === 0 && !pointerType;
+}
+
+/**
  * A button that opens a menu of links, following the WAI-ARIA menu button
  * pattern. Arrow keys, Home and End move between the links; Escape closes the
  * menu and returns focus to the button; Tab closes it and moves on.
@@ -200,11 +222,12 @@ export function ActionMenu({
                         setOpen(false);
                         return;
                     }
-                    // A click with no pointer behind it (detail 0) comes from
-                    // a screen reader or other assistive technology, so it
-                    // opens at the first link as the keyboard does. Enter and
-                    // Space never get here: their keydown prevents the click.
-                    if (event.detail === 0) pendingFocus.current = "first";
+                    // A virtual click opens at the first link, as the
+                    // keyboard does; a pointer click leaves focus here. Enter
+                    // and Space never get here: their keydown (and Space's
+                    // keyup) prevent the click.
+                    if (isVirtualClick(event.nativeEvent))
+                        pendingFocus.current = "first";
                     setOpen(true);
                 }}
                 onKeyDown={onTriggerKeyDown}
