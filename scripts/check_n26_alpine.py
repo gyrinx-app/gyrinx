@@ -12,6 +12,8 @@ The baseline also records each kit tag's weight. When a kit upgrade or an
 override changes a weight, the check fails and names the change; review it,
 then run with --update. --update also lowers the ceilings after a migration.
 It still fails when a template has more direct Alpine or more kit tag uses.
+An override is scanned as a template too, so Alpine added to one fails as
+direct Alpine.
 
 This script must not import Django: CI runs it without settings.
 """

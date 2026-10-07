@@ -251,6 +251,27 @@ def test_new_kit_use_is_refused_when_a_weight_falls_to_make_room(tree, capsys):
     )
 
 
+def test_alpine_added_to_an_override_is_refused_even_with_update(tree):
+    tree["run"]("--update")
+    write(
+        tree["root"] / "n26/core/templates/cotton/ui/mode_toggle.html",
+        '<b x-data x-init="a" x-show="b" x-cloak></b>',
+    )
+
+    with pytest.raises(SystemExit, match="React island"):
+        tree["run"]("--update")
+
+
+def test_alpine_removed_from_an_override_is_recorded_by_update(tree, capsys):
+    tree["run"]("--update")
+    write(tree["root"] / "n26/core/templates/cotton/ui/mode_toggle.html", "<b x-data>")
+
+    with pytest.raises(SystemExit, match="ui.mode-toggle 3→1"):
+        tree["run"]()
+    tree["run"]("--update")
+    assert f"{PAGE} kit 8→6" in capsys.readouterr().out
+
+
 def test_new_direct_alpine_is_refused_even_with_update(tree):
     tree["run"]("--update")
     page = tree["root"] / PAGE

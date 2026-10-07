@@ -307,14 +307,18 @@ Counts are per file. A component that repeats on a page counts once, and
 `{% include %}` is not followed.
 
 **Kit upgrades.** The baseline also records each kit tag's weight. When a
-`django_cotton_ui` upgrade or an override edit changes a weight, the check
-fails and names the change, for example `ui.dropdown 13→15`. Review the
-change, then run `--update`. `--update` accepts new weights, but it still
-fails when a template has more direct Alpine or more kit tag uses. The first
-use of a kit tag with no recorded weight also needs `--update`, so its weight
-is in the baseline before an upgrade can change it. A kit tag with no template
-also fails the run, so a renamed component cannot quietly
-drop to 0.
+`django_cotton_ui` upgrade changes a weight, the check fails and names the
+change, for example `ui.dropdown 13→15`. Review the change, then run
+`--update`. `--update` accepts new weights, but it still fails when a template
+has more direct Alpine or more kit tag uses. The first use of a kit tag with no
+recorded weight also needs `--update`, so its weight is in the baseline before
+an upgrade can change it. A kit tag with no template also fails the run, so a
+renamed component cannot quietly drop to 0.
+
+An override in `n26/core/templates/cotton/ui/` is a first-party template with
+its own ceilings. Adding Alpine to one fails as new direct Alpine, even with
+`--update`. Removing Alpine from one lowers its weight, which `--update`
+records.
 
 ### Sequence and exit conditions
 
