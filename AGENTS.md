@@ -78,7 +78,8 @@ artifacts when the IDE Canvas surface is unavailable.
   finish and rerun with `-n 4`. Each run recreates its test databases, so no
   cleanup is needed. Leave `max_locks_per_transaction` alone when the cluster
   is already tuned.
-- Format with `./scripts/fmt.sh`.
+- Format with `./scripts/fmt.sh`. It skips `logs/*.html`, so an HTTP capture
+  saved there is left alone.
 - Build SCSS with `npm run css`; never commit generated CSS under
   `n23/core/static/core/css/`.
 - See [`.codex/README.md`](.codex/README.md) for worktree lifecycle and database
