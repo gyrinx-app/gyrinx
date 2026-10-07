@@ -19,38 +19,11 @@
                                     class="font-semibold">{{ panel.name }}</h3>
                             </div>
                             <div class="ml-auto flex items-center gap-1">
-                                {% if panel.by_hand %}
-                                    <c-ui.dropdown align="end" min_width="10rem" strategy="fixed">
-                                        <c-slot name="trigger">
-                                            <c-ui.button size="sm"
-                                                         variant="ghost"
-                                                         aria-label="More for {{ panel.name }}"
-                                                         aria-haspopup="menu"
-                                                         ::aria-expanded="dropdownMenu">
-                                                <span class="n26-icon-only gap-0.5">
-                                                    <c-n26.icon name="ellipsis-vertical" class="size-4" />
-                                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                                                </span>
-                                            </c-ui.button>
-                                        </c-slot>
-                                        {% for item in panel.by_hand %}
-                                            <form method="post"
-                                                  action="{{ item.href }}"
-                                                  role="none"
-                                                  x-on:click="$el.requestSubmit ? $el.requestSubmit() : $el.submit()">
-                                                {% csrf_token %}
-                                                {% if item.request_key %}
-                                                    <input type="hidden"
-                                                           name="request_key"
-                                                           value="{{ item.request_key }}">
-                                                {% endif %}
-                                                <c-ui.dropdown.item>
-                                                    {{ item.label }}
-                                                </c-ui.dropdown.item>
-                                            </form>
-                                        {% endfor %}
-                                    </c-ui.dropdown>
-                                {% endif %}
+                                <c-n26.action-menu :items="panel.menu"
+                                                   label="More for {{ panel.name }}"
+                                                   variant="ghost"
+                                                   align="end"
+                                                   min_width="10rem" />
                                 {% if panel.start_href %}
                                     <c-ui.button href="{{ panel.start_href }}"
                                                  variant="primary"

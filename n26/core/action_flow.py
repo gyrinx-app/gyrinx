@@ -33,15 +33,6 @@ class ActionUseLink:
     reopen_href: str = ""
 
 
-@dataclass(frozen=True)
-class ByHandItem:
-    """One entry in the action header's menu that marks a use as applied."""
-
-    href: str
-    label: str
-    request_key: str = ""
-
-
 @dataclass
 class ActionPanel:
     action_id: str
@@ -52,7 +43,8 @@ class ActionPanel:
     available_uses: int | None = None
     problem: str = ""
     start_href: str = ""
-    by_hand: list[ByHandItem] = field(default_factory=list)
+    #: Links for the header's action menu, as the action-menu island reads them.
+    menu: list[dict] = field(default_factory=list)
     #: Carries the roster's action mark: an earned use, an unfinished draft, or
     #: an affordable counter price.
     flagged: bool = False

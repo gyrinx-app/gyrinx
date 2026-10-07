@@ -31,7 +31,7 @@ The roll controls submit through the surrounding form.
             </c-ui.breadcrumbs>
         </c-slot>
         <c-slot name="actions">
-            {% if cancel_href and stage != "done" and stage != "cancel" and not correction %}
+            {% if cancel_href and stage != "done" and stage != "cancel" and stage != "by-hand" and not correction %}
                 <c-ui.button href="{{ cancel_href }}"
                              variant="ghost"
                              class="text-red-600! dark:text-red-400!">
@@ -199,6 +199,13 @@ The roll controls submit through the surrounding form.
                         <c-n26.tally :facts="receipt" />
                     </div>
                 {% endif %}
+            </c-n26.form-section>
+        {% elif stage == "by-hand" %}
+            <c-n26.form-section title="Mark as applied">
+                <p class="font-semibold text-ink-900 dark:text-ink-100">Did you apply this result to {{ miniature.name }} outside Gyrinx?</p>
+                <p class="mt-1 text-sm text-muted">
+                    Gyrinx stops showing this earned use as available. Nothing on the model changes. You can undo this from Action history.
+                </p>
             </c-n26.form-section>
         {% elif stage == "cancel" %}
             <c-n26.form-section title="Cancel flow">

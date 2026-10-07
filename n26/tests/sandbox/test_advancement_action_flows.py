@@ -873,12 +873,28 @@ class TestApplyingByHand:
         assert client.post(url, {"request_key": str(uuid4())}).status_code == 404
         assert not ActionRecord.objects.filter(fighter=advancement.fighter).exists()
 
-    def test_marking_needs_a_post(self, client, advancement):
+    def test_the_menu_link_opens_a_confirmation_first(self, client, advancement):
         client.force_login(advancement.owner)
         url = reverse(
             "n26-action-by-hand", args=[advancement.fighter.pk, advancement.action.pk]
         )
-        assert client.get(url).status_code == 405
+        page = client.get(url)
+        assert page.status_code == 200
+        assert page.context["stage"] == "by-hand"
+        assert "outside Gyrinx" in page.content.decode()
+        assert not ActionRecord.objects.filter(fighter=advancement.fighter).exists()
+
+    def test_a_started_flow_confirms_before_it_is_marked(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "by-hand"]
+        )
+        assert client.get(url).context["stage"] == "by-hand"
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
 
     def test_a_rolled_flow_loses_its_empty_slot_and_undo_lets_it_finish(
         self, client, monkeypatch, advancement
