@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import cotton from "../generated/cotton.json";
-import { ActionMenu, type ActionMenuItem } from "./ActionMenu";
+import { ActionMenu, isVirtualClick, type ActionMenuItem } from "./ActionMenu";
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -69,6 +69,21 @@ describe("ActionMenu keyboard", () => {
             await user.keyboard(key);
             expect(screen.getByRole("menu")).toBeTruthy();
             expect(document.activeElement).toBe(item("View gang"));
+        },
+    );
+
+    it.each(["Enter", " "])(
+        "%s on the trigger prevents the click that would toggle it again",
+        (key) => {
+            const { trigger } = setup();
+            trigger.focus();
+            // dispatchEvent returns false when the handler prevented the
+            // default, which is the browser's click on that key.
+            expect(fireEvent.keyDown(trigger, { key })).toBe(false);
+            expect(screen.getByRole("menu")).toBeTruthy();
+            if (key === " ")
+                expect(fireEvent.keyUp(trigger, { key })).toBe(false);
+            expect(screen.getByRole("menu")).toBeTruthy();
         },
     );
 
@@ -191,6 +206,117 @@ describe("ActionMenu pointer", () => {
         await user.click(trigger);
         fireEvent.pointerMove(item("Edit gang settings"));
         expect(document.activeElement).toBe(item("Edit gang settings"));
+    });
+});
+
+/** Clicks the trigger with event fields a test cannot pass to MouseEvent. */
+function clickWith(
+    trigger: HTMLElement,
+    { detail = 1, ...fields }: Record<string, unknown> & { detail?: number },
+) {
+    const event = new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        detail,
+    });
+    for (const [key, value] of Object.entries(fields))
+        Object.defineProperty(event, key, { value });
+    act(() => {
+        trigger.dispatchEvent(event);
+    });
+}
+
+function asAndroid() {
+    Object.defineProperty(window.navigator, "userAgent", {
+        value: "Mozilla/5.0 (Linux; Android 15; Pixel 9) Chrome/140.0",
+        configurable: true,
+    });
+    return () => {
+        delete (window.navigator as { userAgent?: string }).userAgent;
+    };
+}
+
+describe("ActionMenu virtual clicks", () => {
+    it("a click with detail 0 and no pointer type opens at the first link", () => {
+        // What element.click() sends, and most screen readers.
+        const { trigger } = setup();
+        act(() => trigger.click());
+        expect(screen.getByRole("menu")).toBeTruthy();
+        expect(document.activeElement).toBe(item("View gang"));
+        act(() => trigger.click());
+        expect(screen.queryByRole("menu")).toBeNull();
+        // The focused link went with the panel; focus is back on the button.
+        expect(document.activeElement).toBe(trigger);
+    });
+
+    it("a mouse click leaves focus on the trigger", () => {
+        const { trigger } = setup();
+        trigger.focus();
+        clickWith(trigger, { detail: 1, pointerType: "mouse", buttons: 0 });
+        expect(screen.getByRole("menu")).toBeTruthy();
+        expect(document.activeElement).toBe(trigger);
+    });
+
+    it("a pointer click that reports detail 0 leaves focus on the trigger", () => {
+        const { trigger } = setup();
+        trigger.focus();
+        clickWith(trigger, { detail: 0, pointerType: "mouse" });
+        expect(screen.getByRole("menu")).toBeTruthy();
+        expect(document.activeElement).toBe(trigger);
+    });
+
+    it("counts a trusted Firefox click with mozInputSource 0 as virtual", () => {
+        // NVDA and JAWS in Firefox send detail 1 with mozInputSource 0. A
+        // test cannot dispatch a trusted event, so this asks the check
+        // directly.
+        const click = {
+            type: "click",
+            detail: 1,
+            buttons: 0,
+            isTrusted: true,
+            mozInputSource: 0,
+        } as unknown as MouseEvent;
+        expect(isVirtualClick(click)).toBe(true);
+        expect(isVirtualClick({ ...click, isTrusted: false })).toBe(false);
+    });
+
+    it("an untrusted click claiming mozInputSource 0 is not virtual", () => {
+        const { trigger } = setup();
+        trigger.focus();
+        clickWith(trigger, { detail: 1, mozInputSource: 0 });
+        expect(document.activeElement).toBe(trigger);
+    });
+
+    it("TalkBack's click on Android opens at the first link", () => {
+        const restore = asAndroid();
+        try {
+            const { trigger } = setup();
+            clickWith(trigger, { detail: 1, pointerType: "touch", buttons: 1 });
+            expect(document.activeElement).toBe(item("View gang"));
+        } finally {
+            restore();
+        }
+    });
+
+    it("a touch on Android leaves focus on the trigger", () => {
+        const restore = asAndroid();
+        try {
+            const { trigger } = setup();
+            trigger.focus();
+            clickWith(trigger, { detail: 1, pointerType: "touch", buttons: 0 });
+            expect(screen.getByRole("menu")).toBeTruthy();
+            expect(document.activeElement).toBe(trigger);
+        } finally {
+            restore();
+        }
+    });
+
+    it("a desktop click with a pointer type and buttons 1 leaves focus on the trigger", () => {
+        // The Android check must not reach a desktop browser.
+        const { trigger } = setup();
+        trigger.focus();
+        clickWith(trigger, { detail: 1, pointerType: "mouse", buttons: 1 });
+        expect(document.activeElement).toBe(trigger);
     });
 });
 

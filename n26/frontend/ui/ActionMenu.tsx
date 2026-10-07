@@ -60,6 +60,22 @@ export type ActionMenuProps = {
 type Edge = "first" | "last";
 
 /**
+ * Whether assistive technology sent this click, as React Aria's
+ * `isVirtualClick` decides: Firefox's trusted `mozInputSource` 0, TalkBack's
+ * `buttons` 1 on Android only, or else `detail` 0 with no `pointerType`.
+ */
+export function isVirtualClick(event: MouseEvent) {
+    const { pointerType } = event as PointerEvent;
+    const { mozInputSource } = event as MouseEvent & {
+        mozInputSource?: number;
+    };
+    if (mozInputSource === 0 && event.isTrusted) return true;
+    if (/Android/i.test(navigator.userAgent) && pointerType)
+        return event.type === "click" && event.buttons === 1;
+    return event.detail === 0 && !pointerType;
+}
+
+/**
  * A button that opens a menu of links, following the WAI-ARIA menu button
  * pattern. Arrow keys, Home and End move between the links; Escape closes the
  * menu and returns focus to the button; Tab closes it and moves on.
@@ -191,7 +207,23 @@ export function ActionMenu({
                 aria-haspopup="menu"
                 aria-expanded={open}
                 aria-controls={open ? panelId : undefined}
-                onClick={() => setOpen((previous) => !previous)}
+                onClick={(event) => {
+                    if (open) {
+                        // Closing takes the focused link away. Keep focus
+                        // on the button, not the page.
+                        if (panel.current?.contains(document.activeElement))
+                            button.current?.focus();
+                        setOpen(false);
+                        return;
+                    }
+                    // A virtual click opens at the first link, as the
+                    // keyboard does; a pointer click leaves focus here. Enter
+                    // and Space never get here: their keydown (and Space's
+                    // keyup) prevent the click.
+                    if (isVirtualClick(event.nativeEvent))
+                        pendingFocus.current = "first";
+                    setOpen(true);
+                }}
                 onKeyDown={onTriggerKeyDown}
                 onKeyUp={(event) => {
                     // Firefox clicks a button on Space's keyup; the keydown
