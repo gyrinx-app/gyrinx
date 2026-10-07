@@ -10,7 +10,9 @@ touched Alpine interaction if it has a bounded DOM owner, existing server
 contracts and manageable tests. Do not sweep unrelated pages into the change.
 If migration would require domain/API redesign or a complex shared primitive,
 finish the requested task and name the dependency that blocked conversion.
-Static content stays Cotton; do not introduce Alpine directives.
+Static content stays Cotton; do not introduce Alpine directives or new uses of
+kit components that carry Alpine, such as `<c-ui.dropdown>`, `<c-ui.tooltip>`
+and `<c-ui.tabs>`.
 
 Read `docs/developing-gyrinx/react.md` for the technical decisions and
 `n26/frontend/AGENTS.md` for the source hierarchy. Load the design-system and
@@ -73,8 +75,12 @@ when a data-backed region changes. Check the real page at phone and desktop
 widths, in light/dark mode, with keyboard and mouse. Verify ordinary pages do
 not load React and the migrated region has no remaining Alpine owner.
 
-Lower the Alpine baseline with the command above; it refuses increases. Delete
-superseded interaction code after checking its other callers. Report the
-feature outcome normally; mention a deferred migration only when useful.
+Lower the Alpine baseline with the command above. Each template has a `direct`
+ceiling for Alpine written in it and a `kit` ceiling for Alpine that `<c-ui.*>`
+components add. The check fails when either rises. `--update` raises a kit
+ceiling only when a kit upgrade changed a component's weight: the check names
+the change, you review it, then run `--update`. Delete superseded interaction
+code after checking its other callers. Report the feature outcome normally;
+mention a deferred migration only when useful.
 These instructions do not authorise unrelated refactors, scheduled jobs,
 deployment, automatic merges or access to another user's data.
