@@ -9,6 +9,9 @@ XP); the running value is player-side state written only by ``tally``,
 one ledger event per change.
 """
 
+import json
+from urllib.parse import parse_qs, urlsplit
+
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
@@ -416,7 +419,10 @@ class TestMovingOneWithoutReloading:
         drawn = page.content.decode()
         assert "Choose skill" in drawn
         assert urlencode({"return": here}) in drawn
-        assert f'name="back" value="{here}"' in drawn
+        pencil = BeautifulSoup(page.content, "html.parser").find(
+            "a", attrs={"aria-label": "Edit XP"}
+        )
+        assert parse_qs(urlsplit(pencil["href"]).query)["back"] == [here]
 
     def test_the_card_it_sends_back_still_carries_the_rename(self, client, gang, queen):
         """It is drawn from the page rather than the card, so a redrawn
@@ -479,21 +485,29 @@ class TestMovingOneWithoutReloading:
         page = reverse("n26-edit-fighter", args=[yolanda.pk])
         client.force_login(gang.owner)
 
-        drawn = client.post(
+        page_body = client.post(
             self.address(yolanda), {"change": "1", "back": page}, **self.HTMX
-        ).content.decode()
+        )
+        pencil = BeautifulSoup(page_body.content, "html.parser").find(
+            "a", attrs={"aria-label": "Edit XP"}
+        )
 
-        assert f'name="back" value="{page}"' in drawn
-        assert f'name="back" value="{self.address(yolanda)}"' not in drawn
+        assert parse_qs(urlsplit(pencil["href"]).query)["back"] == [page]
+        assert (
+            self.address(yolanda)
+            not in parse_qs(urlsplit(pencil["href"]).query)["back"]
+        )
 
     def test_the_page_itself_returns_to_itself(self, client, gang, queen):
         yolanda = hire_with_option(gang, queen, "Yolanda")
         page = reverse("n26-edit-fighter", args=[yolanda.pk])
         client.force_login(gang.owner)
 
-        drawn = client.get(page).content.decode()
+        pencil = BeautifulSoup(client.get(page).content, "html.parser").find(
+            "a", attrs={"aria-label": "Edit XP"}
+        )
 
-        assert f'name="back" value="{page}"' in drawn
+        assert parse_qs(urlsplit(pencil["href"]).query)["back"] == [page]
 
     def test_a_refusal_redraws_nothing_and_says_why(self, client, gang, queen):
         """The card is not redrawn for an act that did not happen; the
@@ -553,26 +567,158 @@ class TestMovingOneWithoutReloading:
 
         assert 'id="n26-model-card-host"' in page.content.decode()
 
-    def test_the_controls_on_that_page_post_through_htmx(self, client, gang, queen):
+    def test_every_counter_opens_the_amount_dialog_from_a_pencil(
+        self, client, gang, queen, kills
+    ):
+        """One amount, written down once. The edit page has no one-point
+        buttons left."""
+        from n26.tests.sandbox.actions import assign
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        assign(kills, miniature=yolanda)
+        client.force_login(gang.owner)
+        page = reverse("n26-edit-fighter", args=[yolanda.pk])
+
+        soup = BeautifulSoup(client.get(page).content, "html.parser")
+
+        for label, start in (
+            ("Edit XP", self.address(yolanda)),
+            ("Edit Kill Count", reverse("n26-tally", args=[kill_row(yolanda).pk])),
+        ):
+            pencil = soup.find("a", attrs={"aria-label": label})
+            assert pencil["hx-get"] == pencil["href"]
+            assert pencil["hx-swap"] == "none"
+            assert pencil["href"].startswith(start)
+        assert soup.find("button", attrs={"aria-label": "Add one to XP"}) is None
+        assert (
+            soup.find("button", attrs={"aria-label": "Add one to Kill Count"}) is None
+        )
+        assert soup.find(id="n26-campaign-state-dialog-host") is not None
+
+    def test_the_pencil_saves_one_amount_and_closes_the_dialog(
+        self, client, gang, queen
+    ):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+        page = reverse("n26-edit-fighter", args=[yolanda.pk])
+        pencil = BeautifulSoup(client.get(page).content, "html.parser").find(
+            "a", attrs={"aria-label": "Edit XP"}
+        )
+
+        opened = client.get(pencil["href"], **self.HTMX)
+
+        dialog = BeautifulSoup(opened.content, "html.parser").find(
+            id="n26-campaign-state-dialog"
+        )
+        assert dialog.find("form")["hx-post"] == self.address(yolanda)
+        assert opened.context["counter_preview"]["value"] == 61
+        assert opened.context["counter_preview"]["recorded"] == 61
+        saved = client.post(
+            self.address(yolanda),
+            {"adjust": "1", "change": "15", "back": page},
+            **self.HTMX,
+        )
+
+        body = BeautifulSoup(saved.content, "html.parser")
+        assert "76" in body.find(id="n26-model-card-host").get_text()
+        assert body.find("a", attrs={"aria-label": "Edit XP"}) is not None
+        assert not body.find(id="n26-campaign-state-dialog-host").get_text(strip=True)
+        assert saved["HX-Replace-Url"] == page
+        assert (
+            json.loads(saved["HX-Trigger"])["n26-toasts"][0]["message"]
+            == "XP is now 76."
+        )
+        assert xp_row(yolanda).counter_value.value == 76
+
+    def test_an_empty_amount_redraws_the_dialog_without_a_change(
+        self, client, gang, queen
+    ):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        client.force_login(gang.owner)
+        page = reverse("n26-edit-fighter", args=[yolanda.pk])
+
+        response = client.post(
+            self.address(yolanda),
+            {"adjust": "1", "change": "0", "back": page},
+            **self.HTMX,
+        )
+
+        assert response.context["form"].errors["change"]
+        assert BeautifulSoup(response.content, "html.parser").find(
+            id="n26-campaign-state-dialog"
+        )
+        assert xp_row(yolanda).counter_value.value == 61
+
+    def test_a_contribution_stays_outside_the_recorded_change(
+        self, client, gang, queen, xp
+    ):
+        """The dialog previews the sum the card shows, and the save moves
+        only the half that is written down."""
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        blooded = create_subtype("Blooded")
+        modifier(
+            "Blooded adds 5",
+            targets_model(),
+            ef_contributes_to_counter(xp, 5),
+            carried_by=blooded,
+        )
+        assign(blooded, miniature=yolanda)
+        client.force_login(gang.owner)
+        page = reverse("n26-edit-fighter", args=[yolanda.pk])
+        pencil = BeautifulSoup(client.get(page).content, "html.parser").find(
+            "a", attrs={"aria-label": "Edit XP"}
+        )
+
+        opened = client.get(pencil["href"], **self.HTMX)
+
+        assert (
+            opened.context["counter_preview"]["value"],
+            opened.context["counter_preview"]["recorded"],
+        ) == (66, 61)
+        saved = client.post(
+            self.address(yolanda),
+            {"adjust": "1", "change": "1", "back": page},
+            **self.HTMX,
+        )
+
+        assert (
+            json.loads(saved["HX-Trigger"])["n26-toasts"][0]["message"]
+            == "XP is now 67."
+        )
+        assert xp_row(yolanda).counter_value.value == 62
+
+    def test_equip_and_options_keep_the_one_point_buttons(self, client, gang, queen):
         yolanda = hire_with_option(gang, queen, "Yolanda")
         client.force_login(gang.owner)
 
-        page = client.get(reverse("n26-edit-fighter", args=[yolanda.pk]))
+        for route in ("n26-equip", "n26-fighter-options"):
+            drawn = client.get(reverse(route, args=[yolanda.pk])).content.decode()
+            soup = BeautifulSoup(drawn, "html.parser")
+            assert soup.find("button", attrs={"aria-label": "Add one to XP"})
+            assert soup.find("a", attrs={"aria-label": "Edit XP"}) is None
+            # htmx does not read a form's submitter, so each direction
+            # carries its own change.
+            assert 'name="change" value="1"' in drawn
+            assert 'name="change" value="-1"' in drawn
 
-        assert f'hx-post="{self.address(yolanda)}"' in page.content.decode()
-
-    def test_each_direction_carries_its_own_change(self, client, gang, queen):
-        """htmx does not read a form's submitter, so the value cannot ride
-        on the button that was clicked."""
+    def test_without_script_the_pencil_is_the_amount_page(self, client, gang, queen):
         yolanda = hire_with_option(gang, queen, "Yolanda")
         client.force_login(gang.owner)
+        page = reverse("n26-edit-fighter", args=[yolanda.pk])
+        pencil = BeautifulSoup(client.get(page).content, "html.parser").find(
+            "a", attrs={"aria-label": "Edit XP"}
+        )
 
-        drawn = client.get(
-            reverse("n26-edit-fighter", args=[yolanda.pk])
-        ).content.decode()
+        opened = client.get(pencil["href"])
 
-        assert 'name="change" value="1"' in drawn
-        assert 'name="change" value="-1"' in drawn
+        assert opened.status_code == 200
+        assert "Edit XP" in opened.content.decode()
+        saved = client.post(
+            self.address(yolanda), {"adjust": "1", "change": "4", "back": page}
+        )
+        assert saved.status_code == 302
+        assert saved.url == page
+        assert xp_row(yolanda).counter_value.value == 65
 
 
 class TestTheNoteFitsTheColumn:
@@ -977,27 +1123,28 @@ class TestWhatAModifierContributes:
     ):
         """A tally can only move what is written down, and it floors at
         zero. A counter reading 4 purely because a rule contributes to it
-        has nothing to take off, and a minus there would write a ledger
-        event saying the value went from 0 to 0."""
+        has nothing to take off, and recording a removal would write a
+        ledger event saying the value went from 0 to 0."""
         vex = hire_with_option(gang, plain, "Vex")
         counted = assign(kills, miniature=vex)
         assign(self.carrier_adding(kills, 4, "Chosen"), miniature=vex)
         client.force_login(gang.owner)
-
-        page = client.get(reverse("n26-edit-fighter", args=[vex.pk])).content.decode()
-
-        from bs4 import BeautifulSoup
-
-        # Both controls keep their places, but only addition can change zero.
-        assert "Add one to Kill Count" in page
-        button = BeautifulSoup(page, "html.parser").find(
-            "button", attrs={"aria-label": "Take one off Kill Count"}
+        page = reverse("n26-edit-fighter", args=[vex.pk])
+        pencil = BeautifulSoup(client.get(page).content, "html.parser").find(
+            "a", attrs={"aria-label": "Edit Kill Count"}
         )
-        assert button.has_attr("disabled")
+
+        response = client.post(
+            pencil["href"],
+            {"adjust": "1", "change": "-1", "back": page},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert "already 0" in response.context["form"].errors["change"][0]
         # Nothing written down behind the reading: the 4 is all contributed.
         assert getattr(counted, "counter_value", None) is None
 
-    def test_a_tallied_reading_still_offers_it(self, client, gang, plain, kills):
+    def test_a_tallied_reading_can_still_be_reduced(self, client, gang, plain, kills):
         """The contribution rides on top of a stored value here, so there
         is something to take off after all."""
         vex = hire_with_option(gang, plain, "Vex")
@@ -1005,10 +1152,20 @@ class TestWhatAModifierContributes:
         tally(counted, +1)
         assign(self.carrier_adding(kills, 4, "Chosen"), miniature=vex)
         client.force_login(gang.owner)
+        page = reverse("n26-edit-fighter", args=[vex.pk])
 
-        page = client.get(reverse("n26-edit-fighter", args=[vex.pk])).content.decode()
+        saved = client.post(
+            reverse("n26-tally", args=[counted.pk]),
+            {"adjust": "1", "change": "-1", "back": page},
+            HTTP_HX_REQUEST="true",
+        )
 
-        assert "Take one off Kill Count" in page
+        counted.counter_value.refresh_from_db()
+        assert counted.counter_value.value == 0
+        assert (
+            json.loads(saved["HX-Trigger"])["n26-toasts"][0]["message"]
+            == "Kill Count is now 4."
+        )
 
     def test_two_carriers_add_up(self, gang, plain, budget):
         vex = hire_with_option(gang, plain, "Vex")

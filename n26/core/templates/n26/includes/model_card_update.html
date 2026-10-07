@@ -27,3 +27,6 @@ this lands on whichever of them the act came from.
     {% include "n26/includes/progression_history.html" with oob=True %}
     {% include "n26/includes/result_history.html" with oob=True %}
 {% endif %}
+{% if close_counter_dialog %}
+    <div id="n26-campaign-state-dialog-host" hx-swap-oob="true"></div>
+{% endif %}

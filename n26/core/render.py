@@ -282,7 +282,9 @@ class CounterLine:
     assignment_id: str = ""
     href: str = ""
     back: str = ""
-    #: Optional amount-entry dialog, provided only for campaign controls.
+    #: Where an amount dialog is offered. Campaign counters fill this in,
+    #: and so does every counter on the model's edit page. Empty leaves
+    #: the one-point buttons.
     adjust_href: str = ""
     #: Whether this is the XP counter, decided where the counter itself is
     #: to hand rather than re-derived from ``name`` — which is what a
