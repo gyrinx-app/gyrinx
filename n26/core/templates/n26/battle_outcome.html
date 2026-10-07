@@ -1,0 +1,66 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Recording the outcome of a battle that has none: a draw, or which of its
+participants won. The players who fought it may record it as well as the
+arbitrator, so nothing else about the battle is offered here; its stake
+stays as the arbitrator set it.
+{% endcomment %}
+{% block head_title %}Record the outcome of {{ battle.title }}{% endblock %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    {% url 'n26-campaign-battle-outcome' campaign.pk battle.pk as action_url %}
+    {% url 'n26-battle' campaign.pk battle.pk as cancel_url %}
+    <c-n26.form-page :action="action_url"
+                     title="Record outcome"
+                     lead="Record who won {{ battle.title }}. Saving does not change credits, XP or injuries. Ask the arbitrator to change the outcome once it is recorded."
+                     :form="form"
+                     submit_label="Record outcome"
+                     :cancel_url="cancel_url">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ cancel_url }}">
+                    {{ battle.title }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Record outcome
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {{ form.revision }}
+        <c-n26.form-section title="After the game">
+            <c-ui.field label="Outcome *"
+                        error="x"
+                        :form="form"
+                        name="result"
+                        for="battle-result">
+                <c-ui.select.native id="battle-result" name="result" required placeholder="">
+                    {% for value, label in form.fields.result.choices %}
+                        <option value="{{ value }}"
+                                {% if value == form.result.value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </c-ui.select.native>
+            </c-ui.field>
+            <c-ui.field label="Winning gangs" error="x" :form="form" name="winners">
+                <p class="mb-2 text-sm text-muted">Select one or more participants if the outcome is “Winner or winners”. Leave clear for a draw.</p>
+                <div class="flex flex-col gap-1.5">
+                    {% for choice in form.winners %}
+                        <label class="flex min-h-11 items-center gap-3 text-base"
+                               for="{{ choice.id_for_label }}">{{ choice.tag }} {{ choice.choice_label }}</label>
+                    {% empty %}
+                        <p class="text-sm text-muted">This battle has no participants.</p>
+                    {% endfor %}
+                </div>
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

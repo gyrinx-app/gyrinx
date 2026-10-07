@@ -11,8 +11,9 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from n26.core.battle_permissions import may_record_gang
+from n26.core.campaign_permissions import may_record_outcome
 from n26.core.campaigns import battle_stake, campaign_operation
-from n26.core.forms import BattleForm
+from n26.core.forms import BattleForm, BattleOutcomeForm
 from n26.core.models import (
     Battle,
     BattleCrew,
@@ -129,6 +130,7 @@ def battle(request, pk, battle_pk):
             "recorded": recorded,
             "stake": battle_stake(found, request.user),
             "yours": campaign.owner_id == request.user.pk,
+            "may_record_outcome": may_record_outcome(found, request.user),
             "has_history": (
                 bool(crews or reports)
                 or found.gang_events.exists()
@@ -175,5 +177,48 @@ def edit_battle(request, pk, battle_pk):
     return render(
         request,
         "n26/add_battle.html",
+        {"campaign": campaign, "battle": found, "form": form},
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def record_battle_outcome(request, pk, battle_pk):
+    """The outcome of a battle with none, recorded by a player who fought
+    it or by the arbitrator.
+
+    Only the outcome and winners are offered. A reader who may not record
+    it, or a battle whose outcome is already in, gets a 404.
+    """
+    campaign = _any_campaign_or_404(
+        request, pk, with_owner_badge=request.method == "GET"
+    )
+    found = battle_or_404(campaign, battle_pk)
+    if not may_record_outcome(found, request.user):
+        raise Http404("No such battle")
+
+    if request.method == "POST":
+        form = BattleOutcomeForm(request.POST, battle=found)
+        if form.is_valid():
+            try:
+                with campaign_operation(campaign, actor=request.user) as act:
+                    act.record_outcome(
+                        found,
+                        result=form.cleaned_data["result"],
+                        winners=form.cleaned_data["winners"],
+                        revision=form.cleaned_data["revision"],
+                    )
+            except Refusal as exc:
+                form.add_error(None, str(exc))
+            else:
+                messages.success(request, "Outcome recorded.")
+                return redirect("n26-battle", pk=campaign.pk, battle_pk=found.pk)
+    else:
+        form = BattleOutcomeForm(battle=found)
+
+    _badge_a_redrawn_page(request, campaign)
+    return render(
+        request,
+        "n26/battle_outcome.html",
         {"campaign": campaign, "battle": found, "form": form},
     )

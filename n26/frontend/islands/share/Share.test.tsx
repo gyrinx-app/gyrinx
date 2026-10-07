@@ -73,6 +73,17 @@ describe("Share", () => {
         expect(screen.getByRole("status").textContent).toBe("");
     });
 
+    it("draws a full-size button with its own label when not compact", () => {
+        render(<Share {...props} label="Copy scenario" compact={false} />);
+        const link = screen.getByRole<HTMLAnchorElement>("link", {
+            name: "Copy scenario",
+        });
+        expect(link.className).not.toContain("!py-px");
+        expect(screen.getByText("Copy scenario").className).not.toContain(
+            "hidden",
+        );
+    });
+
     it("opens the share sheet with the link's absolute href", () => {
         const share = vi.fn().mockResolvedValue(undefined);
         const writeText = vi.fn();

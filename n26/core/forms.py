@@ -616,6 +616,11 @@ class BattleForm(forms.Form):
     A new battle carries no outcome fields: players add it before the
     game, choose crews from its page, and record the outcome afterwards
     by editing it.
+
+    A new battle may also carry a scenario from the generator, as one
+    hidden field per scenario table named by the table's key, the same
+    shape as the generator's own address. They arrive in cleaned_data
+    as one ``scenario_rolls`` mapping.
     """
 
     scenario = forms.CharField(max_length=200, label="Scenario")
@@ -662,9 +667,21 @@ class BattleForm(forms.Form):
             )
         self.fields["result"].choices = Battle.Result.choices
         self.fields["result"].initial = Battle.Result.NOT_RECORDED
+        self.scenario_keys = []
         if battle is None:
+            from n26.core.scenarios import TABLES
+
             for name in ("revision", "result", "winners"):
                 del self.fields[name]
+            for table in TABLES:
+                self.scenario_keys.append(table.key)
+                self.fields[table.key] = forms.TypedChoiceField(
+                    required=False,
+                    coerce=int,
+                    empty_value=None,
+                    choices=[(entry.roll, entry.name) for entry in table.entries],
+                    widget=forms.HiddenInput,
+                )
         else:
             self.initial.update(
                 scenario=battle.scenario,
@@ -722,11 +739,67 @@ class BattleForm(forms.Form):
         from n26.core.models import Battle
 
         cleaned = super().clean()
+        if self.scenario_keys:
+            cleaned["scenario_rolls"] = {
+                key: cleaned.pop(key)
+                for key in self.scenario_keys
+                if cleaned.get(key) is not None
+            }
+            for key in self.scenario_keys:
+                cleaned.pop(key, None)
         if all(field in cleaned for field in ("result", "gangs", "winners")):
             try:
                 Battle.validate_outcome(
                     result=cleaned["result"],
                     gangs=cleaned["gangs"],
+                    winners=cleaned["winners"],
+                )
+            except forms.ValidationError as exc:
+                self.add_error(None, exc)
+        return cleaned
+
+
+class BattleOutcomeForm(forms.Form):
+    """A battle's outcome, recorded after the game: a draw, or which of
+    its participants won. Nothing else about the battle is offered."""
+
+    result = forms.ChoiceField(
+        label="Outcome",
+        error_messages={"required": "Select an outcome."},
+    )
+    winners = forms.ModelMultipleChoiceField(
+        queryset=None,
+        required=False,
+        label="Winning gangs",
+        widget=forms.CheckboxSelectMultiple,
+    )
+    revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
+
+    def __init__(self, *args, battle, **kwargs):
+        from n26.core.models import Battle
+
+        super().__init__(*args, **kwargs)
+        self.battle = battle
+        self.fields["result"].choices = [
+            choice
+            for choice in Battle.Result.choices
+            if choice[0] != Battle.Result.NOT_RECORDED
+        ]
+        self.fields["winners"].queryset = battle.gangs.order_by("name")
+        self.fields["winners"].widget.attrs["class"] = (
+            "size-4 shrink-0 accent-[var(--color-accent)] focus-ring"
+        )
+        self.initial.setdefault("revision", battle.revision)
+
+    def clean(self):
+        from n26.core.models import Battle
+
+        cleaned = super().clean()
+        if "result" in cleaned and "winners" in cleaned:
+            try:
+                Battle.validate_outcome(
+                    result=cleaned["result"],
+                    gangs=self.battle.gangs.all(),
                     winners=cleaned["winners"],
                 )
             except forms.ValidationError as exc:
@@ -1005,6 +1078,78 @@ class PoolRollForm(RollAssetForm):
         if (data.get("count") or 0) > 1 and data.get("rolled") is not None:
             self.add_error("rolled", "Set the number to 1 to use your own roll.")
         return data
+
+
+class ScenarioGeneratorForm(forms.Form):
+    """How to generate a scenario: roll every table, roll the tables
+    ticked, or choose each result by hand.
+
+    Read from the query string, since generating saves nothing. The
+    tables ticked matter only when rolling some of them, and the entry
+    picked on each table only when choosing. A pick's field is named by
+    its table's key, so a chosen scenario's address has the same shape
+    as a rolled one's.
+    """
+
+    FULL = "full"
+    COMPONENTS = "components"
+    CHOOSE = "choose"
+
+    mode = forms.ChoiceField(
+        label="How to generate it",
+        choices=(
+            (FULL, "Generate full scenario"),
+            (COMPONENTS, "Generate scenario components"),
+            (CHOOSE, "Choose my own"),
+        ),
+        widget=forms.RadioSelect,
+        error_messages={"required": "Select how to generate the scenario."},
+    )
+    tables = forms.MultipleChoiceField(
+        required=False,
+        label="Tables to roll on",
+        widget=forms.CheckboxSelectMultiple,
+    )
+
+    def __init__(self, *args, rolling=False, **kwargs):
+        from n26.core.scenarios import TABLES
+
+        super().__init__(*args, **kwargs)
+        # Only pressing the button asks for tables or picks. An address
+        # that only shows a result, or only opens a mode, is not refused.
+        self.rolling = rolling
+        self.fields["tables"].choices = [
+            (table.key, f"{table.name} table") for table in TABLES
+        ]
+        self.table_keys = [table.key for table in TABLES]
+        for table in TABLES:
+            self.fields[table.key] = forms.TypedChoiceField(
+                required=False,
+                coerce=int,
+                empty_value=None,
+                label=f"{table.name} table",
+                choices=[(entry.roll, entry.name) for entry in table.entries],
+                widget=forms.RadioSelect,
+            )
+
+    def picks(self):
+        """The entry picked on each table, as ``{key: roll}``, for the
+        tables that have one."""
+        return {
+            key: self.cleaned_data[key]
+            for key in self.table_keys
+            if self.cleaned_data.get(key) is not None
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        if not self.rolling:
+            return cleaned
+        if cleaned.get("mode") == self.COMPONENTS and not cleaned.get("tables"):
+            self.add_error("tables", "Select at least one table to roll on.")
+        if cleaned.get("mode") == self.CHOOSE and not self.picks():
+            self.add_error(None, "Select a result from at least one table.")
+        return cleaned
 
 
 class OpenTablesForm(forms.Form):
