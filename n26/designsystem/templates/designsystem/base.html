@@ -186,6 +186,12 @@ document.addEventListener('alpine:init', () => {
 });
         </script>
         {% comment %}
+        The app shell loads this so a focused number field does not take the
+        wheel. The gallery loads it too, or its number inputs demonstrate the
+        behaviour the app has switched off.
+        {% endcomment %}
+        <script defer src="{% static 'platform/js/number-input-wheel.js' %}"></script>
+        {% comment %}
         The busy state a control takes on while its click is being served. The
         app loads this from its own shell; the gallery loads it so the button
         page demonstrates the real behaviour rather than a picture of it.

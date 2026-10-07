@@ -99,6 +99,8 @@
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
                 integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
                 crossorigin="anonymous"></script>
+        {# A focused number field eats the wheel in Chrome. Cancelling that event belongs on every page this shell draws. #}
+        <script defer src="{% static 'platform/js/number-input-wheel.js' %}"></script>
         <script type="module" src="{% static 'core/js/index.js' %}"></script>
         {% block extra_script %}
         {% endblock extra_script %}
