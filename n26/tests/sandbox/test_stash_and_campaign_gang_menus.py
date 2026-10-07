@@ -1,11 +1,10 @@
 """The stash lines' menus and the campaign gangs' menus, drawn by React.
 
-Each menu is an action-menu host whose props carry the links. The order and
-the separators are the view's: a stash line lists its other acts first, then
-each danger act with a separator above it when the line offers more than one
-act. A campaign gang offers Remove from campaign alone, and only where the
-reader may take that gang out. Both menus sit in regions that htmx redraws,
-and a redrawn region carries its hosts again.
+Each menu is an action-menu host whose props carry the links. The view sets
+the order and the separators; n26/core/test_stash_menu.py pins that rule. A
+campaign gang offers Remove from campaign alone, and only where the reader may
+take that gang out. Both menus sit in regions that htmx redraws, and a redrawn
+region carries its hosts again.
 """
 
 import json
@@ -19,9 +18,7 @@ from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
-from n26.core.listing import DANGER, LINK, SECONDARY, SUBMIT, Action
 from n26.core.models import CampaignParticipant
-from n26.core.views.owned import stash_menu
 from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import (
     assign,
@@ -31,10 +28,6 @@ from n26.tests.sandbox.actions import (
 )
 
 pytestmark = pytest.mark.django_db
-
-
-def act(label, tone=SECONDARY):
-    return Action(label, LINK, f"/at?{label.lower()}=1", tone)
 
 
 def menus(html, within=None):
@@ -58,34 +51,6 @@ def drawn(props):
     return rows
 
 
-class TestTheStashMenu:
-    def test_the_others_come_first_and_each_danger_act_gets_a_separator(self):
-        menu = stash_menu(
-            [act("Reassign"), act("Sell", DANGER), act("Refund"), act("Delete", DANGER)]
-        )
-        assert [
-            (entry["label"], entry["tone"], entry["separator_before"]) for entry in menu
-        ] == [
-            ("Reassign", "default", False),
-            ("Refund", "default", False),
-            ("Sell", "danger", True),
-            ("Delete", "danger", True),
-        ]
-        assert menu[0]["href"] == "/at?reassign=1"
-
-    def test_two_danger_acts_alone_each_still_get_a_separator(self):
-        menu = stash_menu([act("Sell", DANGER), act("Delete", DANGER)])
-        assert [entry["separator_before"] for entry in menu] == [True, True]
-
-    def test_a_single_act_has_no_separator(self):
-        (entry,) = stash_menu([act("Delete", DANGER)])
-        assert entry["separator_before"] is False
-
-    def test_a_submit_act_is_refused(self):
-        with pytest.raises(ValueError):
-            stash_menu([Action("Sell", SUBMIT, "/sell", DANGER)])
-
-
 @pytest.fixture
 def player():
     return User.objects.create_user("player")
@@ -102,6 +67,8 @@ def stashed(gang, default_pack):
 
 
 class TestTheGangSheetStash:
+    """The owner gets one menu per stash line; nobody else gets one."""
+
     def test_the_owner_gets_one_host_per_line_with_the_menu_in_order(
         self, client, gang, stashed
     ):
@@ -193,6 +160,8 @@ def rivals(campaign, gang_type, arbitrator):
 
 
 class TestTheGangSheetRedraw:
+    """A sheet redrawn over htmx carries its stash menus again."""
+
     def test_saving_a_campaign_label_redraws_the_sheet_with_its_stash_hosts(
         self, client, campaign, gang, stashed
     ):
@@ -221,6 +190,8 @@ class TestTheGangSheetRedraw:
 
 
 class TestTheCampaignGangs:
+    """Each gang the reader may take out gets a Remove from campaign menu."""
+
     def test_the_arbitrator_gets_a_remove_menu_on_every_gang(
         self, client, campaign, gang, rivals, arbitrator
     ):
