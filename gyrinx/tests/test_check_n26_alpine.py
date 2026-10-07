@@ -208,6 +208,23 @@ def test_new_kit_use_is_refused_even_with_update(tree):
         tree["run"]("--update")
 
 
+def test_new_kit_use_is_refused_when_a_weight_falls_to_make_room(tree, capsys):
+    tree["run"]("--update")
+    write(tree["ui"] / "menu/item.html", '<a @click="x"></a>')
+    page = tree["root"] / PAGE
+    write(page, page.read_text() + "<c-ui.menu.item />")
+    capsys.readouterr()
+
+    # The page is 7 at the new weights, under its ceiling of 8, but 10 at the
+    # recorded ones.
+    with pytest.raises(SystemExit, match="React island"):
+        tree["run"]("--update")
+    assert (
+        f"{PAGE}: 10 kit Alpine at the recorded weights (ceiling 8)"
+        in capsys.readouterr().out
+    )
+
+
 def test_new_direct_alpine_is_refused_even_with_update(tree):
     tree["run"]("--update")
     page = tree["root"] / PAGE

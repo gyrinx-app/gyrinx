@@ -211,29 +211,30 @@ def load_baseline(path):
 def compare(counts, uses, kit, baseline):
     """Return (refused, from_weights): templates over a ceiling.
 
-    Each maps path -> {column: (count, ceiling)}. A kit rise that fits the
-    ceiling at the recorded weights comes from a weight change, not new use.
+    Each maps path -> {label: (count, ceiling)}. Kit uses are priced at the
+    recorded weights, so a weight that fell cannot hide a new use. A kit rise
+    that fits the ceiling at the recorded weights comes from a weight change.
     """
     ceilings = baseline["templates"]
     recorded = baseline["weights"]
+    zero = {"direct": 0, "kit": 0}
     refused, from_weights = {}, {}
-    for path, count in counts.items():
-        ceiling = ceilings.get(path, {"direct": 0, "kit": 0})
-        over = {
-            column: (count[column], ceiling.get(column, 0))
-            for column in ("direct", "kit")
-            if count[column] > ceiling.get(column, 0)
-        }
-        if not over:
-            continue
+    for path in sorted(set(counts) | set(uses)):
+        count = counts.get(path, zero)
+        ceiling = {**zero, **ceilings.get(path, {})}
         at_recorded = sum(
             n * recorded.get(tag, kit.weight(tag))
             for tag, n in uses.get(path, {}).items()
         )
-        if "direct" in over or at_recorded > ceiling.get("kit", 0):
+        over = {}
+        if count["direct"] > ceiling["direct"]:
+            over["direct Alpine"] = (count["direct"], ceiling["direct"])
+        if at_recorded > ceiling["kit"]:
+            over["kit Alpine at the recorded weights"] = (at_recorded, ceiling["kit"])
+        if over:
             refused[path] = over
-        else:
-            from_weights[path] = over
+        elif count["kit"] > ceiling["kit"]:
+            from_weights[path] = {"kit Alpine": (count["kit"], ceiling["kit"])}
     return refused, from_weights
 
 
@@ -266,8 +267,8 @@ def dump(weights, templates):
 
 def print_over(over_by_path):
     for path, over in over_by_path.items():
-        for column, (count, ceiling) in over.items():
-            print(f"{path}: {count} {column} Alpine (ceiling {ceiling})")
+        for label, (count, ceiling) in over.items():
+            print(f"{path}: {count} {label} (ceiling {ceiling})")
 
 
 def main(argv=None):
