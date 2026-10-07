@@ -6,6 +6,7 @@ the island reads them.
 """
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -382,3 +383,24 @@ def test_a_button_group_keeps_props_scripts_hidden():
         '.n26-button-group > *:not(button):not(a) > *:not([role="menu"]):not(script):not(link)'
         in css
     )
+
+
+def test_a_button_group_leaves_the_scriptless_list_alone():
+    """The group squares and rounds the corners of its buttons and links.
+    The scriptless list's links are not the group's, so every corner rule
+    skips them, as it skips a dropdown's open menu."""
+    css = (Path(__file__).parents[2] / "n26/designsystem/assets/app.css").read_text()
+    # Prettier may break a long :not( ) across lines.
+    css = re.sub(r"\(\s+", "(", re.sub(r"\s+\)", ")", " ".join(css.split())))
+    # One :not() with both, so the exclusion adds no specificity: the reset
+    # must not outrank the rounding on a group's first and last child.
+    exempt = ':not([role="menu"] *, [data-action-menu-list] *)'
+    for rule in (
+        ".n26-button-group :is(button, a)" + exempt + " {",
+        ".n26-button-group > :first-child :is(button, a)" + exempt + ",",
+        ".n26-button-group > :last-child :is(button, a)" + exempt + ",",
+        ".n26-button-group :is(button, a):hover" + exempt + ",",
+        ".n26-button-group :is(button, a):focus-visible" + exempt + " {",
+    ):
+        assert rule in css
+    assert ':not([role="menu"] *)' not in css
