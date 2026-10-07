@@ -99,7 +99,7 @@ Roll is primary because it begins a form. The other controls do not.
     {% else %}
         <p class="px-4 pb-4 text-sm text-muted">
             No {{ table.plural|lower }} yet.
-            {% if table.add_href %}Add assets to the pool, then assign them to gangs.{% endif %}
+            {% if table.add_href %}Add {{ table.plural|lower }}, then assign them to gangs.{% endif %}
         </p>
     {% endif %}
 </c-n26.section>

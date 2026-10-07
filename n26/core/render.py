@@ -306,6 +306,14 @@ class CounterLine:
     def contributed(self):
         return self.value - self.tallied
 
+    @property
+    def income_explanation(self):
+        return {
+            "value": self.value,
+            "contributed": self.contributed,
+            "adjustment": self.tallied,
+        }
+
 
 @dataclass
 class StatCell:

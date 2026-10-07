@@ -733,26 +733,26 @@ class CampaignOperation:
         if not assets:
             raise ValueError("An asset batch requires a selection.")
         if len(assets) > 1 and name:
-            raise Refusal("Select one asset to give it a name in this campaign.")
+            raise Refusal("Select one asset to give it a custom name in this campaign.")
         if self.campaign.events.filter(batch=request_key).exists():
             return False
         self.batch = request_key
         if len(assets) > 1 and any((names or {}).values()):
-            raise Refusal("Select one asset to give it a name in this campaign.")
+            raise Refusal("Select one asset to give it a custom name in this campaign.")
         override = None
         if income is not None:
-            if income < 0:
-                raise Refusal("Income must be zero or more.")
+            if not 0 <= income <= 2147483647:
+                raise Refusal("Income must be between 0 and 2147483647.")
             from n26.library.authoring import (
                 ef_contributes_to_counter,
                 modifier,
-                targets_gang,
+                targets_gang_alone,
             )
             from n26.library.income import ensure_income_counter
 
             override = modifier(
                 f"Income override {request_key}",
-                targets_gang(),
+                targets_gang_alone(),
                 ef_contributes_to_counter(ensure_income_counter(), income),
                 pack=self.campaign.pack,
             )
@@ -924,7 +924,15 @@ class CampaignOperation:
                 f"{campaign_asset.holder.gang.name} holds it. Unassign it first."
             )
         self.event(CampaignEvent.Kind.ASSET_REMOVED, note=str(campaign_asset))
+        override = campaign_asset.income_override
         campaign_asset.delete()
+        if (
+            override
+            and not CampaignAsset.objects.filter(income_override=override).exists()
+        ):
+            from n26.library.authoring import delete_modifier
+
+            delete_modifier(override)
         return campaign_asset
 
     def assign(self, campaign_asset, membership):

@@ -22,23 +22,26 @@ function page(props: Partial<AssetSelectionProps> = {}) {
 describe("Campaign asset selection", () => {
     it("keeps batches unnamed and restores a single draft after selection changes", () => {
         const data = page({ selected: ["ruins"] });
-        fireEvent.change(screen.getByLabelText("Rename Old Ruins"), {
-            target: { value: "By the sump" },
-        });
+        fireEvent.change(
+            screen.getByLabelText("Name in this campaign (optional)"),
+            {
+                target: { value: "By the sump" },
+            },
+        );
         expect(data().get("name_ruins")).toBe("By the sump");
         fireEvent.click(screen.getByRole("button", { name: "Select all" }));
         expect(data().getAll("asset")).toEqual(["ruins", "market"]);
         expect(data().has("name_ruins")).toBe(false);
         expect(screen.queryByRole("textbox")).toBeNull();
         expect(
-            screen.getByText(/Batch additions use the catalogue names/),
+            screen.getByText(/they keep their catalogue names/),
         ).toBeTruthy();
         fireEvent.click(screen.getByRole("checkbox", { name: "Market" }));
         expect(data().get("name_ruins")).toBe("By the sump");
         fireEvent.click(screen.getByRole("button", { name: "Clear" }));
         expect(data().getAll("asset")).toEqual([]);
     });
-    it("restores submitted names and expands errors after server validation", () => {
+    it("restores submitted names and shows field errors after server validation", () => {
         const data = page({
             selected: ["market"],
             options: [
@@ -52,11 +55,9 @@ describe("Campaign asset selection", () => {
         });
         expect(data().get("name_market")).toBe("Eastern market");
         expect(
-            screen.getByText("Optional: Rename assets").closest("details")
-                ?.open,
-        ).toBe(true);
-        expect(
-            screen.getByLabelText("Rename Market").getAttribute("aria-invalid"),
+            screen
+                .getByLabelText("Name in this campaign (optional)")
+                .getAttribute("aria-invalid"),
         ).toBe("true");
         expect(screen.getByText("Use at most 200 characters.")).toBeTruthy();
     });

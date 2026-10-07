@@ -20,7 +20,7 @@ export function CounterAdjustment(props: CounterAdjustmentProps) {
     return (
         <div className="space-y-5">
             <div
-                className="space-y-1 text-center"
+                className="space-y-1 text-left"
                 aria-live="polite"
                 aria-atomic="true"
             >
@@ -39,29 +39,6 @@ export function CounterAdjustment(props: CounterAdjustmentProps) {
                     {delta}
                 </p>
             </div>
-            {props.isIncome && (
-                <div className="space-y-2 text-sm text-muted">
-                    <p>
-                        Contributions {props.value - props.recorded}¢ · manual
-                        adjustment {props.recorded + delta}¢
-                    </p>
-                    <p>
-                        The adjustment stays until you change it. Asset gains
-                        and losses change the contributions. Collect credits
-                        manually.
-                    </p>
-                    <Button
-                        type="submit"
-                        name="reset"
-                        value="1"
-                        formNoValidate
-                        size="sm"
-                        disabled={!props.recorded}
-                    >
-                        Reset adjustment
-                    </Button>
-                </div>
-            )}
             <Field
                 label="Change *"
                 htmlFor={id}
@@ -79,6 +56,28 @@ export function CounterAdjustment(props: CounterAdjustmentProps) {
                     onChange={(event) => setChange(event.target.value)}
                 />
             </Field>
+            {props.isIncome && (
+                <div className="space-y-2 text-sm text-muted">
+                    <p>
+                        Contributions {props.value - props.recorded}¢ · manual
+                        adjustment {props.recorded + delta}¢
+                    </p>
+                    <p>
+                        The adjustment stays until you change or reset it. Add
+                        collected income to your gang's credits.
+                    </p>
+                    <Button
+                        type="submit"
+                        name="reset"
+                        value="1"
+                        formNoValidate
+                        size="sm"
+                        disabled={!props.recorded}
+                    >
+                        Reset adjustment
+                    </Button>
+                </div>
+            )}
         </div>
     );
 }

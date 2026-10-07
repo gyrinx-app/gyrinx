@@ -763,7 +763,8 @@ class AddAssetForm(forms.Form):
         required=False,
         min_value=0,
         label="Income override",
-        help_text="Optional. Leave blank to use catalogue income. For a batch, this applies to every territory added.",
+        max_value=2147483647,
+        help_text="Optional. Leave blank to use each asset's catalogue income. Applies to every selected asset.",
     )
 
     def __init__(self, *args, offered, **kwargs):
@@ -786,14 +787,14 @@ class AddAssetForm(forms.Form):
         assets = data.get("asset")
         if assets is not None and len(assets) > 1 and data.get("name"):
             self.add_error(
-                "name", "Select one asset to give it a name in this campaign."
+                "name", "Select one asset to give it a custom name in this campaign."
             )
         data["names"] = {
             str(asset.pk): data.get(f"name_{asset.pk}", "") for asset in assets or []
         }
         if assets is not None and len(assets) > 1 and any(data["names"].values()):
             self.add_error(
-                "name", "Select one asset to give it a name in this campaign."
+                "name", "Select one asset to give it a custom name in this campaign."
             )
         return data
 
@@ -879,6 +880,7 @@ class NewAssetForm(forms.Form):
         min_value=0,
         initial=0,
         label="Income",
+        max_value=2147483647,
         help_text=INCOME_HELP,
     )
 

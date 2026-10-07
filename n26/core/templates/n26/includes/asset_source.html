@@ -1,6 +1,12 @@
 <nav aria-label="Asset source" class="mb-4 flex flex-wrap gap-2">
-    <c-n26.link href="{{ catalogue_href }}">
+    <c-ui.button href="{{ catalogue_href }}"
+                 variant="{% if unified %}default{% else %}primary{% endif %}"
+                 aria-current="{% if unified %}false{% else %}page{% endif %}">
         From catalogue
-    </c-n26.link>
-    {% if custom_href %}<c-n26.link href="{{ custom_href }}">Create custom {{ custom_label }}</c-n26.link>{% endif %}
+    </c-ui.button>
+    {% if custom_href %}
+        <c-ui.button href="{{ custom_href }}"
+                     variant="{% if unified %}primary{% else %}default{% endif %}"
+                     aria-current="{% if unified %}page{% else %}false{% endif %}">Create custom {{ custom_label }}</c-ui.button>
+    {% endif %}
 </nav>

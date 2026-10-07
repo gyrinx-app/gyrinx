@@ -1547,8 +1547,6 @@ def add_asset(request, pk):
                 "invalid": bool(form["asset"].errors),
                 "options": assets,
                 "selected": list(submitted),
-                "renameLabel": f"Optional: Rename {noun}",
-                "itemLabel": str(asset_type) if asset_type else "Asset",
             },
             "empty_next_href": empty_next_href,
             "empty_next_label": "Create asset"

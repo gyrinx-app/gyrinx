@@ -1,5 +1,6 @@
 """Approved dashboard behaviour over campaign, holding and counter operations."""
 
+import json
 from uuid import uuid4
 
 import pytest
@@ -23,7 +24,7 @@ from n26.library.authoring import (
     targets_gang,
 )
 from n26.library.core_campaign import seed_core_campaign
-from n26.library.models import CampaignType, Counter
+from n26.library.models import CampaignType, Counter, Modifier
 from n26.tests.sandbox.actions import (
     add_asset,
     assign_asset,
@@ -102,7 +103,11 @@ def test_reader_sees_income_breakdown_but_cannot_adjust_or_add(client, dashboard
     client.force_login(User.objects.create_user("dashboard-reader"))
     page = client.get(reverse("n26-campaign", args=[campaign.pk]))
     assert page.status_code == 200
-    assert "Adjustment 0¢" in page.content.decode()
+    soup = BeautifulSoup(page.content, "html.parser")
+    help_host = soup.select_one('[data-react-name="income-tooltip"]')
+    explanation = json.loads(soup.find(id=help_host["data-react-props"]).string)
+    assert explanation == {"value": 20, "contributed": 20, "adjustment": 0}
+    assert "Adjustment 0¢" not in page.content.decode()
     assignment = gang.assignments.get(counter__name="Income")
     assert (
         client.post(
@@ -165,6 +170,8 @@ def test_catalogue_batch_override_preserves_catalogue_and_applies_to_each_holdin
     assert {item.income_override.contributes_to_counter.amount for item in added} == {
         override
     }
+    shared = added[0].income_override
+    assert shared.scope.echoes is False
     for item in added:
         assign_asset(item, gang)
     assert income(gang).value == 20 + 2 * override
@@ -190,6 +197,32 @@ def test_catalogue_batch_override_preserves_catalogue_and_applies_to_each_holdin
         assert detail.context["details"].income == override
         unassign_asset(item)
     assert income(gang).value == 20
+    scope, effect = shared.scope, shared.effect
+    scope_pk, effect_pk = scope.pk, effect.pk
+    with campaign_operation(campaign, actor=campaign.owner) as act:
+        act.remove_asset(added[0])
+    assert Modifier.objects.filter(pk=shared.pk).exists()
+    with campaign_operation(campaign, actor=campaign.owner) as act:
+        act.remove_asset(added[1])
+    assert not Modifier.objects.filter(pk=shared.pk).exists()
+    assert not type(scope).objects.filter(pk=scope_pk).exists()
+    assert not type(effect).objects.filter(pk=effect_pk).exists()
+
+
+def test_income_override_refuses_out_of_range_before_writing(client, dashboard):
+    campaign, _, holding, _, _ = dashboard
+    href = reverse("n26-campaign-add-asset", args=[campaign.pk])
+    response = client.post(
+        href,
+        {
+            "asset": str(holding.asset_id),
+            "income": 2147483648,
+            "request_key": str(uuid4()),
+        },
+    )
+    assert response.status_code == 200
+    assert response.context["form"].errors["income"]
+    assert campaign.campaign_assets.count() == 1
 
 
 def test_custom_entry_adds_an_unclaimed_territory_and_both_sources_share_add(

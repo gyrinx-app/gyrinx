@@ -41,7 +41,7 @@ Assets retain their authored groups and links. This card owns its container.
                 <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 py-2.5">
                     <dt class="min-w-0 break-words text-sm text-muted">{{ counter.name }}</dt>
                     <dd class="flex items-center justify-end text-sm tabular-nums">
-                        {% if counter.href %}{% include "n26/includes/campaign_counter_value.html" with redrawn=False steps=True %}{% else %}{{ counter.value }}{% endif %}
+                        {% include "n26/includes/campaign_counter_value.html" with redrawn=False steps=True %}
                     </dd>
                 </div>
             {% endfor %}
