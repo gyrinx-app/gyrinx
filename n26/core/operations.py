@@ -918,23 +918,41 @@ class Operation:
         """Change what this operation's gang may spend, and record it.
 
         ``credits`` is the new budget, or ``None`` for no ceiling at all.
-        Nothing is priced here and no credits move: what the gang has
-        left is recomputed by ``settle`` from this figure less what the
-        ledger says was spent, which is also what refuses a budget the
-        spending history cannot fit. The note keeps both figures, since
-        the whole of what a reader wants from a budget change is what it
-        was and what it became.
+        Nothing is priced here: what the gang has left is recomputed by
+        ``settle`` from this figure less what the ledger says was spent,
+        which is also what refuses a budget the gang cannot fit.
+
+        A gang that had no budget opens its new one from what it holds
+        now, so its credits are the budget less its wealth. What it spent
+        while it had no ceiling stays in the log, but models deleted and
+        kit sold since then must not go on using up the new budget. One
+        correction on this event brings the ledger's spend total to the
+        worth of what the gang holds. A change from one budget to another
+        keeps the whole spending history, where deleting is not a refund.
+
+        The note keeps both figures, since the whole of what a reader
+        wants from a budget change is what it was and what it became.
         """
+        from n26.core.reconcile import total_spent
+
         gang = self.gang
         was = gang.starting_credits
         if was == credits:
             return gang
+        opening = 0
+        if was is None and credits is not None:
+            stash = getattr(gang, "stash", None)
+            held = gang.recompute_rating() + (
+                stash.recompute_rating() if stash is not None else 0
+            )
+            opening = held - total_spent(gang)
         gang.starting_credits = credits
         gang.save(update_fields=["starting_credits", "modified"])
         self.event(
             None,
             LedgerEvent.Kind.BUDGET_SET,
             note=f"{_budget_word(was)} → {_budget_word(credits)}"[:255],
+            credits_delta=opening,
         )
         return gang
 
