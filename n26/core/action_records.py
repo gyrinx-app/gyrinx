@@ -986,7 +986,11 @@ def _refuse_if_slot_filled(record):
 
 
 def _rebind_retired_slot(op, record):
-    """Give a reopened flow a live result slot in place of the one removed."""
+    """Give a reopened flow a live result slot in place of the one removed.
+
+    A saved review names the old slot, so it is dropped and the flow
+    resumes at its last choice to be reviewed again.
+    """
     selection = _unfinished_selection(record)
     if selection is None or not selection.slot_assignment.archived:
         return
@@ -997,6 +1001,9 @@ def _rebind_retired_slot(op, record):
         action_record=record,
     )
     selection.save(update_fields=["slot_assignment", "modified"])
+    if record.review:
+        record.review = {}
+        record.revision += 1
 
 
 def reopen_action(op, record):
@@ -1046,7 +1053,7 @@ def reopen_action(op, record):
         action_record=record,
         note=str(record.action),
     )
-    record.save(update_fields=["state", "modified"])
+    record.save(update_fields=["state", "review", "revision", "modified"])
     return record
 
 

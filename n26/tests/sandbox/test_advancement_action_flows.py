@@ -915,6 +915,32 @@ class TestApplyingByHand:
         assert not rolled_slot.archived
         assert not picked.archived
 
+    def test_a_flow_reopened_from_review_can_still_be_confirmed(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        client.post(skill_url, {"skill_id": str(advancement.skills["primary"].pk)})
+        record.refresh_from_db()
+        assert record.review
+
+        _flow(client, advancement, record, "by-hand")
+        _flow(client, advancement, record, "reopen")
+
+        record.refresh_from_db()
+        assert record.review == {}
+        review = client.post(
+            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        )
+        token = client.get(review.url).context["form"]["review"].value()
+        assert client.post(review.url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+
     def test_a_rolled_flow_loses_its_empty_slot_and_undo_lets_it_finish(
         self, client, monkeypatch, advancement
     ):
