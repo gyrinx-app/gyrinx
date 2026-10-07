@@ -1,0 +1,33 @@
+{% load static %}
+{% comment %}
+What each scenario table landed on: the die, the table and roll, the
+entry's name and text, and its map where it has one. Drawn by the
+generator, the battle form and the battle's page, so a scenario reads
+the same wherever it is shown.
+
+results is a list of n26.core.scenarios.ScenarioResult. verb is "rolled"
+or "chose" where the page knows which, and empty where it does not.
+{% endcomment %}
+<ol class="flex flex-col">
+    {% for result in results %}
+        <li class="flex gap-4 border-b border-box-border/50 py-4 first:pt-0 last:border-b-0 last:pb-0">
+            <c-n26.die value="{{ result.face }}" class="text-4xl" />
+            <div class="flex min-w-0 flex-1 flex-col gap-2">
+                <p class="text-sm text-muted">
+                    {% if verb %}
+                        {{ result.table.name }} table: {{ verb }} {{ result.roll }}
+                    {% else %}
+                        {{ result.table.name }} table: {{ result.roll }}
+                    {% endif %}
+                </p>
+                <h3 class="text-lg font-semibold text-ink-900 dark:text-ink-100">{{ result.entry.name }}</h3>
+                <p>{{ result.entry.text }}</p>
+                {% if result.entry.image %}
+                    <img src="{% static result.entry.image %}"
+                         alt="Map for {{ result.entry.name }}"
+                         class="w-full max-w-sm rounded border border-box-border">
+                {% endif %}
+            </div>
+        </li>
+    {% endfor %}
+</ol>

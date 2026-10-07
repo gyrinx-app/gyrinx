@@ -28,6 +28,13 @@
             {% endif %}
         </c-n26.page-header>
         {% if not battle.scenario %}<p class="text-sm text-muted">Scenario not recorded.</p>{% endif %}
+        {% if battle.scenario_results %}
+            <section class="border border-box-border bg-surface p-4 sm:p-5"
+                     aria-labelledby="battle-scenario-heading">
+                <h2 id="battle-scenario-heading" class="mb-3 text-lg font-semibold">Scenario</h2>
+                {% include "n26/includes/scenario_results.html" with results=battle.scenario_results verb="" %}
+            </section>
+        {% endif %}
         <section class="border border-box-border bg-surface p-4 sm:p-5"
                  aria-labelledby="battle-outcome-heading">
             <h2 id="battle-outcome-heading" class="text-sm font-medium text-muted">Outcome</h2>
@@ -39,6 +46,13 @@
                 <c-ui.button size="sm"
                              class="mt-3"
                              href="{% url 'n26-campaign-edit-battle' campaign.pk battle.pk %}#outcome">
+                    Record outcome
+                </c-ui.button>
+            {% elif may_record_outcome %}
+                {# A player who fought it records the outcome alone; the arbitrator edits the rest. #}
+                <c-ui.button size="sm"
+                             class="mt-3"
+                             href="{% url 'n26-campaign-battle-outcome' campaign.pk battle.pk %}">
                     Record outcome
                 </c-ui.button>
             {% endif %}

@@ -54,12 +54,24 @@ def test_share_props_keep_the_link_and_known_button_shape():
         "message": "Copied.",
         "size": "sm",
         "variant": "text",
+        "label": "Share",
+        "compact": True,
     }
     assert share_props(url=None, message=None, size="huge", variant="nope") == {
         "url": "",
         "message": "Link copied.",
         "size": "xs",
         "variant": "ghost",
+        "label": "Share",
+        "compact": True,
+    }
+    assert share_props(url="/s/", label="Copy scenario", compact=False) == {
+        "url": "/s/",
+        "message": "Link copied.",
+        "size": "xs",
+        "variant": "ghost",
+        "label": "Copy scenario",
+        "compact": False,
     }
     assert share_host_class("ml-2") == "inline-flex items-center gap-2 ml-2"
     assert share_host_class("  ") == "inline-flex items-center gap-2"

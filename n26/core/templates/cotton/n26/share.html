@@ -7,7 +7,10 @@ If the share sheet is missing or fails for a reason other than AbortError, it co
 If clipboard is missing or the copy fails, the browser navigates to the URL instead.
 AbortError from the share sheet is ignored.
 Pass a path. The button shares the link's own href, which the browser has already made absolute.
-The word Share is hidden below sm. Keep the aria-label so a reader who cannot see the icon still hears the name.
+label names the button, and is its aria-label. It defaults to Share.
+compact keeps the breadcrumb-row size below and hides the label below sm.
+Pass :compact="False" for a full-size button whose label always shows.
+title on the tag becomes the hover text of the row around the button.
 The padding overrides keep this 20px tall so it can sit on the breadcrumb row.
 A button's own padding is 29px and would push the heading down.
 Lay the contents out on the button itself. A wrapper around them adds a line box's leading on top.
@@ -20,15 +23,20 @@ Change the size prop and these measurements need doing again.
     message="Link copied."
     size="xs"
     variant="ghost"
+    label="Share"
+    :compact="True"
+    title=""
     class=""
 />
-{% share_props url=url message=message size=size variant=variant as props_ %}
+{% share_props url=url message=message size=size variant=variant label=label compact=compact as props_ %}
 {% share_host_class class as host_class %}
+{% if title %}<span title="{{ title }}" class="inline-flex">{% endif %}
 {% react_host "share" props_ class=host_class %}
     <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ url }}"
-                 aria-label="Share"
-                 class="!inline-flex min-h-5 items-center gap-1.5 !py-px">
+                 aria-label="{{ props_.label }}"
+                 class="{% if compact %}!inline-flex min-h-5 items-center gap-1.5 !py-px{% else %}inline-flex items-center gap-1.5{% endif %}">
         <c-n26.icon name="share-2" class="size-3.5" />
-        <span class="hidden sm:inline">Share</span>
+        <span {% if compact %}class="hidden sm:inline"{% endif %}>{{ props_.label }}</span>
     </c-ui.button>
 {% endreact_host %}
+{% if title %}</span>{% endif %}
