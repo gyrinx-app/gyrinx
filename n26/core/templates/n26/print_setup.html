@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
+{% load navigation react %}
 {% comment %}
 Choosing what a print includes, before the paper is committed.
 
@@ -176,106 +176,15 @@ that said it twice would be spending the width the name needs.
         <c-n26.form-section title="Models"
                             description="Tick who gets a card, and which of their weapons show on it.">
             {% comment %}
-            A card per model, the checkbox on its header row and the weapons
-            beneath. Two columns inside the form's measure — as the screen
-            widens the answer is more cards abreast, not wider cards.
-
-            Two live reckonings, both the hire rows' running-total pattern —
-            presentation of state already on the page, the one job Alpine is
-            allowed. Each card counts its own ticked weapons' slots against
-            the book's per-card budget, going loud past it without blocking
-            anything: informing, never policing. The section's footer sums a
-            crew total — each model's weaponless rating plus its ticked
-            weapons, so an unticked model contributes nothing, weapons
-            included, exactly as it prints. One change listener per scope
-            rather than one per box: change bubbles, and either recount is
-            one walk.
+            A card per model, its weapons beneath, in two columns inside the
+            form's measure. The island owns the boxes and the live sums: each
+            card counts its ticked weapons' slots against the per-card
+            budget, amber past it without blocking anything, and the footer
+            sums a crew total. Its checkboxes post fighters and weapons with
+            this form; an unticked model's weapons are disabled, so they
+            stay out of the submission.
             {% endcomment %}
-            <div x-data="{ total: 0, retotal() { let total = 0; for (const model of $el.querySelectorAll('input[name=fighters]:checked')) { total += Number(model.closest('[data-base]').dataset.base); for (const weapon of $el.querySelectorAll('input[name=weapons][data-model=' + CSS.escape(model.value) + ']:checked')) { total += Number(weapon.dataset.rating); } } this.total = total; } }"
-                 x-init="retotal()"
-                 @change="retotal()"
-                 class="space-y-4">
-                <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
-                    {% for row in model_rows %}
-                        {% comment %}
-                        The wrapper's scope is the slot recount; the card's
-                        own picked state lives in the component, and the meta
-                        slot reads both up the scope chain. data-base rides
-                        the component tag because the retotal walker reads it
-                        off the card enclosing each ticked model input.
-                        {% endcomment %}
-                        <div x-data="{ slots: 0, recount() { this.slots = [...$el.querySelectorAll('input[name=weapons]:checked')].reduce((used, weapon) => used + Number(weapon.dataset.slots), 0) } }"
-                             x-init="recount()"
-                             @change="recount()">
-                            <c-n26.checkbox-card name="fighters"
-                                                 value="{{ row.card.id }}"
-                                                 label="{{ row.card.name }}"
-                                                 description="{{ row.card.profile_name }}"
-                                                 :checked="row.ticked"
-                                                 data-base="{{ row.base_rating }}"
-                                                 class="h-full">
-                                <c-slot name="meta">
-                                    {% if row.card.weapons %}
-                                        {% comment %}
-                                        The card's slot spend against the book's
-                                        budget, loud past it. title says which
-                                        number this is — the bare fraction reads
-                                        as anything.
-                                        {% endcomment %}
-                                        <span class="shrink-0 text-xs tabular-nums"
-                                              :class="slots > {{ slot_budget }} ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted'"
-                                              title="Weapon slots used ({{ slot_budget }} per card)"
-                                              x-text="slots + '/{{ slot_budget }} slots'"></span>
-                                    {% endif %}
-                                    <span class="shrink-0 text-sm tabular-nums text-muted">{{ row.card.rating }}¢</span>
-                                </c-slot>
-                                {% comment %}
-                                Only stored weapons can be chosen — a computed
-                                line has no assignment to key on, and there are
-                                none of those today; the guard keeps a future
-                                one from rendering an unsubmittable box. The
-                                :disabled binding is the component's documented
-                                contract: inert kills interaction while the
-                                model is unticked, disabled keeps the unpicked
-                                card's weapons out of the submission too.
-                                {% endcomment %}
-                                {% for weapon in row.card.weapons %}
-                                    {% if weapon.id %}
-                                        <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
-                                            <input type="checkbox"
-                                                   name="weapons"
-                                                   value="{{ weapon.id }}"
-                                                   data-model="{{ row.card.id }}"
-                                                   data-rating="{{ weapon.total_rating }}"
-                                                   data-slots="{{ weapon.slots }}"
-                                                   {% if weapon.id in ticked_weapons %}checked{% endif %}
-                                                   :disabled="!picked"
-                                                   class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                                            <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.name }}{{ weapon.slot_mark }}{{ weapon.total_brought_mark }}</span>
-                                            {% if weapon.slots != 1 %}
-                                                <span class="shrink-0 text-xs text-muted">{{ weapon.slots }} slot{{ weapon.slots|pluralize }}</span>
-                                            {% endif %}
-                                            <span class="shrink-0 text-xs tabular-nums text-muted">{{ weapon.total_rating }}¢</span>
-                                        </label>
-                                    {% endif %}
-                                {% endfor %}
-                            </c-n26.checkbox-card>
-                        </div>
-                    {% endfor %}
-                </div>
-                {% comment %}
-                What the ticked selection weighs, where the eye finishes the
-                grid. Slots are each card's own affair above; this is the one
-                figure that spans them.
-                {% endcomment %}
-                <div class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm">
-                    <span class="text-muted">
-                        Crew total
-                        <span class="ml-1 font-medium tabular-nums text-ink-900 dark:text-ink-100"
-                              x-text="total + '¢'">0¢</span>
-                    </span>
-                </div>
-            </div>
+            {% react_island "print-picker" print_picker %}
         </c-n26.form-section>
     </c-n26.form-page>
 {% endblock content %}

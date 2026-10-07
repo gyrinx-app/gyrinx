@@ -274,14 +274,27 @@ class TestThePriceBoxes:
 
 class TestThePrintSetupPicker:
     def test_the_weapon_to_tick_is_named_with_the_mark(self, client, gang, armed):
-        client.force_login(gang.owner)
-        setup = client.get(reverse("n26-print-setup", args=[gang.pk])).content.decode()
+        import json
 
-        assert "Heavy stubber*" in setup
+        from bs4 import BeautifulSoup
+
+        client.force_login(gang.owner)
+        setup = client.get(reverse("n26-print-setup", args=[gang.pk])).content
+        soup = BeautifulSoup(setup, "html.parser")
+        host = soup.select_one('[data-react-name="print-picker"]')
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+        weapons = {
+            weapon["label"]: weapon
+            for model in props["models"]
+            for weapon in model["weapons"]
+        }
+
+        assert set(weapons) >= {"Heavy stubber*", "Autogun", "Frag grenades"}
         # Beside the mark, the picker still counts the slots in words.
-        assert "2 slots" in setup
-        assert "Autogun*" not in setup
-        assert "Frag grenades*" not in setup
+        assert weapons["Heavy stubber*"]["slotsLabel"] == "2 slots"
+        assert weapons["Heavy stubber*"]["slots"] == 2
+        assert weapons["Frag grenades"]["slotsLabel"] == "0 slots"
+        assert weapons["Autogun"]["slotsLabel"] == ""
 
 
 @pytest.fixture

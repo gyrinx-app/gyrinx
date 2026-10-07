@@ -16,6 +16,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Count
 from django.shortcuts import redirect, render
+from django.template.defaultfilters import pluralize
 from django.urls import reverse
 
 from n26.core.fields import to_ulid
@@ -238,6 +239,55 @@ def _what_to_print(request, gang, config):
     return None, None, True, True, True, _orientation(None)
 
 
+def _print_picker(sheet, ticked_models, ticked_weapons, slot_budget):
+    """The setup screen's model and weapon boxes, as the picker island's props.
+
+    Each model carries its weaponless rating as ``baseRating``: the crew
+    total starts there and adds ticked weapons back in the browser, so an
+    unticked model adds nothing, weapons included, as it prints. The
+    totals are a preview; the print reckons its own.
+
+    Only stored weapons can be chosen. A computed line has no assignment
+    to key on, so it gets no box, though it still shows that the card has
+    weapons to count slots against.
+    """
+    return {
+        "slotBudget": slot_budget,
+        "models": [
+            {
+                "id": str(card.id),
+                "name": card.name,
+                "profileName": card.profile_name,
+                "rating": card.rating,
+                "baseRating": card.rating
+                - sum(weapon.total_rating for weapon in card.weapons),
+                "ticked": card.id in ticked_models,
+                "hasWeapons": bool(card.weapons),
+                "weapons": [
+                    {
+                        "id": str(weapon.id),
+                        "label": (
+                            f"{weapon.name}{weapon.slot_mark}"
+                            f"{weapon.total_brought_mark}"
+                        ),
+                        "slots": weapon.slots,
+                        "slotsLabel": (
+                            ""
+                            if weapon.slots == 1
+                            else f"{weapon.slots} slot{pluralize(weapon.slots)}"
+                        ),
+                        "rating": weapon.total_rating,
+                        "ticked": str(weapon.id) in ticked_weapons,
+                    }
+                    for weapon in card.weapons
+                    if weapon.id
+                ],
+            }
+            for card in sheet.models
+        ],
+    }
+
+
 @login_required
 def print_setup(request, pk):
     """Choose what a print includes, before the paper is committed.
@@ -327,21 +377,9 @@ def print_setup(request, pk):
         {
             "gang": gang,
             "sheet": sheet,
-            # What each model is worth with no weapons ticked — the live
-            # crew total starts here and adds ticked weapons back on the
-            # client. Derived server-side so the template only reads it;
-            # `ticked` too, because a cotton :prop evaluates a variable,
-            # not an `in` expression — passed as one, every card rendered
-            # unticked and nothing errored.
-            "model_rows": [
-                {
-                    "card": card,
-                    "ticked": card.id in ticked_models,
-                    "base_rating": card.rating
-                    - sum(weapon.total_rating for weapon in card.weapons),
-                }
-                for card in sheet.models
-            ],
+            "print_picker": _print_picker(
+                sheet, ticked_models, ticked_weapons, WEAPON_SLOTS_PER_CARD
+            ),
             "saved": saved,
             # Resolved here, not in the template: `loaded.include_header`
             # on a None resolves to the empty string, which default_if_none
@@ -351,9 +389,6 @@ def print_setup(request, pk):
             "include_stash": loaded.include_stash if loaded else True,
             "include_notes": loaded.include_notes if loaded else True,
             "orientation": _orientation(loaded.orientation if loaded else None),
-            "ticked_models": ticked_models,
-            "ticked_weapons": ticked_weapons,
-            "slot_budget": WEAPON_SLOTS_PER_CARD,
             "yours": yours,
             # Where the boxes are submitted, and how. The owner's form
             # saves a setup and prints it; a reader who cannot save sends
