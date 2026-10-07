@@ -60,15 +60,9 @@ export type ActionMenuProps = {
 type Edge = "first" | "last";
 
 /**
- * Whether a click came from a screen reader or other assistive technology
- * rather than a pointer, after React Aria's `isVirtualClick`:
- * - Firefox marks a trusted virtual click with `mozInputSource` 0, which
- *   catches NVDA and JAWS there although their click has `detail` 1.
- * - On Android, TalkBack sends a click with a `pointerType` and `buttons` 1.
- *   This check is Android-only, so a desktop mouse click never matches it.
- * - Elsewhere, a click with `detail` 0 and no `pointerType`, as
- *   `element.click()` sends. A real pointer click that reports `detail` 0
- *   still has a `pointerType`, so it does not count.
+ * Whether assistive technology sent this click, as React Aria's
+ * `isVirtualClick` decides: Firefox's trusted `mozInputSource` 0, TalkBack's
+ * `buttons` 1 on Android only, or else `detail` 0 with no `pointerType`.
  */
 export function isVirtualClick(event: MouseEvent) {
     const { pointerType } = event as PointerEvent;
