@@ -2,14 +2,13 @@
 <c-n26.stash.group> — One kind of stashed gear, as a labelled list.
 
 The first line's menu is the switch for the whole group.
-strategy=fixed: the gear list scrolls, and an absolute menu is clipped by that box.
+React draws each line's menu. Its panel is fixed, so the scrolling gear list does not clip it.
 A print-out and a reader who does not own the gang have empty menus on every line.
-Danger acts are collected after the others. A single loop would leave a destructive act in the middle of the menu.
+The view orders each menu and places its separators: see stash_menu in n26/core/views/owned.py.
 A zero rating is omitted. This drawing cannot tell a bundled figure from a gift, so it must not say free.
 Capitalise the label here. Kinds arrive from verbose_name in lower case, written to sit mid-sentence.
 {% endcomment %}
 
-{% load listing %}
 <c-vars label="" :lines="None" class="" />
 
 <div class="flex items-baseline gap-1.5 {{ class }}">
@@ -22,34 +21,11 @@ Capitalise the label here. Kinds arrive from verbose_name in lower case, written
                         <span class="min-w-0 flex-1">
                             {{ line.name }}{{ line.slot_mark }}{{ line.brought_mark }}{% if line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}
                         </span>
-                        <c-ui.dropdown align="end" min_width="10rem" strategy="fixed">
-                            <c-slot name="trigger">
-                                <c-ui.button size="sm"
-                                             class="px-1.5!"
-                                             aria-label="Actions for {{ line.name }}{{ line.slot_mark }}{{ line.brought_mark }}"
-                                             title="Actions for {{ line.name }}{{ line.slot_mark }}{{ line.brought_mark }}"
-                                             aria-haspopup="menu"
-                                             ::aria-expanded="dropdownMenu">
-                                    <span class="n26-icon-only">
-                                        <c-n26.icon name="chevron-down"
-                                                    class="size-3 transition-transform"
-                                                    stroke_width="2.5"
-                                                    ::class="{ 'rotate-180': dropdownMenu }" />
-                                    </span>
-                                </c-ui.button>
-                            </c-slot>
-                            {% for action in line.menu %}
-                                {% if action.tone|tone_variant != "danger" %}
-                                    <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
-                                {% endif %}
-                            {% endfor %}
-                            {% for action in line.menu %}
-                                {% if action.tone|tone_variant == "danger" %}
-                                    {% if line.menu|length > 1 %}<c-ui.dropdown.separator />{% endif %}
-                                    <c-ui.dropdown.item href="{{ action.target }}" variant="danger">{{ action.label }}</c-ui.dropdown.item>
-                                {% endif %}
-                            {% endfor %}
-                        </c-ui.dropdown>
+                        <c-n26.action-menu :items="line.menu"
+                                           label="Actions for {{ line.name }}{{ line.slot_mark }}{{ line.brought_mark }}"
+                                           trigger="chevron"
+                                           align="end"
+                                           min_width="10rem" />
                     </li>
                 {% endfor %}
             </ul>
