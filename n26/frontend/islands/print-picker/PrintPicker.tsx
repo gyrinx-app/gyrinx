@@ -79,13 +79,23 @@ export function PrintPicker({
 
     useLayoutEffect(() => {
         if (!focus) return;
-        const box = Array.from(
-            root.current?.querySelectorAll<HTMLInputElement>(
-                `input[name="${focus.name}"]`,
-            ) ?? [],
-        ).find((input) => input.value === focus.value);
+        const find = (name: string, value: string) =>
+            Array.from(
+                root.current?.querySelectorAll<HTMLInputElement>(
+                    `input[name="${name}"]`,
+                ) ?? [],
+            ).find((input) => input.value === value);
+        let box = find(focus.name, focus.value);
+        if (box?.disabled) {
+            // A weapon under an unticked model cannot take focus here, so
+            // focus goes to the box that would enable it.
+            const holder = models.find((model) =>
+                model.weapons.some((weapon) => weapon.id === focus.value),
+            );
+            box = holder && find("fighters", holder.id);
+        }
         box?.focus();
-    }, [focus]);
+    }, [focus, models]);
 
     function toggle(
         set: (update: (previous: Set<string>) => Set<string>) => void,

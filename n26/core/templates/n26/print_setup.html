@@ -67,6 +67,7 @@ that said it twice would be spending the width the name needs.
         {% endcomment %}
         {% if yours %}
             {% csrf_token %}
+            {% if loaded_config %}<input type="hidden" name="config" value="{{ loaded_config }}">{% endif %}
         {% else %}
             {# Says the address carries a choice: see _what_to_print. #}
             <input type="hidden" name="pick" value="1">

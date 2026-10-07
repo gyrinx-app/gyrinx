@@ -305,6 +305,41 @@ describe("PrintPicker", () => {
         form.remove();
     });
 
+    it("focuses the model when the focused weapon's model is unticked", () => {
+        const form = document.createElement("form");
+        const host = document.createElement("div");
+        form.append(host);
+        document.body.append(form);
+        // Sull unticked before the island loaded, then Tab to its knife,
+        // which the server-drawn page leaves usable.
+        host.innerHTML = `
+            <input type="checkbox" name="fighters" value="01VEX" checked>
+            <input type="checkbox" name="weapons" value="01LAS" checked>
+            <input type="checkbox" name="weapons" value="01STUB" checked>
+            <input type="checkbox" name="fighters" value="01SULL">
+            <input type="checkbox" name="weapons" value="01KNIFE" checked>
+        `;
+        host.querySelector<HTMLInputElement>('[value="01KNIFE"]')!.focus();
+        let unmount = () => {};
+        act(() => {
+            unmount = mount(host, {
+                marker: "picker",
+                slotBudget: 3,
+                models: [vex(), sull()],
+            });
+        });
+
+        const knife = screen.getByRole<HTMLInputElement>("checkbox", {
+            name: /Knife/,
+        });
+        expect(knife.disabled).toBe(true);
+        expect(document.activeElement).toBe(
+            screen.getByRole("checkbox", { name: "Sull" }),
+        );
+        act(() => unmount());
+        form.remove();
+    });
+
     it("leaves no marker when the island fails and shows its error", () => {
         vi.spyOn(console, "error").mockImplementation(() => {});
         const form = document.createElement("form");

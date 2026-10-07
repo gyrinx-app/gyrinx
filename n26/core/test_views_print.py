@@ -918,6 +918,51 @@ class TestPrintingSomebodyElsesGang:
             [str(vex.pk), str(sull.pk)]
         )
 
+    def test_the_error_page_ticks_the_setup_the_form_was_loaded_from(
+        self, client, tester, gang, roster, gang_type
+    ):
+        """Renamed or cleared before the failed save, the name matches no
+        setup; the form still says which one it was loaded from, and the
+        error page ticks that one rather than the whole gang."""
+        vex, sull = roster
+        config = PrintConfig.objects.create(gang=gang, name="Crew")
+        config.miniatures.set([vex])
+        client.force_login(tester)
+        body = client.get(f"{setup_url(gang)}?config={config.pk}").content.decode()
+        _, _, sent = no_js_submission(body)
+        assert ("config", str(config.pk)) in sent
+        sent = [
+            pair
+            for pair in sent
+            if pair[0] not in ("picker", "fighters", "weapons", "name")
+        ] + [("name", "Renamed")]
+
+        response = client.post(setup_url(gang), _as_post(sent))
+
+        ticked = {
+            model["id"]: model["ticked"]
+            for model in picker(response.content.decode())["models"]
+        }
+        assert ticked == {str(vex.pk): True, str(sull.pk): False}
+        assert response.context["setup_name"] == "Renamed"
+        assert f'name="config" value="{config.pk}"' in response.content.decode()
+
+        # Another gang's setup named there is ignored, and the name decides.
+        other = Gang.objects.create(
+            name="Someone else's",
+            owner=User.objects.create_user("other-owner"),
+            gang_type=gang_type,
+        )
+        theirs = PrintConfig.objects.create(gang=other, name="Theirs")
+        response = client.post(
+            setup_url(gang), {"config": str(theirs.pk), "name": "crew"}
+        )
+        ticked = {
+            model["id"]: model["ticked"]
+            for model in picker(response.content.decode())["models"]
+        }
+        assert ticked == {str(vex.pk): True, str(sull.pk): False}
+
     def test_the_error_page_keeps_what_the_owner_posted(
         self, client, tester, gang, roster
     ):

@@ -148,7 +148,11 @@ def _print_rows(
 
 def _config_for(request, gang):
     """The print config the URL names, if it is this gang's own."""
-    config_id = request.GET.get("config")
+    return _gang_config(gang, request.GET.get("config"))
+
+
+def _gang_config(gang, config_id):
+    """The print config ``config_id`` names, if it is ``gang``'s own."""
     if not config_id:
         return None
     try:
@@ -369,10 +373,11 @@ def print_setup(request, pk):
         name = request.POST.get("name", "").strip()
         if not request.POST.get(PICKER_MARKER):
             # Saving this would empty the setup's models and weapons.
-            # Shown again as the setup it names, if it names one.
-            loaded = (
-                gang.print_configs.filter(name__iexact=name).first() if name else None
-            )
+            # Shown again ticked as the setup the form was loaded from,
+            # which the name may no longer match, else as the one it names.
+            loaded = _gang_config(gang, request.POST.get("config"))
+            if loaded is None and name:
+                loaded = gang.print_configs.filter(name__iexact=name).first()
             return _setup_page(
                 request, gang, loaded, error=PICKER_MISSING, posted=request.POST
             )
@@ -484,6 +489,9 @@ def _setup_page(request, gang, loaded, error="", posted=None):
                 }
             ),
             "yours": yours,
+            # The setup the boxes were ticked from, sent back with the
+            # owner's form so a failed save can show those ticks again.
+            "loaded_config": str(loaded.pk) if yours and loaded else "",
             # Where the boxes are submitted, and how. The owner's form
             # saves a setup and prints it; a reader who cannot save sends
             # the same boxes straight to the paper, as a query the address
