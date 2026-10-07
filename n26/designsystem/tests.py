@@ -1041,6 +1041,7 @@ class TestCounterLinesInTheGallery:
             "Bounty",
         ]
         assert all(line.href for line in lines)
+        assert all(line.adjust_href for line in lines)
 
     def test_the_editable_sample_offers_the_listing_acts_on_its_kit(self):
         """The model's own page is where kit is taken off, so the

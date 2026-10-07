@@ -3,6 +3,7 @@
 
 An adjust_href opens an in-page amount dialog. Set steps to retain one-point forms alongside it.
 Its page must provide the campaign-state dialog and counter value hosts.
+The pencil is a text button. A ghost button's padding sits above the baseline and lifts the icon off the number.
 Otherwise each direction posts its own form, because htmx ignores submitters.
 Minus stays disabled when the recorded value is zero; contributions stay.
 {% endcomment %}
@@ -53,9 +54,9 @@ Minus stays disabled when the recorded value is zero; contributions stay.
 {% endif %}
 {% if counter.adjust_href %}
 
-    <c-ui.button size="xs" variant="ghost" href="{{ counter.adjust_href }}"
+    <c-ui.button size="xs" variant="text" href="{{ counter.adjust_href }}"
                  hx-get="{{ counter.adjust_href }}" hx-swap="none"
-                 aria-label="Edit {{ counter.name }}" class="shrink-0">
-        <c-n26.icon name="pencil" class="size-3.5" />
+                 aria-label="Edit {{ counter.name }}" class="ms-1 shrink-0 py-0!">
+        <span class="n26-icon-inline"><c-n26.icon name="pencil" /></span>
     </c-ui.button>
 {% endif %}

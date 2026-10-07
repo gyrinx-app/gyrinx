@@ -5,7 +5,7 @@ Keep rounded-button on the element. busy.js treats those links as buttons. The b
 A button that submits, fetches, or navigates goes busy until the work ends. Pass data-busy=off on the button or its form to opt out.
 Buttons are flat. No variant carries a shadow, so a default sits level with a primary.
 href draws an anchor, which cannot submit a form. To submit, omit href and pass type=submit.
-text and text-danger drop horizontal padding so they sit in a sentence like a link.
+text and text-danger drop horizontal padding and draw inline, so they share the line with the sentence around them. An inline-block box rests on the baseline and lifts an icon off the words.
 compact narrows the horizontal padding at any size, for a row of controls that sit edge to edge.
 The link form has no disabled styles. An href control stays clickable.
 There is no disabled prop. A static off control is the bare HTML attribute; a computed one goes in :attrs as {'disabled': True} or {}. disabled="False" is still disabled.
@@ -62,7 +62,7 @@ There is no disabled prop. A static off control is the bare HTML attribute; a co
     href="{{ href }}"
     class="
     {% if outlined %}{{ outlined_variants|get_item:variant }}{% else %}{{ variants|get_item:variant }}{% endif %}
-    inline-block no-underline cursor-pointer whitespace-nowrap rounded-button
+    {% if variant == 'text' or variant == 'text-danger' %}inline{% else %}inline-block{% endif %} no-underline cursor-pointer whitespace-nowrap rounded-button
     {{ size_classes|get_item:size }}
     {% if variant == 'text' or variant == 'text-danger' %}!px-0{% elif compact %}{{ compact_classes|get_item:size }}{% endif %}
     font-medium transition text-center

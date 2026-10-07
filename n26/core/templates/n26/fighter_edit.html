@@ -337,4 +337,9 @@ is named by the page's own heading directly below.
     <div id="n26-status-dialog-host"></div>
     {% include "n26/includes/base_rating_dialog.html" %}
     {% include "n26/includes/rename_dialog.html" %}
+    {% comment %}
+    A counter pencil opens the amount dialog into this host. The id matches
+    the dialog the tally address returns, so the swap has somewhere to land.
+    {% endcomment %}
+    <div id="n26-campaign-state-dialog-host"></div>
 {% endblock content %}

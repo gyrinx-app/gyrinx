@@ -32,7 +32,7 @@ Assets retain their authored groups and links. This card owns its container.
                             </form>
                         {% endif %}
                         {% if choice.href %}
-                            <c-ui.button size="xs" variant="ghost" href="{{ choice.href }}" hx-get="{{ choice.href }}" hx-swap="none" aria-label="Edit {{ choice.kind_label }}" class="shrink-0"><c-n26.icon name="pencil" class="size-3.5" /></c-ui.button>
+                            <c-ui.button size="xs" variant="text" href="{{ choice.href }}" hx-get="{{ choice.href }}" hx-swap="none" aria-label="Edit {{ choice.kind_label }}" class="shrink-0 py-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>
                         {% endif %}
                     </dd>
                 </div>
