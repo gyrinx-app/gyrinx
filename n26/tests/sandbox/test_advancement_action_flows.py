@@ -933,3 +933,69 @@ class TestApplyingByHand:
         assert "Undo marking Advance as applied by hand" in _edit_page(
             client, advancement
         )
+
+    def _later_allowance(self, advancement):
+        return ActionAllowance.objects.create(
+            action=advancement.action,
+            fighter=advancement.fighter,
+            source=advancement.fighter.membership,
+            source_kind=ActionAllowance.Source.RANK,
+            threshold=8,
+            rank_table=advancement.allowance.rank_table,
+        )
+
+    def test_undo_waits_while_a_later_flow_is_started(self, client, advancement):
+        later = self._later_allowance(advancement)
+        _mark_unused_by_hand(client, advancement)
+        marked = ActionRecord.objects.get(fighter=advancement.fighter)
+        client.post(
+            reverse(
+                "n26-action-start",
+                args=[advancement.fighter.pk, advancement.action.pk],
+            ),
+            {
+                "request_key": str(uuid4()),
+                "outcome": str(advancement.outcome.pk),
+                "allowance": str(later.pk),
+            },
+        )
+        assert ActionRecord.objects.filter(
+            allowance=later, state=ActionRecord.State.STARTED
+        ).exists()
+
+        _flow(client, advancement, marked, "reopen")
+
+        marked.refresh_from_db()
+        assert marked.state == ActionRecord.State.APPLIED_BY_HAND
+
+    def test_undo_waits_for_a_later_rank_already_taken(self, client, advancement):
+        later = self._later_allowance(advancement)
+        _mark_unused_by_hand(client, advancement)
+        marked = ActionRecord.objects.get(allowance=advancement.allowance)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.apply_allowance_by_hand(
+                advancement.fighter, advancement.action, uuid4(), later
+            )
+
+        _flow(client, advancement, marked, "reopen")
+
+        marked.refresh_from_db()
+        assert marked.state == ActionRecord.State.APPLIED_BY_HAND
+        assert _waiting(advancement) == ()
+
+    def test_a_malformed_allowance_falls_back_to_the_earliest_use(
+        self, client, advancement
+    ):
+        client.force_login(advancement.owner)
+        url = (
+            reverse(
+                "n26-action-by-hand",
+                args=[advancement.fighter.pk, advancement.action.pk],
+            )
+            + "?allowance=not-a-ulid"
+        )
+        response = client.post(url, {"request_key": str(uuid4())})
+        assert response.status_code == 302
+        assert ActionRecord.objects.get(fighter=advancement.fighter).allowance == (
+            advancement.allowance
+        )

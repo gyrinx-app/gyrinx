@@ -562,17 +562,23 @@ def action_by_hand(request, pk, action_id):
             request, "This form is out of date. Reload this page and try again."
         )
         return redirect("n26-edit-fighter", pk=fighter.pk)
-    allowance = (
-        ActionAllowance.objects.filter(
-            pk=request.GET.get("allowance"), fighter=fighter, action=action
-        ).first()
-        if request.GET.get("allowance")
-        else None
-    )
+    try:
+        allowance = (
+            ActionAllowance.objects.filter(
+                pk=request.GET.get("allowance"), fighter=fighter, action=action
+            ).first()
+            if request.GET.get("allowance")
+            else None
+        )
+    except ValidationError:
+        allowance = None
     try:
         with operation(fighter.gang, actor=request.user) as op:
-            op.apply_allowance_by_hand(fighter, action, request_key, allowance)
-        messages.success(request, f"{action} marked as applied by hand.")
+            record = op.apply_allowance_by_hand(fighter, action, request_key, allowance)
+        if record.state == ActionRecord.State.APPLIED_BY_HAND:
+            messages.success(request, f"{action} marked as applied by hand.")
+        else:
+            messages.info(request, "This form is out of date. Nothing changed.")
     except Refusal as refusal:
         messages.error(request, str(refusal))
     return redirect("n26-edit-fighter", pk=fighter.pk)

@@ -342,8 +342,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                         str(record.pk),
                         f"Resume {action} flow",
                         when=record.created,
-                        earned=record.allowance_id is not None
-                        and record.payment_id is None,
+                        earned=record.allowance_id is not None,
                     )
                 )
             elif (

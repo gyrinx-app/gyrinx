@@ -16,6 +16,7 @@ from n26.core.models import (
     LedgerEvent,
     Miniature,
 )
+from n26.core.models.action_record import RESERVING_STATES
 from n26.core.operations import LibraryError, Refusal
 
 
@@ -920,7 +921,7 @@ def apply_action_by_hand(op, record):
         return record
     if record.state != ActionRecord.State.STARTED:
         raise Refusal("That action use is no longer waiting.")
-    if record.allowance_id is None or record.payment_id is not None:
+    if record.allowance_id is None:
         raise Refusal("Only an earned use can be marked as applied by hand.")
     _retire_unfinished_slot(op, record)
     record.state = ActionRecord.State.APPLIED_BY_HAND
@@ -960,6 +961,21 @@ def _retire_unfinished_slot(op, record):
         op.remove(selection.slot_assignment, action_record=record)
 
 
+def _refuse_if_slot_filled(record):
+    selection = _unfinished_selection(record)
+    if selection is None or selection.slot_assignment.archived:
+        return
+    if Assignment.objects.filter(
+        caused_by=selection.slot_assignment,
+        pickable__isnull=False,
+        archived=False,
+    ).exists():
+        raise Refusal(
+            "You cannot undo this. The result slot this flow rolled for "
+            "has been filled since."
+        )
+
+
 def _rebind_retired_slot(op, record):
     """Give a reopened flow a live result slot in place of the one removed."""
     selection = _unfinished_selection(record)
@@ -978,14 +994,39 @@ def reopen_action(op, record):
     """Undo applied by hand: the earned use is waiting again.
 
     A use marked from a started flow goes back to that flow, so its choices
-    and rolls resume. A use marked straight from the Edit page frees its
-    allowance, as if it had never been touched.
+    and rolls resume. A use marked without a started flow frees its
+    allowance, as if it had never been touched. Earlier ranks resolve first,
+    so a use cannot reopen behind a later one that is already taken.
     """
     record = _locked(op, record)
     _refuse_unless_owned(op, record.fighter)
     if record.state != ActionRecord.State.APPLIED_BY_HAND:
         raise Refusal("That action use was not applied by hand.")
-    if record.started_event_id:
+    others = ActionRecord.objects.filter(
+        fighter=record.fighter, action=record.action, state__in=RESERVING_STATES
+    ).exclude(pk=record.pk)
+    if others.filter(state=ActionRecord.State.STARTED).exists():
+        raise Refusal(
+            "You cannot undo this while another flow for this action is started. "
+            "Finish that flow, or mark it as applied by hand, first."
+        )
+    threshold = record.allowance.threshold if record.allowance_id else None
+    if (
+        threshold is not None
+        and others.filter(
+            allowance__source_id=record.allowance.source_id,
+            allowance__threshold__gt=threshold,
+        ).exists()
+    ):
+        raise Refusal(
+            "You cannot undo this. A later earned use of this action is "
+            "already taken. Undo that one first."
+        )
+    started = LedgerEvent.objects.filter(
+        action_record=record, kind=LedgerEvent.Kind.ACTION_USE_STARTED
+    ).exists()
+    if started:
+        _refuse_if_slot_filled(record)
         record.state = ActionRecord.State.STARTED
         _rebind_retired_slot(op, record)
     else:
