@@ -200,6 +200,37 @@ describe("checkbox card", () => {
         expect(changed).toHaveBeenCalledTimes(1);
     });
 
+    it("posts its name and value with the form only while ticked and enabled", async () => {
+        const user = userEvent.setup();
+        function Example({ disabled = false }: { disabled?: boolean }) {
+            const [checked, setChecked] = useState(true);
+            return (
+                <form>
+                    <CheckboxCard
+                        checked={checked}
+                        onCheckedChange={setChecked}
+                        disabled={disabled}
+                        label="Mara"
+                        name="fighters"
+                        value="01MARA"
+                    />
+                </form>
+            );
+        }
+        const { container, rerender } = render(<Example />);
+        const form = container.querySelector("form")!;
+        const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
+            name: "Mara",
+        });
+        expect(checkbox.name).toBe("fighters");
+        expect(new FormData(form).getAll("fighters")).toEqual(["01MARA"]);
+        await user.click(checkbox);
+        expect(new FormData(form).getAll("fighters")).toEqual([]);
+        await user.click(checkbox);
+        rerender(<Example disabled />);
+        expect(new FormData(form).getAll("fighters")).toEqual([]);
+    });
+
     it("supports an explicit checkbox name without rendering labels as HTML", () => {
         const label = '<img src=x onerror="alert(1)">';
         const { container } = render(

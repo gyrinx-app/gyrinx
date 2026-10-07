@@ -9,33 +9,45 @@ checked is turned into a JS true or false with yesno. A Python True is not
 valid in x-data.
 Use this when the card holds controls of its own. The kit's card variant makes the whole surface the toggle.
 picked is in Alpine scope for nested controls to read.
+
+static draws the card in its checked state, with no Alpine. Use it for the
+server-rendered body of a React host, where Alpine does not run and the island
+replaces the card on mount. Its body is dimmed while the box is clear but never
+inert: with nothing to re-enable them, nested controls stay usable.
 {% endcomment %}
 
-<c-vars name="" value="" :checked="False" label="" description="" meta="" class="" />
+<c-vars name="" value="" :checked="False" :static="False" label="" description="" meta="" class="" />
 
-<div {{ attrs }}
-     x-data="{ picked: {{ checked|yesno:'true,false' }} }"
-     class="rounded-box border-2 p-4 transition-[background-color] {{ class }}"
-     :class="picked ? 'border-accent bg-accent/5' : 'border-ink-200 dark:border-ink-700'">
-    <label class="flex cursor-pointer items-start gap-3">
-        <input type="checkbox"
-               name="{{ name }}"
-               value="{{ value }}"
-               {% if checked %}checked{% endif %}
-               @change="picked = $event.target.checked"
-               class="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)] focus-ring">
-        <span class="min-w-0 flex-1">
-            <span class="block truncate text-base font-semibold text-ink-900 dark:text-ink-100">{{ label }}</span>
-            {% if description %}<span class="block truncate text-muted">{{ description }}</span>{% endif %}
-        </span>
-        {% if meta %}{{ meta }}{% endif %}
-    </label>
-
-    {% if slot.strip %}
-        {# pl-8 lines the body up with the title, past the checkbox and its gap. #}
-        <div class="mt-2 border-t border-box-border pt-2 pl-8"
-             :class="picked ? '' : 'opacity-50'"
-             {# inert blocks clicks. It does not keep nested inputs out of the POST. #}
-             :inert="!picked">{{ slot }}</div>
-    {% endif %}
-</div>
+{% with on="border-accent bg-accent/5" off="border-ink-200 dark:border-ink-700" dim="opacity-50" %}
+    <div {{ attrs }}
+         {% if not static %}
+             x-data="{ picked: {{ checked|yesno:'true,false' }} }"
+             :class="picked ? '{{ on }}' : '{{ off }}'"
+         {% endif %}
+         class="rounded-box border-2 p-4 transition-[background-color] {{ class }}{% if static %} {% if checked %}{{ on }}{% else %}{{ off }}{% endif %}{% endif %}">
+        <label class="flex cursor-pointer items-start gap-3">
+            <input type="checkbox"
+                   name="{{ name }}"
+                   value="{{ value }}"
+                   {% if checked %}checked{% endif %}
+                   {% if not static %}
+                       @change="picked = $event.target.checked"
+                   {% endif %}
+                   class="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)] focus-ring">
+            <span class="min-w-0 flex-1">
+                <span class="block truncate text-base font-semibold text-ink-900 dark:text-ink-100">{{ label }}</span>
+                {% if description %}<span class="block truncate text-muted">{{ description }}</span>{% endif %}
+            </span>
+            {% if meta %}{{ meta }}{% endif %}
+        </label>
+        {% if slot.strip %}
+            {# pl-8 lines the body up with the title, past the checkbox and its gap. #}
+            <div class="mt-2 border-t border-box-border pt-2 pl-8{% if static and not checked %} {{ dim }}{% endif %}"
+                 {% if not static %}
+                     :class="picked ? '' : '{{ dim }}'"
+                     {# inert blocks clicks. It does not keep nested inputs out of the POST. #}
+                     :inert="!picked"
+                 {% endif %}>{{ slot }}</div>
+        {% endif %}
+    </div>
+{% endwith %}
