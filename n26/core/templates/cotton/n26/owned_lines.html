@@ -26,21 +26,15 @@ Rating zero draws as nothing. A line that added nothing has no figure to state.
                     {% if copy.accessorise %}
                         {# The dispatch names n26-accessorise- plus the copy id. The page must host that dialog. #}
                         {# This button needs its own x-data. Alpine only walks into elements a component contains. #}
-                        <c-ui.button variant="ghost"
+                        <c-ui.button variant="text"
                                      size="xs"
-                                     class="ms-0.5 -mt-0.5 align-middle text-ink-500 dark:text-ink-400"
+                                     class="ms-0.5 py-0!"
                                      href="{{ copy.accessorise.target }}"
                                      aria-label="{{ copy.accessorise.label }} to {{ copy.marked_name }}"
                                      x-data
                                      x-on:click.prevent="$dispatch('n26-dialog-open', { id: 'n26-accessorise-{{ copy.id }}', url: $el.getAttribute('href') })">
-
-                            {# Keep icon and words in one span. The kit button is inline-block, and a reset makes an svg a block, so they would stack. #}
-                            <span class="inline-flex items-center gap-1 whitespace-nowrap">
-                                <c-n26.icon name="plus"
-                                            class="size-3.5"
-                                            stroke_width="2.5" />
-                                {{ copy.accessorise.label }}
-                            </span>
+                            <span class="n26-icon-inline"><c-n26.icon name="plus" stroke_width="2.5" /></span>
+                            {{ copy.accessorise.label }}
                         </c-ui.button>
                     {% endif %}
                 </span>

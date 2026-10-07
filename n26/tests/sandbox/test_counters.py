@@ -571,7 +571,7 @@ class TestMovingOneWithoutReloading:
         self, client, gang, queen, kills
     ):
         """One amount, written down once. The edit page has no one-point
-        buttons left."""
+        buttons left. The pencil is a text button, inline with the number."""
         from n26.tests.sandbox.actions import assign
 
         yolanda = hire_with_option(gang, queen, "Yolanda")
@@ -589,6 +589,9 @@ class TestMovingOneWithoutReloading:
             assert pencil["hx-get"] == pencil["href"]
             assert pencil["hx-swap"] == "none"
             assert pencil["href"].startswith(start)
+            assert "text-accent-text" in pencil["class"]
+            assert "inline-block" not in pencil["class"]
+            assert pencil.select_one(".n26-icon-inline") is not None
         assert soup.find("button", attrs={"aria-label": "Add one to XP"}) is None
         assert (
             soup.find("button", attrs={"aria-label": "Add one to Kill Count"}) is None

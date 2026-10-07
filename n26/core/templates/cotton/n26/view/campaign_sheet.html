@@ -82,7 +82,7 @@ log_count may be markup: the campaign page passes a host that a roll update redr
                     <dt class="text-sm text-muted">Gang budget</dt>
                     <dd class="flex items-center justify-end gap-2 text-sm tabular-nums">
                         {% if sheet.budget is None %}None set{% else %}{{ sheet.budget }}¢{% endif %}
-                        {% if edit_href %}<c-ui.button href="{{ edit_href }}" size="xs" variant="ghost" aria-label="Edit gang budget"><c-n26.icon name="pencil" class="size-3.5" /></c-ui.button>{% endif %}
+                        {% if edit_href %}<c-ui.button href="{{ edit_href }}" size="xs" variant="text" aria-label="Edit gang budget" class="py-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>{% endif %}
                     </dd>
                 </div>
             </dl>
