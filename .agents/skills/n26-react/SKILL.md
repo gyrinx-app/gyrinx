@@ -45,6 +45,8 @@ styles.
 - React exclusively owns the host's children. No nested island, Alpine binding,
   htmx swap or externally moved DOM inside it. Keep htmx outside islands and use
   the provided cleanup lifecycle for an island inside an htmx-swapped region.
+  The loader also mounts a host that enters the page later, such as inside an
+  Alpine `x-if`, and unmounts it when that node leaves.
 - Use native links and forms when they suffice. For asynchronous server work,
   add a narrowly scoped JSON view calling the same server operation. Keep
   authentication, permissions, CSRF, validation and transactions on the server.

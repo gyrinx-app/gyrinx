@@ -47,9 +47,11 @@ server-rendered markup inside it instead of a loading box, for a control that
 holds its place in a bar: the page shows that markup until React mounts and
 replaces it, and a reader without JavaScript sees only that markup. `x-ignore` and `hx-disable` prevent Alpine and htmx from
 processing the host's children. An entry exports `mount(element, props)` and
-returns a disposer. The loader mounts each host once, handles `htmx:load`, and
-unmounts before htmx removes it, including cancellation during an outstanding
-module import. Each root gets its own React ID prefix.
+returns a disposer. The loader mounts each host once, including a host inserted
+after the first paint (an Alpine `x-if` disclosure, for example), handles
+`htmx:load`, and unmounts the root when htmx or that insertion removes it,
+including cancellation during an outstanding module import. Each root gets its
+own React ID prefix.
 
 The host's `data-react-name` is the kebab-case island name passed to the tag.
 `data-react-module` is the content-addressed file URL, so a selector such as

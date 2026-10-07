@@ -38,15 +38,40 @@ export function mountWithin(scope, loadModule = (url) => import(url)) {
     }
 }
 
+function release(node) {
+    if (!(node instanceof Element)) return;
+    const hosts = [...node.querySelectorAll("[data-react-module]")];
+    if (node.matches("[data-react-module]")) hosts.unshift(node);
+    for (const host of hosts) {
+        const mounted = islands.get(host);
+        if (!mounted) continue;
+        islands.delete(host);
+        mounted.dispose?.();
+    }
+}
+
+// Alpine x-if inserts a host only when a closed row opens. That is not an
+// htmx swap, so the first paint and htmx:load never see it.
+export function watchInsertions(root) {
+    const observer = new MutationObserver((records) => {
+        for (const record of records) {
+            for (const node of record.addedNodes) {
+                if (node instanceof Element) mountWithin(node);
+            }
+            for (const node of record.removedNodes) release(node);
+        }
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    return observer;
+}
+
 document.addEventListener("htmx:load", (event) =>
     mountWithin(event.detail.elt),
 );
 document.addEventListener("htmx:beforeCleanupElement", (event) => {
-    for (const [host, mounted] of islands) {
-        if (event.detail.elt === host || event.detail.elt.contains(host)) {
-            islands.delete(host);
-            mounted.dispose?.();
-        }
-    }
+    release(event.detail.elt);
 });
 mountWithin(document);
+export const pageInsertions = document.body
+    ? watchInsertions(document.body)
+    : null;
