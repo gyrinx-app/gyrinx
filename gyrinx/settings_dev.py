@@ -5,6 +5,7 @@ import tempfile
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from debug_toolbar.settings import PANELS_DEFAULTS as _TOOLBAR_PANELS_DEFAULTS
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connections
 
@@ -85,6 +86,22 @@ DEBUG_TOOLBAR_CONFIG = {
     # as every request ends. See gyrinx/toolbar_store.py.
     "TOOLBAR_STORE_CLASS": "gyrinx.toolbar_store.LazyMemoryStore",
 }
+
+# The toolbar's default panels, with a Templates panel that keeps each context
+# layer once instead of once per template. See gyrinx/toolbar_panels.py.
+_TOOLBAR_TEMPLATES_PANEL = "debug_toolbar.panels.templates.TemplatesPanel"
+if _TOOLBAR_TEMPLATES_PANEL not in _TOOLBAR_PANELS_DEFAULTS:
+    raise ImproperlyConfigured(
+        f"Expected {_TOOLBAR_TEMPLATES_PANEL} in the debug toolbar's default "
+        "panels so development could swap in "
+        "gyrinx.toolbar_panels.SharedContextTemplatesPanel; it isn't there."
+    )
+DEBUG_TOOLBAR_PANELS = [
+    "gyrinx.toolbar_panels.SharedContextTemplatesPanel"
+    if panel == _TOOLBAR_TEMPLATES_PANEL
+    else panel
+    for panel in _TOOLBAR_PANELS_DEFAULTS
+]
 
 # Disable debug toolbar in tests - prevents 'djdt' namespace errors when tests
 # use @override_settings(DEBUG=True). pytest-xdist workers set RUN_MAIN env var.
