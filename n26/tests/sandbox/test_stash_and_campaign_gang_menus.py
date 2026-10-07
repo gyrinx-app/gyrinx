@@ -41,6 +41,15 @@ def menus(html, within=None):
     return found
 
 
+def stash_menus(html):
+    """The stash lines' menus, leaving out the sheet header's More actions."""
+    return {
+        label: props
+        for label, props in menus(html).items()
+        if label.startswith("Actions for ")
+    }
+
+
 def drawn(props):
     """Each item as its label, with a rule written where a separator falls."""
     rows = []
@@ -100,14 +109,14 @@ class TestTheGangSheetStash:
         # the attribute.
         assert body.count('aria-label="Actions for Respirator"') == 1
 
-    def test_a_reader_who_does_not_own_the_gang_gets_no_host(
+    def test_a_reader_who_does_not_own_the_gang_gets_no_stash_menu(
         self, client, gang, stashed
     ):
         client.force_login(User.objects.create_user("reader"))
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
 
         assert "Actions for Respirator" not in body
-        assert not menus(body)
+        assert not stash_menus(body)
 
     def test_more_lines_cost_no_more_queries(self, client, gang, stashed):
         client.force_login(gang.owner)
@@ -121,7 +130,7 @@ class TestTheGangSheetStash:
         with CaptureQueriesContext(connection) as four:
             body = client.get(address).content.decode()
 
-        assert len(menus(body)) == 4
+        assert len(stash_menus(body)) == 4
         assert len(four) <= len(one)
 
 
