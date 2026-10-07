@@ -8,6 +8,8 @@ label is the button's accessible name and its tooltip.
 trigger is ellipsis (dots and a chevron) or chevron (a chevron alone, which turns while open).
 The body is what shows until the island mounts. It matches the island's button, so nothing moves on mount.
 scriptless draws the links as a list when JavaScript is off.
+That list is plain links, not a menu: with no script, nothing handles a menu's keys, so each link must stay in the tab order.
+Its classes match the island's item, danger item and separator. A test compares them with the recipe.
 Keep one outer element. react_host puts preload links and scripts beside the host, and a button group must not see them.
 {% endcomment %}
 
@@ -39,13 +41,18 @@ Keep one outer element. react_host puts preload links and scripts beside the hos
             {% if scriptless %}
                 <noscript>
                     <style>[data-action-menu-scriptless] [data-react-name="action-menu"] > button { display: none !important; }</style>
-                    <div role="menu" aria-label="{{ label }}"
-                         class="rounded-control border border-[color:var(--color-box-border)] bg-white dark:bg-ink-900">
+                    <ul data-action-menu-list
+                        class="rounded-control border border-[color:var(--color-box-border)] bg-white dark:bg-ink-900">
                         {% for item in props_.items %}
-                            {% if item.separatorBefore %}<c-ui.dropdown.separator />{% endif %}
-                            <c-ui.dropdown.item href="{{ item.href }}" variant="{{ item.tone }}">{{ item.label }}</c-ui.dropdown.item>
+                            {% if item.separatorBefore %}<li aria-hidden="true" class="h-px my-1 bg-ink-200 dark:bg-ink-700"></li>{% endif %}
+                            <li>
+                                <a href="{{ item.href }}"
+                                   class="flex items-center gap-3 px-4 py-2 text-sm rounded-control transition-colors {% if item.tone == 'danger' %}text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 focus-visible:bg-red-50 dark:focus-visible:bg-red-950/30{% else %}text-ink-700 dark:text-ink-300 hover:bg-ink-100 dark:hover:bg-ink-800 focus-visible:bg-ink-100 dark:focus-visible:bg-ink-800{% endif %} focus-visible:outline-none">
+                                    <span class="flex-1">{{ item.label }}</span>
+                                </a>
+                            </li>
                         {% endfor %}
-                    </div>
+                    </ul>
                 </noscript>
             {% endif %}
         {% endreact_host %}

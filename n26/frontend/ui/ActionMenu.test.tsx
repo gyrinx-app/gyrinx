@@ -79,6 +79,25 @@ describe("ActionMenu keyboard", () => {
         expect(document.activeElement).toBe(item("Print"));
     });
 
+    it("scrolls the panel to the link a keyboard opening focuses", async () => {
+        // A panel past its height cap scrolls; the focused link must show.
+        const scrolled: Element[] = [];
+        const scrollIntoView = vi.fn(function (this: Element) {
+            scrolled.push(this);
+        });
+        const original = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = scrollIntoView;
+        try {
+            const { user, trigger } = setup();
+            trigger.focus();
+            await user.keyboard("{ArrowUp}");
+            expect(scrolled).toEqual([item("Print")]);
+            expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+        } finally {
+            Element.prototype.scrollIntoView = original;
+        }
+    });
+
     it("arrows wrap, and Home and End jump to the ends", async () => {
         const { user, trigger } = setup();
         trigger.focus();

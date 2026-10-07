@@ -101,9 +101,11 @@ export function ActionMenu({
 
     function focusEdge(edge: Edge) {
         const list = shown();
-        (edge === "first" ? list[0] : list.at(-1))?.focus({
-            preventScroll: true,
-        });
+        const target = edge === "first" ? list[0] : list.at(-1);
+        // Scroll the panel, not the page: a menu taller than its height cap
+        // would otherwise open at the last link with that link out of view.
+        target?.focus({ preventScroll: true });
+        target?.scrollIntoView?.({ block: "nearest" });
     }
 
     // A keyboard opening focuses its first or last link once the panel is

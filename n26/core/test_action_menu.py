@@ -319,13 +319,26 @@ class TestTheWrapper:
         soup = BeautifulSoup(listed, "html.parser")
         assert soup.select_one("[data-action-menu-scriptless]")
         noscript = BeautifulSoup(soup.find("noscript").decode_contents(), "html.parser")
-        links = noscript.select('[role="menu"] a[role="menuitem"]')
+        links = noscript.select("[data-action-menu-list] li > a")
         assert [(a.get_text(strip=True), a["href"]) for a in links] == [
             ("Notes", "/n"),
             ("Delete gang", "/d"),
         ]
         assert "text-red-600" in links[1]["class"]
-        assert not noscript.select('[role="separator"]')
+        assert not noscript.select("[aria-hidden]")
+
+    def test_the_scriptless_links_stay_in_the_tab_order(self):
+        """With no script nothing handles a menu's keys, so the list is
+        plain links: no menu roles, and none taken out of the tab order."""
+        html = render(
+            '<c-n26.action-menu :items="items" label="More actions" :scriptless="True" />',
+            items=[link("Notes", "/n"), link("Delete gang", "/d", DANGER)],
+        )
+        soup = BeautifulSoup(html, "html.parser")
+        noscript = BeautifulSoup(soup.find("noscript").decode_contents(), "html.parser")
+        assert noscript.find_all("a")
+        assert not noscript.select("[tabindex]")
+        assert not noscript.select("[role]")
 
     def test_the_scriptless_list_draws_the_items_separators(self):
         html = render(
@@ -335,7 +348,28 @@ class TestTheWrapper:
         )
         soup = BeautifulSoup(html, "html.parser")
         noscript = BeautifulSoup(soup.find("noscript").decode_contents(), "html.parser")
-        assert len(noscript.select('[role="separator"]')) == 1
+        (separator,) = noscript.select('li[aria-hidden="true"]')
+        assert separator.find_next_sibling("li").get_text(strip=True) == "Delete"
+
+    def test_the_scriptless_list_looks_like_the_island(self):
+        """The list copies the classes the island takes from the kit
+        dropdown. This keeps the two from drifting apart."""
+        from n26.frontend.tooling.export_cotton_recipes import action_menu_recipe
+
+        recipe = action_menu_recipe()
+        html = render(
+            "{% load action_menu %}"
+            '{% link_actions "View" "/v" danger_label="Delete" danger_href="/d" danger_separator=True as menu_ %}'
+            '<c-n26.action-menu :items="menu_" label="Actions" :scriptless="True" />'
+        )
+        soup = BeautifulSoup(html, "html.parser")
+        noscript = BeautifulSoup(soup.find("noscript").decode_contents(), "html.parser")
+        view, delete = noscript.select("li > a")
+        (separator,) = noscript.select('li[aria-hidden="true"]')
+        assert view["class"] == recipe["item"].split()
+        assert delete["class"] == recipe["itemDanger"].split()
+        assert separator["class"] == recipe["separator"].split()
+        assert view.span["class"] == recipe["itemLabel"].split()
 
 
 def test_a_button_group_keeps_props_scripts_hidden():
