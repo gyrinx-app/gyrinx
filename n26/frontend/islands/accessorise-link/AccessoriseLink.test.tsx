@@ -10,7 +10,7 @@ const props: AccessoriseLinkProps = {
     name: "Autogun",
 };
 
-function prevented(link: HTMLElement) {
+function prevented(link: HTMLElement, init: MouseEventInit = {}) {
     let defaultPrevented = false;
     document.addEventListener(
         "click",
@@ -19,7 +19,7 @@ function prevented(link: HTMLElement) {
         },
         { once: true },
     );
-    fireEvent.click(link);
+    fireEvent.click(link, init);
     return defaultPrevented;
 }
 
@@ -65,5 +65,21 @@ describe("AccessoriseLink", () => {
         expect(event.bubbles).toBe(true);
         expect(event.composed).toBe(true);
         expect(event.detail).toEqual({ id: props.dialogId, url: props.href });
+    });
+
+    it("leaves a modified click or a new-window link to the browser", () => {
+        window.addEventListener("n26-dialog-open", heard);
+        render(<AccessoriseLink {...props} />);
+        const link = screen.getByRole("link", {
+            name: "Add accessory to Autogun",
+        });
+
+        expect(prevented(link, { metaKey: true })).toBe(false);
+        expect(prevented(link, { ctrlKey: true })).toBe(false);
+        expect(prevented(link, { shiftKey: true })).toBe(false);
+        expect(prevented(link, { button: 1 })).toBe(false);
+        link.setAttribute("target", "_blank");
+        expect(prevented(link)).toBe(false);
+        expect(heard).not.toHaveBeenCalled();
     });
 });

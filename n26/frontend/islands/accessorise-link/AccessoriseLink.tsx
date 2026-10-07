@@ -19,8 +19,20 @@ export function AccessoriseLink({
     name,
 }: AccessoriseLinkProps) {
     function open(event: MouseEvent<HTMLAnchorElement>) {
+        // A modified click, or a link aimed at another window, is the
+        // browser's to handle: open the drawn panel in a new tab, and so on.
+        if (
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+        )
+            return;
+        const link = event.currentTarget;
+        if (link.target && link.target !== "_self") return;
         event.preventDefault();
-        event.currentTarget.dispatchEvent(
+        link.dispatchEvent(
             new CustomEvent("n26-dialog-open", {
                 bubbles: true,
                 cancelable: true,
