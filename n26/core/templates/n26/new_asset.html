@@ -7,7 +7,7 @@ asset does is not asked here beyond its income: a name, its words and that
 figure are the whole of it. Native radios for the asset type, so the form posts
 with no script and a redisplay keeps the pick.
 {% endcomment %}
-{% block head_title %}New asset in {{ campaign.name }}{% endblock head_title %}
+{% block head_title %}{% if unified %}Add {{ adding }}{% else %}New asset{% endif %} in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -16,11 +16,11 @@ with no script and a redisplay keeps the pick.
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-new-asset' campaign.pk %}"
-                     title="New asset"
-                     lead="An asset of this campaign's own. It is offered in this campaign and in no other."
+    <c-n26.form-page action="{% if unified %}{{ custom_href }}{% else %}{% url 'n26-campaign-new-asset' campaign.pk %}{% endif %}"
+                     title="{% if unified %}Add {{ adding }}{% else %}New asset{% endif %}"
+                     lead="Created assets are added to this campaign. Transferable assets start unclaimed."
                      :form="form"
-                     submit_label="Create asset"
+                     submit_label="{% if unified %}Add {{ adding }}{% else %}Create asset{% endif %}"
                      cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -30,11 +30,14 @@ with no script and a redisplay keeps the pick.
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    New asset
+                    {% if unified %}Add {{ adding }}{% else %}New asset{% endif %}
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
+        {% if unified %}
+            {% include "n26/includes/asset_source.html" %}
+        {% endif %}
         <c-n26.form-section>
             <c-n26.radio-cards label="Asset type *" :form="form" name="asset_type">
                 {% for asset_type in asset_types %}

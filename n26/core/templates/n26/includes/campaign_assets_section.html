@@ -1,42 +1,26 @@
 {% comment %}
-One table per transferable asset type, with each type's own heading and count.
-Drawn by the campaign sheet and campaign_update.html in the same replacement host.
-
-A possession has no table here: every gang has its own, and it is on the
-gang's row above. An asset type the arbitrator adds is one more table, so the
-control that adds one sits above the tables. The whole section is the host
-because a roll changes a type's count as well as adding a line.
-
-Expects `sheet` with its addresses filled and `assets_actions` (the caller's
-extra controls, usually empty); `redrawn` marks the copy an update delivers.
+Each transferable asset type has its own card. This host is replaced after
+rolls, including headings and counts. Possessions remain on their gang.
 {% endcomment %}
 <div id="n26-campaign-assets"
-     class="min-w-0 xl:col-span-2"
+     class="min-w-0 flex flex-col gap-4 xl:col-span-2"
      {% if redrawn %}hx-swap-oob="true"{% endif %}>
-    <c-n26.section :boxed="True" :flush="True" id="assets" title="Assets">
-        {% if assets_actions.strip or sheet.add_asset_type_href or sheet.tables_href %}
-            <c-slot name="actions">
-                {% if sheet.tables_href %}
-                    <c-ui.button size="sm" variant="default" href="{{ sheet.tables_href }}">
-                        Tables
-                    </c-ui.button>
-                {% endif %}
-                {% if sheet.add_asset_type_href %}
-                    <c-ui.button size="sm" variant="default" href="{{ sheet.add_asset_type_href }}">
-                        Add asset type
-                    </c-ui.button>
-                {% endif %}
-                {{ assets_actions }}
-            </c-slot>
-        {% endif %}
-        {% if sheet.assets %}
-            <div class="flex flex-col divide-y divide-box-border">
-                {% for table in sheet.assets %}
-                    <c-n26.campaign-assets :table="table" />
-                {% endfor %}
-            </div>
-        {% else %}
+    {% if assets_actions.strip or sheet.add_asset_type_href or sheet.tables_href %}
+        <div class="flex flex-wrap justify-end gap-2">
+            {% if sheet.tables_href %}<c-ui.button size="sm"
+             variant="default"
+             href="{{ sheet.tables_href }}">Tables</c-ui.button>{% endif %}
+            {% if sheet.add_asset_type_href %}<c-ui.button size="sm"
+             variant="default"
+             href="{{ sheet.add_asset_type_href }}">Add asset type</c-ui.button>{% endif %}
+            {{ assets_actions }}
+        </div>
+    {% endif %}
+    <div id="assets" class="flex flex-col gap-4">
+        {% for table in sheet.assets %}
+            <c-n26.campaign-assets :table="table" />
+        {% empty %}
             <p class="p-4 text-sm text-muted">{{ sheet.campaign_type }} has no transferable asset types.</p>
-        {% endif %}
-    </c-n26.section>
+        {% endfor %}
+    </div>
 </div>

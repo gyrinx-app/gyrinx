@@ -42,6 +42,7 @@ and optional names for the selected assets.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
+        {% include "n26/includes/asset_source.html" %}
         <c-ui.error :form="form" name="request_key" />
         <c-ui.error :form="form" name="name" />
         <input type="hidden"
@@ -66,6 +67,19 @@ and optional names for the selected assets.
                     </fieldset>
                 {% endreact_host %}
             </c-n26.form-section>
+            <c-ui.field label="Income override"
+                        :form="form"
+                        name="income"
+                        for="asset-income-override"
+                        description="{{ form.income.help_text }}">
+                <c-ui.input id="asset-income-override"
+                            name="income"
+                            type="number"
+                            min="0"
+                            inputmode="numeric"
+                            right_addon="¢"
+                            value="{{ form.income.value|default_if_none:'' }}" />
+            </c-ui.field>
         {% else %}
             <c-ui.alert variant="info" title="Nothing to add">
                 <p>This campaign has no {{ adding }} to add.</p>

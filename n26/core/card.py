@@ -696,7 +696,7 @@ def held_assets(gang):
     return list(
         CampaignAsset.objects.filter(
             holder__gang=gang, holder__left__isnull=True
-        ).select_related("asset__asset_type")
+        ).select_related("asset__asset_type", "income_override__contributes_to_counter")
     )
 
 
@@ -1183,6 +1183,8 @@ def build_modifier_index(assignables, max_depth=3):
         # costs more than all of these run in.
         for model, things in by_model.items():
             prefetch_related_objects(things, _modifiers_path(model))
+            if hasattr(model, "income_override"):
+                prefetch_related_objects(things, "income_override")
         hydrated = {}
         for things in by_model.values():
             for thing in things:
@@ -1197,6 +1199,15 @@ def build_modifier_index(assignables, max_depth=3):
                 # hydrated instance, or the other copy answers compute
                 # with the lazy queries it is forbidden to make.
                 modifiers = [hydrated[m.pk] for m in _modifiers_of(thing)]
+                if getattr(thing, "income_override_id", None):
+                    from n26.library.income import is_income_contribution
+
+                    modifiers = [
+                        m
+                        for m in modifiers
+                        if m.pk == thing.income_override_id
+                        or not is_income_contribution(m)
+                    ]
                 index.add(thing, modifiers)
                 for modifier in modifiers:
                     granted_thing = getattr(modifier.effect, "thing", None)
@@ -1215,10 +1226,9 @@ def build_modifier_index(assignables, max_depth=3):
 def _modifiers_path(model):
     """Where a carrier of this kind keeps its modifiers, as a prefetch path.
 
-    An assignable carries its own. A campaign asset carries none and
-    stands in for its asset's — ``carries_modifiers_of`` names the
-    relation to follow — so the index files the asset's modifiers under
-    the campaign asset, and what they do is credited to it.
+    An assignable carries its own. ``carries_modifiers_of`` names a
+    carrier's library relation, so its effects are credited to the carrier.
+    A campaign holding's income override is loaded separately.
     """
     via = getattr(model, "carries_modifiers_of", None)
     return f"{via}__modifiers" if via else "modifiers"
@@ -1227,7 +1237,10 @@ def _modifiers_path(model):
 def _modifiers_of(thing):
     """The modifiers one carrier runs, already prefetched."""
     via = getattr(type(thing), "carries_modifiers_of", None)
-    return (getattr(thing, via) if via else thing).modifiers.all()
+    modifiers = list((getattr(thing, via) if via else thing).modifiers.all())
+    if getattr(thing, "income_override_id", None):
+        modifiers.append(thing.income_override)
+    return modifiers
 
 
 def carriers(*cards):

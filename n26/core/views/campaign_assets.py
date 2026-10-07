@@ -114,7 +114,9 @@ def _asset_context(request, pk, asset_pk):
             library_name=holding.asset.name if holding.name else "",
             kind=holding.asset.asset_type.label_singular,
             created=holding.created,
-            income=income_of(holding.asset),
+            income=holding.income_override.contributes_to_counter.amount
+            if holding.income_override_id
+            else income_of(holding.asset),
             boons=[boon_said(modifier) for modifier in boons_of(holding.asset)],
             holder=holding.holder.gang.name if held else "",
             holder_href=reverse("n26-gang", args=[holding.holder.gang_id])

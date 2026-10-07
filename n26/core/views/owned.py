@@ -1458,14 +1458,26 @@ def tally_counter(request, pk):
     gang = assignment.gang_root
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
+    from n26.library.income import is_income_counter
+
+    income = miniature is None and is_income_counter(assignment.assignable)
+    resetting = request.method == "POST" and "reset" in request.POST
+    if resetting and not income:
+        raise Http404("Not an income adjustment")
     data = request.GET if request.method == "GET" else request.POST
     back = data.get("back", "")[:500]
     here = reverse("n26-gang", args=[gang.pk])
     adjusting = request.method == "GET" or "adjust" in request.POST
     if adjusting:
         back = _safe_redirect(request, back, here).url
+        # A reset's full delta is read under the gang lock, beyond the
+        # ordinary change limit. Use a valid negative change to enter that path.
         form = CounterAdjustmentForm(
-            request.POST if request.method == "POST" else None,
+            {"change": -1}
+            if resetting
+            else request.POST
+            if request.method == "POST"
+            else None,
             maximum=MOST_A_TALLY_MOVES,
         )
 
@@ -1485,6 +1497,7 @@ def tally_counter(request, pk):
                 "change": str(form["change"].value() or ""),
                 "errors": list(form["change"].errors),
                 "maximum": MOST_A_TALLY_MOVES,
+                "isIncome": income,
             }
             response = render(
                 request,
@@ -1538,6 +1551,8 @@ def tally_counter(request, pk):
                     raise Refusal(
                         "This counter is already 0. Enter a positive amount to increase it."
                     )
+                if resetting:
+                    change = -value
             standing = op.tally(assignment, change)
     except Refusal as refusal:
         if adjusting:

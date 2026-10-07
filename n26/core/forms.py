@@ -759,6 +759,12 @@ class AddAssetForm(forms.Form):
         label="Name in this campaign",
         help_text="Optional. Leave blank to use the asset's own name.",
     )
+    income = forms.IntegerField(
+        required=False,
+        min_value=0,
+        label="Income override",
+        help_text="Optional. Leave blank to use catalogue income. For a batch, this applies to every territory added.",
+    )
 
     def __init__(self, *args, offered, **kwargs):
         super().__init__(*args, **kwargs)
@@ -785,6 +791,10 @@ class AddAssetForm(forms.Form):
         data["names"] = {
             str(asset.pk): data.get(f"name_{asset.pk}", "") for asset in assets or []
         }
+        if assets is not None and len(assets) > 1 and any(data["names"].values()):
+            self.add_error(
+                "name", "Select one asset to give it a name in this campaign."
+            )
         return data
 
 

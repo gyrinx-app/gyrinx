@@ -88,7 +88,13 @@ export function AssetSelection({
                     ))}
                 </div>
             </fieldset>
-            {selectedOptions.length > 0 && (
+            {selectedOptions.length > 1 && (
+                <p className="text-sm text-muted">
+                    Select one asset to give it a name in this campaign. Batch
+                    additions use the catalogue names.
+                </p>
+            )}
+            {selectedOptions.length === 1 && (
                 <Card>
                     <details
                         open={

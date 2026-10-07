@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Field, Input } from "../../ui";
+import { Button, Field, Input } from "../../ui";
 
 export type CounterAdjustmentProps = {
     value: number;
@@ -7,6 +7,7 @@ export type CounterAdjustmentProps = {
     change: string;
     errors: string[];
     maximum: number;
+    isIncome?: boolean;
 };
 
 export function CounterAdjustment(props: CounterAdjustmentProps) {
@@ -38,6 +39,29 @@ export function CounterAdjustment(props: CounterAdjustmentProps) {
                     {delta}
                 </p>
             </div>
+            {props.isIncome && (
+                <div className="space-y-2 text-sm text-muted">
+                    <p>
+                        Contributions {props.value - props.recorded}¢ · manual
+                        adjustment {props.recorded + delta}¢
+                    </p>
+                    <p>
+                        The adjustment stays until you change it. Asset gains
+                        and losses change the contributions. Collect credits
+                        manually.
+                    </p>
+                    <Button
+                        type="submit"
+                        name="reset"
+                        value="1"
+                        formNoValidate
+                        size="sm"
+                        disabled={!props.recorded}
+                    >
+                        Reset adjustment
+                    </Button>
+                </div>
+            )}
             <Field
                 label="Change *"
                 htmlFor={id}

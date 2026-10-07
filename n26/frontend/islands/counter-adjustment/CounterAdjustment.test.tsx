@@ -59,3 +59,25 @@ describe("counter adjustment", () => {
         );
     });
 });
+
+it("shows the persistent income adjustment and submits a reset separately", () => {
+    render(
+        <form>
+            <CounterAdjustment
+                {...props}
+                isIncome
+                recorded={2005}
+                value={2025}
+            />
+        </form>,
+    );
+    expect(
+        screen.getByText("Contributions 20¢ · manual adjustment 2005¢"),
+    ).toBeTruthy();
+    const reset = screen.getByRole("button", {
+        name: "Reset adjustment",
+    }) as HTMLButtonElement;
+    expect(reset.name).toBe("reset");
+    expect(reset.type).toBe("submit");
+    expect(reset.formNoValidate).toBe(true);
+});

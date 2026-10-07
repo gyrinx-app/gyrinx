@@ -199,7 +199,7 @@ def campaign(request, pk):
     from django.urls import reverse
 
     from n26.core.models import CampaignParticipant
-    from n26.core.render import load_owner_badges, render_campaign
+    from n26.core.render import CampaignPlayerLine, load_owner_badges, render_campaign
     from n26.core.views.htmx import is_htmx
 
     accepted = CampaignParticipant.State.ACCEPTED
@@ -246,6 +246,23 @@ def campaign(request, pk):
     # Read once and asked twice: the page draws the players, and whether
     # this reader is one of them decides what it offers them.
     players = list(_players(found))
+    player_lines = []
+    for player in players:
+        gangs = [
+            gang
+            for gang in sheet.gangs
+            if gang.owner and gang.owner.pk == player.user_id
+        ]
+        participation = (
+            ("Playing" if gangs else "No gang yet")
+            if player.state == accepted
+            else player.get_state_display()
+        )
+        player_lines.append(
+            CampaignPlayerLine(player.user, player.state, gangs, participation)
+        )
+    player_count = sum(player.state == accepted for player in players)
+    invitation_count = sum(player.waiting for player in players)
     invitations = [
         player for player in players if player.user_id == reading and player.waiting
     ]
@@ -269,6 +286,9 @@ def campaign(request, pk):
             "may_add_gang": yours or at_the_table,
             "may_record": yours or at_the_table,
             "players": players,
+            "player_lines": player_lines,
+            "player_count": player_count,
+            "invitation_count": invitation_count,
             "invitations": invitations,
             "battles": battles,
             "acts": acts,
@@ -343,12 +363,6 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
                     counter.back = here + "#gangs"
                     counter.adjust_href = with_query(counter.href, back=counter.back)
     if yours:
-        addable_types = {
-            str(pk)
-            for pk in _holding_assets(campaign, include_staged=sees_staged(viewer))
-            .values_list("asset_type_id", flat=True)
-            .distinct()
-        }
         # What the arbitrator adds sits where it will show: an asset type
         # becomes a table under Assets, a counter or a label becomes a
         # column of the gangs table.
@@ -365,13 +379,8 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
                 roll.href = f"{here}?starting={line.gang_id}&type={roll.asset_type_id}"
     for table in sheet.assets:
         if yours:
-            if table.asset_type_id in addable_types:
-                table.add_href = (
-                    reverse("n26-campaign-add-asset", args=[campaign.pk])
-                    + f"?type={table.asset_type_id}"
-                )
-            table.create_href = (
-                reverse("n26-campaign-new-asset", args=[campaign.pk])
+            table.add_href = (
+                reverse("n26-campaign-add-asset", args=[campaign.pk])
                 + f"?type={table.asset_type_id}"
             )
             # Only where there is a rolled table: a control for a roll
@@ -1347,7 +1356,11 @@ def _campaign_asset_or_404(campaign, asset_pk):
 
     try:
         return get_object_or_404(
-            CampaignAsset.objects.select_related("asset__asset_type", "holder__gang"),
+            CampaignAsset.objects.select_related(
+                "asset__asset_type",
+                "holder__gang",
+                "income_override__contributes_to_counter",
+            ),
             pk=asset_pk,
             campaign=campaign,
         )
@@ -1412,6 +1425,9 @@ def add_asset(request, pk):
     type rides the form's address too, so a failed submit redisplays the
     same narrowed list.
     """
+    if request.GET.get("source") == "custom":
+        return new_asset(request, pk)
+
     from django.urls import reverse
 
     from n26.core.campaigns import campaign_operation
@@ -1433,6 +1449,7 @@ def add_asset(request, pk):
                     form.cleaned_data["asset"],
                     name=form.cleaned_data["name"],
                     names=form.cleaned_data["names"],
+                    income=form.cleaned_data["income"],
                     request_key=form.cleaned_data["request_key"],
                 )
             if not made:
@@ -1488,12 +1505,16 @@ def add_asset(request, pk):
         .filter(ownership=AssetType.Ownership.HOLDING)
         .exists()
     )
-    empty_next_href = reverse(
-        "n26-campaign-new-asset" if has_holding_type else "n26-campaign-add-asset-type",
-        args=[found.pk],
+    custom_href = (
+        request.path
+        + "?source=custom"
+        + (f"&type={asset_type.pk}" if asset_type else "")
+        if has_holding_type
+        else ""
     )
-    if asset_type is not None:
-        empty_next_href += f"?type={asset_type.pk}"
+    empty_next_href = custom_href or reverse(
+        "n26-campaign-add-asset-type", args=[found.pk]
+    )
     _badge_a_redrawn_page(request, found)
     return render(
         request,
@@ -1503,6 +1524,12 @@ def add_asset(request, pk):
             "campaign": found,
             "asset_type": asset_type,
             "adding": noun,
+            "catalogue_href": request.path
+            + (f"?type={asset_type.pk}" if asset_type else ""),
+            "custom_href": custom_href,
+            "custom_label": asset_type.label_singular.lower()
+            if asset_type
+            else "asset",
             "back": _assets_anchor(found),
             # Drawn as cards, one per asset.
             "assets": assets,
@@ -1921,8 +1948,23 @@ def new_asset(request, pk):
     from n26.core.forms import NewAssetForm
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
-    asset_types = list(_campaign_asset_types(found))
-    form = NewAssetForm(request.POST or None, asset_types=_campaign_asset_types(found))
+    from n26.library.models import AssetType
+
+    unified = request.GET.get("source") == "custom"
+    offered_types = _campaign_asset_types(found)
+    asset_type = (
+        _asset_type_asked_for(found, request.GET.get("type")) if unified else None
+    )
+    if unified:
+        offered_types = offered_types.filter(ownership=AssetType.Ownership.HOLDING)
+        if asset_type:
+            offered_types = offered_types.filter(pk=asset_type.pk)
+    asset_types = list(offered_types)
+    if unified and not asset_types:
+        return redirect("n26-campaign-add-asset-type", pk=found.pk)
+    form = NewAssetForm(request.POST or None, asset_types=offered_types)
+    if asset_type and request.method == "GET":
+        form.initial["asset_type"] = asset_type.pk
 
     def act(op, data):
         asset = op.create_asset(
@@ -1956,6 +1998,12 @@ def new_asset(request, pk):
             }
             for asset_type in asset_types
         ],
+        adding=asset_type.plural.lower() if asset_type else "assets",
+        unified=unified,
+        custom_label=asset_type.label_singular.lower() if asset_type else "asset",
+        custom_href=request.get_full_path(),
+        catalogue_href=reverse("n26-campaign-add-asset", args=[found.pk])
+        + (f"?type={asset_type.pk}" if asset_type else ""),
     )
 
 

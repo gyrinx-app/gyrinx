@@ -961,7 +961,7 @@ class TestTheArbitratorsControlsOnThePage:
         settings_body = client.get(settings).content.decode()
         for name in ("n26-campaign-add-counter", "n26-campaign-add-label"):
             assert reverse(name, args=[campaign.pk]) in settings_body
-        assert reverse("n26-campaign-new-asset", args=[campaign.pk]) + "?type=" in body
+        assert reverse("n26-campaign-add-asset", args=[campaign.pk]) + "?type=" in body
 
         client.force_login(gang.owner)
         body = client.get(page).content.decode()
@@ -1039,7 +1039,7 @@ class TestTheArbitratorsControlsOnThePage:
         assert "Sump Hole (flooded)" in html
         assert "15¢" in html
 
-    def test_the_campaign_hides_add_until_a_holding_is_available(
+    def test_add_remains_available_for_custom_holdings_when_catalogue_is_empty(
         self, client, arbitrator
     ):
         basic = create_campaign_type("Empty holdings")
@@ -1048,7 +1048,7 @@ class TestTheArbitratorsControlsOnThePage:
         client.force_login(arbitrator)
         url = reverse("n26-campaign", args=[campaign.pk])
         add = reverse("n26-campaign-add-asset", args=[campaign.pk]) + f"?type={kind.pk}"
-        assert add not in client.get(url).content.decode()
+        assert add in client.get(url).content.decode()
         from n26.core.campaigns import campaign_operation
 
         with campaign_operation(campaign, actor=arbitrator) as act:

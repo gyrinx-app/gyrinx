@@ -674,7 +674,7 @@ class CampaignOperation:
         except Battle.DoesNotExist:
             raise Refusal("This battle is no longer available.") from None
 
-    def add_asset(self, asset, name=""):
+    def add_asset(self, asset, name="", *, income_override=None):
         """Add one of an asset to the campaign, held by nobody.
 
         Only an asset of a Holding asset type of this campaign's type or of
@@ -715,11 +715,11 @@ class CampaignOperation:
                 "campaign's own or its type's, and no table this campaign "
                 "holds lists it."
             )
-        campaign_asset = self._keep(asset, name)
+        campaign_asset = self._keep(asset, name, income_override=income_override)
         self.event(CampaignEvent.Kind.ASSET_ADDED, note=str(campaign_asset))
         return campaign_asset
 
-    def add_assets(self, assets, *, name="", names=None, request_key):
+    def add_assets(self, assets, *, name="", names=None, income=None, request_key):
         """Add a selection once, under the campaign lock.
 
         The request mark is recorded with the events, so a retry cannot add
@@ -737,16 +737,42 @@ class CampaignOperation:
         if self.campaign.events.filter(batch=request_key).exists():
             return False
         self.batch = request_key
+        if len(assets) > 1 and any((names or {}).values()):
+            raise Refusal("Select one asset to give it a name in this campaign.")
+        override = None
+        if income is not None:
+            if income < 0:
+                raise Refusal("Income must be zero or more.")
+            from n26.library.authoring import (
+                ef_contributes_to_counter,
+                modifier,
+                targets_gang,
+            )
+            from n26.library.income import ensure_income_counter
+
+            override = modifier(
+                f"Income override {request_key}",
+                targets_gang(),
+                ef_contributes_to_counter(ensure_income_counter(), income),
+                pack=self.campaign.pack,
+            )
         for asset in assets:
-            self.add_asset(asset, name=(names or {}).get(str(asset.pk), "") or name)
+            self.add_asset(
+                asset,
+                name=(names or {}).get(str(asset.pk), "") or name,
+                income_override=override,
+            )
         return True
 
-    def _keep(self, asset, name=""):
+    def _keep(self, asset, name="", *, income_override=None):
         """The campaign asset itself, held by nobody. Written by the two
         acts that bring an asset in — adding one by hand and rolling one —
         each of which records itself."""
         return CampaignAsset.objects.create(
-            campaign=self.campaign, asset=asset, name=(name or "").strip()
+            campaign=self.campaign,
+            asset=asset,
+            name=(name or "").strip(),
+            income_override=income_override,
         )
 
     def roll_asset(self, table, *, membership=None, rolled=None, rng=None):
