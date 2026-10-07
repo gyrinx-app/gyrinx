@@ -943,6 +943,48 @@ class TestThePages:
             "Rolled 4: Iron Forge assigned to Slag Kings."
         ]
 
+    def test_a_roll_over_htmx_redraws_each_gangs_menu_host(
+        self,
+        client,
+        campaign,
+        territory,
+        selection_table,
+        slag_kings,
+        wild_cats,
+        arbitrator,
+    ):
+        """The gangs table comes back whole, so each gang's React menu
+        host comes back with it, carrying its Remove from campaign link."""
+        client.force_login(arbitrator)
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {
+                "type": str(territory.pk),
+                "table": str(selection_table.pk),
+                "rolled": "63",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        region = soup.find(id="n26-campaign-gangs")
+        assert region["hx-swap-oob"] == "true"
+        menus = {}
+        for host in region.select('[data-react-name="action-menu"]'):
+            props = json.loads(soup.find(id=host["data-react-props"]).string)
+            menus[props["label"]] = [
+                (item["label"], item["href"]) for item in props["items"]
+            ]
+        assert menus == {
+            f"Actions for {gang.name}": [
+                (
+                    "Remove from campaign",
+                    reverse("n26-campaign-remove-gang", args=[campaign.pk, gang.pk]),
+                )
+            ]
+            for gang in (slag_kings, wild_cats)
+        }
+
     def test_a_roll_for_a_type_that_has_gone_sends_the_page_over_htmx(
         self, client, campaign, arbitrator
     ):

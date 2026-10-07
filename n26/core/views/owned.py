@@ -684,7 +684,33 @@ def link_stash_actions(sheet, at, *, refunds=True, bound_items=frozenset()):
                 Action("Refund", LINK, with_query(at, refund=line.id), SECONDARY)
             )
         menu.append(Action("Delete", LINK, with_query(at, remove=line.id), DANGER))
-        line.menu = tuple(menu)
+        line.menu = stash_menu(menu)
+
+
+def stash_menu(actions):
+    """A stash line's menu, as entries for ``<c-n26.action-menu>``.
+
+    The others come first, then each danger act with a separator above it
+    whenever the line offers more than one act. A single pass would leave
+    a destructive act in the middle of the menu.
+    """
+    from n26.core.listing import DANGER, LINK
+
+    def entry(action, separator_before=False):
+        if action.kind != LINK:
+            raise ValueError(f"A stash menu draws links only, not {action.kind!r}")
+        return {
+            "label": action.label,
+            "href": action.target,
+            "tone": "danger" if action.tone == DANGER else "default",
+            "separator_before": separator_before,
+        }
+
+    actions = tuple(actions)
+    separate = len(actions) > 1
+    return tuple(entry(a) for a in actions if a.tone != DANGER) + tuple(
+        entry(a, separate) for a in actions if a.tone == DANGER
+    )
 
 
 def link_possession_actions(model_card, host, *, refunds=True):

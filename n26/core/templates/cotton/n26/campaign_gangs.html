@@ -16,11 +16,11 @@ At wider widths the kit table wrapper scrolls any extra numeric columns.
 Over budget is amber, not orange. Orange is what a waiting invitation wears on the same page.
 Starting rolls fetch with hx-swap none so a dialog opens.
 The last column has no heading. It holds a menu only where the line has remove_href, which the view fills for the arbitrator, and for a gang's owner on their own.
-The menu uses strategy fixed so the table's scroll wrapper does not clip it. On phones it shares the first grid row with the gang name.
+React draws the menu. Its panel is fixed, so the table's scroll wrapper does not clip it. On phones it shares the first grid row with the gang name.
 {% endcomment %}
 
 <c-vars :sheet="None" class="" />
-{% load platform_tags %}
+{% load action_menu platform_tags %}
 
 <c-ui.table class="max-md:block {{ class }}">
     <thead class="max-md:hidden">
@@ -87,22 +87,8 @@ The menu uses strategy fixed so the table's scroll wrapper does not clip it. On 
                 {% endfor %}
                 <td class="w-0 text-right align-top max-md:col-start-3 max-md:row-start-1 max-md:block max-md:w-auto max-md:justify-self-end">
                     {% if gang.remove_href %}
-                        <c-ui.dropdown align="end" min_width="12rem" strategy="fixed">
-                            <c-slot name="trigger">
-                                <c-ui.button size="sm"
-                                             variant="ghost"
-                                             aria-label="Actions for {{ gang.name }}"
-                                             title="Actions for {{ gang.name }}"
-                                             aria-haspopup="menu"
-                                             ::aria-expanded="dropdownMenu">
-                                    <span class="n26-icon-only gap-0.5">
-                                        <c-n26.icon name="ellipsis-vertical" class="size-4" />
-                                        <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                                    </span>
-                                </c-ui.button>
-                            </c-slot>
-                            <c-ui.dropdown.item href="{{ gang.remove_href }}" variant="danger">Remove from campaign</c-ui.dropdown.item>
-                        </c-ui.dropdown>
+                        {% link_actions danger_label="Remove from campaign" danger_href=gang.remove_href as menu_ %}
+                        <c-n26.action-menu :items="menu_" label="Actions for {{ gang.name }}" variant="ghost" align="end" min_width="12rem" />
                     {% endif %}
                 </td>
             </tr>

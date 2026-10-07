@@ -2346,8 +2346,9 @@ GROUPS: list[Group] = [
                     "grid. :total is the stash rating and has to be passed, since a "
                     "stacked line shows the rating for one copy. Stashed gear "
                     "counts in the gang's wealth, not in the models' rating. The "
-                    "gear list scrolls after a maximum height, and each line menu "
-                    "uses strategy=fixed so that box does not clip it."
+                    "gear list scrolls after a maximum height. Each line's menu is "
+                    "a c-n26.action-menu, whose panel is fixed, so that box does "
+                    "not clip it."
                 ),
             ),
             Component(
