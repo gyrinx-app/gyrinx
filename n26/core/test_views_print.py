@@ -69,23 +69,17 @@ def picker(body):
     return json.loads(soup.find(id=host["data-react-props"]).string)
 
 
-def submission(body, untick=()):
-    """The print form's action, method and the pairs a browser sends.
+def _form_pairs(form, skip=()):
+    """The pairs a browser sends for ``form`` as the server drew it.
 
-    The form's own inputs are read from the page: hidden ones, ticked
-    boxes and radios, and text fields. The picker's boxes are read from
-    its props, as the island draws them: a ticked model posts
-    ``fighters``, and a ticked weapon posts ``weapons`` only while its
-    model is ticked, the box being disabled otherwise. ``untick`` holds
-    ids the reader clears first.
+    Hidden and text inputs send their value, ticked boxes and radios
+    theirs, and a disabled input sends nothing. Inputs in ``skip`` are
+    left out.
     """
-    soup = BeautifulSoup(body, "html.parser")
-    host = soup.select_one('[data-react-name="print-picker"]')
-    form = host.find_parent("form")
     sent = []
     for field in form.find_all("input"):
         name = field.get("name")
-        if name is None:
+        if name is None or field in skip or field.has_attr("disabled"):
             continue
         kind = field.get("type", "text")
         if kind in ("checkbox", "radio"):
@@ -93,6 +87,36 @@ def submission(body, untick=()):
                 sent.append((name, field.get("value", "on")))
         else:
             sent.append((name, field.get("value", "")))
+    return sent
+
+
+def no_js_submission(body):
+    """The print form's action, method and pairs before the picker mounts.
+
+    The picker's host holds server-drawn boxes until then, and a browser
+    with no JavaScript, or one whose Print beats the island, sends those.
+    """
+    soup = BeautifulSoup(body, "html.parser")
+    host = soup.select_one('[data-react-name="print-picker"]')
+    form = host.find_parent("form")
+    return form["action"], form["method"], _form_pairs(form)
+
+
+def submission(body, untick=()):
+    """The print form's action, method and the pairs a browser sends.
+
+    The form's own inputs are read from the page: hidden ones, ticked
+    boxes and radios, and text fields. The picker's boxes are read from
+    its props, as the island draws them, its server-drawn body being
+    replaced on mount: a ticked model posts ``fighters``, and a ticked
+    weapon posts ``weapons`` only while its model is ticked, the box
+    being disabled otherwise. ``untick`` holds ids the reader clears
+    first.
+    """
+    soup = BeautifulSoup(body, "html.parser")
+    host = soup.select_one('[data-react-name="print-picker"]')
+    form = host.find_parent("form")
+    sent = _form_pairs(form, skip=host.find_all("input"))
     for model in picker(body)["models"]:
         if not model["ticked"] or model["id"] in untick:
             continue
@@ -224,16 +248,22 @@ class TestTheSetupScreen:
 
     def test_loading_a_config_prefills_the_form(self, client, tester, gang, roster):
         vex, sull = roster
+        lasgun = vex.assignments.get(weapon__name="Lasgun")
         config = PrintConfig.objects.create(gang=gang, name="Crew", include_stash=False)
         config.miniatures.set([vex])
+        config.assignments.set([lasgun])
 
         client.force_login(tester)
         response = client.get(f"{setup_url(gang)}?config={config.pk}")
-        ticked = {
-            model["id"]: model["ticked"]
-            for model in picker(response.content.decode())["models"]
-        }
+        models = picker(response.content.decode())["models"]
+        ticked = {model["id"]: model["ticked"] for model in models}
         assert ticked == {str(vex.pk): True, str(sull.pk): False}
+        weapons = {
+            weapon["label"]: weapon["ticked"]
+            for model in models
+            for weapon in model["weapons"]
+        }
+        assert weapons == {"Lasgun": True, "Stub Gun": False}
         assert response.context["include_stash"] is False
         assert response.context["setup_name"] == "Crew"
 
@@ -736,6 +766,12 @@ class TestPrintingSomebodyElsesGang:
 
         # Loaded back, the screen ticks what was saved. Then Vex goes.
         body = client.get(response.url.replace(print_url(gang), setup_url(gang)))
+        weapons = {
+            weapon["label"]: weapon["ticked"]
+            for model in picker(body.content.decode())["models"]
+            for weapon in model["weapons"]
+        }
+        assert weapons == {"Lasgun": True, "Stub Gun": False}
         action, _, sent = submission(body.content.decode(), untick={str(vex.pk)})
         client.post(action, _as_post(sent))
 
@@ -745,6 +781,77 @@ class TestPrintingSomebodyElsesGang:
         paper = client.get(f"{print_url(gang)}?config={config.pk}").content.decode()
         assert "Vex" not in paper
         assert "Lasgun" not in paper
+
+    def test_the_boxes_post_before_the_picker_mounts(
+        self, client, tester, gang, roster
+    ):
+        """Until the island mounts, and for good if it never loads, the
+        host holds the same boxes drawn by the server. A submission in
+        that window posts them, so a saved setup keeps what it ticked
+        rather than being emptied by a submission with no boxes."""
+        vex, sull = roster
+        lasgun = vex.assignments.get(weapon__name="Lasgun")
+        stub = vex.assignments.get(weapon__name="Stub Gun")
+        client.force_login(tester)
+
+        # A fresh run: everything ticked, everything posted.
+        body = client.get(setup_url(gang)).content.decode()
+        action, method, sent = no_js_submission(body)
+        assert (action, method) == (setup_url(gang), "post")
+        assert sorted(v for k, v in sent if k == "fighters") == sorted(
+            [str(vex.pk), str(sull.pk)]
+        )
+        assert sorted(v for k, v in sent if k == "weapons") == sorted(
+            [str(lasgun.pk), str(stub.pk)]
+        )
+
+        # A saved setup with one weapon left out posts back as it was.
+        config = PrintConfig.objects.create(gang=gang, name="Crew")
+        config.miniatures.set([vex])
+        config.assignments.set([lasgun])
+        body = client.get(f"{setup_url(gang)}?config={config.pk}").content.decode()
+        action, _, sent = no_js_submission(body)
+        assert ("name", "Crew") in sent
+        assert [v for k, v in sent if k == "fighters"] == [str(vex.pk)]
+        assert [v for k, v in sent if k == "weapons"] == [str(lasgun.pk)]
+        client.post(action, _as_post(sent))
+        config.refresh_from_db()
+        assert list(config.miniatures.all()) == [vex]
+        assert list(config.assignments.all()) == [lasgun]
+
+        # An unticked model's weapons are drawn disabled, so they stay out
+        # of the post, as the island keeps them out.
+        config.miniatures.set([sull])
+        config.assignments.set([lasgun, stub])
+        body = client.get(f"{setup_url(gang)}?config={config.pk}").content.decode()
+        _, _, sent = no_js_submission(body)
+        assert [v for k, v in sent if k == "fighters"] == [str(sull.pk)]
+        assert [v for k, v in sent if k == "weapons"] == []
+
+    def test_the_server_drawn_boxes_match_the_props(self, client, tester, gang, roster):
+        """The fallback draws the island's starting state: the same
+        cards, ticks and figures, so the swap on mount changes nothing."""
+        vex, _ = roster
+        stub = vex.assignments.get(weapon__name="Stub Gun")
+        config = PrintConfig.objects.create(gang=gang, name="Crew")
+        config.miniatures.set([vex])
+        config.assignments.set(vex.assignments.filter(weapon__isnull=False))
+        config.assignments.remove(stub)
+        client.force_login(tester)
+
+        body = client.get(f"{setup_url(gang)}?config={config.pk}").content.decode()
+        soup = BeautifulSoup(body, "html.parser")
+        host = soup.select_one('[data-react-name="print-picker"]')
+        assert host.has_attr("data-react-fallback")
+        vex_props = next(m for m in picker(body)["models"] if m["name"] == "Vex")
+        card = host.find("input", attrs={"name": "fighters", "value": str(vex.pk)})
+        card = card.find_parent("div", class_="rounded-box")
+        assert "border-accent" in card["class"]
+        assert f"{vex_props['rating']}¢" in card.get_text()
+        assert "1/3 slots" in card.get_text()
+        assert f"Crew total {vex_props['baseRating'] + 15}¢" in " ".join(
+            host.get_text().split()
+        )
 
     def test_an_unreadable_id_costs_that_id_when_the_owner_saves_too(
         self, client, tester, gang, roster

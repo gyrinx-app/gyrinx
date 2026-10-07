@@ -183,8 +183,55 @@ that said it twice would be spending the width the name needs.
             sums a crew total. Its checkboxes post fighters and weapons with
             this form; an unticked model's weapons are disabled, so they
             stay out of the submission.
+
+            The body is the same boxes drawn by the server, ticked as the
+            island starts. It holds the place until the island mounts and
+            is what the form posts if it is submitted before then, or if
+            the island never loads: a submission with no boxes would empty
+            the saved setup.
             {% endcomment %}
-            {% react_island "print-picker" print_picker %}
+            {% react_host "print-picker" print_picker %}
+                <div class="space-y-4">
+                    <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
+                        {% for row in print_fallback.rows %}
+                            <c-n26.checkbox-card :static="True"
+                                                 name="fighters"
+                                                 value="{{ row.model.id }}"
+                                                 label="{{ row.model.name }}"
+                                                 description="{{ row.model.profileName }}"
+                                                 :checked="row.model.ticked"
+                                                 class="h-full">
+                                <c-slot name="meta">
+                                    {% if row.model.hasWeapons %}
+                                        <span class="shrink-0 text-xs tabular-nums {% if row.over %}font-medium text-amber-600 dark:text-amber-400{% else %}text-muted{% endif %}"
+                                              title="Weapon slots used ({{ print_picker.slotBudget }} per card)">{{ row.slots }}/{{ print_picker.slotBudget }} slots</span>
+                                    {% endif %}
+                                    <span class="shrink-0 text-sm tabular-nums text-muted">{{ row.model.rating }}¢</span>
+                                </c-slot>
+                                {% for weapon in row.model.weapons %}
+                                    <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
+                                        <input type="checkbox"
+                                               name="weapons"
+                                               value="{{ weapon.id }}"
+                                               {% if weapon.ticked %}checked{% endif %}
+                                               {% if not row.model.ticked %}disabled{% endif %}
+                                               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                        <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.label }}</span>
+                                        {% if weapon.slotsLabel %}<span class="shrink-0 text-xs text-muted">{{ weapon.slotsLabel }}</span>{% endif %}
+                                        <span class="shrink-0 text-xs tabular-nums text-muted">{{ weapon.rating }}¢</span>
+                                    </label>
+                                {% endfor %}
+                            </c-n26.checkbox-card>
+                        {% endfor %}
+                    </div>
+                    <div class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm">
+                        <span class="text-muted">
+                            Crew total
+                            <span class="ml-1 font-medium tabular-nums text-ink-900 dark:text-ink-100">{{ print_fallback.total }}¢</span>
+                        </span>
+                    </div>
+                </div>
+            {% endreact_host %}
         </c-n26.form-section>
     </c-n26.form-page>
 {% endblock content %}

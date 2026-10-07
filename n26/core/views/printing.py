@@ -288,6 +288,26 @@ def _print_picker(sheet, ticked_models, ticked_weapons, slot_budget):
     }
 
 
+def _picker_fallback(picker):
+    """The picker's boxes as the server draws them, before the island mounts.
+
+    The page's form posts these if it is submitted before the island
+    loads, or if it never does, so a saved setup is not emptied by a
+    submission that carried no boxes. Each card's slot count and the crew
+    total are the island's starting figures, reckoned the same way.
+    """
+    budget = picker["slotBudget"]
+    rows = []
+    total = 0
+    for model in picker["models"]:
+        ticked = [weapon for weapon in model["weapons"] if weapon["ticked"]]
+        slots = sum(weapon["slots"] for weapon in ticked)
+        rows.append({"model": model, "slots": slots, "over": slots > budget})
+        if model["ticked"]:
+            total += model["baseRating"] + sum(weapon["rating"] for weapon in ticked)
+    return {"rows": rows, "total": total}
+
+
 @login_required
 def print_setup(request, pk):
     """Choose what a print includes, before the paper is committed.
@@ -370,6 +390,7 @@ def print_setup(request, pk):
         # A fresh run prints everything: every box starts ticked.
         ticked_models = {card.id for card in sheet.models}
         ticked_weapons = {weapon.id for card in sheet.models for weapon in card.weapons}
+    picker = _print_picker(sheet, ticked_models, ticked_weapons, WEAPON_SLOTS_PER_CARD)
 
     return render(
         request,
@@ -377,9 +398,8 @@ def print_setup(request, pk):
         {
             "gang": gang,
             "sheet": sheet,
-            "print_picker": _print_picker(
-                sheet, ticked_models, ticked_weapons, WEAPON_SLOTS_PER_CARD
-            ),
+            "print_picker": picker,
+            "print_fallback": _picker_fallback(picker),
             "saved": saved,
             # Resolved here, not in the template: `loaded.include_header`
             # on a None resolves to the empty string, which default_if_none
