@@ -292,12 +292,13 @@ def test_update_prints_each_lowered_ceiling(tree, capsys):
     assert PAGE not in json.loads(tree["baseline"].read_text())["templates"]
 
 
-def used_kit_tags():
-    tags = set(guard.UNCHARGED_TAGS)
-    for path in (guard.ROOT / guard.SCAN_DIR).rglob("*.html"):
-        _, components, _ = guard.scan(path.read_text())
-        tags.update(t for _, t in components if t.startswith(guard.KIT_PREFIX))
-    return sorted(tags)
+def walked_kit_tags():
+    """Every kit tag the guard resolves on the real tree, used or nested."""
+    kit = guard.Kit(guard.ROOT)
+    guard.inventory(guard.ROOT, kit)
+    for tag in guard.UNCHARGED_TAGS:
+        kit.weight(tag)
+    return sorted(kit.walked)
 
 
 def django_origin(tag):
@@ -313,7 +314,7 @@ def test_kit_resolution_matches_the_django_template_loader():
     kit = guard.Kit(guard.ROOT)
     mismatched = {
         tag: (kit.resolve(tag), django_origin(tag))
-        for tag in used_kit_tags()
+        for tag in walked_kit_tags()
         if kit.resolve(tag) != django_origin(tag)
     }
 

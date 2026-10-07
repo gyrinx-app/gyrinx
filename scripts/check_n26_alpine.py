@@ -32,8 +32,9 @@ SCAN_DIR = "n26"
 KIT_PACKAGE = "django_cotton_ui"
 KIT_PREFIX = "ui."
 # Template roots searched before the kit's. Overrides live here only, inside
-# SCAN_DIR, so their own Alpine also counts as direct. test_check_n26_alpine.py
-# fails if Django's loader finds a kit tag anywhere else first.
+# SCAN_DIR, so their own Alpine also counts as direct. For every kit tag this
+# script resolves on the real tree, used or nested, test_check_n26_alpine.py
+# fails if Django's loader picks a different file.
 OVERRIDE_ROOTS = ("n26/core/templates",)
 # Page chrome that nearly every page uses. Charging it would fail the check for
 # every new page. The number is a cap: a kit upgrade that adds Alpine past it
@@ -134,6 +135,8 @@ class Kit:
         self.roots = [root / r for r in OVERRIDE_ROOTS] + [kit_templates]
         self.weights = {}
         self.unresolved = set()
+        # Every tag weighed, including cycle members, which are not cached.
+        self.walked = set()
 
     def resolve(self, tag):
         """Return the template file Cotton renders for <c-tag>, or None.
@@ -164,6 +167,7 @@ class Kit:
         """
         if tag in self.weights:
             return self.weights[tag], frozenset()
+        self.walked.add(tag)
         path = self.resolve(tag)
         if path is None:
             self.unresolved.add(tag)
