@@ -156,6 +156,13 @@ def test_unresolved_kit_tag_fails_the_run(tree):
         tree["run"]("--update")
 
 
+def test_unresolved_kit_tag_in_the_gallery_fails_the_run(tree):
+    write(tree["root"] / "n26/designsystem/templates/demo.html", "<c-ui.renamed />")
+
+    with pytest.raises(SystemExit, match="ui.renamed"):
+        tree["run"]("--update")
+
+
 def test_uncharged_tag_over_its_cap_fails_the_run(tree):
     write(tree["ui"] / "alert.html", "<div x-a x-b x-c x-d></div>")
 
@@ -195,6 +202,23 @@ def test_kit_weight_rising_from_zero_counts_as_a_weight_change(tree):
     write(tree["ui"] / "badge.html", "<span x-data></span>")
 
     with pytest.raises(SystemExit, match="ui.badge 0→1"):
+        tree["run"]()
+    tree["run"]("--update")
+
+
+def test_new_kit_tag_must_be_recorded_before_its_weight_can_change(tree):
+    tree["run"]("--update")
+    write(tree["ui"] / "card.html", "<div></div>")
+    page = tree["root"] / PAGE
+    write(page, page.read_text() + "<c-ui.card />")
+
+    with pytest.raises(SystemExit, match="no recorded weight: ui.card 0"):
+        tree["run"]()
+    tree["run"]("--update")
+    assert json.loads(tree["baseline"].read_text())["weights"]["ui.card"] == 0
+
+    write(tree["ui"] / "card.html", "<div x-data></div>")
+    with pytest.raises(SystemExit, match="ui.card 0→1"):
         tree["run"]()
     tree["run"]("--update")
 

@@ -310,8 +310,10 @@ Counts are per file. A component that repeats on a page counts once, and
 `django_cotton_ui` upgrade or an override edit changes a weight, the check
 fails and names the change, for example `ui.dropdown 13→15`. Review the
 change, then run `--update`. `--update` accepts new weights, but it still
-fails when a template has more direct Alpine or more kit tag uses. A kit tag
-with no template also fails the run, so a renamed component cannot quietly
+fails when a template has more direct Alpine or more kit tag uses. The first
+use of a kit tag with no recorded weight also needs `--update`, so its weight
+is in the baseline before an upgrade can change it. A kit tag with no template
+also fails the run, so a renamed component cannot quietly
 drop to 0.
 
 ### Sequence and exit conditions

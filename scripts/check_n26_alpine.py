@@ -20,7 +20,6 @@ import argparse
 import importlib.util
 import json
 import re
-import sys
 from collections import Counter
 from pathlib import Path
 
@@ -183,12 +182,16 @@ def inventory(root, kit):
     """Return ({path: {"direct": n, "kit": m}}, {path: Counter of charged kit tags}).
 
     Counts list only templates with some Alpine. Uses list every template that
-    uses a charged kit tag, even one that weighs 0 today.
+    uses a charged kit tag, even one that weighs 0 today. Every kit tag is
+    resolved, charged or not, so a missing template fails the run.
     """
     counts, uses = {}, {}
     for file in sorted((root / SCAN_DIR).rglob("*.html")):
         path = file.relative_to(root).as_posix()
         directives, components, _ = scan(file.read_text())
+        for _, tag in components:
+            if tag.startswith(KIT_PREFIX):
+                kit.weight(tag)
         tags = Counter(tag for _, tag in components if charged(path, tag))
         kit_count = sum(n * kit.weight(tag) for tag, n in tags.items())
         if directives or kit_count:
@@ -327,6 +330,11 @@ def main(argv=None):
             for tag, weight in weights.items()
             if tag in baseline["weights"] and baseline["weights"][tag] != weight
         }
+        unrecorded = {
+            tag: weight
+            for tag, weight in weights.items()
+            if tag not in baseline["weights"]
+        }
         if refused:
             print_over(refused)
             raise SystemExit(
@@ -340,11 +348,19 @@ def main(argv=None):
                 f"Kit component weights changed: {moved}. "
                 "Review the kit upgrade or override, then run with --update."
             )
+        if unrecorded and not args.update:
+            new = ", ".join(f"{t} {w}" for t, w in unrecorded.items())
+            raise SystemExit(
+                f"Kit tags with no recorded weight: {new}. "
+                "Run with --update to record them."
+            )
         if args.update:
             for line in decreases(baseline["templates"], counts):
                 print(line)
             for tag, (a, b) in changed.items():
                 print(f"weight {tag} {a}→{b}")
+            for tag, weight in unrecorded.items():
+                print(f"weight {tag} recorded as {weight}")
 
     if args.update:
         baseline_path.write_text(dump(weights, counts))
@@ -357,4 +373,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
