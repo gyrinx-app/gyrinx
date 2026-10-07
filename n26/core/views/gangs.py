@@ -520,7 +520,7 @@ def more_actions(gang, *, yours, signed_in):
         return Action(label, LINK, reverse(route, args=[gang.pk]), tone)
 
     if yours:
-        return (
+        return [
             link("History", "n26-gang-history"),
             link("Notes", "n26-gang-notes"),
             link("Lore", "n26-gang-lore"),
@@ -529,14 +529,14 @@ def more_actions(gang, *, yours, signed_in):
             # nothing. The POST it leads to does, behind a second click,
             # because it cannot be undone.
             link("Delete gang", "n26-delete-gang", DANGER),
-        )
+        ]
     if signed_in:
-        return (
+        return [
             link("Notes", "n26-gang-notes"),
             link("Lore", "n26-gang-lore"),
             link("Clone gang", "n26-clone-gang"),
-        )
-    return ()
+        ]
+    return []
 
 
 @dataclass(frozen=True)

@@ -22,11 +22,6 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def owner(db):
-    return User.objects.create_user("player")
-
-
-@pytest.fixture
 def gang(owner, gang_type):
     return Gang.objects.create(
         name="The Ashen Choir",
