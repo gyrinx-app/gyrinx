@@ -180,9 +180,8 @@ def _weapons_named(gang, values, models):
     """The gang's own weapon assignments among ``values``, carried by ``models``.
 
     Scoped to the gang, so an address naming somebody else's weapon adds
-    nothing to the paper. Scoped to the models picked too: a weapon ticked
-    under a model that is not is no choice of the reader's, whatever the
-    boxes sent.
+    nothing to the paper. Scoped to the picked models too: a weapon whose
+    model is not picked is dropped, even when its id was posted.
     """
     return set(_picked_weapons(gang, values, models).values_list("pk", flat=True))
 
