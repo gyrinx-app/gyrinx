@@ -946,10 +946,23 @@ def _unfinished_selection(record):
     return selection
 
 
+def _slot_filled(slot):
+    return Assignment.objects.filter(
+        caused_by=slot, pickable__isnull=False, archived=False
+    ).exists()
+
+
 def _retire_unfinished_slot(op, record):
-    """Remove the empty result slot this flow added, leaving one it reused."""
+    """Remove the empty result slot this flow added.
+
+    A slot the flow reused, or one the player has since filled, stays.
+    """
     selection = _unfinished_selection(record)
-    if selection is None or selection.slot_assignment.archived:
+    if (
+        selection is None
+        or selection.slot_assignment.archived
+        or _slot_filled(selection.slot_assignment)
+    ):
         return
     added = (
         LedgerEvent.objects.filter(assignment=selection.slot_assignment)
@@ -965,11 +978,7 @@ def _refuse_if_slot_filled(record):
     selection = _unfinished_selection(record)
     if selection is None or selection.slot_assignment.archived:
         return
-    if Assignment.objects.filter(
-        caused_by=selection.slot_assignment,
-        pickable__isnull=False,
-        archived=False,
-    ).exists():
+    if _slot_filled(selection.slot_assignment):
         raise Refusal(
             "You cannot undo this. The result slot this flow rolled for "
             "has been filled since."

@@ -896,6 +896,25 @@ class TestApplyingByHand:
         record.refresh_from_db()
         assert record.state == ActionRecord.State.STARTED
 
+    def test_a_result_picked_by_hand_into_the_rolled_slot_stays(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        rolled_slot = record.advancement_selection.slot_assignment
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            picked = op.choose(rolled_slot, advancement.results["primary"])
+
+        _flow(client, advancement, record, "by-hand")
+
+        record.refresh_from_db()
+        rolled_slot.refresh_from_db()
+        picked.refresh_from_db()
+        assert record.state == ActionRecord.State.APPLIED_BY_HAND
+        assert not rolled_slot.archived
+        assert not picked.archived
+
     def test_a_rolled_flow_loses_its_empty_slot_and_undo_lets_it_finish(
         self, client, monkeypatch, advancement
     ):

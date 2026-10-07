@@ -582,7 +582,7 @@ def _by_hand_page(request, fighter, action, form, *, record=None):
         stage="by-hand",
         form=form,
         submit_label="Mark as applied",
-        submit_variant="primary",
+        submit_variant="success",
     )
 
 
