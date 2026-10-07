@@ -18,26 +18,61 @@
                                 <h3 id="n26-action-{{ panel.action_id }}-title"
                                     class="font-semibold">{{ panel.name }}</h3>
                             </div>
-                            {% if panel.start_href %}
-                                <c-ui.button href="{{ panel.start_href }}"
-                                             variant="primary"
-                                             size="sm"
-                                             class="ml-auto"
-                                             aria-label="Start {{ panel.name }} flow">
-                                    Start <span aria-hidden="true">→</span>
-                                </c-ui.button>
-                            {% endif %}
-                            {% if panel.drafts|length == 1 %}
-                                {% for draft in panel.drafts %}
-                                    <c-ui.button href="{{ draft.href }}"
+                            <div class="ml-auto flex items-center gap-1">
+                                {% if panel.by_hand %}
+                                    <c-ui.dropdown align="end" min_width="10rem" strategy="fixed">
+                                        <c-slot name="trigger">
+                                            <c-ui.button size="sm"
+                                                         variant="ghost"
+                                                         class="flex items-center px-1.5!"
+                                                         aria-label="More for {{ panel.name }}"
+                                                         aria-haspopup="menu"
+                                                         ::aria-expanded="dropdownMenu">
+                                                <span class="n26-icon-only">
+                                                    <c-n26.icon name="chevron-down"
+                                                                class="size-3.5 transition-transform"
+                                                                stroke_width="2.5"
+                                                                ::class="{ 'rotate-180': dropdownMenu }" />
+                                                </span>
+                                            </c-ui.button>
+                                        </c-slot>
+                                        {% for item in panel.by_hand %}
+                                            <form method="post"
+                                                  action="{{ item.href }}"
+                                                  role="none"
+                                                  x-on:click="$el.requestSubmit ? $el.requestSubmit() : $el.submit()">
+                                                {% csrf_token %}
+                                                {% if item.request_key %}
+                                                    <input type="hidden"
+                                                           name="request_key"
+                                                           value="{{ item.request_key }}">
+                                                {% endif %}
+                                                <c-ui.dropdown.item>
+                                                    {{ item.label }}
+                                                </c-ui.dropdown.item>
+                                            </form>
+                                        {% endfor %}
+                                    </c-ui.dropdown>
+                                {% endif %}
+                                {% if panel.start_href %}
+                                    <c-ui.button href="{{ panel.start_href }}"
                                                  variant="primary"
                                                  size="sm"
-                                                 class="ml-auto"
-                                                 aria-label="{{ draft.label }}">
-                                        Resume <span aria-hidden="true">→</span>
+                                                 aria-label="Start {{ panel.name }} flow">
+                                        Start <span aria-hidden="true">→</span>
                                     </c-ui.button>
-                                {% endfor %}
-                            {% endif %}
+                                {% endif %}
+                                {% if panel.drafts|length == 1 %}
+                                    {% for draft in panel.drafts %}
+                                        <c-ui.button href="{{ draft.href }}"
+                                                     variant="primary"
+                                                     size="sm"
+                                                     aria-label="{{ draft.label }}">
+                                            Resume <span aria-hidden="true">→</span>
+                                        </c-ui.button>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="space-y-2 text-sm px-4 pb-4 pt-3">
                             <p class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-muted">
@@ -48,39 +83,6 @@
                                 {% endfor %}
                             </p>
                             {% if panel.problem %}<p class="text-sm text-muted">{{ panel.problem }}</p>{% endif %}
-                            {% if panel.by_hand_href %}
-                                <form method="post"
-                                      action="{{ panel.by_hand_href }}"
-                                      class="flex flex-wrap items-center justify-between gap-2">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="request_key" value="{{ panel.by_hand_key }}">
-                                    <span class="text-muted">Did you apply the result to this model outside Gyrinx?</span>
-                                    <c-ui.button type="submit"
-                                                 variant="ghost"
-                                                 size="xs"
-                                                 aria-label="Mark {{ panel.name }} as applied by hand">
-                                        Mark as applied by hand
-                                    </c-ui.button>
-                                </form>
-                            {% endif %}
-                            {% if panel.drafts|length == 1 %}
-                                {% for draft in panel.drafts %}
-                                    {% if draft.by_hand_href %}
-                                        <form method="post"
-                                              action="{{ draft.by_hand_href }}"
-                                              class="flex flex-wrap items-center justify-between gap-2">
-                                            {% csrf_token %}
-                                            <span class="text-muted">Did you apply the result to this model outside Gyrinx?</span>
-                                            <c-ui.button type="submit"
-                                                         variant="ghost"
-                                                         size="xs"
-                                                         aria-label="Mark {{ panel.name }} as applied by hand">
-                                                Mark as applied by hand
-                                            </c-ui.button>
-                                        </form>
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
                             {% if panel.drafts|length > 1 %}
                                 <div class="space-y-2">
                                     {% for draft in panel.drafts %}
@@ -88,25 +90,12 @@
                                             <time datetime="{{ draft.when|date:'c' }}"
                                                   title="{{ draft.when }}"
                                                   class="text-muted">Started {{ draft.when|naturaltime }}</time>
-                                            <div class="flex flex-wrap items-center gap-2">
-                                                {% if draft.by_hand_href %}
-                                                    <form method="post" action="{{ draft.by_hand_href }}">
-                                                        {% csrf_token %}
-                                                        <c-ui.button type="submit"
-                                                                     variant="ghost"
-                                                                     size="xs"
-                                                                     aria-label="Mark {{ panel.name }} {{ forloop.counter }} as applied by hand">
-                                                            Mark as applied by hand
-                                                        </c-ui.button>
-                                                    </form>
-                                                {% endif %}
-                                                <c-ui.button href="{{ draft.href }}"
-                                                             variant="primary"
-                                                             size="sm"
-                                                             aria-label="{{ draft.label }} {{ forloop.counter }}">
-                                                    Resume {{ forloop.counter }} <span aria-hidden="true">→</span>
-                                                </c-ui.button>
-                                            </div>
+                                            <c-ui.button href="{{ draft.href }}"
+                                                         variant="primary"
+                                                         size="sm"
+                                                         aria-label="{{ draft.label }} {{ forloop.counter }}">
+                                                Resume {{ forloop.counter }} <span aria-hidden="true">→</span>
+                                            </c-ui.button>
                                         </div>
                                     {% endfor %}
                                 </div>

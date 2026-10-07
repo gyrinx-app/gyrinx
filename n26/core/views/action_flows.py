@@ -15,7 +15,12 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from n26.core.access import actions_for
-from n26.core.action_flow import payment_figures, payment_tallies, receipt_lines
+from n26.core.action_flow import (
+    ByHandItem,
+    payment_figures,
+    payment_tallies,
+    receipt_lines,
+)
 from n26.core.action_forms import (
     ActionOutcomeForm,
     ActionSelectionForm,
@@ -61,19 +66,28 @@ def link_action_panels(fighter, panels):
             )
             if panel.allowance_id:
                 panel.start_href += f"?allowance={panel.allowance_id}"
-                panel.by_hand_href = (
-                    reverse("n26-action-by-hand", args=[fighter.pk, panel.action_id])
-                    + f"?allowance={panel.allowance_id}"
-                )
-                panel.by_hand_key = str(uuid4())
-        panel.drafts = [
-            replace(
-                draft,
-                href=flow_url_for(fighter, draft.key, "resume"),
-                by_hand_href=(
-                    flow_url_for(fighter, draft.key, "by-hand") if draft.earned else ""
-                ),
+                panel.by_hand = [
+                    ByHandItem(
+                        reverse(
+                            "n26-action-by-hand", args=[fighter.pk, panel.action_id]
+                        )
+                        + f"?allowance={panel.allowance_id}",
+                        "Mark as applied",
+                        request_key=str(uuid4()),
+                    )
+                ]
+        earned = [draft for draft in panel.drafts if draft.earned]
+        panel.by_hand += [
+            ByHandItem(
+                flow_url_for(fighter, draft.key, "by-hand"),
+                "Mark as applied"
+                if len(panel.drafts) == 1
+                else f"Mark flow {panel.drafts.index(draft) + 1} as applied",
             )
+            for draft in earned
+        ]
+        panel.drafts = [
+            replace(draft, href=flow_url_for(fighter, draft.key, "resume"))
             for draft in panel.drafts
         ]
         panel.completed = [

@@ -28,10 +28,18 @@ class ActionUseLink:
     when: datetime | None = None
     #: An earned use the player can mark as applied by hand.
     earned: bool = False
-    by_hand_href: str = ""
     #: Settled outside Gyrinx: there is no receipt, only an undo.
     applied_by_hand: bool = False
     reopen_href: str = ""
+
+
+@dataclass(frozen=True)
+class ByHandItem:
+    """One entry in the action header's menu that marks a use as applied."""
+
+    href: str
+    label: str
+    request_key: str = ""
 
 
 @dataclass
@@ -44,8 +52,7 @@ class ActionPanel:
     available_uses: int | None = None
     problem: str = ""
     start_href: str = ""
-    by_hand_href: str = ""
-    by_hand_key: str = ""
+    by_hand: list[ByHandItem] = field(default_factory=list)
     #: Carries the roster's action mark: an earned use, an unfinished draft, or
     #: an affordable counter price.
     flagged: bool = False

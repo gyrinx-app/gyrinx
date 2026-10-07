@@ -749,7 +749,7 @@ class TestApplyingByHand:
             )
         assert _waiting(advancement) == ("Advance",)
         client.force_login(advancement.owner)
-        assert "Mark as applied by hand" in _edit_page(client, advancement)
+        assert "Mark as applied" in _edit_page(client, advancement)
 
         _mark_unused_by_hand(client, advancement)
 
@@ -764,7 +764,7 @@ class TestApplyingByHand:
         page = _edit_page(client, advancement)
         assert "Applied by hand" in page
         assert "Undo" in page
-        assert "Mark as applied by hand" not in page
+        assert "Mark as applied" not in page
         assert_reconciled(advancement.gang)
 
     def test_the_cleared_rank_cannot_be_taken_again_through_the_flow(
@@ -805,7 +805,7 @@ class TestApplyingByHand:
         record = _start(client, advancement)
         _post_roll(client, advancement, record)
         assert _waiting(advancement) == ("Advance",)
-        assert "Mark as applied by hand" in _edit_page(client, advancement)
+        assert "Mark as applied" in _edit_page(client, advancement)
 
         assert _flow(client, advancement, record, "by-hand").status_code == 302
 
