@@ -433,9 +433,7 @@ def start_action(op, fighter, action, request_key, allowance=None):
     if existing is not None:
         return existing
     if allowance is not None:
-        if allowance.records.filter(
-            state__in=[ActionRecord.State.STARTED, ActionRecord.State.COMPLETED]
-        ).exists():
+        if not ActionAllowance.objects.filter(pk=allowance.pk).unused().exists():
             raise Refusal("That allowance is already being used.")
     elif rule is not None:
         allowance = (
@@ -446,12 +444,7 @@ def start_action(op, fighter, action, request_key, allowance=None):
                 source=fighter.membership,
                 source_kind=source_kind,
             )
-            .exclude(
-                records__state__in=[
-                    ActionRecord.State.STARTED,
-                    ActionRecord.State.COMPLETED,
-                ]
-            )
+            .unused()
             .order_by("threshold", "created", "pk")
             .first()
         )

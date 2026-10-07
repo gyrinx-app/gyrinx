@@ -267,6 +267,6 @@ def require_earliest_allowance(fighter, action, allowance):
         action=action,
         source=fighter.membership,
         threshold__lt=allowance.threshold,
-    ).exclude(records__state=ActionRecord.State.COMPLETED)
+    ).unsettled()
     if pending.exists():
         raise Refusal("Complete the earlier earned advancement first.")

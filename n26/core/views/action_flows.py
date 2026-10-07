@@ -421,12 +421,7 @@ def action_start(request, pk, action_id):
         return redirect(flow_url(fighter, existing, "resume"))
     allowances = list(
         ActionAllowance.objects.filter(fighter=fighter, action=action)
-        .exclude(
-            records__state__in=[
-                ActionRecord.State.STARTED,
-                ActionRecord.State.COMPLETED,
-            ]
-        )
+        .unused()
         .order_by("threshold", "created", "pk")
     )
     if not allowances and action.pk not in {

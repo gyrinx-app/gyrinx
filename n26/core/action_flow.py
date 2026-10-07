@@ -151,12 +151,7 @@ def available_action_names(gang, cards, *, counter_tracking_active=True):
     if counter_tracking_active:
         for fighter_id, action_id in (
             ActionAllowance.objects.filter(fighter_id__in=fighter_ids)
-            .exclude(
-                records__state__in=(
-                    ActionRecord.State.STARTED,
-                    ActionRecord.State.COMPLETED,
-                )
-            )
+            .unused()
             .values_list("fighter_id", "action_id")
         ):
             flagged[str(fighter_id)].add(str(action_id))
@@ -236,12 +231,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
     access = actions_for(fighter, card=card, computed=computed)
     allowances = list(
         ActionAllowance.objects.filter(fighter=fighter)
-        .exclude(
-            records__state__in=(
-                ActionRecord.State.STARTED,
-                ActionRecord.State.COMPLETED,
-            )
-        )
+        .unused()
         .order_by("created", "pk")
     )
     drafts = list(

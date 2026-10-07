@@ -11,6 +11,22 @@ from django.db import models
 
 from n26.core.models.abstract import Base
 
+#: Record states that use up an allowance: it cannot back another record.
+RESERVING_STATES = ["started", "completed"]
+#: Record states that leave an allowance finished, so a later rank's flow
+#: no longer waits for it.
+SETTLED_STATES = ["completed"]
+
+
+class ActionAllowanceQuerySet(models.QuerySet):
+    def unused(self):
+        """Allowances with no record holding them, free to start a flow."""
+        return self.exclude(records__state__in=RESERVING_STATES)
+
+    def unsettled(self):
+        """Allowances not yet finished, including any with a started flow."""
+        return self.exclude(records__state__in=SETTLED_STATES)
+
 
 class ActionAllowance(Base):
     """One earned use of an action, tied to the model's membership."""
@@ -44,6 +60,8 @@ class ActionAllowance(Base):
         blank=True,
         related_name="granted_allowances",
     )
+
+    objects = ActionAllowanceQuerySet.as_manager()
 
     class Meta:
         verbose_name = "action allowance"
@@ -158,7 +176,7 @@ class ActionRecord(Base):
             ),
             models.UniqueConstraint(
                 fields=["allowance"],
-                condition=models.Q(state__in=["started", "completed"]),
+                condition=models.Q(state__in=RESERVING_STATES),
                 name="action_record_reserves_allowance_once",
             ),
         ]
