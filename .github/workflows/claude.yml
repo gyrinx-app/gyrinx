@@ -1,23 +1,22 @@
 name: Claude Code
 
+# Only events that run on the default branch. Review and review-comment events
+# run on the pull request's merge ref, which the main-only environment refuses.
 on:
   issue_comment:
     types: [created]
-  pull_request_review_comment:
-    types: [created]
   issues:
     types: [opened, assigned]
-  pull_request_review:
-    types: [submitted]
 
 jobs:
   claude:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && github.event.comment.user.login == 'tgvashworth') ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && github.event.comment.user.login == 'tgvashworth') ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && github.event.review.user.login == 'tgvashworth') ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && github.event.issue.user.login == 'tgvashworth')
     runs-on: ubuntu-latest
+    # CLAUDE_PAT lives in the main-only environment, which only jobs running
+    # on main can read. A workflow pushed on another branch cannot reach it.
+    environment: main-only
     timeout-minutes: 60
     permissions:
       contents: write
