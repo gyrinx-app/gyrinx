@@ -421,18 +421,18 @@ def test_qualified_skill_does_not_satisfy_standard_skill_completeness(default_pa
     content = STANDARD_CONTENT["skills"]
     content.create()
     skill = Skill.objects.get(pack=default_pack, name="Catfall", qualifier="")
+    # The custom copy gives up its D6 result so the book skill can take it back.
     skill.qualifier = "Custom"
-    skill.save(update_fields=["qualifier", "modified"])
+    skill.position = 0
+    skill.save(update_fields=["qualifier", "position", "modified"])
 
     assert content.status() == "incomplete"
     content.create()
 
-    assert Skill.objects.filter(
-        pack=default_pack, name="Catfall", qualifier=""
-    ).exists()
-    assert Skill.objects.filter(
-        pack=default_pack, name="Catfall", qualifier="Custom"
-    ).exists()
+    book = Skill.objects.get(pack=default_pack, name="Catfall", qualifier="")
+    custom = Skill.objects.get(pack=default_pack, name="Catfall", qualifier="Custom")
+    assert book.position == 1
+    assert custom.position == 0
     assert content.status() == "complete"
 
 
