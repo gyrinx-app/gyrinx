@@ -38,12 +38,50 @@
                         :form="form"
                         name="scenario"
                         for="battle-scenario">
-                <c-ui.input id="battle-scenario"
-                            name="scenario"
-                            maxlength="200"
-                            required
-                            value="{{ form.scenario.value|default:'' }}" />
+                {% if battle %}
+                    <c-ui.input id="battle-scenario"
+                                name="scenario"
+                                maxlength="200"
+                                required
+                                value="{{ form.scenario.value|default:'' }}" />
+                {% else %}
+                    {% comment %}
+                    A link, not a submit: the generator is its own page, and
+                    nothing typed here is kept by going there.
+                    {% endcomment %}
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="min-w-48 flex-1">
+                            <c-ui.input id="battle-scenario"
+                                        name="scenario"
+                                        maxlength="200"
+                                        required
+                                        value="{{ form.scenario.value|default:'' }}" />
+                        </div>
+                        <c-ui.button variant="default"
+                                     href="{% url 'n26-scenario-generator' campaign.pk %}">
+                            {% if scenario_results %}
+                                Generate again
+                            {% else %}
+                                Generate scenario
+                            {% endif %}
+                        </c-ui.button>
+                    </div>
+                {% endif %}
             </c-ui.field>
+            {% if scenario_results %}
+                {% comment %}
+                The generated scenario, saved with the battle. Its rolls are the
+                hidden fields; the view looks each entry up again on save.
+                {% endcomment %}
+                {% for field in form %}
+                    {% if field.name in form.scenario_keys %}{{ field }}{% endif %}
+                {% endfor %}
+                <section aria-labelledby="battle-scenario-results"
+                         class="rounded-box border border-box-border p-4">
+                    <h3 id="battle-scenario-results" class="mb-3 font-semibold">Generated scenario</h3>
+                    {% include "n26/includes/scenario_results.html" with results=scenario_results verb="" %}
+                </section>
+            {% endif %}
             <c-ui.field label="Date *" error="x" :form="form" name="date" for="battle-date">
                 <c-ui.input id="battle-date"
                             name="date"
