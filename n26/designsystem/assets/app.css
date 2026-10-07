@@ -1583,8 +1583,13 @@
  *
  * The [role="menu"] exclusion is not decoration: a dropdown's *items* are also
  * buttons, and a descendant selector was squaring off and re-rounding them inside
- * the open panel. Only the trigger belongs to the group. */
-.n26-button-group :is(button, a):not([role="menu"] *) {
+ * the open panel. Only the trigger belongs to the group. An action menu's
+ * scriptless list ([data-action-menu-list]) is plain links rather than a menu, so
+ * it is excluded by name. Both sit in one :not() so the exclusion adds no more
+ * specificity than [role="menu"] alone did; the reset below must not outrank the
+ * first- and last-child rounding. */
+.n26-button-group
+    :is(button, a):not([role="menu"] *, [data-action-menu-list] *) {
     border-radius: 0;
     position: relative;
 }
@@ -1599,26 +1604,41 @@
  * icon-only trigger came out 34px in a row of 38px buttons.
  *
  * Stretch runs one level at a time, so each wrapper has to pass it on. Only
- * wrappers are touched; buttons are already flex items of the group itself. */
+ * wrappers are touched; buttons are already flex items of the group itself.
+ *
+ * A React host's wrapper also holds the host's props script and preload links.
+ * This rule beats the browser's own display: none on them, so it skips them;
+ * otherwise the props would show as text. */
 .n26-button-group > *:not(button):not(a),
-.n26-button-group > *:not(button):not(a) > *:not([role="menu"]) {
+.n26-button-group
+    > *:not(button):not(a)
+    > *:not([role="menu"]):not(script):not(link) {
     display: flex;
     align-items: stretch;
 }
-.n26-button-group > :first-child :is(button, a):not([role="menu"] *),
+.n26-button-group
+    > :first-child
+    :is(button, a):not([role="menu"] *, [data-action-menu-list] *),
 .n26-button-group > :is(button, a):first-child {
     border-start-start-radius: var(--radius-button);
     border-end-start-radius: var(--radius-button);
 }
-.n26-button-group > :last-child :is(button, a):not([role="menu"] *),
+.n26-button-group
+    > :last-child
+    :is(button, a):not([role="menu"] *, [data-action-menu-list] *),
 .n26-button-group > :is(button, a):last-child {
     border-start-end-radius: var(--radius-button);
     border-end-end-radius: var(--radius-button);
 }
 /* Lift the active child so its focus ring is not clipped by the neighbour
  * overlapping it by a pixel. */
-.n26-button-group :is(button, a):hover:not([role="menu"] *),
-.n26-button-group :is(button, a):focus-visible:not([role="menu"] *) {
+.n26-button-group
+    :is(button, a):hover:not([role="menu"] *, [data-action-menu-list] *),
+.n26-button-group
+    :is(button, a):focus-visible:not(
+        [role="menu"] *,
+        [data-action-menu-list] *
+    ) {
     z-index: 1;
 }
 

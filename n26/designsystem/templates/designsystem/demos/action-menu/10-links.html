@@ -1,0 +1,10 @@
+{# title: Links #}
+{# note: The dashboard's row menu. Open it with Enter, Space or the arrow keys, move with the arrows, Home and End, and close it with Escape or Tab. align="end" lines the menu up with the button's right edge. #}
+{% load action_menu %}
+{% link_actions "View gang" "#" "Edit gang settings" "#" "Print" "#" as items %}
+<div class="flex justify-end">
+    <c-n26.action-menu :items="items"
+                       label="Actions for The Ashen Choir"
+                       variant="ghost"
+                       align="end" />
+</div>
