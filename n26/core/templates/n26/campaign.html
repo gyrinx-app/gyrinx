@@ -90,23 +90,7 @@ reader's other campaigns — the same pattern a gang's screens use.
                                  href="{% url 'n26-campaign-record-roll' campaign.pk %}">
                         <c-n26.icon name="dices" class="size-4" />
                     </c-ui.button>
-                    <c-ui.dropdown align="end" strategy="fixed">
-                        <c-slot name="trigger">
-                            <c-ui.button size="sm" variant="default" aria-label="More actions">
-                                <span class="n26-icon-only gap-0.5">
-                                    <c-n26.icon name="ellipsis-vertical" class="size-4" />
-                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                                </span>
-                            </c-ui.button>
-                        </c-slot>
-                        <c-ui.dropdown.item href="{{ log_href }}">
-                            View log
-                        </c-ui.dropdown.item>
-                        {% if yours %}
-                            <c-ui.dropdown.item href="{% url 'n26-edit-campaign' campaign.pk %}?tab=counters-and-labels">Counters and labels</c-ui.dropdown.item>
-                            <c-ui.dropdown.item href="{% url 'n26-archive-campaign' campaign.pk %}">Archive campaign</c-ui.dropdown.item>
-                        {% endif %}
-                    </c-ui.dropdown>
+                    <c-n26.action-menu :items="more_actions" label="More actions" align="end" />
                 </c-n26.button-group>
             </c-slot>
             <c-slot name="log_actions">
