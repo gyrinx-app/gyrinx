@@ -6,7 +6,7 @@ import {
     useState,
     type KeyboardEvent,
 } from "react";
-import { Icon, Input } from "../../ui";
+import { Icon, Input, useDismiss } from "../../ui";
 
 type SelectOption = {
     value: string;
@@ -70,25 +70,12 @@ export function FilterSelect({
     useEffect(() => {
         if (!open) return;
         const frame = requestAnimationFrame(() => search.current?.focus());
-
-        function dismiss(event: Event) {
-            if (!root.current?.contains(event.target as Node)) close(false);
-        }
-
-        function escape(event: globalThis.KeyboardEvent) {
-            if (event.key === "Escape") close(true);
-        }
-
-        document.addEventListener("pointerdown", dismiss);
-        document.addEventListener("focusin", dismiss);
-        document.addEventListener("keydown", escape);
-        return () => {
-            cancelAnimationFrame(frame);
-            document.removeEventListener("pointerdown", dismiss);
-            document.removeEventListener("focusin", dismiss);
-            document.removeEventListener("keydown", escape);
-        };
+        return () => cancelAnimationFrame(frame);
     }, [open]);
+
+    useDismiss(root, trigger, open, () => close(false), {
+        onEscape: () => close(true),
+    });
 
     useLayoutEffect(() => {
         if (active < 0) return;
