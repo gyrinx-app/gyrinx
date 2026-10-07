@@ -266,15 +266,59 @@ Copilot instructions and `.agents/skills/n26-react/SKILL.md`. Agents should:
 - Explain a concrete migration blocker when conversion would require a domain
   redesign, new API contract or unbuilt complex primitive. Do not quietly add
   more Alpine as the default solution.
-- Lower the per-template Alpine directive ceilings with
-  `python scripts/check_n26_alpine.py --update`. CI rejects increases. The guard
-  counts first-party `x-*` and `@event` syntax, not all possible JavaScript or
-  the installed kit: review is still needed, and deleting a caller does not
-  prove a shared primitive is unused.
+- Lower the per-template Alpine ceilings with
+  `python scripts/check_n26_alpine.py --update`. CI fails when a template's
+  Alpine increases. The guard counts Alpine attributes, not all possible
+  JavaScript: review is still needed, and deleting a caller does not prove a
+  shared primitive is unused.
 
 This removes the need for the maintainer to repeatedly request React. It is a
 default plus executable checks, not a guarantee that every agent will make the
 right scoping decision without review.
+
+### The Alpine baseline
+
+`n26/frontend/tooling/alpine-baseline.json` gives each N26 template two
+ceilings:
+
+- **direct**: Alpine written in the template. That is `x-*` and `@event` on any
+  tag, `:attr` on HTML tags, and `::attr` on Cotton tags, which Cotton renders
+  as `:attr`. `:attr` on a Cotton tag is a Python expression, so it is not
+  counted.
+- **kit**: Alpine that `<c-ui.*>` kit components add to the page. Each use is
+  charged the component's weight: the Alpine in its template plus the kit tags
+  it nests, counting only the largest `{% if %}` branch. Weights come from the
+  installed `django_cotton_ui` templates, or from the override in
+  `n26/core/templates/cotton/ui/` when there is one.
+
+Moving a menu to React lowers the kit column even when the template had no
+Alpine of its own. Replacing hand-written Alpine with a new `<c-ui.dropdown>`
+still fails, because the kit ceiling is per template too. Tooltips and tabs
+are charged like any other kit component.
+
+Two things are not charged in the kit column:
+
+- page chrome (`ui.breadcrumbs`, `ui.alert`, `ui.avatar`), up to the cap for
+  each tag in `UNCHARGED_TAGS`;
+- kit tags in the design-system gallery, `n26/designsystem/`. The gallery's
+  direct Alpine still counts.
+
+Counts are per file. A component that repeats on a page counts once, and
+`{% include %}` is not followed.
+
+**Kit upgrades.** The baseline also records each kit tag's weight. When a
+`django_cotton_ui` upgrade changes a weight, the check fails and names the
+change, for example `ui.dropdown 13→15`. Review the change, then run
+`--update`. `--update` accepts new weights, but it still fails when a template
+has more direct Alpine or more kit tag uses. The first use of a kit tag with no
+recorded weight also needs `--update`, so its weight is in the baseline before
+an upgrade can change it. A kit tag with no template also fails the run, so a
+renamed component cannot quietly drop to 0.
+
+An override in `n26/core/templates/cotton/ui/` is a first-party template with
+its own ceilings. Adding Alpine to one fails as new direct Alpine, even with
+`--update`. Removing Alpine from one lowers its weight, which `--update`
+records.
 
 ### Sequence and exit conditions
 
@@ -290,8 +334,9 @@ right scoping decision without review.
    collection controls when their consumers are touched. Test money/state-changing
    paths against the real server operations, including repeat submissions.
 6. **Remove old runtimes:** only after inventorying first-party templates,
-   installed-kit components and all page shells. Zero first-party Alpine
-   directives alone is insufficient. Remove htmx independently when no remaining
+   installed-kit components and all page shells. An empty Alpine baseline
+   alone is insufficient, because page chrome and the gallery are not charged
+   for kit Alpine. Remove htmx independently when no remaining
    consumers need HTML swaps.
 
 Each step ships independently. Stop and reassess if adapter complexity exceeds
@@ -315,8 +360,8 @@ A ready-to-use job prompt:
 
 > Read the repository instructions and load the n26-react skill. Check for an
 > open automated React migration PR; if one exists, stop. Check overlapping
-> active work and avoid those candidates. From the Alpine baseline, choose one
-> small first-party interaction. Prefer a remaining authoring interaction. When
+> active work and avoid those candidates. From the `direct` column of the
+> Alpine baseline, choose one small first-party interaction. Prefer a remaining authoring interaction. When
 > `n26/library/templates` has no Alpine, take the next documented step: one
 > player interaction or shared control whose Alpine owner is that template. It
 > must already have a server contract (a native form, a link, or an existing

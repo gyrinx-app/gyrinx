@@ -39,3 +39,4 @@ Thumbs.db
 content.egg-info/
 n26/core/static/n26/react/
 n26/frontend/generated/
+n26/frontend/tooling/alpine-baseline.json
