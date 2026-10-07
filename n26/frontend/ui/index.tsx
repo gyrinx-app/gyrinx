@@ -937,6 +937,11 @@ export function TickListOption({
     );
 }
 
+export {
+    ActionMenu,
+    type ActionMenuItem,
+    type ActionMenuProps,
+} from "./ActionMenu";
 export { FilterMenu, type FilterOption } from "./FilterMenu";
 export {
     QuickSwitcher,

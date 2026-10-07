@@ -189,6 +189,26 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="action-menu",
+                tag="c-n26.action-menu",
+                template="n26/action_menu.html",
+                summary="A button that opens a menu of links.",
+                notes=(
+                    "Every item is a link. Pass Action links, or the list that "
+                    "{% link_actions %} builds from label and address pairs; an "
+                    "Action that submits raises. Items are drawn in the order "
+                    "given, and one with no address is left out. When no item is "
+                    "left, nothing is drawn. A separator is drawn only above an "
+                    "item that asks for one, so each caller decides where they "
+                    "fall. label names the button and is its tooltip. The page "
+                    "draws the same button until React mounts, so nothing moves. "
+                    ":scriptless adds the links as a plain list for readers "
+                    "without JavaScript. The component is one outer element, so "
+                    "it can sit in a button group. Use c-ui.dropdown for a menu "
+                    "with buttons, groups or htmx items."
+                ),
+            ),
+            Component(
                 slug="composer",
                 tag="c-ui.composer",
                 template="composer.html",

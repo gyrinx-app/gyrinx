@@ -547,6 +547,49 @@ def quick_switcher_recipe():
     }
 
 
+def action_menu_recipe():
+    """Extract the link menu's panel, items and separator from the dropdown.
+
+    Alpine supplies the dropdown's state and placement; React owns them for the
+    action menu. The element sequence still comes from the real component, so a
+    structural change fails this build instead of silently drifting the adapter.
+    """
+    source = (
+        '<c-ui.dropdown strategy="fixed" trigger_text="Actions">'
+        '<c-ui.dropdown.item href="/one">One</c-ui.dropdown.item>'
+        "<c-ui.dropdown.separator />"
+        '<c-ui.dropdown.item href="/two" variant="danger">Two</c-ui.dropdown.item>'
+        "</c-ui.dropdown>"
+    )
+    rendered = Template(CottonCompiler().process(source)).render(Context())
+    elements = Elements(rendered).elements
+    expected = ("div", "button", "svg", "path", "div", "a", "span", "div", "a", "span")
+    if tuple(tag for tag, _ in elements) != expected:
+        raise ValueError(f"Cotton dropdown structure changed: {elements}")
+
+    def at(index):
+        return class_name(elements[index][1])
+
+    panel, item, separator, danger = (elements[i][1] for i in (4, 5, 7, 8))
+    if (
+        panel.get("role") != "menu"
+        or {item.get("role"), danger.get("role")} != {"menuitem"}
+        or {item.get("tabindex"), danger.get("tabindex")} != {"-1"}
+        or separator.get("role") != "separator"
+        or "text-red-600" not in at(8)
+        # The n26 override, not the kit file, is what pages draw.
+        or "overscroll-contain" not in at(4)
+    ):
+        raise ValueError("Cotton dropdown roles or states changed")
+    return {
+        "panel": at(4),
+        "item": at(5),
+        "itemLabel": at(6),
+        "separator": at(7),
+        "itemDanger": at(8),
+    }
+
+
 def pick_list_recipe():
     """Extract the pick list's boxes and group headings from their Cotton."""
     from types import SimpleNamespace
@@ -806,6 +849,7 @@ def recipes():
             )
         ),
         "filterMenu": filter_menu_recipe(),
+        "actionMenu": action_menu_recipe(),
         "quickSwitcher": quick_switcher_recipe(),
         "pickList": pick_list_recipe(),
         "tickList": tick_list_recipe(),
@@ -828,6 +872,7 @@ def recipes():
                 "share-2",
                 "x",
                 "chevron-down",
+                "ellipsis-vertical",
                 "info",
                 "check",
                 "check-check",

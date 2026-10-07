@@ -1,0 +1,53 @@
+{% comment %}
+<c-n26.action-menu> — A button that opens a menu of links. React draws it.
+
+items is a list of Action links or entries from link_actions. Links only: an Action that submits raises.
+An item with no href is left out. With no items left, nothing is drawn.
+Separators come from the items. The server decides each one for each caller.
+label is the button's accessible name and its tooltip.
+trigger is ellipsis (dots and a chevron) or chevron (a chevron alone, which turns while open).
+The body is what shows until the island mounts. It matches the island's button, so nothing moves on mount.
+scriptless draws the links as a list when JavaScript is off.
+Keep one outer element. react_host puts preload links and scripts beside the host, and a button group must not see them.
+{% endcomment %}
+
+{% load action_menu react %}
+<c-vars :items="None" label="" trigger="ellipsis" variant="default" align="start"
+        min_width="12rem" :scriptless="False" class="" />
+{% action_menu_props items label trigger=trigger variant=variant align=align min_width=min_width as props_ %}
+{% if props_.items %}
+    <div {{ attrs }} class="relative inline-block {{ class }}"{% if scriptless %} data-action-menu-scriptless{% endif %}>
+        {% react_host "action-menu" props_ %}
+            <c-ui.button size="sm"
+                         variant="{{ props_.variant }}"
+                         class="{% if props_.trigger == 'chevron' %}px-1.5!{% endif %}"
+                         aria-label="{{ label }}"
+                         title="{{ label }}"
+                         aria-haspopup="menu"
+                         aria-expanded="false">
+                {% if props_.trigger == "chevron" %}
+                    <span class="n26-icon-only">
+                        <c-n26.icon name="chevron-down" class="size-3 transition-transform" stroke_width="2.5" />
+                    </span>
+                {% else %}
+                    <span class="n26-icon-only gap-0.5">
+                        <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                        <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                    </span>
+                {% endif %}
+            </c-ui.button>
+            {% if scriptless %}
+                <noscript>
+                    <style>[data-action-menu-scriptless] [data-react-name="action-menu"] > button { display: none !important; }</style>
+                    <div role="menu" aria-label="{{ label }}"
+                         class="rounded-control border border-[color:var(--color-box-border)] bg-white dark:bg-ink-900">
+                        {% for item in props_.items %}
+                            {% if item.separatorBefore %}<c-ui.dropdown.separator />{% endif %}
+                            <c-ui.dropdown.item href="{{ item.href }}" variant="{{ item.tone }}">{{ item.label }}</c-ui.dropdown.item>
+                        {% endfor %}
+                    </div>
+                </noscript>
+            {% endif %}
+        {% endreact_host %}
+    </div>
+{% endif %}

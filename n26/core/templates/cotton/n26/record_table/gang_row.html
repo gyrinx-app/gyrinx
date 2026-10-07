@@ -14,12 +14,12 @@ Campaign links must be supplied only for campaigns the reader can see.
 Pass the owner's name as text. A user object will not draw as a link here.
 The sheet must carry model_count. The strip leads with it.
 layout="buttons" draws an Edit button, and Print when print_href is set.
-layout="menu" draws the gang type's artwork large beside the strip, and a menu of View gang, Edit gang settings and Print.
-The menu needs edit_href. Print appears only when print_href is set.
+layout="menu" draws the gang type's artwork large beside the strip, and an action menu of View gang, Edit gang settings and Print.
+The menu needs edit_href. Print appears only when print_href is set. React draws the menu; the row draws its button until then.
 In the menu layout, a type with no artwork still holds its slot on the wide layout, so the strips line up.
 {% endcomment %}
 
-{% load artwork %}
+{% load action_menu artwork %}
 <c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" layout="buttons" edit_href="" print_href=""
         owner="" campaign_name="" campaign_href="" class="" />
 
@@ -70,27 +70,8 @@ In the menu layout, a type with no artwork still holds its slot on the wide layo
                 items-stretch gap-2 justify-self-end
                 @2xl:col-start-3 @2xl:row-span-1 @2xl:flex-row @2xl:items-center">
         {% if layout == "menu" %}
-            <c-ui.dropdown align="end" min_width="12rem" strategy="fixed">
-                <c-slot name="trigger">
-                    {# A doubled colon passes this Alpine binding through. A single colon resolves to nothing. #}
-                    <c-ui.button size="sm"
-                                 variant="ghost"
-                                 aria-label="Actions for {{ name }}"
-                                 title="Actions for {{ name }}"
-                                 aria-haspopup="menu"
-                                 ::aria-expanded="dropdownMenu">
-                        <span class="n26-icon-only gap-0.5">
-                            <c-n26.icon name="ellipsis-vertical" class="size-4" />
-                            <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                        </span>
-                    </c-ui.button>
-                </c-slot>
-                <c-ui.dropdown.item href="{{ href }}">View gang</c-ui.dropdown.item>
-                <c-ui.dropdown.item href="{{ edit_href }}">Edit gang settings</c-ui.dropdown.item>
-                {% if print_href %}
-                    <c-ui.dropdown.item href="{{ print_href }}">Print</c-ui.dropdown.item>
-                {% endif %}
-            </c-ui.dropdown>
+            {% link_actions "View gang" href "Edit gang settings" edit_href "Print" print_href as menu_ %}
+            <c-n26.action-menu :items="menu_" label="Actions for {{ name }}" variant="ghost" align="end" min_width="12rem" />
         {% else %}
             <c-ui.button size="sm" variant="default" href="{{ href }}">Edit</c-ui.button>
             {% if print_href %}

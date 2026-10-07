@@ -94,6 +94,17 @@ primitives such as a combobox or dialog, share the visual recipe but implement
 keyboard, focus and selection behaviour in React, with tests. Do not copy the
 kit's Alpine attributes and expect them to work.
 
+`ActionMenu` is the first such menu. It draws a menu whose items are all links,
+using the kit dropdown's panel, item and separator classes, and implements the
+WAI-ARIA menu button pattern in React: arrow keys, Home and End, Escape back to
+the button, and Tab out. Templates use it through `<c-n26.action-menu>`, which
+takes `Action` links or a `{% link_actions %}` list. Python decides each item's
+order, tone and whether a separator sits above it; the island only draws them.
+The wrapper renders the same button as the island until it mounts, so the row
+does not move, and its `:scriptless` option adds a `<noscript>` list of the
+links. `c-ui.dropdown` stays for menus with button or `hx-get` items, groups,
+shortcuts or other composite content.
+
 Both renderers use `designsystem/app.css`, the same typography, spacing, colours,
 dark-mode class and CSS tokens. Tailwind scans the React source and generated
 recipes. No new theme provider or CSS reset is introduced. The loader currently

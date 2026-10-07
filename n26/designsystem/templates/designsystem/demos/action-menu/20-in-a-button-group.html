@@ -1,0 +1,10 @@
+{# title: In a button group #}
+{# note: The menu is one element, so it joins a group like a button: the group rounds its outer corners and matches its height. With :scriptless, a reader without JavaScript gets the links as a list. #}
+{% load action_menu %}
+{% link_actions "History" "#" "Notes" "#" "Clone gang" "#" danger_label="Delete gang" danger_href="#" as items %}
+<c-n26.button-group>
+    <c-ui.button href="#">
+        Edit
+    </c-ui.button>
+    <c-n26.action-menu :items="items" :scriptless="True" label="More actions" />
+</c-n26.button-group>

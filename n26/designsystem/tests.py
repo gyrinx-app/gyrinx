@@ -43,6 +43,7 @@ class TestTheReactMarks:
         # quick-switcher's island is in one of its parts, not its main file;
         # switch's is in switch/impl.html, which only its index draws.
         assert {
+            "action-menu",
             "filter-select",
             "pick-list",
             "quick-switcher",

@@ -1599,9 +1599,15 @@
  * icon-only trigger came out 34px in a row of 38px buttons.
  *
  * Stretch runs one level at a time, so each wrapper has to pass it on. Only
- * wrappers are touched; buttons are already flex items of the group itself. */
+ * wrappers are touched; buttons are already flex items of the group itself.
+ *
+ * A React host's wrapper also holds the host's props script and preload links.
+ * This rule beats the browser's own display: none on them, so it skips them;
+ * otherwise the props would show as text. */
 .n26-button-group > *:not(button):not(a),
-.n26-button-group > *:not(button):not(a) > *:not([role="menu"]) {
+.n26-button-group
+    > *:not(button):not(a)
+    > *:not([role="menu"]):not(script):not(link) {
     display: flex;
     align-items: stretch;
 }
