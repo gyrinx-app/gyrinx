@@ -239,7 +239,19 @@ def _what_to_print(request, gang, config):
     return None, None, True, True, True, _orientation(None)
 
 
-def _print_picker(sheet, ticked_models, ticked_weapons, slot_budget):
+#: The hidden input the picker draws inside the form, both as server-drawn
+#: boxes and once mounted. A submission without it carried no picker at all
+#: (the island failed and its error box replaced the boxes), so its missing
+#: ``fighters`` and ``weapons`` say nothing about what was meant.
+PICKER_MARKER = "picker"
+
+#: Shown when a setup arrives without the picker: nothing was saved.
+PICKER_MISSING = (
+    "The model list did not load, so nothing was saved. Reload the page and try again."
+)
+
+
+def _print_picker(sheet, ticked_models, ticked_weapons, slot_budget, marker):
     """The setup screen's model and weapon boxes, as the picker island's props.
 
     Each model carries its weaponless rating as ``baseRating``: the crew
@@ -252,6 +264,7 @@ def _print_picker(sheet, ticked_models, ticked_weapons, slot_budget):
     weapons to count slots against.
     """
     return {
+        "marker": marker,
         "slotBudget": slot_budget,
         "models": [
             {
@@ -321,6 +334,9 @@ def print_setup(request, pk):
     POST writes a config and redirects to the print page carrying its
     id. A named POST saves under that name; an unnamed one rewrites the
     gang's single scratch config, so ad-hoc prints never pile up rows.
+    A POST without the picker's marker saves nothing and shows the form
+    again with an error: its missing boxes are not a choice to print no
+    models.
 
     Two guards, because the screen and the act behind it are not the same
     permission. Anyone signed in may read the setup — the gang's saved
@@ -330,7 +346,6 @@ def print_setup(request, pk):
     keeping it.
     """
     from n26.core.models import Assignment, Miniature, PrintConfig
-    from n26.core.render import render_gang
 
     if request.method == "POST":
         from django.db import transaction
@@ -339,6 +354,13 @@ def print_setup(request, pk):
 
         gang = _own_gang_or_404(request, pk)
         name = request.POST.get("name", "").strip()
+        if not request.POST.get(PICKER_MARKER):
+            # Saving this would empty the setup's models and weapons.
+            # Shown again as the setup it names, if it names one.
+            loaded = (
+                gang.print_configs.filter(name__iexact=name).first() if name else None
+            )
+            return _setup_page(request, gang, loaded, error=PICKER_MISSING)
         miniatures = Miniature.objects.filter(
             membership__gang=gang,
             membership__archived=False,
@@ -366,12 +388,28 @@ def print_setup(request, pk):
             config.assignments.set(weapons)
         return redirect(f"{reverse('n26-print', args=[gang.pk])}?config={config.pk}")
 
-    from n26.core.render import WEAPON_SLOTS_PER_CARD
-
     gang = _any_gang_or_404(request, pk)
+    return _setup_page(request, gang, _config_for(request, gang))
+
+
+def _setup_page(request, gang, loaded, error=""):
+    """The setup screen for ``gang``, pre-filled from ``loaded`` if set.
+
+    ``error`` is a non-field error drawn above the fields.
+    """
+    from django import forms
+
+    from n26.core.render import WEAPON_SLOTS_PER_CARD, render_gang
+
     yours = gang.owner_id == request.user.id
-    loaded = _config_for(request, gang)
     sheet = render_gang(gang)
+    errors = None
+    if error:
+        # An empty bound form carries the error to the form page's own
+        # non-field error slot.
+        errors = forms.Form(data={})
+        errors.is_valid()
+        errors.add_error(None, error)
     # The gang's named setups, whoever is reading: each is one click to
     # print, and a reader printing for somebody else wants the setup that
     # somebody else already settled on. The model count is counted in the
@@ -390,7 +428,15 @@ def print_setup(request, pk):
         # A fresh run prints everything: every box starts ticked.
         ticked_models = {card.id for card in sheet.models}
         ticked_weapons = {weapon.id for card in sheet.models for weapon in card.weapons}
-    picker = _print_picker(sheet, ticked_models, ticked_weapons, WEAPON_SLOTS_PER_CARD)
+    # Only the owner's POST checks the marker. A reader's pick is an
+    # address that saves nothing, and it stays as short as before.
+    picker = _print_picker(
+        sheet,
+        ticked_models,
+        ticked_weapons,
+        WEAPON_SLOTS_PER_CARD,
+        PICKER_MARKER if yours else "",
+    )
 
     return render(
         request,
@@ -400,6 +446,7 @@ def print_setup(request, pk):
             "sheet": sheet,
             "print_picker": picker,
             "print_fallback": _picker_fallback(picker),
+            "setup_errors": errors,
             "saved": saved,
             # Resolved here, not in the template: `loaded.include_header`
             # on a None resolves to the empty string, which default_if_none

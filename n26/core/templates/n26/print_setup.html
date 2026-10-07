@@ -43,6 +43,7 @@ that said it twice would be spending the width the name needs.
 {% block content %}
     <c-n26.form-page action="{{ form_action }}"
                      method="{{ form_method }}"
+                     :form="setup_errors"
                      title="Print {{ gang.name }}"
                      lead="{{ lead }}"
                      submit_label="Print"
@@ -188,10 +189,12 @@ that said it twice would be spending the width the name needs.
             island starts. It holds the place until the island mounts and
             is what the form posts if it is submitted before then, or if
             the island never loads: a submission with no boxes would empty
-            the saved setup.
+            the saved setup. The hidden marker says the boxes were there;
+            the island draws it too, and its error box does not.
             {% endcomment %}
             {% react_host "print-picker" print_picker %}
                 <div class="space-y-4">
+                    {% if print_picker.marker %}<input type="hidden" name="{{ print_picker.marker }}" value="1">{% endif %}
                     <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
                         {% for row in print_fallback.rows %}
                             <c-n26.checkbox-card :static="True"

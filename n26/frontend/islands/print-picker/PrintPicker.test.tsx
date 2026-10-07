@@ -1,6 +1,7 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { mount } from "./entry";
 import {
     PrintPicker,
     type PrintModel,
@@ -54,7 +55,12 @@ const sull = () => model("01SULL", "Sull", 60, [weapon("01KNIFE", "Knife", 5)]);
 function setup(props: Partial<PrintPickerProps> = {}) {
     const rendered = render(
         <form>
-            <PrintPicker slotBudget={3} models={[vex(), sull()]} {...props} />
+            <PrintPicker
+                marker="picker"
+                slotBudget={3}
+                models={[vex(), sull()]}
+                {...props}
+            />
         </form>,
     );
     const form = rendered.container.querySelector("form")!;
@@ -68,6 +74,7 @@ function setup(props: Partial<PrintPickerProps> = {}) {
                 weapons: data.getAll("weapons"),
             };
         },
+        marker: () => new FormData(form).getAll("picker"),
         total: () =>
             screen.getByText("Crew total", { exact: false }).textContent,
     };
@@ -223,11 +230,54 @@ describe("PrintPicker", () => {
 
     it("draws an empty gang as no cards and a nothing total", () => {
         const { container, posted } = setup({ models: [] });
-        expect(container.querySelectorAll("input")).toHaveLength(0);
+        expect(container.querySelectorAll("input[type=checkbox]")).toHaveLength(
+            0,
+        );
         expect(posted()).toEqual({ fighters: [], weapons: [] });
         expect(
             screen.getByText("Crew total", { exact: false }).textContent,
         ).toBe("Crew total 0¢");
+    });
+
+    it("posts the marker that says the boxes were sent", async () => {
+        const { user, marker } = setup();
+        expect(marker()).toEqual(["1"]);
+        await user.click(screen.getByRole("checkbox", { name: "Vex" }));
+        await user.click(screen.getByRole("checkbox", { name: "Sull" }));
+        // Ticking nothing is still a choice the server should save.
+        expect(marker()).toEqual(["1"]);
+    });
+
+    it("draws no marker when given none, as for a reader", () => {
+        const { marker } = setup({ marker: "" });
+        expect(marker()).toEqual([]);
+    });
+
+    it("posts the marker for a gang with no models", () => {
+        const { marker } = setup({ models: [] });
+        expect(marker()).toEqual(["1"]);
+    });
+
+    it("leaves no marker when the island fails and shows its error", () => {
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        const form = document.createElement("form");
+        const host = document.createElement("div");
+        form.append(host);
+        document.body.append(form);
+        let unmount = () => {};
+        act(() => {
+            unmount = mount(host, {
+                marker: "picker",
+                slotBudget: 3,
+                models: null as unknown as PrintModel[],
+            });
+        });
+        expect(host.textContent).toContain("This section could not load.");
+        expect(new FormData(form).getAll("picker")).toEqual([]);
+        expect(new FormData(form).getAll("fighters")).toEqual([]);
+        act(() => unmount());
+        form.remove();
+        vi.restoreAllMocks();
     });
 
     it("renders names as text, never as markup", () => {

@@ -22,6 +22,8 @@ export type PrintModel = {
 };
 
 export type PrintPickerProps = {
+    /** The hidden input's name that tells the server the boxes were sent; empty for none. */
+    marker: string;
     slotBudget: number;
     models: PrintModel[];
 };
@@ -32,9 +34,11 @@ export type PrintPickerProps = {
  * The checkboxes post `fighters` and `weapons` themselves. A weapon box is
  * disabled while its model is unticked, so it stays out of the submission
  * but keeps its tick for when the model comes back. The slot counts and
- * the crew total are a preview; the print reckons its own.
+ * the crew total are a preview; the print reckons its own. The hidden
+ * marker tells the server the boxes were part of the submission, so a
+ * failed island cannot save an empty setup.
  */
-export function PrintPicker({ slotBudget, models }: PrintPickerProps) {
+export function PrintPicker({ marker, slotBudget, models }: PrintPickerProps) {
     const [pickedModels, setPickedModels] = useState(
         () => new Set(models.filter((model) => model.ticked).map((m) => m.id)),
     );
@@ -76,6 +80,7 @@ export function PrintPicker({ slotBudget, models }: PrintPickerProps) {
 
     return (
         <div className="space-y-4">
+            {marker && <input type="hidden" name={marker} value="1" />}
             <div className="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
                 {models.map((model) => {
                     const picked = pickedModels.has(model.id);

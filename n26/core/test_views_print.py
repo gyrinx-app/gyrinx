@@ -116,8 +116,11 @@ def submission(body, untick=()):
     soup = BeautifulSoup(body, "html.parser")
     host = soup.select_one('[data-react-name="print-picker"]')
     form = host.find_parent("form")
+    props = picker(body)
     sent = _form_pairs(form, skip=host.find_all("input"))
-    for model in picker(body)["models"]:
+    if props["marker"]:
+        sent.append((props["marker"], "1"))
+    for model in props["models"]:
         if not model["ticked"] or model["id"] in untick:
             continue
         sent.append(("fighters", model["id"]))
@@ -166,6 +169,7 @@ class TestTheSetupScreen:
         vex = next(model for model in props["models"] if model["name"] == "Vex")
 
         assert props["slotBudget"] == WEAPON_SLOTS_PER_CARD
+        assert props["marker"] == "picker"
         assert vex["profileName"] == "Ganger"
         assert vex["hasWeapons"] is True
         assert {weapon["label"]: weapon["rating"] for weapon in vex["weapons"]} == {
@@ -209,8 +213,8 @@ class TestTheSetupScreen:
     ):
         vex, sull = roster
         client.force_login(tester)
-        client.post(setup_url(gang), {"fighters": [str(vex.pk)]})
-        client.post(setup_url(gang), {"fighters": [str(sull.pk)]})
+        client.post(setup_url(gang), {"picker": "1", "fighters": [str(vex.pk)]})
+        client.post(setup_url(gang), {"picker": "1", "fighters": [str(sull.pk)]})
 
         scratches = PrintConfig.objects.filter(gang=gang, name="")
         assert scratches.count() == 1
@@ -221,7 +225,7 @@ class TestTheSetupScreen:
         client.force_login(tester)
         response = client.post(
             setup_url(gang),
-            {"name": "Tournament crew", "fighters": [str(vex.pk)]},
+            {"picker": "1", "name": "Tournament crew", "fighters": [str(vex.pk)]},
         )
         config = PrintConfig.objects.get(gang=gang, name="Tournament crew")
         assert response.url == f"{print_url(gang)}?config={config.pk}"
@@ -237,8 +241,14 @@ class TestTheSetupScreen:
         exactly would miss, insert, and trip the constraint."""
         vex, sull = roster
         client.force_login(tester)
-        client.post(setup_url(gang), {"name": "Roster", "fighters": [str(vex.pk)]})
-        client.post(setup_url(gang), {"name": "roster", "fighters": [str(sull.pk)]})
+        client.post(
+            setup_url(gang),
+            {"picker": "1", "name": "Roster", "fighters": [str(vex.pk)]},
+        )
+        client.post(
+            setup_url(gang),
+            {"picker": "1", "name": "roster", "fighters": [str(sull.pk)]},
+        )
 
         configs = PrintConfig.objects.filter(gang=gang, name__iexact="roster")
         assert configs.count() == 1
@@ -283,7 +293,7 @@ class TestTheSetupScreen:
         client.force_login(tester)
         client.post(
             setup_url(gang),
-            {"fighters": [str(vex.pk), str(intruder.pk)]},
+            {"picker": "1", "fighters": [str(vex.pk), str(intruder.pk)]},
         )
         config = PrintConfig.objects.get(gang=gang, name="")
         assert list(config.miniatures.all()) == [vex]
@@ -551,6 +561,7 @@ class TestNotesOnPaper:
         client.post(
             setup_url(gang),
             {
+                "picker": "1",
                 "name": "no-notes",
                 "include_header": "on",
                 "fighters": [str(m.pk) for m in written],
@@ -611,6 +622,7 @@ class TestNotesOnPaper:
         client.post(
             setup_url(gang),
             {
+                "picker": "1",
                 "name": "no-notes",
                 "include_header": "on",
                 "fighters": [str(roster[0].pk)],
@@ -687,6 +699,9 @@ class TestPrintingSomebodyElsesGang:
         body = client.get(setup_url(gang)).content.decode()
 
         assert 'name="name"' not in body
+        # Nothing is saved from here, so the address carries no marker.
+        assert picker(body)["marker"] == ""
+        assert 'name="picker"' not in body
         assert f'action="{print_url(gang)}"' in body
         assert 'method="get"' in body
         # A token in a GET form would ride in the address, and so into
@@ -853,6 +868,48 @@ class TestPrintingSomebodyElsesGang:
             host.get_text().split()
         )
 
+    def test_a_save_without_the_picker_changes_nothing(
+        self, client, tester, gang, roster
+    ):
+        """A submission without the picker's marker carried no boxes: the
+        island failed and its error replaced them. Saving it would empty
+        the setup, so nothing is saved and the screen says why."""
+        from n26.core.views.printing import PICKER_MISSING
+
+        vex, sull = roster
+        lasgun = vex.assignments.get(weapon__name="Lasgun")
+        config = PrintConfig.objects.create(gang=gang, name="Crew")
+        config.miniatures.set([vex, sull])
+        config.assignments.set([lasgun])
+        client.force_login(tester)
+        body = client.get(f"{setup_url(gang)}?config={config.pk}").content.decode()
+        action, _, sent = no_js_submission(body)
+        # What the form holds once the island's error box replaced the boxes.
+        sent = [
+            pair for pair in sent if pair[0] not in ("picker", "fighters", "weapons")
+        ]
+
+        response = client.post(action, _as_post(sent))
+
+        assert response.status_code == 200
+        assert PICKER_MISSING in response.content.decode()
+        config.refresh_from_db()
+        assert set(config.miniatures.all()) == {vex, sull}
+        assert list(config.assignments.all()) == [lasgun]
+        assert PrintConfig.objects.filter(gang=gang).count() == 1
+        # Shown again as the setup it names.
+        assert response.context["setup_name"] == "Crew"
+
+    def test_an_unnamed_save_without_the_picker_writes_no_scratch_setup(
+        self, client, tester, gang, roster
+    ):
+        client.force_login(tester)
+
+        response = client.post(setup_url(gang), {"include_header": "on"})
+
+        assert response.status_code == 200
+        assert not PrintConfig.objects.filter(gang=gang).exists()
+
     def test_an_unreadable_id_costs_that_id_when_the_owner_saves_too(
         self, client, tester, gang, roster
     ):
@@ -864,7 +921,11 @@ class TestPrintingSomebodyElsesGang:
 
         response = client.post(
             setup_url(gang),
-            {"name": "Vex alone", "fighters": [str(vex.pk), "not-an-id"]},
+            {
+                "picker": "1",
+                "name": "Vex alone",
+                "fighters": [str(vex.pk), "not-an-id"],
+            },
         )
 
         assert response.status_code == 302
@@ -875,7 +936,9 @@ class TestPrintingSomebodyElsesGang:
         vex, _ = roster
         client.force_login(stranger)
 
-        response = client.post(setup_url(gang), {"fighters": [str(vex.pk)]})
+        response = client.post(
+            setup_url(gang), {"picker": "1", "fighters": [str(vex.pk)]}
+        )
 
         assert response.status_code == 404
         assert not PrintConfig.objects.filter(gang=gang).exists()
@@ -1121,7 +1184,9 @@ class TestPaperOrientation:
         from bs4 import BeautifulSoup
 
         client.force_login(tester)
-        client.post(setup_url(gang), {"name": "Wide", "orientation": "landscape"})
+        client.post(
+            setup_url(gang), {"picker": "1", "name": "Wide", "orientation": "landscape"}
+        )
         config = PrintConfig.objects.get(gang=gang, name="Wide")
         assert config.orientation == "landscape"
 
@@ -1138,7 +1203,9 @@ class TestPaperOrientation:
         self, client, tester, gang, roster
     ):
         client.force_login(tester)
-        client.post(setup_url(gang), {"name": "Odd", "orientation": "sideways"})
+        client.post(
+            setup_url(gang), {"picker": "1", "name": "Odd", "orientation": "sideways"}
+        )
         config = PrintConfig.objects.get(gang=gang, name="Odd")
         assert config.orientation == "portrait"
 
