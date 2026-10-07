@@ -182,7 +182,6 @@ describe("useAnchoredPlacement", () => {
         await user.click(screen.getByRole("button", { name: "Open" }));
 
         const panel = screen.getByRole("dialog");
-        expect(panel.style.visibility).toBe("visible");
         expect(panel.style.width).toBe("268px");
         expect(panel.style.left).toBe("16px");
         expect(panel.style.top).toBe("134px");
@@ -238,7 +237,7 @@ describe("useAnchoredPlacement", () => {
         expect(panel.style.maxHeight).toBe("280px");
     });
 
-    it("is hidden until placed, and unplaced again when reopened", async () => {
+    it("is transparent until placed, and unplaced again when reopened", async () => {
         const user = userEvent.setup();
         stubWindow(1280, 800);
         const trigger = stubTrigger(rect(40, 100, 60, 30));
@@ -246,7 +245,7 @@ describe("useAnchoredPlacement", () => {
         render(<Panel />);
         await user.click(screen.getByRole("button", { name: "Open" }));
         expect(trigger).toHaveBeenCalledTimes(1);
-        expect(screen.getByRole("dialog").style.visibility).toBe("visible");
+        expect(screen.getByRole("dialog").style.opacity).toBe("");
 
         await user.click(screen.getByRole("button", { name: "Open" }));
         fireEvent.resize(window);
@@ -254,14 +253,42 @@ describe("useAnchoredPlacement", () => {
 
         let seen = "";
         trigger.mockImplementation(() => {
-            seen ||=
-                screen.queryByRole("dialog", { hidden: true })?.style
-                    .visibility ?? "";
+            seen ||= screen.queryByRole("dialog")?.style.opacity ?? "";
             return rect(40, 100, 60, 30);
         });
         await user.click(screen.getByRole("button", { name: "Open" }));
-        expect(seen).toBe("hidden");
-        expect(screen.getByRole("dialog").style.visibility).toBe("visible");
+        expect(seen).toBe("0");
+        expect(screen.getByRole("dialog").style.opacity).toBe("");
+    });
+
+    it.each([
+        ["a fixed width", { width: 200, gap: 4 }],
+        ["a content width", { width: "content" as const, gap: 4 }],
+    ])("never hides the panel from focus, with %s", async (_, placement) => {
+        const user = userEvent.setup();
+        stubWindow(1280, 800);
+        const unplaced: string[][] = [];
+        vi.spyOn(
+            HTMLElement.prototype,
+            "getBoundingClientRect",
+        ).mockImplementation(() => {
+            const panel = screen.queryByRole("dialog");
+            if (panel) {
+                const { visibility, opacity, pointerEvents } = panel.style;
+                unplaced.push([visibility, opacity, pointerEvents]);
+            }
+            return rect(40, 100, 60, 30);
+        });
+        stubPanelSize(200, 100);
+        render(<Panel placement={placement} />);
+        await user.click(screen.getByRole("button", { name: "Open" }));
+
+        // A visibility:hidden panel cannot take focus while it waits to
+        // be placed.
+        expect(unplaced).toEqual([["", "0", "none"]]);
+        const { visibility, opacity, pointerEvents } =
+            screen.getByRole("dialog").style;
+        expect([visibility, opacity, pointerEvents]).toEqual(["", "", ""]);
     });
 });
 
@@ -335,7 +362,7 @@ describe("a link menu built on both hooks", () => {
         expect(trigger.getAttribute("aria-expanded")).toBe("true");
         expect(menu.style.left).toBe("170px");
         expect(menu.style.top).toBe("236px");
-        expect(menu.style.width).toBe("");
+        expect(menu.style.width).toBe("max-content");
         // jsdom rewrites calc() as "-32px + 100vw".
         expect(menu.style.minWidth).toMatch(/^min\(12rem, .*100vw/);
         expect(menu.style.maxWidth).toMatch(/32px.*100vw|100vw.*32px/);
@@ -349,15 +376,15 @@ describe("a link menu built on both hooks", () => {
     it("measures its content width at the window's top left", async () => {
         const user = userEvent.setup();
         stubWindow(390, 800);
-        let measured = { left: "", top: "", visibility: "" };
+        let measured = { left: "", top: "", width: "", opacity: "" };
         vi.spyOn(
             HTMLElement.prototype,
             "getBoundingClientRect",
         ).mockImplementation(() => {
-            const menu = screen.queryByRole("menu", { hidden: true });
+            const menu = screen.queryByRole("menu");
             if (menu) {
-                const { left, top, visibility } = menu.style;
-                measured = { left, top, visibility };
+                const { left, top, width, opacity } = menu.style;
+                measured = { left, top, width, opacity };
             }
             return rect(330, 200, 32, 32);
         });
@@ -367,8 +394,31 @@ describe("a link menu built on both hooks", () => {
         expect(measured).toEqual({
             left: "0px",
             top: "0px",
-            visibility: "hidden",
+            width: "max-content",
+            opacity: "0",
         });
+    });
+
+    it("keeps its content width when the window narrows while it is open", async () => {
+        const user = userEvent.setup();
+        stubWindow(390, 800);
+        const box = rect(330, 200, 32, 32);
+        stubTrigger(box);
+        stubPanelSize(192, 80);
+        render(<LinkMenu links={links} />);
+        await user.click(screen.getByRole("button", { name: "Actions" }));
+        const menu = screen.getByRole("menu");
+        expect(menu.style.left).toBe("170px");
+
+        // A rotation: the trigger stays at the right edge of a narrower
+        // window. max-content keeps the panel from shrinking to the room
+        // right of its old left edge, so it is re-placed at its full width,
+        // 16px clear of the new edge.
+        stubWindow(300, 800);
+        Object.assign(box, rect(258, 200, 32, 32));
+        fireEvent.resize(window);
+        expect(menu.style.width).toBe("max-content");
+        expect(menu.style.left).toBe("92px");
     });
 
     it("closes on Escape with focus back on its trigger", async () => {

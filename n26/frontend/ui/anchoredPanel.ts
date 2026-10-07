@@ -84,21 +84,29 @@ export type AnchoredPlacementOptions = {
 
 const MIN_CLAMPED_HEIGHT = 80;
 
+// A fixed box with an automatic width shrinks to the room right of its left
+// edge. max-content keeps the measured width the same wherever the panel sits.
 function contentWidth(minWidth: string, margin: number): CSSProperties {
     const room = `calc(100vw - ${2 * margin}px)`;
-    return { minWidth: `min(${minWidth}, ${room})`, maxWidth: room };
+    return {
+        width: "max-content",
+        minWidth: `min(${minWidth}, ${room})`,
+        maxWidth: room,
+    };
 }
+
+// Transparent rather than hidden until placed: a hidden panel cannot take
+// focus, and a caller may focus into the panel as it opens.
+const UNPLACED: CSSProperties = { opacity: 0, pointerEvents: "none" };
 
 function hiddenStyle(
     width: number | "content",
     minWidth: string,
     margin: number,
 ): CSSProperties {
-    // A content-sized panel is measured at the window's top left, so the
-    // space to its right never narrows it.
-    if (width !== "content") return { visibility: "hidden" };
+    if (width !== "content") return UNPLACED;
     return {
-        visibility: "hidden",
+        ...UNPLACED,
         left: 0,
         top: 0,
         ...contentWidth(minWidth, margin),
@@ -115,8 +123,9 @@ function sameStyle(a: CSSProperties, b: CSSProperties) {
 
 /**
  * Places a `position: fixed` panel beside its trigger, inside the window, so
- * no scrolling ancestor clips it. Returns the panel's style: hidden until the
- * first placement, then placed again on every resize and scroll.
+ * no scrolling ancestor clips it. Returns the panel's style: transparent and
+ * ignoring the pointer until the first placement, then placed again on every
+ * resize and scroll.
  */
 export function useAnchoredPlacement({
     open,
@@ -176,13 +185,7 @@ export function useAnchoredPlacement({
                 const top = opensAbove
                     ? Math.max(margin, aboveBottom - height)
                     : belowTop;
-                next = {
-                    visibility: "visible",
-                    left,
-                    top,
-                    ...sizing,
-                    maxHeight,
-                };
+                next = { left, top, ...sizing, maxHeight };
             } else {
                 const height = box.offsetHeight;
                 const below = anchor.bottom + gap;
@@ -191,7 +194,7 @@ export function useAnchoredPlacement({
                     anchor.top - gap - height >= margin
                         ? anchor.top - gap - height
                         : below;
-                next = { visibility: "visible", left, top, ...sizing };
+                next = { left, top, ...sizing };
             }
             setStyle((previous) =>
                 sameStyle(previous, next) ? previous : next,
