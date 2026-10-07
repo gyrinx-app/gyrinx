@@ -409,3 +409,52 @@ def test_asset_admin_pages_render(admin_client, default_pack):
     assert (
         admin_client.get(f"/admin/library/asset/{asset.pk}/change/").status_code == 200
     )
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("archived", [False, True])
+def test_asset_admin_synchronizes_automatic_distribution(
+    default_pack, enabled, archived
+):
+    from types import SimpleNamespace
+
+    from django.contrib.admin.sites import AdminSite
+    from django.test import RequestFactory
+
+    from n26.library.admin import AssetAdmin
+    from n26.library.authoring import add_asset_type, create_asset, create_campaign_type
+    from n26.library.models import Asset, DefaultAssignment
+
+    kind = add_asset_type(
+        create_campaign_type("Dominion"), "Settlement", "held-one-each"
+    )
+    asset = create_asset("Settlement", kind, given_to_every_gang=not enabled)
+    if archived:
+        asset.archive()
+    asset.given_to_every_gang = enabled
+    model_admin = AssetAdmin(Asset, AdminSite())
+    request = RequestFactory().post("/")
+    model_admin.save_model(
+        request,
+        asset,
+        form=SimpleNamespace(changed_data=["given_to_every_gang"]),
+        change=True,
+    )
+
+    asset.refresh_from_db()
+    assert asset.given_to_every_gang is enabled
+    assert DefaultAssignment.objects.filter(asset=asset, archived=False).exists() is (
+        enabled and not archived
+    )
+    if archived:
+        asset.archived = False
+        model_admin.save_model(
+            request,
+            asset,
+            form=SimpleNamespace(changed_data=["archived"]),
+            change=True,
+        )
+        assert (
+            DefaultAssignment.objects.filter(asset=asset, archived=False).exists()
+            is enabled
+        )

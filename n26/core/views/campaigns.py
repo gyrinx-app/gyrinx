@@ -1853,7 +1853,7 @@ def add_asset_type(request, pk):
         ),
         (
             AssetType.Ownership.POSSESSION,
-            "Every gang has its own.",
+            "Each gang that receives an asset owns its own.",
         ),
     )
     return _addition_page(
@@ -1915,7 +1915,7 @@ def new_asset(request, pk):
                 "description": (
                     "Owned by one gang at a time and can be transferred."
                     if asset_type.is_holding
-                    else f"Each gang always has one of every {asset_type.label_singular} asset."
+                    else f"Each gang owns the {asset_type.label_singular} assets it receives."
                 ),
                 "checked": str(asset_type.pk) == picked,
             }

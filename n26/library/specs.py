@@ -162,6 +162,7 @@ class One(_Sourced):
     optional: bool = False
     filtered_by: tuple = ()
     within: str = ""
+    filters: dict = dataclass_field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -256,6 +257,7 @@ class Union:
 
     over: dict = dataclass_field(default_factory=dict)
     through: type = None
+    filters: dict = dataclass_field(default_factory=dict)
 
     help = ""
 
@@ -414,6 +416,7 @@ def _build_registry():
         CounterChange,
         DefaultAssignment,
         DefaultAssignmentSet,
+        ExcludesCampaignAssets,
         GangHasPickable,
         GangType,
         HasPickable,
@@ -664,13 +667,24 @@ def _build_registry():
         # when the chosen kind is a slot.
         Spec(
             authoring.ef_adds,
-            {"thing": Union(over=dict(GRANTABLE_FIELDS), through=AddsAssignable)},
+            {
+                "thing": Union(
+                    over=dict(GRANTABLE_FIELDS),
+                    through=AddsAssignable,
+                    filters={
+                        "asset": {
+                            "asset_type__ownership": AssetType.Ownership.POSSESSION
+                        }
+                    },
+                )
+            },
             label="Gives something",
             blurb=(
                 "The target gains a subtype, skill, power, rule, trait, "
-                "list, weapon or wargear — or a hidden item, which brings whatever "
+                "list, weapon, wargear or inherent asset — or a hidden item, which brings whatever "
                 "it gives. For as long as the item carrying this modifier "
-                "stays. A hidden slot can be given with its pick already made."
+                "stays. An inherent asset is given only while the gang belongs to a "
+                "campaign using its asset type. A hidden slot can be given with its pick already made."
             ),
             example=(
                 "The Cutter grants Mounted; Mounted grants Nerves of "
@@ -679,7 +693,16 @@ def _build_registry():
         ),
         Spec(
             authoring.ef_removes,
-            {"thing": Union(over=dict(GRANTABLE_FIELDS))},
+            {
+                "thing": Union(
+                    over=dict(GRANTABLE_FIELDS),
+                    filters={
+                        "asset": {
+                            "asset_type__ownership": AssetType.Ownership.POSSESSION
+                        }
+                    },
+                )
+            },
             label="Takes something away",
             blurb=(
                 "Cancels something granted or innate, and whatever that "
@@ -690,6 +713,23 @@ def _build_registry():
                 "Selected as Leader: loses the Loner subtype. Name a "
                 "hidden item and everything it gives goes at once."
             ),
+        ),
+        Spec(
+            authoring.ef_excludes_campaign_assets,
+            {
+                "asset_type": One(
+                    model=AssetType,
+                    source=(ExcludesCampaignAssets, "asset_type"),
+                    filters={"ownership": AssetType.Ownership.POSSESSION},
+                )
+            },
+            label="Excludes campaign assets",
+            blurb=(
+                "Hides the campaign’s inherent assets of one type and removes their boons "
+                "while this modifier applies. "
+                "Assets given by a modifier remain."
+            ),
+            example="Exclude the campaign’s settlements and give a base camp instead.",
         ),
         Spec(
             authoring.ef_changes_stat,
@@ -1500,6 +1540,10 @@ def _build_registry():
             {
                 "name": Text(source=(Asset, "name")),
                 "annotation": Text(source=(Asset, "annotation")),
+                "given_to_every_gang": Bool(
+                    source=(Asset, "given_to_every_gang"),
+                    written_by=authoring.set_given_to_every_gang,
+                ),
                 "asset_type": One(
                     model=AssetType, source=(Asset, "asset_type"), fixed=True
                 ),

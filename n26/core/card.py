@@ -560,6 +560,7 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
         # the assignment already in memory — never by a query. A pick
         # drawn on a card it did not land on names its slot type there,
         # which is the same rule: compute may not query.
+        "asset__asset_type",
         "pickable__category",
         "pickable__slot_type",
         # Whether a slot type allows the same pickable twice is read
@@ -1120,6 +1121,9 @@ def build_modifier_index(assignables, max_depth=3):
         *(f"removes_assignable__{name}" for name in GRANTABLE_FIELDS),
         "changes_stat__stat",
         "contributes_to_counter__counter",
+        "excludes_campaign_assets__asset_type",
+        "adds_assignable__asset__asset_type",
+        "removes_assignable__asset__asset_type",
     )
     #: Condition rows are reverse relations, so they cannot ride
     #: select_related — without these a scope's narrowing costs a query

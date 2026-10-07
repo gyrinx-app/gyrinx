@@ -175,6 +175,7 @@ def create_asset(
     qualifier="",
     library_author_help="",
     given_by=None,
+    given_to_every_gang=True,
     **kwargs,
 ):
     """One asset of one asset type — a Settlement, the Old Ruins territory.
@@ -185,8 +186,9 @@ def create_asset(
     drawn as an empty line on a campaign page. ``income`` is written as
     the asset's Income contribution (``set_income``); 0 writes nothing.
 
-    An asset of a **Possession** asset type is built into a campaign type
-    here, so every gang that joins is given one with no further step
+    With ``given_to_every_gang`` enabled, an asset of a **Possession**
+    asset type is built into a campaign type here, so every gang that
+    joins is given one with no further step
     (``n26.library.possessions``). ``given_by`` names that type; without
     it, the asset type's own campaign type gives the asset. A campaign
     writing an asset into its own pack under a shared asset type names
@@ -202,7 +204,7 @@ def create_asset(
     if not name:
         raise ValidationError("An asset needs a name.")
     giver = None
-    if asset_type.ownership == AssetType.Ownership.POSSESSION:
+    if asset_type.ownership == AssetType.Ownership.POSSESSION and given_to_every_gang:
         giver = given_by if given_by is not None else asset_type.campaign_type
         pack_id = kwargs["pack"].pk if "pack" in kwargs else kwargs["pack_id"]
         # Settled before anything is written, so a refused asset leaves
@@ -216,6 +218,7 @@ def create_asset(
     asset = Asset.objects.create(
         name=name,
         asset_type=asset_type,
+        given_to_every_gang=given_to_every_gang,
         annotation=annotation,
         qualifier=qualifier,
         library_author_help=library_author_help,
@@ -226,6 +229,19 @@ def create_asset(
     if giver is not None:
         add_built_in(giver, asset, pack=asset.pack)
     return asset
+
+
+@guarded_write
+def set_given_to_every_gang(asset, enabled):
+    """Change whether joining gangs receive this inherent asset."""
+    from n26.library.possessions import give_back
+
+    asset.given_to_every_gang = enabled
+    asset.save(update_fields=["given_to_every_gang"])
+    if enabled:
+        give_back(asset)
+    else:
+        take_out_of_built_ins(asset)
 
 
 def take_out_of_built_ins(thing):
@@ -2706,9 +2722,9 @@ def ef_adds(thing, with_pick=None):
     from n26.library.models import AddsAssignable
 
     grant = AddsAssignable(**_assignable_kwarg(thing), with_pick=with_pick)
-    if with_pick is not None:
-        # The pick has to belong to a hidden slot of its own type, and
-        # only the row knows both ends — so the row says it, once.
+    if with_pick is not None or grant.asset_id is not None:
+        # Only the row knows whether the asset is inherent and whether a
+        # starting pick belongs to its hidden slot.
         grant.clean()
     grant.save()
     return grant
@@ -2719,7 +2735,21 @@ def ef_removes(thing):
     """Takes one away, computed — Death of a Leader."""
     from n26.library.models import RemovesAssignable
 
-    return RemovesAssignable.objects.create(**_assignable_kwarg(thing))
+    effect = RemovesAssignable(**_assignable_kwarg(thing))
+    effect.clean()
+    effect.save()
+    return effect
+
+
+@guarded_write
+def ef_excludes_campaign_assets(asset_type):
+    """Exclude campaign-provided inherent assets of this type."""
+    from n26.library.models import ExcludesCampaignAssets
+
+    effect = ExcludesCampaignAssets(asset_type=asset_type)
+    effect.clean()
+    effect.save()
+    return effect
 
 
 @guarded_write
@@ -2876,6 +2906,7 @@ def op_sets_status(status):
 def _assignable_kwarg(thing):
     from n26.library.models import (
         Action,
+        Asset,
         AssetTable,
         Collection,
         Hidden,
@@ -2902,6 +2933,7 @@ def _assignable_kwarg(thing):
         (Hidden, "hidden"),
         (Slot, "slot"),
         (AssetTable, "asset_table"),
+        (Asset, "asset"),
         (Action, "action"),
         (RankTable, "rank_table"),
     )

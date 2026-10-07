@@ -3554,7 +3554,7 @@ def _campaign_parts(gang_card, membership, keys, readings):
     the source of the block, not something in it. No queries — the
     campaign page runs this once per gang off cards already in hand.
     """
-    from n26.library.models import Counter
+    from n26.library.models import Asset, Counter
 
     carriers = {membership.type_carrier_id, membership.additions_carrier_id}
     provenance_of = _provenance_within(gang_card)
@@ -3584,6 +3584,20 @@ def _campaign_parts(gang_card, membership, keys, readings):
         if isinstance(node.assignable, DRAWS_NO_LINE):
             continue
         possessions.append(node)
+    campaign_types = {
+        node.assignable.pk for node in gang_card.roots if node.key in carriers
+    }
+    present = {
+        node.assignable.pk for node in possessions if isinstance(node.assignable, Asset)
+    }
+    for node in gang_card.granted:
+        if (
+            isinstance(node.assignable, Asset)
+            and node.assignable.pk not in present
+            and node.assignable.asset_type.campaign_type_id in campaign_types
+        ):
+            possessions.append(node)
+            present.add(node.assignable.pk)
     return possessions, [line for line in counters if line.drawn]
 
 

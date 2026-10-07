@@ -11,17 +11,17 @@ design/campaign-assets.md.
 An **asset type** is a row on the campaign type with a label and an
 ownership. The ownership is on the asset type rather than the asset
 because a whole class of asset behaves one way: a Settlement is a
-possession, given to every gang on joining and kept; a Territory is a
-holding, kept by the campaign with one holder at a time.
+possession, owned separately by each gang that receives one; a Territory
+is a holding, kept by the campaign with one holder at a time.
 
 An **asset** is one entry in a campaign type's list of what it hands
 out, filed under one of the type's asset types — that is the whole of
 how it belongs to the campaign type, and it is authored on the campaign
 type's page. It is assignable so that a possession can be a built-in
 member and so that either ownership can carry modifiers for what having
-it does. A possession is built into its campaign type the moment it is
-created, and taken out again when it is deleted or archived, with no
-step for the author (``n26.library.possessions``). A holding is never
+it does. An inherent asset with Give to every gang enabled is built into
+its campaign type when created, and taken out again when deleted or
+archived (``n26.library.possessions``). A holding is never
 assigned; the campaign's own record of the asset says who holds it.
 
 An **asset table** is a table of one Holding asset type's assets — the
@@ -54,7 +54,7 @@ class CampaignType(Content, Assignable):
     gang receives on joining — a Reputation counter, a Settlement —
     something to be caused by, and puts campaign-wide modifiers on every
     member's card. A counter or a rule is added to that list by hand; an
-    asset of an inherent asset type is added to it when the asset is
+    inherent asset with Give to every gang enabled is added to it when
     created.
 
     It also declares its **asset types** — Territory, Settlement — and
@@ -125,13 +125,13 @@ class AssetType(Content):
     with the label a campaign page prints and the ownership that fixes
     how every asset of the type behaves.
 
-    **Inherent** means every gang has its own: a
+    **Inherent** means each gang that receives an asset has its own: a
     Settlement, a home territory. **Transferable** means one gang holds it at a
     time, and it can change hands: a Territory.
     """
 
     class Ownership(models.TextChoices):
-        #: Every gang has its own.
+        #: Each receiving gang has its own.
         POSSESSION = "held-one-each", "Inherent"
         #: One gang holds it at a time, and it can change hands.
         HOLDING = "pooled", "Transferable"
@@ -159,7 +159,7 @@ class AssetType(Content):
         choices=Ownership,
         verbose_name="Ownership",
         help_text=(
-            "Inherent: every gang has its own. Transferable: one "
+            "Inherent: each gang that receives an asset has its own. Transferable: one "
             "gang holds it at a time, and it can change hands."
         ),
     )
@@ -214,19 +214,29 @@ class Asset(Content, Assignable):
 
     Assignable so that an inherent asset can be built into its campaign type
     and arrive on every member gang, and so that an asset of either
-    ownership can carry modifiers. An inherent asset is built in when it is
-    created and taken out when it is deleted or archived; nobody adds it
-    by hand. A transferable asset is never assigned: the campaign's own record of
-    the asset says who holds it.
+    ownership can carry modifiers. An inherent asset with Give to every gang
+    enabled is built in when created and taken out when deleted or archived.
+    Switch it off to give the asset only through a modifier. A transferable
+    asset is never assigned: the campaign's own record says who holds it.
     """
 
     family = Family.BASE
 
     #: The built-in picker never offers an asset. A possession is built in
-    #: by being created under a Possession asset type, and a holding is
+    #: through Give to every gang, and a holding is
     #: never built in, so a hand-picked asset member could only be a
     #: mistake.
     offered_as_built_in = False
+
+    given_to_every_gang = models.BooleanField(
+        default=True,
+        verbose_name="Give to every gang",
+        help_text=(
+            "For inherent assets: give one to every gang that joins. "
+            "Switch off to give this asset only through a modifier. "
+            "Transferable assets are distributed by the campaign instead."
+        ),
+    )
 
     asset_type = models.ForeignKey(
         AssetType,
@@ -260,7 +270,7 @@ class Asset(Content, Assignable):
 
     @property
     def is_possession(self):
-        """Whether every gang has its own of this — read off the asset
+        """Whether each receiving gang owns its own — read off the asset
         type, where the ownership lives."""
         return not self.asset_type.is_holding
 

@@ -67,6 +67,7 @@ SCOPE_PRODUCES = {
 EFFECT_MODELS = {
     "ef_adds": "AddsAssignable",
     "ef_removes": "RemovesAssignable",
+    "ef_excludes_campaign_assets": "ExcludesCampaignAssets",
     "ef_changes_stat": "ChangesStat",
     "ef_contributes_to_counter": "ContributesToCounter",
     "ef_changes_category": "ChangesCategory",
@@ -188,7 +189,7 @@ def _form_fields(spec, name, kind):
     if isinstance(kind, One):
         return {
             name: _AuthoringChoiceField(
-                queryset=_labelled(kind.model),
+                queryset=_labelled(kind.model).filter(**kind.filters),
                 required=_is_required(spec, name),
                 help_text=kind.help,
                 label=kind.label,
@@ -305,7 +306,9 @@ def _form_fields(spec, name, kind):
 
         for option, label in kind.over.items():
             fields[f"{name}_{option}"] = _AuthoringChoiceField(
-                queryset=_labelled(_model_class(label.split(".")[-1])),
+                queryset=_labelled(_model_class(label.split(".")[-1])).filter(
+                    **kind.filters.get(option, {})
+                ),
                 required=False,
                 label=spoken(option).capitalize(),
                 widget=forms.Select(attrs=member_attrs(option)),
@@ -1133,6 +1136,7 @@ def _effect_choices():
 EFFECT_CAN_TARGET = {
     "ef_adds": ("model", "weapon_profile", "gang"),
     "ef_removes": ("model", "weapon_profile", "gang"),
+    "ef_excludes_campaign_assets": ("gang",),
     "ef_changes_stat": ("model", "weapon_profile"),
     "ef_contributes_to_counter": ("model", "gang"),
     "ef_changes_category": ("model",),
@@ -1443,6 +1447,8 @@ class ModifierComposerForm(forms.Form):
                 if isinstance(thing, _model_class(label.split(".")[-1]))
             )
             return model(**{field: thing})
+        if effect_kind == "ef_excludes_campaign_assets":
+            return model(asset_type=self.what_form.cleaned_data.get("asset_type"))
         return model()
 
     def _written_name(self, scope, effect):

@@ -568,6 +568,8 @@ class _TakenAway:
     #: because money stands behind them.
     hidden: tuple = ()
     refused: tuple = ()
+    #: Campaign-default suppression leaves other grants of the asset intact.
+    defaults_only: bool = False
 
 
 @dataclass
@@ -745,7 +747,7 @@ def compute(card, index):
     followed through the chain in one pass at the end — see ``_retract``
     and the module docstring.
     """
-    from n26.library.models import Pickable
+    from n26.library.models import Asset, Pickable
     from n26.library.models.modifier import (
         AddsAssignable,
         AllowsAtMost,
@@ -753,6 +755,7 @@ def compute(card, index):
         ChangesStat,
         ContributesToCounter,
         DrawsPick,
+        ExcludesCampaignAssets,
         HidesCategories,
         OffersChoice,
         PlacesCategory,
@@ -803,6 +806,7 @@ def compute(card, index):
     effect_order = {
         AddsAssignable: 0,
         RemovesAssignable: 1,
+        ExcludesCampaignAssets: 1,
         ChangesStat: 2,
         PlacesCategory: 3,
         OffersChoice: 4,
@@ -837,9 +841,25 @@ def compute(card, index):
     # One run of a carrier's modifiers per NODE, not per distinct thing:
     # owning two Hardpoint conversions costs two Attacks. ``seen`` only
     # dedups the granted frontier, exactly as before.
+    from_the_gang = _from_the_gang(card, index)
+    gang_card = getattr(card, "gang_card", None)
+    suppressed = (
+        {
+            node.key
+            for node in gang_card.all_nodes()
+            if node.suppressed and isinstance(node.assignable, Asset)
+        }
+        if gang_card
+        else set()
+    )
     pending = []
     seen = set()
     for node in card.all_nodes():
+        # An asset excluded on the gang stops broadcasting its boons too.
+        if node.broadcast and node.key in suppressed:
+            node.suppressed = True
+        if node.suppressed and isinstance(node.assignable, Asset):
+            continue
         seen.add(ModifierIndex.key(node.assignable))
         if is_orphan_pick(node):
             # A pickable with no choice behind it does nothing at all —
@@ -869,9 +889,8 @@ def compute(card, index):
     # it does. Something the card already carries is passed over: the
     # assignment it stands on is the more direct telling, and one thing's
     # modifiers run once however many ways it reaches the card.
-    # A grant whose scope keeps it the gang's alone never echoes: it
-    # prints on the gang's card and touches no fighter.
-    from_the_gang = _from_the_gang(card, index)
+    # A grant kept on the gang alone does not echo, except an asset:
+    # its own boon scopes decide which fighters it reaches.
     echoed = [
         contribution
         for contribution in from_the_gang
@@ -909,7 +928,7 @@ def compute(card, index):
     while (pending or edits) and round_no <= MAX_CHAIN_DEPTH:
         # The snapshot every scope in this round sees.
         facts = _Facts(card, computed, guest_picks)
-        adds, removes = [], []
+        adds, removes, exclusions = [], [], []
         # The owner's removals settle with round 0, the reach an
         # unconditional content removal has.
         for edit in edits:
@@ -1015,6 +1034,11 @@ def compute(card, index):
                 for target in targets:
                     if isinstance(effect, AddsAssignable):
                         thing = effect.thing
+                        if isinstance(thing, Asset) and not _campaign_gives_type(
+                            card, thing.asset_type.campaign_type_id
+                        ):
+                            step.outcome = "skipped"
+                            continue
                         adds.append(
                             (
                                 target,
@@ -1022,7 +1046,8 @@ def compute(card, index):
                                     thing=thing,
                                     source=label,
                                     source_kind=label_kind,
-                                    echoes=getattr(scope, "echoes", True),
+                                    echoes=isinstance(thing, Asset)
+                                    or getattr(scope, "echoes", True),
                                     root_key=step.root_key,
                                 ),
                                 step.node,
@@ -1069,6 +1094,23 @@ def compute(card, index):
                                         pick, True, round_no, root_key=step.root_key
                                     )
                                 )
+                    elif isinstance(effect, ExcludesCampaignAssets):
+                        for node in _campaign_asset_defaults(
+                            card, effect.asset_type_id
+                        ):
+                            record = _TakenAway(
+                                source_key=source_key,
+                                thing=node.assignable,
+                                step=step,
+                                kind=target.kind,
+                                defaults_only=True,
+                            )
+                            if any(line.carries_money for line in node.walk()):
+                                record.refused = (node,)
+                            else:
+                                node.suppressed = True
+                                record.hidden = (node,)
+                            exclusions.append(record)
                     elif isinstance(effect, RemovesAssignable):
                         removes.append(
                             (
@@ -1213,6 +1255,7 @@ def compute(card, index):
             log.removals.append(
                 _take_away(computed, target, contribution, source_key, step)
             )
+        log.removals.extend(exclusions)
         round_no += 1
 
     computed.echoed = echoed
@@ -1872,13 +1915,15 @@ def _bucket(computed, target, thing):
     (``card_row`` — subtypes, skills, powers, rules, collections, and
     the ComputedCard's buckets carry the same names), granted equipment,
     or a weapon's traits."""
-    from n26.library.models import AssetTable, Pickable, Wargear, Weapon
+    from n26.library.models import Asset, AssetTable, Pickable, Wargear, Weapon
 
     if target.kind == WEAPON_PROFILE:
         return computed.weapons[target.node.key], "traits"
     row = getattr(thing, "card_row", None)
     if row is not None:
         return computed, row
+    if isinstance(thing, Asset):
+        return computed, "granted_assets"
     if isinstance(thing, (Weapon, Wargear)):
         return computed, "granted_gear"
     if isinstance(thing, Pickable):
@@ -1907,6 +1952,8 @@ def _place(computed, target, contribution, carrier=None):
     if kind == "traits":
         holder.added_traits.append(contribution)
         return holder, "added_traits", contribution
+    if kind == "granted_assets":
+        return computed.card, "granted", _grant_asset(computed, contribution)
     if kind == "granted_gear":
         return computed.card, "granted", _grant_gear(computed, contribution, carrier)
     existing = getattr(holder, kind)
@@ -1936,7 +1983,7 @@ def _take_away(computed, target, contribution, source_key, step):
             holder.removed_traits.append(contribution)
             record.holder, record.field = holder, "removed_traits"
             record.added = contribution
-        elif kind == "granted_gear":
+        elif kind in ("granted_gear", "granted_assets"):
             record.holder, record.field = computed.card, "granted"
             record.dropped = _ungrant_gear(computed, contribution)
         else:
@@ -2021,11 +2068,12 @@ def _retract(computed, log):
     down the chain. A thing two carriers gave survives losing one, and
     changes hands: the entry keeps its place and names the survivor.
 
-    Removals are taken in the order they settled, so an earlier round's
+    Named removals are taken in the order they settled, so an earlier round's
     removal is never undone by a later one, and two things cancelling
     each other both go rather than the answer depending on which was
     read first. A removal whose own carrier turns out to have been
-    cancelled never happened, and what it took is put back.
+    cancelled never happened, and what it took is put back. Campaign-default
+    exclusions settle afterwards, once those source cancellations are known.
 
     Nothing here queries, and nothing here is written down: the card
     keeps every assignment it had, and a card computed again from the same
@@ -2038,6 +2086,14 @@ def _retract(computed, log):
         return set()
 
     card = computed.card
+    ordinary = [record for record in log.removals if not record.defaults_only]
+    exclusions = [record for record in log.removals if record.defaults_only]
+    # Settle source cancellations before exclusions. Clear their provisional
+    # hides while preserving any hide made by a named removal.
+    hidden_by_name = {node.key for record in ordinary for node in record.hidden}
+    for record in exclusions:
+        for node in record.hidden:
+            node.suppressed = node.key in hidden_by_name
     #: Stored assignments by the thing they name. Granted lines are the grants'
     #: own output and are retracted through the log instead.
     stored = {}
@@ -2075,12 +2131,16 @@ def _retract(computed, log):
                 return
             dead.update(starved)
 
-    for record in log.removals:
+    for record in (*ordinary, *exclusions):
         step = record.step
         if record.source_key in dead:
-            _put_back(record)
+            if not record.defaults_only:
+                _put_back(record)
             step.outcome = "retracted"
             continue
+        if record.defaults_only:
+            for node in record.hidden:
+                node.suppressed = True
         if record.kind == WEAPON_PROFILE:
             step.took_away = (*step.took_away, str(record.thing))
             continue
@@ -2095,6 +2155,9 @@ def _retract(computed, log):
                 step.outcome = "refused"
             continue
         thing_key = ModifierIndex.key(record.thing)
+        if record.defaults_only and not gone(thing_key):
+            step.took_away = (*step.took_away, str(record.thing))
+            continue
         if record.dropped or record.hidden or thing_key in edges or thing_key in guests:
             step.took_away = (*step.took_away, str(record.thing))
         dead.add(thing_key)
@@ -2177,6 +2240,52 @@ def _put_back(record):
         )
 
 
+def _campaign_gives_type(card, campaign_type_id):
+    from n26.library.models import CampaignType
+
+    return any(
+        isinstance(node.assignable, CampaignType)
+        and node.assignable.pk == campaign_type_id
+        and not node.suppressed
+        for node in card.all_nodes()
+    )
+
+
+def _campaign_asset_defaults(card, asset_type_id):
+    """Stored assets directly supplied by either campaign type carrier."""
+    from n26.library.models import Asset, CampaignType
+
+    nodes = {node.key: node for node in card.all_nodes()}
+    for node in nodes.values():
+        if (
+            not isinstance(node.assignable, Asset)
+            or node.assignable.asset_type_id != asset_type_id
+        ):
+            continue
+        if node.computed:
+            continue
+        cause = nodes.get(node.caused_by_key)
+        if isinstance(getattr(cause, "assignable", None), CampaignType):
+            yield node
+
+
+def _grant_asset(computed, contribution):
+    """Keep each granting edge for retraction; the renderer draws one asset."""
+    from n26.core.card import Node
+
+    node = Node(
+        assignable=contribution.thing,
+        key=("granted-asset", computed.granted_serial, contribution.thing.pk),
+        computed=True,
+        granted_by=contribution.source,
+        granted_by_kind=contribution.source_kind,
+        caused_by_key=contribution.root_key,
+    )
+    computed.granted_serial += 1
+    computed.card.granted.append(node)
+    return node
+
+
 def _grant_gear(computed, contribution, carrier):
     """Put one copy of granted equipment on the card.
 
@@ -2220,9 +2329,9 @@ def _grant_gear(computed, contribution, carrier):
 
 
 def _ungrant_gear(computed, contribution):
-    """Take back granted equipment — every copy, whoever gave it.
+    """Take back granted nodes — every copy, whoever gave it.
 
-    Stored equipment is handled by ``_suppress``. This only removes
+    Stored assignments are handled by ``_suppress``. This only removes
     computed nodes and returns them so a retracted removal can restore
     them.
     """
