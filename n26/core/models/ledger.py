@@ -200,11 +200,15 @@ class LedgerEvent(Base):
         # replayed against today's library. Assignment-level records keep the
         # ledger fold honest; one standalone record tells the visible act.
         CLONED = "cloned", "Cloned"
-        # What the gang may spend, changed after the founding. It moves no
-        # money of its own — the credits that follow are recomputed from
-        # the budget less what the ledger says was spent — but it changes
-        # what every later purchase is measured against, so a reader owed
-        # an explanation of "where did my credits go" is owed this too.
+        # What the gang may spend, changed after the founding. The credits
+        # that follow are recomputed from the budget less what the ledger
+        # says was spent, and it changes what every later purchase is
+        # measured against, so a reader owed an explanation of "where did
+        # my credits go" is owed this too. Where a gang with no budget
+        # takes one, this event carries a correction that sets the spend
+        # total to the worth of what the gang holds, so spending on things
+        # since deleted stops counting. That is bookkeeping, not money the
+        # gang received, and the history shows no figure for it.
         BUDGET_SET = "budget_set", "Budget set"
         # A Visit Trading Post opening or closing, from gangs whose history
         # predates the activity row. Nothing writes this kind now; it stays

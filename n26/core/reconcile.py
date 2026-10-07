@@ -152,9 +152,10 @@ def total_spent(gang):
 
     Includes events on archived assignments — removing something is not a
     refund. A refund and a sale each append an event of their own, so both
-    show here as spend coming back. Transfers between gangs, income and
-    credits adjusted by hand have no assignment at all and sit on the
-    gang itself, read here with the rest.
+    show here as spend coming back. Transfers between gangs, income,
+    credits adjusted by hand and the correction a gang takes when it
+    first gets a budget have no assignment at all and sit on the gang
+    itself, read here with the rest.
     """
     from django.db.models import Q
 

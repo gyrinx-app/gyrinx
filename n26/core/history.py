@@ -700,13 +700,16 @@ def _one_act(e, row, viewer, alive):
         e.kind in HOLDING and e.battle_id is not None
     )
     actor = "" if told_by_the_gang else _actor(e, viewer)
+    # A budget's opening correction squares the ledger with what the gang
+    # holds; no credits arrived, so the line shows no figure for it.
+    credits = 0 if e.kind == Kind.BUDGET_SET else -e.credits_delta
     return Act(
         when=e.created,
         actor=actor,
         actor_user=_actor_user(e, viewer) if actor else None,
         actor_pk=e.actor_id,
         spans=spans,
-        credits=-e.credits_delta,
+        credits=credits,
         trade_points=-e.trade_points_delta,
         rating=e.rating_delta,
         note=_shown_note(e),
