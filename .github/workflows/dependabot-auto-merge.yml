@@ -9,6 +9,11 @@ permissions:
 jobs:
   dependabot:
     runs-on: ubuntu-latest
+    # The automerge app key lives in the main-only environment, which only
+    # jobs running on main can read. pull_request_target runs on the base
+    # branch, so this job qualifies; a workflow pushed on another branch does
+    # not. The app bypasses review rules, so its key must stay out of reach.
+    environment: main-only
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       # Mint a token from a dedicated GitHub App so the enqueue is NOT performed
