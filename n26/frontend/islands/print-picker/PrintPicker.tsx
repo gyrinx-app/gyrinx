@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { CheckboxCard } from "../../ui";
 
 export type PrintWeapon = {
@@ -26,6 +26,13 @@ export type PrintPickerProps = {
     marker: string;
     slotBudget: number;
     models: PrintModel[];
+    /** Ticks the server-drawn boxes showed at mount, by id; they win over `ticked`. */
+    shown?: {
+        fighters: Record<string, boolean>;
+        weapons: Record<string, boolean>;
+    };
+    /** The server-drawn box that had focus at mount, to focus again. */
+    focus?: { name: string; value: string } | null;
 };
 
 /**
@@ -38,20 +45,47 @@ export type PrintPickerProps = {
  * marker tells the server the boxes were part of the submission, so a
  * failed island cannot save an empty setup.
  */
-export function PrintPicker({ marker, slotBudget, models }: PrintPickerProps) {
+export function PrintPicker({
+    marker,
+    slotBudget,
+    models,
+    shown,
+    focus = null,
+}: PrintPickerProps) {
+    const root = useRef<HTMLDivElement>(null);
     const [pickedModels, setPickedModels] = useState(
-        () => new Set(models.filter((model) => model.ticked).map((m) => m.id)),
+        () =>
+            new Set(
+                models
+                    .filter(
+                        (model) => shown?.fighters[model.id] ?? model.ticked,
+                    )
+                    .map((model) => model.id),
+            ),
     );
     const [pickedWeapons, setPickedWeapons] = useState(
         () =>
             new Set(
                 models.flatMap((model) =>
                     model.weapons
-                        .filter((weapon) => weapon.ticked)
+                        .filter(
+                            (weapon) =>
+                                shown?.weapons[weapon.id] ?? weapon.ticked,
+                        )
                         .map((weapon) => weapon.id),
                 ),
             ),
     );
+
+    useLayoutEffect(() => {
+        if (!focus) return;
+        const box = Array.from(
+            root.current?.querySelectorAll<HTMLInputElement>(
+                `input[name="${focus.name}"]`,
+            ) ?? [],
+        ).find((input) => input.value === focus.value);
+        box?.focus();
+    }, [focus]);
 
     function toggle(
         set: (update: (previous: Set<string>) => Set<string>) => void,
@@ -79,7 +113,7 @@ export function PrintPicker({ marker, slotBudget, models }: PrintPickerProps) {
         );
 
     return (
-        <div className="space-y-4">
+        <div ref={root} className="space-y-4">
             {marker && <input type="hidden" name={marker} value="1" />}
             <div className="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
                 {models.map((model) => {

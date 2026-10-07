@@ -189,8 +189,11 @@ that said it twice would be spending the width the name needs.
             island starts. It holds the place until the island mounts and
             is what the form posts if it is submitted before then, or if
             the island never loads: a submission with no boxes would empty
-            the saved setup. The hidden marker says the boxes were there;
-            the island draws it too, and its error box does not.
+            the saved setup. Every box here can be ticked, since without
+            the island nothing would enable a weapon again; the server
+            drops a weapon whose model is not ticked. The hidden marker
+            says the boxes were there; the island draws it too, and its
+            error box does not.
             {% endcomment %}
             {% react_host "print-picker" print_picker %}
                 <div class="space-y-4">
@@ -217,7 +220,6 @@ that said it twice would be spending the width the name needs.
                                                name="weapons"
                                                value="{{ weapon.id }}"
                                                {% if weapon.ticked %}checked{% endif %}
-                                               {% if not row.model.ticked %}disabled{% endif %}
                                                class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
                                         <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.label }}</span>
                                         {% if weapon.slotsLabel %}<span class="shrink-0 text-xs text-muted">{{ weapon.slotsLabel }}</span>{% endif %}

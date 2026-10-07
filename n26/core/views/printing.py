@@ -172,18 +172,26 @@ def _ids(values):
     return kept
 
 
-def _weapons_named(gang, values):
-    """The gang's own weapon assignments among ``values``.
+def _weapons_named(gang, values, models):
+    """The gang's own weapon assignments among ``values``, carried by ``models``.
 
     Scoped to the gang, so an address naming somebody else's weapon adds
-    nothing to the paper.
+    nothing to the paper. Scoped to the models picked too: a weapon ticked
+    under a model that is not is no choice of the reader's, whatever the
+    boxes sent.
     """
+    return set(_picked_weapons(gang, values, models).values_list("pk", flat=True))
+
+
+def _picked_weapons(gang, values, models):
+    """The weapon assignments among ``values`` held by one of ``models``."""
     from n26.core.models import Assignment
 
-    return set(
-        Assignment.objects.filter(
-            gang_root=gang, weapon__isnull=False, pk__in=_ids(values)
-        ).values_list("pk", flat=True)
+    return Assignment.objects.filter(
+        gang_root=gang,
+        weapon__isnull=False,
+        pk__in=_ids(values),
+        miniature_root__in=_ids(models),
     )
 
 
@@ -230,7 +238,11 @@ def _what_to_print(request, gang, config):
     if request.GET.get("pick"):
         return (
             {str(model_id) for model_id in _ids(request.GET.getlist("fighters"))},
-            _weapons_named(gang, request.GET.getlist("weapons")),
+            _weapons_named(
+                gang,
+                request.GET.getlist("weapons"),
+                request.GET.getlist("fighters"),
+            ),
             bool(request.GET.get("include_header")),
             bool(request.GET.get("include_stash")),
             bool(request.GET.get("include_notes")),
@@ -247,7 +259,8 @@ PICKER_MARKER = "picker"
 
 #: Shown when a setup arrives without the picker: nothing was saved.
 PICKER_MISSING = (
-    "The model list did not load, so nothing was saved. Reload the page and try again."
+    "The model list did not load, so nothing was saved. "
+    "Check the models below and print again."
 )
 
 
@@ -345,7 +358,7 @@ def print_setup(request, pk):
     same boxes to the print page as a GET, which prints the pick without
     keeping it.
     """
-    from n26.core.models import Assignment, Miniature, PrintConfig
+    from n26.core.models import Miniature, PrintConfig
 
     if request.method == "POST":
         from django.db import transaction
@@ -360,16 +373,16 @@ def print_setup(request, pk):
             loaded = (
                 gang.print_configs.filter(name__iexact=name).first() if name else None
             )
-            return _setup_page(request, gang, loaded, error=PICKER_MISSING)
+            return _setup_page(
+                request, gang, loaded, error=PICKER_MISSING, posted=request.POST
+            )
         miniatures = Miniature.objects.filter(
             membership__gang=gang,
             membership__archived=False,
             pk__in=_ids(request.POST.getlist("fighters")),
         )
-        weapons = Assignment.objects.filter(
-            gang_root=gang,
-            weapon__isnull=False,
-            pk__in=_ids(request.POST.getlist("weapons")),
+        weapons = _picked_weapons(
+            gang, request.POST.getlist("weapons"), request.POST.getlist("fighters")
         )
         # Matched on the lowercased name, which is what the gang is
         # unique over: saving "Roster" where the gang already holds
@@ -392,10 +405,12 @@ def print_setup(request, pk):
     return _setup_page(request, gang, _config_for(request, gang))
 
 
-def _setup_page(request, gang, loaded, error=""):
+def _setup_page(request, gang, loaded, error="", posted=None):
     """The setup screen for ``gang``, pre-filled from ``loaded`` if set.
 
-    ``error`` is a non-field error drawn above the fields.
+    ``error`` is a non-field error drawn above the fields. ``posted`` is a
+    submission being shown again: its name, toggles and orientation win
+    over ``loaded``, so a retry keeps the owner's edits.
     """
     from django import forms
 
@@ -451,11 +466,23 @@ def _setup_page(request, gang, loaded, error=""):
             # Resolved here, not in the template: `loaded.include_header`
             # on a None resolves to the empty string, which default_if_none
             # does not catch — a template-side default silently unticks.
-            "setup_name": loaded.name if loaded else "",
-            "include_header": loaded.include_header if loaded else True,
-            "include_stash": loaded.include_stash if loaded else True,
-            "include_notes": loaded.include_notes if loaded else True,
-            "orientation": _orientation(loaded.orientation if loaded else None),
+            **(
+                {
+                    "setup_name": posted.get("name", "").strip(),
+                    "include_header": bool(posted.get("include_header")),
+                    "include_stash": bool(posted.get("include_stash")),
+                    "include_notes": bool(posted.get("include_notes")),
+                    "orientation": _orientation(posted.get("orientation")),
+                }
+                if posted is not None
+                else {
+                    "setup_name": loaded.name if loaded else "",
+                    "include_header": loaded.include_header if loaded else True,
+                    "include_stash": loaded.include_stash if loaded else True,
+                    "include_notes": loaded.include_notes if loaded else True,
+                    "orientation": _orientation(loaded.orientation if loaded else None),
+                }
+            ),
             "yours": yours,
             # Where the boxes are submitted, and how. The owner's form
             # saves a setup and prints it; a reader who cannot save sends

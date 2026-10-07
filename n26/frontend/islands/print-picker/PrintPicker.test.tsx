@@ -258,6 +258,53 @@ describe("PrintPicker", () => {
         expect(marker()).toEqual(["1"]);
     });
 
+    it("mounts over the server-drawn boxes keeping their ticks and focus", () => {
+        const form = document.createElement("form");
+        const host = document.createElement("div");
+        form.append(host);
+        document.body.append(form);
+        // The server drew everything ticked; before the island loaded the
+        // reader unticked Lasgun and Sull, and Lasgun's box still has focus.
+        host.innerHTML = `
+            <input type="hidden" name="picker" value="1">
+            <input type="checkbox" name="fighters" value="01VEX" checked>
+            <input type="checkbox" name="weapons" value="01LAS">
+            <input type="checkbox" name="weapons" value="01STUB" checked>
+            <input type="checkbox" name="fighters" value="01SULL">
+            <input type="checkbox" name="weapons" value="01KNIFE" checked disabled>
+        `;
+        host.querySelector<HTMLInputElement>('[value="01LAS"]')!.focus();
+        let unmount = () => {};
+        act(() => {
+            unmount = mount(host, {
+                marker: "picker",
+                slotBudget: 3,
+                models: [vex(), sull()],
+            });
+        });
+
+        const lasgun = screen.getByRole<HTMLInputElement>("checkbox", {
+            name: /Lasgun/,
+        });
+        expect(lasgun.checked).toBe(false);
+        expect(document.activeElement).toBe(lasgun);
+        const knife = screen.getByRole<HTMLInputElement>("checkbox", {
+            name: /Knife/,
+        });
+        // Sull stays unticked; the knife keeps its tick, out of the post.
+        expect(knife.checked).toBe(true);
+        expect(knife.disabled).toBe(true);
+        const data = new FormData(form);
+        expect(data.getAll("picker")).toEqual(["1"]);
+        expect(data.getAll("fighters")).toEqual(["01VEX"]);
+        expect(data.getAll("weapons")).toEqual(["01STUB"]);
+        expect(
+            screen.getByText("Crew total", { exact: false }).textContent,
+        ).toBe("Crew total 90¢");
+        act(() => unmount());
+        form.remove();
+    });
+
     it("leaves no marker when the island fails and shows its error", () => {
         vi.spyOn(console, "error").mockImplementation(() => {});
         const form = document.createElement("form");
