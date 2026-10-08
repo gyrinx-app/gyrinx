@@ -1875,15 +1875,14 @@ GROUPS: list[Group] = [
                 tag="c-n26.checkbox-card",
                 template="n26/checkbox_card.html",
                 summary="A checkbox drawn as a card whose body stays interactive.",
-                needs=(ALPINE,),
                 notes=(
-                    "Use it where the card holds controls of its own: the kit's "
+                    "Use it where the card holds controls of its own. The kit's "
                     "checkbox cards make the whole surface the toggle, so a click "
                     "on an inner control would toggle the card. While the box is "
-                    "clear the body is dimmed and inert, which blocks interaction "
-                    "and focus but not submission, so bind :disabled on any inner "
-                    "input that must not post, reading the picked value this card "
-                    "puts in Alpine scope."
+                    "clear the body is dimmed and inert, which blocks clicks and "
+                    "focus but still submits, so disable any inner input that must "
+                    "not post. static draws the card for a fallback inside another "
+                    "React region."
                 ),
             ),
             Component(

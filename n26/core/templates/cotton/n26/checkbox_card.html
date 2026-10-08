@@ -1,53 +1,32 @@
 {% comment %}
 <c-n26.checkbox-card> — A checkbox drawn as a card, with nested controls that go inert when it is clear.
 
-Nested controls are inert when the box is clear. That blocks clicks. It does
-not keep them out of the POST. Disable those inputs yourself if they must not
-submit.
+Nested controls are inert when the box is clear. That blocks clicks and focus.
+It does not keep them out of the POST. Disable those inputs in the caller if they must not submit.
 
-checked is turned into a JS true or false with yesno. A Python True is not
-valid in x-data.
-Use this when the card holds controls of its own. The kit's card variant makes the whole surface the toggle.
-picked is in Alpine scope for nested controls to read.
+static draws the card with no island. Use it inside another island's fallback, where a second island must not mount.
+Its body is dimmed while the box is clear but stays usable, because nothing would turn those controls back on.
 
-static draws the card in its checked state, with no Alpine. Use it for the
-server-rendered body of a React host, where Alpine does not run and the island
-replaces the card on mount. Its body is dimmed while the box is clear but never
-inert: with nothing to re-enable them, nested controls stay usable.
+The checkbox posts name and value. React draws the card over that markup and keeps a tick made before it mounted.
 {% endcomment %}
 
-<c-vars name="" value="" :checked="False" :static="False" label="" description="" meta="" class="" />
+{% load checkbox_card react %}
+<c-vars
+    name=""
+    value=""
+    :checked="False"
+    :static="False"
+    label=""
+    description=""
+    meta=""
+    class=""
+/>
 
-{% with on="border-accent bg-accent/5" off="border-ink-200 dark:border-ink-700" dim="opacity-50" %}
-    <div {{ attrs }}
-         {% if not static %}
-             x-data="{ picked: {{ checked|yesno:'true,false' }} }"
-             :class="picked ? '{{ on }}' : '{{ off }}'"
-         {% endif %}
-         class="rounded-box border-2 p-4 transition-[background-color] {{ class }}{% if static %} {% if checked %}{{ on }}{% else %}{{ off }}{% endif %}{% endif %}">
-        <label class="flex cursor-pointer items-start gap-3">
-            <input type="checkbox"
-                   name="{{ name }}"
-                   value="{{ value }}"
-                   {% if checked %}checked{% endif %}
-                   {% if not static %}
-                       @change="picked = $event.target.checked"
-                   {% endif %}
-                   class="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)] focus-ring">
-            <span class="min-w-0 flex-1">
-                <span class="block truncate text-base font-semibold text-ink-900 dark:text-ink-100">{{ label }}</span>
-                {% if description %}<span class="block truncate text-muted">{{ description }}</span>{% endif %}
-            </span>
-            {% if meta %}{{ meta }}{% endif %}
-        </label>
-        {% if slot.strip %}
-            {# pl-8 lines the body up with the title, past the checkbox and its gap. #}
-            <div class="mt-2 border-t border-box-border pt-2 pl-8{% if static and not checked %} {{ dim }}{% endif %}"
-                 {% if not static %}
-                     :class="picked ? '' : '{{ dim }}'"
-                     {# inert blocks clicks. It does not keep nested inputs out of the POST. #}
-                     :inert="!picked"
-                 {% endif %}>{{ slot }}</div>
-        {% endif %}
-    </div>
-{% endwith %}
+{% if static %}
+    {% include "n26/includes/checkbox_card_face.html" %}
+{% else %}
+    {% checkbox_card_props name=name value=value checked=checked label=label description=description css_class=class as props_ %}
+    {% react_host "checkbox-card" props_ %}
+        {% include "n26/includes/checkbox_card_face.html" %}
+    {% endreact_host %}
+{% endif %}
