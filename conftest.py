@@ -12,6 +12,7 @@ from django.contrib.sites.models import Site
 from django.core.cache import cache, caches
 from django.db.models.signals import post_migrate
 
+from gyrinx.pytest_database import session_creates_test_database
 from gyrinx.site.models import BANNER_CACHE_KEYS
 
 # Re-export the local task-queue driver fixture so tests can request `task_queue`
@@ -154,14 +155,21 @@ def clear_content_page_ref_cache():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def warm_contenttype_cache(django_db_setup, django_db_blocker):
+def warm_contenttype_cache(request, django_db_setup, django_db_blocker):
     """Warm up ContentType cache for polymorphic models at test session start.
 
     This ensures consistent query counts regardless of whether tests run
     in isolation or as part of a larger suite. Polymorphic models (ContentMod
     and subclasses) trigger ContentType lookups, and the cache state varies
     without this initialization.
+
+    A session whose tests never request the database does not create a test
+    database. Querying then would hit ``DB_NAME``, the worktree's dev
+    database, so this fixture returns before opening a connection.
     """
+    if not session_creates_test_database(request.session.items):
+        return
+
     with django_db_blocker.unblock():
         from django.contrib.contenttypes.models import ContentType
 
@@ -232,7 +240,7 @@ def _seed_content_stats(**kwargs):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def content_stat_definitions(django_db_setup, django_db_blocker):
+def content_stat_definitions(request, django_db_setup, django_db_blocker):
     """Seed the ContentStat rows the data migrations guarantee.
 
     Stat classification (inverted / inches / modifier / target) is read from
@@ -245,7 +253,15 @@ def content_stat_definitions(django_db_setup, django_db_blocker):
     transactional tests running against an empty table. Django re-emits
     post_migrate after that flush — the same hook that restores content types
     and permissions — so re-seed from there too.
+
+    When no test in the session requests the database, pytest-django does not
+    create a test database and the connection stays on ``DB_NAME``. Seeding
+    then writes into the worktree's dev database, or fails on a fresh one
+    with ``relation content_contentstat does not exist``. Return first.
     """
+    if not session_creates_test_database(request.session.items):
+        return
+
     with django_db_blocker.unblock():
         _seed_content_stats()
 
@@ -370,7 +386,9 @@ def _seed_fighter_statline_type(**kwargs):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def fighter_statline_type_definition(content_stat_definitions, django_db_blocker):
+def fighter_statline_type_definition(
+    request, content_stat_definitions, django_db_blocker
+):
     """Seed the "Fighter" statline type the data migration guarantees.
 
     Every fighter type gets a statline on save, resolved from its category and
@@ -379,7 +397,13 @@ def fighter_statline_type_definition(content_stat_definitions, django_db_blocker
     an arrangement that no real environment has. Re-seeded from post_migrate
     for the same reason as the stat definitions: a transactional test
     truncates the table on teardown.
+
+    Skipped, like ``content_stat_definitions``, when the session creates no
+    test database. Otherwise this writes the statline types into ``DB_NAME``.
     """
+    if not session_creates_test_database(request.session.items):
+        return
+
     with django_db_blocker.unblock():
         _seed_fighter_statline_type()
 
