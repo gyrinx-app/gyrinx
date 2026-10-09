@@ -28,11 +28,12 @@ repos:
       # newline regardless, which renders as a space between adjacent inline
       # badges/buttons. pyproject's [tool.djlint] extend_exclude covers directory
       # and repo-root invocations (scripts/fmt.sh) but NOT the explicit file
-      # paths pre-commit passes, so the exclusion is repeated here.
+      # paths pre-commit passes, so the exclusion is repeated here. logs/ is
+      # the same: a saved HTTP capture must not be reformatted on commit.
       - id: djlint-reformat-django
-        exclude: ^((gyrinx|n26/core)/templates/cotton/|design/exploration/)
+        exclude: ^((gyrinx|n26/core)/templates/cotton/|design/exploration/|logs/)
       - id: djlint-django
-        exclude: ^((gyrinx|n26/core)/templates/cotton/|design/exploration/)
+        exclude: ^((gyrinx|n26/core)/templates/cotton/|design/exploration/|logs/)
 
   - repo: https://github.com/kynan/nbstripout
     rev: 0.9.1

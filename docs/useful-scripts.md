@@ -25,7 +25,7 @@ One-time setup: installs PostgreSQL 16 and pgAdmin via Homebrew, initialises the
 
 ### `scripts/fmt.sh`
 
-Formats all code in the project including Python, JavaScript, SCSS, and Django templates.
+Formats all code in the project including Python, JavaScript, SCSS, and Django templates. HTML under `logs/` is skipped: djlint does not read `.gitignore`, so a saved HTTP capture there would otherwise be rewritten and then fail the lint check.
 
 ```bash
 ./scripts/fmt.sh
