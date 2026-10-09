@@ -105,9 +105,10 @@ CVARS = re.compile(r"<c-vars\b(.*?)/?>", re.S)
 DJANGO_COMMENT = re.compile(r"\{#.*?#\}", re.S)
 DJANGO_TAG = re.compile(r"\{%\s*(\w+)\b(.*?)%\}", re.S)
 # These tags push a context and their end tags pop it, so a name bound inside
-# one is gone after it, and a name they bind shadows an outer one.
+# one is gone after it, and a name they bind shadows an outer one. A for loop's
+# {% empty %} arm renders outside the loop's context.
 SCOPE_OPEN = {"with", "for", "block"}
-SCOPE_CLOSE = {"endwith", "endfor", "endblock"}
+BLOCK_END = {"endif", "endwith", "endfor", "endblock"}
 AS_NAME = re.compile(r"\bas\s+([A-Za-z_]\w*)\s*$")
 QUOTED = re.compile(r"\"[^\"]*\"|'[^']*'")
 WITH_NAME = re.compile(r"(?:^|\s)([A-Za-z_]\w*)=")
@@ -171,36 +172,40 @@ def _scoped_names(tag, rest):
     return []
 
 
-def _bind(scope, name, path, is_firstof):
-    """Record `{% ... as name %}`, met on `path`, in the innermost scope.
+def _reachable(bound_on, here):
+    """False when a binding sits on another arm of a block still open here."""
+    for mine, theirs in zip(bound_on, here, strict=False):
+        if mine != theirs:
+            return mine[0] != theirs[0]
+    return True
 
-    A scope maps a name to the branch paths a firstof bound it on, or to None
-    where something else bound it on every path through the scope.
+
+def _may_be_firstof(scopes, name, here):
+    """Whether `name` holds a firstof result on some path that reaches `here`.
+
+    A binding on the arms that lead here ran before here and replaces what came
+    before it. A binding inside a block that has since closed may have run.
     """
-    opened_on, names = scope
-    held = names.get(name)
-    if is_firstof:
-        names[name] = (held or set()) | {path}
-    elif held:
-        # This binding overwrites a firstof made on its own branch or deeper
-        # inside it. A firstof made on another branch still holds there.
-        kept = {p for p in held if p[: len(path)] != path}
-        if kept:
-            names[name] = kept
-        elif path == opened_on:
-            names[name] = None
-        else:
-            del names[name]
-    elif path == opened_on:
-        names[name] = None
+    for scope in reversed(scopes):
+        held = {"outer"}
+        for bound_on, bound, is_firstof in scope:
+            if bound != name or not _reachable(bound_on, here):
+                continue
+            kind = "firstof" if is_firstof else "other"
+            if here[: len(bound_on)] == bound_on:
+                held = {kind}
+            else:
+                held.add(kind)
+        if "firstof" in held:
+            return True
+        if "outer" not in held:
+            return False
+    return False
 
 
-def _firstof_visible(scopes):
-    seen = {}
-    for _opened_on, names in reversed(scopes):
-        for name, held in names.items():
-            seen.setdefault(name, held)
-    return frozenset(name for name, held in seen.items() if held)
+def _firstof_visible(scopes, here):
+    names = {name for scope in scopes for _bound_on, name, _is_firstof in scope}
+    return frozenset(name for name in names if _may_be_firstof(scopes, name, here))
 
 
 def firstof_scopes(src):
@@ -208,44 +213,57 @@ def firstof_scopes(src):
 
     Returns (position, names) pairs in source order. From each position to the
     next, `names` are the names that hold a firstof result on at least one
-    path through the template.
+    path that reaches there.
 
-    A `{% with %}`, `{% for %}` or `{% block %}` drops a firstof made inside it
-    at its end tag, and a name it binds shadows an outer firstof. Any other
-    `... as name` tag rebinds the name on its own `{% if %}` branch only, so a
-    firstof made on another branch still counts.
+    Each binding records the arms of the open `{% if %}` and `{% for %}`
+    blocks it sits on. A `{% with %}`, `{% for %}` or `{% block %}` drops a
+    firstof made inside it at its end tag, and a name it binds shadows an outer
+    firstof. Any other `... as name` tag rebinds the name from there on its own
+    arm, and a firstof on a sibling arm is not seen from this one.
 
     `{# #}` examples are blanked first so a comment that mentions the tag does
     not count. Positions stay aligned with the source the call-site scan uses.
     """
     visible = DJANGO_COMMENT.sub(_blank_kept, src)
-    branches = []  # [if number, branch number] for each open {% if %}
-    ifs = 0
-    scopes = [((), {})]
+    arms = []  # [block number, arm number] for each open if or for
+    blocks = []  # [tag, whether it pushed a scope] for each open block
+    scopes = [[]]  # each: (arms, name, is_firstof) bindings in source order
+    count = 0
     marks = []
+
+    def here():
+        return tuple(tuple(arm) for arm in arms)
+
     for match in DJANGO_TAG.finditer(visible):
         tag, rest = match.group(1), match.group(2).strip()
-        path = tuple(tuple(branch) for branch in branches)
+        if tag in ("if", "for"):
+            count += 1
+            arms.append([count, 0])
         if tag == "if":
-            ifs += 1
-            branches.append([ifs, 0])
-            continue
-        if tag in ("elif", "else", "endif"):
-            if branches and tag == "endif":
-                branches.pop()
-            elif branches:
-                branches[-1][1] += 1
-            continue
-        if tag in SCOPE_CLOSE:
-            if len(scopes) > 1:
-                scopes.pop()
+            blocks.append(["if", False])
         elif tag in SCOPE_OPEN:
-            scopes.append((path, dict.fromkeys(_scoped_names(tag, rest))))
+            scopes.append([(here(), name, False) for name in _scoped_names(tag, rest)])
+            blocks.append([tag, True])
+        elif tag in ("elif", "else"):
+            if blocks and blocks[-1][0] == "if":
+                arms[-1][1] += 1
+        elif tag == "empty":
+            if blocks and blocks[-1] == ["for", True]:
+                scopes.pop()
+                blocks[-1][1] = False
+                arms[-1][1] += 1
+        elif tag in BLOCK_END:
+            if blocks:
+                opened, pushed = blocks.pop()
+                if pushed and len(scopes) > 1:
+                    scopes.pop()
+                if opened in ("if", "for") and arms:
+                    arms.pop()
         elif named := AS_NAME.search(rest):
-            _bind(scopes[-1], named.group(1), path, tag == "firstof")
+            scopes[-1].append((here(), named.group(1), tag == "firstof"))
         else:
             continue
-        marks.append((match.end(), _firstof_visible(scopes)))
+        marks.append((match.end(), _firstof_visible(scopes, here())))
     return marks
 
 

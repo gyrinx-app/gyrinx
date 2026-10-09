@@ -606,6 +606,41 @@ def test_a_rebinding_on_the_same_branch_replaces_the_firstof(tmp_path):
     assert status == 0, out
 
 
+def test_a_firstof_on_one_arm_is_not_seen_from_its_sibling(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% if cond %}{% firstof a b as user %}"
+        '{% else %}<c-n26.user-link :user="user" />{% endif %}',
+    )
+    assert status == 0, out
+
+
+def test_a_rebinding_shadows_an_outer_firstof_until_its_arm_ends(tmp_path):
+    shadowed = (
+        "{% firstof a b as user %}{% if cond %}{% owner_of gang as user %}"
+        '<c-n26.user-link :user="user" />'
+    )
+    status, out = _gate(tmp_path, shadowed + "{% endif %}")
+    assert status == 0, out
+
+    status, out = _gate(
+        tmp_path, shadowed + '{% endif %}<c-n26.user-link :user="user" />'
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_a_firstof_in_a_for_empty_arm_outlives_the_loop(tmp_path):
+    """`{% empty %}` renders outside the loop's context, so its firstof stays."""
+    status, out = _gate(
+        tmp_path,
+        "{% for row in rows %}{% empty %}{% firstof a b as user %}{% endfor %}"
+        '<c-n26.user-link :user="user" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
 def test_original_paths_in_if_branches_are_allowed(tmp_path):
     status, out = _gate(
         tmp_path,
