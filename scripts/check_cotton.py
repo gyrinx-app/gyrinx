@@ -109,7 +109,8 @@ DJANGO_TAG = re.compile(r"\{%\s*(\w+)\b(.*?)%\}", re.S)
 SCOPE_OPEN = {"with", "for", "block"}
 SCOPE_CLOSE = {"endwith", "endfor", "endblock"}
 AS_NAME = re.compile(r"\bas\s+([A-Za-z_]\w*)\s*$")
-WITH_NAME = re.compile(r"([A-Za-z_]\w*)=")
+QUOTED = re.compile(r"\"[^\"]*\"|'[^']*'")
+WITH_NAME = re.compile(r"(?:^|\s)([A-Za-z_]\w*)=")
 COLON_PROP = re.compile(r"""(?:^|\s):([\w.-]+)=["']([^"']*)["']""")
 DOTTED_PATH = re.compile(r"[A-Za-z_][\w]*(\.[\w]+)*")
 # A <c-vars> entry is `name="default"`, `:name="expr"`, or a bare `name` with
@@ -159,6 +160,8 @@ def _blank_kept(match):
 
 def _scoped_names(tag, rest):
     """Names a scope-opening tag binds in the context it pushes."""
+    # A quoted value can hold `name=` or ` as name` of its own.
+    rest = QUOTED.sub('""', rest)
     if tag == "with":
         named = AS_NAME.search(rest)
         return WITH_NAME.findall(rest) + ([named.group(1)] if named else [])
@@ -168,37 +171,78 @@ def _scoped_names(tag, rest):
     return []
 
 
+def _bind(scope, name, path, is_firstof):
+    """Record `{% ... as name %}`, met on `path`, in the innermost scope.
+
+    A scope maps a name to the branch paths a firstof bound it on, or to None
+    where something else bound it on every path through the scope.
+    """
+    opened_on, names = scope
+    held = names.get(name)
+    if is_firstof:
+        names[name] = (held or set()) | {path}
+    elif held:
+        # This binding overwrites a firstof made on its own branch or deeper
+        # inside it. A firstof made on another branch still holds there.
+        kept = {p for p in held if p[: len(path)] != path}
+        if kept:
+            names[name] = kept
+        elif path == opened_on:
+            names[name] = None
+        else:
+            del names[name]
+    elif path == opened_on:
+        names[name] = None
+
+
 def _firstof_visible(scopes):
-    merged = {}
-    for scope in scopes:
-        merged.update(scope)
-    return frozenset(name for name, is_firstof in merged.items() if is_firstof)
+    seen = {}
+    for _opened_on, names in reversed(scopes):
+        for name, held in names.items():
+            seen.setdefault(name, held)
+    return frozenset(name for name, held in seen.items() if held)
 
 
 def firstof_scopes(src):
-    """Where a name holds a `{% firstof ... as name %}` result.
+    """Where a name may hold a `{% firstof ... as name %}` result.
 
     Returns (position, names) pairs in source order. From each position to the
-    next, `names` are the names whose innermost binding is a firstof. A
-    `{% with %}`, `{% for %}` or `{% block %}` drops a firstof made inside it
+    next, `names` are the names that hold a firstof result on at least one
+    path through the template.
+
+    A `{% with %}`, `{% for %}` or `{% block %}` drops a firstof made inside it
     at its end tag, and a name it binds shadows an outer firstof. Any other
-    `... as name` tag rebinds the name.
+    `... as name` tag rebinds the name on its own `{% if %}` branch only, so a
+    firstof made on another branch still counts.
 
     `{# #}` examples are blanked first so a comment that mentions the tag does
     not count. Positions stay aligned with the source the call-site scan uses.
     """
     visible = DJANGO_COMMENT.sub(_blank_kept, src)
-    scopes = [{}]
+    branches = []  # [if number, branch number] for each open {% if %}
+    ifs = 0
+    scopes = [((), {})]
     marks = []
     for match in DJANGO_TAG.finditer(visible):
         tag, rest = match.group(1), match.group(2).strip()
+        path = tuple(tuple(branch) for branch in branches)
+        if tag == "if":
+            ifs += 1
+            branches.append([ifs, 0])
+            continue
+        if tag in ("elif", "else", "endif"):
+            if branches and tag == "endif":
+                branches.pop()
+            elif branches:
+                branches[-1][1] += 1
+            continue
         if tag in SCOPE_CLOSE:
             if len(scopes) > 1:
                 scopes.pop()
         elif tag in SCOPE_OPEN:
-            scopes.append(dict.fromkeys(_scoped_names(tag, rest), False))
+            scopes.append((path, dict.fromkeys(_scoped_names(tag, rest))))
         elif named := AS_NAME.search(rest):
-            scopes[-1][named.group(1)] = tag == "firstof"
+            _bind(scopes[-1], named.group(1), path, tag == "firstof")
         else:
             continue
         marks.append((match.end(), _firstof_visible(scopes)))

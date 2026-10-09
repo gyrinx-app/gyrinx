@@ -566,6 +566,46 @@ def test_another_as_tag_rebinds_a_firstof_name(tmp_path):
     assert status == 0, out
 
 
+def test_a_quoted_equals_in_a_with_value_binds_nothing(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof a b as user %}"
+        '{% with query="user=1" %}<c-n26.user-link :user="user" />{% endwith %}',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_a_rebinding_on_another_branch_leaves_the_firstof(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% if cond %}{% firstof a b as user %}"
+        "{% else %}{% owner_of gang as user %}{% endif %}"
+        '<c-n26.user-link :user="user" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_a_conditional_rebinding_leaves_the_firstof(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof a b as user %}{% if cond %}{% owner_of gang as user %}{% endif %}"
+        '<c-n26.user-link :user="user" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_a_rebinding_on_the_same_branch_replaces_the_firstof(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% if cond %}{% firstof a b as user %}{% owner_of gang as user %}"
+        '<c-n26.user-link :user="user" />{% endif %}',
+    )
+    assert status == 0, out
+
+
 def test_original_paths_in_if_branches_are_allowed(tmp_path):
     status, out = _gate(
         tmp_path,
