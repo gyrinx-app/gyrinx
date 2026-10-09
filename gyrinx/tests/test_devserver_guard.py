@@ -29,7 +29,7 @@ class Clock:
 
 
 def make_guard(
-    *, used=100, limit=500, idle_minutes=60, owner=None, alive=True, served=True
+    *, used=100, limit=500, idle_minutes=60, owner=None, alive=True, requested=True
 ):
     clock = Clock()
     state = {"used": used, "alive": alive}
@@ -41,7 +41,7 @@ def make_guard(
         memory=lambda: state["used"],
         alive=lambda pid: state["alive"],
     )
-    if served:
+    if requested:
         guard.request_started()
         guard.request_finished()
     return guard, clock, state
@@ -100,12 +100,20 @@ def test_a_negative_limit_turns_the_memory_check_off():
     assert guard.check() is None
 
 
-def test_a_server_that_has_served_nothing_is_not_restarted():
+def test_a_server_that_has_had_no_request_is_not_restarted():
     """A limit below a fresh server's size would otherwise restart it forever."""
-    guard, _, _ = make_guard(used=600, served=False)
+    guard, _, _ = make_guard(used=600, requested=False)
     assert guard.check() is None
     guard.request_started()
     guard.request_finished()
+    assert guard.check()[0] == RESTART
+
+
+def test_a_first_request_that_never_finishes_still_restarts_the_server():
+    guard, clock, _ = make_guard(used=600, requested=False)
+    guard.request_started()
+    assert guard.check() is None
+    clock.advance(DRAIN_SECONDS)
     assert guard.check()[0] == RESTART
 
 

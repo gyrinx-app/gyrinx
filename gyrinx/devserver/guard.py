@@ -182,19 +182,19 @@ class Guard:
         self.alive = alive
         self.lock = threading.Lock()
         self.in_flight = 0
-        self.served = False
+        self.requested = False
         self.last_request = clock()
         self.over_limit_since = None
 
     def request_started(self, **kwargs):
         with self.lock:
             self.in_flight += 1
+            self.requested = True
             self.last_request = self.clock()
 
     def request_finished(self, **kwargs):
         with self.lock:
             self.in_flight = max(0, self.in_flight - 1)
-            self.served = True
             self.last_request = self.clock()
 
     def check(self):
@@ -202,7 +202,7 @@ class Guard:
         now = self.clock()
         with self.lock:
             in_flight = self.in_flight
-            served = self.served
+            requested = self.requested
             idle_for = now - self.last_request
 
         if self.owner and not self.alive(self.owner.pid):
@@ -211,9 +211,9 @@ class Guard:
                 f"(pid {self.owner.pid}) has ended"
             )
 
-        # A process that has served nothing yet is as small as a restart would
+        # A process that has had no request yet is as small as a restart would
         # make it, so restarting it again cannot help.
-        limited = self.memory_limit_mb > 0 and served
+        limited = self.memory_limit_mb > 0 and requested
         used = self.memory() if limited else None
         if used is not None and used > self.memory_limit_mb:
             if self.over_limit_since is None:
