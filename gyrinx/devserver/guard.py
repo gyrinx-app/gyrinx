@@ -241,7 +241,10 @@ class Guard:
     def rules(self):
         rules = []
         if self.memory_limit_mb > 0:
-            rules.append(f"restarts past {self.memory_limit_mb:,} MB")
+            # See exit_plan(): without the autoreloader the server stops.
+            under_autoreloader = os.environ.get("RUN_MAIN") == "true"
+            action = "restarts" if under_autoreloader else "stops"
+            rules.append(f"{action} past {self.memory_limit_mb:,} MB")
         if self.owner:
             rules.append(f"stops when {self.owner.name} (pid {self.owner.pid}) exits")
             if self.idle_minutes > 0:

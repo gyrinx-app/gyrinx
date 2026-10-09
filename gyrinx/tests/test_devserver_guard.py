@@ -298,3 +298,15 @@ def test_a_stop_ends_the_autoreloader_too():
     code, message = exit_plan(STOP, "it has had no requests", under_autoreloader=True)
     assert code == STOP
     assert message.endswith("Run ./scripts/dev.sh to start it again.")
+
+
+def test_the_start_up_line_says_what_the_memory_limit_does(monkeypatch):
+    guard, _, _ = make_guard(limit=2048, owner=AGENT, idle_minutes=120)
+    monkeypatch.setenv("RUN_MAIN", "true")
+    assert guard.rules() == [
+        "restarts past 2,048 MB",
+        "stops when Claude Code (pid 4242) exits",
+        "stops after 120 minutes without a request",
+    ]
+    monkeypatch.delenv("RUN_MAIN")
+    assert guard.rules()[0] == "stops past 2,048 MB"
