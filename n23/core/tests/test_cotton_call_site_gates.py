@@ -471,7 +471,9 @@ def test_firstof_result_is_not_a_cotton_prop(tmp_path):
     assert status == 1
     assert "firstof" in out
     assert ':user="receipt"' in out
-    assert 'user="{{ receipt }}"' in out
+    assert "{% if %} branches" in out
+    # Interpolating into the same prop still passes a string.
+    assert 'user="{{ receipt }}"' not in out
 
 
 def test_firstof_dotted_lookup_is_not_a_cotton_prop(tmp_path):
@@ -511,6 +513,55 @@ def test_firstof_in_a_django_comment_does_not_bind(tmp_path):
     status, out = _gate(
         tmp_path,
         '{# {% firstof a b as user %} #}<c-n26.user-link :user="user" />',
+    )
+    assert status == 0, out
+
+
+def test_firstof_inside_a_with_block_is_gone_after_it(tmp_path):
+    """`{% with %}` pops the context the firstof wrote into."""
+    status, out = _gate(
+        tmp_path,
+        "{% with shown=1 %}{% firstof a b as user %}{% endwith %}"
+        '<c-n26.user-link :user="user" />',
+    )
+    assert status == 0, out
+
+
+def test_firstof_inside_a_for_block_is_seen_inside_it(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% for row in rows %}{% firstof row.a row.b as user %}"
+        '<c-n26.user-link :user="user" />{% endfor %}',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_a_with_or_for_binding_shadows_an_outer_firstof(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof a b as user %}"
+        '{% with user=request.user %}<c-n26.user-link :user="user" />{% endwith %}'
+        '{% for user in members %}<c-n26.user-link :user="user" />{% endfor %}',
+    )
+    assert status == 0, out
+
+
+def test_an_outer_firstof_survives_a_block_that_does_not_rebind_it(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof a b as user %}{% for row in rows %}{% endfor %}"
+        '<c-n26.user-link :user="user" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_another_as_tag_rebinds_a_firstof_name(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof a b as user %}{% owner_of gang as user %}"
+        '<c-n26.user-link :user="user" />',
     )
     assert status == 0, out
 

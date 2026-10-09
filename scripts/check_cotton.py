@@ -1,5 +1,6 @@
 """Static safety gate for django-cotton call sites. See scripts/check_cotton.sh."""
 
+import bisect
 import pathlib
 import re
 import sys
@@ -102,10 +103,13 @@ CVARS = re.compile(r"<c-vars\b(.*?)/?>", re.S)
 # render_value_in_context). `:prop="name"` then looks like a bare path and
 # passes a string, so a dataclass, form, or user arrives with no attributes.
 DJANGO_COMMENT = re.compile(r"\{#.*?#\}", re.S)
-FIRSTOF_AS = re.compile(
-    r"\{%\s*firstof\b(.*?)\bas\s+([A-Za-z_][\w]*)\s*%\}",
-    re.S,
-)
+DJANGO_TAG = re.compile(r"\{%\s*(\w+)\b(.*?)%\}", re.S)
+# These tags push a context and their end tags pop it, so a name bound inside
+# one is gone after it, and a name they bind shadows an outer one.
+SCOPE_OPEN = {"with", "for", "block"}
+SCOPE_CLOSE = {"endwith", "endfor", "endblock"}
+AS_NAME = re.compile(r"\bas\s+([A-Za-z_]\w*)\s*$")
+WITH_NAME = re.compile(r"([A-Za-z_]\w*)=")
 COLON_PROP = re.compile(r"""(?:^|\s):([\w.-]+)=["']([^"']*)["']""")
 DOTTED_PATH = re.compile(r"[A-Za-z_][\w]*(\.[\w]+)*")
 # A <c-vars> entry is `name="default"`, `:name="expr"`, or a bare `name` with
@@ -153,14 +157,58 @@ def _blank_kept(match):
     return re.sub(r"[^\n]", " ", match.group(0))
 
 
-def firstof_names(src):
-    """Names `{% firstof ... as name %}` stores, and where that tag ends.
+def _scoped_names(tag, rest):
+    """Names a scope-opening tag binds in the context it pushes."""
+    if tag == "with":
+        named = AS_NAME.search(rest)
+        return WITH_NAME.findall(rest) + ([named.group(1)] if named else [])
+    if tag == "for":
+        head = re.split(r"\s+in\s+", rest, maxsplit=1)[0]
+        return re.findall(r"[A-Za-z_]\w*", head)
+    return []
+
+
+def _firstof_visible(scopes):
+    merged = {}
+    for scope in scopes:
+        merged.update(scope)
+    return frozenset(name for name, is_firstof in merged.items() if is_firstof)
+
+
+def firstof_scopes(src):
+    """Where a name holds a `{% firstof ... as name %}` result.
+
+    Returns (position, names) pairs in source order. From each position to the
+    next, `names` are the names whose innermost binding is a firstof. A
+    `{% with %}`, `{% for %}` or `{% block %}` drops a firstof made inside it
+    at its end tag, and a name it binds shadows an outer firstof. Any other
+    `... as name` tag rebinds the name.
 
     `{# #}` examples are blanked first so a comment that mentions the tag does
     not count. Positions stay aligned with the source the call-site scan uses.
     """
     visible = DJANGO_COMMENT.sub(_blank_kept, src)
-    return [(match.end(), match.group(2)) for match in FIRSTOF_AS.finditer(visible)]
+    scopes = [{}]
+    marks = []
+    for match in DJANGO_TAG.finditer(visible):
+        tag, rest = match.group(1), match.group(2).strip()
+        if tag in SCOPE_CLOSE:
+            if len(scopes) > 1:
+                scopes.pop()
+        elif tag in SCOPE_OPEN:
+            scopes.append(dict.fromkeys(_scoped_names(tag, rest), False))
+        elif named := AS_NAME.search(rest):
+            scopes[-1][named.group(1)] = tag == "firstof"
+        else:
+            continue
+        marks.append((match.end(), _firstof_visible(scopes)))
+    return marks
+
+
+def firstof_bound_at(marks, position):
+    """The firstof names in scope at `position`, from firstof_scopes."""
+    index = bisect.bisect_right(marks, position, key=lambda mark: mark[0])
+    return marks[index - 1][1] if index else frozenset()
 
 
 def _firstof_message(rel, line, name, prop, value):
@@ -171,8 +219,8 @@ def _firstof_message(rel, line, name, prop, value):
         f"    An object (a dataclass, a form, a user) arrives with no attributes, "
         f"and the page still returns 200.\n"
         f"    Fix: repeat the whole component inside {{% if %}} branches and pass "
-        f"each original dotted path. Rendered text belongs in "
-        f'{prop}="{{{{ {root} }}}}" without the colon.'
+        f"each original dotted path to :{prop}. Use the firstof text only in an "
+        f'attribute that takes text, without the colon, such as label="{{{{ {root} }}}}".'
     )
 
 
@@ -278,7 +326,7 @@ def main():
             continue
         src = blank_comments(raw)
         rel = path.relative_to(ROOT)
-        assigned = firstof_names(src)
+        firstof_marks = firstof_scopes(src)
 
         for match in TAG.finditer(src):
             name, attrs = match.group(1), match.group(2)
@@ -392,8 +440,8 @@ def main():
 
             # 5. a :prop whose value is a {% firstof … as name %} result.
             # The name looks like a bare path. It is rendered text.
-            if assigned:
-                bound = {stored for end, stored in assigned if end <= match.start()}
+            bound = firstof_bound_at(firstof_marks, match.start())
+            if bound:
                 for prop, value in COLON_PROP.findall(attrs):
                     if DOTTED_PATH.fullmatch(value) and value.split(".", 1)[0] in bound:
                         found.append(_firstof_message(rel, line, name, prop, value))
