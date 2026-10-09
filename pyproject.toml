@@ -216,8 +216,8 @@ custom_html = "c-[\\w.-]+"
 # rewrites them (verified: "16 files would be updated"), which would silently
 # Design explorations are standalone HTML prototypes, not Django templates.
 # logs/ is gitignored, but djlint does not read .gitignore. scripts/fmt.sh runs
-# `djlint --reformat .`, so an HTTP capture saved as logs/*.html was rewritten
-# and then failed the lint check.
+# `djlint --reformat .`, which would rewrite an HTTP capture saved as
+# logs/*.html and then fail the lint check on it.
 extend_exclude = "gyrinx/templates/cotton,n26/core/templates/cotton,design/exploration,logs"
 
 [tool.bandit]

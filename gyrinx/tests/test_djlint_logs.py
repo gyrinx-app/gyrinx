@@ -1,16 +1,18 @@
 """djlint skips HTML saved under logs/.
 
 ``scripts/fmt.sh`` runs ``djlint --reformat .``. ``logs/`` is gitignored, but
-djlint does not read ``.gitignore``, so a curl capture saved as
-``logs/404-response.html`` was rewritten and then failed the lint check
-(char, 6 Oct 2026).
+djlint does not read ``.gitignore``. Without the exclusion, a curl capture
+saved as ``logs/404-response.html`` is rewritten and then fails the lint
+check.
 """
 
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 pytestmark = pytest.mark.core
 
@@ -61,6 +63,12 @@ def test_the_same_capture_is_reformatted_outside_logs(tmp_path):
     assert result.returncode == 1
 
 
-def test_pre_commit_djlint_hooks_skip_logs():
-    config = (ROOT / ".pre-commit-config.yaml").read_text()
-    assert "design/exploration/|logs/" in config
+@pytest.mark.parametrize("hook_id", ["djlint-reformat-django", "djlint-django"])
+def test_each_pre_commit_djlint_hook_skips_logs(hook_id):
+    config = yaml.safe_load((ROOT / ".pre-commit-config.yaml").read_text())
+    hooks = {
+        hook["id"]: hook for repo in config["repos"] for hook in repo.get("hooks", [])
+    }
+    exclude = hooks[hook_id].get("exclude", "")
+    assert re.search(exclude, "logs/404-response.html"), exclude
+    assert not re.search(exclude, "n26/core/templates/n26/page.html"), exclude
