@@ -98,6 +98,16 @@ BOOLEAN_INTERPOLATED = re.compile(
     rf"""(?:^|\s)(?<!:)({_BOOLEAN_NAMES})=["'][^"']*\{{[{{%]"""
 )
 CVARS = re.compile(r"<c-vars\b(.*?)/?>", re.S)
+# `{% firstof a b as name %}` stores rendered text (Django's FirstOfNode calls
+# render_value_in_context). `:prop="name"` then looks like a bare path and
+# passes a string, so a dataclass, form, or user arrives with no attributes.
+DJANGO_COMMENT = re.compile(r"\{#.*?#\}", re.S)
+FIRSTOF_AS = re.compile(
+    r"\{%\s*firstof\b(.*?)\bas\s+([A-Za-z_][\w]*)\s*%\}",
+    re.S,
+)
+COLON_PROP = re.compile(r"""(?:^|\s):([\w.-]+)=["']([^"']*)["']""")
+DOTTED_PATH = re.compile(r"[A-Za-z_][\w]*(\.[\w]+)*")
 # A <c-vars> entry is `name="default"`, `:name="expr"`, or a bare `name` with
 # no default at all (n26's ui/error.html declares `name form message` that
 # way); the bare form is a declaration too, or every call passing it reads as
@@ -137,6 +147,33 @@ NEEDS_LABEL = {"filter.query", "form.search"}
 def blank_comments(src):
     """Replace {% comment %} blocks with same-length whitespace (keeps line numbers)."""
     return COMMENT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), src)
+
+
+def _blank_kept(match):
+    return re.sub(r"[^\n]", " ", match.group(0))
+
+
+def firstof_names(src):
+    """Names `{% firstof ... as name %}` stores, and where that tag ends.
+
+    `{# #}` examples are blanked first so a comment that mentions the tag does
+    not count. Positions stay aligned with the source the call-site scan uses.
+    """
+    visible = DJANGO_COMMENT.sub(_blank_kept, src)
+    return [(match.end(), match.group(2)) for match in FIRSTOF_AS.finditer(visible)]
+
+
+def _firstof_message(rel, line, name, prop, value):
+    root = value.split(".", 1)[0]
+    return (
+        f'{rel}:{line}: <c-{name} :{prop}="{value}"> names a {{% firstof %}} result. '
+        f"firstof stores rendered text, so this prop is a string.\n"
+        f"    An object (a dataclass, a form, a user) arrives with no attributes, "
+        f"and the page still returns 200.\n"
+        f"    Fix: repeat the whole component inside {{% if %}} branches and pass "
+        f"each original dotted path. Rendered text belongs in "
+        f'{prop}="{{{{ {root} }}}}" without the colon.'
+    )
 
 
 def declared_props(component):
@@ -241,6 +278,7 @@ def main():
             continue
         src = blank_comments(raw)
         rel = path.relative_to(ROOT)
+        assigned = firstof_names(src)
 
         for match in TAG.finditer(src):
             name, attrs = match.group(1), match.group(2)
@@ -352,7 +390,15 @@ def main():
                         f"form ships with the control missing."
                     )
 
-            # 5. a search control with no accessible name
+            # 5. a :prop whose value is a {% firstof … as name %} result.
+            # The name looks like a bare path. It is rendered text.
+            if assigned:
+                bound = {stored for end, stored in assigned if end <= match.start()}
+                for prop, value in COLON_PROP.findall(attrs):
+                    if DOTTED_PATH.fullmatch(value) and value.split(".", 1)[0] in bound:
+                        found.append(_firstof_message(rel, line, name, prop, value))
+
+            # 6. a search control with no accessible name
             if name in NEEDS_LABEL and not re.search(r"(?:^|\s):?label=", attrs):
                 found.append(
                     f'{rel}:{line}: <c-{name}> needs label="…" — the specific '

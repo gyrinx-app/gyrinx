@@ -461,6 +461,69 @@ def test_a_suppression_covers_only_the_violation_it_names(tmp_path):
     assert "no longer matches" not in out
 
 
+def test_firstof_result_is_not_a_cotton_prop(tmp_path):
+    """`{% firstof a b as name %}` stores rendered text. A colon prop of that
+    name looks like a bare path and hands the component a string."""
+    status, out = _gate(
+        tmp_path,
+        '{% firstof primary fallback as receipt %}<c-n26.user-link :user="receipt" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+    assert ':user="receipt"' in out
+    assert 'user="{{ receipt }}"' in out
+
+
+def test_firstof_dotted_lookup_is_not_a_cotton_prop(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof primary fallback as receipt %}"
+        '<c-n26.user-link :user="receipt.owner" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+    assert "receipt.owner" in out
+
+
+def test_firstof_as_attrs_dict_is_not_a_cotton_prop(tmp_path):
+    """`:attrs="attrs"` is the passthrough idiom. A firstof result of another
+    name is still rendered text, including when the prop is `attrs`."""
+    status, out = _gate(
+        tmp_path,
+        "{% firstof row.minus_attrs row.plus_attrs as picked %}"
+        '<c-ui.button :attrs="picked">-1</c-ui.button>',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_firstof_text_and_later_assignment_stay_allowed(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof primary fallback as label %}"
+        '<c-n26.user-link :user="owner">{{ label }}</c-n26.user-link>'
+        "{% firstof a b as owner %}",
+    )
+    assert status == 0, out
+
+
+def test_firstof_in_a_django_comment_does_not_bind(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        '{# {% firstof a b as user %} #}<c-n26.user-link :user="user" />',
+    )
+    assert status == 0, out
+
+
+def test_original_paths_in_if_branches_are_allowed(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        '{% if primary %}<c-n26.user-link :user="primary" />'
+        '{% else %}<c-n26.user-link :user="fallback" />{% endif %}',
+    )
+    assert status == 0, out
+
+
 def test_the_gate_reads_a_components_props_from_its_index_file(tmp_path):
     """An n26 root component with parts lives at <name>/index.html. Probed
     as <name>.html alone it read as undefined, and every prop passed to it
