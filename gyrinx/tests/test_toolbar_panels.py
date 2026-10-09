@@ -31,6 +31,17 @@ def toolbar_urls(settings):
     settings.ROOT_URLCONF = ToolbarURLs
 
 
+@pytest.fixture(autouse=True)
+def fixed_signing_time(monkeypatch):
+    """The panel links each template with a signed origin that carries the time.
+
+    Two renders a second apart would otherwise differ in every link.
+    """
+    monkeypatch.setattr(
+        "django.core.signing.TimestampSigner.timestamp", lambda self: "0"
+    )
+
+
 def respond(request):
     return HttpResponse()
 

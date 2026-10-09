@@ -14,8 +14,9 @@ class DevServerConfig(AppConfig):
     def ready(self):
         if not getattr(settings, "DEV_SERVER_GUARD", False):
             return
-        # runserver's autoreloader runs Django twice: a parent that watches the
-        # files and a child, marked by RUN_MAIN, that serves. Only the child.
+        # runserver's autoreloader runs Django twice: a parent that starts the
+        # child again whenever it exits with code 3, and a child, marked by
+        # RUN_MAIN, that serves and watches the files. Only the child.
         if os.environ.get("RUN_MAIN") != "true" and "--noreload" not in sys.argv:
             return
         from gyrinx.devserver import guard

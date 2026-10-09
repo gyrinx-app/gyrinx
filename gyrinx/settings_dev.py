@@ -129,8 +129,8 @@ if "runserver" in sys.argv and not _UNDER_PYTEST:
 
 # The dev server restarts itself when it grows past DEV_SERVER_MEMORY_LIMIT_MB.
 # Started from an agent session, it stops when that session ends, or after
-# DEV_SERVER_IDLE_MINUTES without a request. 0 turns either off. See
-# gyrinx/devserver/guard.py.
+# DEV_SERVER_IDLE_MINUTES without a request. Setting either to 0 turns that
+# check off. See gyrinx/devserver/guard.py.
 DEV_SERVER_GUARD = "runserver" in sys.argv and not _UNDER_PYTEST
 DEV_SERVER_MEMORY_LIMIT_MB = int(os.getenv("GYRINX_DEV_MEMORY_LIMIT_MB", "2048"))
 DEV_SERVER_IDLE_MINUTES = int(os.getenv("GYRINX_DEV_IDLE_MINUTES", "120"))

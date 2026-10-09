@@ -1,20 +1,19 @@
 """
 A debug toolbar Templates panel that keeps each context layer once.
 
-The toolbar's Templates panel records, for every template a page renders, the
-context that template saw as one long string: each layer of the context
+The toolbar's own Templates panel records, for every template a page renders,
+the context that template saw as one long string: each layer of the context
 pretty-printed, then joined. Nested templates share most of their layers, the
 view's own context above all, so a page that renders hundreds of Cotton
-components keeps the same few megabytes of text hundreds of times over. A fighter
-edit page renders about 530 templates, and its panel held about 330 MB. The
-toolbar keeps the last 25 requests, so a dev server grew by that much on every
-page load until it held several gigabytes.
+components keeps the same few megabytes of text hundreds of times over. A
+fighter edit page renders about 530 templates, which comes to about 330 MB in
+that panel, and the toolbar keeps the last 25 requests.
 
 This panel pretty-prints each layer exactly as the toolbar does, but records
-each distinct layer once, plus the list of layers each template saw. The joined
-string is rebuilt only when someone opens the panel, so the panel shows the same
-text as before. That is the same for the page just rendered and for a past
-request read from the History panel.
+each distinct layer once, plus the list of layers each template saw. It joins
+them only when someone opens the panel, so it shows the same text as the
+toolbar's own panel, both for the page just rendered and for a past request
+read from the History panel.
 
 It is development-only. ``settings_dev`` puts it in ``DEBUG_TOOLBAR_PANELS`` in
 place of the toolbar's own. It lives apart from ``gyrinx/toolbar_dev.py`` for
@@ -49,7 +48,8 @@ class SharedContextTemplatesPanel(TemplatesPanel):
                     ids.append(layer_ids[text])
                 per_template.append(ids)
                 # The toolbar joins this list into the template's context
-                # string. Joining nothing leaves that string empty.
+                # string. Emptying it stops super() building the full join,
+                # which is the memory this panel exists to save.
                 template_data["context_list"] = []
         super().generate_stats(request, response)
         if not per_template:

@@ -3,9 +3,8 @@ Keeps a development server from outliving its use or eating the machine.
 
 Agents start dev servers in their own worktrees and seldom stop them. A server
 whose agent session has ended keeps its memory, and a server that grows keeps
-growing until the machine runs short. In the process that serves requests, not
-the autoreloader that watches it, a background thread checks three things every
-few seconds:
+growing until the machine runs short. In the process that serves requests, a
+background thread checks three things every few seconds:
 
 - Memory. Past ``DEV_SERVER_MEMORY_LIMIT_MB`` the process exits with the code
   runserver's autoreloader reads as "restart", so a fresh process takes over on
@@ -16,8 +15,9 @@ few seconds:
 - Requests. A server started from an agent session stops after
   ``DEV_SERVER_IDLE_MINUTES`` without one.
 
-Stopping means the serving process exits normally. The autoreloader then exits
-too, and ``scripts/dev.sh`` stops its CSS watcher on the way out.
+Stopping means the serving process exits with status 0. The autoreloader's
+parent process then exits too, and ``scripts/dev.sh`` stops its CSS watcher on
+the way out.
 """
 
 import ctypes
@@ -93,11 +93,12 @@ def memory_mb():
         return info.ri_phys_footprint / 2**20
     try:
         with open("/proc/self/status") as status:
-            for line in status:
-                if line.startswith("VmRSS:"):
-                    return int(line.split()[1]) / 1024
+            lines = status.readlines()
     except OSError:
-        pass
+        return None
+    for line in lines:
+        if line.startswith("VmRSS:"):
+            return int(line.split()[1]) / 1024
     return None
 
 
@@ -124,10 +125,16 @@ def agent_name(command):
     return None
 
 
-def find_owner(environ=os.environ, parent_pid=None):
-    """The agent session process that started this server, or None."""
+def find_owner(environ=os.environ, parent_pid=None, alive=process_alive):
+    """The agent session process that started this server, or None.
+
+    ``CLAUDE_PID`` survives ``nohup`` and ``&``, which cut the process off from
+    its ancestors. It also reaches anything else started from that session's
+    shell, such as a tmux server or an editor, so it counts only while that
+    process is still running.
+    """
     claude_pid = environ.get("CLAUDE_PID", "")
-    if claude_pid.isdigit():
+    if claude_pid.isdigit() and alive(int(claude_pid)):
         return Owner(int(claude_pid), AGENT_COMMANDS["claude"])
     pid = os.getppid() if parent_pid is None else parent_pid
     for _ in range(16):
@@ -175,6 +182,7 @@ class Guard:
         self.alive = alive
         self.lock = threading.Lock()
         self.in_flight = 0
+        self.served = False
         self.last_request = clock()
         self.over_limit_since = None
 
@@ -186,6 +194,7 @@ class Guard:
     def request_finished(self, **kwargs):
         with self.lock:
             self.in_flight = max(0, self.in_flight - 1)
+            self.served = True
             self.last_request = self.clock()
 
     def check(self):
@@ -193,6 +202,7 @@ class Guard:
         now = self.clock()
         with self.lock:
             in_flight = self.in_flight
+            served = self.served
             idle_for = now - self.last_request
 
         if self.owner and not self.alive(self.owner.pid):
@@ -201,7 +211,10 @@ class Guard:
                 f"(pid {self.owner.pid}) has ended"
             )
 
-        used = self.memory() if self.memory_limit_mb else None
+        # A process that has served nothing yet is as small as a restart would
+        # make it, so restarting it again cannot help.
+        limited = self.memory_limit_mb > 0 and served
+        used = self.memory() if limited else None
         if used is not None and used > self.memory_limit_mb:
             if self.over_limit_since is None:
                 self.over_limit_since = now
@@ -215,7 +228,7 @@ class Guard:
 
         if (
             self.owner
-            and self.idle_minutes
+            and self.idle_minutes > 0
             and not in_flight
             and idle_for >= self.idle_minutes * 60
         ):
@@ -225,7 +238,24 @@ class Guard:
             )
         return None
 
+    def rules(self):
+        rules = []
+        if self.memory_limit_mb > 0:
+            rules.append(f"restarts past {self.memory_limit_mb:,} MB")
+        if self.owner:
+            rules.append(f"stops when {self.owner.name} (pid {self.owner.pid}) exits")
+            if self.idle_minutes > 0:
+                rules.append(
+                    f"stops after {minutes(self.idle_minutes)} without a request"
+                )
+        return rules
+
     def watch(self, interval=5.0):
+        # Finding the owner runs ps several times. Doing it here rather than
+        # in start() keeps it off the path of every autoreload.
+        self.owner = find_owner()
+        if rules := self.rules():
+            logger.info("Dev server guard: %s.", "; ".join(rules))
         while True:
             time.sleep(interval)
             decision = self.check()
@@ -245,9 +275,7 @@ def exit_server(code, reason):
             "Run ./scripts/dev.sh to start it again."
         )
     logger.warning(message)
-    print(message, file=sys.stderr, flush=True)
-    for handler in logging.getLogger().handlers:
-        handler.flush()
+    logging.shutdown()
     # Exit from this thread without waiting for the server's threads, which
     # never finish on their own. With the autoreloader, a RESTART brings up a
     # new server process; anything else ends the autoreloader too.
@@ -255,20 +283,13 @@ def exit_server(code, reason):
 
 
 def start(*, memory_limit_mb, idle_minutes):
-    owner = find_owner()
+    if os.name == "nt":
+        # On Windows os.kill(pid, 0) ends the process instead of probing it.
+        return None
     guard = Guard(
-        memory_limit_mb=memory_limit_mb, idle_minutes=idle_minutes, owner=owner
+        memory_limit_mb=memory_limit_mb, idle_minutes=idle_minutes, owner=None
     )
     request_started.connect(guard.request_started, weak=False)
     request_finished.connect(guard.request_finished, weak=False)
     threading.Thread(target=guard.watch, name="dev-server-guard", daemon=True).start()
-    rules = []
-    if memory_limit_mb:
-        rules.append(f"restarts past {memory_limit_mb:,} MB")
-    if owner:
-        rules.append(f"stops when {owner.name} (pid {owner.pid}) exits")
-        if idle_minutes:
-            rules.append(f"stops after {minutes(idle_minutes)} without a request")
-    if rules:
-        logger.info("Dev server guard: %s.", "; ".join(rules))
     return guard
