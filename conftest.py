@@ -399,7 +399,8 @@ def fighter_statline_type_definition(
     truncates the table on teardown.
 
     Skipped, like ``content_stat_definitions``, when the session creates no
-    test database. Otherwise this writes the statline types into ``DB_NAME``.
+    test database. Without that guard, such a session would write the
+    statline types into ``DB_NAME``.
     """
     if not session_creates_test_database(request.session.items):
         return

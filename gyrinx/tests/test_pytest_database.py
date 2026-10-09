@@ -1,10 +1,10 @@
 """Plain pytest sessions must not touch the worktree's dev database.
 
-oriole on #lessons (7 Oct 2026): a file with no ``django_db`` tests skips
-test-database creation, and the root conftest's autouse
-``content_stat_definitions`` then seeds ``DB_NAME``. A fresh empty worktree
-fails every test with ``relation content_contentstat does not exist``, and
-a migrated one gains ContentStat rows it did not ask for.
+A file with no ``django_db`` tests skips test-database creation. The root
+conftest's autouse seeders must then leave ``DB_NAME`` alone: otherwise a
+fresh empty worktree fails every test with ``relation content_contentstat
+does not exist``, and a migrated one gains ContentStat rows it did not ask
+for.
 
 Not marked core: that suite is capped. CI still runs this file when a
 pull request changes it, and the full suite runs it on every push.

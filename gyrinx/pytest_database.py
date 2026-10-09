@@ -2,9 +2,8 @@
 
 pytest-django's ``django_db_setup`` only calls ``setup_databases`` for tests
 that request the database. A session of plain tests leaves the connection on
-``DB_NAME``, the worktree's dev database. oriole hit this on #lessons
-(7 Oct 2026): the autouse ``content_stat_definitions`` fixture then wrote
-ContentStat rows there, and a fresh empty worktree failed every test with
+``DB_NAME``, the worktree's dev database. An autouse session fixture that
+queries then writes into the dev database, or fails on a fresh one with
 ``relation content_contentstat does not exist``.
 """
 
@@ -20,7 +19,9 @@ def session_creates_test_database(items: Sequence[pytest.Item]) -> bool:
 
     This is the same predicate ``django_db_setup`` uses. An empty alias set
     means ``setup_databases`` returns without renaming the connection, so
-    any later query hits the dev database.
+    any later query hits the dev database. The predicate is private to
+    pytest-django, so an upgrade can move it; gyrinx/tests/test_pytest_database.py
+    fails if it does.
     """
     from pytest_django.fixtures import _get_databases_for_setup
 
