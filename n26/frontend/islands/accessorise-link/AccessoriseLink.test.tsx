@@ -41,9 +41,9 @@ describe("AccessoriseLink", () => {
         expect(link.className).toContain("ms-0.5 py-0!");
         expect(link.querySelector(".n26-icon-inline svg")).not.toBeNull();
         // .n26-icon-inline sizes the icon to the text; a size class would win.
-        expect(link.querySelector("svg")?.getAttribute("class") ?? "").not.toMatch(
-            /\bsize-/,
-        );
+        expect(
+            link.querySelector("svg")?.getAttribute("class") ?? "",
+        ).not.toMatch(/\bsize-/);
         expect(link.querySelector("svg")?.getAttribute("stroke-width")).toBe(
             "2.5",
         );
