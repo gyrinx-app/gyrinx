@@ -70,7 +70,11 @@ artifacts when the IDE Canvas surface is unavailable.
   sibling worktree's `pytest` on PATH imports that checkout's code. The root
   conftest exits if it detects that mismatch. pytest also exits when another
   pytest already holds this worktree's `logs/pytest.lock`, because both would
-  share `test_<DB>_gwN`. Wait for the pid it names, then run one suite. Add
+  share `test_<DB>_gwN`. Wait for the pid it names, then run one suite. A
+  session whose tests never request the database does not create a test
+  database; the autouse ContentStat seeders then leave `DB_NAME` alone, so
+  those runs neither fail on an unmigrated worktree database nor write rows
+  into it. Add
   `-n 0 -s <test>` when
   debugging print output, and use `-n 4` rather than saturating the shared
   Postgres lock table while another agent has a test run active. If schema
