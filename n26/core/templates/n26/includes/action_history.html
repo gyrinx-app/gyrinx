@@ -5,7 +5,7 @@
             <c-slot name="header">
                 <span class="font-semibold">Action history</span>
             </c-slot>
-            <p class="mb-4 text-sm text-muted">Recent completed actions for this model.</p>
+            <p class="mb-4 text-sm text-muted">Recent actions for this model.</p>
             <div class="divide-y divide-box-border">
                 {% for panel in action_history_panels %}
                     <section class="py-4 first:pt-0 last:pb-0"
@@ -16,16 +16,32 @@
                             {% for result in panel.completed %}
                                 <li>
                                     <div class="flex items-baseline justify-between gap-3">
-                                        <c-n26.link href="{{ result.href }}" class="font-medium">
-                                            {{ result.label }}
-                                        </c-n26.link>
+                                        {% if result.applied_by_hand %}
+                                            <span class="font-medium">{{ result.label }}</span>
+                                        {% else %}
+                                            <c-n26.link href="{{ result.href }}" class="font-medium">
+                                                {{ result.label }}
+                                            </c-n26.link>
+                                        {% endif %}
                                         {% if result.when %}
                                             <time datetime="{{ result.when|date:'c' }}"
                                                   title="{{ result.when }}"
                                                   class="shrink-0 text-xs text-muted">{{ result.when|naturaltime }}</time>
                                         {% endif %}
                                     </div>
-                                    {% if result.detail %}<p class="mt-0.5 text-muted">{{ result.detail }}</p>{% endif %}
+                                    {% if result.applied_by_hand %}
+                                        <form method="post" action="{{ result.reopen_href }}" class="mt-0.5">
+                                            {% csrf_token %}
+                                            <c-ui.button type="submit"
+                                                         variant="ghost"
+                                                         size="xs"
+                                                         aria-label="Undo marking {{ panel.name }} as applied by hand">
+                                                Undo
+                                            </c-ui.button>
+                                        </form>
+                                    {% elif result.detail %}
+                                        <p class="mt-0.5 text-muted">{{ result.detail }}</p>
+                                    {% endif %}
                                 </li>
                             {% endfor %}
                         </ul>

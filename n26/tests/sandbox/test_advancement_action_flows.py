@@ -678,9 +678,385 @@ class TestCompletingAndCorrecting:
         record = _start(client, advancement)
         stranger = User.objects.create_user("advancement-stranger")
         client.force_login(stranger)
-        for stage in ("choose", "skill", "review", "done", "correct", "cancel"):
+        for stage in (
+            "choose",
+            "skill",
+            "review",
+            "done",
+            "correct",
+            "cancel",
+            "by-hand",
+            "reopen",
+        ):
             url = reverse(
                 "n26-action-flow", args=[advancement.fighter.pk, record.pk, stage]
             )
             assert client.get(url).status_code == 404
             assert client.post(url, {}).status_code == 404
+
+
+def _waiting(advancement):
+    from n26.core.action_flow import available_action_names
+
+    card = SimpleNamespace(id=str(advancement.fighter.pk), action_ids=())
+    return available_action_names(advancement.gang, [card]).get(card.id, ())
+
+
+def _edit_page(client, advancement):
+    return client.get(
+        reverse("n26-edit-fighter", args=[advancement.fighter.pk])
+    ).content.decode()
+
+
+def _mark_unused_by_hand(client, advancement, request_key=None):
+    client.force_login(advancement.owner)
+    url = (
+        reverse(
+            "n26-action-by-hand",
+            args=[advancement.fighter.pk, advancement.action.pk],
+        )
+        + f"?allowance={advancement.allowance.pk}"
+    )
+    response = client.post(url, {"request_key": str(request_key or uuid4())})
+    assert response.status_code == 302
+    return response
+
+
+def _flow(client, advancement, record, step):
+    return client.post(
+        reverse("n26-action-flow", args=[advancement.fighter.pk, record.pk, step])
+    )
+
+
+def _story(advancement):
+    from n26.core import history
+
+    return [
+        "".join(span.text for span in act.spans)
+        for act in history.build(advancement.gang)
+    ]
+
+
+class TestApplyingByHand:
+    """A player who gave the result outside Gyrinx clears the waiting mark."""
+
+    def test_an_unused_earned_use_is_cleared_without_touching_the_fighter(
+        self, client, advancement
+    ):
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            by_hand = op.assign(
+                advancement.skills["secondary"], miniature=advancement.fighter
+            )
+        assert _waiting(advancement) == ("Advance",)
+        client.force_login(advancement.owner)
+        assert "Mark as applied" in _edit_page(client, advancement)
+
+        _mark_unused_by_hand(client, advancement)
+
+        record = ActionRecord.objects.get(fighter=advancement.fighter)
+        assert record.state == ActionRecord.State.APPLIED_BY_HAND
+        assert record.allowance == advancement.allowance
+        assert _waiting(advancement) == ()
+        assert not ActionAllowance.objects.filter(fighter=advancement.fighter).unused()
+        by_hand.refresh_from_db()
+        assert not by_hand.archived
+        assert "applied Advance by hand for Kara" in _story(advancement)
+        page = _edit_page(client, advancement)
+        assert "Applied by hand" in page
+        assert "Undo" in page
+        assert "Mark as applied" not in page
+        assert_reconciled(advancement.gang)
+
+    def test_the_cleared_rank_cannot_be_taken_again_through_the_flow(
+        self, client, advancement
+    ):
+        _mark_unused_by_hand(client, advancement)
+        client.post(
+            reverse(
+                "n26-action-start",
+                args=[advancement.fighter.pk, advancement.action.pk],
+            ),
+            {
+                "request_key": str(uuid4()),
+                "outcome": str(advancement.outcome.pk),
+                "allowance": str(advancement.allowance.pk),
+            },
+        )
+        assert not ActionRecord.objects.filter(
+            fighter=advancement.fighter, state=ActionRecord.State.STARTED
+        ).exists()
+
+    def test_a_repeated_request_marks_one_use(self, client, advancement):
+        key = uuid4()
+        _mark_unused_by_hand(client, advancement, key)
+        _mark_unused_by_hand(client, advancement, key)
+        assert ActionRecord.objects.filter(fighter=advancement.fighter).count() == 1
+        assert (
+            LedgerEvent.objects.filter(
+                kind=LedgerEvent.Kind.ACTION_USE_APPLIED_BY_HAND
+            ).count()
+            == 1
+        )
+
+    def test_a_started_flow_with_a_roll_is_cleared_and_keeps_its_roll(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        assert _waiting(advancement) == ("Advance",)
+        assert "Mark as applied" in _edit_page(client, advancement)
+
+        assert _flow(client, advancement, record, "by-hand").status_code == 302
+
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.APPLIED_BY_HAND
+        assert _waiting(advancement) == ()
+        assert LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).exists()
+        resumed = client.get(
+            reverse(
+                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
+            )
+        )
+        assert resumed.url == reverse("n26-edit-fighter", args=[advancement.fighter.pk])
+
+    def test_undo_frees_an_unused_earned_use(self, client, advancement):
+        _mark_unused_by_hand(client, advancement)
+        record = ActionRecord.objects.get(fighter=advancement.fighter)
+
+        _flow(client, advancement, record, "reopen")
+
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.CANCELLED
+        assert _waiting(advancement) == ("Advance",)
+        assert list(
+            ActionAllowance.objects.filter(fighter=advancement.fighter).unused()
+        ) == [advancement.allowance]
+        assert "reopened Advance for Kara" in _story(advancement)
+
+    def test_undo_returns_a_started_flow_with_its_roll(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        _flow(client, advancement, record, "by-hand")
+
+        _flow(client, advancement, record, "reopen")
+
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        assert _waiting(advancement) == ("Advance",)
+        resumed = client.get(
+            reverse(
+                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
+            ),
+            follow=True,
+        )
+        assert resumed.context["roll_value"] == 12
+
+    def test_the_rank_history_names_the_state(self, client, advancement):
+        from n26.core.progression import progression_for
+
+        _mark_unused_by_hand(client, advancement)
+
+        [rank] = progression_for(advancement.fighter).history
+        assert rank.state_label == "Applied by hand"
+
+    def test_another_owner_cannot_mark_an_unused_use(self, client, advancement):
+        client.force_login(User.objects.create_user("by-hand-stranger"))
+        url = reverse(
+            "n26-action-by-hand", args=[advancement.fighter.pk, advancement.action.pk]
+        )
+        assert client.post(url, {"request_key": str(uuid4())}).status_code == 404
+        assert not ActionRecord.objects.filter(fighter=advancement.fighter).exists()
+
+    def test_the_menu_link_opens_a_confirmation_first(self, client, advancement):
+        client.force_login(advancement.owner)
+        url = reverse(
+            "n26-action-by-hand", args=[advancement.fighter.pk, advancement.action.pk]
+        )
+        page = client.get(url)
+        assert page.status_code == 200
+        assert page.context["stage"] == "by-hand"
+        assert "outside Gyrinx" in page.content.decode()
+        assert not ActionRecord.objects.filter(fighter=advancement.fighter).exists()
+
+    def test_a_started_flow_confirms_before_it_is_marked(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "by-hand"]
+        )
+        assert client.get(url).context["stage"] == "by-hand"
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+
+    def test_a_result_picked_by_hand_into_the_rolled_slot_stays(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        rolled_slot = record.advancement_selection.slot_assignment
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            picked = op.choose(rolled_slot, advancement.results["primary"])
+
+        _flow(client, advancement, record, "by-hand")
+
+        record.refresh_from_db()
+        rolled_slot.refresh_from_db()
+        picked.refresh_from_db()
+        assert record.state == ActionRecord.State.APPLIED_BY_HAND
+        assert not rolled_slot.archived
+        assert not picked.archived
+
+    def test_a_flow_reopened_from_review_can_still_be_confirmed(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        client.post(skill_url, {"skill_id": str(advancement.skills["primary"].pk)})
+        record.refresh_from_db()
+        assert record.review
+
+        _flow(client, advancement, record, "by-hand")
+        _flow(client, advancement, record, "reopen")
+
+        record.refresh_from_db()
+        assert record.review == {}
+        review = client.post(
+            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        )
+        token = client.get(review.url).context["form"]["review"].value()
+        assert client.post(review.url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+
+    def test_a_rolled_flow_loses_its_empty_slot_and_undo_lets_it_finish(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        rolled_slot = record.advancement_selection.slot_assignment
+
+        _flow(client, advancement, record, "by-hand")
+
+        rolled_slot.refresh_from_db()
+        assert rolled_slot.archived
+
+        _flow(client, advancement, record, "reopen")
+
+        record.refresh_from_db()
+        record.advancement_selection.refresh_from_db()
+        rebound = record.advancement_selection.slot_assignment
+        assert not rebound.archived
+        assert rebound.slot_id == rolled_slot.slot_id
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        review = client.post(
+            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        )
+        token = client.get(review.url).context["form"]["review"].value()
+        assert client.post(review.url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        advancement.gang.refresh_from_db()
+        assert_reconciled(advancement.gang)
+
+    def test_an_older_flow_marked_now_keeps_its_undo_above_newer_results(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        for _ in range(3):
+            ActionRecord.objects.create(
+                gang=advancement.gang,
+                fighter=advancement.fighter,
+                action=advancement.action,
+                outcome=advancement.outcome,
+                request_key=uuid4(),
+                state=ActionRecord.State.COMPLETED,
+            )
+
+        _flow(client, advancement, record, "by-hand")
+
+        assert "Undo marking Advance as applied by hand" in _edit_page(
+            client, advancement
+        )
+
+    def _later_allowance(self, advancement):
+        return ActionAllowance.objects.create(
+            action=advancement.action,
+            fighter=advancement.fighter,
+            source=advancement.fighter.membership,
+            source_kind=ActionAllowance.Source.RANK,
+            threshold=8,
+            rank_table=advancement.allowance.rank_table,
+        )
+
+    def test_undo_waits_while_a_later_flow_is_started(self, client, advancement):
+        later = self._later_allowance(advancement)
+        _mark_unused_by_hand(client, advancement)
+        marked = ActionRecord.objects.get(fighter=advancement.fighter)
+        client.post(
+            reverse(
+                "n26-action-start",
+                args=[advancement.fighter.pk, advancement.action.pk],
+            ),
+            {
+                "request_key": str(uuid4()),
+                "outcome": str(advancement.outcome.pk),
+                "allowance": str(later.pk),
+            },
+        )
+        assert ActionRecord.objects.filter(
+            allowance=later, state=ActionRecord.State.STARTED
+        ).exists()
+
+        _flow(client, advancement, marked, "reopen")
+
+        marked.refresh_from_db()
+        assert marked.state == ActionRecord.State.APPLIED_BY_HAND
+
+    def test_undo_waits_for_a_later_rank_already_taken(self, client, advancement):
+        later = self._later_allowance(advancement)
+        _mark_unused_by_hand(client, advancement)
+        marked = ActionRecord.objects.get(allowance=advancement.allowance)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.apply_allowance_by_hand(
+                advancement.fighter, advancement.action, uuid4(), later
+            )
+
+        _flow(client, advancement, marked, "reopen")
+
+        marked.refresh_from_db()
+        assert marked.state == ActionRecord.State.APPLIED_BY_HAND
+        assert _waiting(advancement) == ()
+
+    def test_a_malformed_allowance_falls_back_to_the_earliest_use(
+        self, client, advancement
+    ):
+        client.force_login(advancement.owner)
+        url = (
+            reverse(
+                "n26-action-by-hand",
+                args=[advancement.fighter.pk, advancement.action.pk],
+            )
+            + "?allowance=not-a-ulid"
+        )
+        response = client.post(url, {"request_key": str(uuid4())})
+        assert response.status_code == 302
+        assert ActionRecord.objects.get(fighter=advancement.fighter).allowance == (
+            advancement.allowance
+        )

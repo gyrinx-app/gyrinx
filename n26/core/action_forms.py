@@ -128,3 +128,13 @@ class SkillRollForm(ActionRollForm):
 
 class EmptyActionForm(forms.Form):
     pass
+
+
+class ApplyByHandForm(forms.Form):
+    request_key = forms.UUIDField(
+        widget=forms.HiddenInput,
+        error_messages={
+            "invalid": "This form is not recognised. Reload this page and try again.",
+            "required": "Reload this page before continuing.",
+        },
+    )

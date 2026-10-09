@@ -3044,6 +3044,26 @@ class Operation:
 
         return cancel_action(self, record)
 
+    def apply_allowance_by_hand(self, fighter, action, request_key, allowance=None):
+        """Settle an unused earned use the player applied outside Gyrinx."""
+        from n26.core.action_records import start_action
+
+        return start_action(
+            self, fighter, action, request_key, allowance=allowance, by_hand=True
+        )
+
+    def apply_action_by_hand(self, record):
+        """Settle a started earned-use flow the player applied outside Gyrinx."""
+        from n26.core.action_records import apply_action_by_hand
+
+        return apply_action_by_hand(self, record)
+
+    def reopen_action(self, record):
+        """Undo applied by hand, so the earned use is waiting again."""
+        from n26.core.action_records import reopen_action
+
+        return reopen_action(self, record)
+
     def review_action_correction(self, record, *, terms):
         """Capture exact completed-result state before a safe correction."""
         from n26.core.action_records import review_action_correction

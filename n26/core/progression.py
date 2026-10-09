@@ -15,6 +15,7 @@ from n26.core.access import rank_tables_for
 from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
 from n26.core.models import ActionAllowance, ActionRecord
+from n26.core.models.action_record import RESERVING_STATES
 from n26.library.models import Counter, RankTable, RankThreshold
 from n26.library.standard_content import XP_COUNTER
 
@@ -45,6 +46,7 @@ class RankHistory:
     title: str
     action_name: str
     state: str
+    state_label: str
     result: str
     record_id: object | None
 
@@ -205,7 +207,7 @@ def progression_for(fighter, *, card=None, computed=None):
     if computed is None:
         computed = compute(card, build_modifier_index(carriers(card)))
     active_records = ActionRecord.objects.filter(
-        state__in=(ActionRecord.State.STARTED, ActionRecord.State.COMPLETED)
+        state__in=RESERVING_STATES
     ).select_related(
         "outcome",
         "advancement_selection__intended_pick",
@@ -247,6 +249,9 @@ def progression_for(fighter, *, card=None, computed=None):
                 title=titles.get((allowance.rank_table_id, allowance.threshold), ""),
                 action_name=str(allowance.action),
                 state=record.state if record is not None else "available",
+                state_label=(
+                    record.get_state_display() if record is not None else "Available"
+                ),
                 result=_result_for(record),
                 record_id=record.pk if record is not None else None,
             )

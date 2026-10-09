@@ -15,6 +15,7 @@ from n26.core.models import (
     LedgerEvent,
     SkillSelection,
 )
+from n26.core.models.action_record import RESERVING_STATES
 from n26.core.operations import Refusal, subtree
 from n26.core.promotions import (
     apply_bonus_promotion,
@@ -123,7 +124,7 @@ def _correction_result(record, *, lock=False):
         and record.fighter.action_records.filter(
             action=record.action,
             created__gt=record.created,
-            state__in=[ActionRecord.State.STARTED, ActionRecord.State.COMPLETED],
+            state__in=RESERVING_STATES,
         ).exists()
     ):
         raise Refusal("A later advancement depends on this promotion.")

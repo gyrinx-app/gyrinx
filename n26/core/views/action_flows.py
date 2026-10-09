@@ -18,6 +18,7 @@ from n26.core.action_flow import payment_figures, payment_tallies, receipt_lines
 from n26.core.action_forms import (
     ActionOutcomeForm,
     ActionSelectionForm,
+    ApplyByHandForm,
     ConfirmActionForm,
     EmptyActionForm,
     StartActionForm,
@@ -44,7 +45,11 @@ REVIEW_SALT = "n26.fighter-action-review"
 
 
 def flow_url(fighter, record, step):
-    return reverse("n26-action-flow", args=[fighter.pk, record.pk, step])
+    return flow_url_for(fighter, record.pk, step)
+
+
+def flow_url_for(fighter, record_id, step):
+    return reverse("n26-action-flow", args=[fighter.pk, record_id, step])
 
 
 def link_action_panels(fighter, panels):
@@ -56,20 +61,35 @@ def link_action_panels(fighter, panels):
             )
             if panel.allowance_id:
                 panel.start_href += f"?allowance={panel.allowance_id}"
+                panel.menu = [
+                    {
+                        "label": "Mark as applied",
+                        "href": reverse(
+                            "n26-action-by-hand", args=[fighter.pk, panel.action_id]
+                        )
+                        + f"?allowance={panel.allowance_id}",
+                    }
+                ]
+        panel.menu += [
+            {
+                "label": "Mark as applied"
+                if len(panel.drafts) == 1
+                else f"Mark flow {number} as applied",
+                "href": flow_url_for(fighter, draft.key, "by-hand"),
+            }
+            for number, draft in enumerate(panel.drafts, start=1)
+            if draft.earned
+        ]
         panel.drafts = [
-            replace(
-                draft,
-                href=reverse("n26-action-flow", args=[fighter.pk, draft.key, "resume"]),
-            )
+            replace(draft, href=flow_url_for(fighter, draft.key, "resume"))
             for draft in panel.drafts
         ]
         panel.completed = [
             replace(
-                completed,
-                href=reverse(
-                    "n26-action-flow", args=[fighter.pk, completed.key, "done"]
-                ),
+                completed, reopen_href=flow_url_for(fighter, completed.key, "reopen")
             )
+            if completed.applied_by_hand
+            else replace(completed, href=flow_url_for(fighter, completed.key, "done"))
             for completed in panel.completed
         ]
     return panels
@@ -233,7 +253,7 @@ def _page(
         flow_url(fighter, record, "outcome")
         if _can_cancel(record)
         and not correction
-        and stage not in {"start", "done", "cancel"}
+        and stage not in {"start", "done", "cancel", "by-hand"}
         else ""
     )
     done_href = ""
@@ -421,12 +441,7 @@ def action_start(request, pk, action_id):
         return redirect(flow_url(fighter, existing, "resume"))
     allowances = list(
         ActionAllowance.objects.filter(fighter=fighter, action=action)
-        .exclude(
-            records__state__in=[
-                ActionRecord.State.STARTED,
-                ActionRecord.State.COMPLETED,
-            ]
-        )
+        .unused()
         .order_by("threshold", "created", "pk")
     )
     if not allowances and action.pk not in {
@@ -524,11 +539,82 @@ def action_start(request, pk, action_id):
 
 
 @login_required
+def action_by_hand(request, pk, action_id):
+    """Confirm, then mark an unused earned use as applied by hand."""
+    fighter = _own_miniature_or_404(request, pk)
+    try:
+        action = get_object_or_404(Action, pk=action_id)
+    except ValidationError:
+        raise Http404("No such action") from None
+    try:
+        allowance = (
+            ActionAllowance.objects.filter(
+                pk=request.GET.get("allowance"), fighter=fighter, action=action
+            ).first()
+            if request.GET.get("allowance")
+            else None
+        )
+    except ValidationError:
+        allowance = None
+    form = ApplyByHandForm(request.POST or None, initial={"request_key": uuid4()})
+    if request.method == "POST" and form.is_valid():
+        try:
+            with operation(fighter.gang, actor=request.user) as op:
+                record = op.apply_allowance_by_hand(
+                    fighter, action, form.cleaned_data["request_key"], allowance
+                )
+            if record.state == ActionRecord.State.APPLIED_BY_HAND:
+                messages.success(request, f"{action} marked as applied by hand.")
+            else:
+                messages.info(request, "This form is out of date. Nothing changed.")
+            return redirect("n26-edit-fighter", pk=fighter.pk)
+        except Refusal as refusal:
+            form.add_error(None, str(refusal))
+    return _by_hand_page(request, fighter, action, form)
+
+
+def _by_hand_page(request, fighter, action, form, *, record=None):
+    return _page(
+        request,
+        fighter,
+        action,
+        record=record,
+        stage="by-hand",
+        form=form,
+        submit_label="Mark as applied",
+        submit_variant="success",
+    )
+
+
+@login_required
 def action_flow(request, pk, record_id, step):
     fighter = _own_miniature_or_404(request, pk)
     record = _record_or_404(fighter, record_id)
     if record.state == ActionRecord.State.CANCELLED:
         messages.info(request, "This flow was cancelled.")
+        return redirect("n26-edit-fighter", pk=fighter.pk)
+    if step == "by-hand" and record.state == ActionRecord.State.STARTED:
+        form = EmptyActionForm(request.POST or None)
+        if request.method == "POST":
+            try:
+                with operation(fighter.gang, actor=request.user) as op:
+                    op.apply_action_by_hand(record)
+                messages.success(request, f"{record.action} marked as applied by hand.")
+                return redirect("n26-edit-fighter", pk=fighter.pk)
+            except Refusal as refusal:
+                form.add_error(None, str(refusal))
+        return _by_hand_page(request, fighter, record.action, form, record=record)
+    if step == "reopen":
+        if request.method == "POST":
+            try:
+                with operation(fighter.gang, actor=request.user) as op:
+                    op.reopen_action(record)
+                messages.success(request, f"{record.action} is waiting again.")
+            except Refusal as refusal:
+                messages.error(request, str(refusal))
+        return redirect("n26-edit-fighter", pk=fighter.pk)
+    if record.state == ActionRecord.State.APPLIED_BY_HAND:
+        messages.info(request, "This earned use was applied by hand.")
         return redirect("n26-edit-fighter", pk=fighter.pk)
     if not record.outcome_id and step in {
         "resume",

@@ -772,6 +772,10 @@ def _tell(e, row, alive):
             return _tell_action_use(e, "completed", alive, result=True), "model"
         case Kind.ACTION_USE_CANCELLED:
             return _tell_action_use(e, "cancelled", alive), "model"
+        case Kind.ACTION_USE_APPLIED_BY_HAND:
+            return _tell_action_use(e, "applied", alive, after=" by hand"), "model"
+        case Kind.ACTION_USE_REOPENED:
+            return _tell_action_use(e, "reopened", alive), "model"
         case Kind.ACTION_USE_CORRECTED:
             return _tell_action_use(e, "corrected", alive, result=True), "model"
         case Kind.PURCHASED:
@@ -1001,7 +1005,7 @@ def _tell(e, row, alive):
     return (Span(e.get_kind_display().casefold()),), category
 
 
-def _tell_action_use(e, verb, alive, *, result=False):
+def _tell_action_use(e, verb, alive, *, result=False, after=""):
     """Tell an action event from the names captured when it was written."""
     record = e.action_record
     fighter = e.miniature or (record.fighter if record is not None else None)
@@ -1009,7 +1013,7 @@ def _tell_action_use(e, verb, alive, *, result=False):
     action = action or (e.note if not result else "") or "an action"
     outcome = f" — {e.note}" if result and e.note else ""
     return (
-        Span(f"{verb} {action}"),
+        Span(f"{verb} {action}{after}"),
         *_for(fighter, _model_span(fighter, alive)),
         Span(outcome),
     )
@@ -1167,6 +1171,8 @@ _NOTE_IS_MACHINERY = {
     Kind.ACTION_USE_COMPLETED,
     Kind.ACTION_USE_CANCELLED,
     Kind.ACTION_USE_CORRECTED,
+    Kind.ACTION_USE_APPLIED_BY_HAND,
+    Kind.ACTION_USE_REOPENED,
 }
 
 

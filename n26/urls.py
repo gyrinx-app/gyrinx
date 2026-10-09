@@ -285,6 +285,11 @@ urlpatterns = [
         name="n26-action-start",
     ),
     path(
+        "fighters/<str:pk>/actions/<str:action_id>/by-hand/",
+        views.action_by_hand,
+        name="n26-action-by-hand",
+    ),
+    path(
         "fighters/<str:pk>/action-uses/<str:record_id>/<str:step>/",
         views.action_flow,
         name="n26-action-flow",
