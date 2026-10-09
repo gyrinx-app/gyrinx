@@ -50,6 +50,12 @@ the gate, fix the call site.
   `:disabled="not can_roll"` both evaluate to empty — the second ships the control
   **enabled**. Use `url="{{ a|default:b }}"` / `disabled="{% if not can_roll %}1{% endif %}"`.
   A `:prop` may only be a bare dotted path.
+- **`{% firstof a b as name %}` stores rendered text.** `:prop="name"` looks like a
+  bare path and passes a string, so a dataclass, form, or user arrives with no
+  attributes and the page still returns 200. Repeat the whole component in
+  `{% if %}` branches and pass each original dotted path. Rendered text uses
+  `attr="{{ name }}"` without the colon. `scripts/check_cotton.py` rejects the
+  colon form.
 - **A `{% if %}` in attribute position renders as literal text**, and the browser parses the
   braces as junk attributes. `<c-btn {% if x %}disabled{% endif %}>` ships enabled.
 - **`:disabled="False"` still disables the control.** HTML boolean attributes are live
