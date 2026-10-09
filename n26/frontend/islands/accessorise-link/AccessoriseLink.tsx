@@ -50,8 +50,9 @@ export function AccessoriseLink({
             aria-label={`${label} to ${name}`}
             onClick={open}
         >
+            {/* No size class: .n26-icon-inline sizes the icon to the text. */}
             <span className="n26-icon-inline">
-                <Icon name="plus" strokeWidth={2.5} />
+                <Icon name="plus" strokeWidth={2.5} className="" />
             </span>
             {label}
         </ButtonLink>
