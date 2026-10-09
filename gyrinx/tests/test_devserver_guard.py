@@ -11,6 +11,7 @@ from gyrinx.devserver.guard import (
     Guard,
     Owner,
     agent_name,
+    exit_plan,
     find_owner,
     memory_mb,
 )
@@ -277,3 +278,23 @@ def test_the_guard_stays_off_unless_settings_turn_it_on(monkeypatch, settings, s
     argv = ["manage", "runserver"]
     run_ready(monkeypatch, settings, guard_on=False, run_main=True, argv=argv)
     assert started == []
+
+
+def test_a_server_over_its_limit_restarts_under_the_autoreloader():
+    code, message = exit_plan(RESTART, "it is using 3,000 MB", under_autoreloader=True)
+    assert code == RESTART
+    assert message == "Restarting the dev server: it is using 3,000 MB."
+
+
+def test_a_server_over_its_limit_stops_without_the_autoreloader():
+    """With --noreload nothing would start the server again after exit code 3."""
+    code, message = exit_plan(RESTART, "it is using 3,000 MB", under_autoreloader=False)
+    assert code == STOP
+    assert message.startswith("Stopping the dev server: it is using 3,000 MB.")
+    assert "Without the autoreloader" in message
+
+
+def test_a_stop_ends_the_autoreloader_too():
+    code, message = exit_plan(STOP, "it has had no requests", under_autoreloader=True)
+    assert code == STOP
+    assert message.endswith("Run ./scripts/dev.sh to start it again.")

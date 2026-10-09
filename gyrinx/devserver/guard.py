@@ -263,22 +263,31 @@ class Guard:
                 exit_server(*decision)
 
 
-def exit_server(code, reason):
-    under_autoreloader = os.environ.get("RUN_MAIN") == "true"
+def exit_plan(code, reason, under_autoreloader):
+    """The exit code and the line to log for a server leaving for ``reason``.
+
+    Only runserver's autoreloader can start a new process. With ``--noreload``
+    there is none, so a server over its memory limit stops instead.
+    """
     if code == RESTART and under_autoreloader:
-        message = f"Restarting the dev server: {reason}."
-    elif code == RESTART:
-        message = f"Stopping the dev server: {reason}. Start it again to carry on."
-    else:
-        message = (
-            f"Stopping the dev server: {reason}. "
-            "Run ./scripts/dev.sh to start it again."
+        return RESTART, f"Restarting the dev server: {reason}."
+    if code == RESTART:
+        return STOP, (
+            f"Stopping the dev server: {reason}. Without the autoreloader "
+            "nothing can restart it. Start it again to carry on."
         )
+    return STOP, (
+        f"Stopping the dev server: {reason}. Run ./scripts/dev.sh to start it again."
+    )
+
+
+def exit_server(code, reason):
+    code, message = exit_plan(code, reason, os.environ.get("RUN_MAIN") == "true")
     logger.warning(message)
     logging.shutdown()
     # Exit from this thread without waiting for the server's threads, which
     # never finish on their own. With the autoreloader, a RESTART brings up a
-    # new server process; anything else ends the autoreloader too.
+    # new server process; a STOP ends the autoreloader too.
     os._exit(code)
 
 

@@ -16,7 +16,8 @@ Starts the full development environment with a single command. Handles per-workt
 ```
 
 The server restarts itself when it grows past 2,048 MB
-(`GYRINX_DEV_MEMORY_LIMIT_MB`). When an agent session started it, it also stops
+(`GYRINX_DEV_MEMORY_LIMIT_MB`); run with `--noreload`, it stops there instead.
+When an agent session started it, it also stops
 when that session ends, and after 120 minutes with no requests
 (`GYRINX_DEV_IDLE_MINUTES`). Set either variable to `0` to turn that check off.
 `logs/runserver.log` records each restart and stop with its reason. See

@@ -70,12 +70,19 @@ def wait_until_up(base):
     raise SystemExit("The dev server did not start within two minutes.")
 
 
+def positive_int(text):
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be 1 or more")
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument(
         "urls", nargs="+", help="paths to request, such as /n26/gangs/<id>/"
     )
-    parser.add_argument("--rounds", type=int, default=8)
+    parser.add_argument("--rounds", type=positive_int, default=8)
     parser.add_argument(
         "--user", default="agent-memory", help="agent user to log in as"
     )
