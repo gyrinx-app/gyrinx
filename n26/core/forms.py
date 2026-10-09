@@ -1209,6 +1209,10 @@ class CampaignRollOutcomeForm(forms.Form):
     outcome = forms.CharField(max_length=512, required=False, widget=forms.Textarea)
 
 
+class IncomeValueForm(forms.Form):
+    value = forms.IntegerField(label="Income", min_value=0)
+
+
 class CounterAdjustmentForm(forms.Form):
     """A signed change to the recorded part of a counter."""
 

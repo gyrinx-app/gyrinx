@@ -1435,8 +1435,9 @@ def tally_counter(request, pk):
     business. Only counters, though — every other assignment has verbs
     of its own, and none of them is a running number.
 
-    The GET form accepts one deliberate amount; the existing POST controls
-    still move one point. The rulebook's own acts move these by more — a
+    The Income form edits the total and derives its adjustment from current
+    contributions under the gang lock. Other forms accept a signed amount;
+    the existing POST controls still move one point. The rulebook's own acts move these by more — a
     Spyrer spends four Kill Count on Suit Evolution — and ``change``
     being signed and free is what lets one address serve both.
 
@@ -1446,7 +1447,7 @@ def tally_counter(request, pk):
     arbitrator as the actor so the gang's history says who did it.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.forms import CounterAdjustmentForm
+    from n26.core.forms import CounterAdjustmentForm, IncomeValueForm
     from n26.core.operations import Refusal, operation
     from n26.core.views.edit import render_card_update
     from n26.core.views.permissions import _campaign_counter_or_404
@@ -1468,18 +1469,27 @@ def tally_counter(request, pk):
     back = data.get("back", "")[:500]
     here = reverse("n26-gang", args=[gang.pk])
     adjusting = request.method == "GET" or "adjust" in request.POST
+    setting_income = (
+        income
+        and not resetting
+        and (request.method == "GET" or (adjusting and "value" in request.POST))
+    )
     if adjusting:
         back = _safe_redirect(request, back, here).url
-        # A reset's full delta is read under the gang lock, beyond the
-        # ordinary change limit. Use a valid negative change to enter that path.
-        form = CounterAdjustmentForm(
-            {"change": -1}
-            if resetting
-            else request.POST
-            if request.method == "POST"
-            else None,
-            maximum=MOST_A_TALLY_MOVES,
-        )
+        if setting_income:
+            form = IncomeValueForm(request.POST if request.method == "POST" else None)
+        else:
+            # A reset's full delta is read under the gang lock, beyond the
+            # ordinary change limit. Use a valid negative change to enter that path.
+            form = CounterAdjustmentForm(
+                {"change": -1}
+                if resetting
+                else request.POST
+                if request.method == "POST"
+                else None,
+                maximum=MOST_A_TALLY_MOVES,
+            )
+        field_name = "value" if setting_income else "change"
 
         def adjustment_page():
             from n26.core.models import CounterValue
@@ -1494,8 +1504,11 @@ def tally_counter(request, pk):
             preview = {
                 "value": total,
                 "recorded": value,
-                "change": str(form["change"].value() or ""),
-                "errors": list(form["change"].errors),
+                "change": "" if setting_income else str(form["change"].value() or ""),
+                "inputValue": str(form["value"].value() or "")
+                if setting_income and form.is_bound
+                else str(total),
+                "errors": list(form[field_name].errors),
                 "maximum": MOST_A_TALLY_MOVES,
                 "isIncome": income,
             }
@@ -1522,13 +1535,13 @@ def tally_counter(request, pk):
 
         if request.method == "GET" or not form.is_valid():
             return adjustment_page()
-        change = form.cleaned_data["change"]
+        change = 0 if setting_income else form.cleaned_data["change"]
     else:
         try:
             change = int(request.POST.get("change", ""))
         except ValueError:
             raise Http404("Not a change to make") from None
-    if not change or abs(change) > MOST_A_TALLY_MOVES:
+    if not setting_income and (not change or abs(change) > MOST_A_TALLY_MOVES):
         # Zero moves nothing, and writing an event to say so fills a
         # gang's history with rows that record nothing happening. The
         # bound beside it is because a counter's value is a database
@@ -1538,7 +1551,7 @@ def tally_counter(request, pk):
 
     try:
         with operation(gang, actor=request.user) as op:
-            if adjusting and change < 0:
+            if setting_income or (adjusting and change < 0):
                 from n26.core.models import CounterValue
 
                 value = (
@@ -1547,16 +1560,28 @@ def tally_counter(request, pk):
                     .first()
                     or 0
                 )
-                if value == 0:
+                if setting_income:
+                    contributions = (
+                        _shown_counter_value(assignment, gang, miniature, value) - value
+                    )
+                    adjustment = form.cleaned_data["value"] - contributions
+                    if adjustment < 0:
+                        raise Refusal(
+                            f"Income cannot be lower than the total contributions of {contributions}¢."
+                        )
+                    if adjustment > 2147483647:
+                        raise Refusal("The adjustment cannot exceed 2147483647¢.")
+                    change = adjustment - value
+                elif value == 0:
                     raise Refusal(
                         "This counter is already 0. Enter a positive amount to increase it."
                     )
                 if resetting:
                     change = -value
-            standing = op.tally(assignment, change)
+            standing = op.tally(assignment, change) if change else value
     except Refusal as refusal:
         if adjusting:
-            form.add_error("change", str(refusal))
+            form.add_error(field_name, str(refusal))
             return adjustment_page()
         messages.error(request, str(refusal))
         if is_htmx(request):
@@ -1601,7 +1626,10 @@ def tally_counter(request, pk):
             response["HX-Replace-Url"] = back or here
         return response
     if adjusting:
-        messages.success(request, f"{name}: recorded value is now {standing}.")
+        if setting_income:
+            messages.success(request, f"{name} is now {form.cleaned_data['value']}¢.")
+        else:
+            messages.success(request, f"{name}: recorded value is now {standing}.")
     else:
         messages.success(request, f"{name} is now {standing}.")
     return _safe_redirect(request, back, here)

@@ -8,9 +8,63 @@ export type CounterAdjustmentProps = {
     errors: string[];
     maximum: number;
     isIncome?: boolean;
+    inputValue?: string;
 };
 
 export function CounterAdjustment(props: CounterAdjustmentProps) {
+    return props.isIncome ? (
+        <IncomeAdjustment {...props} />
+    ) : (
+        <AmountAdjustment {...props} />
+    );
+}
+
+function IncomeAdjustment(props: CounterAdjustmentProps) {
+    const id = useId();
+    const [value, setValue] = useState(props.inputValue ?? String(props.value));
+    const contributions = props.value - props.recorded;
+    const amount = Number(value);
+    const valid = value.trim() !== "" && Number.isInteger(amount);
+    return (
+        <div className="space-y-5">
+            <Field label="Income *" htmlFor={id} errors={props.errors}>
+                <Input
+                    id={id}
+                    name="value"
+                    type="number"
+                    required
+                    min={contributions}
+                    max={contributions + 2147483647}
+                    value={value}
+                    onChange={(event) => setValue(event.target.value)}
+                    className="h-16! text-left text-4xl! font-semibold tabular-nums"
+                />
+            </Field>
+            <div className="space-y-2 text-sm text-muted">
+                <p aria-live="polite" aria-atomic="true">
+                    Contributions {contributions}¢ · manual adjustment{" "}
+                    {valid ? `${amount - contributions}¢` : "—"}
+                </p>
+                <p>
+                    The adjustment stays until you change or reset it. Add
+                    collected income to your gang's credits.
+                </p>
+                <Button
+                    type="submit"
+                    name="reset"
+                    value="1"
+                    formNoValidate
+                    size="sm"
+                    disabled={!props.recorded}
+                >
+                    Reset adjustment
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+function AmountAdjustment(props: CounterAdjustmentProps) {
     const id = useId();
     const [change, setChange] = useState(props.change);
     const amount = change.trim() === "" ? 0 : Number(change);
@@ -56,28 +110,6 @@ export function CounterAdjustment(props: CounterAdjustmentProps) {
                     onChange={(event) => setChange(event.target.value)}
                 />
             </Field>
-            {props.isIncome && (
-                <div className="space-y-2 text-sm text-muted">
-                    <p>
-                        Contributions {props.value - props.recorded}¢ · manual
-                        adjustment {props.recorded + delta}¢
-                    </p>
-                    <p>
-                        The adjustment stays until you change or reset it. Add
-                        collected income to your gang's credits.
-                    </p>
-                    <Button
-                        type="submit"
-                        name="reset"
-                        value="1"
-                        formNoValidate
-                        size="sm"
-                        disabled={!props.recorded}
-                    >
-                        Reset adjustment
-                    </Button>
-                </div>
-            )}
         </div>
     );
 }

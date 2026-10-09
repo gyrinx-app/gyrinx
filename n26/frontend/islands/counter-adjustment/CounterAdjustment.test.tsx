@@ -81,3 +81,49 @@ it("shows the persistent income adjustment and submits a reset separately", () =
     expect(reset.type).toBe("submit");
     expect(reset.formNoValidate).toBe(true);
 });
+
+it("edits the income total and updates its adjustment underneath", async () => {
+    const user = userEvent.setup();
+    const view = render(
+        <form>
+            <CounterAdjustment {...props} isIncome value={25} recorded={5} />
+        </form>,
+    );
+    const input = screen.getByRole("spinbutton", { name: "Income *" });
+    expect((input as HTMLInputElement).value).toBe("25");
+    expect(screen.queryByRole("spinbutton", { name: "Change *" })).toBeNull();
+    await user.clear(input);
+    expect(
+        screen.getByText("Contributions 20¢ · manual adjustment —"),
+    ).toBeTruthy();
+    await user.type(input, "30");
+    expect(
+        screen.getByText("Contributions 20¢ · manual adjustment 10¢"),
+    ).toBeTruthy();
+    expect(
+        new FormData(view.container.querySelector("form")!).get("value"),
+    ).toBe("30");
+    expect(
+        new FormData(view.container.querySelector("form")!).has("change"),
+    ).toBe(false);
+    await user.clear(input);
+    await user.type(input, "19");
+    expect((input as HTMLInputElement).validity.rangeUnderflow).toBe(true);
+});
+
+it("retains the entered income total and server errors", () => {
+    render(
+        <CounterAdjustment
+            {...props}
+            isIncome
+            inputValue="19"
+            errors={["Income must be at least 20¢ from held assets."]}
+        />,
+    );
+    expect((screen.getByRole("spinbutton") as HTMLInputElement).value).toBe(
+        "19",
+    );
+    expect(
+        screen.getByText("Income must be at least 20¢ from held assets."),
+    ).toBeTruthy();
+});

@@ -74,7 +74,7 @@ def test_income_adjustment_survives_loss_and_gain_and_reset_records_one_change(
     assignment = gang.assignments.get(counter__name="Income")
     credits = gang.credits
     href = reverse("n26-tally", args=[assignment.pk])
-    assert client.post(href, {"adjust": 1, "change": 5}).status_code == 302
+    assert client.post(href, {"adjust": 1, "value": 25}).status_code == 302
     assert (income(gang).value, income(gang).tallied) == (25, 5)
     unassign_asset(holding)
     assert (income(gang).value, income(gang).tallied) == (5, 5)
@@ -111,7 +111,7 @@ def test_reader_sees_income_breakdown_but_cannot_adjust_or_add(client, dashboard
     assignment = gang.assignments.get(counter__name="Income")
     assert (
         client.post(
-            reverse("n26-tally", args=[assignment.pk]), {"adjust": 1, "change": 5}
+            reverse("n26-tally", args=[assignment.pk]), {"adjust": 1, "value": 25}
         ).status_code
         == 404
     )
@@ -120,6 +120,45 @@ def test_reader_sees_income_breakdown_but_cannot_adjust_or_add(client, dashboard
         == 404
     )
     assert income(gang).value == 20
+
+
+def test_income_total_uses_current_assets_and_repeated_saves_add_no_history(
+    client, dashboard
+):
+    _, gang, holding, _, _ = dashboard
+    assignment = gang.assignments.get(counter__name="Income")
+    href = reverse("n26-tally", args=[assignment.pk])
+    response = client.get(href)
+    assert response.context["counter_preview"]["inputValue"] == "20"
+    unassign_asset(holding)
+    assert client.post(href, {"adjust": 1, "value": 25}).status_code == 302
+    assert (income(gang).value, income(gang).tallied) == (25, 25)
+    tallies = LedgerEvent.objects.filter(
+        assignment=assignment, kind=LedgerEvent.Kind.TALLIED
+    )
+    assert tallies.latest("created").note == "+25 → 25"
+    before = tallies.count()
+    assert client.post(href, {"adjust": 1, "value": 25}).status_code == 302
+    assert tallies.count() == before
+    assign_asset(holding, gang)
+    assert client.post(href, {"adjust": 1, "value": 20}).status_code == 302
+    assert (income(gang).value, income(gang).tallied) == (20, 0)
+
+
+@pytest.mark.parametrize("total", ["", "1.5", "19", "2147483668"])
+def test_income_total_errors_keep_the_input_and_do_not_write(client, dashboard, total):
+    _, gang, _, _, _ = dashboard
+    assignment = gang.assignments.get(counter__name="Income")
+    response = client.post(
+        reverse("n26-tally", args=[assignment.pk]), {"adjust": 1, "value": total}
+    )
+    assert response.status_code == 200
+    assert response.context["counter_preview"]["inputValue"] == total
+    assert response.context["form"].errors["value"]
+    assert (income(gang).value, income(gang).tallied) == (20, 0)
+    assert not LedgerEvent.objects.filter(
+        assignment=assignment, kind=LedgerEvent.Kind.TALLIED
+    ).exists()
 
 
 def test_settlement_is_first_in_one_territories_detail_without_changing_types(
