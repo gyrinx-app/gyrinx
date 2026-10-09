@@ -642,14 +642,20 @@ class TestCampaignDashboardLayout:
     def test_asset_management_controls_keep_their_section(
         self, client, campaign, open_to_everyone
     ):
+        from n26.library.authoring import add_asset_type
+
+        add_asset_type(
+            campaign.campaign_type, "Territory", "pooled", label_plural="Territories"
+        )
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         assets = drawn.split('id="n26-campaign-assets"', 1)[1].split("</section>", 1)[0]
         assert 'id="assets"' in assets
         gangs = drawn.split('id="gangs"', 1)[1].split("</section>", 1)[0]
-        asset_heading = re.search(r'<h2 class="([^"]+)">\s*Assets', assets)
+        asset_heading = re.search(r'<h2 class="([^"]+)">\s*Territories', assets)
         gang_heading = re.search(r'<h2 class="([^"]+)">\s*Gangs', gangs)
         assert asset_heading and gang_heading
         assert asset_heading.group(1) == gang_heading.group(1)
+        assert not re.search(r"<h2[^>]*>\s*Assets", assets)
         assert "Add asset type" in assets
         assert "Tables" in assets
 

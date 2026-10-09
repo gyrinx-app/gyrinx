@@ -7,7 +7,7 @@ asset does is not asked here beyond its income: a name, its words and that
 figure are the whole of it. Native radios for the asset type, so the form posts
 with no script and a redisplay keeps the pick.
 {% endcomment %}
-{% block head_title %}New asset in {{ campaign.name }}{% endblock head_title %}
+{% block head_title %}{% if unified %}Create custom {{ custom_label }}{% else %}New asset{% endif %} in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -16,11 +16,11 @@ with no script and a redisplay keeps the pick.
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-new-asset' campaign.pk %}"
-                     title="New asset"
-                     lead="An asset of this campaign's own. It is offered in this campaign and in no other."
+    <c-n26.form-page action="{% if unified %}{{ custom_href }}{% else %}{% url 'n26-campaign-new-asset' campaign.pk %}{% endif %}"
+                     title="{% if unified %}Create custom {{ custom_label }}{% else %}New asset{% endif %}"
+                     lead="{% if unified %}Created in this campaign, initially unclaimed.{% else %}Created assets are added to this campaign. Transferable assets start unclaimed.{% endif %}"
                      :form="form"
-                     submit_label="Create asset"
+                     submit_label="{% if unified %}Create{% else %}Create asset{% endif %}"
                      cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -30,24 +30,31 @@ with no script and a redisplay keeps the pick.
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    New asset
+                    {% if unified %}Create custom {{ custom_label }}{% else %}New asset{% endif %}
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section>
-            <c-n26.radio-cards label="Asset type *" :form="form" name="asset_type">
-                {% for asset_type in asset_types %}
-                    <c-n26.radio-cards.card name="asset_type"
-                                            value="{{ asset_type.value }}"
-                                            label="{{ asset_type.label }}"
-                                            description="{{ asset_type.description }}"
-                                            :wrap="True"
-                                            :checked="asset_type.checked" />
-                {% endfor %}
-            </c-n26.radio-cards>
-        </c-n26.form-section>
-        <c-n26.form-section title="The asset">
+        {% if unified %}
+            {% include "n26/includes/asset_source.html" %}
+        {% endif %}
+        {% if unified and asset_types|length == 1 %}
+            <input type="hidden" name="asset_type" value="{{ asset_types.0.value }}">
+        {% else %}
+            <c-n26.form-section>
+                <c-n26.radio-cards label="Asset type *" :form="form" name="asset_type">
+                    {% for asset_type in asset_types %}
+                        <c-n26.radio-cards.card name="asset_type"
+                                                value="{{ asset_type.value }}"
+                                                label="{{ asset_type.label }}"
+                                                description="{{ asset_type.description }}"
+                                                :wrap="True"
+                                                :checked="asset_type.checked" />
+                    {% endfor %}
+                </c-n26.radio-cards>
+            </c-n26.form-section>
+        {% endif %}
+        <c-n26.form-section title="Details">
             <c-ui.field label="Name *" error="x" :form="form" name="name" for="asset-name">
                 <c-ui.input id="asset-name"
                             name="name"

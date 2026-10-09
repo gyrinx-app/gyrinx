@@ -101,7 +101,9 @@ class TestBatchSelection:
         assert response.status_code == 302
         assert batch[0].campaign_assets.get().name == "By the sump"
 
-    def test_each_selected_asset_can_have_its_own_name(self, client, batch):
+    def test_individual_names_are_refused_for_a_batch_without_partial_writes(
+        self, client, batch
+    ):
         first, second = batch[2]
         response = post(
             client,
@@ -111,14 +113,9 @@ class TestBatchSelection:
                 f"name_{second.pk}": "Eastern market",
             },
         )
-        assert response.status_code == 302
-        holdings = batch[0].campaign_assets
-        assert holdings.get(asset=first).name == "By the sump"
-        assert holdings.get(asset=second).name == "Eastern market"
-        key = batch[0].events.first().batch
-        post(client, batch, request_key=str(key), **{f"name_{first.pk}": "Retry name"})
-        assert holdings.count() == 2
-        assert holdings.get(asset=first).name == "By the sump"
+        assert response.status_code == 200
+        assert "Select one asset" in response.content.decode()
+        assert not batch[0].campaign_assets.exists()
 
     def test_blank_names_keep_the_library_names(self, client, batch):
         first, second = batch[2]

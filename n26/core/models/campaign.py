@@ -352,7 +352,7 @@ class CampaignAsset(Base):
     """
 
     #: Where the effects engine finds a campaign asset's modifiers: on the
-    #: library asset it stands for. A campaign asset carries none of its own.
+    #: library asset it stands for, supplemented by an optional income override.
     carries_modifiers_of = "asset"
 
     campaign = models.ForeignKey(
@@ -384,6 +384,15 @@ class CampaignAsset(Base):
             "A name for this asset in this campaign. Leave blank to use the "
             "asset's own name."
         ),
+    )
+
+    income_override = models.ForeignKey(
+        "library.Modifier",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text="The income contribution used for this holding instead of its catalogue income.",
     )
 
     class Meta:

@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Button, Card, CheckboxCard, Input, Table } from "../../ui";
+import { Button, CheckboxCard, Field, Input } from "../../ui";
 
 type Option = {
     value: string;
@@ -13,8 +13,6 @@ export type AssetSelectionProps = {
     label?: string;
     invalid?: boolean;
     selected: string[];
-    renameLabel?: string;
-    itemLabel?: string;
 };
 
 export function AssetSelection({
@@ -22,8 +20,6 @@ export function AssetSelection({
     label = "Assets",
     invalid = false,
     selected: initial,
-    renameLabel = "Optional: Rename assets",
-    itemLabel = "Asset",
 }: AssetSelectionProps) {
     const [selected, setSelected] = useState(initial);
     const [names, setNames] = useState<Record<string, string>>(
@@ -88,91 +84,38 @@ export function AssetSelection({
                     ))}
                 </div>
             </fieldset>
-            {selectedOptions.length > 0 && (
-                <Card>
-                    <details
-                        open={
-                            selectedOptions.some(
-                                (item) => item.nameErrors?.length,
-                            ) || undefined
-                        }
-                    >
-                        <summary className="cursor-pointer font-medium">
-                            {renameLabel}
-                        </summary>
-                        <div className="mt-4">
-                            <Table>
-                                <thead>
-                                    <tr>
-                                        <th scope="col">{itemLabel}</th>
-                                        <th scope="col">Rename to</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {selectedOptions.map((item) => (
-                                        <tr key={item.value}>
-                                            <th
-                                                scope="row"
-                                                className="font-normal"
-                                            >
-                                                {item.label}
-                                            </th>
-                                            <td className="min-w-48">
-                                                <Input
-                                                    id={`${id}-${item.value}`}
-                                                    aria-label={`Rename ${item.label}`}
-                                                    aria-invalid={
-                                                        Boolean(
-                                                            item.nameErrors
-                                                                ?.length,
-                                                        ) || undefined
-                                                    }
-                                                    aria-describedby={
-                                                        item.nameErrors?.length
-                                                            ? `${id}-${item.value}-errors`
-                                                            : undefined
-                                                    }
-                                                    name={`name_${item.value}`}
-                                                    placeholder={item.label}
-                                                    value={
-                                                        names[item.value] || ""
-                                                    }
-                                                    maxLength={200}
-                                                    autoComplete="off"
-                                                    onChange={(event) =>
-                                                        setNames((values) => ({
-                                                            ...values,
-                                                            [item.value]:
-                                                                event.target
-                                                                    .value,
-                                                        }))
-                                                    }
-                                                />
-                                                {Boolean(
-                                                    item.nameErrors?.length,
-                                                ) && (
-                                                    <div
-                                                        id={`${id}-${item.value}-errors`}
-                                                        className="mt-1 text-sm text-red-700 dark:text-red-400"
-                                                    >
-                                                        {item.nameErrors!.map(
-                                                            (error) => (
-                                                                <p key={error}>
-                                                                    {error}
-                                                                </p>
-                                                            ),
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </Table>
-                        </div>
-                    </details>
-                </Card>
+            {selectedOptions.length > 1 && (
+                <p className="text-sm text-muted">
+                    When you select several assets, they keep their catalogue
+                    names. Select one asset to give it a custom name in this
+                    campaign.
+                </p>
             )}
+            {selectedOptions.length === 1 &&
+                selectedOptions.map((item) => (
+                    <Field
+                        key={item.value}
+                        label="Name in this campaign (optional)"
+                        htmlFor={`${id}-${item.value}`}
+                        description="Leave blank to use the catalogue name."
+                        errors={item.nameErrors}
+                    >
+                        <Input
+                            id={`${id}-${item.value}`}
+                            name={`name_${item.value}`}
+                            placeholder={item.label}
+                            value={names[item.value] || ""}
+                            maxLength={200}
+                            autoComplete="off"
+                            onChange={(event) =>
+                                setNames((values) => ({
+                                    ...values,
+                                    [item.value]: event.target.value,
+                                }))
+                            }
+                        />
+                    </Field>
+                ))}
         </div>
     );
 }
