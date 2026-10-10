@@ -2117,6 +2117,16 @@ def hire_entry(value):
     return None
 
 
+def _hire_scope_tabs():
+    """The hire screen's three lists, labelled as the screen labels them."""
+    from n26.core.views.hire import HIRE_SCOPES
+
+    return [
+        {"label": label, "href": f"?list={key}", "current": key == "gang"}
+        for key, label in HIRE_SCOPES.items()
+    ]
+
+
 def hire_context():
     """What the hire view needs: the sections, and the ends of its one slider."""
     sections = hire_list()
@@ -2128,6 +2138,7 @@ def hire_context():
         "hire_list": sections,
         "hire_categories": categories,
         "hire_sections": [section.name for section in sections],
+        "hire_scope_tabs": _hire_scope_tabs(),
         "hire_category_options": [
             {"value": name, "label": name} for name in categories
         ],

@@ -857,9 +857,11 @@ GROUPS: list[Group] = [
                     "nothing leaves every panel hidden once Alpine runs. param "
                     "copies the open tab into the query string, so nested strips on "
                     "one page must leave it empty. The default variant draws "
-                    "through c-n26.tab-strip and never wraps: below the sm "
-                    "breakpoint, three or more tabs collapse to the open one plus a "
-                    "quick-switcher. The segmented variant keeps the kit's single "
+                    "through c-n26.tab-strip: below the sm breakpoint, more tabs "
+                    "than :narrow_tabs collapse to the open one plus a "
+                    "quick-switcher. :narrow_tabs is 2 unless you set it; set 3 "
+                    "where three short tabs are the page's main choice, as on the "
+                    "home page. The segmented variant keeps the kit's single "
                     "strip, which .n26-card-tabs in app.css selects by position, so "
                     "nothing may wrap it."
                 ),
@@ -1135,7 +1137,11 @@ GROUPS: list[Group] = [
                     "lets the browser fetch them before anyone clicks. Do not put a "
                     "count on a tab: only the current tab's contents have been "
                     "built. Set :htmx only on a page that hosts every id the "
-                    "response swaps out of band."
+                    "response swaps out of band. Below the sm breakpoint, more tabs "
+                    "than :narrow_tabs collapse to the current one plus a "
+                    "quick-switcher. :narrow_tabs is 2 unless you set it; set 3 "
+                    "where three short tabs are the page's main choice, as on the "
+                    "hire screen."
                 ),
             ),
             Component(
