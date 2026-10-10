@@ -88,6 +88,8 @@ or operation share one setup and response.
 
 - Ingest and conversion scenarios share their unchanged input and successful
   application. Changed inputs, fault injection and rollback remain separate.
+  Ordinary ingest fixtures create the foundations their sheets read; clearing
+  tests retain the complete catalogue and verify every foundation survives.
 - Authoring registry and help guards inspect the registry directly. Populated
   listings still exercise every route, using one catalogue setup.
 - Power advancements retain selected and random flows, access grades, stale
