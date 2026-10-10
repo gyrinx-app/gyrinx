@@ -4,16 +4,16 @@ import cotton from "../../generated/cotton.json";
 import { TradePoints, type TradePointsProps } from "./TradePoints";
 
 const props: TradePointsProps = {
-    amountLabel: "Or enter a specific TP amount",
+    amountLabel: "Custom TP amount",
     emptyMessage: "No model in The Ashen Choir adds Trade Points.",
     groups: [
         {
             name: "2 Trade Points each",
-            options: [{ key: "vex", name: "Vex", points: 2 }],
+            options: [{ key: "vex", name: "Vex · 2 TP", points: 2 }],
         },
         {
             name: "1 Trade Point each",
-            options: [{ key: "sura", name: "Sura", points: 1 }],
+            options: [{ key: "sura", name: "Sura · 1 TP", points: 1 }],
         },
     ],
 };
@@ -35,38 +35,38 @@ describe("TradePoints", () => {
     it("starts unticked and shows a zero total", () => {
         const form = renderForm();
         expect(
-            (screen.getByRole("checkbox", { name: "Vex" }) as HTMLInputElement)
-                .checked,
+            (
+                screen.getByRole("checkbox", {
+                    name: "Vex · 2 TP",
+                }) as HTMLInputElement
+            ).checked,
         ).toBe(false);
         expect(screen.getByText("2 Trade Points each")).toBeTruthy();
         expect(screen.getByText("0").textContent).toBe("0");
         expect(new FormData(form).getAll("visiting")).toEqual([]);
         expect(
             screen
-                .getByRole("button", { name: "Start TP visit" })
+                .getByRole("button", { name: "Start visit" })
                 .getAttribute("type"),
         ).toBe("submit");
     });
 
     it("adds the ticked models", () => {
         const form = renderForm();
-        fireEvent.click(screen.getByRole("checkbox", { name: "Vex" }));
-        fireEvent.click(screen.getByRole("checkbox", { name: "Sura" }));
+        fireEvent.click(screen.getByRole("checkbox", { name: "Vex · 2 TP" }));
+        fireEvent.click(screen.getByRole("checkbox", { name: "Sura · 1 TP" }));
         expect(screen.getByText("3").textContent).toBe("3");
         expect(new FormData(form).getAll("visiting")).toEqual(["vex", "sura"]);
     });
 
     it("shuts the ticks and drops the total when a figure is typed", () => {
         const form = renderForm();
-        fireEvent.click(screen.getByRole("checkbox", { name: "Vex" }));
-        fireEvent.change(
-            screen.getByLabelText("Or enter a specific TP amount"),
-            {
-                target: { value: "9" },
-            },
-        );
-        expect(formText()).not.toContain("Selected models add");
-        const box = screen.getByRole("checkbox", { name: "Vex" });
+        fireEvent.click(screen.getByRole("checkbox", { name: "Vex · 2 TP" }));
+        fireEvent.change(screen.getByLabelText("Custom TP amount"), {
+            target: { value: "9" },
+        });
+        expect(formText()).not.toContain("Total from selected models:");
+        const box = screen.getByRole("checkbox", { name: "Vex · 2 TP" });
         expect((box as HTMLInputElement).checked).toBe(true);
         expect((box as HTMLInputElement).disabled).toBe(true);
         // The row takes the tick list's disabled look, not only the box.
@@ -79,16 +79,16 @@ describe("TradePoints", () => {
 
     it("treats a blank figure as no override", () => {
         renderForm();
-        fireEvent.change(
-            screen.getByLabelText("Or enter a specific TP amount"),
-            {
-                target: { value: "   " },
-            },
-        );
-        expect(formText()).toContain("Selected models add");
+        fireEvent.change(screen.getByLabelText("Custom TP amount"), {
+            target: { value: "   " },
+        });
+        expect(formText()).toContain("Total from selected models:");
         expect(
-            (screen.getByRole("checkbox", { name: "Vex" }) as HTMLInputElement)
-                .disabled,
+            (
+                screen.getByRole("checkbox", {
+                    name: "Vex · 2 TP",
+                }) as HTMLInputElement
+            ).disabled,
         ).toBe(false);
     });
 
@@ -98,9 +98,7 @@ describe("TradePoints", () => {
             screen.getByText("No model in The Ashen Choir adds Trade Points."),
         ).toBeTruthy();
         expect(screen.queryByRole("checkbox")).toBeNull();
-        expect(formText()).not.toContain("Selected models add");
-        expect(
-            screen.getByLabelText("Or enter a specific TP amount"),
-        ).toBeTruthy();
+        expect(formText()).not.toContain("Total from selected models:");
+        expect(screen.getByLabelText("Custom TP amount")).toBeTruthy();
     });
 });

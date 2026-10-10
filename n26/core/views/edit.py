@@ -1096,12 +1096,14 @@ def edit_fighter(request, pk):
     members = roster(gang)
     may_mark = may_mark_status(gang, request.user)
     from n26.core.allowances import missing_progression_counters
+    from n26.core.views.trade_points import hire_time_context
 
     return render(
         request,
         "n26/fighter_edit.html",
         {
             "miniature": miniature,
+            **(hire_time_context(gang, miniature, computed) if may_mark else {}),
             "rating_dialog": _base_rating_dialog(request, miniature)
             if request.GET.get("rating") == "1" and not renaming
             else None,

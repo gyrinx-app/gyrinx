@@ -1,0 +1,28 @@
+{% if hire_time_card %}
+    <c-n26.activity-card :card="hire_time_card" complete_variant="default">
+        <c-slot name="actions">
+            <c-ui.button href="{% url 'n26-equip' miniature.pk %}" size="sm" variant="primary">Equip model</c-ui.button>
+        </c-slot>
+    </c-n26.activity-card>
+{% elif hire_time_state %}
+    <c-ui.card padding="sm">
+        <c-slot name="header">
+            Spend hire-time TP
+        </c-slot>
+        {% if hire_time_state.act == "reopen" %}
+            <p class="text-sm text-muted mb-3">This action is complete. Reopening it for correction keeps previous spending counted.</p>
+        {% else %}
+            <p class="text-sm text-muted mb-3">Spend this model's starting Trade Points at the Trading Post.</p>
+        {% endif %}
+        <form method="post" action="{{ hire_time_action_url }}">
+            {% csrf_token %}
+            <input type="hidden" name="act" value="{{ hire_time_state.act }}">
+            <input type="hidden"
+                   name="activity"
+                   value="{{ hire_time_state.activity_id }}">
+            <c-ui.button type="submit" size="sm" variant="primary">
+                {{ hire_time_state.button_label }}
+            </c-ui.button>
+        </form>
+    </c-ui.card>
+{% endif %}

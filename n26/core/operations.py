@@ -169,7 +169,7 @@ def trade_points_refund_of(assignment):
     """The Trade Points refunding this would give back.
 
     The other half of :func:`refund_of`, over the same assignments. A
-    purchase made while the gang's Spend built-in TP activity was open
+    purchase made while the gang's Spend founding TP activity was open
     came off the buyer's founding allowance, and undoing it puts them
     back.
 
@@ -956,7 +956,7 @@ class Operation:
         )
         return gang
 
-    def _refuse_if_open(self, kind):
+    def _refuse_if_open(self, kind, miniature=None):
         """One of each kind at a time, and say which where there is one.
 
         Nothing spent while two of a kind were open could say which of
@@ -964,14 +964,14 @@ class Operation:
         recorded. Decided on what stands under the gang's own line,
         which the operation took before any of this ran.
         """
-        already = self.gang.open_activity(kind)
+        already = self.gang.open_activity(kind, miniature)
         if already is not None:
             raise Refusal(
                 f"Complete the open {already.get_kind_display()} activity "
                 "before starting another."
             )
 
-    def open_activity(self, kind, trade_points=None):
+    def open_activity(self, kind, trade_points=None, *, miniature=None):
         """Start one of this gang's activities, and say so in its history.
 
         An activity is a thing performed over several clicks — founding and
@@ -989,14 +989,22 @@ class Operation:
         from n26.core.models.activity import note_for
 
         gang = self.gang
-        self._refuse_if_open(kind)
+        if (kind == Activity.Kind.HIRE_TIME) != (miniature is not None):
+            raise ValueError("Only hire-time activities have a model target.")
+        if miniature is not None and miniature.membership.gang_id != gang.pk:
+            raise Refusal("That model does not belong to this gang.")
+        self._refuse_if_open(kind, miniature)
         opened = self.event(
-            None,
+            miniature,
             LedgerEvent.Kind.ACTION_OPENED,
             note=note_for(kind, trade_points),
         )
         activity = Activity.objects.create(
-            gang=gang, kind=kind, opened=opened, trade_points=trade_points
+            gang=gang,
+            kind=kind,
+            opened=opened,
+            trade_points=trade_points,
+            miniature=miniature,
         )
         gang.forget_open_activities()
         return activity
@@ -1029,16 +1037,18 @@ class Operation:
         from n26.core.models.activity import note_for
         from n26.core.reconcile import trade_points_spent_for
 
-        fresh = Activity.objects.filter(
-            pk=activity.pk, gang=self.gang, closed__isnull=True
-        ).first()
+        fresh = (
+            Activity.objects.filter(pk=activity.pk, gang=self.gang, closed__isnull=True)
+            .select_related("miniature")
+            .first()
+        )
         if fresh is None:
             return None
         left = None
         if fresh.trade_points is not None:
             left = fresh.trade_points - trade_points_spent_for(fresh)
         closed = self.event(
-            None,
+            fresh.miniature,
             LedgerEvent.Kind.ACTION_CLOSED,
             note=note_for(fresh.kind, left),
         )
@@ -1046,6 +1056,31 @@ class Operation:
         fresh.save(update_fields=["closed", "modified"])
         self.gang.forget_open_activities()
         return fresh
+
+    def start_hire_time_tp(self, miniature, *, reopen=False):
+        """Enable one recruit's existing allowance, retaining lifetime spend."""
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+        from n26.core.founding import hire_time_states
+        from n26.core.models import Activity
+
+        miniature = Miniature.objects.select_related("membership").get(pk=miniature.pk)
+        if miniature.membership.gang_id != self.gang.pk:
+            raise Refusal("That model does not belong to this gang.")
+        card = build_card(miniature)
+        folded = compute(card, build_modifier_index(carriers(card)))
+        state = hire_time_states(
+            self.gang, [miniature], {str(miniature.pk): folded}
+        ).get(str(miniature.pk))
+        if state is None:
+            raise Refusal("This model has no available hire-time Trade Points action.")
+        if state.act == "finish":
+            return None
+        if (state.act == "reopen") != reopen:
+            raise Refusal(
+                "Reopen the completed action for correction to use its remaining Trade Points."
+            )
+        return self.open_activity(Activity.Kind.HIRE_TIME, miniature=miniature)
 
     def visit_trading_post(self, visitors=(), brought=None):
         """Open a Visit Trading Post activity, performed by these fighters.
@@ -1266,6 +1301,18 @@ class Operation:
             self.remove(assignment, note="reset")
         return edits
 
+    def _close_hire_time_tp_for(self, assignment):
+        """Leaving the roster ends a model's open spending opportunity."""
+        from n26.core.models import Activity
+
+        if assignment.gang_id is None or assignment.miniature_root_id is None:
+            return
+        model = Miniature.objects.filter(membership=assignment).first()
+        if model is not None:
+            active = self.gang.open_activity(Activity.Kind.HIRE_TIME, model)
+            if active is not None:
+                self.close_activity(active)
+
     def remove(self, assignment, note="", **event_fields):
         """Take something away — and everything it brought with it.
 
@@ -1287,6 +1334,7 @@ class Operation:
         for target in [assignment, *subtree(assignment)]:
             if target.archived:
                 continue
+            self._close_hire_time_tp_for(target)
             self.touched(target.miniature_root)
             target.archived = True
             target.archived_at = _now()
@@ -1332,6 +1380,7 @@ class Operation:
             return None
         rows, _ = refund_of(assignment)
         for target in rows:
+            self._close_hire_time_tp_for(target)
             self.touched(target.miniature_root)
             target.archived = True
             target.archived_at = _now()
@@ -1856,7 +1905,7 @@ class Operation:
         self.gang.founding = founding
         self.gang.save(update_fields=["founding", "modified"])
         Stash.objects.get_or_create(gang=self.gang)
-        # Spend built-in TP is not opened here. Most gangs never use it, so
+        # Spend founding TP is not opened here. Most gangs never use it, so
         # the owner starts it from the Actions square when they want it.
         self._record_options(founding, taken)
         self.reconcile_defaults(founding, gang=self.gang)
@@ -2754,7 +2803,7 @@ class Operation:
         assignment is how a weapon's paid ammo is bought: a profile
         belongs to one particular gun, not to the fighter carrying it.
         """
-        from n26.core.models import Assignment, Stash
+        from n26.core.models import Activity, Assignment, Stash
         from n26.library.models import Weapon
         from n26.library.models.collection import price_of
 
@@ -2768,6 +2817,13 @@ class Operation:
             host, buyer = {"parent": holder}, holder.miniature_root
         else:
             host, buyer = {"miniature": holder}, holder
+
+        if activity is not None and activity.kind == Activity.Kind.HIRE_TIME:
+            active = self.gang.open_activity(activity.kind, buyer)
+            if active is None or active.pk != activity.pk:
+                raise Refusal(
+                    "This spending action has changed. Reload the page before buying."
+                )
 
         if line is not None:
             thing = line.thing

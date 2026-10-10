@@ -22,7 +22,7 @@ from dataclasses import dataclass
 COMPLETE = "Complete action"
 
 #: What the owner is waiting for before they complete the founding.
-FOUNDING_HELP = "Click when you have finished hiring and equipping the gang."
+FOUNDING_HELP = "Complete when you have finished hiring and equipping the gang. Unspent Trade Points become unavailable."
 
 #: What being part-way through the founding lets an owner do, under the
 #: title. The help beside the button says when to finish; this says what
@@ -34,10 +34,7 @@ FOUNDING_ABOUT = (
 
 #: The same, for a trip to the trading post — where the book also has
 #: something to say about what completing it takes away.
-VISIT_HELP = (
-    "Click when you have finished at the Trading Post. Unspent Trade "
-    "Points are lost when you complete the action."
-)
+VISIT_HELP = "Complete when you have finished shopping. Unspent Trade Points are lost."
 
 POST_BATTLE_HELP = "Record XP, credits and each model's results after a battle."
 
@@ -74,6 +71,7 @@ class ActivityCard:
     button_label: str = COMPLETE
     act: str = "finish"
     marked: bool = False
+    activity_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -154,7 +152,7 @@ class ActivitiesSquare:
         return self.founding is not None or self.visit is not None
 
 
-def open_card(kind, at, *, help="", about="", facts=(), marked=False):
+def open_card(kind, at, *, help="", about="", facts=(), marked=False, activity_id=""):
     """One open action's card. The name comes from the kind, so a screen
     cannot call an action something the ledger does not."""
     return ActivityCard(
@@ -164,11 +162,12 @@ def open_card(kind, at, *, help="", about="", facts=(), marked=False):
         about=about,
         facts=facts,
         marked=marked,
+        activity_id=activity_id,
     )
 
 
 def founding_card(gang, at):
-    """The gang's open Spend built-in TP action, or None.
+    """The gang's open Spend founding TP action, or None.
 
     The gang reads all its open actions in one query and holds them, so
     a page drawing this beside the visit's figure pays for one.
@@ -176,9 +175,17 @@ def founding_card(gang, at):
     from n26.core.models import Activity
 
     kind = Activity.Kind.FOUNDING
-    if gang.open_activity(kind) is None:
+    activity = gang.open_activity(kind)
+    if activity is None:
         return None
-    return open_card(kind, at, help=FOUNDING_HELP, about=FOUNDING_ABOUT, marked=True)
+    return open_card(
+        kind,
+        at,
+        help=FOUNDING_HELP,
+        about=FOUNDING_ABOUT,
+        marked=True,
+        activity_id=str(activity.pk),
+    )
 
 
 def founding_blocks_visit(gang, seen):
@@ -258,10 +265,14 @@ def activities_square(
     visit = None
     if visit_at and sheet.visiting_trading_post:
         visit = VisitLine(trade_points_left=sheet.trade_points_left, href=visit_at)
+    completed = gang.founding_completed_at() if founding_at else None
+    available = getattr(sheet, "has_founding_tp", True)
     return ActivitiesSquare(
         founding=founding,
         visit=visit,
-        start_founding="" if founding is not None else founding_at,
+        start_founding=founding_at
+        if founding is None and completed is None and available
+        else "",
         history_href=history_at,
         to_do=steps_waiting(
             sheet,

@@ -269,7 +269,9 @@ def trade_points_spent_by_kind(gang, kind, miniature):
     return (
         LedgerEvent.objects.filter(
             assignment__ledger_entry__activity__gang=gang,
-            assignment__ledger_entry__activity__kind=kind,
+            assignment__ledger_entry__activity__kind__in=kind
+            if isinstance(kind, tuple)
+            else (kind,),
             assignment__ledger_entry__spent_by=miniature,
         ).aggregate(total=Sum("trade_points_delta"))["total"]
         or 0
@@ -293,7 +295,9 @@ def trade_points_spent_by_model_for_kind(gang, kind):
     spends = (
         LedgerEvent.objects.filter(
             assignment__ledger_entry__activity__gang=gang,
-            assignment__ledger_entry__activity__kind=kind,
+            assignment__ledger_entry__activity__kind__in=kind
+            if isinstance(kind, tuple)
+            else (kind,),
             **{f"{buyer}__isnull": False},
         )
         .values(buyer)

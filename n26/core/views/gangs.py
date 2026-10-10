@@ -1,6 +1,7 @@
 """Where a player lands, what they own, and founding one more."""
 
 from dataclasses import dataclass
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -395,6 +396,16 @@ def gang_sheet(request, pk):
         )
         for model in sheet.models:
             model.action_names = action_names.get(model.id, ())
+            if (
+                model.hire_time_state is not None
+                and model.hire_time_state.act != "reopen"
+            ):
+                label = (
+                    "Continue hire-time TP"
+                    if model.hire_time_state.act == "finish"
+                    else "Spend hire-time TP"
+                )
+                model.action_names += (label,)
         link_slots(
             gang,
             sheet,
@@ -1600,12 +1611,14 @@ def _brought(data, ticked):
 def _trade_points_form(offered, offer, amount_label, empty_message):
     """The tick list and amount box, as JSON the start form's island reads.
 
-    Points ride on each option. The running total is their sum, and the
-    heading already says the same figure to the reader.
+    Points ride on each option. The running total is their sum.
     """
     points = {visitor.key: visitor.trade_points for visitor in offered}
     return {
         "amountLabel": amount_label,
+        "amountDescription": "Optional. Replaces the selected models' total."
+        if offered
+        else "",
         "emptyMessage": empty_message,
         "groups": [
             {
@@ -1624,16 +1637,11 @@ def _trade_points_form(offered, offer, amount_label, empty_message):
     }
 
 
-def _start_help(gang, offered):
+def _start_help(offered):
     """What the start form says to do, for the state the gang is in."""
-    if gang.visiting_trading_post:
-        return (
-            "Finish the action above first. A gang performs one Visit "
-            "Trading Post action at a time."
-        )
     if offered:
-        return "Select the models visiting the Trading Post, or enter a TP amount."
-    return "Enter a TP amount to start a visit."
+        return "Select models to add their Trade Points, or enter the total yourself."
+    return "Enter the Trade Points available for this visit."
 
 
 def _the_trading_post():
@@ -1731,10 +1739,18 @@ def gang_trade_points(request, pk):
     asks whether that was meant, and then does it.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.activities import visit_card
+    from n26.core.activities import founding_card, visit_card
+    from n26.core.founding import grants_by_model
+    from n26.core.models import Activity
     from n26.core.operations import Refusal, operation
     from n26.core.render import roster
-    from n26.core.trading import as_offer, minted, receipt_for, visitors
+    from n26.core.trading import (
+        as_offer,
+        computed_members,
+        minted,
+        receipt_for,
+        visitors,
+    )
 
     gang = _own_gang_or_404(request, pk)
     at = reverse("n26-gang-trade-points", args=[gang.pk])
@@ -1809,10 +1825,30 @@ def gang_trade_points(request, pk):
     # draws every fighter, and the offer is the few of them who add
     # something.
     members = roster(gang)
-    offered = visitors(gang, going=set(), members=members)
+    completed = gang.founding_completed_at()
+    founding_at = ""
+    reopen_founding = False
+    computed = None
+    if (
+        completed is not None or gang.open_activity(Activity.Kind.FOUNDING) is not None
+    ) and may_see_founding(gang, request.user):
+        founding_at = (
+            reverse("n26-gang-founding-action", args=[gang.pk])
+            + "?"
+            + urlencode({"return_url": at})
+        )
+        if gang.open_activity(Activity.Kind.FOUNDING) is None:
+            computed = computed_members(gang)
+            grants = grants_by_model(computed, models=members)
+            reopen_founding = any(
+                model.membership.created <= completed
+                and grants.get(str(model.pk), 0) > 0
+                for model in members
+            )
+    offered = visitors(gang, going=set(), members=members, computed=computed)
     offer = as_offer(offered)
     receipt = receipt_for(gang)
-    amount_label = "Or enter a specific TP amount" if offered else "TP amount"
+    amount_label = "Custom TP amount" if offered else "Trade Points"
     return render(
         request,
         "n26/trade_points.html",
@@ -1825,20 +1861,12 @@ def gang_trade_points(request, pk):
             # wants. Empty where the library has no post, which leaves
             # the buttons off rather than sending anybody nowhere.
             "post": _the_trading_post(),
-            # The open visit as every action is drawn, or None where the
-            # post is shut. The form below it is drawn either way, so the
-            # page reads the same whichever state it is in.
+            # The current visit replaces the start form until completed.
             "visit_card": visit_card(receipt, at) if receipt else None,
-            # Whether an action is open, as a plain boolean: the start form
-            # reads it to shut itself, and a cotton :attribute takes a
-            # variable rather than an expression.
-            "visit_open": gang.visiting_trading_post,
+            "founding_card": founding_card(gang, founding_at) if founding_at else None,
+            "reopen_founding": founding_at if reopen_founding else "",
             "visitors": offered,
-            # What the start form says to do. Three states, and the third
-            # is a real one: a roster where nothing adds Trade Points —
-            # no ranks yet, or a library where the contribution has never
-            # been authored — leaves the typed figure as the only way in.
-            "start_help": _start_help(gang, offered),
+            "start_help": _start_help(offered),
             # The box is an alternative to the ticks only where there are
             # ticks. On its own it is simply the amount.
             "amount_label": amount_label,
@@ -1860,7 +1888,7 @@ def gang_trade_points(request, pk):
 
 @login_required
 def gang_founding_action(request, pk):
-    """Start or complete the Spend built-in TP action.
+    """Start or complete the Spend founding TP action.
 
     The card lives on the gang page; this is only the act behind it, so
     a GET here is somebody following a link and lands back on the page
@@ -1884,6 +1912,7 @@ def gang_founding_action(request, pk):
     act that moves no money. The reader gets the sentence and the page
     back rather than a server error.
     """
+    from gyrinx.http import get_return_url
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import Activity
     from n26.core.operations import Refusal, operation
@@ -1891,7 +1920,7 @@ def gang_founding_action(request, pk):
     gang = _own_gang_or_404(request, pk)
     if not may_see_founding(gang, request.user):
         raise Http404
-    at = reverse("n26-gang", args=[gang.pk])
+    at = get_return_url(request, reverse("n26-gang", args=[gang.pk]))
     if request.method != "POST":
         return redirect(at)
 
@@ -1903,6 +1932,11 @@ def gang_founding_action(request, pk):
         try:
             with operation(gang, actor=request.user) as op:
                 open_now = gang.open_activity(kind)
+                expected = request.POST.get("activity")
+                if expected and (open_now is None or str(open_now.pk) != expected):
+                    raise Refusal(
+                        "This action has changed. Reload the page before completing it."
+                    )
                 closed = op.close_activity(open_now) if open_now is not None else None
         except Refusal as refused:
             messages.error(request, str(refused))
@@ -1914,15 +1948,23 @@ def gang_founding_action(request, pk):
             messages.success(request, f"Completed the {label} action.")
         return redirect(at)
 
-    if act == "start":
+    if act in ("start", "reopen"):
         try:
             with operation(gang, actor=request.user) as op:
+                completed = gang.founding_completed_at()
+                if (completed is not None) != (act == "reopen"):
+                    raise Refusal(
+                        "Founding is complete. Reopen the action from Trade Points to use the remaining points."
+                    )
+                if gang.open_activity(kind) is not None:
+                    return redirect(at)
                 op.open_activity(kind)
         except Refusal as refused:
             messages.error(request, str(refused))
             return redirect(at)
-        record(request, N26Noun.GANG, EventVerb.UPDATE, gang, action=kind, act="start")
-        messages.success(request, f"Started the {label} action.")
+        record(request, N26Noun.GANG, EventVerb.UPDATE, gang, action=kind, act=act)
+        verb = "Reopened" if act == "reopen" else "Started"
+        messages.success(request, f"{verb} the {label} action.")
     return redirect(at)
 
 

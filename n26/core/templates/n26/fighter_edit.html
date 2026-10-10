@@ -124,7 +124,8 @@ is named by the page's own heading directly below.
         controls on the card beside it all start one.
         {% endcomment %}
         <c-slot name="flows">
-            <div class="space-y-4">
+            <div id="actions" class="space-y-4 scroll-mt-20">
+                {% include "n26/includes/hire_time_action.html" %}
                 {% include "n26/includes/progression_status.html" %}
                 {% include "n26/includes/action_panels.html" %}
                 {% if missing_progression_counters %}

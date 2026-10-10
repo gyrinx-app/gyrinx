@@ -1209,6 +1209,8 @@ class ModelCard:
     #: is a surface that will one day get it wrong. It is the owner's
     #: business, so only a card drawn for them shows it.
     founding_budget: bool = False
+    personal_tp_action: str = "Spend founding TP"
+    hire_time_state: object = None
     #: What the player wrote about this model — the only lines on a card
     #: written rather than earned. Editor HTML, sanitised where drawn: a
     #: card can be read by people who are not its owner.
@@ -1578,6 +1580,7 @@ class GangSheet:
     rating: int
     credits: int
     wealth: int
+    has_founding_tp: bool = False
     #: The colour the owner picked, drawn as a mark wherever the gang is
     #: named. A palette name the theme resolves, or empty for no colour.
     colour: str = ""
@@ -2740,6 +2743,7 @@ def build_model_card(
     computed=None,
     assignment_set=None,
     budget=None,
+    hire_time_state=None,
     collapse_repeats=True,
     brought_in=None,
     rank_summaries=None,
@@ -2810,6 +2814,9 @@ def build_model_card(
         founding_budget=budget is not None,
         status=miniature.status,
     )
+    if budget is not None:
+        rendered.personal_tp_action = budget.action_label
+    rendered.hire_time_state = hire_time_state
     if not open_lasting_effects:
         hide_open_lasting_effects(rendered)
     if computed is not None:
@@ -4017,7 +4024,7 @@ def render_gang(
     """
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang, counter_readings
-    from n26.core.founding import budgets_by_model
+    from n26.core.founding import budgets_by_model, grants_by_model, hire_time_states
     from n26.core.models import CampaignMembership
 
     models = roster(gang)
@@ -4086,7 +4093,16 @@ def render_gang(
     # one sum of what the whole roster has spent — never a query a
     # fighter — and nothing at all for a gang whose books grant none, or
     # for a reader the figure is not for.
-    budgets = budgets_by_model(gang, computed) if with_effects and for_owner else {}
+    grants = (
+        grants_by_model(computed, models=models) if with_effects and for_owner else {}
+    )
+    budgets = (
+        budgets_by_model(gang, computed, grants=grants, models=models) if grants else {}
+    )
+    hire_states = (
+        hire_time_states(gang, models, computed, grants=grants) if grants else {}
+    )
+    founding_boundary = gang.founding_completed_at() if grants else None
     # One threshold read for the roster. Each model card receives its prepared
     # tuple and asks no SQL of its own.
     ranks = progression_summaries(cards, models, computed)
@@ -4103,6 +4119,14 @@ def render_gang(
         credits=gang.credits,
         credits_unlimited=gang.credits_unlimited,
         wealth=gang.wealth,
+        has_founding_tp=any(
+            grants.get(str(model.pk), 0) > 0
+            and (
+                founding_boundary is None
+                or model.membership.created <= founding_boundary
+            )
+            for model in models
+        ),
         trade_points_left=gang.trade_points_left,
         visiting_trading_post=gang.visiting_trading_post,
         colour=gang.colour,
@@ -4128,6 +4152,7 @@ def render_gang(
                 card=cards.get(model.pk),
                 computed=computed.get(model.pk),
                 budget=budgets.get(str(model.pk)),
+                hire_time_state=hire_states.get(str(model.pk)),
                 brought_in=brought,
                 rank_summaries=ranks.get(model.pk, ()),
             )

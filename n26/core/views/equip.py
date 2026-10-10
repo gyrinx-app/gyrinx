@@ -855,6 +855,16 @@ def _buy_clicked(
     # and only doing it without meaning to is not. The rating box rides
     # the overspend question where both apply.
     asked = _trade_points_asked(line, picked)
+    expected_personal = request.POST.get("personal_activity")
+    if (
+        asked
+        and expected_personal is not None
+        and expected_personal != (str(budget.activity.pk) if budget is not None else "")
+    ):
+        messages.error(
+            request, "This spending action has changed. Reload the page before buying."
+        )
+        return None
     checkbox = _rating_box(
         request,
         [
@@ -876,6 +886,26 @@ def _buy_clicked(
         return _rating_question(request, line, spent, checkbox, at)
     try:
         with operation(gang, actor=request.user) as op:
+            if asked and budget is not None:
+                from n26.core.founding import personal_activity_for
+                from n26.core.models import Activity
+                from n26.core.reconcile import trade_points_spent_by_kind
+
+                active = personal_activity_for(gang, holder)
+                if active is None or active.pk != budget.activity.pk:
+                    raise Refusal(
+                        "This spending action has changed. Reload the page before buying."
+                    )
+                budget = replace(
+                    budget,
+                    activity=active,
+                    spent=trade_points_spent_by_kind(
+                        gang, (Activity.Kind.FOUNDING, Activity.Kind.HIRE_TIME), holder
+                    ),
+                )
+                confirmation = _overspend(request, gang, line, asked, at, budget, into)
+                if confirmation is not None:
+                    return confirmation
             # The picked sets go to the operation, which materialises
             # them onto the thing caused by this purchase — so selling
             # the mount takes its guns with it. A pick-one set with

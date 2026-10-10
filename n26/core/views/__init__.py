@@ -112,8 +112,10 @@ from n26.core.views.profiles import (
 )
 from n26.core.views.skills import skills
 from n26.core.views.switchers import switcher_page
+from n26.core.views.trade_points import fighter_hire_time_action
 
 __all__ = [
+    "fighter_hire_time_action",
     "action_by_hand",
     "action_flow",
     "action_start",
