@@ -14,9 +14,11 @@ author puts it live:
   (``n26/library/income.py``).
 * The House Controlled boon on each. Where the book's boon is more income,
   it is a second Income contribution scoped to gangs that have picked the
-  House. Anything else is a ``Rule`` named "Goliath Controlled" or "Escher
-  Controlled", annotated with the Territory's name, given to the gang
-  alone under the same condition — the name only, never the rule's text.
+  House; where it is more Reputation while held, it is a Reputation
+  contribution under the same condition. Anything else is a ``Rule`` named
+  "Goliath Controlled" or "Escher Controlled", annotated with the
+  Territory's name, given to the gang alone under the same condition — the
+  name only, never the rule's text.
   A boon that replaces the income boon ("instead of gaining the Income
   Boon") is stored as the plain income and the rule together; making the
   two an either/or is a choice the app does not offer yet.
@@ -44,7 +46,7 @@ from django.apps import apps
 from django.conf import settings
 from django.db import transaction
 
-from n26.library.core_campaign import CAMPAIGN_TYPE, seed_core_campaign
+from n26.library.core_campaign import CAMPAIGN_TYPE, REPUTATION, seed_core_campaign
 from n26.library.gang_supertypes import SLOT, Outcome, seed_gang_supertypes
 from n26.library.territory_table import TERRITORY
 from n26.write_pause import guarded_write, write_guard
@@ -57,13 +59,15 @@ DICE = "d6"
 class Territory:
     """One journal Territory: its name, its income figure, and its House
     Controlled boon — ``more_income`` where the boon is more credits when
-    collecting income, otherwise a rule named after the House. ``instead``
-    marks a boon the book offers in place of the income boon; it is stored
-    alongside the income for now."""
+    collecting income, ``reputation`` where it is more Reputation while
+    held, otherwise a rule named after the House. ``instead`` marks a boon
+    the book offers in place of the income boon; it is stored alongside the
+    income for now."""
 
     name: str
     income: int
     more_income: int = 0
+    reputation: int = 0
     instead: bool = False
 
 
@@ -91,7 +95,7 @@ JOURNALS = (
             Territory("Wyld Den", 15, instead=True),
             Territory("Rogue Las Factoria", 20, instead=True),
             Territory("Chem Arena", 15, instead=True),
-            Territory("Shivver Den", 15),
+            Territory("Shivver Den", 15, reputation=1),
         ),
     ),
 )
@@ -132,6 +136,7 @@ def seed_journal_content():
         AssetTable,
         CampaignType,
         ContentPack,
+        Counter,
         Modifier,
         Rule,
     )
@@ -147,6 +152,7 @@ def seed_journal_content():
     )
     territory = campaign_type.asset_types.get(label_singular__iexact=TERRITORY)
     income = ensure_income_counter()
+    reputation = Counter.objects.get(pack=pack, name__iexact=REPUTATION, qualifier="")
     staged = {"pack": pack, "staged": True}
 
     def modifier_missing(name):
@@ -203,17 +209,22 @@ def seed_journal_content():
             if pick is None:
                 continue
             boon = f"{entry.name}: {house} Controlled"
-            if entry.more_income:
+            if entry.more_income or entry.reputation:
+                counter, amount, counter_label = (
+                    (income, entry.more_income, "income")
+                    if entry.more_income
+                    else (reputation, entry.reputation, "Reputation")
+                )
                 if modifier_missing(boon):
                     modifier(
                         boon,
                         targets_gang_alone(has_gang_pickable(pick)),
-                        ef_contributes_to_counter(income, entry.more_income),
+                        ef_contributes_to_counter(counter, amount),
                         attach_to=asset,
                         pack=pack,
                     )
                     lines.append(
-                        f"{entry.name}: {entry.more_income} more income for "
+                        f"{entry.name}: {amount} more {counter_label} for "
                         f"gangs that have picked {house}"
                     )
             else:

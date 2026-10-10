@@ -42,7 +42,7 @@ from n26.core.operations import Refusal
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
 from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
-from n26.library.core_campaign import CAMPAIGN_TYPE, seed_core_campaign
+from n26.library.core_campaign import CAMPAIGN_TYPE, REPUTATION, seed_core_campaign
 from n26.library.gang_supertypes import (
     HOUSES,
     PICKLIST,
@@ -93,6 +93,7 @@ from n26.tests.sandbox.actions import (
     join_campaign,
     open_table,
     roll_asset,
+    unassign_asset,
 )
 
 pytestmark = pytest.mark.django_db
@@ -208,6 +209,11 @@ def income_reading(gang):
     return next(line.value for line in block.counters if line.name == INCOME)
 
 
+def reputation_reading(gang):
+    block = render_gang(gang).campaign
+    return next(line.value for line in block.counters if line.name == REPUTATION)
+
+
 def created_lines(lines):
     return [line for line in lines if not line.startswith("skipped")]
 
@@ -283,7 +289,9 @@ class TestTheSeedCreatesEverythingOnce:
                 assert asset.staged
                 assert income_of(asset) == entry.income
 
-    def test_the_house_controlled_boons_are_income_or_a_named_rule(self, seeded):
+    def test_the_house_controlled_boons_are_income_reputation_or_a_named_rule(
+        self, seeded
+    ):
         for house, _table, territories in JOURNALS:
             pick = supertype_pick(house)
             for entry in territories:
@@ -297,12 +305,16 @@ class TestTheSeedCreatesEverythingOnce:
                 if entry.more_income:
                     assert boon.contributes_to_counter.amount == entry.more_income
                     assert boon.contributes_to_counter.counter.name == INCOME
+                elif entry.reputation:
+                    assert boon.contributes_to_counter.amount == entry.reputation
+                    assert boon.contributes_to_counter.counter.name == REPUTATION
                 else:
                     rule = boon.adds_assignable.rule
                     assert rule.name == controlled_rule_name(house)
                     assert rule.annotation == entry.name
                     assert rule.staged
-        assert Rule.objects.filter(name__endswith="Controlled").count() == 11
+        assert Rule.objects.filter(name__endswith="Controlled").count() == 10
+        assert not Rule.objects.filter(annotation="Shivver Den").exists()
 
     def test_two_staged_d6_tables_in_the_books_order(self, seeded):
         for _house, table_name, territories in JOURNALS:
@@ -359,6 +371,9 @@ class TestTheSeedCreatesEverythingOnce:
         assert f"House Goliath now gives the {SLOT} slot, picked Goliath" in seeded
         assert "created the Slug House Territory with income 20, staged" in seeded
         assert "Amneo-vats: 10 more income for gangs that have picked Goliath" in seeded
+        assert (
+            "Shivver Den: 1 more Reputation for gangs that have picked Escher" in seeded
+        )
         assert f"Goliath gangs now hold the {GOLIATH_TABLE} table" in seeded
         assert not any(line.startswith("skipped") for line in seeded)
 
@@ -590,7 +605,9 @@ class TestNothingIsToldAboutTheSupertype:
 class TestAJournalTerritoryInPlay:
     """Amneo-vats brings 15 to any holder and 10 more to a Goliath one;
     Slug House gives a Goliath holder the Goliath Controlled rule and an
-    Escher holder nothing; the campaign page says who each boon is for."""
+    Escher holder nothing; Shivver Den raises an Escher holder's Reputation
+    by 1 while held and a Goliath holder's not at all; the campaign page
+    says who each boon is for."""
 
     @pytest.fixture(autouse=True)
     def flag(self, campaigns_open):
@@ -641,6 +658,27 @@ class TestAJournalTerritoryInPlay:
         assert income_reading(gangs["Goliath"]) == 20
         assert income_reading(gangs["Escher"]) == 20
 
+    def test_shivver_den_raises_reputation_for_escher_and_not_for_goliath(
+        self, campaign, gangs
+    ):
+        shivver_den = Asset.objects.get(name="Shivver Den")
+        held = {
+            house: add_asset(campaign, shivver_den) for house in ("Goliath", "Escher")
+        }
+        for house, gang in gangs.items():
+            assign_asset(held[house], gang)
+
+        assert reputation_reading(gangs["Escher"]) == 1
+        assert reputation_reading(gangs["Goliath"]) == 0
+        assert income_reading(gangs["Escher"]) == 15
+        assert income_reading(gangs["Goliath"]) == 15
+
+        unassign_asset(held["Escher"])
+        assert reputation_reading(gangs["Escher"]) == 0
+        for gang in gangs.values():
+            gang.refresh_from_db()
+            assert_reconciled(gang)
+
     def test_a_boon_aimed_at_the_models_keeps_its_whole_sentence(self, campaign):
         """The short form reads as the holding gang gaining the thing, so a
         boon scoped to the gang's models is not shortened to a bare name."""
@@ -660,7 +698,7 @@ class TestAJournalTerritoryInPlay:
         assert said != "Catfall."
 
     def test_the_campaign_page_prints_each_boon_with_its_scope(self, campaign, gangs):
-        for name in ("Amneo-vats", "Slug House"):
+        for name in ("Amneo-vats", "Slug House", "Shivver Den"):
             add_asset(campaign, Asset.objects.get(name=name))
 
         (territories,) = render_campaign(campaign, viewer=campaign.owner).assets
@@ -676,6 +714,10 @@ class TestAJournalTerritoryInPlay:
         slug = by_name["Slug House"]
         assert slug.income == 20
         assert slug.boons == ["Goliath gangs: Goliath Controlled."]
+
+        shivver = by_name["Shivver Den"]
+        assert shivver.income == 15
+        assert shivver.boons == ["Escher gangs: +1 Reputation."]
         assert INCOME == "Income"
 
 
