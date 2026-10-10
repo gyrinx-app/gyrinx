@@ -527,14 +527,14 @@ def gang_sheet(request, pk):
                     visit_at=reverse("n26-gang-trade-points", args=[gang.pk]),
                     history_at=reverse("n26-gang-history", args=[gang.pk]),
                     clean_house_at=reverse("n26-clean-house", args=[gang.pk])
-                    if founding_seen
+                    if may_mark
                     else "",
                     # Every model held for ransom, by name: an unpaid one
                     # dies, so it is the first thing the square asks for.
                     ransoms=tuple(
                         (model.name, f"{at}?ransom={model.id}")
                         for model in sheet.models
-                        if founding_seen and model.status == Status.RANSOMED
+                        if may_mark and model.status == Status.RANSOMED
                     ),
                     post_battle_at=reverse("n26-gang-post-battle", args=[gang.pk])
                     if campaigns_open
