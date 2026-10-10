@@ -16,6 +16,17 @@ const props: CampaignRollSourceProps = {
     ],
     sourceErrors: [],
     rolledErrors: [],
+    count: "1",
+    countErrors: [],
+    maxDice: 20,
+    modifier: "",
+    modifierErrors: [],
+    modifierApplication: "total",
+    modifierApplicationErrors: [],
+    modifierChoices: [
+        { value: "total", label: "Total" },
+        { value: "each", label: "Each die" },
+    ],
 };
 
 describe("campaign roll source", () => {
@@ -51,7 +62,7 @@ describe("campaign roll source", () => {
             </form>,
         );
         const result = screen.getByRole("spinbutton", {
-            name: "Result",
+            name: "Result if already rolled",
         }) as HTMLInputElement;
         const form = view.container.querySelector("form")!;
         const manualRadio = screen.getByRole("radio", {
@@ -94,7 +105,7 @@ describe("campaign roll source", () => {
             />,
         );
         const result = screen.getByRole("spinbutton", {
-            name: "Result",
+            name: "Result if already rolled",
         }) as HTMLInputElement;
         expect(result.disabled).toBe(false);
         expect(result.value).toBe("17");
@@ -104,5 +115,70 @@ describe("campaign roll source", () => {
                 "Enter a D66 result with both digits from 1 to 6.",
             ),
         ).toBeTruthy();
+    });
+    it("records a manual total with a modifier applied to each die", async () => {
+        const user = userEvent.setup();
+        const view = render(
+            <form>
+                <CampaignRollSource {...props} />
+            </form>,
+        );
+        const count = screen.getByRole("spinbutton", {
+            name: "Number of dice *",
+        });
+        await user.clear(count);
+        await user.type(count, "3");
+        await user.click(
+            screen.getByRole("radio", { name: "I already rolled" }),
+        );
+        const total = screen.getByRole("spinbutton", {
+            name: "Total before modifiers",
+        });
+        await user.type(total, "12");
+        await user.type(
+            screen.getByRole("spinbutton", { name: "Modifier" }),
+            "-2",
+        );
+        await user.click(screen.getByRole("radio", { name: "Each die" }));
+        expect(
+            screen.getByText(
+                "The total includes the modifier once for each die.",
+            ),
+        ).toBeTruthy();
+        const form = view.container.querySelector("form")!;
+        expect(Object.fromEntries(new FormData(form))).toMatchObject({
+            count: "3",
+            rolled: "12",
+            modifier: "-2",
+            modifier_application: "each",
+        });
+        await user.click(
+            screen.getByRole("radio", { name: "Generate a roll" }),
+        );
+        expect(new FormData(form).has("rolled")).toBe(false);
+        await user.click(
+            screen.getByRole("radio", { name: "I already rolled" }),
+        );
+        expect((total as HTMLInputElement).value).toBe("12");
+    });
+
+    it("keeps invalid quantities and server errors visible", () => {
+        render(
+            <CampaignRollSource
+                {...props}
+                count="21"
+                countErrors={["Ensure this value is less than or equal to 20."]}
+            />,
+        );
+        const count = screen.getByRole("spinbutton", {
+            name: "Number of dice *",
+        }) as HTMLInputElement;
+        expect(count.value).toBe("21");
+        expect(count.max).toBe("20");
+        expect(count.getAttribute("aria-invalid")).toBe("true");
+        expect(
+            (screen.getByRole("radio", { name: "Total" }) as HTMLInputElement)
+                .checked,
+        ).toBe(true);
     });
 });
