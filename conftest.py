@@ -438,51 +438,67 @@ def content_books(django_db_setup, django_db_blocker):
         return ContentBook.objects.all()
 
 
+def _seed_content_equipment_categories(**kwargs):
+    """Restore the standard category definitions after transactional flushes."""
+    categories = [
+        # Weapons & Ammo
+        ("Basic Weapons", "Weapons & Ammo"),
+        ("Close Combat Weapons", "Weapons & Ammo"),
+        ("Pistols", "Weapons & Ammo"),
+        ("Special Weapons", "Weapons & Ammo"),
+        ("Heavy Weapons", "Weapons & Ammo"),
+        ("Grenades", "Weapons & Ammo"),
+        ("Ammo", "Weapons & Ammo"),
+        ("Power Pack Weapons", "Weapons & Ammo"),
+        # Gear
+        ("Armor", "Gear"),
+        ("Personal Equipment", "Gear"),
+        ("Gang Equipment", "Gear"),
+        ("Status Items", "Gear"),
+        ("Bionics", "Gear"),
+        ("Body Upgrades", "Gear"),
+        ("Booby Traps", "Gear"),
+        ("Chem-alchemy Elixirs", "Gear"),
+        ("Chems", "Gear"),
+        ("Cyberteknika", "Gear"),
+        ("Equipment", "Gear"),
+        ("Field Armour", "Gear"),
+        ("Gang Terrain", "Gear"),
+        ("Gene-smithing", "Gear"),
+        ("Relics", "Gear"),
+        # Vehicle & Mount
+        ("Drive Upgrades", "Vehicle & Mount"),
+        ("Engine Upgrades", "Vehicle & Mount"),
+        ("Hardpoint Upgrades", "Vehicle & Mount"),
+        ("Mounts", "Vehicle & Mount"),
+        ("Vehicle Wargear", "Vehicle & Mount"),
+        ("Vehicles", "Vehicle & Mount"),
+        # Other
+        ("Options", "Other"),
+    ]
+    for name, group in categories:
+        ContentEquipmentCategory.objects.get_or_create(
+            name=name, defaults={"group": group}
+        )
+
+
 @pytest.fixture(scope="session")
-def content_equipment_categories(django_db_setup, django_db_blocker):
-    """Create ContentEquipmentCategory objects needed for tests."""
+def content_equipment_category_definitions(django_db_setup, django_db_blocker):
+    """Seed once, then restore categories when a transaction test flushes them."""
     with django_db_blocker.unblock():
-        categories = [
-            # Weapons & Ammo
-            ("Basic Weapons", "Weapons & Ammo"),
-            ("Close Combat Weapons", "Weapons & Ammo"),
-            ("Pistols", "Weapons & Ammo"),
-            ("Special Weapons", "Weapons & Ammo"),
-            ("Heavy Weapons", "Weapons & Ammo"),
-            ("Grenades", "Weapons & Ammo"),
-            ("Ammo", "Weapons & Ammo"),
-            ("Power Pack Weapons", "Weapons & Ammo"),
-            # Gear
-            ("Armor", "Gear"),
-            ("Personal Equipment", "Gear"),
-            ("Gang Equipment", "Gear"),
-            ("Status Items", "Gear"),
-            ("Bionics", "Gear"),
-            ("Body Upgrades", "Gear"),
-            ("Booby Traps", "Gear"),
-            ("Chem-alchemy Elixirs", "Gear"),
-            ("Chems", "Gear"),
-            ("Cyberteknika", "Gear"),
-            ("Equipment", "Gear"),
-            ("Field Armour", "Gear"),
-            ("Gang Terrain", "Gear"),
-            ("Gene-smithing", "Gear"),
-            ("Relics", "Gear"),
-            # Vehicle & Mount
-            ("Drive Upgrades", "Vehicle & Mount"),
-            ("Engine Upgrades", "Vehicle & Mount"),
-            ("Hardpoint Upgrades", "Vehicle & Mount"),
-            ("Mounts", "Vehicle & Mount"),
-            ("Vehicle Wargear", "Vehicle & Mount"),
-            ("Vehicles", "Vehicle & Mount"),
-            # Other
-            ("Options", "Other"),
-        ]
-        for name, group in categories:
-            ContentEquipmentCategory.objects.get_or_create(
-                name=name, defaults={"group": group}
-            )
-        return ContentEquipmentCategory.objects.all()
+        _seed_content_equipment_categories()
+
+    post_migrate.connect(
+        _seed_content_equipment_categories,
+        sender=apps.get_app_config("content"),
+        dispatch_uid="tests.seed_content_equipment_categories",
+    )
+
+
+@pytest.fixture
+def content_equipment_categories(db, content_equipment_category_definitions):
+    """Return a fresh category query for this test's database state."""
+    return ContentEquipmentCategory.objects.all()
 
 
 @pytest.fixture(scope="session")

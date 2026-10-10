@@ -1,9 +1,10 @@
 # Measuring full-suite performance
 
 The full suite already uses pytest-xdist and PostgreSQL. Compare changes
-against a complete run of the same test selection on the same hardware,
-with the same worker count. A faster focused suite or a warm reused database
-does not establish a faster full suite.
+against a complete run of the same test selection on the same hardware.
+Keep the worker count fixed when isolating fixture changes; record it when
+comparing different concurrency settings. A faster focused suite or a warm
+reused database does not establish a faster full suite.
 
 ## Recording a run
 
@@ -25,9 +26,12 @@ while comparing. Four workers are appropriate for a controlled comparison on
 the shared development machine. A default local run uses pytest's `-n auto`;
 benchmark that command separately before claiming a change to its elapsed time.
 
-The worker count stays unchanged. The work-stealing scheduler can move pending
-tests from a busy worker to an idle one when case durations differ, reducing
-the wait for the last worker without adding processes or runners.
+The work-stealing scheduler can move pending tests from a busy worker to an
+idle one when case durations differ. Local runs retain `-n auto`. CI uses
+eight worker processes on the existing runner size, allowing another worker
+to run while one waits on PostgreSQL. It adds no runners or larger machines.
+Verify the cost separately by comparing the sum of the required, full-suite
+and fresh-database job durations, not just the fastest job.
 
 The normal full run recreates test databases from the current models, using
 `--nomigrations`. Use identical database settings for each measurement.
@@ -57,14 +61,8 @@ It completed all 13,826 tests with 13,811 passed, 13 skipped, one expected
 failure and one existing campaign-gallery assertion failure in 1,864.56
 seconds. The assertion expected the gang type and owner to have no intervening
 markup, but the component now draws a gang-type icon there. The comparison
-target is at most 932.28 seconds on the same four-worker runner.
-
-Completed main run [38070805424](https://github.com/gyrinx-app/gyrinx/actions/runs/38070805424)
-at `b74ccfeab` used four workers on the existing `ubuntu-latest` runner.
-Its full-suite result was 13,802 passed, 13 skipped and one expected failure in
-2,464.64 seconds. The full-suite step took 41 minutes 7 seconds and the job took
-41 minutes 57 seconds. Halving that test execution time requires at most
-1,232.32 seconds, without adding runners or increasing the runner size.
+target is at most 932.28 seconds on the same runner size. The three test jobs
+used 51 minutes 13 seconds of runner time in total.
 
 The local starting revision completed the same selection with four workers in
 2,151.53 seconds, with the same existing gallery failure. Its comparison target
@@ -77,6 +75,20 @@ Its local run was deliberately interrupted after 10,511 passing tests in
 These incomplete runs establish that the first candidate missed the target;
 they are not full-suite passing results. The shared local cases used about 16%
 less summed worker time, which is preliminary evidence only.
+
+The first complete consolidation candidate, `4455741c6`, also missed the target:
+
+| Measurement | Workers | Pytest elapsed | Result |
+| --- | ---: | ---: | --- |
+| Local | 4 | 1,440.05 seconds | 13,385 passed; two failures and one setup error |
+| [CI 38082880416](https://github.com/gyrinx-app/gyrinx/actions/runs/38082880416) | 4 | 1,878.72 seconds | 13,348 passed; 40 failures |
+
+The local failures were PostgreSQL shared-memory errors; all three cases passed
+unchanged in a sequential rerun. The CI failures were missing equipment category
+fixtures after a transaction test flushed the database. Its three test jobs
+used 63 minutes 11 seconds in total, exceeding the starting cost. These results
+do not establish the requested improvement. Subsequent candidates must fix
+fixture isolation and pass complete local and CI measurements.
 
 ## Reducing repeated work
 
@@ -101,6 +113,15 @@ or operation share one setup and response.
   instead of 115. Query growth, reset results and redelivery remain checked.
 - Same-connection pause tests use rollback isolation. Actual outer commits,
   session locks and threaded concurrency retain transaction tests.
+- Advancement skill selection and resolution reuse their local card and skill
+  listings. Each new call reads fresh state; eligibility is captured before
+  hypothetical stat previews mutate card nodes.
+- Shared statline fixtures normalize the supplied values with the shipped
+  formatter, then insert their cells in one statement. Stored blanks remain
+  blank; production statline saves keep their existing behavior.
+- Equipment category fixtures are restored after transaction-test flushes.
+  Each test receives a fresh query, so scheduling an ordinary test after a
+  transaction test cannot leave it with missing or stale categories.
 
 The pass also replaces vacuous checks: an empty filtered collection must be
 nonempty before asserting every row is suppressed, and foundation status and

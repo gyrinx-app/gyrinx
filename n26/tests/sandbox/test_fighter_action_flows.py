@@ -14,19 +14,15 @@ from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
 from n26.library.models import Slot
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import buy, found_gang, hire
 
 pytestmark = pytest.mark.django_db
 
 
-@pytest.fixture
-def hunt(default_pack, fighter_type, fighter_stats, make_statline, counter_tracking):
-    owner = User.objects.create_user("flow-player")
-    gang_type = a.create_gang_type("Hunting party", starting_credits=1000)
-    gang = found_gang("The Descent", gang_type, owner=owner, budget=1000)
-    profile = a.create_profile("Hunter", fighter_type, gang_type, price=100)
-    make_statline(profile)
-    fighter = hire(gang, profile, "Vex")
+@library_setup
+def _hunt_action_content(fighter_stats):
+    """The rig ladder and priced actions, authored before the player uses them."""
     kills = a.create_counter("Kill Count")
     glitches = a.create_counter("Glitch Count")
     augmentation = a.create_slot_type("Augmentation", allows_repeats=False)
@@ -75,6 +71,20 @@ def hunt(default_pack, fighter_type, fighter_stats, make_statline, counter_track
         use_price=[
             {"resource": "counter", "payer": "fighter", "counter": kills, "amount": 4}
         ],
+    )
+    return kills, glitches, rig, tiers, upgrade, clear, action
+
+
+@pytest.fixture
+def hunt(default_pack, fighter_type, fighter_stats, make_statline, counter_tracking):
+    owner = User.objects.create_user("flow-player")
+    gang_type = a.create_gang_type("Hunting party", starting_credits=1000)
+    gang = found_gang("The Descent", gang_type, owner=owner, budget=1000)
+    profile = a.create_profile("Hunter", fighter_type, gang_type, price=100)
+    make_statline(profile)
+    fighter = hire(gang, profile, "Vex")
+    kills, glitches, rig, tiers, upgrade, clear, action = _hunt_action_content(
+        fighter_stats
     )
     with operation(gang, actor=owner) as op:
         op.assign(action, miniature=fighter)

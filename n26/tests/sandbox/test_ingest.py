@@ -1333,12 +1333,11 @@ class TestApplyingWhatChanged:
         assert [p.name for p in entry.usable_by_profiles.all()] == ["Way-Brethren"]
         assert autogun.usable_by_words() == ""
 
-    def test_a_restriction_on_a_named_profile_lands_on_the_entry_for_that_line(
+    def test_a_named_profile_restriction_lands_only_on_its_entry_and_repreviews_unchanged(
         self, imported
     ):
-        """The launcher is open to everyone; one of its rounds is not.
-        "Autogun (warp round) — Sumpkroc only" narrows the list's offer
-        of the round, and neither the round nor the gun is touched."""
+        """A named round's restriction belongs to its list entry. The gun
+        and round remain open, and the same sheet plans no second restriction."""
         plan = plan_ingest(
             **{
                 **imported,
@@ -1362,10 +1361,6 @@ class TestApplyingWhatChanged:
         assert warp_round.usable_by_words() == ""
         assert autogun.usable_by_words() == ""
 
-    def test_a_restricted_profile_previews_again_as_unchanged(self, imported):
-        """The preview re-plans on every visit. Once the round carries
-        its restriction, planning the same sheet again finds it there
-        rather than failing to ask a profile who may use it."""
         sheets = {
             **imported,
             "equipment_lists": edited(
@@ -1375,7 +1370,6 @@ class TestApplyingWhatChanged:
                 "Sumpkroc only,",
             ),
         }
-        perform(plan_ingest(**sheets))
 
         plan = plan_ingest(**sheets)
 
@@ -1761,10 +1755,9 @@ class TestResolvingAgainstThePack:
     """A partial upload — a list on its own, say — resolves against what
     the pack already holds rather than what this run planned."""
 
-    def test_a_shared_name_resolves_by_its_whole_id(self, foundation, sheets):
-        """Two weapons print "Power fist". Matching on the name alone
-        takes whichever comes first, which can hand a list the other
-        one at the other price."""
+    def test_partial_uploads_resolve_whole_ids_profile_weapons_and_unique_names(
+        self, foundation, sheets
+    ):
         perform(plan_ingest(pack=None, **sheets))
         only_lists = plan_ingest(
             equipment_lists=read_csv(
@@ -1779,10 +1772,6 @@ Equipment List,Cawdor,Close combat weapons,Exo weapons,Power fist,,105,,x
         assert resolved.fields["qualifier"] == "Exo weapons"
         assert resolved.fields["price"] == 105
 
-    def test_a_profile_brings_its_weapon_with_it(self, foundation, sheets):
-        """An entry asks a profile which weapon it hangs on, to know
-        whether it is already listed — so resolution has to say."""
-        perform(plan_ingest(pack=None, **sheets))
         only_lists = plan_ingest(
             equipment_lists=read_csv(
                 """
@@ -1795,11 +1784,6 @@ Equipment List,Cawdor,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,,x
         ammo = only_lists.get(WARP_ROUND)
         assert only_lists.get(ammo.fields["weapon"]).name == "Autogun"
 
-    def test_a_name_the_pack_holds_once_still_resolves(self, foundation, sheets):
-        """Exactness must not lock out a hand-authored item filed under
-        a category of its author's choosing: where the name is the
-        pack's alone, it is not ambiguous and it is found."""
-        perform(plan_ingest(pack=None, **sheets))
         only_lists = plan_ingest(
             equipment_lists=read_csv(
                 """
@@ -2167,25 +2151,28 @@ class TestClearing:
     creates.
     """
 
-    def test_clearing_leaves_the_foundations_standing(self, full_foundation, sheets):
+    def test_clearing_preserves_foundations_removes_the_import_and_reimports_identically(
+        self, full_foundation, sheets
+    ):
         from n26.library.ingest import clear_imported
+        from n26.library.models.collection import Collection, CollectionEntry
+
+        def census():
+            return {
+                model.__name__: model.objects.count()
+                for model in (Weapon, Wargear, Profile, Trait, Skill, Subtype)
+            }
 
         perform(plan_ingest(pack=None, **sheets))
+        first = census()
         assert Weapon.objects.exists()
 
-        clear_imported()
+        gone = clear_imported()
 
         # Every seed still says it is whole — the one contract that
         # keeps this from being "delete the library".
         for key, seed in STANDARD_CONTENT.items():
             assert seed.status() == "complete", key
-
-    def test_clearing_takes_the_imported_content_away(self, full_foundation, sheets):
-        from n26.library.ingest import clear_imported
-        from n26.library.models.collection import Collection, CollectionEntry
-
-        perform(plan_ingest(pack=None, **sheets))
-        gone = clear_imported()
 
         assert Weapon.objects.count() == 0
         assert Wargear.objects.count() == 0
@@ -2202,20 +2189,6 @@ class TestClearing:
         assert Skill.objects.filter(name="Catfall").exists()
         assert Subtype.objects.filter(name="Leader").exists()
 
-    def test_import_clear_import_lands_in_the_same_place(self, full_foundation, sheets):
-        """The round trip the whole thing is for."""
-        from n26.library.ingest import clear_imported
-
-        def census():
-            return {
-                model.__name__: model.objects.count()
-                for model in (Weapon, Wargear, Profile, Trait, Skill, Subtype)
-            }
-
-        perform(plan_ingest(pack=None, **sheets))
-        first = census()
-
-        clear_imported()
         perform(plan_ingest(pack=None, **sheets))
 
         assert census() == first
@@ -2293,26 +2266,11 @@ class TestClearing:
             for name in seeded.values_list("name", flat=True)
         )
 
-    def test_a_gang_using_the_content_stops_the_clear(self, full_foundation, sheets):
-        """Player data protects what it uses: the content does not go out
-        from under a gang that holds it."""
-        from django.db.models import ProtectedError
-
-        from n26.library.ingest import clear_imported
-
-        perform(plan_ingest(pack=None, **sheets))
-        _found_a_gang_holding_a_weapon()
-
-        with pytest.raises(ProtectedError):
-            clear_imported()
-        assert Weapon.objects.exists()  # and the transaction held
-
-    def test_a_refused_clear_takes_nothing_at_all(self, full_foundation, sheets):
-        """The holders are only found part-way through — the wargear is
-        already gone when a weapon turns out to be spoken for — so this
-        is all or nothing however it is called. A caller left holding
-        half a library has a worse problem than the one it started with.
-        """
+    def test_a_gang_using_the_content_refuses_the_clear_and_takes_nothing(
+        self, full_foundation, sheets
+    ):
+        """A protected weapon refuses the clear after earlier rows were visited;
+        the transaction leaves the entire imported graph standing."""
         from django.db.models import ProtectedError
 
         from n26.library.ingest import clear_imported, count_imported
@@ -2323,6 +2281,7 @@ class TestClearing:
 
         with pytest.raises(ProtectedError):
             clear_imported()
+        assert Weapon.objects.exists()  # and the transaction held
 
         assert count_imported() == before
 

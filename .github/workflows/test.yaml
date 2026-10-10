@@ -108,12 +108,12 @@ jobs:
         # Generous because a change to the root conftest runs the whole suite
         # through this job.
         timeout-minutes: 45
-        # pyproject's `-n auto` can resolve to physical cores (half the
-        # runner's vCPUs); `-n logical` uses every vCPU, and the later flag wins.
+        # Workers spend time waiting on PostgreSQL. Use eight processes on
+        # the existing runner; this adds neither runners nor billed capacity.
         run: |
           source .venv/bin/activate
           export GYRINX_CHANGED_TEST_PATHS="$(cat changed-test-paths.txt 2>/dev/null || true)"
-          pytest -m core --durations=20 -v -n logical
+          pytest -m core --durations=20 -v -n 8
 
   test-full:
     if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main'
@@ -154,11 +154,10 @@ jobs:
 
       - name: Run the full suite
         timeout-minutes: 60
-        # pyproject's `-n auto` can resolve to physical cores (half the
-        # runner's vCPUs); `-n logical` uses every vCPU, and the later flag wins.
+        # Match the required check's concurrency on the same runner size.
         run: |
           source .venv/bin/activate
-          python scripts/measure_test_performance.py --label ci-full -- -v -n logical
+          python scripts/measure_test_performance.py --label ci-full -- -v -n 8
 
   page-on-main-failure:
     needs: [test, test-full]

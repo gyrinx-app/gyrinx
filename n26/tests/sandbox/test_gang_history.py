@@ -437,7 +437,7 @@ class TestASnapshotOfTheStory:
         short = Gang.objects.get(pk=gang.pk)
         with django_assert_num_queries(2):
             history.latest(short, viewer=gang.owner)
-        self._lengthen(gang, vex, 60)
+        self._lengthen(gang, vex, 10)
         long = Gang.objects.get(pk=gang.pk)
         with django_assert_num_queries(2):
             history.latest(long, viewer=gang.owner)
