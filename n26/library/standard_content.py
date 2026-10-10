@@ -818,19 +818,37 @@ def _outcast_champion_budget_carrier():
 
 
 def _create_outcast_champion_budget(counter):
-    from n26.library.authoring import ef_contributes_to_counter, modifier, targets_model
+    from n26.library.authoring import (
+        ef_contributes_to_counter,
+        modifier,
+        recompose_modifier,
+        targets_model,
+    )
 
     carrier = _outcast_champion_budget_carrier()
-    if (
-        carrier is not None
-        and not _raises_founding_budget(carrier, counter, 3).exists()
-    ):
-        modifier(
-            "Outcast champions may spend 3 Trade Points at hire",
-            targets_model(),
-            ef_contributes_to_counter(counter, 3),
-            attach_to=carrier,
-        )
+    if carrier is None:
+        return
+    standing = list(_raises_founding_budget(carrier, counter, 3))
+    if any(_bearer_scope_matches(row) for row in standing):
+        return
+    for row in standing:
+        if row.targets_miniature is not None and _modifier_is_exclusive_to(
+            row, carrier
+        ):
+            recompose_modifier(
+                row, row.name, targets_model(), ef_contributes_to_counter(counter, 3)
+            )
+            return
+    if standing:
+        # A shared or differently targeted grant needs an author's decision.
+        # Leave it intact and report this setup as incomplete.
+        return
+    modifier(
+        "Outcast champions may spend 3 Trade Points at hire",
+        targets_model(),
+        ef_contributes_to_counter(counter, 3),
+        attach_to=carrier,
+    )
 
 
 def _create_founding_budgets():
@@ -930,9 +948,9 @@ def _check_founding_budgets():
     champion_carrier = _outcast_champion_budget_carrier()
     if champion_carrier is not None:
         wanted += 1
-        if (
-            counter is not None
-            and _raises_founding_budget(champion_carrier, counter, 3).exists()
+        if counter is not None and any(
+            _bearer_scope_matches(row)
+            for row in _raises_founding_budget(champion_carrier, counter, 3)
         ):
             present += 1
 

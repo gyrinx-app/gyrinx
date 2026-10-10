@@ -786,7 +786,7 @@ class TestGoingPastIt:
     ):
         response = client.post(
             equip_url(leader, post),
-            {"thing": key_of(wargear("Flak plate")), "confirmed": "1"},
+            {"thing": key_of(wargear("Flak plate")), "confirmed": "tp-overspend"},
         )
 
         assert response.status_code == 302

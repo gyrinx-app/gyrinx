@@ -1943,7 +1943,7 @@ class TestHireTimeTradePoints:
         # The owner can still explicitly accept an overspend.
         from n26.core.confirm import CONFIRM_FIELD
 
-        response = client.post(at, {**payload, CONFIRM_FIELD: "yes"})
+        response = client.post(at, {**payload, CONFIRM_FIELD: "tp-overspend"})
         assert response.status_code == 302
         assert budget(recruit).remaining == -1
         gang.refresh_from_db()
@@ -2123,4 +2123,111 @@ class TestHireTimeTradePoints:
         gang.refresh_from_db()
         assert budget(recruit).remaining == (2 - line.trade_points if admitted else 2)
         assert gang.trade_points_left == (5 if admitted else 5 - line.trade_points)
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("when", ["before_request", "before_lock"])
+    def test_rating_confirmation_does_not_accept_a_later_tp_overspend(
+        self, client, gang, recruit, player, post, monkeypatch, when
+    ):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        from n26.core.confirm import CONFIRM_FIELD
+        from n26.core.listing import price_field
+        from n26.core.owned import thing_key
+
+        extra = assign(grant_on_hidden("Extra hire allowance", 2), miniature=recruit)
+        activity = self.open_personal(recruit)
+        item = create_wargear("Rare armour", price=40, trade_point_price=5)
+        client.force_login(player)
+        at = reverse("n26-equip", args=[recruit.pk]) + f"?list={post.pk}"
+        payload = {
+            "thing": thing_key(item),
+            "personal_activity": str(activity.pk),
+            price_field(thing_key(item)): "20",
+        }
+        rating = client.post(at, payload)
+        assert "Choose the rating" in rating.content.decode()
+
+        def fields(response):
+            form = (
+                BeautifulSoup(response.content, "html.parser")
+                .select_one(f'input[name="{CONFIRM_FIELD}"]')
+                .find_parent("form")
+            )
+            return {
+                field["name"]: field.get("value", "")
+                for field in form.select('input[name]:not([type="checkbox"])')
+            }
+
+        rating_fields = {**fields(rating), "rate": "paid"}
+        if when == "before_request":
+            from n26.tests.sandbox.actions import remove
+
+            remove(extra)
+        else:
+            change_before_lock(monkeypatch, lambda op: op.remove(extra))
+        overspend = client.post(at, rating_fields)
+
+        assert overspend.status_code == 200
+        assert "Not enough Trade Points" in overspend.content.decode()
+        assert "Kel has 4." in overspend.content.decode()
+        assert not recruit.assignments.filter(wargear=item).exists()
+        overspend_fields = fields(overspend)
+        assert overspend_fields[CONFIRM_FIELD] != rating_fields[CONFIRM_FIELD]
+        assert overspend_fields["rate"] == "paid"
+        completed = client.post(at, overspend_fields)
+        assert completed.status_code == 302
+        assert budget(recruit).remaining == -1
+        from n26.core.models import LedgerEntry
+
+        entry = LedgerEntry.objects.get(assignment__wargear=item)
+        assert (entry.paid, entry.rating_contribution) == (20, 20)
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("shared", [False, True])
+    def test_standard_setup_checks_and_repairs_a_restricted_champion_grant(
+        self, gang, recruit, hire_into, library, shared
+    ):
+        from n26.library.authoring import (
+            create_hidden,
+            ef_contributes_to_counter,
+            is_profile,
+            modifier,
+            targets_model,
+        )
+        from n26.library.standard_content import (
+            STANDARD_CONTENT,
+            founding_budget_counter,
+        )
+
+        profile = library[("Allies", "Bone Scrivener")]
+        hidden = create_hidden("Outcast champions")
+        restricted = modifier(
+            "Outcast champions may spend 3 Trade Points at hire",
+            targets_model(is_profile(profile)),
+            ef_contributes_to_counter(founding_budget_counter(), 3),
+            attach_to=hidden,
+        )
+        if shared:
+            create_hidden("Other allowance carrier").modifiers.add(restricted)
+        ally = hire_into(gang, ("Allies", "Bone Scrivener"), "Ally")
+        assign(hidden, miniature=recruit)
+        assign(hidden, miniature=ally)
+        assert (reading(recruit), reading(ally)) == (4, 3)
+        present, wanted = STANDARD_CONTENT["founding-budgets"].check()
+        assert present < wanted
+
+        STANDARD_CONTENT["founding-budgets"].create()
+        STANDARD_CONTENT["founding-budgets"].create()
+
+        present, wanted = STANDARD_CONTENT["founding-budgets"].check()
+        if shared:
+            assert (reading(recruit), reading(ally)) == (4, 3)
+            assert present < wanted
+            assert restricted.targets_miniature.is_profile.exists()
+        else:
+            assert (reading(recruit), reading(ally)) == (7, 3)
+            assert present == wanted
         assert_reconciled(gang)

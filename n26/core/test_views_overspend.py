@@ -153,14 +153,16 @@ class TestWhenItDoesNot:
     def test_confirming_records_no_action(self, client, gang, fighter, post, buying):
         """There is nothing open for it to count against, which is what
         the question said it would do."""
-        client.post(equip_url(fighter, post), {**buying, "confirmed": "1"})
+        client.post(equip_url(fighter, post), {**buying, "confirmed": "tp-overspend"})
 
         bought = Assignment.objects.get(gang_root=gang, wargear__isnull=False)
         assert bought.ledger_entry.trade_points == 3
         assert bought.ledger_entry.activity is None
 
     def test_confirming_buys_it(self, client, gang, fighter, post, buying):
-        answer = client.post(equip_url(fighter, post), {**buying, "confirmed": "1"})
+        answer = client.post(
+            equip_url(fighter, post), {**buying, "confirmed": "tp-overspend"}
+        )
 
         assert answer.status_code == 302
         assert held(gang) == 1
@@ -277,7 +279,7 @@ class TestTheQuestionOnAScreenThatUpdatesInPlace:
         """The second post is the act: it buys, and what comes back is an
         update for the page still standing rather than another question."""
         answer = client.post(
-            equip_url(fighter, post), {**buying, "confirmed": "1"}, **self.HX
+            equip_url(fighter, post), {**buying, "confirmed": "tp-overspend"}, **self.HX
         )
 
         assert answer.status_code == 200
@@ -289,7 +291,7 @@ class TestTheQuestionOnAScreenThatUpdatesInPlace:
     ):
         """An empty host replaces the one holding the question."""
         body = client.post(
-            equip_url(fighter, post), {**buying, "confirmed": "1"}, **self.HX
+            equip_url(fighter, post), {**buying, "confirmed": "tp-overspend"}, **self.HX
         ).content.decode()
 
         assert '<div id="n26-dialog-host" hx-swap-oob="true"></div>' in body
@@ -301,7 +303,7 @@ class TestTheQuestionOnAScreenThatUpdatesInPlace:
         Credits figures it delivers must still lead to their pages —
         otherwise a purchase silently costs the reader the links."""
         body = client.post(
-            equip_url(fighter, post), {**buying, "confirmed": "1"}, **self.HX
+            equip_url(fighter, post), {**buying, "confirmed": "tp-overspend"}, **self.HX
         ).content.decode()
 
         assert reverse("n26-gang-trade-points", args=[gang.pk]) in body

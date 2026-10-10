@@ -346,7 +346,7 @@ def _overspend(request, gang, line, asked, back, budget=None, holder=""):
     """
     from n26.core.confirm import Aside, Fact, carried
 
-    if not asked or request.POST.get(CONFIRM_FIELD):
+    if not asked or request.POST.get(CONFIRM_FIELD) == "tp-overspend":
         return None
     visit = None if budget is not None else gang.open_visit
     open_activity = budget is not None or visit is not None
@@ -405,7 +405,7 @@ def _overspend(request, gang, line, asked, back, budget=None, holder=""):
         action=request.get_full_path(),
         cancel_url=back,
         carry=carried(request.POST),
-        confirm_value="1",
+        confirm_value="tp-overspend",
     )
 
 
@@ -878,7 +878,9 @@ def _buy_clicked(
             checkbox=checkbox,
             # The box posts its own value; a carried copy would outvote an
             # untick.
-            carry=carried(request.POST, leave_out={RATE_FIELD}),
+            carry=carried(
+                request.POST, leave_out={RATE_FIELD} if checkbox is not None else ()
+            ),
         )
     if checkbox is not None:
         spent = charge["paid"] + sum(part_paid for _, part_paid in paid_for)

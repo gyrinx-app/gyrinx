@@ -375,7 +375,11 @@ class TestWithAnOverspend:
             equip_url(fighter, post),
             buying(
                 "Mesh armour",
-                **{price_field("Mesh armour"): "5", CONFIRM_FIELD: "1", "rate": "paid"},
+                **{
+                    price_field("Mesh armour"): "5",
+                    CONFIRM_FIELD: "tp-overspend",
+                    "rate": "paid",
+                },
             ),
         )
 
