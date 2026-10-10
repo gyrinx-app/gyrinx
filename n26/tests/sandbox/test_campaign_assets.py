@@ -1072,6 +1072,8 @@ class TestARecruitBoonForOneHouse:
             gang.refresh_from_db()
             assert_reconciled(gang)
 
+
+class TestCampaignSuppression:
     def test_additions_suppress_a_shared_rule_only_in_their_own_campaign(
         self, core, gang_type, arbitrator, player
     ):
