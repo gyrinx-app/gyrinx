@@ -1327,6 +1327,46 @@ class TestHireTimeTradePoints:
     action ends ordinary availability; correction reopens the same balance.
     """
 
+    def test_a_zero_grant_gang_can_finish_founding_before_its_first_tp_recruit(
+        self, client, outcast, player, hire_into
+    ):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        gang = found_gang("The Quiet Ones", outcast, owner=player, budget=1000)
+        original = hire_into(gang, ("Outcast", "Hive Scum"), "Wren")
+        assert reading(original) == 0
+        client.force_login(player)
+        tab = reverse("n26-gang-trade-points", args=[gang.pk])
+        action = reverse("n26-gang-founding-action", args=[gang.pk])
+        page = BeautifulSoup(client.get(tab).content, "html.parser")
+        start = page.select_one('input[name="act"][value="start"]')
+        assert start is not None
+        assert start.find_parent("form")["action"].startswith(action)
+
+        response = client.post(start.find_parent("form")["action"], {"act": "start"})
+        assert response.url == tab
+        page = BeautifulSoup(client.get(tab).content, "html.parser")
+        finish = page.select_one('input[name="act"][value="finish"]')
+        activity = finish.find_parent("form").select_one('input[name="activity"]')
+        response = client.post(
+            finish.find_parent("form")["action"],
+            {"act": "finish", "activity": activity["value"]},
+        )
+        assert response.url == tab
+        gang.refresh_from_db()
+        assert gang.founding_completed_at() is not None
+
+        recruit = hire_into(gang, ("Outcast", "Champion"), "Kel")
+        edit = BeautifulSoup(
+            client.get(reverse("n26-edit-fighter", args=[recruit.pk])).content,
+            "html.parser",
+        )
+        assert "Spend hire-time TP" in edit.get_text()
+        self.open_personal(recruit)
+        assert budget(recruit).remaining == 3
+        assert_reconciled(gang)
+
     @pytest.fixture
     def recruit(self, gang, leader, hire_into):
         complete_action(gang, FOUNDING_KIND)

@@ -97,6 +97,17 @@ their own endpoint and return to this tab through a validated return URL.
         {% endif %}
         {% if founding_card %}
             <c-n26.activity-card :card="founding_card" />
+        {% elif start_founding %}
+            <c-ui.card>
+                <c-n26.form-section title="Founding"
+                                    description="Start the founding action, then complete it when you have finished hiring and equipping the gang.">
+                    <form method="post" action="{{ start_founding }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="act" value="start">
+                        <c-n26.form-actions submit_label="Start founding" submit_variant="default" size="sm" />
+                    </form>
+                </c-n26.form-section>
+            </c-ui.card>
         {% elif reopen_founding %}
             <c-ui.card>
                 <c-n26.form-section title="Founding Trade Points"

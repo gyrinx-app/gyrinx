@@ -1897,15 +1897,13 @@ def gang_trade_points(request, pk):
     founding_at = ""
     reopen_founding = False
     computed = None
-    if (
-        completed is not None or gang.open_activity(Activity.Kind.FOUNDING) is not None
-    ) and may_see_founding(gang, request.user):
+    if may_see_founding(gang, request.user):
         founding_at = (
             reverse("n26-gang-founding-action", args=[gang.pk])
             + "?"
             + urlencode({"return_url": at})
         )
-        if gang.open_activity(Activity.Kind.FOUNDING) is None:
+        if completed is not None and gang.open_activity(Activity.Kind.FOUNDING) is None:
             computed = computed_members(gang)
             grants = grants_by_model(computed, models=members)
             reopen_founding = any(
@@ -1932,6 +1930,9 @@ def gang_trade_points(request, pk):
             # The current visit replaces the start form until completed.
             "visit_card": visit_card(receipt, at) if receipt else None,
             "founding_card": founding_card(gang, founding_at) if founding_at else None,
+            "start_founding": founding_at
+            if completed is None and not gang.visiting_trading_post
+            else "",
             "reopen_founding": founding_at if reopen_founding else "",
             "visitors": offered,
             "start_help": _start_help(offered),
