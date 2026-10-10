@@ -198,7 +198,9 @@ def test_the_menu_comes_back_when_a_label_choice_redraws_the_sheet(
 
 
 class TestTheCampaignHeader:
-    def test_the_arbitrator_gets_the_log_counters_and_archive(self, client, campaign):
+    def test_the_arbitrator_gets_the_log_counters_asset_types_and_archive(
+        self, client, campaign
+    ):
         client.force_login(campaign.owner)
         html = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
 
@@ -215,6 +217,12 @@ class TestTheCampaignHeader:
                 "Counters and labels",
                 reverse("n26-edit-campaign", args=[campaign.pk])
                 + "?tab=counters-and-labels",
+                "default",
+                False,
+            ),
+            (
+                "Asset types",
+                reverse("n26-edit-campaign", args=[campaign.pk]) + "?tab=asset-types",
                 "default",
                 False,
             ),
