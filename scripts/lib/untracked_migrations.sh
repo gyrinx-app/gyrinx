@@ -44,9 +44,9 @@ hide_untracked_migrations() {
   done < <(git ls-files --others --exclude-standard -z)
 }
 
-# Put back exactly the paths hide moved, links included. A path something
-# recreated during the check is newer than the parked copy, so it is not
-# overwritten. Only empty directories are removed afterwards, so a file that
+# Put back exactly the paths that hide_untracked_migrations moved, links
+# included. If a file was written at one of those paths while the check ran,
+# that file is newer than the parked copy, so it is not overwritten. Only empty directories are removed afterwards, so a file that
 # did not go back stays parked, and the hook fails and says where.
 restore_untracked_migrations() {
   local dir path
