@@ -153,6 +153,31 @@ describe("CheckboxCardIsland", () => {
     });
 });
 
+describe("focus on a nested tick before mounting", () => {
+    it.each([
+        [true, "Lasgun"],
+        [false, "Vex"],
+    ])("card ticked %s puts focus on %s", (ticked, focused) => {
+        const { host } = mountedHost(fallbackWithItems);
+        host.querySelector<HTMLInputElement>(
+            "input[name='fighters']",
+        )!.checked = ticked;
+        host.querySelector<HTMLInputElement>("input[value='lasgun']")!.focus();
+
+        let unmount = () => {};
+        act(() => {
+            unmount = mount(host, withItems);
+        });
+
+        const expected = screen.getByRole("checkbox", {
+            name: new RegExp(focused),
+            hidden: true,
+        });
+        expect(document.activeElement).toBe(expected);
+        act(() => unmount());
+    });
+});
+
 describe("mounting over the server-drawn card", () => {
     it("replaces the server-drawn box and posts it once", async () => {
         const user = userEvent.setup();

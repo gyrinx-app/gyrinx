@@ -30,7 +30,9 @@ would turn nested controls back on until React mounts.
                 {% endif %}
             </span>
             {% if props_ %}
-                {% if props_.meta %}<span class="shrink-0 text-sm tabular-nums text-muted">{{ props_.meta }}</span>{% endif %}
+                {% if props_.meta %}
+                    <span data-checkbox-meta class="shrink-0 text-sm tabular-nums text-muted">{{ props_.meta }}</span>
+                {% endif %}
             {% elif meta %}
                 {# contents keeps the slot's own boxes as the label's flex items. #}
                 <span data-checkbox-meta class="contents">{{ meta }}</span>
@@ -41,7 +43,9 @@ would turn nested controls back on until React mounts.
                 <div data-checkbox-body
                      class="mt-2 border-t border-box-border pt-2 pl-8{% if not checked %} {{ dim }}{% endif %}">
                     {% for item in props_.items %}
-                        <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
+                        {# The React card reads these classes from here, through the recipe exporter. #}
+                        <label data-checkbox-item
+                               class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
                             <input type="checkbox"
                                    name="{{ item.name }}"
                                    value="{{ item.value }}"

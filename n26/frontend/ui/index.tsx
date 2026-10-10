@@ -543,25 +543,25 @@ export function CheckboxCardItem({
     defaultChecked?: boolean;
     meta?: string;
 }) {
+    const recipe = cotton.checkboxCard;
     return (
-        <label className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
+        <label className={recipe.item}>
             <input
                 type="checkbox"
                 name={name}
                 value={value}
                 defaultChecked={defaultChecked}
-                className="size-4 shrink-0 accent-[var(--color-accent)] focus-ring"
+                className={recipe.itemInput}
             />
-            <span className="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">
-                {label}
-            </span>
-            {meta && (
-                <span className="shrink-0 text-xs tabular-nums text-muted">
-                    {meta}
-                </span>
-            )}
+            <span className={recipe.itemLabel}>{label}</span>
+            {meta && <span className={recipe.itemMeta}>{meta}</span>}
         </label>
     );
+}
+
+/** A figure beside a CheckboxCard's label, as text. */
+export function CheckboxCardMeta({ children }: { children: ReactNode }) {
+    return <span className={cotton.checkboxCard.meta}>{children}</span>;
 }
 
 export function Callout({

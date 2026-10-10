@@ -276,7 +276,45 @@ def checkbox_card_recipe():
             parts[name] = on_cls
     if checked[2].get("type") != "checkbox":
         raise ValueError("Checkbox card control changed")
-    return {**parts, "selection": selection, "nested": nested}
+    return {
+        **parts,
+        "selection": selection,
+        "nested": nested,
+        **checkbox_card_item_recipe(),
+    }
+
+
+def checkbox_card_item_recipe():
+    """Class strings of a nested tick and of the header's meta text.
+
+    The island's fallback draws both from data, so they are read from a live
+    card holding one item. React's rows then match the fallback it replaces.
+    """
+    from n26.core.checkbox_card import CheckboxCardItem
+
+    source = '<c-n26.checkbox-card label="Model" meta="1¢" :items="items" />'
+    rendered = Template(CottonCompiler().process(source)).render(
+        Context({"items": [CheckboxCardItem("n", "v", "Item", meta="1¢")]})
+    )
+    elements = Elements(rendered).elements
+    metas = [attrs for _, attrs in elements if "data-checkbox-meta" in attrs]
+    start = next(
+        (i for i, (_, attrs) in enumerate(elements) if "data-checkbox-item" in attrs),
+        None,
+    )
+    row = elements[start : start + 4] if start is not None else []
+    if len(metas) != 1 or [tag for tag, _ in row] != ["label", "input", "span", "span"]:
+        raise ValueError(f"Checkbox card item structure changed: {row}")
+    if row[1][1].get("type") != "checkbox":
+        raise ValueError("Checkbox card item control changed")
+    item, control, text, figure = (class_name(attrs) for _, attrs in row)
+    return {
+        "meta": class_name(metas[0]),
+        "item": item,
+        "itemInput": control,
+        "itemLabel": text,
+        "itemMeta": figure,
+    }
 
 
 def callout_recipe():

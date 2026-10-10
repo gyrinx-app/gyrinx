@@ -21,10 +21,14 @@ export function mount(element: HTMLElement, props: CheckboxCardIslandProps) {
         );
         return fallback ? { ...item, checked: fallback.checked } : item;
     });
+    const focused = drawn.find((input) => input === document.activeElement);
     return mountRoot(element, CheckboxCardIsland, {
         ...props,
         items,
         checked: box ? box.checked : props.checked,
         restoreFocus: box != null && document.activeElement === box,
+        focusItem: focused
+            ? { name: focused.name, value: focused.value }
+            : null,
     });
 }
