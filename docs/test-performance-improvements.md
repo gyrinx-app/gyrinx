@@ -1,131 +1,67 @@
-# Test Performance Improvements with pytest-xdist
+# Measuring full-suite performance
 
-## Overview
+The full suite already uses pytest-xdist and PostgreSQL. Compare changes
+against a complete run of the same test selection on the same hardware,
+with the same worker count. A faster focused suite or a warm reused database
+does not establish a faster full suite.
 
-This document outlines the performance improvements achieved by introducing `pytest-xdist` for parallel test execution in the Gyrinx project.
+## Recording a run
 
-## Current State Analysis
-
-- **Total tests**: 451 test cases
-- **Test distribution**:
-  - Core app: 45 test files
-  - Content app: 14 test files
-  - Pages app: 1 test file
-  - API app: 1 test file
-- **Current execution**: Sequential (one test at a time)
-- **Parallelization**: None configured
-
-## Changes Implemented
-
-### 1. Added pytest-xdist to requirements.txt
-
-```txt
-pytest-xdist==3.6.1
-```
-
-### 2. Parallel Test Execution
-
-With pytest-xdist installed, you can now run tests in parallel:
+The measurement command provisions this worktree's Python and frontend
+environment through `.codex/run.sh`, then runs pytest with the arguments given.
+It records wall time, child-process CPU time, exit status, Git revision and
+working-tree digest, and JUnit test counts under `logs/test-performance/`.
+It returns pytest's exit status, including collection failures and empty
+selections.
 
 ```bash
-# Use all available CPU cores
-pytest -n auto
-
-# Use specific number of workers (e.g., 4)
-pytest -n 4
-
-# Use number of workers equal to CPU count
-pytest -n $(nproc)
+./scripts/measure_test_performance.sh --label baseline -- -n 4
+# Apply the candidate change, then use the same arguments.
+./scripts/measure_test_performance.sh --label candidate -- -n 4
 ```
 
-## Expected Performance Improvements
+Keep the PostgreSQL server configuration fixed, and avoid competing test runs
+while comparing. Four workers are appropriate for a controlled comparison on
+the shared development machine. A default local run uses pytest's `-n auto`;
+benchmark that command separately before claiming a change to its elapsed time.
 
-Based on typical Django test suite characteristics:
+The normal full run recreates test databases from the current models, using
+`--nomigrations`. Use identical database settings for each measurement.
+`--reuse-db` is useful for development, but comparing a cold baseline to a warm
+candidate measures database reuse as well as the code change.
 
-- **Sequential execution**: All 451 tests run one after another
-- **Parallel execution (4 cores)**: ~3-4x speedup expected
-- **Parallel execution (8 cores)**: ~5-6x speedup expected
+Under pytest, the PostgreSQL schema editor creates unlogged tables only in
+databases whose names start with `test_`. Constraints, indexes, transactions
+and row locks still use PostgreSQL. Unlogged test data is disposable after a
+database crash; development databases and ordinary migration commands keep
+logged tables. The shared PostgreSQL server's durability settings are unchanged.
+Only connections to these disposable test databases disable synchronous commit.
+Set `GYRINX_TEST_UNLOGGED_TABLES=False` to compare ordinary logged test tables.
 
-The actual speedup depends on:
-
-- Number of CPU cores available
-- Test isolation and database transaction overhead
-- Amount of I/O-bound vs CPU-bound operations
-
-## Additional Optimizations
-
-### 1. Database Reuse (pytest-django feature)
-
-Since `pytest-django==4.11.1` is already installed, you can also use:
+For a single-worker profile of an expensive test, after the full run finishes:
 
 ```bash
-# Reuse test database between runs
-pytest --reuse-db
-
-# Create new database only when needed
-pytest --reuse-db --create-db
+.codex/run.sh python -m cProfile -o logs/test-profile.pstats -m pytest \
+  -n 0 --durations=20 path/to/test_file.py::test_name
 ```
 
-### 2. Combined Usage
+## CI baseline
 
-For maximum performance:
+The exact starting commit, `42fdc46f3`, ran in
+[38076349949](https://github.com/gyrinx-app/gyrinx/actions/runs/38076349949).
+It completed all 13,826 tests with 13,811 passed, 13 skipped, one expected
+failure and one existing campaign-gallery assertion failure in 1,864.56
+seconds. The assertion expected the gang type and owner to have no intervening
+markup, but the component now draws a gang-type icon there. The comparison
+target is at most 932.28 seconds on the same four-worker runner.
 
-```bash
-# Parallel execution + database reuse
-pytest -n auto --reuse-db
+Completed main run [38070805424](https://github.com/gyrinx-app/gyrinx/actions/runs/38070805424)
+at `b74ccfeab` used four workers on the existing `ubuntu-latest` runner.
+Its full-suite result was 13,802 passed, 13 skipped and one expected failure in
+2,464.64 seconds. The full-suite step took 41 minutes 7 seconds and the job took
+41 minutes 57 seconds. Halving that test execution time requires at most
+1,232.32 seconds, without adding runners or increasing the runner size.
 
-# Run specific app tests in parallel
-pytest -n auto n23/core/tests/
-```
-
-## CI/CD Configuration
-
-For GitHub Actions or other CI systems:
-
-```yaml
-# Example GitHub Actions configuration
-- name: Run tests
-  run: |
-    pytest -n auto --durations=20 -v
-```
-
-## Monitoring Test Performance
-
-Use pytest's built-in duration reporting:
-
-```bash
-# Show 20 slowest tests
-pytest --durations=20
-
-# Show all test durations
-pytest --durations=0
-```
-
-## Best Practices
-
-1. **Ensure test isolation**: Tests must not depend on execution order
-2. **Use transactions**: Django's TestCase handles this automatically
-3. **Avoid shared state**: Don't use module-level variables that tests modify
-4. **Monitor resource usage**: More workers isn't always better
-
-## Troubleshooting
-
-If tests fail with parallel execution:
-
-1. Run tests sequentially to isolate the issue:
-
-   ```bash
-   pytest -n 0  # or just pytest
-   ```
-
-2. Run specific test in isolation:
-
-   ```bash
-   pytest path/to/test_file.py::test_function -vv
-   ```
-
-3. Check for test interdependencies or shared state issues
-
-## Conclusion
-
-Adding pytest-xdist enables significant test performance improvements through parallel execution. Combined with database reuse, this can reduce test execution time by 60-80% on multi-core systems.
+The branch's initial local full-suite measurement and the candidate comparisons
+are still being gathered. Query reductions in isolated profiles are preliminary
+evidence; they do not prove a 50% full-suite improvement.

@@ -10,7 +10,14 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db import connections
 
 from .settings import *  # noqa: F403
-from .settings import APP_LOGGER_ROOTS, BASE_DIR, INSTALLED_APPS, MIDDLEWARE, STORAGES
+from .settings import (
+    APP_LOGGER_ROOTS,
+    BASE_DIR,
+    DATABASES,
+    INSTALLED_APPS,
+    MIDDLEWARE,
+    STORAGES,
+)
 from .settings import LOGGING as BASE_LOGGING
 
 logger = logging.getLogger(__name__)
@@ -58,6 +65,13 @@ INSTALLED_APPS += ["gyrinx.devserver.apps.DevServerConfig"]
 # pytest-only settings (like the admin MFA gate below) to their production
 # values for the whole suite.
 _UNDER_PYTEST = "pytest" in sys.modules
+
+# Disposable test rows need constraints and transactions, but no crash
+# recovery. Keep the shared PostgreSQL server's durability settings intact.
+# The schema editor also checks the database name before creating an unlogged
+# table. Set False for a controlled comparison with ordinary logged tables.
+if _UNDER_PYTEST and os.getenv("GYRINX_TEST_UNLOGGED_TABLES") != "False":
+    DATABASES["default"]["ENGINE"] = "gyrinx.pytest_postgresql"
 
 # Keep compiled templates between requests. Under runserver, editing a template
 # still shows on the next request without a restart: Django's template autoreload

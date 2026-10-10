@@ -18,12 +18,14 @@ from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
 from n26.library.models import Dice, Skill
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import found_gang, hire
 
 pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
+@library_setup
 def advancement(default_pack, gang_type, make_profile, make_statline, counter_tracking):
     owner = User.objects.create_user("advancement-player")
     gang = found_gang("The Climbers", gang_type, owner=owner, budget=1000)

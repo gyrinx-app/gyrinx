@@ -16,6 +16,7 @@ from n26.library import authoring as a
 from n26.library.forms import generate_form
 from n26.library.models import Power, Skill
 from n26.library.specs import specs
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox import test_advancement_action_flows as skill_flows
 from n26.tests.sandbox.test_advancement_action_flows import (
     _choose_result,
@@ -31,6 +32,7 @@ advancement = skill_flows.advancement
 @pytest.fixture(
     params=[("Psi-Gheist", "Psychoteric Whispers"), ("Outcast Leader", "Wyrd Powers")]
 )
+@library_setup
 def wyrd(advancement, request):
     model_name, family_name = request.param
     profile = advancement.fighter.membership.profile
