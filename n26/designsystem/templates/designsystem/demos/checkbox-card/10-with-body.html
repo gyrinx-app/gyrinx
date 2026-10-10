@@ -1,8 +1,7 @@
 {# title: A card with dependent controls #}
-{# note: Drawn static, as a fallback inside another island: the body dims while the box is clear but stays usable. In React, CheckboxCard makes that body inert. #}
+{# note: The header toggles; the body stays live — and goes dead when the card is unticked. #}
 {# layout: col #}
-<c-n26.checkbox-card :static="True"
-                     name="demo-models"
+<c-n26.checkbox-card name="demo-models"
                      value="vex"
                      label="Vex"
                      description="Escher Ganger"

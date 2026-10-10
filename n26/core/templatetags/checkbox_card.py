@@ -23,6 +23,16 @@ def checkbox_card_flag(value):
     return _flag(value)
 
 
+@register.filter
+def checkbox_card_filled(value):
+    """Whether a slot, meta or attrs renders to anything.
+
+    Cotton's attrs is an object, truthy even when it holds no attribute, so
+    it is judged by what it prints.
+    """
+    return bool(str(value or "").strip())
+
+
 def _text(value):
     """Plain text for React.
 
@@ -43,31 +53,15 @@ def checkbox_card_props(
     label="",
     description="",
     css_class="",
-    body="",
-    meta="",
-    attrs="",
 ):
     """The checkbox the card posts, and the words drawn in its header.
 
     None and the string false are off. An empty value stays empty: a missing
     value attribute would post the browser's default of on.
 
-    The island draws a header-only card. React does not take server-drawn
-    markup as children, so a body or meta is refused: draw that card static,
-    or compose CheckboxCard inside the island that owns the form. Extra root
-    attributes are refused too, since React would not draw them.
+    Only a card with no body, meta or extra root attributes is an island, so
+    these are all it draws.
     """
-    if str(body or "").strip() or str(meta or "").strip():
-        raise ValueError(
-            "<c-n26.checkbox-card> draws only a header as a React island. "
-            'For nested controls or meta, pass :static="True", or compose '
-            "CheckboxCard inside the island that owns the form."
-        )
-    if str(attrs or "").strip():
-        raise ValueError(
-            "<c-n26.checkbox-card> as a React island draws no extra root "
-            f'attributes ({str(attrs).strip()}). Pass :static="True" to keep them.'
-        )
     return {
         "name": _text(name),
         "value": _text(value),

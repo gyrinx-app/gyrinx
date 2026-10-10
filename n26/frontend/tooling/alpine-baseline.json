@@ -45,6 +45,7 @@
   },
   "templates": {
     "n26/core/templates/cotton/n26/assignable_lines.html": {"direct": 0, "kit": 18},
+    "n26/core/templates/cotton/n26/checkbox_card.html": {"direct": 5, "kit": 0},
     "n26/core/templates/cotton/n26/choice_dismiss.html": {"direct": 0, "kit": 18},
     "n26/core/templates/cotton/n26/choice_menu.html": {"direct": 9, "kit": 28},
     "n26/core/templates/cotton/n26/collection_picker/category.html": {"direct": 10, "kit": 0},

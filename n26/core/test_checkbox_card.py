@@ -88,17 +88,19 @@ def test_the_card_is_an_island_over_the_same_checkbox():
     assert "@change" not in html
 
 
-def test_the_island_refuses_root_attributes_and_static_keeps_them():
-    with pytest.raises(ValueError, match="static"):
-        render('<c-n26.checkbox-card name="open" value="1" label="L" id="pick" />')
-
+@pytest.mark.parametrize("static", [False, True])
+def test_root_attributes_stay_on_the_card(static):
+    flag = ' :static="True"' if static else ""
     html = render(
-        '<c-n26.checkbox-card :static="True" name="open" value="1" label="L" '
+        f'<c-n26.checkbox-card{flag} name="open" value="1" label="L" '
         'id="pick" data-row="7" />'
     )
-    card = BeautifulSoup(html, "html.parser").find(attrs={"data-checkbox-card": True})
-    assert card["id"] == "pick"
+    soup = BeautifulSoup(html, "html.parser")
+    card = soup.find(id="pick")
+
+    assert soup.select_one("[data-react-name='checkbox-card']") is None
     assert card["data-row"] == "7"
+    assert card.find("input", attrs={"name": "open"}) is not None
 
 
 @pytest.mark.parametrize(
@@ -108,13 +110,21 @@ def test_the_island_refuses_root_attributes_and_static_keeps_them():
         '<c-slot name="meta"><span>85¢</span></c-slot>',
     ],
 )
-def test_the_island_refuses_a_body_or_meta(inside):
-    """React does not take server-drawn markup as children."""
-    with pytest.raises(ValueError, match="static"):
-        render(
-            '<c-n26.checkbox-card name="open" value="table-1" label="Goliath">'
-            f"{inside}</c-n26.checkbox-card>"
-        )
+def test_a_card_with_a_body_or_meta_keeps_its_alpine_toggle(inside):
+    """React does not take server-drawn markup as children, so this card
+    stays as it was: the body dims and goes inert while the box is clear."""
+    html = render(
+        '<c-n26.checkbox-card name="open" value="table-1" label="Goliath">'
+        f"{inside}</c-n26.checkbox-card>"
+    )
+
+    assert 'data-react-name="checkbox-card"' not in html
+    assert 'x-data="{ picked: false }"' in html
+    assert '@change="picked = $event.target.checked"' in html
+    if "extra" in inside:
+        assert ':inert="!picked"' in html
+    else:
+        assert "85¢" in html
 
 
 def test_a_label_is_text_in_the_props_and_the_fallback():
