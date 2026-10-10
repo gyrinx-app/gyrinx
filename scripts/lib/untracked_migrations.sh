@@ -38,32 +38,32 @@ hide_untracked_migrations() {
       _UNTRACKED_MIGRATIONS_DIR="$(mktemp -d "$(git rev-parse --absolute-git-dir)/gyrinx-untracked-migrations.XXXXXX")"
     fi
     mkdir -p -- "$_UNTRACKED_MIGRATIONS_DIR/$(dirname -- "$path")"
-    mv -- "$path" "$_UNTRACKED_MIGRATIONS_DIR/$path"
+    # Record first, so an interrupt after the move still restores it.
     _UNTRACKED_MIGRATIONS+=("$path")
+    mv -- "$path" "$_UNTRACKED_MIGRATIONS_DIR/$path"
   done < <(git ls-files --others --exclude-standard -z)
 }
 
 # Put back exactly the paths hide moved, links included. A path something
 # recreated during the check is newer than the parked copy, so it is not
-# overwritten. If one cannot go back, leave the directory in place and say
-# where it is.
+# overwritten. Only empty directories are removed afterwards, so a file that
+# did not go back stays parked, and the hook fails and says where.
 restore_untracked_migrations() {
-  local dir path stuck=0
+  local dir path
   dir="${_UNTRACKED_MIGRATIONS_DIR:-}"
   [[ -n "$dir" && -d "$dir" ]] || return 0
   for path in "${_UNTRACKED_MIGRATIONS[@]}"; do
-    if [[ -e "$path" || -L "$path" ]]; then
-      stuck=1
-      continue
-    fi
+    # Recorded but never moved: it is still in place.
+    [[ -e "$dir/$path" || -L "$dir/$path" ]] || continue
+    [[ -e "$path" || -L "$path" ]] && continue
     mkdir -p -- "$(dirname -- "$path")"
-    mv -- "$dir/$path" "$path" || stuck=1
+    mv -- "$dir/$path" "$path" || true
   done
-  if [[ "$stuck" == "1" ]]; then
+  find "$dir" -depth -type d -empty -delete
+  if [[ -e "$dir" ]]; then
     echo "Some untracked migrations were not put back. They are in $dir" >&2
     return 1
   fi
-  rm -rf -- "$dir"
   _UNTRACKED_MIGRATIONS_DIR=""
   _UNTRACKED_MIGRATIONS=()
 }

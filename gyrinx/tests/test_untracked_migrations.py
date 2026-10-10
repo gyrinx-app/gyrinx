@@ -126,6 +126,28 @@ def test_a_migration_recreated_during_the_check_is_not_overwritten(tmp_path):
     assert (repo / "app" / "migrations" / "0002_other.py").read_text() == "# newer\n"
 
 
+def test_a_path_recorded_but_not_yet_moved_is_left_in_place(tmp_path):
+    """An interrupt between recording a path and moving it leaves the file."""
+    repo = _repo(tmp_path)
+    result = _bash(
+        repo,
+        """
+        hide_untracked_migrations --pre-commit
+        mkdir -p late/migrations
+        echo "# late" > late/migrations/0001_initial.py
+        _UNTRACKED_MIGRATIONS+=("late/migrations/0001_initial.py")
+        parked="$_UNTRACKED_MIGRATIONS_DIR"
+        restore_untracked_migrations
+        test ! -e "$parked"
+        test -e app/migrations/0002_other.py
+        """,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (repo / "late" / "migrations" / "0001_initial.py").read_text() == (
+        "# late\n"
+    )
+
+
 def test_hidden_migrations_wait_under_the_git_directory(tmp_path):
     """A check killed before it restores leaves them with the repository."""
     repo = _repo(tmp_path)
