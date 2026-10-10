@@ -528,7 +528,17 @@ def gang_sheet(request, pk):
                     if campaigns_open
                     else "",
                 )
-                if founding_seen or campaigns_open
+                # A model In Recovery or held for ransom brings the square to
+                # any owner, since Clean House and the ransom live in it.
+                if founding_seen
+                or campaigns_open
+                or (
+                    may_mark
+                    and any(
+                        model.status in (Status.RECOVERY, Status.RANSOMED)
+                        for model in sheet.models
+                    )
+                )
                 else None
             ),
             # Printing follows reading rather than owning, so a reader
