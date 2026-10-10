@@ -486,6 +486,7 @@ class TestCampaignLogQueries:
                     request_key=uuid4(),
                     reason="Trade",
                     dice="d6",
+                    count=3,
                     source="generated",
                     gang=gang,
                     battle=battle,
@@ -511,3 +512,141 @@ class TestCampaignLogQueries:
             assert {
                 act.gang_pk for act in response.context["acts"] if act.gang_name
             } == {str(gang.pk)}
+
+
+class TestMultipleDice:
+    @pytest.mark.parametrize(
+        "dice,results", [("d3", [2, 3]), ("d6", [2, 6]), ("d66", [24, 61])]
+    )
+    @pytest.mark.parametrize("application,modifier", [("total", 2), ("each", -2)])
+    def test_generated_results_and_modifier_mode_survive_retry_and_note_entry(
+        self,
+        client,
+        campaign,
+        player,
+        monkeypatch,
+        dice,
+        results,
+        application,
+        modifier,
+    ):
+        roller = Mock(side_effect=results)
+        monkeypatch.setattr(Dice, "roll", roller)
+        data = payload(
+            dice=dice,
+            count="2",
+            modifier=str(modifier),
+            modifier_application=application,
+        )
+        first = client.post(record_url(campaign), data)
+        assert first.status_code == 302
+        assert client.post(record_url(campaign), data).url == first.url
+        roll = CampaignRoll.objects.get()
+        expected = sum(results) + modifier * (2 if application == "each" else 1)
+        assert (roll.count, roll.results, roll.rolled, roll.total) == (
+            2,
+            results,
+            sum(results),
+            expected,
+        )
+        assert roll.modifier_application == application
+        assert roller.call_count == 2
+        assert campaign.events.filter(kind=CampaignEvent.Kind.DICE_ROLLED).count() == 1
+        page = client.get(first.url)
+        assert [group["value"] for group in page.context["dice_groups"]] == results
+        assert roll.calculation in page.content.decode()
+        assert client.post(first.url, {"outcome": "Recorded."}).status_code == 302
+        assert roller.call_count == 2
+        for route in ["n26-campaign", "n26-campaign-log"]:
+            assert (
+                roll.calculation
+                in client.get(reverse(route, args=[campaign.pk])).content.decode()
+            )
+        assert not LedgerEvent.objects.exists()
+
+    @pytest.mark.parametrize("dice,raw", [("d3", 5), ("d6", 8), ("d66", 85)])
+    @pytest.mark.parametrize(
+        "application,expected_modifier", [("total", 3), ("each", 6)]
+    )
+    def test_manual_totals_do_not_invent_individual_results(
+        self, client, campaign, dice, raw, application, expected_modifier
+    ):
+        response = client.post(
+            record_url(campaign),
+            payload(
+                dice=dice,
+                count="2",
+                source="manual",
+                rolled=str(raw),
+                modifier="3",
+                modifier_application=application,
+            ),
+        )
+        assert response.status_code == 302
+        roll = CampaignRoll.objects.get()
+        assert roll.results == []
+        assert roll.total == raw + expected_modifier
+        assert client.get(response.url).context["dice_groups"] == []
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"count": "0"},
+            {"count": "-1"},
+            {"count": "21"},
+            {"count": "1.5"},
+            {"modifier_application": "unknown"},
+            {"count": "2", "source": "manual", "rolled": "1"},
+            {"count": "2", "dice": "d3", "source": "manual", "rolled": "7"},
+            {"count": "2", "dice": "d66", "source": "manual", "rolled": "133"},
+        ],
+    )
+    def test_invalid_quantities_modes_and_physical_totals_save_nothing(
+        self, client, campaign, changes
+    ):
+        response = client.post(record_url(campaign), payload(**changes))
+        assert response.status_code == 200
+        assert response.context["form"].errors
+        assert not CampaignRoll.objects.exists()
+        assert not campaign.events.filter(kind=CampaignEvent.Kind.DICE_ROLLED).exists()
+
+    @pytest.mark.parametrize("count", [0, 21, True, 1.5])
+    def test_operations_check_quantity_before_generating(
+        self, campaign, count, monkeypatch
+    ):
+        roller = Mock()
+        monkeypatch.setattr(Dice, "roll", roller)
+        with (
+            pytest.raises(Refusal),
+            campaign_operation(campaign, actor=campaign.owner) as act,
+        ):
+            act.record_roll(
+                request_key=uuid4(),
+                reason="Trade",
+                dice="d6",
+                source="generated",
+                count=count,
+            )
+        roller.assert_not_called()
+
+    def test_twenty_d66_results_fit_and_render_without_query_growth(
+        self, client, campaign, monkeypatch
+    ):
+        roller = Mock(return_value=66)
+        monkeypatch.setattr(Dice, "roll", roller)
+        client.post(record_url(campaign), payload(dice="d66"))
+        small = CampaignRoll.objects.get()
+        client.get(roll_url(small))
+        with CaptureQueriesContext(connection) as before:
+            client.get(roll_url(small))
+        client.post(
+            record_url(campaign),
+            payload(dice="d66", count="20", modifier="-2", modifier_application="each"),
+        )
+        large = CampaignRoll.objects.order_by("created").last()
+        assert (large.rolled, large.total, len(large.results)) == (1320, 1280, 20)
+        with CaptureQueriesContext(connection) as after:
+            page = client.get(roll_url(large))
+        assert len(after) <= len(before)
+        assert len(page.context["dice_groups"]) == 20
+        assert page.content.decode().count('aria-label="A die showing 6"') == 40

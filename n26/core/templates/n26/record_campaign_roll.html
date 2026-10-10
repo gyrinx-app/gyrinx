@@ -53,18 +53,6 @@
             </c-n26.radio-cards>
             <p class="text-sm text-muted">D66 uses two D6s, one for tens and one for units.</p>
             {% react_island "campaign-roll-source" roll_source %}
-            <c-ui.field label="Modifier"
-                        :form="form"
-                        name="modifier"
-                        error="x"
-                        for="roll-modifier">
-                <c-ui.input id="roll-modifier"
-                            name="modifier"
-                            type="number"
-                            value="{{ form.modifier.value|default_if_none:'' }}"
-                            placeholder="0" />
-                <p class="mt-2 text-sm text-muted">A positive or negative whole number. Leave blank for no modifier.</p>
-            </c-ui.field>
         </c-n26.form-section>
         <c-n26.form-section title="Related to"
                             description="Optionally link this roll to a gang or battle in this campaign.">

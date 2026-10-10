@@ -37,6 +37,7 @@ from n26.core.views.permissions import (
     _own_gang_or_404,
     _own_miniature_or_404,
     credits_href,
+    may_mark_status,
     may_see_founding,
     status_href,
     trade_points_href,
@@ -691,8 +692,6 @@ def render_update(
     from n26.core.owned import possessions
     from n26.core.views.owned import accessorise_dialogs
 
-    # Read once: the founding budgets and the status control are one
-    # flag, and the screen and the card both ask it.
     founding_seen = may_see_founding(gang, request.user)
     screen = _screen(
         gang,
@@ -751,7 +750,7 @@ def render_update(
             "gang": gang,
             # The model's card, redrawn from the same reading as the rows:
             # what was bought is on it. The gang's own screen draws none.
-            **_card_context(request, screen, host, founding_seen, at=at),
+            **_card_context(request, screen, host, at=at),
             # The strip this delivers replaces the one on the page, so it
             # is drawn with what that one had: without this the Trade
             # Points figure comes back as a number that leads nowhere.
@@ -855,6 +854,16 @@ def _buy_clicked(
     # and only doing it without meaning to is not. The rating box rides
     # the overspend question where both apply.
     asked = _trade_points_asked(line, picked)
+    expected_personal = request.POST.get("personal_activity")
+    if (
+        asked
+        and expected_personal is not None
+        and expected_personal != (str(budget.activity.pk) if budget is not None else "")
+    ):
+        messages.error(
+            request, "This spending action has changed. Reload the page before buying."
+        )
+        return None
     checkbox = _rating_box(
         request,
         [
@@ -876,6 +885,26 @@ def _buy_clicked(
         return _rating_question(request, line, spent, checkbox, at)
     try:
         with operation(gang, actor=request.user) as op:
+            if asked and budget is not None:
+                from n26.core.founding import personal_activity_for
+                from n26.core.models import Activity
+                from n26.core.reconcile import trade_points_spent_by_kind
+
+                active = personal_activity_for(gang, holder)
+                if active is None or active.pk != budget.activity.pk:
+                    raise Refusal(
+                        "This spending action has changed. Reload the page before buying."
+                    )
+                budget = replace(
+                    budget,
+                    activity=active,
+                    spent=trade_points_spent_by_kind(
+                        gang, (Activity.Kind.FOUNDING, Activity.Kind.HIRE_TIME), holder
+                    ),
+                )
+                confirmation = _overspend(request, gang, line, asked, at, budget, into)
+                if confirmation is not None:
+                    return confirmation
             # The picked sets go to the operation, which materialises
             # them onto the thing caused by this purchase — so selling
             # the mount takes its guns with it. A pick-one set with
@@ -1127,7 +1156,7 @@ def equip(request, pk):
     # the listing, the same panels the rows open. After the panel's early
     # return, so a click asking for a panel alone pays nothing for a card
     # it is not sent.
-    card = _card_context(request, screen, host, founding_seen, at=at)
+    card = _card_context(request, screen, host, at=at)
 
     # The whole screen, as one structure: the browsed list joined to what
     # the fighter holds. A row is a row for something on sale or a row for
@@ -1241,7 +1270,7 @@ def equip(request, pk):
     )
 
 
-def _card_context(request, screen, host, founding_seen, *, at):
+def _card_context(request, screen, host, *, at):
     """The model's card for a screen that is a model's, with every control
     addressed, and where its status badge leads — or nothing for the
     gang's own screen, which draws no card.
@@ -1265,7 +1294,9 @@ def _card_context(request, screen, host, founding_seen, *, at):
         # knows — and the badge asks for the question over htmx, since
         # this screen holds the status dialog host.
         "status_href": (
-            status_href(gang, miniature, back="edit") if founding_seen else ""
+            status_href(gang, miniature, back="edit")
+            if may_mark_status(gang, request.user)
+            else ""
         ),
     }
 

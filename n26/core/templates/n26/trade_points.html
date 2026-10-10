@@ -1,27 +1,9 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation react %}
 {% comment %}
-The Visit Trading Post action — the one open, and starting another.
-
-Two posts, no query string. The card is the open visit, read as a receipt: what
-it added, what has gone, what is left, and who performed the action. It is
-<c-n26.activity-card>, the same shape every action is drawn in; its button
-finishes the visit, which shuts the post and loses the remainder — the book's
-rule, so the button says so rather than asking again.
-
-The form beneath starts one. The ticks are the usual way to name a figure — a
-visit adds what its fighters add — with a box beneath them for an owner who
-knows the number and wants to say it outright. A figure in that box shuts the
-ticks: the number is then the box's, not a sum. A gang performs one visit at a
-time, so the form is shut while one is open and a start arriving anyway is
-refused.
-
-The running total and the shutting of the ticks are React, reading state
-already on the page. A figure in the box drops the total: that help is
-the ticks', and the box is then the amount. Without scripting the ticks
-stay live, the box stays empty unless someone types, and the server still
-takes a typed figure over the ticks. While a visit is open the form is
-shut in the HTML itself, including the tooltip on the start button.
+React owns the start form's selection and manual amount. Keep spacing inside
+its host: mounting replaces the fallback children. Founding controls post to
+their own endpoint and return to this tab through a validated return URL.
 {% endcomment %}
 {% block head_title %}Trade Points — {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -34,7 +16,7 @@ shut in the HTML itself, including the tooltip on the start button.
 {% block messages %}
 {% endblock messages %}
 {% block content %}
-    <div class="max-w-3xl space-y-8">
+    <div class="max-w-3xl space-y-6">
         <c-n26.page-header title="Edit {{ gang.name }}">
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
@@ -49,133 +31,95 @@ shut in the HTML itself, including the tooltip on the start button.
             </c-slot>
         </c-n26.page-header>
         <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
-        {% comment %}
-        Here rather than at the top of the page: finishing takes the card away,
-        and the confirmation lands in the space it left. The layout's messages
-        block is emptied above — reading the storage consumes it, so leaving
-        both would draw every message twice.
-        {% endcomment %}
         {% include "n26/includes/messages.html" %}
         {% if visit_card %}
             <c-n26.activity-card :card="visit_card">
-                {% comment %}
-                Every fighter, not only those who performed the action:
-                what a visit added is the gang's, and it is spent on
-                whoever it was for. Which ranks added it is the line
-                under Available.
-                {% endcomment %}
-                {% if roster %}
+                {% if roster and post %}
                     <c-slot name="body">
-                        <div class="border-t border-box-border pt-3">
-                            <p class="mb-1 text-xs text-muted">Equip a model</p>
-                            <ul class="flex flex-col gap-1">
+                        <c-n26.form-section title="Equip a model" class="border-t border-box-border pt-4">
+                            <ul class="divide-y divide-box-border">
                                 {% for member in roster %}
-                                    <li class="flex items-center justify-between gap-3">
+                                    <li class="flex items-center justify-between gap-3 py-2">
                                         <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100">{{ member.name }}</span>
-                                        {% if post %}
-                                            <c-ui.button size="xs"
-                                                         variant="primary"
-                                                         href="{% url 'n26-equip' member.pk %}?list={{ post.pk }}">
-                                                Equip
-                                            </c-ui.button>
-                                        {% endif %}
+                                        <c-ui.button size="xs"
+                                                     variant="default"
+                                                     href="{% url 'n26-equip' member.pk %}?list={{ post.pk }}">Equip</c-ui.button>
                                     </li>
                                 {% endfor %}
                             </ul>
-                        </div>
+                        </c-n26.form-section>
                     </c-slot>
                 {% endif %}
             </c-n26.activity-card>
+        {% else %}
+            <c-ui.card>
+                <form method="post" action="{{ action }}">
+                    {% csrf_token %}
+                    <c-n26.form-section title="Visit Trading Post" description="{{ start_help }}">
+                        {% react_host "trade-points" trade_points_form %}
+                            <div class="space-y-5">
+                                {% if visitors %}
+                                    <fieldset class="min-w-0 border-0 p-0">
+                                        <c-n26.tick-list :offer="offer" name="visiting" />
+                                    </fieldset>
+                                {% else %}
+                                    <p class="text-sm text-muted">No model in {{ gang.name }} adds Trade Points.</p>
+                                {% endif %}
+                                <div class="max-w-xs">
+                                    <c-ui.field label="{{ amount_label }}"
+                                                description="{{ trade_points_form.amountDescription }}"
+                                                :form="None"
+                                                for="brought">
+                                        <c-ui.input id="brought"
+                                                    name="brought"
+                                                    type="number"
+                                                    min="0"
+                                                    max="999"
+                                                    inputmode="numeric" />
+                                    </c-ui.field>
+                                </div>
+                                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-box-border pt-4">
+                                    {% if visitors %}
+                                        <p class="text-base text-ink-900 dark:text-ink-100">
+                                            Total from selected models: <span class="font-semibold tabular-nums">0</span> TP
+                                        </p>
+                                    {% endif %}
+                                    <c-n26.form-actions submit_label="Start visit"
+                                                        submit_variant="primary"
+                                                        size="sm"
+                                                        class="ml-auto" />
+                                </div>
+                            </div>
+                        {% endreact_host %}
+                    </c-n26.form-section>
+                </form>
+            </c-ui.card>
         {% endif %}
-        <form method="post" action="{{ action }}">
-            {% csrf_token %}
-            <c-n26.form-section title="Visit Trading Post (post-cycle action)"
-                                description="{{ start_help }}">
-                {% if visit_open %}
-                    {% comment %}
-                    Shut in the HTML: a visit is already open, so nothing
-                    here is typed. The tooltip stays outside the island —
-                    it is the kit's own control, and the start button is
-                    the only thing it wraps.
-                    {% endcomment %}
-                    {% if visitors %}
-                        <fieldset class="min-w-0 border-0 p-0" disabled>
-                            <c-n26.tick-list :offer="offer" name="visiting" :disabled="True" />
-                        </fieldset>
-                    {% else %}
-                        <p class="text-sm text-muted">No model in {{ gang.name }} adds Trade Points.</p>
-                    {% endif %}
-                    <c-ui.field label="{{ amount_label }}" :form="None" for="brought">
-                        <c-ui.input id="brought"
-                                    name="brought"
-                                    type="number"
-                                    min="0"
-                                    max="999"
-                                    inputmode="numeric"
-                                    disabled />
-                    </c-ui.field>
-                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <c-ui.tooltip size="sm">
-                            <span class="inline-block cursor-not-allowed">
-                                <c-ui.button type="submit"
-                                             size="sm"
-                                             variant="subtle"
-                                             class="pointer-events-none"
-                                             disabled>
-                                    Start TP visit
-                                </c-ui.button>
-                            </span>
-                            <c-slot name="content">
-                                Finish the action above first — a gang performs one
-                                Visit Trading Post action at a time.
-                            </c-slot>
-                        </c-ui.tooltip>
-                        {% if visitors %}
-                            <p class="text-sm text-muted">
-                                Selected models add
-                                <span class="font-medium tabular-nums text-ink-900 dark:text-ink-100">0</span>
-                                TP
-                            </p>
-                        {% endif %}
-                    </div>
-                {% else %}
-                    {% comment %}
-                    No `class` on the fallback input: c-ui.input does not
-                    declare one, so it would arrive through {{ attrs }} as
-                    a second class attribute and the browser would keep
-                    the first.
-                    {% endcomment %}
-                    {% react_host "trade-points" trade_points_form %}
-                        {% if visitors %}
-                            <fieldset class="min-w-0 border-0 p-0">
-                                <c-n26.tick-list :offer="offer" name="visiting" />
-                            </fieldset>
-                        {% else %}
-                            <p class="text-sm text-muted">No model in {{ gang.name }} adds Trade Points.</p>
-                        {% endif %}
-                        <c-ui.field label="{{ amount_label }}" :form="None" for="brought">
-                            <c-ui.input id="brought"
-                                        name="brought"
-                                        type="number"
-                                        min="0"
-                                        max="999"
-                                        inputmode="numeric" />
-                        </c-ui.field>
-                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <c-ui.button type="submit" size="sm" variant="primary">
-                                Start TP visit
-                            </c-ui.button>
-                            {% if visitors %}
-                                <p class="text-sm text-muted">
-                                    Selected models add
-                                    <span class="font-medium tabular-nums text-ink-900 dark:text-ink-100">0</span>
-                                    TP
-                                </p>
-                            {% endif %}
-                        </div>
-                    {% endreact_host %}
-                {% endif %}
-            </c-n26.form-section>
-        </form>
+        {% if founding_card %}
+            <c-n26.activity-card :card="founding_card" />
+        {% elif start_founding %}
+            <c-ui.card>
+                <c-n26.form-section title="Founding"
+                                    description="Start the founding action, then complete it when you have finished hiring and equipping the gang.">
+                    <form method="post" action="{{ start_founding }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="act" value="start">
+                        <c-n26.form-actions submit_label="Start founding" submit_variant="default" size="sm" />
+                    </form>
+                </c-n26.form-section>
+            </c-ui.card>
+        {% elif reopen_founding %}
+            <c-ui.card>
+                <c-n26.form-section title="Founding Trade Points"
+                                    description="Use the original models' remaining Trade Points. Previous spending still counts.">
+                    <form method="post" action="{{ reopen_founding }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="act" value="reopen">
+                        <input type="hidden" name="activity" value="{{ founding_activity.pk }}">
+                        <c-n26.form-actions submit_label="Reopen action" submit_variant="default" size="sm" />
+                    </form>
+                </c-n26.form-section>
+            </c-ui.card>
+        {% endif %}
     </div>
 {% endblock content %}

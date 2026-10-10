@@ -13,6 +13,7 @@ from n26.core.views.permissions import (
     credits_href,
     link_model_cards,
     may_mark_status,
+    may_see_founding,
     status_href,
     trade_points_href,
 )
@@ -344,6 +345,8 @@ def link_model_card(
     # actually showing this card.
     if dismissal_at.split("?")[0] == reverse("n26-edit-fighter", args=[miniature.pk]):
         addresses = edit_dialog_addresses(miniature, dismissal_at)
+        if card.skills_href:
+            card.skills_href = f"{addresses.back}#n26-skills-box"
         card.base_rating_href = addresses.rating
         card.rename_href = addresses.rename
     return card
@@ -1096,12 +1099,18 @@ def edit_fighter(request, pk):
     members = roster(gang)
     may_mark = may_mark_status(gang, request.user)
     from n26.core.allowances import missing_progression_counters
+    from n26.core.views.trade_points import hire_time_context
 
     return render(
         request,
         "n26/fighter_edit.html",
         {
             "miniature": miniature,
+            **(
+                hire_time_context(gang, miniature, computed)
+                if may_see_founding(gang, request.user)
+                else {}
+            ),
             "rating_dialog": _base_rating_dialog(request, miniature)
             if request.GET.get("rating") == "1" and not renaming
             else None,
@@ -1117,9 +1126,8 @@ def edit_fighter(request, pk):
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
             "credits_href": credits_href(gang, request.user),
-            # One reading of the flag, passed to both: the badge leads to
-            # whichever question the status wants, the menu item always to
-            # Mark as….
+            # The badge leads to whichever question the status wants, the
+            # menu item always to Mark as….
             "status_href": (
                 status_href(gang, miniature, back="edit") if may_mark else ""
             ),

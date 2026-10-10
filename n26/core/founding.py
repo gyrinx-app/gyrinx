@@ -1,24 +1,9 @@
-"""Founding budgets — what one model may spend while the gang is new.
+"""Personal Trade Points granted by content, accounted for by the ledger.
 
-Some gangs give a model Trade Points to spend at the Trading Post while
-it joins: a Venator Hunt Leader has 5, and an Outcast Champion has 3.
-Equipment list purchases use credits and leave this allowance alone.
-
-The allowance belongs to the model, not to the gang, and it stands while
-the gang's Spend built-in TP activity is open. So it is kept the way
-everything else in this edition is kept: what a model may spend is a
-counter reading off its computed card, which content raises and no
-column stores, and what it has spent is the ledger's answer — every
-purchase that recorded a Spend built-in TP activity of this gang, on
-that model. A refund returns to the same activity because its event sits
-on the assignment the purchase made; a sale returns nothing, as it
-never returns Trade Points.
-
-Closing the activity and starting it again does not hand the figure back:
-spend is counted across every founding activity the gang has opened, so
-what was bought the first time still sits on the allowance. A model
-hired after the first founding closed has spent nothing yet, and meets
-its figure whole.
+Original models spend during founding. Models recruited after its first
+completion spend through an individual hire-time activity. Both draw the
+same authored counter and retain lifetime spend across corrections. Refunds
+follow the original purchase and buyer; sales do not return Trade Points.
 """
 
 from dataclasses import dataclass
@@ -74,16 +59,7 @@ def _raised_by(computed, standard):
 
 @dataclass(frozen=True)
 class FoundingBudget:
-    """One model's founding allowance, as the figures it is read by.
-
-    Built for the screen rather than stored: what the model may spend is
-    what its card says, what it has spent is what the ledger says, and
-    neither is a second copy of anything.
-
-    ``activity`` is the gang's open Spend built-in TP activity — the row
-    a purchase on this screen records. What has gone is every founding
-    activity's spend, not only this one's.
-    """
+    """The model's grant and lifetime spend while its spending action is open."""
 
     activity: object
     granted: int
@@ -95,6 +71,20 @@ class FoundingBudget:
         overspend, which is what the question before such a purchase is
         for: Trade Points inform, and only credits are refused."""
         return self.granted - self.spent
+
+    @property
+    def title(self):
+        from n26.core.models import Activity
+
+        return (
+            "Hire-time Trade Points"
+            if self.activity.kind == Activity.Kind.HIRE_TIME
+            else "Founding Trade Points"
+        )
+
+    @property
+    def action_label(self):
+        return self.activity.get_kind_display()
 
     @property
     def facts(self):
@@ -112,82 +102,163 @@ class FoundingBudget:
 
 
 def budget_for(gang, miniature, computed):
-    """This model's founding budget, or None where it has none.
-
-    None covers both halves of "none": a model whose card raises the
-    counter by nothing, and a gang whose founding activity is complete. The
-    first is settled without a query, so a screen for a model with no
-    allowance asks exactly what it did before this existed.
-
-    Three queries where there is one: the standard counter, so a
-    homebrew one of the same name is not mistaken for it; which activities
-    the gang has open — held on the gang, so a purchase on the same
-    request reads it again for free — and what this model has already
-    spent under every founding activity.
-    """
+    """The available personal balance, or None without a grant or open action."""
     from n26.core.models import Activity
     from n26.core.reconcile import trade_points_spent_by_kind
 
     granted = budget_granted(computed)
     if granted <= 0:
         return None
-    activity = gang.open_activity(Activity.Kind.FOUNDING)
+    if miniature.membership_id in _cloned_memberships([miniature]):
+        return None
+    activity = personal_activity_for(gang, miniature)
     if activity is None:
         return None
     return FoundingBudget(
         activity=activity,
         granted=granted,
-        spent=trade_points_spent_by_kind(gang, Activity.Kind.FOUNDING, miniature),
+        spent=trade_points_spent_by_kind(
+            gang, (Activity.Kind.FOUNDING, Activity.Kind.HIRE_TIME), miniature
+        ),
     )
 
 
-def budgets_by_model(gang, computed):
-    """Every model's founding budget under the open activity, and nothing
-    at all where no founding activity is open or nobody on the roster has
-    an allowance.
+def _models_for(computed, models=None):
+    """Reuse the roster where supplied; card-only callers fetch it once."""
+    if models is None:
+        from n26.core.models import Miniature
 
-    ``computed`` is each member's fold, keyed by model id, off the card
-    the roster was dealt from. What a model may spend is already in
-    there; what it has spent is the ledger's. Keyed by the id written
-    out, which is how a drawn card carries its model's — the two sides of
-    this join arrive from different queries and only the written form is
-    the same on both.
+        models = Miniature.objects.filter(pk__in=computed).select_related("membership")
+    return {str(model.pk): model for model in models}
 
-    A fixed cost for the whole roster rather than a query a fighter: the
-    standard counter is asked for once, and what has gone is one sum
-    grouped by whoever spent it, across every founding activity the gang
-    has opened. A gang whose books grant no such allowance pays for
-    neither — nothing on any of its cards names the counter.
-    """
-    from n26.core.models import Activity
-    from n26.core.reconcile import trade_points_spent_by_model_for_kind
+
+def grants_by_model(computed, *, models=None):
+    """Read authored personal grants once for all computed cards."""
     from n26.library.standard_content import founding_budget_counter
 
+    named = {str(pk): fold for pk, fold in computed.items() if _names_the_counter(fold)}
+    if not named:
+        return {}
+    standard = founding_budget_counter()
+    if standard is None:
+        return {}
+    models = _models_for(named, models)
+    cloned = _cloned_memberships(models.values())
+    return {
+        pk: _raised_by(fold, standard)
+        for pk, fold in named.items()
+        if models[pk].membership_id not in cloned
+    }
+
+
+def _cloned_memberships(models):
+    """Copied models retain possessions, rather than receiving a new allowance."""
+    from n26.core.models import LedgerEvent
+
+    return set(
+        LedgerEvent.objects.filter(
+            assignment_id__in=[model.membership_id for model in models],
+            kind=LedgerEvent.Kind.CLONED,
+        ).values_list("assignment_id", flat=True)
+    )
+
+
+def budgets_by_model(gang, computed, *, grants=None, models=None):
+    """Read open personal balances in batches, reusing the prepared roster."""
+    from n26.core.models import Activity
+    from n26.core.reconcile import trade_points_spent_by_model_for_kind
+
     named = {
-        model_id: fold
+        str(model_id): fold
         for model_id, fold in computed.items()
         if _names_the_counter(fold)
     }
     if not named:
         return {}
-    activity = gang.open_activity(Activity.Kind.FOUNDING)
-    if activity is None:
+    models = _models_for(named, models)
+    activities = {
+        model_id: personal_activity_for(gang, model)
+        for model_id, model in models.items()
+        if model_id in named
+    }
+    if not any(activities.values()):
         return {}
-    standard = founding_budget_counter()
-    if standard is None:
-        return {}
+    grants = (
+        grants_by_model(computed, models=models.values()) if grants is None else grants
+    )
     spent = {
         str(model_id): total
         for model_id, total in trade_points_spent_by_model_for_kind(
-            gang, Activity.Kind.FOUNDING
+            gang, (Activity.Kind.FOUNDING, Activity.Kind.HIRE_TIME)
         ).items()
     }
     budgets = {}
-    for model_id, fold in named.items():
-        granted = _raised_by(fold, standard)
+    for model_id in named:
+        activity = activities.get(str(model_id))
+        if activity is None:
+            continue
+        granted = grants.get(str(model_id), 0)
         if granted <= 0:
             continue
         budgets[str(model_id)] = FoundingBudget(
             activity=activity, granted=granted, spent=spent.get(str(model_id), 0)
         )
     return budgets
+
+
+def personal_activity_for(gang, miniature):
+    """Select the model's session using the original founding boundary."""
+    from n26.core.models import Activity
+
+    boundary = gang.founding_completed_at()
+    if boundary is None or miniature.membership.created <= boundary:
+        return gang.open_activity(Activity.Kind.FOUNDING)
+    return gang.open_activity(Activity.Kind.HIRE_TIME, miniature)
+
+
+@dataclass(frozen=True)
+class HireTimeState:
+    """A later recruit's available, open or completed spending opportunity."""
+
+    activity: object = None
+
+    @property
+    def act(self):
+        if self.activity is None:
+            return "start"
+        return "finish" if self.activity.is_open else "reopen"
+
+    @property
+    def activity_id(self):
+        return str(self.activity.pk) if self.activity is not None else ""
+
+    @property
+    def button_label(self):
+        return {
+            "start": "Spend hire-time TP",
+            "finish": "Complete action",
+            "reopen": "Reopen for correction",
+        }[self.act]
+
+
+def hire_time_states(gang, models, computed, *, grants=None):
+    """Read pending and completed recruit actions with a fixed query count."""
+    computed = {str(pk): fold for pk, fold in computed.items()}
+    boundary = gang.founding_completed_at()
+    if boundary is None:
+        return {}
+    later = {
+        str(model.pk): model
+        for model in models
+        if not model.membership.archived and model.membership.created > boundary
+    }
+    if not later:
+        return {}
+    grants = grants_by_model(computed, models=models) if grants is None else grants
+    latest = gang.hire_time_activities()
+    return {
+        pk: HireTimeState(latest.get(model.pk))
+        for pk, model in later.items()
+        if grants.get(pk, 0) > 0
+        or (latest.get(model.pk) is not None and latest[model.pk].is_open)
+    }

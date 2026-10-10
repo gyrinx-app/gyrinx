@@ -8,7 +8,9 @@
 default_tab must match a tab name exactly. A mismatch leaves every panel hidden once Alpine runs.
 Two tabs with the same name both show when that name is active.
 The default variant draws through c-n26.tab-strip.
-On a narrow strip, more than two tabs keep only the active one visible. The rest open from a quick-switcher.
+On a narrow strip, more than narrow_tabs tabs keep only the active one visible. The rest open from a quick-switcher.
+narrow_tabs defaults to two. When it is above two, narrow tabs of size md pad less, so three short labels fit a 320px phone.
+Longer labels wrap to a second row. add:0 makes narrow_tabs a number when it is passed without the colon.
 An idle tab's border must stay opaque. A transparent border is a hole in the line under the strip.
 Do not compose these rows from c-n26.quick-switcher.choice. That bakes the label at render, and a tab exists only after Alpine boots.
 Keep the open tab in the menu. Hiding it leaves a search for that tab as a blank menu with no empty state.
@@ -27,6 +29,7 @@ Pass the query as default_tab as well, so Alpine's initial state matches the URL
     size="md"
     :accent="True"
     :fill="False"
+    :narrow_tabs="2"
 />
 
 <div x-data="{
@@ -125,7 +128,7 @@ class="w-full space-y-4"
 
                 <template x-for="tab in tabs" :key="tab.name">
                     <button type="button"
-                        x-show="tabs.length <= 2 || isActive(tab.name)"
+                        x-show="tabs.length <= {{ narrow_tabs }} || isActive(tab.name)"
                         @click="select(tab.name)"
                         class="
                             inline-flex max-w-full items-center justify-center whitespace-nowrap transition-all focus-ring
@@ -134,7 +137,7 @@ class="w-full space-y-4"
                             disabled:pointer-events-none disabled:opacity-50
                             {% if size == 'sm' %}text-xs px-2.5 py-1
                             {% elif size == 'lg' %}text-base px-4 py-2
-                            {% else %}text-sm px-3 py-1.5{% endif %}
+                            {% else %}text-sm {% if narrow_tabs|add:0 > 2 %}px-2{% else %}px-3{% endif %} py-1.5{% endif %}
                         "
                         :class="{
                             {% if accent %}
@@ -151,7 +154,7 @@ class="w-full space-y-4"
                 </template>
 
                 {# order-last: Alpine appends x-for clones at the end of the container. #}
-                <span x-show="tabs.length > 2" x-cloak
+                <span x-show="tabs.length > {{ narrow_tabs }}" x-cloak
                       @quick-switcher-choose="select($event.detail.value)"
                       class="order-last flex shrink-0 items-center border-b-2 border-box-border"
                 >

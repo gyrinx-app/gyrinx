@@ -24,7 +24,6 @@ from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
 from n26.library.models import Picklist, Slot
 from n26.library.standard_content import STANDARD_CONTENT
-from n26.tests.fixtures import admit_to_founding
 from n26.tests.sandbox.actions import (
     create_profile,
     create_weapon,
@@ -227,12 +226,6 @@ class TestATransfer:
 
 
 class TestTheRansom:
-    @pytest.fixture(autouse=True)
-    def admitted(self, owner, rival):
-        """The status controls reach the owners the founding flag admits.
-        Both players here own a gang whose status is set."""
-        admit_to_founding(owner, rival)
-
     @pytest.fixture
     def sheet(self, gang):
         return reverse("n26-gang", args=[gang.pk])

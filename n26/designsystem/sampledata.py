@@ -2117,6 +2117,16 @@ def hire_entry(value):
     return None
 
 
+def _hire_scope_tabs():
+    """The hire screen's three lists, labelled as the screen labels them."""
+    from n26.core.views.hire import HIRE_SCOPES
+
+    return [
+        {"label": label, "href": f"?list={key}", "current": key == "gang"}
+        for key, label in HIRE_SCOPES.items()
+    ]
+
+
 def hire_context():
     """What the hire view needs: the sections, and the ends of its one slider."""
     sections = hire_list()
@@ -2128,6 +2138,7 @@ def hire_context():
         "hire_list": sections,
         "hire_categories": categories,
         "hire_sections": [section.name for section in sections],
+        "hire_scope_tabs": _hire_scope_tabs(),
         "hire_category_options": [
             {"value": name, "label": name} for name in categories
         ],
@@ -2691,7 +2702,9 @@ def gang_sheet_context():
         # part-way through the founding: its own allowance, and the
         # gang's open visit beside it. Real structures, so the tally is
         # the arithmetic the screen does rather than a copy of it.
-        "sample_founding_budget": FoundingBudget(activity=None, granted=5, spent=2),
+        "sample_founding_budget": FoundingBudget(
+            activity=Activity(kind=Activity.Kind.FOUNDING), granted=5, spent=2
+        ),
         "sample_founding_model": {"name": "Yolanda Kray"},
         # A gang with no visit open, so the stash card offers to start
         # one. The sheet above is mid-trip and shows the other state.

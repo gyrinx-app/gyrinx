@@ -897,7 +897,13 @@ class TestThePages:
         (widget,) = re.findall(r"<input[^>]*name=\"rolled\"[^>]*>", body)
         assert 'type="number"' in widget and 'id="pool-roll"' in widget
         assert "Your own roll" in body
-        assert "Optional. Leave blank and the roll is made for you." in body
+        assert "Optional. Enter a dice roll you have already made." in body
+        document = BeautifulSoup(body, "html.parser")
+        island = document.select_one('[data-react-name="campaign-pool-roll"]')
+        props = json.loads(document.find(id=island["data-react-props"]).string)
+        assert props["count"]["value"] == "1"
+        assert props["rolled"]["value"] == ""
+        assert props["ranges"] == ["A D66 roll is 11 to 66."]
         assert "A D66 roll is 11 to 66." in body
         assert "Add to pool" in body
         assert "at the table" not in body
@@ -1460,6 +1466,14 @@ class TestBatchPool:
         )
         assert response.status_code == 200
         assert "Set the number to 1 to use your own roll." in response.content.decode()
+        document = BeautifulSoup(response.content, "html.parser")
+        island = document.select_one('[data-react-name="campaign-pool-roll"]')
+        props = json.loads(document.find(id=island["data-react-props"]).string)
+        assert props["count"]["value"] == "3"
+        assert props["rolled"]["value"] == "34"
+        assert props["rolled"]["errors"] == [
+            "Set the number to 1 to use your own roll."
+        ]
         assert not campaign.campaign_assets.exists()
 
     def test_invalid_quantity_is_refused_without_a_partial_pool(

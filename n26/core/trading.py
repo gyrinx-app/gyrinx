@@ -50,7 +50,18 @@ class Visitor:
         return str(self.miniature.pk)
 
 
-def _readings(gang, counter):
+def computed_members(gang):
+    """Compute the roster once for the visit and personal TP readers."""
+    from n26.core.card import build_gang_card, build_modifier_index, carriers
+    from n26.core.effects import compute, compute_gang
+
+    card = build_gang_card(gang, with_statlines=False)
+    index = build_modifier_index(carriers(card, *card.members.values()))
+    compute_gang(card, index)
+    return {pk: compute(member, index) for pk, member in card.members.items()}
+
+
+def _readings(gang, counter, computed=None):
     """Each model's reading of this counter, and what raised it, by id.
 
     The gang's cards are built and computed the way the gang sheet builds
@@ -61,27 +72,23 @@ def _readings(gang, counter):
     A fixed number of queries however many models are on the roster:
     ``compute`` touches the database not at all.
     """
-    from n26.core.card import build_gang_card, build_modifier_index, carriers
-    from n26.core.effects import compute, compute_gang, counter_readings
+    from n26.core.effects import counter_readings
 
     # No statlines: nothing here draws a card, and pulling each
     # profile's characteristics along would be several queries for
     # figures this never reads.
-    card = build_gang_card(gang, with_statlines=False)
-    index = build_modifier_index(carriers(card, *card.members.values()))
-    compute_gang(card, index)
+    computed = computed_members(gang) if computed is None else computed
     readings = {}
-    for miniature_id, member in card.members.items():
-        computed = compute(member, index)
+    for miniature_id, fold in computed.items():
         value = next(
             (
                 reading.value
-                for reading in counter_readings(member, computed)
+                for reading in counter_readings(fold.card, fold)
                 if reading.thing.pk == counter.pk
             ),
             0,
         )
-        readings[miniature_id] = (value, _raised_by(computed, counter) or str(value))
+        readings[miniature_id] = (value, _raised_by(fold, counter) or str(value))
     return readings
 
 
@@ -100,7 +107,7 @@ def _raised_by(computed, counter):
     return named.pop() if len(named) == 1 else ""
 
 
-def visitors(gang, going=None, members=None):
+def visitors(gang, going=None, members=None, *, computed=None):
     """The fighters who could add Trade Points, biggest figure first
     then by name.
 
@@ -124,7 +131,7 @@ def visitors(gang, going=None, members=None):
     counter = visit_contribution_counter()
     if counter is None:
         return []
-    readings = _readings(gang, counter)
+    readings = _readings(gang, counter, computed)
     offered = []
     for member in roster(gang) if members is None else members:
         trade_points, raised_by = readings.get(member.pk, (0, ""))
@@ -152,9 +159,8 @@ def as_offer(going, label="Who is visiting"):
 
     ``ChoiceOffer`` is the shape the edition already ticks lists in, and
     ``<c-n26.tick-list>`` draws it with plain checkboxes and no script.
-    The headings are the figures, which is what a heading is for here:
-    what a model adds follows from the group they are filed under, so the
-    figure is said once per group rather than once per model.
+    Each model's label includes its contribution so the amount stays
+    visible beside the model being selected.
 
     Grouped by the figure and not by the rank, because the rank is not
     what this knows — content decides what raises a model's contribution,
@@ -175,7 +181,7 @@ def as_offer(going, label="Who is visiting"):
                 options=[
                     Choosable(
                         key=visitor.key,
-                        name=visitor.miniature.name,
+                        name=f"{visitor.miniature.name} · {visitor.trade_points} TP",
                         thing=visitor.miniature,
                         is_current=visitor.visiting,
                     )

@@ -944,22 +944,24 @@ def _tell(e, row, alive):
             return (Span("visited the Trading Post"),), "credits"
         case Kind.ACTION_OPENED:
             named, brought = read_note(e.note)
-            if not named:
-                return (Span("started an action"),), "gang"
-            if brought is None:
-                return (Span(f"started the {named} action"),), "gang"
+            label = f"the {named} action" if named else "an action"
+            text = f"started {label}"
+            if brought is not None:
+                text += f" with {_points(brought)}"
             return (
-                Span(f"started the {named} action with {_points(brought)}"),
-            ), "gang"
+                Span(text),
+                *_for(model, at),
+            ), "model" if model is not None else "gang"
         case Kind.ACTION_CLOSED:
             named, left = read_note(e.note)
-            if not named:
-                return (Span("completed an action"),), "gang"
-            if left is None or left <= 0:
-                return (Span(f"completed the {named} action"),), "gang"
+            label = f"the {named} action" if named else "an action"
+            text = f"completed {label}"
+            if left is not None and left > 0:
+                text += f", discarding {_points(left, True)}"
             return (
-                Span(f"completed the {named} action, discarding {_points(left, True)}"),
-            ), "gang"
+                Span(text),
+                *_for(model, at),
+            ), "model" if model is not None else "gang"
         case Kind.VISITED_TRADING_POST:
             # What raised their figure rides the note, so the line says
             # what they added rather than what they happen to be now. A

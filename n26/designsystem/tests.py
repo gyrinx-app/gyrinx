@@ -114,7 +114,7 @@ class TestReactDemo:
 class TestTheQuickSwitchersPage:
     """Its props, its subcomponent and its demos all reach the gallery."""
 
-    def test_all_three_demos_render_rather_than_falling_back(self, reader):
+    def test_all_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/quick-switcher/").content.decode()
         # The titles come from the demo files; the destination comes from the
         # markup they rendered. Both, because a directory the catalog cannot
@@ -170,10 +170,12 @@ class TestTheActivityCardPage:
         assert "An action with figures" in page
         assert "An action with none" in page
         assert "Inside another box" in page
+        assert "A primary action beside completion" in page
         assert "Visit Trading Post" in page
         assert "Complete action" in page
         start = page.index("An action with none")
-        assert "Remaining" not in page[start:]
+        end = page.index("Inside another box", start)
+        assert "Remaining" not in page[start:end]
 
 
 class TestTheActivitiesSquarePage:
@@ -194,7 +196,7 @@ class TestTheActivitiesSquarePage:
         assert "History" in page
         assert "hired Yolanda, a Ganger" not in page
         assert "No history for this gang yet." not in page
-        start = page.index("Spend built-in TP")
+        start = page.index("Spend founding TP")
         form = page.rindex("<form", 0, start)
         assert 'method="post"' in page[form:start]
 
@@ -633,11 +635,11 @@ class TestTheShellStillDraws:
         """Whether the square reads as one of the grid's squares depends on
         the stash and the cards beside it, which only the shell has."""
         page = reader.get("/n26/design/shell/gang/").content.decode()
-        assert "Spend built-in TP" in page
+        assert "Spend founding TP" in page
         assert "Complete action" in page
         # The stash card's own heading, not the wealth strip's figure of
         # the same name, which sits further up the page.
-        assert page.index("Spend built-in TP") < page.index(">Stash</span>")
+        assert page.index("Spend founding TP") < page.index(">Stash</span>")
 
     def test_a_range_menu_with_two_thumbs_binds_both(self, reader):
         """The gallery's two-thumb range menu draws two real range inputs,
@@ -853,8 +855,8 @@ class TestTheModelCardsTooltips:
         assert "From Leader" in page
         assert "Rating, including weapons and wargear" in page
         assert (
-            "can spend these founding Trade Points at the Trading Post while the Spend built-in TP action is open"
-            in page
+            "can spend these Trade Points at the Trading Post while the "
+            "Spend founding TP action is open" in page
         )
         legacy = page[page.index("Gang Legacy</dt>") :]
         legacy_dd = legacy[: legacy.index("</dd>")]

@@ -55,6 +55,17 @@ def record_campaign_roll(request, pk):
                 ],
                 "sourceErrors": list(form["source"].errors),
                 "rolledErrors": list(form["rolled"].errors),
+                "count": str(form["count"].value() or 1),
+                "countErrors": list(form["count"].errors),
+                "maxDice": CampaignRoll.MAX_DICE,
+                "modifier": str(form["modifier"].value() or ""),
+                "modifierErrors": list(form["modifier"].errors),
+                "modifierApplication": form["modifier_application"].value() or "total",
+                "modifierApplicationErrors": list(form["modifier_application"].errors),
+                "modifierChoices": [
+                    {"value": value, "label": label}
+                    for value, label in CampaignRoll.ModifierApplication.choices
+                ],
             },
         },
     )
@@ -90,6 +101,16 @@ def campaign_roll(request, pk, roll_pk):
         else:
             messages.success(request, "Outcome note saved.")
             return redirect("n26-campaign", pk=campaign.pk)
+    results = roll.results or ([roll.rolled] if roll.count == 1 else [])
+    dice_groups = [
+        {
+            "value": result,
+            "faces": [str(result // 10), str(result % 10)]
+            if roll.dice == CampaignRoll.Dice.D66
+            else [str(result)],
+        }
+        for result in results
+    ]
     return render(
         request,
         "n26/campaign_roll.html",
@@ -98,8 +119,7 @@ def campaign_roll(request, pk, roll_pk):
             "roll": roll,
             "form": form,
             "may_note": may_note,
-            "faces": [str(roll.rolled // 10), str(roll.rolled % 10)]
-            if roll.dice == CampaignRoll.Dice.D66
-            else [str(roll.rolled)],
+            "faces": [face for group in dice_groups for face in group["faces"]],
+            "dice_groups": dice_groups,
         },
     )

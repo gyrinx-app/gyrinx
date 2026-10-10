@@ -1,6 +1,6 @@
 """A budgeted model's equip screen: what it counts, and what it says.
 
-While the gang's Spend built-in TP action is open and the model has an
+While the gang's Spend founding TP action is open and the model has an
 allowance of its own, Trading Post purchases spend it and record the
 founding action rather than any visit the gang has open. Equipment list
 purchases use credits, and the rail carries the model's TP tally.
@@ -464,7 +464,7 @@ class TestWhatTheScreenSays:
     def test_starting_the_action_again_leaves_what_was_spent(
         self, client, gang, tester, leader, legacy_list, post
     ):
-        """Completing Spend built-in TP and opening it again does not
+        """Completing Spend founding TP and opening it again does not
         hand the figure back: what this model already spent still sits
         on the tally."""
         client.post(equip_url(leader, post), {"thing": key_of(wargear("Flak plate"))})

@@ -88,9 +88,10 @@ class TestTheStrip:
 
 
 class TestTheNarrowStrip:
-    """Below the sm breakpoint the strip never wraps: up to two tabs are
-    drawn whole, and from three the current tab stands alone with the rest
-    behind a switcher whose rows are the same real links."""
+    """Below the sm breakpoint, up to :narrow_tabs tabs are drawn whole —
+    two unless the call site raises it. Past that, the current tab stands
+    alone with the rest behind a switcher whose rows are the same real
+    links. A strip that holds three can wrap if its labels are long."""
 
     def test_two_tabs_are_both_drawn_rather_than_one_and_a_menu(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
@@ -143,6 +144,56 @@ class TestTheNarrowStrip:
         assert "Kit &amp; gear" in html
         assert 'href="?list=1&amp;page=2"' in html
         assert "amp;amp;" not in html
+
+    def test_a_strip_that_holds_three_draws_three_tabs_whole(self):
+        html = render(
+            '<c-n26.tab-links label="Which list" :tabs="tabs" :narrow_tabs="3" />',
+            tabs=THREE,
+        )
+        # Three primary choices stay in view on a phone: each uncurrent tab
+        # is a link once per strip, and there is no menu to open.
+        assert "more" not in html
+        assert "data-quick-switcher" not in html
+        assert html.count('href="?list=3"') == 2
+
+    def test_a_strip_that_holds_three_pads_its_narrow_tabs_less(self):
+        def padding(html):
+            soup = BeautifulSoup(html, "html.parser")
+            narrow = soup.select_one('div[class~="sm:hidden"]')
+            return {
+                cls
+                for link in narrow.find_all("a")
+                for cls in link["class"]
+                if cls in ("px-2", "px-3")
+            }
+
+        three = render(
+            '<c-n26.tab-links label="Which list" :tabs="tabs" :narrow_tabs="3" />',
+            tabs=THREE,
+        )
+        two = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
+        # So that three short labels fit a 320px phone on one row.
+        assert padding(three) == {"px-2"}
+        assert padding(two) == {"px-3"}
+
+    def test_narrow_tabs_without_the_colon_still_counts(self):
+        html = render(
+            '<c-n26.tab-links label="Which list" :tabs="tabs" narrow_tabs="3" />',
+            tabs=THREE,
+        )
+        # Without the colon the value arrives as the string "3". Compared as
+        # a string it would hide the other two tabs and draw no switcher.
+        assert "more" not in html
+        assert html.count('href="?list=3"') == 2
+
+    def test_a_strip_that_holds_three_still_folds_a_fourth(self):
+        four = THREE + [{"label": "Hive Scum", "href": "?list=4", "current": False}]
+        html = render(
+            '<c-n26.tab-links label="Which list" :tabs="tabs" :narrow_tabs="3" />',
+            tabs=four,
+        )
+        assert "+3 more" in html
+        assert "data-quick-switcher" in html
 
     def test_a_single_tab_gets_no_switcher(self):
         html = render(

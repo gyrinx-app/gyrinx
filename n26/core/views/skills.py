@@ -65,7 +65,7 @@ from n26.library.staged import sees_staged
 
 
 def link_skills(*cards, among=None):
-    """Point every card's Skills control at this fighter's skills screen.
+    """Point every card's Skills control at the fighter's checkbox editor.
 
     One query for a whole roster, and none per card: which collections
     hold what a model selects is asked once, and each card already knows
@@ -85,7 +85,9 @@ def link_skills(*cards, among=None):
     }
     for card in cards:
         if card.id and set(card.placed_in) & selectable:
-            card.skills_href = reverse("n26-skills", args=[card.id])
+            card.skills_href = (
+                reverse("n26-edit-fighter", args=[card.id]) + "#n26-skills-box"
+            )
 
 
 def _key(thing):

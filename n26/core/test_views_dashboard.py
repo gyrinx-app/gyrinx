@@ -97,6 +97,18 @@ class TestTheHomeTabQuery:
         assert "activeTab: 'Gangs'" in body
 
 
+class TestTheHomeTabsOnAPhone:
+    """Gangs, Campaigns and Content Packs are the home page's main choice,
+    so the narrow strip draws all three instead of folding two behind
+    "+2 more"."""
+
+    def test_the_narrow_strip_holds_three_tabs(self, client, tester):
+        client.force_login(tester)
+        body = client.get(reverse("n26-dashboard")).content.decode()
+        assert 'x-show="tabs.length <= 3 || isActive(tab.name)"' in body
+        assert 'x-show="tabs.length > 3"' in body
+
+
 ICON = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
     '<circle cx="12" cy="12" r="9" fill="currentColor"/></svg>'

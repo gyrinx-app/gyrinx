@@ -102,8 +102,16 @@ An attempted default local baseline used the original revision's twelve workers.
 It was stopped after 553 PostgreSQL shared-memory setup errors, with no tests
 executed, while another worktree was also building test schemas. Its 78.79-second
 partial result is not a performance baseline. The default-command comparison
-still requires an isolated measurement window or a controlled database instance
-with identical settings for both revisions.
+was repeated without another observed pytest startup. That attempt also failed
+during schema creation: 5,016 setup errors, twelve skipped cases and no tests
+executed in 134.42 seconds before interruption. Neither attempt is a usable
+baseline. The original twelve-worker command exceeds the available schema-lock
+capacity; the next complete local comparison therefore uses the valid original
+four-worker run, with the PostgreSQL settings unchanged.
+
+The subsequent merge from main retains the new hire-time Trade Points scenarios
+and gallery examples. All 386 tests in the five affected gallery, founding,
+asset-roll, fighter-action and post-battle modules passed in 82.58 seconds.
 
 ## Reducing repeated work
 

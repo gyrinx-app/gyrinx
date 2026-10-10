@@ -96,7 +96,6 @@
     "n26/core/templates/n26/includes/stash_trading_post.html": {"direct": 0, "kit": 18},
     "n26/core/templates/n26/invite_user.html": {"direct": 0, "kit": 3},
     "n26/core/templates/n26/layouts/base.html": {"direct": 1, "kit": 71},
-    "n26/core/templates/n26/trade_points.html": {"direct": 0, "kit": 18},
     "n26/designsystem/templates/designsystem/_demo.html": {"direct": 10, "kit": 0},
     "n26/designsystem/templates/designsystem/base.html": {"direct": 13, "kit": 0},
     "n26/designsystem/templates/designsystem/demos/choice-menu/30-apply.html": {"direct": 3, "kit": 0},

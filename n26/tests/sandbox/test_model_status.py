@@ -314,8 +314,8 @@ class TestTheHistoryTellsIt:
 class TestThePage:
     @pytest.fixture(autouse=True)
     def admitted(self, owner):
-        """Setting a status by hand reaches the owners the founding flag
-        admits, because Clean House is drawn in the Actions square."""
+        """Clean House and the ransom prompts are drawn in the Actions
+        square, which the founding flag opens."""
         admit_to_founding(owner)
 
     @pytest.fixture
@@ -528,39 +528,60 @@ class TestThePage:
         assert f"?status={krago.pk}" in page
         assert ">Active</a>" in page.replace("\n", "").replace("  ", "")
 
-    def test_the_status_is_words_alone_where_the_flag_is_shut(
-        self, client, gang, krago, make_user
+    def test_an_owner_outside_the_founding_flag_still_sets_a_status(
+        self, client, gang, krago, nix
     ):
-        """An owner the founding flag does not admit reads every status
-        and is offered none of them: no link, no menu item, and the acts
-        themselves refuse."""
-        outsider = make_user("outsider", "password")
+        """Setting a status by hand belongs to every owner, whatever the
+        founding flag says: the badge, Mark as…, the dialog, Clean House
+        and the acts all reach an owner it does not admit."""
+        outsider = User.objects.create_user("outsider")
         gang.owner = outsider
         gang.save(update_fields=["owner"])
         with operation(gang, actor=outsider) as op:
             op.set_status(krago, Status.RECOVERY)
+            op.set_status(nix, Status.RECOVERY)
         client.force_login(outsider)
+        sheet = reverse("n26-gang", args=[gang.pk])
+        clean_house = reverse("n26-clean-house", args=[gang.pk])
+        page = client.get(sheet).content.decode()
+        assert f"?status={krago.pk}" in page
+        assert f'action="{clean_house}"' in page
+        edit = client.get(reverse("n26-edit-fighter", args=[krago.pk])).content.decode()
+        assert "Mark as…" in edit
+        assert (
+            "Mark Krago as" in client.get(f"{sheet}?status={krago.pk}").content.decode()
+        )
+        client.post(reverse("n26-mark-fighter", args=[krago.pk]), {"status": "active"})
+        assert fresh(krago).status == Status.ACTIVE
+        client.post(clean_house)
+        assert fresh(nix).status == Status.ACTIVE
+
+    def test_an_owner_outside_both_flags_with_nothing_waiting_has_no_square(
+        self, client, gang, krago
+    ):
+        """The Actions square comes to an owner on neither flag only for a
+        model In Recovery or held for ransom."""
+        outsider = User.objects.create_user("outsider")
+        gang.owner = outsider
+        gang.save(update_fields=["owner"])
+        client.force_login(outsider)
+        response = client.get(reverse("n26-gang", args=[gang.pk]))
+        assert response.context["activities_square"] is None
+
+    def test_a_reader_who_does_not_own_the_gang_reads_the_status_as_words(
+        self, client, gang, krago
+    ):
+        with operation(gang, actor=gang.owner) as op:
+            op.set_status(krago, Status.RECOVERY)
+        client.force_login(User.objects.create_user("reader"))
         sheet = reverse("n26-gang", args=[gang.pk])
         page = client.get(sheet).content.decode()
         assert "In Recovery" in page
         assert f"?status={krago.pk}" not in page
-        edit = client.get(reverse("n26-edit-fighter", args=[krago.pk])).content.decode()
-        assert "Mark as" not in edit
-        assert client.get(f"{sheet}?status={krago.pk}").status_code == 200
         assert (
             "Mark Krago as"
             not in client.get(f"{sheet}?status={krago.pk}").content.decode()
         )
-        assert (
-            client.post(
-                reverse("n26-mark-fighter", args=[krago.pk]), {"status": "active"}
-            ).status_code
-            == 404
-        )
-        assert (
-            client.post(reverse("n26-clean-house", args=[gang.pk])).status_code == 404
-        )
-        assert Miniature.objects.get(pk=krago.pk).status == Status.RECOVERY
 
     def test_a_stranger_cannot_mark_a_model(self, client, gang, krago):
         other = User.objects.create_user("stranger")

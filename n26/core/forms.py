@@ -1018,6 +1018,9 @@ class PoolRollForm(RollAssetForm):
             self.data = self.data.copy()
             self.data["count"] = 1
         self.fields["request_key"].initial = uuid4
+        self.fields[
+            "rolled"
+        ].help_text = "Optional. Enter a dice roll you have already made."
 
     def clean(self):
         from uuid import uuid4
@@ -1168,7 +1171,9 @@ class CampaignRollForm(forms.Form):
         initial="generated",
         widget=forms.RadioSelect,
     )
-    rolled = forms.IntegerField(required=False, min_value=1, max_value=66)
+    count = forms.IntegerField(required=False, initial=1, min_value=1, max_value=20)
+    rolled = forms.IntegerField(required=False, min_value=1, max_value=1320)
+    modifier_application = forms.ChoiceField(required=False, initial="total")
     modifier = forms.IntegerField(
         required=False, min_value=-2147483648, max_value=2147483647
     )
@@ -1186,6 +1191,9 @@ class CampaignRollForm(forms.Form):
 
         super().__init__(*args, **kwargs)
         self.fields["dice"].choices = CampaignRoll.Dice.choices
+        self.fields[
+            "modifier_application"
+        ].choices = CampaignRoll.ModifierApplication.choices
         self.fields["request_key"].initial = uuid4()
         self.fields["gang"].queryset = Gang.objects.filter(
             campaign_memberships__campaign=campaign,
@@ -1196,18 +1204,22 @@ class CampaignRollForm(forms.Form):
 
     def clean(self):
         from n26.core.models import CampaignRoll
-        from n26.library.models import Dice
 
         cleaned = super().clean()
         cleaned["modifier"] = cleaned.get("modifier") or 0
+        cleaned["count"] = cleaned.get("count") if self["count"].value() else 1
+        cleaned["modifier_application"] = cleaned.get("modifier_application") or "total"
         if cleaned.get("source") == CampaignRoll.Source.MANUAL:
-            if cleaned.get("dice") and cleaned.get("rolled") not in Dice.rolls(
-                cleaned["dice"]
+            dice, count = cleaned.get("dice"), cleaned.get("count")
+            if (
+                dice
+                and count
+                and not CampaignRoll.valid_total(dice, count, cleaned.get("rolled"))
             ):
                 message = (
                     "Enter a D66 result with both digits from 1 to 6."
-                    if cleaned["dice"] == "d66"
-                    else f"Enter a {cleaned['dice'].upper()} result from 1 to {3 if cleaned['dice'] == 'd3' else 6}."
+                    if dice == "d66" and count == 1
+                    else f"Enter a possible total for {count} × {dice.upper()}."
                 )
                 self.add_error("rolled", message)
         elif cleaned.get("rolled") is not None:

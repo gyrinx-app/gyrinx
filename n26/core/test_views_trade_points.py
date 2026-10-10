@@ -249,7 +249,7 @@ class TestTheActivitiesSquare:
         assert body.count("Trading Post visit open") == 1
         assert body.index(">Stash</span>") < body.index("Trading Post visit open")
         assert "No action is open." not in body
-        assert "Spend built-in TP" not in body
+        assert "Spend founding TP" not in body
         # The Trade Points page itself stays theirs.
         assert f'href="{page(gang)}"' in body
 
@@ -294,6 +294,8 @@ class TestWhoIsOffered:
         body = client.get(page(gang)).content.decode()
         assert "2 Trade Points each" in body
         assert "1 Trade Point each" in body
+        assert "Vex · 2 TP" in body
+        assert "Sura · 1 TP" in body
 
     def test_the_start_form_says_how_it_adds_up(self, client, tester, roster, gang):
         """The ticks start clear, the box empty, and the running total
@@ -302,14 +304,15 @@ class TestWhoIsOffered:
         be a lie."""
         client.force_login(tester)
         body = client.get(page(gang)).content.decode()
-        assert "Visit Trading Post (post-cycle action)" in body
+        assert "Visit Trading Post" in body
         assert (
-            "Select the models visiting the Trading Post, or enter a TP amount." in body
+            "Select models to add their Trade Points, or enter the total yourself."
+            in body
         )
         assert "Nobody else" not in body
-        assert "Start TP visit" in body
+        assert "Start visit" in body
         assert "Start action" not in body
-        assert "Selected models add" in body
+        assert "Total from selected models:" in body
         assert "data-react-fallback" in body
         assert 'x-text="added"' not in body
         assert 'x-model="override"' not in body
@@ -330,9 +333,9 @@ class TestWhoIsOffered:
         client.force_login(tester)
         body = client.get(page(gang)).content.decode()
         assert re.search(r'<input[^>]*name="brought"[^>]*>', body)
-        assert "TP amount" in body
-        assert "Start TP visit" in body
-        assert "Selected models add" not in body
+        assert "Trade Points" in body
+        assert "Start visit" in body
+        assert "Total from selected models:" not in body
 
     def test_a_typed_amount_starts_a_visit_with_nobody_to_tick(
         self, client, tester, gang
@@ -407,14 +410,16 @@ class TestWhatThePageCosts:
     #: the gang has open, and the standard Trading Post the receipt links
     #: to. One scope-state read supplies the write-pause notice. None of it
     #: repeats per model. The modifier index batches status conditions too.
-    BUDGET = 40
+    #: Two reads check the founding flag and owner group, including for gangs
+    #: with no TP grant that need to record founding completion.
+    BUDGET = 42
 
     #: The same page with a visit open, which is the state it is for.
     #: There is a receipt to draw then, and it costs two readings of the
     #: log: who performed the action, and what the visit has spent. Both
     #: are one query however many fighters went and however much the gang
     #: has bought, so this is a second fixed price and not a second rate.
-    WITH_A_VISIT = 42
+    WITH_A_VISIT = 44
 
     @pytest.fixture
     def bigger(self, tester, gang, ranks, make_profile, make_statline):
@@ -752,14 +757,14 @@ class TestATypedFigure:
 
         tag = re.search(r'<input[^>]*name="brought"[^>]*>', body).group()
         assert tag.count("class=") == 1
-        assert "Or enter a specific TP amount" in body
+        assert "Custom TP amount" in body
 
-    def test_the_box_shuts_with_the_rest_of_the_form(self, client, roster, gang):
+    def test_the_amount_box_is_hidden_while_a_visit_is_open(self, client, roster, gang):
         start(client, gang, roster["Vex"])
 
         body = client.get(page(gang)).content.decode()
         box = re.findall(r'<input[^>]*name="brought"[^>]*>', body)
-        assert box and all(_SHUT.search(tag) for tag in box)
+        assert not box
         assert not unrendered(body)
 
 
@@ -779,8 +784,8 @@ class TestTheReceipt:
         start(client, gang, roster["Vex"])
 
         body = client.get(page(gang)).content.decode()
-        assert "Click when you have finished at the Trading Post." in body
-        assert "Unspent Trade Points are lost when you complete the action." in body
+        assert "Complete when you have finished at the Trading Post." in body
+        assert "Unspent Trade Points are lost." in body
 
     def test_it_names_the_ranks_that_added_the_figure(self, client, roster, gang):
         start(client, gang, roster["Vex"], roster["Sura"])
@@ -791,6 +796,10 @@ class TestTheReceipt:
     def test_it_offers_every_fighter_to_equip(self, client, roster, gang):
         """What a visit added is the gang's, and it is spent on whoever
         it was for — including the fighters who did not go."""
+        from n26.library.authoring import create_trading_post
+        from n26.library.models import Wargear
+
+        create_trading_post("Trading Post", contains=[Wargear])
         start(client, gang, roster["Vex"])
 
         body = client.get(page(gang)).content.decode()
@@ -829,7 +838,9 @@ class TestTheReceipt:
         assert reverse("n26-equip", args=[roster["Vex"].pk]) not in body
         assert reverse("n26-equip", args=[roster["Nix"].pk]) in body
 
-    def test_the_start_form_is_shut_while_an_action_is_open(self, client, roster, gang):
+    def test_the_start_form_is_hidden_while_an_action_is_open(
+        self, client, roster, gang
+    ):
         """Never offer an act that will be refused: with an action open,
         starting another would throw away what it has left.
 
@@ -842,8 +853,9 @@ class TestTheReceipt:
         start(client, gang, roster["Vex"])
 
         shut = client.get(page(gang)).content.decode()
-        assert shut_boxes(shut)
-        assert "Finish the action above first" in shut
+        assert not shut_boxes(shut)
+        assert 'data-react-name="trade-points"' not in shut
+        assert "Start visit" not in shut
         # The word alone is not proof: an unread `{% if %}` among a
         # component's attributes puts "disabled" in the page as text.
         assert not unrendered(shut)
@@ -854,17 +866,16 @@ class TestTheReceipt:
         start(client, gang, roster["Vex"])
 
         submits = submit_buttons(client.get(page(gang)).content.decode())
-        assert len(submits) == 2
-        assert sum(bool(_SHUT.search(tag)) for tag in submits) == 1
+        assert len(submits) == 1
+        assert not any(_SHUT.search(tag) for tag in submits)
 
-    def test_the_shut_start_button_says_why(self, client, roster, gang):
-        """A disabled button emits no mouse events, so the reason hangs off
-        a wrapper around it rather than off the button."""
+    def test_an_open_visit_has_no_disabled_start_button(self, client, roster, gang):
+        """The current visit replaces the start form."""
         start(client, gang, roster["Vex"])
 
         body = client.get(page(gang)).content.decode()
-        assert "a gang performs one" in body
-        assert "cursor-not-allowed" in body
+        assert "Start visit" not in body
+        assert "Complete action" in body
 
     def test_it_shows_the_three_figures(self, client, roster, gang):
         start(client, gang, roster["Vex"])
@@ -917,9 +928,7 @@ class TestFinishingTheAction:
         body = client.post(page(gang), {"act": "finish"}, follow=True).content.decode()
 
         assert "left the Trading Post" in body
-        assert body.index("left the Trading Post") < body.index(
-            "Visit Trading Post (post-cycle action)"
-        )
+        assert body.index("left the Trading Post") < body.index("Visit Trading Post")
         assert body.index("What to edit") < body.index("left the Trading Post")
 
     def test_it_is_said_once(self, client, roster, gang):

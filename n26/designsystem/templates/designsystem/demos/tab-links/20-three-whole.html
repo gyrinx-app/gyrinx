@@ -1,0 +1,4 @@
+{# title: Three tabs kept whole on a phone #}
+{# note: The hire screen's strip. Gang list, Supplementary and All profiles are the screen's main choice, so :narrow_tabs="3" keeps all three in view below the sm breakpoint instead of folding two behind "+2 more". Above two, :narrow_tabs also gives the narrow tabs less padding, so on the hire screen these labels fit on one row in a 320px window. This demo box is inset, so it wraps a little sooner. A fourth tab would fold the strip to the current tab and "+3 more". #}
+{# layout: full #}
+<c-n26.tab-links label="Who can be hired" :tabs="hire_scope_tabs" :narrow_tabs="3" />

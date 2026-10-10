@@ -85,6 +85,7 @@ class Gang(Base, Owned, Archived, Rated):
     #: What ``open_activities`` read, or None before it has. Held on the
     #: instance rather than fetched per question; see there.
     _open_activities = None
+    _activity_history = None
 
     class Meta:
         verbose_name = "gang"
@@ -143,9 +144,11 @@ class Gang(Base, Owned, Archived, Rated):
         return trade_points_spent(self)
 
     def open_activities(self):
-        """Every activity this gang has open, by kind.
+        """Open gang activities by kind, with personal history held alongside.
 
-        One query for all of them, held on the instance. A page asks
+        One query holds open activities, the first founding completion,
+        the latest founding action and each model's latest personal action
+        on the instance. A page asks
         about more than one kind — the gang sheet draws the founding
         card and the visit's figure in the same breath — and asking per
         kind would cost a query each, so they are read together and the
@@ -161,13 +164,41 @@ class Gang(Base, Owned, Archived, Rated):
         that opened or closed one still reads the truth.
         """
         if self._open_activities is None:
+            from django.db.models import Q, Subquery
+
             from n26.core.models import Activity
 
+            history = Activity.objects.filter(gang=self)
+            boundary = (
+                history.filter(kind=Activity.Kind.FOUNDING, closed__isnull=False)
+                .order_by("closed__created", "pk")
+                .values("pk")[:1]
+            )
+            latest_founding = (
+                history.filter(kind=Activity.Kind.FOUNDING)
+                .order_by("-created", "-pk")
+                .values("pk")[:1]
+            )
+            latest = (
+                history.filter(kind=Activity.Kind.HIRE_TIME)
+                .order_by("miniature_id", "-created", "-pk")
+                .distinct("miniature_id")
+                .values("pk")
+            )
+            self._activity_history = list(
+                history.filter(
+                    Q(closed__isnull=True)
+                    | Q(pk=Subquery(boundary))
+                    | Q(pk=Subquery(latest_founding))
+                    | Q(pk__in=Subquery(latest))
+                )
+                .select_related("opened", "closed")
+                .order_by("created", "pk")
+            )
             self._open_activities = {
                 activity.kind: activity
-                for activity in Activity.objects.filter(
-                    gang=self, closed__isnull=True
-                ).select_related("opened")
+                for activity in self._activity_history
+                if activity.closed_id is None and activity.miniature_id is None
             }
         return self._open_activities
 
@@ -180,6 +211,7 @@ class Gang(Base, Owned, Archived, Rated):
         closed, and wherever a reading taken earlier must not be trusted.
         """
         self._open_activities = None
+        self._activity_history = None
         self.__dict__.pop(_OPEN_VISIT_POINTS, None)
 
     def hold_open_visit(self, brought):
@@ -195,8 +227,57 @@ class Gang(Base, Owned, Archived, Rated):
         super().refresh_from_db(*args, **kwargs)
         self.forget_open_activities()
 
-    def open_activity(self, kind):
+    def open_activity(self, kind, miniature=None):
+        if miniature is not None:
+            self.open_activities()
+            return next(
+                (
+                    a
+                    for a in self._activity_history
+                    if a.kind == kind and a.miniature_id == miniature.pk and a.is_open
+                ),
+                None,
+            )
         return self.open_activities().get(kind)
+
+    def founding_completed_at(self):
+        """The first founding completion remains the recruitment boundary."""
+        from n26.core.models import Activity
+
+        self.open_activities()
+        return min(
+            (
+                a.closed.created
+                for a in self._activity_history
+                if a.kind == Activity.Kind.FOUNDING and a.closed_id
+            ),
+            default=None,
+        )
+
+    def latest_founding_activity(self):
+        """The session a founding correction must name before reopening."""
+        from n26.core.models import Activity
+
+        self.open_activities()
+        return next(
+            (
+                a
+                for a in reversed(self._activity_history)
+                if a.kind == Activity.Kind.FOUNDING
+            ),
+            None,
+        )
+
+    def hire_time_activities(self):
+        """Latest personal session per model, read together for the roster."""
+        from n26.core.models import Activity
+
+        self.open_activities()
+        return {
+            a.miniature_id: a
+            for a in self._activity_history
+            if a.kind == Activity.Kind.HIRE_TIME
+        }
 
     @property
     def open_visit(self):

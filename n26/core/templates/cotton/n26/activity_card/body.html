@@ -3,29 +3,35 @@
 
 The hidden act field is what the view reads for the button.
 Slot content sits above the form, so extra fields there are not submitted.
+Actions sit beside the complete form and do not submit with it. With actions, help sits above the controls.
 Kept as its own template so the boxed and unboxed shapes cannot draw different contents.
 Write the help size classes out. A class name built at render time is one the stylesheet build never sees.
 Keep the label and tick in one flex span. Loose in the button they break onto two lines.
 {% endcomment %}
 
-<c-vars :card="None" button_size="sm" help_size="sm" />
+<c-vars :card="None" actions="" complete_variant="success" button_size="sm" help_size="sm" />
 
 <div class="space-y-4">
     {% if card.facts %}<c-n26.tally :facts="card.facts" />{% endif %}
     {# This slot sits outside the form. Fields here will not submit with the button. #}
     {% if slot.strip %}{{ slot }}{% endif %}
-    <form method="post" action="{{ card.action }}">
+    {% if actions.strip and card.help %}<p class="{% if help_size == 'xs' %}text-xs{% else %}text-sm{% endif %} text-muted">{{ card.help }}</p>{% endif %}
+    <div class="flex flex-wrap items-center gap-3">
+        {% if actions.strip %}{{ actions }}{% endif %}
+        <form method="post" action="{{ card.action }}">
         {% csrf_token %}
         <input type="hidden" name="act" value="{{ card.act }}">
+        {% if card.activity_id %}<input type="hidden" name="activity" value="{{ card.activity_id }}">{% endif %}
 
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <c-ui.button type="submit" size="{{ button_size }}" variant="success">
+            <c-ui.button type="submit" size="{{ button_size }}" variant="{{ complete_variant }}">
                 <span class="flex items-center gap-1.5">
                     <c-n26.icon name="check" class="size-4" stroke_width="2.5" />
                     {{ card.button_label }}
                 </span>
             </c-ui.button>
-            {% if card.help %}<p class="{% if help_size == 'xs' %}text-xs{% else %}text-sm{% endif %} text-muted">{{ card.help }}</p>{% endif %}
+            {% if card.help and not actions.strip %}<p class="{% if help_size == 'xs' %}text-xs{% else %}text-sm{% endif %} text-muted">{{ card.help }}</p>{% endif %}
         </div>
-    </form>
+        </form>
+    </div>
 </div>

@@ -918,9 +918,7 @@ class TestSuitEvolutionForms:
         self, client, hunt, lifecycle
     ):
         from n26.core.status import Status
-        from n26.tests.fixtures import admit_to_founding
 
-        admit_to_founding(hunt.owner)
         item = buy(hunt.fighter, thing=hunt.item.wargear, paid=10)
         record, _, _ = start(client, hunt, hunt.upgrade)
         with operation(hunt.gang, actor=hunt.owner) as op:

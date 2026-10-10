@@ -437,7 +437,8 @@ class TestGangActions:
         assert response.status_code == 200
         document = BeautifulSoup(response.content, "html.parser")
         panel = document.select_one('[role="region"][aria-label="Actions"]')
-        assert bool(panel) == (campaigns_open or founding_open)
+        # A model held for ransom brings the square whatever the flags.
+        assert panel
         links = document.select(f'a[href="{start_url(table, standalone=True)}"]')
         assert len(links) == int(campaigns_open)
         if campaigns_open:
@@ -458,26 +459,23 @@ class TestGangActions:
             assert bool(square.founding) == founding_open
             verbs = [step.verb for step in square.to_do]
             assert verbs == (
-                (["Pay ransom", "Clean House"] if founding_open else [])
+                ["Pay ransom", "Clean House"]
                 + (["Post-battle"] if campaigns_open else [])
             )
-            assert ("Pay ransom" in panel.get_text()) == founding_open
-            assert ("Clean House" in panel.get_text()) == founding_open
+            assert "Pay ransom" in panel.get_text()
+            assert "Clean House" in panel.get_text()
             if not founding_open:
                 assert "Current action" not in panel.get_text()
-                assert not panel.find("form")
+                assert [form["action"] for form in panel.find_all("form")] == [
+                    reverse("n26-clean-house", args=[table.gang.pk])
+                ]
                 assert "No history for this gang yet." not in panel.get_text()
 
-    def test_campaigns_alone_keeps_the_existing_founding_and_status_guards(
+    def test_campaigns_alone_keeps_the_existing_founding_guard(
         self, client, table, feature
     ):
-        urls = [
-            reverse("n26-gang-founding-action", args=[table.gang.pk]),
-            reverse("n26-clean-house", args=[table.gang.pk]),
-            reverse("n26-mark-fighter", args=[table.models[0].pk]),
-        ]
-        for url in urls:
-            assert client.post(url, {}).status_code == 404
+        founding_url = reverse("n26-gang-founding-action", args=[table.gang.pk])
+        assert client.post(founding_url, {}).status_code == 404
         assert table.gang.open_activity(Activity.Kind.FOUNDING) is not None
 
     def test_campaigns_alone_shares_the_open_visit_and_history(

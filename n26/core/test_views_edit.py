@@ -740,7 +740,7 @@ class TestTheQueryBudget:
 
     def test_the_page_costs_a_fixed_number(self, client, tester, gang, vex):
         client.force_login(tester)
-        # Three queries check flags for status, staged content and Model cards, each
+        # Three queries check flags for TP, staged content and Model cards, each
         # taken once for the page rather than once per model, so the count
         # below still holds however large the gang grows. One more reads
         # which offers the owner has dismissed — the whole gang's in one

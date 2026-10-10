@@ -8,6 +8,7 @@ switcher lives in, and that the segmented variant kept the kit's own shape —
 not the tabs themselves, which exist only in a browser.
 """
 
+from bs4 import BeautifulSoup
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
 
@@ -37,9 +38,9 @@ def render(source: str, **context) -> str:
 
 
 class TestTheDefaultStrip:
-    """The default variant never wraps and never scrolls sideways: two strips
-    switched at the sm breakpoint, the narrow one holding up to two tabs and
-    a switcher for the rest."""
+    """The default variant never scrolls sideways: two strips switched at
+    the sm breakpoint, the narrow one holding up to :narrow_tabs tabs (two
+    unless the call site raises it) and a switcher for the rest."""
 
     def test_the_narrow_strip_holds_a_switcher_for_the_other_tabs(self):
         html = render(DEFAULT)
@@ -61,6 +62,38 @@ class TestTheDefaultStrip:
         assert 'x-show="tabs.length <= 2 || isActive(tab.name)"' in html
         assert 'x-show="tabs.length > 2"' in html
         assert "'+' + (tabs.length - 1) + ' more'" in html
+
+    def test_a_strip_can_hold_three_tabs_whole(self):
+        html = render(
+            """
+            <c-ui.tabs :narrow_tabs="3">
+                <c-ui.tabs.tab name="Gangs">A table of gangs.</c-ui.tabs.tab>
+                <c-ui.tabs.tab name="Campaigns">Nothing yet.</c-ui.tabs.tab>
+                <c-ui.tabs.tab name="Content Packs">Nothing yet.</c-ui.tabs.tab>
+            </c-ui.tabs>
+            """
+        )
+        assert 'x-show="tabs.length <= 3 || isActive(tab.name)"' in html
+        assert 'x-show="tabs.length > 3"' in html
+
+    def test_a_strip_that_holds_three_pads_its_narrow_tabs_less(self):
+        def narrow_button(html):
+            soup = BeautifulSoup(html, "html.parser")
+            return soup.find(
+                "button", attrs={"x-show": lambda v: v and "isActive" in v}
+            )["class"]
+
+        three = render(
+            """
+            <c-ui.tabs :narrow_tabs="3">
+                <c-ui.tabs.tab name="Gangs">A table of gangs.</c-ui.tabs.tab>
+            </c-ui.tabs>
+            """
+        )
+        # So that three short labels fit a 320px phone on one row.
+        assert "px-2" in narrow_button(three)
+        assert "px-3" not in narrow_button(three)
+        assert "px-3" in narrow_button(render(DEFAULT))
 
     def test_the_panels_still_register_themselves(self):
         html = render(DEFAULT)

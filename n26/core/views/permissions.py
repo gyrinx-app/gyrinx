@@ -48,13 +48,11 @@ def may_mark_status(gang, user):
     Where a model stands between battles is one feature: the badge and
     the Mark as dialog that change it by hand, the ransom that is paid
     for a held model, and Clean House, which clears every model In
-    Recovery at the end of the cycle. Clean House is drawn in the Actions
-    square, so the whole of it reaches the owners founding reaches —
-    those the ``founding`` flag admits — and lifts with it. Shut, a model
-    still carries a status and a result from a table still sets it; there
-    is simply no control saying so.
+    Recovery at the end of the cycle. Every owner has all of it, and
+    nobody else does: a reader who does not own the gang sees each
+    status drawn as words.
     """
-    return may_see_founding(gang, user)
+    return user is not None and user.is_authenticated and gang.owner_id == user.pk
 
 
 def link_model_cards(gang, cards, user):
@@ -184,7 +182,6 @@ def link_campaign(block, user):
 def may_see_founding(gang, user):
     """Whether this owner may use founding controls and Trade Point budgets.
 
-    The same gate controls manual status changes, ransom and Clean House.
     Other features can appear in Actions without granting this permission.
     Check ownership before reading the flag, and share the result across
     a page's cards, budgets and founding controls.

@@ -9,11 +9,11 @@ click that closed it.
 The row is thin on purpose. What an activity *did* is the ledger, as
 everything else in this edition is: ``opened`` and ``closed`` name the two
 events, and the story between them is what the log holds in that stretch.
-Both events are about the gang rather than any assignment, so folding an
+Events name the gang or the model performing the action, so folding an
 entry's events still reproduces the entry (``n26.core.reconcile``) and
 nothing here is inside that arithmetic.
 
-One of each kind at a time, held by the database rather than by whoever
+One of each kind per target at a time, held by the database rather than by whoever
 remembered to look: a gang cannot be founding twice, and a second visit
 opened while the first was still open would leave every purchase in
 between unable to say which one it counted against.
@@ -26,11 +26,20 @@ from n26.core.models.abstract import Base
 
 class Activity(Base):
     class Kind(models.TextChoices):
-        FOUNDING = "founding", "Spend built-in TP"
+        FOUNDING = "founding", "Spend founding TP"
+        HIRE_TIME = "hire_time_tp", "Spend hire-time TP"
         TRADING_POST_VISIT = "trading_post_visit", "Visit Trading Post"
 
     gang = models.ForeignKey(
         "n26.Gang", on_delete=models.CASCADE, related_name="activities"
+    )
+    miniature = models.ForeignKey(
+        "n26.Miniature",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="activities",
+        help_text="The model spending its hire-time Trade Points. Empty for gang actions.",
     )
     kind = models.CharField(max_length=32, choices=Kind)
     #: Cascades: an activity whose opening is gone is a record of nothing.
@@ -68,8 +77,23 @@ class Activity(Base):
             # answer to which.
             models.UniqueConstraint(
                 fields=["gang", "kind"],
-                condition=models.Q(closed__isnull=True),
+                condition=models.Q(closed__isnull=True, miniature__isnull=True),
                 name="one_open_activity_of_each_kind",
+            ),
+            models.UniqueConstraint(
+                fields=["gang", "kind", "miniature"],
+                condition=models.Q(closed__isnull=True, miniature__isnull=False),
+                name="one_open_activity_per_model_kind",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(kind="hire_time_tp", miniature__isnull=False)
+                    | (
+                        models.Q(miniature__isnull=True)
+                        & ~models.Q(kind="hire_time_tp")
+                    )
+                ),
+                name="activity_target_matches_kind",
             ),
         ]
 
