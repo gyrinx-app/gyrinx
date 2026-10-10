@@ -1,3 +1,4 @@
+{% load react %}
 {% comment %}
 Generate an unclaimed pool from a selected table. Quantity and an optional
 single manual roll are native form fields; the server validates their combination.
@@ -39,42 +40,44 @@ The surrounding dialog owns modal and htmx behaviour.
             {% endfor %}
         </c-n26.radio-cards>
     {% endif %}
-    <c-ui.field error="x"
-                label="{{ form.count.label }}"
-                :form="form"
-                name="count"
-                for="pool-count">
-        <c-slot name="description">
-            <p class="text-sm text-muted">{{ form.count.help_text }}</p>
-        </c-slot>
-        <c-ui.input id="pool-count"
+    {% react_host "campaign-pool-roll" question.pool_fields class="space-y-5" %}
+        <c-ui.field error="x"
+                    label="{{ form.count.label }}"
+                    :form="form"
                     name="count"
-                    required
-                    type="number"
-                    min="1"
-                    max="100"
-                    inputmode="numeric"
-                    value="{{ form.count.value|default_if_none:1 }}" />
-    </c-ui.field>
-    <c-ui.field error="x"
-                label="{{ form.rolled.label }}"
-                :form="form"
-                name="rolled"
-                for="pool-roll">
-        <c-slot name="description">
-            <div class="text-sm text-muted">
-                {{ form.rolled.help_text }} Set the number to 1 to use your own roll.
-                {% for table in question.tables %}
-                    <span class="block">{% if not question.only %}{{ table.name }}: {% endif %}A {{ table.die }} roll is {{ table.lowest }} to {{ table.highest }}.</span>
-                {% endfor %}
-            </div>
-        </c-slot>
-        <c-ui.input id="pool-roll"
+                    for="pool-count">
+            <c-slot name="description">
+                <p class="text-sm text-muted">{{ form.count.help_text }}</p>
+            </c-slot>
+            <c-ui.input id="pool-count"
+                        name="count"
+                        required
+                        type="number"
+                        min="1"
+                        max="100"
+                        inputmode="numeric"
+                        value="{{ form.count.value|default_if_none:1 }}" />
+        </c-ui.field>
+        <c-ui.field error="x"
+                    label="{{ form.rolled.label }}"
+                    :form="form"
                     name="rolled"
-                    type="number"
-                    min="1"
-                    inputmode="numeric"
-                    autocomplete="off"
-                    value="{{ form.rolled.value|default_if_none:'' }}" />
-    </c-ui.field>
+                    for="pool-roll">
+            <c-slot name="description">
+                <div class="text-sm text-muted">
+                    {{ form.rolled.help_text }} Set the number to 1 to use your own roll.
+                    {% for table in question.tables %}
+                        <span class="block">{% if not question.only %}{{ table.name }}: {% endif %}A {{ table.die }} roll is {{ table.lowest }} to {{ table.highest }}.</span>
+                    {% endfor %}
+                </div>
+            </c-slot>
+            <c-ui.input id="pool-roll"
+                        name="rolled"
+                        type="number"
+                        min="1"
+                        inputmode="numeric"
+                        autocomplete="off"
+                        value="{{ form.rolled.value|default_if_none:'' }}" />
+        </c-ui.field>
+    {% endreact_host %}
 </c-n26.dialog>

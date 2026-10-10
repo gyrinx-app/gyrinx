@@ -1018,6 +1018,9 @@ class PoolRollForm(RollAssetForm):
             self.data = self.data.copy()
             self.data["count"] = 1
         self.fields["request_key"].initial = uuid4
+        self.fields[
+            "rolled"
+        ].help_text = "Optional. Enter a dice roll you have already made."
 
     def clean(self):
         from uuid import uuid4
