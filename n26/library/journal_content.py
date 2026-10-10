@@ -210,7 +210,7 @@ def seed_journal_content():
                 continue
             boon = f"{entry.name}: {house} Controlled"
             if entry.more_income or entry.reputation:
-                counter, amount, said = (
+                counter, amount, counter_label = (
                     (income, entry.more_income, "income")
                     if entry.more_income
                     else (reputation, entry.reputation, "Reputation")
@@ -224,7 +224,7 @@ def seed_journal_content():
                         pack=pack,
                     )
                     lines.append(
-                        f"{entry.name}: {amount} more {said} for "
+                        f"{entry.name}: {amount} more {counter_label} for "
                         f"gangs that have picked {house}"
                     )
             else:
