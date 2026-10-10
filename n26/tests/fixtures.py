@@ -259,14 +259,22 @@ def make_statline(default_pack):
 
     def _make(profile, **values):
         statline = Statline.objects.create(profile=profile, pack_id=default_pack.pk)
+        stats = []
         for type_stat in profile.statline_type.stats.select_related("stat"):
             if type_stat.field_name in values:
-                StatlineStat.objects.create(
-                    statline=statline,
-                    statline_type_stat=type_stat,
-                    value=str(values[type_stat.field_name]),
-                    pack_id=default_pack.pk,
+                value = str(values[type_stat.field_name])
+                # Match StatlineStat.save(), including leaving stored blanks blank.
+                if value:
+                    value = type_stat.stat.format_value(value)
+                stats.append(
+                    StatlineStat(
+                        statline=statline,
+                        statline_type_stat=type_stat,
+                        value=value,
+                        pack_id=default_pack.pk,
+                    )
                 )
+        StatlineStat.objects.bulk_create(stats)
         return statline
 
     return _make

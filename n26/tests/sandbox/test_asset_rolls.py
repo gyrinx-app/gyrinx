@@ -55,6 +55,7 @@ from n26.library.authoring import (
 from n26.library.core_campaign import CAMPAIGN_TYPE, seed_core_campaign
 from n26.library.models import AssetTable, AssetTableEntry, CampaignType
 from n26.library.territory_table import TABLE, seed_territory_table
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_built_in,
     close_table,
@@ -106,7 +107,6 @@ def propagating(db):
 def core(default_pack):
     """The Territory campaign type as it ships, with the Territory Selection
     Table built in: a D66 over eighteen territories, every roll covered."""
-    seed_core_campaign(apps)
     seed_territory_table(apps)
     return CampaignType.objects.get(name=CAMPAIGN_TYPE)
 
@@ -122,6 +122,7 @@ def selection_table(core):
 
 
 @pytest.fixture
+@library_setup
 def supertype(default_pack):
     """The hidden Gang supertype slot, and Goliath and Escher as its
     markers — the shape a Clan House gang type builds in."""
@@ -139,6 +140,7 @@ def supertype(default_pack):
 
 
 @pytest.fixture
+@library_setup
 def journal(territory, supertype, default_pack):
     """House of Chains: six Goliath territories on a D6 table, given to
     every gang that has picked Goliath. In a system pack of its own, so
@@ -172,6 +174,7 @@ def journal(territory, supertype, default_pack):
 
 
 @pytest.fixture
+@library_setup
 def goliath(supertype):
     slot, houses = supertype
     gang_type = create_gang_type("Goliath")
@@ -180,11 +183,39 @@ def goliath(supertype):
 
 
 @pytest.fixture
+@library_setup
 def escher(supertype):
     slot, houses = supertype
     gang_type = create_gang_type("Escher")
     add_built_in(gang_type, slot, default_pickable=houses["Escher"])
     return gang_type
+
+
+@pytest.fixture
+def page_catalogue(default_pack):
+    """The real campaign type with one territory: enough for route and
+    form contracts that never inspect the shipped Territory Selection Table."""
+    seed_core_campaign(apps)
+    core = CampaignType.objects.get(name=CAMPAIGN_TYPE)
+    territory = core.asset_types.get(label_singular="Territory")
+    table = create_asset_table(TABLE, territory, dice="d66")
+    add_asset_table_entry(
+        table, create_asset("Old Ruins", territory), roll_low=11, roll_high=66
+    )
+    return core, territory, table
+
+
+@pytest.fixture
+def page_campaign(page_catalogue, arbitrator):
+    core, _, _ = page_catalogue
+    return found_campaign("Dust Falls", core, owner=arbitrator)
+
+
+@pytest.fixture
+def page_member(page_campaign, goliath, owner):
+    gang = found_gang("Slag Kings", goliath, owner=owner, budget=1000)
+    join_campaign(gang, page_campaign)
+    return gang
 
 
 @pytest.fixture
@@ -697,8 +728,10 @@ class TestThePages:
         assert "three per gang" not in page
 
     def test_a_malformed_gang_key_is_a_bad_link(
-        self, client, campaign, territory, arbitrator
+        self, client, page_campaign, page_catalogue, arbitrator
     ):
+        campaign = page_campaign
+        _, territory, _ = page_catalogue
         client.force_login(arbitrator)
         response = client.post(
             reverse("n26-campaign-roll-starting", args=[campaign.pk, "not-a-key"]),
@@ -922,10 +955,12 @@ class TestThePages:
         assert CampaignAsset.objects.filter(campaign=campaign).count() == 2
 
     def test_a_band_the_die_cannot_make_is_refused_on_the_tables_page(
-        self, client, campaign, territory, arbitrator
+        self, client, page_campaign, page_catalogue, arbitrator
     ):
         """The band columns are small integers; a number nothing could roll
         is refused in words on the form, never left for the database."""
+        campaign = page_campaign
+        _, territory, _ = page_catalogue
         turf = create_campaign_table(campaign, territory, "Turf", dice="d6")
         ruins = _holding_assets(campaign).get(name="Old Ruins")
         client.force_login(arbitrator)
@@ -1049,12 +1084,13 @@ class TestThePages:
         }
 
     def test_a_roll_for_a_type_that_has_gone_sends_the_page_over_htmx(
-        self, client, campaign, arbitrator
+        self, client, page_campaign, arbitrator
     ):
         """Over htmx a redirect's body is swallowed by hx-swap="none", so an
         asset type the dialog named but that no longer resolves answers
         with HX-Redirect and the browser goes to the page. Without htmx it
         is the redirect it always was."""
+        campaign = page_campaign
         client.force_login(arbitrator)
         address = reverse("n26-campaign-roll-asset", args=[campaign.pk])
 
@@ -1150,8 +1186,10 @@ class TestThePages:
         assert f"x-data=\"{{ table: '{first}', rolled: '1\\u0027+x' }}\"" in body
 
     def test_the_gang_owner_cannot_roll_or_open_and_a_stranger_finds_nothing(
-        self, client, campaign, territory, journal, selection_table, slag_kings, owner
+        self, client, page_campaign, page_catalogue, page_member, owner
     ):
+        campaign, slag_kings = page_campaign, page_member
+        _, territory, selection_table = page_catalogue
         client.force_login(owner)
         for address in (
             reverse("n26-campaign-roll-asset", args=[campaign.pk]),

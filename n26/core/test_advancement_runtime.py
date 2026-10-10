@@ -39,6 +39,7 @@ from n26.library.models import (
     Stat,
 )
 from n26.library.standard_content import STANDARD_CONTENT
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     adds,
     changes_stat,
@@ -63,8 +64,13 @@ def fighter(user, gang_type, make_profile, make_statline):
         return op.hire(profile, "Kara", paid=100)
 
 
-def _advancement(fighter):
+@library_setup
+def _seed_fighter_actions():
     STANDARD_CONTENT["fighter-actions"].create()
+
+
+def _advancement(fighter):
+    _seed_fighter_actions()
     action = Action.objects.get(name="Advancement")
     outcome = (
         action.outcomes.select_related("outcome__resolve_advancement").get().outcome
@@ -552,6 +558,11 @@ def test_a_carried_die_refuses_a_different_recorded_roll(fighter):
         fighter
     )
 
+    groups = skill_options(record, configured, random_secondary.id)
+    assert carried_skill_rolls(record, configured, random_secondary.id, groups) == {
+        str(secondary.pk): 1
+    }
+
     with operation(fighter.gang) as op:
         with pytest.raises(
             Refusal,
@@ -576,12 +587,6 @@ def test_a_carried_die_refuses_a_different_recorded_roll(fighter):
         == 2
     )
 
-
-def test_a_carried_die_accepts_the_same_recorded_roll(fighter):
-    record, configured, random_secondary, secondary, first = _switch_after_a_roll(
-        fighter
-    )
-
     with operation(fighter.gang) as op:
         switched = op.record_skill_roll(
             record,
@@ -594,17 +599,6 @@ def test_a_carried_die_accepts_the_same_recorded_roll(fighter):
 
     assert switched["event_id"] == first["event_id"]
     assert switched["roll"] == 1
-
-
-def test_carried_skill_rolls_names_the_sets_that_reuse_the_die(fighter):
-    record, configured, random_secondary, secondary, first = _switch_after_a_roll(
-        fighter
-    )
-    groups = skill_options(record, configured, random_secondary.id)
-
-    assert carried_skill_rolls(record, configured, random_secondary.id, groups) == {
-        str(secondary.pk): 1
-    }
 
 
 def test_carried_skill_rolls_is_empty_before_any_skill_roll(fighter):
@@ -816,6 +810,19 @@ def test_completed_correction_can_reuse_an_earlier_accepted_random_attempt(fight
 
     assert correction.review
 
+    with operation(fighter.gang) as op:
+        op.assign(Skill.objects.get(pk=primary_attempt["skill_id"]), miniature=fighter)
+
+    assert all(
+        row.id != random_primary.id or not row.gainable
+        for row in advancement_options(completed, configured)
+    )
+    with operation(fighter.gang) as op:
+        with pytest.raises(Refusal, match="Choose an available advancement result"):
+            op.review_action_correction(
+                completed, terms={"pickable_id": random_primary.id}
+            )
+
 
 def test_completed_select_can_reuse_an_earlier_accepted_random_attempt(fighter):
     action, outcome, allowance = _advancement(fighter)
@@ -865,61 +872,6 @@ def test_completed_select_can_reuse_an_earlier_accepted_random_attempt(fighter):
         )
 
     assert correction.review
-
-
-def test_completed_random_attempt_is_not_offered_after_skill_becomes_owned(fighter):
-    action, outcome, allowance = _advancement(fighter)
-    primary = _primary_agility(fighter)
-    secondary = _secondary_cunning(fighter)
-    configured = outcome.resolve_advancement
-    with operation(fighter.gang) as op:
-        record = op.start_action(fighter, action, uuid4(), allowance)
-        op.record_action_roll(record, configured, uuid4(), rolled=12)
-    options = advancement_options(record, configured)
-    random_primary = next(row for row in options if row.name == "Random Primary skill")
-    random_secondary = next(
-        row for row in options if row.name == "Random Secondary skill"
-    )
-    with operation(fighter.gang) as op:
-        primary_attempt = op.record_skill_roll(
-            record,
-            configured,
-            uuid4(),
-            pickable_id=random_primary.id,
-            skill_set_id=primary.pk,
-            rolled=1,
-        )
-        op.record_skill_roll(
-            record,
-            configured,
-            uuid4(),
-            pickable_id=random_secondary.id,
-            skill_set_id=secondary.pk,
-            rolled=1,
-        )
-        reviewed = op.review_action(
-            record,
-            outcome=outcome,
-            terms={"pickable_id": random_secondary.id},
-        )
-    with operation(fighter.gang) as op:
-        completed = op.complete_action(
-            reviewed,
-            revision=reviewed.revision,
-            review=reviewed.review,
-            outcome=outcome,
-        )
-        op.assign(Skill.objects.get(pk=primary_attempt["skill_id"]), miniature=fighter)
-
-    assert all(
-        row.id != random_primary.id or not row.gainable
-        for row in advancement_options(completed, configured)
-    )
-    with operation(fighter.gang) as op:
-        with pytest.raises(Refusal, match="Choose an available advancement result"):
-            op.review_action_correction(
-                completed, terms={"pickable_id": random_primary.id}
-            )
 
 
 def test_exact_skill_roll_retry_survives_lost_access(fighter):
@@ -1543,3 +1495,56 @@ def test_select_any_skill_lists_a_skill_with_no_set(client, user, fighter):
     assert response.status_code == 200
     assert "Other skills" in response.content.decode()
     assert "Loose skill" in response.content.decode()
+
+
+def test_stat_previews_keep_skill_eligibility_until_a_real_assignment_is_removed(
+    fighter,
+):
+    """Considering a result that removes a rank leaves the current rank intact.
+    A later operation does, and the next options read sees that change."""
+    from n26.core.reconcile import assert_reconciled
+
+    action, outcome, allowance = _advancement(fighter)
+    configured = outcome.resolve_advancement
+    category = Category.objects.get(name="Agility", section__name="Skills")
+    leader = authoring.create_subtype("Leader", qualifier="Preview eligibility")
+    restricted = authoring.create_skill(
+        "Lead by example", category=category, usable_by_subtypes=[leader]
+    )
+    unrestricted = authoring.create_skill("Keep your footing", category=category)
+    result = _ensure_stat_result("Strength", Stat.objects.get(short_name="M"))
+    authoring.modifier(
+        "This stat result also retires the leader",
+        targets_model(),
+        authoring.ef_removes(leader),
+        attach_to=result,
+    )
+    with operation(fighter.gang) as op:
+        leadership = op.assign(leader, miniature=fighter)
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=12)
+
+    select_any = Pickable.objects.get(name="Select any skill", qualifier="")
+    before = {
+        skill.pk
+        for skills in skill_options(record, configured, select_any.pk).values()
+        for skill in skills
+    }
+    assert restricted.pk in before
+    assert unrestricted.pk in before
+    leadership.refresh_from_db()
+    assert leadership.archived is False
+
+    with operation(fighter.gang) as op:
+        op.remove(leadership)
+
+    after = {
+        skill.pk
+        for skills in skill_options(record, configured, select_any.pk).values()
+        for skill in skills
+    }
+    assert restricted.pk not in after
+    assert unrestricted.pk in after
+    leadership.refresh_from_db()
+    assert leadership.archived is True
+    assert_reconciled(fighter.gang)

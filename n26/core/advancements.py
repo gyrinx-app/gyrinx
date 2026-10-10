@@ -277,7 +277,7 @@ def _stat_gainable(fighter, pickable, *, evaluation=None):
     ]
 
 
-def _listed_skills(record, offer, *, computed=None, owned=None):
+def _listed_skills(record, offer, *, computed=None, owned=None, fighter=None):
     from n26.core.browse import offered_by, usability_for
     from n26.library.models.assignable import USABLE_BY_LISTS
 
@@ -289,7 +289,8 @@ def _listed_skills(record, offer, *, computed=None, owned=None):
     question = SimpleNamespace(slot=None, offer=offer, kind_label=offer.kind_label)
     listed = offered_by(question, computed)
     rows = listed.all_lines() if hasattr(listed, "all_lines") else listed
-    fighter = usability_for(computed)
+    if fighter is None:
+        fighter = usability_for(computed)
     if owned is None:
         owned = {
             node.assignable.pk
@@ -599,6 +600,12 @@ def _effect_text(pickable, index=None, seen=None):
 
 
 def advancement_options(record, configured):
+    options, _skills_for = _advancement_read(record, configured)
+    return options
+
+
+def _advancement_read(record, configured):
+    """Options and their skill listings from one read of the current fighter."""
     if replaces_roll(record, configured):
         slot = result_slot(record, configured)
         members, _ = _roll_table(SimpleNamespace(slot=slot, slot_id=slot.pk))
@@ -626,7 +633,12 @@ def advancement_options(record, configured):
         [*carriers(card), *(member.pickable for member in members)]
     )
     computed = compute(card, index)
+    from n26.core.browse import usability_for
     from n26.core.render import build_model_card
+
+    # Stat previews mutate card nodes; choice eligibility stays on the
+    # fighter as they are before any proposed result.
+    fighter = usability_for(computed)
 
     evaluation = (
         card,
@@ -652,7 +664,7 @@ def advancement_options(record, configured):
     def skills_for(offer):
         if offer.pk not in skill_cache:
             skill_cache[offer.pk] = _listed_skills(
-                record, offer, computed=computed, owned=owned
+                record, offer, computed=computed, owned=owned, fighter=fighter
             )
         return skill_cache[offer.pk]
 
@@ -681,7 +693,7 @@ def advancement_options(record, configured):
 
     gainable_members = [member for member in landed if gainable[member.pk]]
     offered = gainable_members or members
-    return tuple(
+    options = tuple(
         AdvancementOption(
             str(member.pickable_id),
             str(member.pickable),
@@ -697,14 +709,18 @@ def advancement_options(record, configured):
         for member in offered
     )
 
+    return options, skills_for
+
 
 def skill_options(record, configured, pickable_id):
+    read = _advancement_read(record, configured)
+    return _skill_options(record, configured, pickable_id, read=read)
+
+
+def _skill_options(record, configured, pickable_id, *, read):
+    options, skills_for = read
     option = next(
-        (
-            option
-            for option in advancement_options(record, configured)
-            if option.id == str(pickable_id)
-        ),
+        (option for option in options if option.id == str(pickable_id)),
         None,
     )
     if option is None or not option.gainable:
@@ -718,7 +734,7 @@ def skill_options(record, configured, pickable_id):
     if offer is None:
         return {}
     grouped = {}
-    for skill in _listed_skills(record, offer):
+    for skill in skills_for(offer):
         grouped.setdefault(skill.category, []).append(skill)
     return grouped
 
@@ -978,9 +994,8 @@ def record_skill_roll(
 
 def _resolved(record, configured, terms):
     pickable_id = str(terms.get("pickable_id", ""))
-    options_by_id = {
-        option.id: option for option in advancement_options(record, configured)
-    }
+    read = _advancement_read(record, configured)
+    options_by_id = {option.id: option for option in read[0]}
     if pickable_id not in options_by_id or not options_by_id[pickable_id].gainable:
         raise Refusal("Choose an available advancement result.")
     pickable = (
@@ -991,7 +1006,7 @@ def _resolved(record, configured, terms):
     offer, skill = _skill_offer(pickable), None
     if offer is not None:
         kind_name = _choice_noun(offer)
-        options = skill_options(record, configured, pickable_id)
+        options = _skill_options(record, configured, pickable_id, read=read)
         if offer.mode == offer.Mode.RANDOM:
             skill = recorded_skill(record, configured, pickable_id)
             available = {row.pk for rows in options.values() for row in rows}

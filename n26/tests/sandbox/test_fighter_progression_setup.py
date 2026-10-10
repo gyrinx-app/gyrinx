@@ -47,17 +47,11 @@ def _errors(response):
     )
 
 
-@pytest.fixture
-@library_setup
-def progression(
-    default_pack, make_profile, make_statline, gang_type, counter_tracking, request
-):
+def _prepare_progression_content(make_profile, make_statline, opening_xp):
     profile = make_profile("Test prospect", staged=True, price=100)
     make_statline(profile)
     prepare_fighter_progression()
-    a.add_built_in(
-        profile, Counter.objects.get(name="XP"), amount=getattr(request, "param", 12)
-    )
+    a.add_built_in(profile, Counter.objects.get(name="XP"), amount=opening_xp)
     prospect = Subtype.objects.get(name="Prospect")
     a.modifier(
         "Prospect rank", a.targets_model(), a.ef_adds(prospect), attach_to=profile
@@ -65,20 +59,29 @@ def progression(
     attach_fighter_progression()
     profile.refresh_from_db()
     owner = User.objects.create_user("progression-player")
-    gang = found_gang("The Climbers", gang_type, owner=owner, budget=1000)
-    fighter = hire(gang, profile, "Kara")
-    xp = Assignment.objects.get(miniature_root=fighter, counter__name="XP")
     action = Action.objects.get(name="Advancement")
     outcome = action.outcomes.get().outcome
-    return SimpleNamespace(
-        profile=profile,
-        owner=owner,
-        gang=gang,
-        fighter=fighter,
-        xp=xp,
-        action=action,
-        outcome=outcome,
+    return SimpleNamespace(profile=profile, owner=owner, action=action, outcome=outcome)
+
+
+@pytest.fixture
+@library_setup
+def progression_content(default_pack, make_profile, make_statline):
+    return _prepare_progression_content(make_profile, make_statline, 12)
+
+
+@pytest.fixture
+@library_setup
+def progression(
+    default_pack, make_profile, make_statline, gang_type, counter_tracking, request
+):
+    content = _prepare_progression_content(
+        make_profile, make_statline, getattr(request, "param", 12)
     )
+    gang = found_gang("The Climbers", gang_type, owner=content.owner, budget=1000)
+    fighter = hire(gang, content.profile, "Kara")
+    xp = Assignment.objects.get(miniature_root=fighter, counter__name="XP")
+    return SimpleNamespace(**vars(content), gang=gang, fighter=fighter, xp=xp)
 
 
 def _computed(fighter):
@@ -279,11 +282,11 @@ class TestFoundationSetup:
         assert record.state == ActionRecord.State.COMPLETED
 
     def test_the_live_rollout_requires_a_current_signed_preview(
-        self, client, progression, make_profile
+        self, client, progression_content, make_profile
     ):
-        progression.owner.is_staff = True
-        progression.owner.save()
-        client.force_login(progression.owner)
+        progression_content.owner.is_staff = True
+        progression_content.owner.save()
+        client.force_login(progression_content.owner)
         live = make_profile("Live recruit")
         address = reverse("authoring-foundations")
         assert client.post(address, {"progression": "live"}).status_code == 302
@@ -381,7 +384,7 @@ class TestFoundationSetup:
         assert record.state == ActionRecord.State.COMPLETED
 
     def test_the_imported_initiate_name_receives_both_exceptions(
-        self, progression, make_profile
+        self, progression_content, make_profile
     ):
         cults = a.create_gang_type("Corpse Grinder Cults")
         initiate = make_profile(
@@ -484,27 +487,33 @@ class TestFoundationSetup:
             add_rank_action(index)
         assert query_count(6) == small
 
-    def test_a_broken_shared_binding_is_reported_and_repaired(self, progression):
+    def test_a_broken_shared_binding_is_reported_and_repaired(
+        self, progression_content
+    ):
         modifier = Modifier.objects.get(name="Fighter progression: Advancement")
         modifier.targets_miniature.reach = "every_model"
         modifier.targets_miniature.save()
         assert not next(
-            row for row in progression_plan() if row.target == progression.profile
+            row
+            for row in progression_plan()
+            if row.target == progression_content.profile
         ).attached
         attach_fighter_progression()
         assert next(
-            row for row in progression_plan() if row.target == progression.profile
+            row
+            for row in progression_plan()
+            if row.target == progression_content.profile
         ).attached
 
     def test_profile_count_does_not_grow_foundation_queries(
-        self, client, progression, make_profile
+        self, client, progression_content, make_profile
     ):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
-        progression.owner.is_staff = True
-        progression.owner.save()
-        client.force_login(progression.owner)
+        progression_content.owner.is_staff = True
+        progression_content.owner.save()
+        client.force_login(progression_content.owner)
         address = reverse("authoring-foundations") + "?progression=live"
 
         def queries():
@@ -615,10 +624,10 @@ class TestHiddenProgressionMigration:
 
 
 class TestPromotionAuthoring:
-    def test_an_author_can_add_and_edit_a_promotion(self, client, progression):
-        progression.owner.is_staff = True
-        progression.owner.save()
-        client.force_login(progression.owner)
+    def test_an_author_can_add_and_edit_a_promotion(self, client, progression_content):
+        progression_content.owner.is_staff = True
+        progression_content.owner.save()
+        client.force_login(progression_content.owner)
         original = AdvancementPromotion.objects.get(threshold=13)
         address = reverse(
             "authoring-detail", args=["resolve-advancement", original.advancement_id]
@@ -630,9 +639,9 @@ class TestPromotionAuthoring:
             "threshold": "61",
             "slot": str(original.slot_id),
             "replaces_advancement": "on",
-            "optional_profiles": [str(progression.profile.pk)],
+            "optional_profiles": [str(progression_content.profile.pk)],
             "requires_hidden": str(original.requires_hidden_id),
-            "stash_weapons_for": [str(progression.profile.pk)],
+            "stash_weapons_for": [str(progression_content.profile.pk)],
             "keep_weapon_trait": str(original.keep_weapon_trait_id),
         }
         added = client.post(address, payload)
@@ -640,7 +649,7 @@ class TestPromotionAuthoring:
             "form"
         ].errors
         promotion = AdvancementPromotion.objects.get(threshold=61)
-        assert list(promotion.optional_profiles.all()) == [progression.profile]
+        assert list(promotion.optional_profiles.all()) == [progression_content.profile]
         payload["threshold"] = "85"
         payload["optional_profiles"] = []
         edited = client.post(
@@ -658,7 +667,9 @@ class TestPromotionAuthoring:
         promotion.refresh_from_db()
         assert promotion.threshold == 85
         assert not promotion.optional_profiles.exists()
-        assert promotion.stash_weapons_for.filter(pk=progression.profile.pk).exists()
+        assert promotion.stash_weapons_for.filter(
+            pk=progression_content.profile.pk
+        ).exists()
 
         payload["keep_weapon_trait"] = ""
         refused = client.post(
@@ -959,18 +970,8 @@ class TestPromotions:
         }
 
     @pytest.mark.parametrize("progression", [36], indirect=True)
-    @pytest.mark.parametrize(
-        "retired_result",
-        [
-            None,
-            "member_archived",
-            "member_staged",
-            "pickable_archived",
-            "pickable_staged",
-        ],
-    )
     def test_a_ganger_gets_the_advancement_and_champion_promotion(
-        self, client, monkeypatch, progression, retired_result
+        self, client, monkeypatch, progression
     ):
         from n26.library.models import Skill
 
@@ -982,9 +983,14 @@ class TestPromotions:
         )
         prepare_fighter_progression()
         promotion = AdvancementPromotion.objects.get(threshold=37)
-        if retired_result:
+        for retired_result in (
+            "member_archived",
+            "member_staged",
+            "pickable_archived",
+            "pickable_staged",
+        ):
             extra = a.create_pickable(
-                "Other promotion result", promotion.slot.slot_type
+                f"Other promotion result: {retired_result}", promotion.slot.slot_type
             )
             member = a.add_picklist_member(promotion.slot.picklist, extra)
             target, field = retired_result.split("_")
