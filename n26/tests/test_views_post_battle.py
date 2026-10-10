@@ -422,7 +422,8 @@ class TestGangActions:
         assert response.status_code == 200
         document = BeautifulSoup(response.content, "html.parser")
         panel = document.select_one('[role="region"][aria-label="Actions"]')
-        assert bool(panel) == (campaigns_open or founding_open)
+        # A model held for ransom brings the square whatever the flags.
+        assert panel
         links = document.select(f'a[href="{start_url(table, standalone=True)}"]')
         assert len(links) == int(campaigns_open)
         if campaigns_open:

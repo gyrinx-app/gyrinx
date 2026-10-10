@@ -1119,9 +1119,8 @@ def edit_fighter(request, pk):
             "summary": summarise_roster(members),
             "trade_points_href": trade_points_href(gang, request.user),
             "credits_href": credits_href(gang, request.user),
-            # One reading of the flag, passed to both: the badge leads to
-            # whichever question the status wants, the menu item always to
-            # Mark as….
+            # The badge leads to whichever question the status wants, the
+            # menu item always to Mark as….
             "status_href": (
                 status_href(gang, miniature, back="edit") if may_mark else ""
             ),

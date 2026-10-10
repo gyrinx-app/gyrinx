@@ -529,12 +529,12 @@ class TestThePage:
         assert ">Active</a>" in page.replace("\n", "").replace("  ", "")
 
     def test_an_owner_outside_the_founding_flag_still_sets_a_status(
-        self, client, gang, krago, nix, make_user
+        self, client, gang, krago, nix
     ):
         """Setting a status by hand belongs to every owner, whatever the
-        founding flag says: the badge, Mark as…, the dialog and the acts
-        all reach an owner it does not admit."""
-        outsider = make_user("outsider", "password")
+        founding flag says: the badge, Mark as…, the dialog, Clean House
+        and the acts all reach an owner it does not admit."""
+        outsider = User.objects.create_user("outsider")
         gang.owner = outsider
         gang.save(update_fields=["owner"])
         with operation(gang, actor=outsider) as op:
@@ -542,16 +542,31 @@ class TestThePage:
             op.set_status(nix, Status.RECOVERY)
         client.force_login(outsider)
         sheet = reverse("n26-gang", args=[gang.pk])
-        assert f"?status={krago.pk}" in client.get(sheet).content.decode()
+        clean_house = reverse("n26-clean-house", args=[gang.pk])
+        page = client.get(sheet).content.decode()
+        assert f"?status={krago.pk}" in page
+        assert f'action="{clean_house}"' in page
         edit = client.get(reverse("n26-edit-fighter", args=[krago.pk])).content.decode()
-        assert "Mark as" in edit
+        assert "Mark as…" in edit
         assert (
             "Mark Krago as" in client.get(f"{sheet}?status={krago.pk}").content.decode()
         )
         client.post(reverse("n26-mark-fighter", args=[krago.pk]), {"status": "active"})
         assert fresh(krago).status == Status.ACTIVE
-        client.post(reverse("n26-clean-house", args=[gang.pk]))
+        client.post(clean_house)
         assert fresh(nix).status == Status.ACTIVE
+
+    def test_an_owner_outside_both_flags_with_nothing_waiting_has_no_square(
+        self, client, gang, krago
+    ):
+        """The Actions square comes to an owner on neither flag only for a
+        model In Recovery or held for ransom."""
+        outsider = User.objects.create_user("outsider")
+        gang.owner = outsider
+        gang.save(update_fields=["owner"])
+        client.force_login(outsider)
+        response = client.get(reverse("n26-gang", args=[gang.pk]))
+        assert response.context["activities_square"] is None
 
     def test_a_reader_who_does_not_own_the_gang_reads_the_status_as_words(
         self, client, gang, krago
