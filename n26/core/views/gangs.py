@@ -1818,7 +1818,6 @@ def gang_trade_points(request, pk):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.activities import founding_card, visit_card
-    from n26.core.founding import grants_by_model
     from n26.core.models import Activity
     from n26.core.operations import Refusal, operation
     from n26.core.render import roster
@@ -1915,11 +1914,10 @@ def gang_trade_points(request, pk):
         )
         if completed is not None and gang.open_activity(Activity.Kind.FOUNDING) is None:
             computed = computed_members(gang)
-            grants = grants_by_model(computed, models=members)
-            reopen_founding = any(
-                model.membership.created <= completed
-                and grants.get(str(model.pk), 0) > 0
-                for model in members
+            from n26.core.founding import original_models_have_grants
+
+            reopen_founding = original_models_have_grants(
+                completed, computed, models=members
             )
     offered = visitors(gang, going=set(), members=members, computed=computed)
     offer = as_offer(offered)
@@ -2049,6 +2047,17 @@ def gang_founding_action(request, pk):
                         )
                 if gang.open_activity(kind) is not None:
                     return redirect(at)
+                if act == "reopen":
+                    from n26.core.founding import original_models_have_grants
+                    from n26.core.render import roster
+                    from n26.core.trading import computed_members
+
+                    if not original_models_have_grants(
+                        completed, computed_members(gang), models=roster(gang)
+                    ):
+                        raise Refusal(
+                            "This action has changed. Reload the page before reopening it."
+                        )
                 op.open_activity(kind)
         except Refusal as refused:
             messages.error(request, str(refused))
