@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.urls import reverse
 
 from n26.core.card import build_card, build_modifier_index, carriers
@@ -29,7 +30,9 @@ from n26.library.models import (
     Hidden,
     Modifier,
     Pickable,
+    ProfileType,
     Rule,
+    Stat,
     Subtype,
     Trait,
 )
@@ -47,10 +50,13 @@ def _errors(response):
     )
 
 
-def _prepare_progression_content(make_profile, make_statline, opening_xp):
+def _prepare_progression_content(
+    make_profile, make_statline, opening_xp, *, prepared_catalogue=False
+):
     profile = make_profile("Test prospect", staged=True, price=100)
     make_statline(profile)
-    prepare_fighter_progression()
+    if not prepared_catalogue:
+        prepare_fighter_progression()
     a.add_built_in(profile, Counter.objects.get(name="XP"), amount=opening_xp)
     prospect = Subtype.objects.get(name="Prospect")
     a.modifier(
@@ -62,6 +68,24 @@ def _prepare_progression_content(make_profile, make_statline, opening_xp):
     action = Action.objects.get(name="Advancement")
     outcome = action.outcomes.get().outcome
     return SimpleNamespace(profile=profile, owner=owner, action=action, outcome=outcome)
+
+
+def _found_progression(content, gang_type):
+    gang = found_gang("The Climbers", gang_type, owner=content.owner, budget=1000)
+    fighter = hire(gang, content.profile, "Kara")
+    xp = Assignment.objects.get(miniature_root=fighter, counter__name="XP")
+    return SimpleNamespace(**vars(content), gang=gang, fighter=fighter, xp=xp)
+
+
+@pytest.fixture(scope="class")
+def _prepared_promotion_catalogue(django_db_setup, django_db_blocker):
+    """Promotion cases start from one prepared catalogue, isolated by rollback."""
+    with django_db_blocker.unblock(), transaction.atomic():
+        prepare_fighter_progression()
+        try:
+            yield
+        finally:
+            transaction.set_rollback(True)
 
 
 @pytest.fixture
@@ -78,10 +102,7 @@ def progression(
     content = _prepare_progression_content(
         make_profile, make_statline, getattr(request, "param", 12)
     )
-    gang = found_gang("The Climbers", gang_type, owner=content.owner, budget=1000)
-    fighter = hire(gang, content.profile, "Kara")
-    xp = Assignment.objects.get(miniature_root=fighter, counter__name="XP")
-    return SimpleNamespace(**vars(content), gang=gang, fighter=fighter, xp=xp)
+    return _found_progression(content, gang_type)
 
 
 def _computed(fighter):
@@ -218,6 +239,7 @@ class TestFoundationSetup:
         self, default_pack, make_profile
     ):
         profile = make_profile("Live ganger")
+        assert not Action.objects.filter(name="Advancement").exists()
         rule = prepare_fighter_progression()
         counts = Modifier.objects.count(), Pickable.objects.count()
         assert prepare_fighter_progression() == rule
@@ -689,8 +711,58 @@ class TestPromotionAuthoring:
         assert promotion.keep_weapon_trait_id == original.keep_weapon_trait_id
 
 
+@pytest.mark.usefixtures("_prepared_promotion_catalogue")
 class TestPromotions:
     """A promotion is part of its earned advancement, not an additional use."""
+
+    @pytest.fixture
+    @library_setup
+    def progression_content(self, default_pack, make_profile, make_statline):
+        return _prepare_progression_content(
+            make_profile, make_statline, 12, prepared_catalogue=True
+        )
+
+    @pytest.fixture
+    @library_setup
+    def progression(
+        self,
+        default_pack,
+        make_profile,
+        make_statline,
+        gang_type,
+        counter_tracking,
+        request,
+    ):
+        content = _prepare_progression_content(
+            make_profile,
+            make_statline,
+            getattr(request, "param", 12),
+            prepared_catalogue=True,
+        )
+        return _found_progression(content, gang_type)
+
+    @pytest.fixture
+    def person_type(self, person_statline_type):
+        """Each case uses its own Person shape on the prepared Fighter type."""
+        kind = ProfileType.objects.get(
+            name="Fighter", pack_id=person_statline_type.pack_id
+        )
+        kind.statline_type = person_statline_type
+        kind.save(update_fields=["statline_type", "modified"])
+        return kind
+
+    @pytest.fixture
+    def make_stat(self, default_pack):
+        """The Person shape uses the catalogue's existing characteristic rows."""
+
+        def make(short_name, full_name, **kwargs):
+            if "pack" not in kwargs and "pack_id" not in kwargs:
+                kwargs["pack_id"] = default_pack.pk
+            return Stat.objects.get(
+                short_name=short_name, full_name=full_name, **kwargs
+            )
+
+        return make
 
     @pytest.mark.parametrize("field", ["staged", "archived"])
     def test_withdrawn_results_preserve_the_earned_use_until_a_result_is_restored(

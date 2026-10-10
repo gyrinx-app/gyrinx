@@ -28,6 +28,7 @@ from n26.core.render import (
 )
 from n26.library.authoring import targets_model as targets_model_with
 from n26.library.models import Pickable, Slot
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_built_in,
     add_picklist_member,
@@ -80,6 +81,7 @@ def legacy(default_pack):
 
 
 @pytest.fixture
+@library_setup
 def houses(legacy):
     """Three of the eight, each opening its own equipment list."""
     made = {}
@@ -106,6 +108,7 @@ def gang_legacy_slot(legacy, legacies):
 
 
 @pytest.fixture
+@library_setup
 def hunter(person_type, gang_type, gang_legacy_slot):
     """A profile carrying the choice: hired plain, it arrives open."""
     profile = create_profile("Hunter", person_type, gang_type, price=100)
@@ -114,6 +117,7 @@ def hunter(person_type, gang_type, gang_legacy_slot):
 
 
 @pytest.fixture
+@library_setup
 def squats_hunter(person_type, gang_type, gang_legacy_slot, houses):
     """The slot-with-default: hired, it arrives already settled."""
     profile = create_profile("Squats Hunter", person_type, gang_type, price=100)
@@ -152,72 +156,42 @@ class TestAChoiceArrivesOpen:
     """Assigning a slot is what asks the question. Nothing pending is
     written: the row is computed, and leaving it open costs nothing."""
 
-    def test_the_card_asks_it_by_its_label(self, gang, hunter):
+    def test_an_open_choice_names_its_bounds_and_shortfall_without_drawing_gear(
+        self, gang, hunter
+    ):
         kaustos = hire(gang, hunter, "Kaustos", paid=100)
-
         (slot,) = choices_of(kaustos)
-
         assert slot.kind_label == "Gang Legacy"
         assert not slot.is_resolved
         assert (slot.min_picks, slot.max_picks) == (1, 1)
         assert_reconciled(gang)
 
-    def test_the_slot_itself_draws_no_line(self, gang, hunter):
-        kaustos = hire(gang, hunter, "Kaustos", paid=100)
         drawn = drawn_card(kaustos)
-
         assert [line.name for line in drawn.equipment] == []
         assert [line.kind_label for line in drawn.choices] == ["Gang Legacy"]
-
-    def test_the_card_says_when_it_is_short(self, gang, hunter):
-        kaustos = hire(gang, hunter, "Kaustos", paid=100)
-        drawn = drawn_card(kaustos)
-
         assert [note.text for note in drawn.remarks] == ["Gang Legacy — 0 of 1 chosen"]
-
-    def test_nothing_is_refused_for_leaving_it_open(self, gang, hunter):
-        """Inform, never police: the note is the whole of it."""
-        hire(gang, hunter, "Kaustos", paid=100)
         assert_reconciled(gang)
 
 
 class TestMakingTheChoice:
-    def test_the_pick_answers_the_row_and_draws_no_row_of_its_own(
-        self, gang, hunter, houses
-    ):
-        kaustos = hire(gang, hunter, "Kaustos", paid=100)
-        (open_slot,) = choices_of(kaustos)
-
-        choose(open_slot.anchor.assignment, houses["Cawdor"])
-
-        _, computed = card_of(kaustos)
-        (settled,) = computed.choices
-        assert settled.chosen_name == "Cawdor"
-        drawn = drawn_card(kaustos)
-        assert [line.name for line in drawn.equipment] == []
-        assert [line.chosen for line in drawn.choices] == ["Cawdor"]
-        assert drawn.remarks == []
-
-    def test_what_the_pick_gives_reaches_the_bearer(self, gang, hunter, houses):
-        kaustos = hire(gang, hunter, "Kaustos", paid=100)
-        (open_slot,) = choices_of(kaustos)
-
-        choose(open_slot.anchor.assignment, houses["Cawdor"])
-
-        _, computed = card_of(kaustos)
-        assert [line.name for line in computed.collections] == [
-            "House Cawdor Equipment List"
-        ]
-
-    def test_the_pick_is_free_and_the_gang_is_worth_the_same(
+    def test_a_free_pick_settles_the_row_and_gives_its_payload_without_changing_rating(
         self, gang, hunter, houses
     ):
         kaustos = hire(gang, hunter, "Kaustos", paid=100)
         (open_slot,) = choices_of(kaustos)
         before = gang.rating
-
         choose(open_slot.anchor.assignment, houses["Cawdor"])
 
+        _, computed = card_of(kaustos)
+        (settled,) = computed.choices
+        assert settled.chosen_name == "Cawdor"
+        assert [line.name for line in computed.collections] == [
+            "House Cawdor Equipment List"
+        ]
+        drawn = drawn_card(kaustos)
+        assert [line.name for line in drawn.equipment] == []
+        assert [line.chosen for line in drawn.choices] == ["Cawdor"]
+        assert drawn.remarks == []
         gang.refresh_from_db()
         assert gang.rating == before
         assert_reconciled(gang)
@@ -250,71 +224,41 @@ class TestMakingTheChoice:
 class TestASlotWithADefault:
     """Hired from a profile carrying the pick, the choice arrives made."""
 
-    def test_it_arrives_settled(self, gang, squats_hunter):
-        grendel = hire(gang, squats_hunter, "Grendel", paid=100)
-
-        (settled,) = choices_of(grendel)
-
-        assert settled.chosen_name == "Ironhead Squats"
-        assert_reconciled(gang)
-
-    def test_an_automatic_default_is_not_labelled_as_a_player_choice(
-        self, gang, squats_hunter
-    ):
-        grendel = hire(gang, squats_hunter, "Grendel", paid=100)
-        card, computed = card_of(grendel)
-        (settled,) = computed.choices
-
-        provenance = _provenance_within(card, computed=computed)(settled.picks[0])
-
-        assert settled.offer is None
-        assert not provenance.chosen
-        assert provenance.description == "From Gang Legacy"
-        assert_reconciled(gang)
-
-    def test_rechoosing_a_slot_keeps_its_normal_choice_line(
+    def test_a_default_names_its_source_then_removal_and_rechoice_keep_the_slot(
         self, gang, squats_hunter, houses
     ):
         grendel = hire(gang, squats_hunter, "Grendel", paid=100)
         (settled,) = choices_of(grendel)
-        remove(settled.picks[0].assignment)
-        choose(settled.anchor.assignment, houses["Escher"])
-
-        (line,) = drawn_card(grendel).choices
-
-        assert line.kind_label == "Gang Legacy"
-        assert line.chosen == "Escher"
-        assert line.provenance.source == "Gang Legacy"
-        assert not line.provenance.chosen
+        assert settled.chosen_name == "Ironhead Squats"
         assert_reconciled(gang)
 
-    def test_the_pick_answers_the_slots_own_assignment(self, gang, squats_hunter):
-        grendel = hire(gang, squats_hunter, "Grendel", paid=100)
+        card, computed = card_of(grendel)
+        (settled,) = computed.choices
+        provenance = _provenance_within(card, computed=computed)(settled.picks[0])
+        assert settled.offer is None
+        assert not provenance.chosen
+        assert provenance.description == "From Gang Legacy"
+        assert_reconciled(gang)
 
         slot = Assignment.objects.get(slot__isnull=False, miniature_root=grendel)
         pick = Assignment.objects.get(pickable__isnull=False, miniature_root=grendel)
         assert pick.chosen_for == slot
         assert pick.caused_by == slot
 
-    def test_changing_it_is_the_ordinary_rechoose(self, gang, squats_hunter, houses):
-        grendel = hire(gang, squats_hunter, "Grendel", paid=100)
-        (settled,) = choices_of(grendel)
-
         remove(settled.picks[0].assignment)
-        choose(settled.anchor.assignment, houses["Escher"])
+        (still_asked,) = choices_of(grendel)
+        assert not still_asked.is_resolved
+        choose(still_asked.anchor.assignment, houses["Escher"])
 
+        (line,) = drawn_card(grendel).choices
+        assert line.kind_label == "Gang Legacy"
+        assert line.chosen == "Escher"
+        assert line.provenance.source == "Gang Legacy"
+        assert not line.provenance.chosen
+        assert_reconciled(gang)
         (rechosen,) = choices_of(grendel)
         assert rechosen.chosen_name == "Escher"
         assert_reconciled(gang)
-
-    def test_the_choice_stays_when_the_pick_goes(self, gang, squats_hunter):
-        grendel = hire(gang, squats_hunter, "Grendel", paid=100)
-        (settled,) = choices_of(grendel)
-
-        remove(settled.picks[0].assignment)
-
-        (still_asked,) = choices_of(grendel)
-        assert not still_asked.is_resolved
 
 
 class TestTwoChoicesOfOneSlotType:

@@ -28,8 +28,9 @@ permissions:
 # The suite is split in two. `test` is the required check: the tests marked
 # `core` (fundamental behaviour, the critical flows, safety and performance
 # checks) plus every test the pull request itself touched. `test-full` runs
-# everything and reports, but does not block a merge. fresh-database is the
-# only job here that applies the migration graph.
+# everything and reports, but does not block a merge. On PRs whose exact
+# changed scope is ".", the required check owns that full run. fresh-database
+# is the only job here that applies the migration graph.
 jobs:
   test:
     # Only main can skip suites for a paging smoke test. A manual run on a
@@ -67,8 +68,31 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # scripts/changed_test_paths.py diffs against the base branch.
+          # Compare both jobs against the same immutable PR base revision.
           fetch-depth: 0
+
+      - name: Decide whether the required check owns the full suite
+        id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          printf 'head=%s\nbase=%s\n' "$GITHUB_SHA" "$BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          mkdir -p logs
+          full=false
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            test -n "$BASE_SHA"
+            python3 scripts/changed_test_paths.py "$BASE_SHA" | tee logs/changed-test-paths.txt
+            if [ "$(cat logs/changed-test-paths.txt)" = "." ]; then
+              full=true
+            fi
+          else
+            : > logs/changed-test-paths.txt
+          fi
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          printf 'required_full=%s\n' "$full"
 
       - uses: ./.github/actions/python-env
         with:
@@ -93,27 +117,26 @@ jobs:
 
       - uses: ./.github/actions/react-build
 
-      - name: List the tests this pull request touched
-        if: github.event_name == 'pull_request'
-        # `shell: bash` turns on pipefail, so a failing script fails the step
-        # instead of leaving an empty list behind `tee`.
+      - name: Record PostgreSQL compilation capability
         shell: bash
         env:
-          BASE_REF: ${{ github.base_ref }}
+          PG_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
-          source .venv/bin/activate
-          scripts/changed_test_paths.py "origin/$BASE_REF" | tee changed-test-paths.txt
+          docker exec "$PG_CONTAINER_ID" psql -U postgres -Atc \
+            "SELECT version(), pg_jit_available(), current_setting('jit'), current_setting('jit_above_cost');"
 
       - name: Run the core suite and the changed tests
-        # Generous because a change to the root conftest runs the whole suite
-        # through this job.
-        timeout-minutes: 45
-        # Workers spend time waiting on PostgreSQL. Use eight processes on
-        # the existing runner; this adds neither runners nor billed capacity.
+        # An exact root scope already requires every test. Measure that full
+        # run directly rather than relying on the dynamic core marker.
+        timeout-minutes: ${{ steps.scope.outputs.full == 'true' && 60 || 45 }}
         run: |
           source .venv/bin/activate
-          export GYRINX_CHANGED_TEST_PATHS="$(cat changed-test-paths.txt 2>/dev/null || true)"
-          pytest -m core --durations=20 -v -n 8
+          if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
+            python scripts/measure_test_performance.py --label ci-required-full -- -v -n 8
+          else
+            export GYRINX_CHANGED_TEST_PATHS="$(cat logs/changed-test-paths.txt)"
+            pytest -m core --durations=20 -v -n 8
+          fi
 
   test-full:
     if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main'
@@ -145,14 +168,59 @@ jobs:
       DB_CONFIG: '{"user":"postgres","password":"postgres"}'
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Compare both jobs against the same immutable PR base revision.
+          fetch-depth: 0
+
+      - name: Decide whether the required check owns the full suite
+        id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          printf 'head=%s\nbase=%s\n' "$GITHUB_SHA" "$BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          mkdir -p logs
+          full=false
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            test -n "$BASE_SHA"
+            python3 scripts/changed_test_paths.py "$BASE_SHA" | tee logs/changed-test-paths.txt
+            if [ "$(cat logs/changed-test-paths.txt)" = "." ]; then
+              full=true
+            fi
+          else
+            : > logs/changed-test-paths.txt
+          fi
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          printf 'required_full=%s\n' "$full"
+
+      - name: Report the full suite's required check
+        if: steps.scope.outputs.full == 'true'
+        shell: bash
+        run: |
+          echo "Full suite runs in required test check. This job omits the duplicate execution; its success does not report the suite's result." >> "$GITHUB_STEP_SUMMARY"
+          echo "[Required test check and full-suite result]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: ./.github/actions/python-env
+        if: steps.scope.outputs.full != 'true'
         with:
           postgres-container: ${{ job.services.postgres.id }}
 
       - uses: ./.github/actions/react-build
+        if: steps.scope.outputs.full != 'true'
+
+      - name: Record PostgreSQL compilation capability
+        if: steps.scope.outputs.full != 'true'
+        shell: bash
+        env:
+          PG_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$PG_CONTAINER_ID" psql -U postgres -Atc \
+            "SELECT version(), pg_jit_available(), current_setting('jit'), current_setting('jit_above_cost');"
 
       - name: Run the full suite
+        if: steps.scope.outputs.full != 'true'
         timeout-minutes: 60
         # Match the required check's concurrency on the same runner size.
         run: |

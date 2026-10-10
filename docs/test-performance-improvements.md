@@ -33,6 +33,15 @@ to run while one waits on PostgreSQL. It adds no runners or larger machines.
 Verify the cost separately by comparing the sum of the required, full-suite
 and fresh-database job durations, not just the fastest job.
 
+When a PR changes the root conftest, the existing changed-test policy requires
+the entire suite. CI measures an unfiltered full run in the required `test`
+job for that exact `.` scope, and omits its duplicate execution in `test-full`.
+Both jobs select against the same immutable PR base and verify the checked-out
+revision. Selector errors fail the job. The second job's summary identifies
+the required check as the owner of the full result; its own green status does
+not prove that the suite passed. Other PR scopes, main and merge-group runs
+retain their existing checks. Count the second job's remaining startup cost.
+
 The normal full run recreates test databases from the current models, using
 `--nomigrations`. Use identical database settings for each measurement.
 `--reuse-db` is useful for development, but comparing a cold baseline to a warm
@@ -44,7 +53,22 @@ and row locks still use PostgreSQL. Unlogged test data is disposable after a
 database crash; development databases and ordinary migration commands keep
 logged tables. The shared PostgreSQL server's durability settings are unchanged.
 Only connections to these disposable test databases disable synchronous commit.
-Set `GYRINX_TEST_UNLOGGED_TABLES=False` to compare ordinary logged test tables.
+These connections also disable PostgreSQL's LLVM query compilation. Some
+fixture reads have estimates above `jit_above_cost` despite returning only a
+few rows; compilation can dominate short queries. This is a test-connection
+setting, including thread connections. Ordinary databases retain their
+settings. See [PostgreSQL's JIT guidance](https://www.postgresql.org/docs/16/jit-decision.html).
+Set `GYRINX_TEST_UNLOGGED_TABLES=False` to compare the ordinary PostgreSQL
+backend, including logged tables and its unchanged connection settings.
+
+The pytest backend serializes schema creation on a dedicated, unpooled
+maintenance connection to `postgres`. It holds the same advisory lock across
+CREATE/DROP and Django's complete schema initialization, then releases the
+connection on success or interruption. Tests execute in parallel after their
+schemas are ready. This avoids simultaneous schema creation exhausting the
+shared lock table without changing PostgreSQL settings. It requires access
+to `postgres`; ordinary backends and logged-table comparison runs do not
+participate, so unrelated startup can still exhaust the shared cluster.
 
 For a single-worker profile of an expensive test, after the full run finishes:
 
@@ -95,8 +119,31 @@ The next candidate, `e287fae0e`, passed the complete CI suite in
 13,404 passed, 13 skipped and one expected failure in 1,316.64 seconds.
 This is about 29% below the starting elapsed time, still above the target.
 The run measured GitHub's clean merge revision `7fa32289f` on a four-CPU
-runner, with eight workers. The required job's elapsed time and the combined
-job cost still need their final results.
+runner, with eight workers. Its combined job cost exceeded the starting cost:
+the required job took 40 minutes
+4 seconds, the full job 22 minutes 46 seconds and fresh-database 6 minutes
+54 seconds, totaling 69 minutes 44 seconds against the original 51 minutes
+13 seconds. Both test jobs selected the whole suite on that candidate.
+
+The subsequent clean local revision `6d81b09f6` passed the entire suite with
+four workers: 13,336 passed, 13 skipped and one expected failure in 1,406.16
+seconds. This is about 35% below the original 2,151.53 seconds, still above
+the 1,075.765-second target. The helper recorded 1,408.34 seconds of wall time,
+1,705.33 seconds of child-process CPU time and no failures or setup errors.
+Further fixture and CI changes need new complete measurements.
+
+The same branch head passed CI in
+[38088790587](https://github.com/gyrinx-app/gyrinx/actions/runs/38088790587),
+measuring GitHub's clean merge revision `f2fe8c357`. The full job selected
+13,374 cases: 13,360 passed, 13 skipped and one expected failure in 2,165.29
+seconds with eight workers on four CPUs. The helper recorded 2,168.57 seconds
+of wall time and 3,910.23 seconds of child-process CPU time. This is slower
+than the original CI baseline and does not demonstrate the target. The
+required job also ran the full selection, taking 2,185.70 seconds in pytest.
+Required, full and fresh-database jobs used 37 minutes 57 seconds,
+36 minutes 53 seconds and 9 minutes 7 seconds respectively: 83 minutes
+57 seconds in total. This reinforces the need to measure the next complete
+candidate and remove the duplicated full execution.
 
 An attempted default local baseline used the original revision's twelve workers.
 It was stopped after 553 PostgreSQL shared-memory setup errors, with no tests
@@ -164,6 +211,42 @@ or operation share one setup and response.
 - Advancement action-flow tests share successful draft and correction
   lifecycles. Each skill tier retains its exact offered choices; dice modes,
   stale requests, ownership and later-rank refusal scenarios remain distinct.
+- Crew tests create only the plain fighters each scenario needs, eliminating
+  488 unrelated fighter creations while retaining every test and assertion.
+  Whole-gang totals, random pools and query-growth data remain populated.
+- Balance-sheet tests use the same priced fighter and real blank statline
+  without twelve unused stat values. Purchases are checked and reconciled
+  before removals; negative receipts are checked before price corrections.
+- History reads share successful hire/refund, weapon and stat-change
+  lifecycles. HTTP filters assert on the actual returned history events.
+  Paging, snapshot windows, refusals and permission checks remain independent.
+- Promotion cases share one real authored catalogue under a class transaction.
+  Each case still creates fresh profiles, gangs, fighters and player records;
+  per-test rollback restores the catalogue and class teardown removes it.
+  Foundation conflict and preparation tests keep their separate setup.
+  The class skips the first duplicate preparation in its fixture helper;
+  the shipped attachment still prepares and repairs content for each case.
+- Slot-choice tests share open, chosen and default/removal/rechoice lifecycles.
+  All 219 assertions remain; refusal and query-growth cases are unchanged.
+- Gang-archetype list permutations use the real hire-list builder. HTTP hire,
+  player/staff visibility and query growth remain; compatible successful
+  scenarios share their catalogue and prepared response.
+- The equipment-category limit display uses ordinary rollback isolation.
+  Its twelve assertions still check actual assignments at zero, one and
+  three against a limit of two; it does not need a commit or full flush.
+- Post-battle tests share compatible entry, refusal, application and receipt
+  lifecycles. Status permutations inspect the real editor model, with one
+  representative HTTP heading check. One-model cases omit an unused recruit;
+  permissions, corrections, equipment and query growth remain distinct.
+- Fighter-action tests replace cosmetic layout checks and fabricated action
+  offers with structured panels and actual offered actions. Redirect-only
+  route variants share unchanged drafts. Advancement boundary tests use
+  isolated stat results so an unrelated characteristic cannot rescue a pass.
+- Canonical seeders fetch existing definitions once per restoration and retain
+  normal model saves, signals and history inside three atomic callbacks.
+  Their references are local to the invocation. This assumes serial fixture
+  initialization/flush on each worker's dedicated test database; unexpected
+  competing inserts fail instead of receiving an upsert retry.
 
 The advancement skill-choice page was inspected with `manage inspect_page` and
 the Debug Toolbar, using a local agent's gang with an earned advancement, owned
@@ -180,6 +263,23 @@ not establish a full-suite time improvement.
 The pass also replaces vacuous checks: an empty filtered collection must be
 nonempty before asserting every row is suppressed, and foundation status and
 campaign actor checks target their actual data or rendered region.
+
+All 575 cases in the latest eight-module fixture/lifecycle validation passed
+in 264.99 seconds. A separate ordered, single-worker run passed all 26
+promotion cases followed by seven preparation/conflict/migration cases:
+33 passed in 177.14 seconds. The preparation test explicitly starts without
+the Advancement action, confirming the class catalogue was rolled back.
+These focused results precede the subsequent fixture refinements. The next
+369-case run passed 367 cases and found two incorrect revised assertions:
+Movement includes its inch suffix, and tier links include a return URL.
+Both corrected cases passed in a focused rerun. This run includes the latest
+promotion fixture, post-battle and fighter-action reductions and backend guards.
+
+A single-worker run also passed all 16 weapon and pause cases in 38.96 seconds.
+An independent verification plugin checked the exact canonical catalogue and
+history counts after five real transaction-test flushes. It also verified that
+the seeders correct canonical fields while preserving existing extra-stat,
+statline-link and equipment-category overrides and their history behaviour.
 
 Focused validation and complete local/CI comparisons are still in progress.
 Neither the reduced test count nor isolated timings prove a 50% full-suite

@@ -11,6 +11,8 @@ from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as PostgreSQLSchemaEditor,
 )
 
+from .creation import DatabaseCreation
+
 
 class DatabaseSchemaEditor(PostgreSQLSchemaEditor):
     @property
@@ -23,6 +25,7 @@ class DatabaseSchemaEditor(PostgreSQLSchemaEditor):
 
 
 class DatabaseWrapper(PostgreSQLWrapper):
+    creation_class = DatabaseCreation
     SchemaEditorClass = DatabaseSchemaEditor
 
     def get_connection_params(self):
@@ -33,5 +36,9 @@ class DatabaseWrapper(PostgreSQLWrapper):
             # Scope this to the connection, including thread connections;
             # never change the shared server or an ordinary database.
             options = params.get("options", "")
-            params["options"] = f"{options} -c synchronous_commit=off".strip()
+            # Small fixture reads do not amortise LLVM compilation, even when
+            # estimates on newly created tables exceed jit_above_cost.
+            params["options"] = (
+                f"{options} -c synchronous_commit=off -c jit=off".strip()
+            )
         return params

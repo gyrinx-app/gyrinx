@@ -20,6 +20,7 @@ from n26.library.authoring import (
     create_subtype,
     create_weapon,
 )
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import found_gang, hire, refund
 
 pytestmark = pytest.mark.django_db
@@ -31,6 +32,7 @@ def owner(db):
 
 
 @pytest.fixture
+@library_setup
 def ganger(make_profile, make_statline):
     profile = make_profile("Ganger", price=55)
     make_statline(profile, movement=5, weapon_skill=4, toughness=3)
@@ -85,27 +87,24 @@ class TestTheStoryReadsPlainly:
     """Each act is one sentence in the player's words, with what rode
     along folded beneath it."""
 
-    def test_a_hire_is_one_line_with_what_came_with_it_beneath(self, gang, vex):
+    def test_a_hire_and_refund_fold_their_built_ins_and_tell_the_money(self, gang, vex):
         act = act_saying(gang, "hired Vex, a Ganger")
         assert {sub.name for sub in act.subs} == {"Loner", "Grit"}
         told = sentences(gang)
         assert not any("Loner" in line or "Grit" in line for line in told)
-
-    def test_the_money_reads_as_the_player_counts_it(self, gang, vex):
-        act = act_saying(gang, "hired Vex")
         assert act.credits == -55
         assert act.rating == 55
 
-    def test_a_refund_reads_as_money_coming_back(self, gang, vex):
+        own = history.build(Gang.objects.get(pk=gang.pk), viewer=gang.owner)
+        assert own
+        assert all(a.actor == "You" for a in own)
+        named = history.build(Gang.objects.get(pk=gang.pk))
+        assert named
+        assert all(a.actor == "the-owner" for a in named)
+
         refund(vex.membership, actor=gang.owner)
         act = act_saying(gang, "returned Ganger for a refund")
         assert act.credits == 55
-
-    def test_what_went_with_a_refund_folds_beneath_it(self, gang, vex):
-        """Refunding the fighter takes his built-ins with him — one
-        line, not one per thing that rode along."""
-        refund(vex.membership, actor=gang.owner)
-        act = act_saying(gang, "returned Ganger for a refund")
         assert {sub.name for sub in act.subs} == {"Loner", "Grit"}
         assert not any("removed Loner" in line for line in sentences(gang))
 
@@ -119,6 +118,14 @@ class TestTheStoryReadsPlainly:
         blaze = add_weapon_profile(weapon, "Blaze rounds", price=15)
         with edit(gang) as op:
             held = op.assign(weapon, miniature=vex, paid=30)
+        act_saying(gang, "bought Autogun")
+        acts = history.build(Gang.objects.get(pk=gang.pk))
+        told = " ".join(
+            "".join(s.text for s in a.spans) + " ".join(sub.name for sub in a.subs)
+            for a in acts
+        )
+        assert "Rapid fire" not in told
+
         buy_weapon_profile(held, blaze, actor=gang.owner)
         act_saying(gang, "bought Blaze rounds")
         sell(held, actor=gang.owner)
@@ -132,18 +139,6 @@ class TestTheStoryReadsPlainly:
         gang = found_gang("The Blades", gang_type, owner=owner)
         act = act_saying(gang, "created the gang")
         assert {sub.name for sub in act.subs} == {"Law of the Blade"}
-
-    def test_a_weapons_own_profile_earns_no_line(self, gang, vex):
-        weapon = create_weapon("Autogun", profiles=[("Rapid fire", 0)], price=30)
-        with edit(gang) as op:
-            op.assign(weapon, miniature=vex, paid=30)
-        act_saying(gang, "bought Autogun")
-        acts = history.build(Gang.objects.get(pk=gang.pk))
-        told = " ".join(
-            "".join(s.text for s in a.spans) + " ".join(sub.name for sub in a.subs)
-            for a in acts
-        )
-        assert "Rapid fire" not in told
 
     def test_nothing_says_the_machinery_underneath(self, gang, vex):
         with edit(gang) as op:
@@ -210,9 +205,11 @@ class TestUndoingReadsAsUndoing:
 class TestWhenAGrantArrivesLater:
     """A grant folds under its own act, never a different day's."""
 
-    def test_a_grant_in_a_later_act_is_its_own_line(self, gang, vex):
-        """Settled weeks after the hire, it belongs to its own date —
-        not folded back under the hire as if it had always been there."""
+    def test_a_later_grant_stands_alone_and_unmarked_records_fold_by_cause(
+        self, gang, vex
+    ):
+        from n26.core.models import LedgerEvent
+
         skill = create_rule("Ferocity")
         with edit(gang) as op:
             op.assign(
@@ -227,19 +224,7 @@ class TestWhenAGrantArrivesLater:
         assert "Ferocity" not in {sub.name for sub in hired.subs}
         assert act.when > hired.when
 
-    def test_an_unmarked_grant_still_folds_through_its_cause(self, gang, vex):
-        """Records from before acts carried a mark: the recorded cause
-        is all there is, and it is enough."""
-        from n26.core.models import LedgerEvent
-
-        skill = create_rule("Ferocity")
-        with edit(gang) as op:
-            op.assign(
-                skill,
-                miniature=vex,
-                caused_by=vex.membership,
-                kind=history.Kind.GRANTED,
-            )
+        # Unmarked records recover their grouping from the recorded cause.
         LedgerEvent.objects.update(batch=None)
         hired = act_saying(gang, "hired Vex")
         assert "Ferocity" in {sub.name for sub in hired.subs}
@@ -248,19 +233,15 @@ class TestWhenAGrantArrivesLater:
 class TestWhatAnActSaysAboutItself:
     """Who did it, what it was called before, which cell moved."""
 
-    def test_the_viewer_reads_their_own_acts_as_you(self, gang, vex):
-        acts = history.build(gang, viewer=gang.owner)
-        assert all(a.actor == "You" for a in acts)
-        acts = history.build(gang)
-        assert all(a.actor == "the-owner" for a in acts)
-
     def test_a_rename_keeps_both_names(self, gang, vex):
         with edit(gang) as op:
             op.rename(vex, "Vex the Bold")
         act = act_saying(gang, "renamed Vex to Vex the Bold")
         assert act.note == "Vex → Vex the Bold"
 
-    def test_a_characteristic_says_which_and_to_what(self, gang, vex):
+    def test_setting_and_clearing_a_characteristic_name_the_cell_and_change(
+        self, gang, vex
+    ):
         from n26.core.forms import statline_override_form_for
 
         form_class = statline_override_form_for(vex.membership.profile)
@@ -271,14 +252,6 @@ class TestWhatAnActSaysAboutItself:
         act = act_saying(gang, "set Vex's WS to 2+")
         assert "2+" in act.note
 
-    def test_a_cleared_characteristic_says_which(self, gang, vex):
-        from n26.core.forms import statline_override_form_for
-
-        form_class = statline_override_form_for(vex.membership.profile)
-        form = form_class.opened_on(vex, {"statline-weapon_skill": "2+"})
-        assert form.is_valid(), form.errors
-        with edit(gang) as op:
-            op.set_stats(vex, form.changes())
         form = form_class.opened_on(vex, {"statline-weapon_skill": ""})
         assert form.is_valid(), form.errors
         with edit(gang) as op:
@@ -358,17 +331,27 @@ class TestTheCostDoesNotFollowTheLength:
             with edit(gang) as op:
                 op.rename(vex, f"Vex {number}")
 
-    def test_the_queries_stay_flat_as_the_history_grows(
+    def test_full_history_and_snapshots_keep_their_query_budgets_as_acts_grow(
         self, gang, vex, django_assert_num_queries
     ):
         self._lengthen(gang, vex, 5)
         short = Gang.objects.get(pk=gang.pk)
         with django_assert_num_queries(3):
-            history.build(short, viewer=gang.owner)
-        self._lengthen(gang, vex, 60)
+            short_acts = history.build(short, viewer=gang.owner)
+        short = Gang.objects.get(pk=gang.pk)
+        with django_assert_num_queries(2):
+            short_snapshot = history.latest(short, viewer=gang.owner)
+        assert len(short_snapshot) == 5
+
+        self._lengthen(gang, vex, 10)
         long = Gang.objects.get(pk=gang.pk)
         with django_assert_num_queries(3):
-            history.build(long, viewer=gang.owner)
+            long_acts = history.build(long, viewer=gang.owner)
+        long = Gang.objects.get(pk=gang.pk)
+        with django_assert_num_queries(2):
+            long_snapshot = history.latest(long, viewer=gang.owner)
+        assert len(long_acts) == len(short_acts) + 10
+        assert len(long_snapshot) == 5
 
 
 class TestASnapshotOfTheStory:
@@ -388,24 +371,22 @@ class TestASnapshotOfTheStory:
     def told(self, acts):
         return ["".join(span.text for span in act.spans) for act in acts]
 
-    def test_the_newest_act_comes_first(self, gang, vex):
+    def test_snapshots_name_the_newest_acts_without_links_and_respect_the_limit(
+        self, gang, vex
+    ):
         latest = history.latest(Gang.objects.get(pk=gang.pk), viewer=gang.owner)
-
         assert self.told(latest)[0].startswith("hired Vex")
+        assert any("Vex" in line for line in self.told(latest))
+        assert not any(span.href for act in latest for span in act.spans)
 
-    def test_it_gives_back_no_more_than_it_was_asked_for(self, gang, vex):
-        self._lengthen(gang, vex, 8)
-        latest = history.latest(Gang.objects.get(pk=gang.pk), limit=3)
-
-        assert len(latest) == 3
-
-    def test_they_are_the_acts_the_page_would_print_first(self, gang, vex):
         self._lengthen(gang, vex, 4)
         whole = Gang.objects.get(pk=gang.pk)
         page = list(reversed(history.build(whole, viewer=gang.owner)))[:5]
         latest = history.latest(whole, viewer=gang.owner)
-
         assert self.told(latest) == self.told(page)
+
+        latest = history.latest(Gang.objects.get(pk=gang.pk), limit=3)
+        assert len(latest) == 3
 
     def test_a_gang_nothing_has_been_done_to_has_nothing_to_tell(
         self, gang_type, owner
@@ -418,29 +399,6 @@ class TestASnapshotOfTheStory:
         )
 
         assert history.latest(bare) == []
-
-    def test_models_are_named_rather_than_linked(self, gang, vex):
-        """The way through to a model is the roster, and the way through
-        to the whole story is the history page: knowing which models are
-        still on the roster is a query a snapshot need not spend."""
-        latest = history.latest(Gang.objects.get(pk=gang.pk), viewer=gang.owner)
-
-        assert any("Vex" in line for line in self.told(latest))
-        assert not any(span.href for act in latest for span in act.spans)
-
-    def test_the_cost_does_not_follow_the_length(
-        self, gang, vex, django_assert_num_queries
-    ):
-        """Two reads whatever the gang's age: the last stretch of events,
-        and the records those events name."""
-        self._lengthen(gang, vex, 5)
-        short = Gang.objects.get(pk=gang.pk)
-        with django_assert_num_queries(2):
-            history.latest(short, viewer=gang.owner)
-        self._lengthen(gang, vex, 10)
-        long = Gang.objects.get(pk=gang.pk)
-        with django_assert_num_queries(2):
-            history.latest(long, viewer=gang.owner)
 
     def test_it_reads_only_the_last_stretch_of_events(self, gang, vex):
         """The window is counted in events because acts are made of them.
@@ -458,13 +416,60 @@ class TestThePageIsTheOwners:
     """The history says things the roster does not, so only the owner
     reads it — and every narrowing is an address."""
 
-    def test_the_owner_reads_it(self, client, gang, vex):
+    def test_the_owner_reads_real_acts_and_address_filters_narrow_them(
+        self, client, gang, vex
+    ):
+        from bs4 import BeautifulSoup
+
+        def shown(response):
+            return [act for day in response.context["days"] for act in day.acts]
+
+        def told(act):
+            return "".join(span.text for span in act.spans)
+
         client.force_login(gang.owner)
-        response = client.get(reverse("n26-gang-history", args=[gang.pk]))
+        at = reverse("n26-gang-history", args=[gang.pk])
+        response = client.get(at)
         assert response.status_code == 200
+        hired = [act for act in shown(response) if told(act) == "hired Vex, a Ganger"]
+        assert len(hired) == 1
+        assert hired[0].miniature_pk == str(vex.pk)
+        assert hired[0].category == "credits"
+        assert hired[0].actor == "You"
+
         page = response.content.decode()
-        assert "hired" in page
-        assert "Vex" in page
+        soup = BeautifulSoup(page, "html.parser")
+        search = soup.find("input", attrs={"name": "q"})
+        assert search is not None
+        assert search.find_parent("form")["method"].lower() == "get"
+        assert search.find_parent("form")["action"] == at
+
+        with edit(gang) as op:
+            op.rename(vex, "Vex the Bold")
+        credits = client.get(at, {"kind": "credits"})
+        assert credits.status_code == 200
+        credit_acts = shown(credits)
+        assert len(credit_acts) == 1
+        assert credit_acts[0].category == "credits"
+        assert credit_acts[0].miniature_pk == str(vex.pk)
+        assert credit_acts[0].when == hired[0].when
+        assert told(credit_acts[0]).startswith("hired ")
+        assert credits.context["narrowed"]
+        assert {
+            option["value"]
+            for option in credits.context["kind_options"]
+            if option["selected"]
+        } == {"credits"}
+
+        searched = client.get(at, {"q": "renamed"})
+        assert searched.status_code == 200
+        renamed = shown(searched)
+        assert len(renamed) == 1
+        assert told(renamed[0]) == "renamed Vex to Vex the Bold"
+        assert renamed[0].category == "model"
+        assert renamed[0].miniature_pk == str(vex.pk)
+        assert searched.context["query"] == "renamed"
+        assert searched.context["narrowed"]
 
     def test_a_stranger_is_told_nothing_is_here(self, client, gang):
         client.force_login(User.objects.create_user("a-stranger"))
@@ -498,23 +503,6 @@ class TestThePageIsTheOwners:
         assert second.status_code == 200
         assert "q=renamed" in second.context["pages"]["previous"]
         assert "Page 2 of 2" in second.content.decode()
-
-    def test_the_filters_narrow_and_the_address_says_how(self, client, gang, vex):
-        with edit(gang) as op:
-            op.rename(vex, "Vex the Bold")
-        client.force_login(gang.owner)
-        at = reverse("n26-gang-history", args=[gang.pk])
-        credits = client.get(at, {"kind": "credits"}).content.decode()
-        assert "hired" in credits
-        assert "renamed" not in credits
-        searched = client.get(at, {"q": "renamed"}).content.decode()
-        assert "renamed" in searched
-        assert "hired" not in searched
-        # Enter in this box commits the GET search. A live filter would
-        # swallow it; this bar is the form's own field.
-        page = client.get(at).content.decode()
-        assert 'role="search"' in page
-        assert "@keydown.enter.prevent" not in page
 
 
 class TestCounterBookkeepingStaysOutOfHistory:

@@ -63,6 +63,7 @@ from n23.core.models.list import (
 )
 from n23.core.models.pack import CustomContentPackItem
 from n23.core.tasks import propagate_content_cost_change
+from n23.models import FighterCategoryChoices
 
 pytestmark = pytest.mark.core
 
@@ -223,7 +224,22 @@ def gear(content_source, make_equipment, make_weapon_profile):
 
 
 @pytest.fixture
-def healthy_list(user, make_list, content_fighter, content_source, gear):
+def priced_content_fighter(content_house, make_content_fighter):
+    """Cost scenarios use the standard 100-credit fighter with its real statline.
+
+    Stat values do not affect these purchases, receipts or reconciliations.
+    Creation still runs the signal that supplies the complete blank statline.
+    """
+    return make_content_fighter(
+        type="Prospector Digger",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=100,
+    )
+
+
+@pytest.fixture
+def healthy_list(user, make_list, priced_content_fighter, content_source, gear):
     """A list built entirely through real flows: one fighter, one weapon.
 
     Parametrized over the catalog-vs-pack axis: everything downstream of
@@ -231,7 +247,7 @@ def healthy_list(user, make_list, content_fighter, content_source, gear):
     """
     lst = make_list("Balance Gang")
     content_source.subscribe(lst)
-    fighter = hire_fighter(user, lst, content_fighter, name="Bob")
+    fighter = hire_fighter(user, lst, priced_content_fighter, name="Bob")
     equipment = gear.equipment("Lasgun", cost=15)
     assignment = buy_equipment(user, lst, fighter, equipment)
     lst.refresh_from_db()
@@ -402,6 +418,9 @@ def test_meta_decomposition_matches_live_cost(healthy_list):
     assert fb.computed == fighter.cost_int()
     ab = fb.assignments[0]
     assert ab.computed == assignment.cost_int()
+    base = next(line for line in ab.lines if line.kind == "base")
+    assert base.pricing == "pinned"
+    assert base.source_repr.endswith("¢)")
     assert sheet.computed_rating == sum(
         f.cost_int() for f in lst.fighters() if not f.is_stash
     )
@@ -446,15 +465,15 @@ def test_meta_dirty_rows_are_not_problems(healthy_list):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def campaign_list(user, make_list, campaign, content_source):
+def _campaign_list(user, make_list, campaign, content_source=None):
     """A campaign-mode list with a stash and a credit stake, fully chained.
 
     Subscribed to the axis pack when the pack side is active.
     """
     lst = make_list("War Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
     campaign.lists.add(lst)
-    content_source.subscribe(lst)
+    if content_source is not None:
+        content_source.subscribe(lst)
     stash = lst.ensure_stash()
     lst.create_action(
         user=user,
@@ -465,6 +484,16 @@ def campaign_list(user, make_list, campaign, content_source):
     lst.apply_credit_delta(1000)
     lst.refresh_from_db()
     return lst, stash
+
+
+@pytest.fixture
+def campaign_list(user, make_list, campaign, content_source):
+    return _campaign_list(user, make_list, campaign, content_source)
+
+
+@pytest.fixture
+def campaign_gang(user, make_list, campaign):
+    return _campaign_list(user, make_list, campaign)
 
 
 def buy_accessory(user, lst, fighter, assignment, accessory):
@@ -520,22 +549,12 @@ def test_matrix_buy_weapon_profile(healthy_list, user, gear):
 
 
 @pytest.mark.django_db
-def test_matrix_buy_accessory(healthy_list, user, gear):
-    lst, fighter, assignment = healthy_list
-    rating_before = fresh(lst).rating_current
-    accessory = gear.accessory()
-    buy_accessory(user, lst, fighter, assignment, accessory)
-    assert fresh(lst).rating_current == rating_before + 8  # booked movement
-    assert_reconciles(lst)
-
-
-@pytest.mark.django_db
 @pytest.mark.parametrize("side", ["catalog", "pack"])
 def test_matrix_buy_upgrade(
-    side, user, make_list, content_fighter, make_equipment, make_pack
+    side, user, make_list, priced_content_fighter, make_equipment, make_pack
 ):
     lst, fighter, assignment, equipment, source = build_weapon_list(
-        side, user, make_list, content_fighter, make_equipment, make_pack
+        side, user, make_list, priced_content_fighter, make_equipment, make_pack
     )
     rating_before = fresh(lst).rating_current
     upgrade = source.register(
@@ -555,10 +574,13 @@ def test_matrix_buy_upgrade(
 
 
 @pytest.mark.django_db
-def test_matrix_remove_accessory_from_fighter(healthy_list, user, gear):
+def test_matrix_accessory_purchase_and_removal_from_fighter(healthy_list, user, gear):
     lst, fighter, assignment = healthy_list
+    rating_before = fresh(lst).rating_current
     accessory = gear.accessory()
     buy_accessory(user, lst, fighter, assignment, accessory)
+    assert fresh(lst).rating_current == rating_before + 8  # booked purchase
+    assert_reconciles(lst)
     rating_before = fresh(lst).rating_current
     handle_equipment_component_removal(
         user=user,
@@ -624,11 +646,11 @@ def test_matrix_buy_onto_stash(campaign_list, user, gear):
 
 @pytest.mark.django_db
 def test_matrix_reassign_plain_gear_between_fighters(
-    campaign_list, user, content_fighter, gear
+    campaign_list, user, priced_content_fighter, gear
 ):
     lst, stash = campaign_list
-    fighter_a = hire_fighter(user, lst, content_fighter, name="Alfa")
-    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    fighter_a = hire_fighter(user, lst, priced_content_fighter, name="Alfa")
+    fighter_b = hire_fighter(user, lst, priced_content_fighter, name="Bravo")
     equipment = gear.equipment("Lasgun", cost=15)
     assignment = buy_equipment(user, lst, fighter_a, equipment)
     assert_reconciles(lst)
@@ -682,11 +704,11 @@ def test_matrix_sell_plain_gear_from_stash(campaign_list, user, client, gear):
 
 @pytest.mark.django_db
 def test_matrix_campaign_budget_grant_reconciles(
-    user, make_list, make_campaign, content_fighter
+    user, make_list, make_campaign, priced_content_fighter
 ):
     """Family-2 proof: a budget-funded gang's credits ledger reconciles."""
     lst = make_list("Budget Gang")
-    hire_fighter(user, lst, content_fighter, name="Bob")
+    hire_fighter(user, lst, priced_content_fighter, name="Bob")
     campaign2 = make_campaign("Budget Campaign", status="in_progress", budget=1500)
     cloned, created = campaign2.add_list_to_campaign(fresh(lst), user=user)
     assert created
@@ -719,7 +741,7 @@ def build_weapon_list(
 @pytest.mark.django_db
 @pytest.mark.parametrize("side", ["catalog", "pack"])
 def test_matrix_content_price_change_window_is_visible(
-    side, user, make_list, content_fighter, make_equipment, make_pack
+    side, user, make_list, priced_content_fighter, make_equipment, make_pack
 ):
     """Mid-window (sweep done, task not yet run), for PINNED gear: stable.
 
@@ -732,7 +754,7 @@ def test_matrix_content_price_change_window_is_visible(
     pinned by the _legacy variant of this cell.
     """
     lst, fighter, assignment, equipment, _ = build_weapon_list(
-        side, user, make_list, content_fighter, make_equipment, make_pack
+        side, user, make_list, priced_content_fighter, make_equipment, make_pack
     )
     rating_before = fresh(lst).rating_current
     equipment.cost = 25  # was 15
@@ -752,7 +774,7 @@ def test_matrix_content_price_change_window_is_visible(
 @pytest.mark.django_db
 @pytest.mark.parametrize("side", ["catalog", "pack"])
 def test_matrix_content_price_change_window_is_visible_legacy(
-    side, user, make_list, content_fighter, make_equipment, make_pack
+    side, user, make_list, priced_content_fighter, make_equipment, make_pack
 ):
     """Mid-window, for LEGACY (unpinned) rows: harness sees the gap.
 
@@ -761,7 +783,7 @@ def test_matrix_content_price_change_window_is_visible_legacy(
     show that, not hide it. Retires with the Phase 8 backfill.
     """
     lst, fighter, assignment, equipment, _ = build_weapon_list(
-        side, user, make_list, content_fighter, make_equipment, make_pack
+        side, user, make_list, priced_content_fighter, make_equipment, make_pack
     )
     # Simulate a pre-Phase-7 row: strip the acquisition receipt.
     ListFighterEquipmentAssignment.objects.filter(pk=assignment.pk).update(
@@ -780,11 +802,11 @@ def test_matrix_content_price_change_window_is_visible_legacy(
 @pytest.mark.django_db
 @pytest.mark.parametrize("side", ["catalog", "pack"])
 def test_matrix_content_price_change_full_flow_reconciles(
-    side, user, make_list, content_fighter, make_equipment, make_pack
+    side, user, make_list, priced_content_fighter, make_equipment, make_pack
 ):
     """After the async task creates the CONTENT_COST_CHANGE action: clean."""
     lst, fighter, assignment, equipment, _ = build_weapon_list(
-        side, user, make_list, content_fighter, make_equipment, make_pack
+        side, user, make_list, priced_content_fighter, make_equipment, make_pack
     )
 
     before_snapshots = {str(lst.id): [lst.rating_current, lst.stash_current]}
@@ -846,7 +868,12 @@ def test_matrix_p1_1925_accessory_onto_overridden_assignment(healthy_list, user,
 
 @pytest.mark.django_db
 def test_matrix_p2_1826_full_lifecycle_prices_held(
-    campaign_list, user, make_content_fighter, content_house, content_fighter, gear
+    campaign_list,
+    user,
+    make_content_fighter,
+    content_house,
+    priced_content_fighter,
+    gear,
 ):
     """The programme's headline scenario, end to end (#1826 §2.3).
 
@@ -880,7 +907,7 @@ def test_matrix_p2_1826_full_lifecycle_prices_held(
 
     # B — no discount — re-equips the Lasgun from the stash. The pin holds: B
     # carries 5, not the 15 B's own context would compute.
-    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    fighter_b = hire_fighter(user, lst, priced_content_fighter, name="Bravo")
     handle_equipment_reassignment(
         user=user,
         lst=fresh(lst),
@@ -900,7 +927,7 @@ def test_matrix_p2_1826_full_lifecycle_prices_held(
     # B dies too: the discounted Lasgun and the Scope both move to the stash at
     # their held values — a repeat death that stays price-neutral.
     kill_and_assert_value_conserved(
-        user, lst, fighter_b, held_value=13, base_cost=content_fighter.base_cost
+        user, lst, fighter_b, held_value=13, base_cost=priced_content_fighter.base_cost
     )
     final = fresh(stash.listfighterequipmentassignment_set.get())
     assert final.cost_int() == 13  # 5 + 8, held through the second death
@@ -989,9 +1016,11 @@ def _assert_pins_survived(clone, equipment):
 
 
 @pytest.mark.django_db
-def test_matrix_clone_preserves_pins(user, make_list, content_fighter, make_equipment):
+def test_matrix_clone_preserves_pins(
+    user, make_list, priced_content_fighter, make_equipment
+):
     lst = make_list("Clone Source")
-    fighter = hire_fighter(user, lst, content_fighter, name="Bob")
+    fighter = hire_fighter(user, lst, priced_content_fighter, name="Bob")
     equipment = make_equipment("Lasgun", cost=15)
     assignment = buy_equipment(user, lst, fighter, equipment)
     _pin_for_clone(assignment)
@@ -1002,10 +1031,10 @@ def test_matrix_clone_preserves_pins(user, make_list, content_fighter, make_equi
 
 @pytest.mark.django_db
 def test_matrix_campaign_start_clone_preserves_pins(
-    user, make_list, content_fighter, make_equipment, campaign
+    user, make_list, priced_content_fighter, make_equipment, campaign
 ):
     lst = make_list("Campaign Clone Source")
-    fighter = hire_fighter(user, lst, content_fighter, name="Bob")
+    fighter = hire_fighter(user, lst, priced_content_fighter, name="Bob")
     equipment = make_equipment("Lasgun", cost=15)
     assignment = buy_equipment(user, lst, fighter, equipment)
     _pin_for_clone(assignment)
@@ -1018,7 +1047,7 @@ def test_matrix_campaign_start_clone_preserves_pins(
 @pytest.mark.django_db
 @pytest.mark.parametrize("side", ["catalog", "pack"])
 def test_new_gang_gear_is_pinned_end_to_end(
-    side, user, make_list, content_fighter, make_equipment, make_pack, campaign
+    side, user, make_list, priced_content_fighter, make_equipment, make_pack, campaign
 ):
     """New gangs carry pins without any backfill. A fresh purchase pins at
     acquisition (Phase 7), and starting a campaign clones those pins in — so a
@@ -1028,7 +1057,7 @@ def test_new_gang_gear_is_pinned_end_to_end(
     source = ContentSource(make_pack("New Gang Pack") if side == "pack" else None)
     lst = make_list("Fresh Gang")
     source.subscribe(lst)
-    fighter = hire_fighter(user, lst, content_fighter, name="Bob")
+    fighter = hire_fighter(user, lst, priced_content_fighter, name="Bob")
     lasgun = source.register(make_equipment("Lasgun", cost=15))
 
     assignment = buy_equipment(user, lst, fighter, lasgun)
@@ -1049,7 +1078,7 @@ def test_new_gang_gear_is_pinned_end_to_end(
 @pytest.mark.django_db
 @pytest.mark.parametrize("side", ["catalog", "pack"])
 def test_matrix_bare_accessory_post_is_inert(
-    side, user, client, make_list, content_fighter, make_equipment, make_pack
+    side, user, client, make_list, priced_content_fighter, make_equipment, make_pack
 ):
     """A POST without accessory_id changes nothing (P5, fixed).
 
@@ -1060,7 +1089,7 @@ def test_matrix_bare_accessory_post_is_inert(
     re-renders, the accessory survives on both sides, and the books agree.
     """
     lst, fighter, assignment, _, source = build_weapon_list(
-        side, user, make_list, content_fighter, make_equipment, make_pack
+        side, user, make_list, priced_content_fighter, make_equipment, make_pack
     )
     accessory = source.register(
         ContentWeaponAccessory.objects.create(name="Scope", cost=8)
@@ -1090,7 +1119,7 @@ def test_matrix_p6_repricing_telemetry_fires(
     user,
     make_content_fighter,
     content_house,
-    content_fighter,
+    priced_content_fighter,
     gear,
     monkeypatch,
 ):
@@ -1114,7 +1143,7 @@ def test_matrix_p6_repricing_telemetry_fires(
         type="Scavvy", category="GANGER", house=content_house, base_cost=50
     )
     fighter_a = hire_fighter(user, lst, cf_a, name="Alfa")
-    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    fighter_b = hire_fighter(user, lst, priced_content_fighter, name="Bravo")
     equipment = gear.equipment("Lasgun", cost=15)
     ContentFighterEquipmentListItem.objects.create(
         fighter=cf_a, equipment=equipment, cost=5
@@ -1143,7 +1172,7 @@ def test_matrix_p6_repricing_telemetry_fires_for_legacy_rows(
     user,
     make_content_fighter,
     content_house,
-    content_fighter,
+    priced_content_fighter,
     gear,
     monkeypatch,
 ):
@@ -1163,7 +1192,7 @@ def test_matrix_p6_repricing_telemetry_fires_for_legacy_rows(
         type="Scavvy", category="GANGER", house=content_house, base_cost=50
     )
     fighter_a = hire_fighter(user, lst, cf_a, name="Alfa")
-    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    fighter_b = hire_fighter(user, lst, priced_content_fighter, name="Bravo")
     equipment = gear.equipment("Lasgun", cost=15)
     ContentFighterEquipmentListItem.objects.create(
         fighter=cf_a, equipment=equipment, cost=5
@@ -1193,7 +1222,7 @@ def test_matrix_p6_repricing_telemetry_fires_for_legacy_rows(
 
 @pytest.mark.django_db
 def test_matrix_reassign_gear_with_pack_accessory(
-    campaign_list, user, content_fighter, gear, pack
+    campaign_list, user, priced_content_fighter, gear, pack
 ):
     """Pack-scoped accessories survive the reassignment repricing math.
 
@@ -1204,8 +1233,8 @@ def test_matrix_reassign_gear_with_pack_accessory(
     """
     lst, stash = campaign_list
     lst.packs.add(pack)
-    fighter_a = hire_fighter(user, lst, content_fighter, name="Alfa")
-    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    fighter_a = hire_fighter(user, lst, priced_content_fighter, name="Alfa")
+    fighter_b = hire_fighter(user, lst, priced_content_fighter, name="Bravo")
     # Equipment rides the axis (so this cell is meaningfully doubled); the
     # accessory deliberately comes from its own separate pack.
     equipment = gear.equipment("Lasgun", cost=15)
@@ -1233,12 +1262,12 @@ def test_matrix_reassign_gear_with_pack_accessory(
 
 @pytest.mark.django_db
 def test_matrix_p8_reassign_gear_with_pack_profile(
-    user, make_list, content_fighter, make_equipment, make_pack
+    user, make_list, priced_content_fighter, make_equipment, make_pack
 ):
     lst, fighter_a, assignment, equipment, source = build_weapon_list(
-        "pack", user, make_list, content_fighter, make_equipment, make_pack
+        "pack", user, make_list, priced_content_fighter, make_equipment, make_pack
     )
-    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    fighter_b = hire_fighter(user, lst, priced_content_fighter, name="Bravo")
     profile = source.register(
         ContentWeaponProfile.objects.create(
             equipment=equipment, name="Hotshot", cost=10
@@ -1268,7 +1297,7 @@ def test_matrix_p8_reassign_gear_with_pack_profile(
 
 @pytest.mark.django_db
 def test_matrix_sell_pack_profile_from_stash(
-    campaign_list, user, client, make_equipment, make_pack, make_weapon_profile
+    campaign_gang, user, client, make_equipment, make_pack, make_weapon_profile
 ):
     """Selling an individual pack-scoped profile from stash gear works.
 
@@ -1278,7 +1307,7 @@ def test_matrix_sell_pack_profile_from_stash(
     them too. The sale must actually remove the profile, book its resolved
     value out of the stash, and reconcile.
     """
-    lst, stash = campaign_list
+    lst, stash = campaign_gang
     source = ContentSource(make_pack("Profile Pack"))
     source.subscribe(lst)
     equipment = make_equipment("Stash Gun", cost=50)
@@ -1367,23 +1396,3 @@ def test_rows_source_repr_summarises_a_mix():
 
 def test_rows_source_repr_all_unpinned_is_empty():
     assert _rows_source_repr([_FakeRow(PinState.UNPINNED, None)]) == ""
-
-
-@pytest.mark.django_db
-def test_balance_sheet_populates_pinned_line_source_repr(
-    user, make_list, content_fighter, make_equipment
-):
-    """A purchased line pins at acquisition, so its base ComponentLine is pinned
-    and carries an amount-bearing source_repr for the tooltip."""
-    lst = make_list("Sheet Gang")
-    fighter = hire_fighter(user, lst, content_fighter)
-    buy_equipment(user, lst, fighter, make_equipment("Lasgun", cost=15))
-
-    sheet = fresh_sheet(lst)
-    fb = next(f for f in sheet.fighters if f.fighter_id == fighter.id)
-    base = next(line for line in fb.assignments[0].lines if line.kind == "base")
-
-    # Deterministic: purchase pins on acquisition, so this must be pinned — if
-    # that ever regressed the test should fail here, not pass via an empty branch.
-    assert base.pricing == "pinned"
-    assert base.source_repr.endswith("¢)")

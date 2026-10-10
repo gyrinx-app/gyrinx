@@ -78,7 +78,7 @@ def test_content_fighter_equipment_category_limit_validation():
     assert "must have fighter restrictions" in str(exc_info.value)
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db
 def test_category_restricted_gearline_display_with_limit():
     """Test that the category restricted gearline display shows the limit indicator."""
     house = ContentHouse.objects.create(name="Test House")
