@@ -70,7 +70,11 @@ artifacts when the IDE Canvas surface is unavailable.
   sibling worktree's `pytest` on PATH imports that checkout's code. The root
   conftest exits if it detects that mismatch. pytest also exits when another
   pytest already holds this worktree's `logs/pytest.lock`, because both would
-  share `test_<DB>_gwN`. Wait for the pid it names, then run one suite. Add
+  share `test_<DB>_gwN`. Wait for the pid it names, then run one suite. A
+  session whose tests never request the database does not create a test
+  database; the autouse ContentStat seeders then leave `DB_NAME` alone, so
+  those runs neither fail on an unmigrated worktree database nor write rows
+  into it. Add
   `-n 0 -s <test>` when
   debugging print output, and use `-n 4` rather than saturating the shared
   Postgres lock table while another agent has a test run active. If schema
@@ -78,7 +82,8 @@ artifacts when the IDE Canvas surface is unavailable.
   finish and rerun with `-n 4`. Each run recreates its test databases, so no
   cleanup is needed. Leave `max_locks_per_transaction` alone when the cluster
   is already tuned.
-- Format with `./scripts/fmt.sh`.
+- Format with `./scripts/fmt.sh`. It skips `logs/*.html`, so an HTTP capture
+  saved there is left alone.
 - Build SCSS with `npm run css`; never commit generated CSS under
   `n23/core/static/core/css/`.
 - See [`.codex/README.md`](.codex/README.md) for worktree lifecycle and database
@@ -160,6 +165,12 @@ pytest `FAILURES` excerpt.
 - A branch adds at most one leaf per app. Run
   `manage check_migration_overlap --base origin/main` when another branch may
   touch the same schema or data.
+- pre-commit runs `./scripts/check_migrations.sh --pre-commit`. It checks the
+  staged tree: unstaged edits to tracked files are put aside, and untracked
+  migration files are hidden for that check, then put back. An untracked
+  migration for another branch no longer fails this commit. Stage the
+  migration with its model change. A manual `./scripts/check_migrations.sh`
+  still sees untracked migration files.
 - `manage prodshell` is read-only. Never work around that protection.
 - Keep piped `prodshell` queries to one expression because IPython echoes
   multi-line loops unreliably. For example:

@@ -5,8 +5,8 @@ modifier the asset carries: a ``TargetsGang`` scope with a
 ``ContributesToCounter`` effect aimed at the system pack's **Income**
 counter, so a gang's Income *reading* is the sum of what it holds —
 its Settlement, every Territory it has this cycle — read the way any
-counter is read, and drawn wherever counters are drawn. Nothing
-collects the reading yet; a later flow will pay it out.
+counter is read, and drawn wherever counters are drawn. Credit
+collection is manual.
 
 The authoring forms keep a plain Income box. ``authoring.set_income``
 writes the modifier behind it; the readers here take the figure back
@@ -22,10 +22,7 @@ INCOME = "Income"
 
 #: What the Income box says on every form that asks it: the asset's
 #: authoring page, the campaign type's page, the arbitrator's own.
-INCOME_HELP = (
-    "Credits this asset brings its holder each cycle. Added to the gang's "
-    "Income counter."
-)
+INCOME_HELP = "Contributes to the gang's Income counter. Collect credits manually."
 
 
 def is_income_counter(counter):

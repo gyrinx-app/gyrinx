@@ -675,7 +675,12 @@ class TestThePages:
         client.force_login(arbitrator)
         page = client.get(reverse("n26-campaign", args=[quiet.pk])).content.decode()
         assert "Roll racket" not in page
-        assert "Add racket" not in page
+        add_href = (
+            reverse("n26-campaign-add-asset", args=[quiet.pk]) + f"?type={racket.pk}"
+        )
+        add = BeautifulSoup(page, "html.parser").find("a", href=add_href)
+        assert add.get_text(strip=True) == "Add rackets"
+        assert client.get(add_href + "&source=custom").status_code == 200
 
         # With a rolled table of Rackets the control appears, in the type's
         # word; the three-per-gang line is the Territory rule and is not

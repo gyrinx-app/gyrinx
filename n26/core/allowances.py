@@ -5,7 +5,7 @@ from django.db import transaction
 from n26.core.access import actions_for, rank_table_for
 from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
-from n26.core.models import ActionAllowance, ActionRecord, CounterValue, LedgerEvent
+from n26.core.models import ActionAllowance, CounterValue, LedgerEvent
 
 
 def _membership(fighter):
@@ -224,9 +224,7 @@ def clone_unused_allowances(op, source, clone):
     if not op.counter_tracking_active:
         return []
     copied = []
-    unused = source.action_allowances.exclude(
-        records__state__in=[ActionRecord.State.STARTED, ActionRecord.State.COMPLETED]
-    ).order_by("created", "pk")
+    unused = source.action_allowances.unused().order_by("created", "pk")
     for allowance in unused:
         duplicate = ActionAllowance.objects.create(
             action=allowance.action,

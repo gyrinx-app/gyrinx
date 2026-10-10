@@ -82,7 +82,6 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
                 return redirect(flow_url(fighter, record, "choose"))
             except Refusal as refusal:
                 form.add_error(None, str(refusal))
-        rolled_value = form["rolled"].value()
         return _page(
             request,
             fighter,
@@ -90,13 +89,12 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
             record=record,
             stage="roll",
             form=form,
-            advancement_roll={
-                "mode": form["roll_mode"].value() or "",
-                "rolled": "" if rolled_value is None else str(rolled_value),
-                "modeErrors": list(form["roll_mode"].errors),
-                "rolledErrors": list(form["rolled"].errors),
-                "previousRoll": previous_roll.roll if previous_roll else None,
-            },
+            advancement_roll=_roll_props(
+                form,
+                dice="2D6",
+                total_help="If you rolled your own dice, enter their total.",
+                previous_roll=previous_roll.roll if previous_roll else None,
+            ),
             submit_label="Continue",
             submit_variant="primary",
         )
@@ -206,8 +204,58 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
     )
 
 
+def _roll_props(form, *, dice, total_help, previous_roll=None, choices=None):
+    """Props for the roll island: roll in Gyrinx, or record a table roll."""
+    rolled = form.fields["rolled"]
+    rolled_value = form["rolled"].value()
+    return {
+        "dice": dice,
+        "minimum": rolled.min_value,
+        "maximum": rolled.max_value,
+        "totalLabel": rolled.label,
+        "totalHelp": total_help,
+        "mode": form["roll_mode"].value() or "",
+        "rolled": "" if rolled_value is None else str(rolled_value),
+        "modeErrors": list(form["roll_mode"].errors),
+        "rolledErrors": list(form["rolled"].errors),
+        "previousRoll": previous_roll,
+        "choices": choices,
+    }
+
+
+def _skill_roll_props(form, groups, carried, *, legend, set_noun):
+    selected = str(form["skill_set_id"].value() or "")
+    props = _roll_props(
+        form,
+        dice="D6",
+        total_help="If you rolled your own die, enter the number.",
+        choices={
+            "legend": legend,
+            "name": "skill_set_id",
+            "value": selected,
+            "errors": list(form["skill_set_id"].errors),
+            "options": [
+                {
+                    "value": str(group.pk),
+                    "label": str(group),
+                    "carried": (
+                        f"Your D6 roll of {carried[str(group.pk)]} carries over "
+                        f"to this {set_noun}."
+                    )
+                    if str(group.pk) in carried
+                    else "",
+                }
+                for group in groups
+                if group is not None
+            ],
+        },
+    )
+    props["mode"] = props["mode"] or "roll"
+    return props
+
+
 def _skill_step(request, fighter, record, configured, chosen, groups, *, correction):
-    from n26.core.advancements import recorded_skill
+    from n26.core.advancements import carried_skill_rolls, recorded_skill
     from n26.core.views.action_flows import _page, flow_url
 
     selection = getattr(record, "skill_selection", None)
@@ -229,12 +277,13 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
             label=f"Select a {chosen.choice_set_noun}",
             initial={
                 "request_key": uuid4(),
+                "roll_mode": "roll",
                 "skill_set_id": str(selection.skill_set_id)
                 if selection and selection.skill_set_id
                 else "",
             },
         )
-        submit_label = "Roll D6 again" if attempts else "Roll D6"
+        submit_label = "Continue"
     elif random:
         form = EmptyActionForm(request.POST or None)
         submit_label = "Review" if resolved else ""
@@ -260,6 +309,7 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
                         form.cleaned_data["request_key"],
                         pickable_id=chosen.id,
                         skill_set_id=form.cleaned_data["skill_set_id"],
+                        rolled=form.cleaned_data["rolled"],
                     )
                     return redirect(flow_url(fighter, record, "skill"))
                 if not random:
@@ -293,9 +343,17 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         skill_resolved=resolved,
         skill_selected=str(selected) if resolved else "",
         skill_title=f"Select a {chosen.choice_noun}",
-        skill_set_label=f"Select a {chosen.choice_set_noun}",
         skill_empty=f"No {chosen.choice_noun} is available for this result.",
         skill_attempts=attempts,
+        skill_roll=_skill_roll_props(
+            form,
+            groups,
+            carried_skill_rolls(record, configured, chosen.id, groups),
+            legend=f"Select a {chosen.choice_set_noun}",
+            set_noun=chosen.choice_set_noun,
+        )
+        if isinstance(form, SkillRollForm)
+        else None,
         skill_groups=[
             {
                 "key": "" if group is None else str(group.pk),

@@ -15,6 +15,14 @@ Starts the full development environment with a single command. Handles per-workt
 ./scripts/dev.sh --reset-db   # Drop and re-fork the worktree database
 ```
 
+The server restarts itself when it grows past 2,048 MB
+(`GYRINX_DEV_MEMORY_LIMIT_MB`); run with `--noreload`, it stops there instead.
+When an agent session started it, it also stops
+when that session ends, and after 120 minutes with no requests
+(`GYRINX_DEV_IDLE_MINUTES`). Set either variable to `0` to turn that check off.
+`logs/runserver.log` records each restart and stop with its reason. See
+`gyrinx/devserver/guard.py`.
+
 ### `scripts/setup-local-postgres.sh`
 
 One-time setup: installs PostgreSQL 16 and pgAdmin via Homebrew, initialises the database cluster with ICU collation (matching Linux/production sort behaviour), and creates the `gyrinx_main` development database. If Docker Postgres is running, it dumps and restores from it automatically.
@@ -25,7 +33,7 @@ One-time setup: installs PostgreSQL 16 and pgAdmin via Homebrew, initialises the
 
 ### `scripts/fmt.sh`
 
-Formats all code in the project including Python, JavaScript, SCSS, and Django templates.
+Formats all code in the project including Python, JavaScript, SCSS, and Django templates. HTML under `logs/` is skipped: djlint does not read `.gitignore`, so a saved HTTP capture there would otherwise be rewritten and then fail the lint check.
 
 ```bash
 ./scripts/fmt.sh

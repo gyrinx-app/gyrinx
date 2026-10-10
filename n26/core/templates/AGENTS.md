@@ -36,6 +36,11 @@ interactive template. The component gallery instructions live in
 - A `:prop` takes a bare dotted path, not a filter, comparison or negation.
   Compute the value in the view. `:disabled="True"` is a static off-state only
   on components that declare the prop.
+- `{% firstof a b as name %}` stores rendered text. `:prop="name"` passes that
+  string, so a dataclass, form, or user arrives with no attributes and the page
+  still returns 200. Repeat the component in `{% if %}` branches and pass each
+  original dotted path. Rendered text uses `attr="{{ name }}"` without the
+  colon. `scripts/check_cotton.py` rejects the colon form.
 - A `{% if %}` inside a `<c-...>` opening tag is not parsed. Cotton emits the
   source as junk attributes. Do not write `{% if %}` there to toggle `disabled`.
 - HTML boolean attributes are live when present. `:disabled="False"` still

@@ -21,18 +21,19 @@ repos:
         always_run: true
 
   - repo: https://github.com/djlint/djLint
-    rev: v1.46.3
+    rev: v1.46.4
     hooks:
       # django-cotton component files are hand-formatted and byte-significant:
       # every one carries `djlint:off`, and djlint --reformat appends a trailing
       # newline regardless, which renders as a space between adjacent inline
       # badges/buttons. pyproject's [tool.djlint] extend_exclude covers directory
       # and repo-root invocations (scripts/fmt.sh) but NOT the explicit file
-      # paths pre-commit passes, so the exclusion is repeated here.
+      # paths pre-commit passes, so the exclusion is repeated here. logs/ is
+      # the same: a saved HTTP capture must not be reformatted on commit.
       - id: djlint-reformat-django
-        exclude: ^((gyrinx|n26/core)/templates/cotton/|design/exploration/)
+        exclude: ^((gyrinx|n26/core)/templates/cotton/|design/exploration/|logs/)
       - id: djlint-django
-        exclude: ^((gyrinx|n26/core)/templates/cotton/|design/exploration/)
+        exclude: ^((gyrinx|n26/core)/templates/cotton/|design/exploration/|logs/)
 
   - repo: https://github.com/kynan/nbstripout
     rev: 0.9.1
@@ -44,7 +45,7 @@ repos:
         types: [jupyter]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.9
+    rev: v0.16.10
     hooks:
       - id: ruff
         types_or: [python, pyi]
@@ -152,6 +153,7 @@ repos:
       - id: check-migrations
         name: Check for missing migrations
         entry: ./scripts/check_migrations.sh
+        args: [--pre-commit]
         language: script
         pass_filenames: false
         always_run: true

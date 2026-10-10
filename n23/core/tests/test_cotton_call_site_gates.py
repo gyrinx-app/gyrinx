@@ -461,6 +461,195 @@ def test_a_suppression_covers_only_the_violation_it_names(tmp_path):
     assert "no longer matches" not in out
 
 
+def test_firstof_result_is_not_a_cotton_prop(tmp_path):
+    """`{% firstof a b as name %}` stores rendered text. A colon prop of that
+    name looks like a bare path and hands the component a string."""
+    status, out = _gate(
+        tmp_path,
+        '{% firstof primary fallback as receipt %}<c-n26.user-link :user="receipt" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+    assert ':user="receipt"' in out
+    assert "{% if %} branches" in out
+    # Interpolating into the same prop still passes a string.
+    assert 'user="{{ receipt }}"' not in out
+
+
+def test_firstof_dotted_lookup_is_not_a_cotton_prop(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof primary fallback as receipt %}"
+        '<c-n26.user-link :user="receipt.owner" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+    assert "receipt.owner" in out
+
+
+def test_firstof_as_attrs_dict_is_not_a_cotton_prop(tmp_path):
+    """`:attrs="attrs"` is the passthrough idiom. A firstof result of another
+    name is still rendered text, including when the prop is `attrs`."""
+    status, out = _gate(
+        tmp_path,
+        "{% firstof row.minus_attrs row.plus_attrs as picked %}"
+        '<c-ui.button :attrs="picked">-1</c-ui.button>',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_firstof_text_and_later_assignment_stay_allowed(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof primary fallback as label %}"
+        '<c-n26.user-link :user="owner">{{ label }}</c-n26.user-link>'
+        "{% firstof a b as owner %}",
+    )
+    assert status == 0, out
+
+
+def test_firstof_in_a_django_comment_does_not_bind(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        '{# {% firstof a b as user %} #}<c-n26.user-link :user="user" />',
+    )
+    assert status == 0, out
+
+
+def test_firstof_inside_a_with_block_is_gone_after_it(tmp_path):
+    """`{% with %}` pops the context the firstof wrote into."""
+    status, out = _gate(
+        tmp_path,
+        "{% with shown=1 %}{% firstof a b as user %}{% endwith %}"
+        '<c-n26.user-link :user="user" />',
+    )
+    assert status == 0, out
+
+
+def test_firstof_inside_a_for_block_is_seen_inside_it(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% for row in rows %}{% firstof row.a row.b as user %}"
+        '<c-n26.user-link :user="user" />{% endfor %}',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_a_with_or_for_binding_shadows_an_outer_firstof(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof a b as user %}"
+        '{% with user=request.user %}<c-n26.user-link :user="user" />{% endwith %}'
+        '{% for user in members %}<c-n26.user-link :user="user" />{% endfor %}',
+    )
+    assert status == 0, out
+
+
+def test_an_outer_firstof_survives_a_block_that_does_not_rebind_it(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof a b as user %}{% for row in rows %}{% endfor %}"
+        '<c-n26.user-link :user="user" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_another_as_tag_rebinds_a_firstof_name(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof a b as user %}{% owner_of gang as user %}"
+        '<c-n26.user-link :user="user" />',
+    )
+    assert status == 0, out
+
+
+def test_a_quoted_equals_in_a_with_value_binds_nothing(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof a b as user %}"
+        '{% with query="user=1" %}<c-n26.user-link :user="user" />{% endwith %}',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_a_rebinding_on_another_branch_leaves_the_firstof(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% if cond %}{% firstof a b as user %}"
+        "{% else %}{% owner_of gang as user %}{% endif %}"
+        '<c-n26.user-link :user="user" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_a_conditional_rebinding_leaves_the_firstof(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% firstof a b as user %}{% if cond %}{% owner_of gang as user %}{% endif %}"
+        '<c-n26.user-link :user="user" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_a_rebinding_on_the_same_branch_replaces_the_firstof(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% if cond %}{% firstof a b as user %}{% owner_of gang as user %}"
+        '<c-n26.user-link :user="user" />{% endif %}',
+    )
+    assert status == 0, out
+
+
+def test_a_firstof_on_one_arm_is_not_seen_from_its_sibling(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        "{% if cond %}{% firstof a b as user %}"
+        '{% else %}<c-n26.user-link :user="user" />{% endif %}',
+    )
+    assert status == 0, out
+
+
+def test_a_rebinding_shadows_an_outer_firstof_until_its_arm_ends(tmp_path):
+    shadowed = (
+        "{% firstof a b as user %}{% if cond %}{% owner_of gang as user %}"
+        '<c-n26.user-link :user="user" />'
+    )
+    status, out = _gate(tmp_path, shadowed + "{% endif %}")
+    assert status == 0, out
+
+    status, out = _gate(
+        tmp_path, shadowed + '{% endif %}<c-n26.user-link :user="user" />'
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_a_firstof_in_a_for_empty_arm_outlives_the_loop(tmp_path):
+    """`{% empty %}` renders outside the loop's context, so its firstof stays."""
+    status, out = _gate(
+        tmp_path,
+        "{% for row in rows %}{% empty %}{% firstof a b as user %}{% endfor %}"
+        '<c-n26.user-link :user="user" />',
+    )
+    assert status == 1
+    assert "firstof" in out
+
+
+def test_original_paths_in_if_branches_are_allowed(tmp_path):
+    status, out = _gate(
+        tmp_path,
+        '{% if primary %}<c-n26.user-link :user="primary" />'
+        '{% else %}<c-n26.user-link :user="fallback" />{% endif %}',
+    )
+    assert status == 0, out
+
+
 def test_the_gate_reads_a_components_props_from_its_index_file(tmp_path):
     """An n26 root component with parts lives at <name>/index.html. Probed
     as <name>.html alone it read as undefined, and every prop passed to it

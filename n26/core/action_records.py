@@ -16,6 +16,7 @@ from n26.core.models import (
     LedgerEvent,
     Miniature,
 )
+from n26.core.models.action_record import RESERVING_STATES
 from n26.core.operations import LibraryError, Refusal
 
 
@@ -402,7 +403,12 @@ def active_action_record(fighter, action):
     )
 
 
-def start_action(op, fighter, action, request_key, allowance=None):
+def start_action(op, fighter, action, request_key, allowance=None, *, by_hand=False):
+    """Reserve an earned use, or open a priced flow, as a new action record.
+
+    ``by_hand`` settles the earned use at once as applied by hand: the
+    player gave the fighter the result outside Gyrinx, so no flow opens.
+    """
     fighter = Miniature.objects.select_related("membership").get(pk=fighter.pk)
     _refuse_unless_owned(op, fighter)
     existing = ActionRecord.objects.filter(
@@ -429,13 +435,18 @@ def start_action(op, fighter, action, request_key, allowance=None):
             or allowance.source_kind != source_kind
         ):
             raise Refusal("That allowance belongs to another action use.")
+    if by_hand and rule is None:
+        raise Refusal("Only an earned use can be marked as applied by hand.")
     existing = active_action_record(fighter, action)
     if existing is not None:
+        if by_hand:
+            raise Refusal(
+                "This model has a started flow for that action. "
+                "Resume it, or mark that flow as applied by hand."
+            )
         return existing
     if allowance is not None:
-        if allowance.records.filter(
-            state__in=[ActionRecord.State.STARTED, ActionRecord.State.COMPLETED]
-        ).exists():
+        if not ActionAllowance.objects.filter(pk=allowance.pk).unused().exists():
             raise Refusal("That allowance is already being used.")
     elif rule is not None:
         allowance = (
@@ -446,12 +457,7 @@ def start_action(op, fighter, action, request_key, allowance=None):
                 source=fighter.membership,
                 source_kind=source_kind,
             )
-            .exclude(
-                records__state__in=[
-                    ActionRecord.State.STARTED,
-                    ActionRecord.State.COMPLETED,
-                ]
-            )
+            .unused()
             .order_by("threshold", "created", "pk")
             .first()
         )
@@ -470,6 +476,11 @@ def start_action(op, fighter, action, request_key, allowance=None):
         action=action,
         allowance=allowance,
         request_key=request_key,
+        state=(
+            ActionRecord.State.APPLIED_BY_HAND
+            if by_hand
+            else ActionRecord.State.STARTED
+        ),
         source_assignment=source_assignment,
         source={
             "action": str(action.pk),
@@ -477,6 +488,14 @@ def start_action(op, fighter, action, request_key, allowance=None):
             "assignment": str(source_assignment.pk) if source_assignment else None,
         },
     )
+    if by_hand:
+        op.event(
+            fighter,
+            LedgerEvent.Kind.ACTION_USE_APPLIED_BY_HAND,
+            action_record=record,
+            note=str(action),
+        )
+        return record
     record.started_event = op.event(
         fighter,
         LedgerEvent.Kind.ACTION_USE_STARTED,
@@ -887,6 +906,154 @@ def cancel_action(op, record):
         note=str(record.action),
     )
     record.save(update_fields=["state", "modified"])
+    return record
+
+
+def apply_action_by_hand(op, record):
+    """Settle a started flow whose result the player applied outside Gyrinx.
+
+    Any roll already recorded stays in the history. An empty result slot
+    the flow added is removed, so the card does not offer it.
+    """
+    record = _locked(op, record)
+    _refuse_unless_owned(op, record.fighter)
+    if record.state == ActionRecord.State.APPLIED_BY_HAND:
+        return record
+    if record.state != ActionRecord.State.STARTED:
+        raise Refusal("That action use is no longer waiting.")
+    if record.allowance_id is None:
+        raise Refusal("Only an earned use can be marked as applied by hand.")
+    _retire_unfinished_slot(op, record)
+    record.state = ActionRecord.State.APPLIED_BY_HAND
+    op.event(
+        record.fighter,
+        LedgerEvent.Kind.ACTION_USE_APPLIED_BY_HAND,
+        action_record=record,
+        note=str(record.action),
+    )
+    record.save(update_fields=["state", "modified"])
+    return record
+
+
+def _unfinished_selection(record):
+    selection = getattr(record, "advancement_selection", None)
+    if (
+        selection is None
+        or selection.pick_assignment_id
+        or selection.slot_assignment_id is None
+    ):
+        return None
+    return selection
+
+
+def _slot_filled(slot):
+    return Assignment.objects.filter(
+        caused_by=slot, pickable__isnull=False, archived=False
+    ).exists()
+
+
+def _retire_unfinished_slot(op, record):
+    """Remove the empty result slot this flow added.
+
+    A slot the flow reused, or one the player has since filled, stays.
+    """
+    selection = _unfinished_selection(record)
+    if (
+        selection is None
+        or selection.slot_assignment.archived
+        or _slot_filled(selection.slot_assignment)
+    ):
+        return
+    added = (
+        LedgerEvent.objects.filter(assignment=selection.slot_assignment)
+        .order_by("created", "pk")
+        .values_list("action_record_id", flat=True)
+        .first()
+    )
+    if added == record.pk:
+        op.remove(selection.slot_assignment, action_record=record)
+
+
+def _refuse_if_slot_filled(record):
+    selection = _unfinished_selection(record)
+    if selection is None or selection.slot_assignment.archived:
+        return
+    if _slot_filled(selection.slot_assignment):
+        raise Refusal(
+            "You cannot undo this. The result slot this flow rolled for "
+            "has been filled since."
+        )
+
+
+def _rebind_retired_slot(op, record):
+    """Give a reopened flow a live result slot in place of the one removed.
+
+    A saved review names the old slot, so it is dropped and the flow
+    resumes at its last choice to be reviewed again.
+    """
+    selection = _unfinished_selection(record)
+    if selection is None or not selection.slot_assignment.archived:
+        return
+    selection.slot_assignment = op.assign(
+        selection.slot_assignment.slot,
+        miniature=record.fighter,
+        caused_by=record.fighter.membership,
+        action_record=record,
+    )
+    selection.save(update_fields=["slot_assignment", "modified"])
+    if record.review:
+        record.review = {}
+        record.revision += 1
+
+
+def reopen_action(op, record):
+    """Undo applied by hand: the earned use is waiting again.
+
+    A use marked from a started flow goes back to that flow, so its choices
+    and rolls resume. A use marked without a started flow frees its
+    allowance, as if it had never been touched. Earlier ranks resolve first,
+    so a use cannot reopen behind a later one that is already taken.
+    """
+    record = _locked(op, record)
+    _refuse_unless_owned(op, record.fighter)
+    if record.state != ActionRecord.State.APPLIED_BY_HAND:
+        raise Refusal("That action use was not applied by hand.")
+    others = ActionRecord.objects.filter(
+        fighter=record.fighter, action=record.action, state__in=RESERVING_STATES
+    ).exclude(pk=record.pk)
+    if others.filter(state=ActionRecord.State.STARTED).exists():
+        raise Refusal(
+            "You cannot undo this while another flow for this action is started. "
+            "Finish that flow, or mark it as applied by hand, first."
+        )
+    threshold = record.allowance.threshold if record.allowance_id else None
+    if (
+        threshold is not None
+        and others.filter(
+            allowance__source_id=record.allowance.source_id,
+            allowance__threshold__gt=threshold,
+        ).exists()
+    ):
+        raise Refusal(
+            "You cannot undo this. A later earned use of this action is "
+            "already taken. Undo that one first."
+        )
+    started = LedgerEvent.objects.filter(
+        action_record=record, kind=LedgerEvent.Kind.ACTION_USE_STARTED
+    ).exists()
+    if started:
+        _refuse_if_slot_filled(record)
+        record.state = ActionRecord.State.STARTED
+        _rebind_retired_slot(op, record)
+    else:
+        record.state = ActionRecord.State.CANCELLED
+    op.event(
+        record.fighter,
+        LedgerEvent.Kind.ACTION_USE_REOPENED,
+        action_record=record,
+        note=str(record.action),
+    )
+    record.save(update_fields=["state", "review", "revision", "modified"])
     return record
 
 

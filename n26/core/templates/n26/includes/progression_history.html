@@ -23,7 +23,7 @@ started uses remain visible without presenting them as completed advances.
                                 {{ rank.threshold }} {{ rank.counter_name }}
                                 {% if rank.title %}· {{ rank.title }}{% endif %}
                             </p>
-                            <span class="text-muted">{{ rank.state|capfirst }}</span>
+                            <span class="text-muted">{{ rank.state_label }}</span>
                         </div>
                         <p class="text-muted">{{ rank.action_name }}{% if rank.result %} · {{ rank.result }}{% endif %}</p>
                         {% if rank.record_id and rank.state == "completed" %}

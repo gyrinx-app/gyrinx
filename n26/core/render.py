@@ -300,6 +300,19 @@ class CounterLine:
     #: campaign type giving every member gang Reputation. Empty for a
     #: counter assigned directly, which is what a model's own reads as.
     provenance: Provenance = field(default_factory=Provenance)
+    is_income: bool = False
+
+    @property
+    def contributed(self):
+        return self.value - self.tallied
+
+    @property
+    def income_explanation(self):
+        return {
+            "value": self.value,
+            "contributed": self.contributed,
+            "adjustment": self.tallied,
+        }
 
 
 @dataclass
@@ -1713,8 +1726,12 @@ class CampaignGangLine:
                 for name, pick in zip(self.label_names, self.labels, strict=True)
             ),
             *(
-                GangDetail(label=plural, text=", ".join(names))
-                for plural, names in zip(self.asset_names, self.assets, strict=True)
+                self.grouped_assets
+                if self.grouped_assets is not None
+                else (
+                    GangDetail(label=plural, text=", ".join(names))
+                    for plural, names in zip(self.asset_names, self.assets, strict=True)
+                )
             ),
         ]
         rolls = [roll for roll in self.starting_rolls if roll.href]
@@ -1726,6 +1743,7 @@ class CampaignGangLine:
     #: sheet's label columns and its asset types' plural names.
     label_names: list[str] = field(default_factory=list)
     asset_names: list[str] = field(default_factory=list)
+    grouped_assets: list[GangDetail] | None = None
 
 
 @dataclass(frozen=True)
@@ -1736,6 +1754,16 @@ class GangDetail:
     label: str
     text: str = ""
     rolls: list[StartingRoll] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class CampaignPlayerLine:
+    """A player's invitation state and active gangs in one campaign."""
+
+    user: object
+    state: str
+    gangs: list[CampaignGangLine]
+    participation: str
 
 
 @dataclass
@@ -1916,6 +1944,40 @@ class CampaignSheet:
             line.detail_colspan = 4 + len(self.counter_columns)
             line.label_names = self.label_columns
             line.asset_names = [asset_type.plural for asset_type in self.asset_types]
+            settlement = next(
+                (
+                    i
+                    for i, kind in enumerate(self.asset_types)
+                    if kind.label.casefold() == "settlement" and not kind.holding
+                ),
+                None,
+            )
+            territory = next(
+                (
+                    i
+                    for i, kind in enumerate(self.asset_types)
+                    if kind.label.casefold() == "territory" and kind.holding
+                ),
+                None,
+            )
+            if settlement is not None and territory is not None:
+                groups = []
+                for i, kind in enumerate(self.asset_types):
+                    if i == settlement:
+                        continue
+                    names = line.assets[i]
+                    if i == territory:
+                        names = [
+                            *(
+                                name
+                                if name.casefold() == "settlement"
+                                else f"{name} (settlement)"
+                                for name in line.assets[settlement]
+                            ),
+                            *names,
+                        ]
+                    groups.append(GangDetail(label=kind.plural, text=", ".join(names)))
+                line.grouped_assets = groups
 
     @property
     def gang_count(self):
@@ -3556,6 +3618,7 @@ def _campaign_parts(gang_card, membership, keys, readings):
     the source of the block, not something in it. No queries — the
     campaign page runs this once per gang off cards already in hand.
     """
+    from n26.library.income import is_income_counter
     from n26.library.models import Asset, Counter
 
     carriers = {membership.type_carrier_id, membership.additions_carrier_id}
@@ -3574,6 +3637,7 @@ def _campaign_parts(gang_card, membership, keys, readings):
                     name=reading.name,
                     value=reading.value,
                     tallied=_counter_value(node),
+                    is_income=is_income_counter(node.assignable),
                     assignment_id=(
                         str(node.assignment.pk) if node.assignment is not None else ""
                     ),
@@ -3640,6 +3704,8 @@ def _income_reader(index):
 
     def income_for(asset, carrier):
         if index is None:
+            if getattr(carrier, "income_override_id", None):
+                return carrier.income_override.contributes_to_counter.amount
             return income_of(asset)
         return income_of(asset, [modifier for modifier, _ in index.for_thing(carrier)])
 
@@ -4138,7 +4204,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
     from n26.core.effects import compute, counter_readings
     from n26.core.models import CampaignMembership
-    from n26.library.income import boons_of, income_of
+    from n26.library.income import boons_of
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.references import reading_sentences
     from n26.library.staged import sees_staged
@@ -4174,7 +4240,9 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     # One whose holder has left the campaign is nobody's, whatever its
     # column says.
     campaign_assets = list(
-        campaign.campaign_assets.select_related("asset__asset_type").prefetch_related(
+        campaign.campaign_assets.select_related(
+            "asset__asset_type", "income_override__contributes_to_counter"
+        ).prefetch_related(
             Prefetch(
                 "asset__modifiers", queryset=reading_sentences(Modifier.objects.all())
             )
@@ -4323,7 +4391,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
                 campaign_asset_id=str(campaign_asset.pk),
                 name=str(campaign_asset),
                 asset_name=str(campaign_asset.asset) if campaign_asset.name else "",
-                income=income_of(campaign_asset.asset),
+                income=_income_reader(None)(campaign_asset.asset, campaign_asset),
                 boons=[
                     boon_said(modifier) for modifier in boons_of(campaign_asset.asset)
                 ],

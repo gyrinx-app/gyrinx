@@ -20,39 +20,28 @@ function page(props: Partial<AssetSelectionProps> = {}) {
 }
 
 describe("Campaign asset selection", () => {
-    it("adds selected assets to the optional rename table and clears them", () => {
-        const data = page({
-            renameLabel: "Optional: Rename territories",
-            itemLabel: "Territory",
-        });
-        expect(screen.queryByText("Optional: Rename territories")).toBeNull();
+    it("keeps batches unnamed and restores a single draft after selection changes", () => {
+        const data = page({ selected: ["ruins"] });
+        fireEvent.change(
+            screen.getByLabelText("Name in this campaign (optional)"),
+            {
+                target: { value: "By the sump" },
+            },
+        );
+        expect(data().get("name_ruins")).toBe("By the sump");
         fireEvent.click(screen.getByRole("button", { name: "Select all" }));
         expect(data().getAll("asset")).toEqual(["ruins", "market"]);
-        const summary = screen.getByText("Optional: Rename territories");
-        expect(summary.closest("details")?.open).toBe(false);
-        expect(screen.getByPlaceholderText("Old Ruins")).toBeTruthy();
-        expect(screen.getByPlaceholderText("Market")).toBeTruthy();
+        expect(data().has("name_ruins")).toBe(false);
+        expect(screen.queryByRole("textbox")).toBeNull();
+        expect(
+            screen.getByText(/they keep their catalogue names/),
+        ).toBeTruthy();
+        fireEvent.click(screen.getByRole("checkbox", { name: "Market" }));
+        expect(data().get("name_ruins")).toBe("By the sump");
         fireEvent.click(screen.getByRole("button", { name: "Clear" }));
         expect(data().getAll("asset")).toEqual([]);
-        expect(data().has("name_ruins")).toBe(false);
-        expect(screen.queryByText("Optional: Rename territories")).toBeNull();
     });
-    it("keeps each draft name while selection changes and submits only selected names", () => {
-        const data = page({ selected: ["ruins", "market"] });
-        fireEvent.change(screen.getByLabelText("Rename Old Ruins"), {
-            target: { value: "By the sump" },
-        });
-        fireEvent.change(screen.getByLabelText("Rename Market"), {
-            target: { value: "Eastern market" },
-        });
-        expect(data().get("name_ruins")).toBe("By the sump");
-        expect(data().get("name_market")).toBe("Eastern market");
-        fireEvent.click(screen.getByRole("checkbox", { name: "Market" }));
-        expect(data().has("name_market")).toBe(false);
-        fireEvent.click(screen.getByRole("checkbox", { name: "Market" }));
-        expect(data().get("name_market")).toBe("Eastern market");
-    });
-    it("restores submitted names and expands errors after server validation", () => {
+    it("restores submitted names and shows field errors after server validation", () => {
         const data = page({
             selected: ["market"],
             options: [
@@ -66,11 +55,9 @@ describe("Campaign asset selection", () => {
         });
         expect(data().get("name_market")).toBe("Eastern market");
         expect(
-            screen.getByText("Optional: Rename assets").closest("details")
-                ?.open,
-        ).toBe(true);
-        expect(
-            screen.getByLabelText("Rename Market").getAttribute("aria-invalid"),
+            screen
+                .getByLabelText("Name in this campaign (optional)")
+                .getAttribute("aria-invalid"),
         ).toBe("true");
         expect(screen.getByText("Use at most 200 characters.")).toBeTruthy();
     });

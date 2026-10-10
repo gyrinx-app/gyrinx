@@ -1,3 +1,4 @@
+{% load static %}
 {% comment %}
 <c-n26.view.campaign-sheet> — Draws campaign metadata and headed cards for gangs, battles, assets, log and players.
 
@@ -75,7 +76,7 @@ log_count may be markup: the campaign page passes a host that a roll update redr
                     </dd>
                 </div>
                 <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 py-2.5">
-                    <dt class="text-sm text-muted">Arbitrator</dt>
+                    <dt class="flex items-center gap-2 text-sm text-muted"><img src="{% static 'n26/arbitrator.svg' %}" width="24" height="24" alt="" class="size-6 shrink-0" />Arbitrator</dt>
                     <dd class="min-w-0 text-right text-sm">{% if arbitrator.strip %}{{ arbitrator }}{% else %}{{ sheet.arbitrator }}{% endif %}</dd>
                 </div>
                 <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 py-2.5">

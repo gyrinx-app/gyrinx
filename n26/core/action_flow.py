@@ -8,7 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from django.db.models import F, Window
+from django.db.models import Case, F, When, Window
 from django.db.models.functions import RowNumber
 
 from n26.core.access import actions_for
@@ -26,6 +26,11 @@ class ActionUseLink:
     href: str = ""
     detail: str = ""
     when: datetime | None = None
+    #: An earned use the player can mark as applied by hand.
+    earned: bool = False
+    #: Settled outside Gyrinx: there is no receipt, only an undo.
+    applied_by_hand: bool = False
+    reopen_href: str = ""
 
 
 @dataclass
@@ -38,6 +43,8 @@ class ActionPanel:
     available_uses: int | None = None
     problem: str = ""
     start_href: str = ""
+    #: Links for the header's action menu, as the action-menu island reads them.
+    menu: list[dict] = field(default_factory=list)
     #: Carries the roster's action mark: an earned use, an unfinished draft, or
     #: an affordable counter price.
     flagged: bool = False
@@ -151,12 +158,7 @@ def available_action_names(gang, cards, *, counter_tracking_active=True):
     if counter_tracking_active:
         for fighter_id, action_id in (
             ActionAllowance.objects.filter(fighter_id__in=fighter_ids)
-            .exclude(
-                records__state__in=(
-                    ActionRecord.State.STARTED,
-                    ActionRecord.State.COMPLETED,
-                )
-            )
+            .unused()
             .values_list("fighter_id", "action_id")
         ):
             flagged[str(fighter_id)].add(str(action_id))
@@ -236,12 +238,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
     access = actions_for(fighter, card=card, computed=computed)
     allowances = list(
         ActionAllowance.objects.filter(fighter=fighter)
-        .exclude(
-            records__state__in=(
-                ActionRecord.State.STARTED,
-                ActionRecord.State.COMPLETED,
-            )
-        )
+        .unused()
         .order_by("created", "pk")
     )
     drafts = list(
@@ -250,12 +247,24 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
         .order_by("-created", "-pk")
     )
     completed = list(
-        ActionRecord.objects.filter(fighter=fighter, state=ActionRecord.State.COMPLETED)
+        ActionRecord.objects.filter(
+            fighter=fighter,
+            state__in=(
+                ActionRecord.State.COMPLETED,
+                ActionRecord.State.APPLIED_BY_HAND,
+            ),
+        )
+        .annotate(
+            settled_at=Case(
+                When(state=ActionRecord.State.APPLIED_BY_HAND, then=F("modified")),
+                default=F("created"),
+            )
+        )
         .annotate(
             action_position=Window(
                 expression=RowNumber(),
                 partition_by=F("action_id"),
-                order_by=(F("created").desc(), F("pk").desc()),
+                order_by=(F("settled_at").desc(), F("pk").desc()),
             )
         )
         .filter(action_position__lte=3)
@@ -268,7 +277,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
             "skill_selection__selected_skill",
             "skill_selection__selected_power",
         )
-        .order_by("-created", "-pk")
+        .order_by("-settled_at", "-pk")
     )
     records = [*drafts, *completed]
     available = defaultdict(list)
@@ -322,7 +331,22 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
             if record.state == ActionRecord.State.STARTED:
                 panel.drafts.append(
                     ActionUseLink(
-                        str(record.pk), f"Resume {action} flow", when=record.created
+                        str(record.pk),
+                        f"Resume {action} flow",
+                        when=record.created,
+                        earned=record.allowance_id is not None,
+                    )
+                )
+            elif (
+                record.state == ActionRecord.State.APPLIED_BY_HAND
+                and len(panel.completed) < 3
+            ):
+                panel.completed.append(
+                    ActionUseLink(
+                        str(record.pk),
+                        "Applied by hand",
+                        when=record.modified,
+                        applied_by_hand=True,
                     )
                 )
             elif (

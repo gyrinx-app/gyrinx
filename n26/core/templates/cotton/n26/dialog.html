@@ -3,6 +3,7 @@
 
 The HTML open attribute is non-modal. promote() strips it, then calls showModal().
 Leaving both set throws. The catch puts open back so the panel still shows.
+promote() swaps the in-flow classes for m-auto before showModal(). A static dialog in the top layer sits at the top of the document, and the focus showModal() moves would scroll the page there.
 promote() must not call close(). close fires dismiss, which would navigate to cancel_url.
 try cannot live in x-init. Alpine compiles that directive as an expression, so a method holds the catch.
 Without script it stays in document flow. Place it where a reader will find it.
@@ -43,10 +44,14 @@ Left closed in the host, htmx copies the promoted class onto the next panel and 
             promote(dialog) {
                 try {
                     dialog.removeAttribute('open');
+                    dialog.classList.remove('static', 'm-0');
+                    dialog.classList.add('m-auto');
                     dialog.showModal();
                     this.promoted = true;
                 } catch (error) {
                     console.error(error);
+                    dialog.classList.remove('m-auto');
+                    dialog.classList.add('static', 'm-0');
                     dialog.setAttribute('open', '');
                 }
             },

@@ -120,6 +120,10 @@ a different one. A second pytest process in the same worktree shares
 `test_<DB>_gwN` and dies during schema creation. pytest holds
 `logs/pytest.lock` for the session and the second process exits immediately,
 naming the pid that holds the lock. Wait for that process, then run one suite.
+A session whose tests never request the database does not create a test
+database. The autouse ContentStat seeders then leave `DB_NAME` alone, so a
+plain run neither fails with `relation content_contentstat does not exist`
+on an unmigrated worktree database nor writes ContentStat rows into it.
 
 - The hook reads `git rev-parse --show-toplevel` from your `$PWD` at
   activation time, so it picks up the correct worktree even when the venv is

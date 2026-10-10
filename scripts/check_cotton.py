@@ -1,5 +1,6 @@
 """Static safety gate for django-cotton call sites. See scripts/check_cotton.sh."""
 
+import bisect
 import pathlib
 import re
 import sys
@@ -98,6 +99,21 @@ BOOLEAN_INTERPOLATED = re.compile(
     rf"""(?:^|\s)(?<!:)({_BOOLEAN_NAMES})=["'][^"']*\{{[{{%]"""
 )
 CVARS = re.compile(r"<c-vars\b(.*?)/?>", re.S)
+# `{% firstof a b as name %}` stores rendered text (Django's FirstOfNode calls
+# render_value_in_context). `:prop="name"` then looks like a bare path and
+# passes a string, so a dataclass, form, or user arrives with no attributes.
+DJANGO_COMMENT = re.compile(r"\{#.*?#\}", re.S)
+DJANGO_TAG = re.compile(r"\{%\s*(\w+)\b(.*?)%\}", re.S)
+# These tags push a context and their end tags pop it, so a name bound inside
+# one is gone after it, and a name they bind shadows an outer one. A for loop's
+# {% empty %} arm renders outside the loop's context.
+SCOPE_OPEN = {"with", "for", "block"}
+BLOCK_END = {"endif", "endwith", "endfor", "endblock"}
+AS_NAME = re.compile(r"\bas\s+([A-Za-z_]\w*)\s*$")
+QUOTED = re.compile(r"\"[^\"]*\"|'[^']*'")
+WITH_NAME = re.compile(r"(?:^|\s)([A-Za-z_]\w*)=")
+COLON_PROP = re.compile(r"""(?:^|\s):([\w.-]+)=["']([^"']*)["']""")
+DOTTED_PATH = re.compile(r"[A-Za-z_][\w]*(\.[\w]+)*")
 # A <c-vars> entry is `name="default"`, `:name="expr"`, or a bare `name` with
 # no default at all (n26's ui/error.html declares `name form message` that
 # way); the bare form is a declaration too, or every call passing it reads as
@@ -137,6 +153,137 @@ NEEDS_LABEL = {"filter.query", "form.search"}
 def blank_comments(src):
     """Replace {% comment %} blocks with same-length whitespace (keeps line numbers)."""
     return COMMENT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), src)
+
+
+def _blank_kept(match):
+    return re.sub(r"[^\n]", " ", match.group(0))
+
+
+def _scoped_names(tag, rest):
+    """Names a scope-opening tag binds in the context it pushes."""
+    # A quoted value can hold `name=` or ` as name` of its own.
+    rest = QUOTED.sub('""', rest)
+    if tag == "with":
+        named = AS_NAME.search(rest)
+        return WITH_NAME.findall(rest) + ([named.group(1)] if named else [])
+    if tag == "for":
+        head = re.split(r"\s+in\s+", rest, maxsplit=1)[0]
+        return re.findall(r"[A-Za-z_]\w*", head)
+    return []
+
+
+def _reachable(bound_on, here):
+    """False when a binding sits on another arm of a block still open here."""
+    for mine, theirs in zip(bound_on, here, strict=False):
+        if mine != theirs:
+            return mine[0] != theirs[0]
+    return True
+
+
+def _may_be_firstof(scopes, name, here):
+    """Whether `name` holds a firstof result on some path that reaches `here`.
+
+    A binding on the arms that lead here ran before here and replaces what came
+    before it. A binding inside a block that has since closed may have run.
+    """
+    for scope in reversed(scopes):
+        held = {"outer"}
+        for bound_on, bound, is_firstof in scope:
+            if bound != name or not _reachable(bound_on, here):
+                continue
+            kind = "firstof" if is_firstof else "other"
+            if here[: len(bound_on)] == bound_on:
+                held = {kind}
+            else:
+                held.add(kind)
+        if "firstof" in held:
+            return True
+        if "outer" not in held:
+            return False
+    return False
+
+
+def _firstof_visible(scopes, here):
+    names = {name for scope in scopes for _bound_on, name, _is_firstof in scope}
+    return frozenset(name for name in names if _may_be_firstof(scopes, name, here))
+
+
+def firstof_scopes(src):
+    """Where a name may hold a `{% firstof ... as name %}` result.
+
+    Returns (position, names) pairs in source order. From each position to the
+    next, `names` are the names that hold a firstof result on at least one
+    path that reaches there.
+
+    Each binding records the arms of the open `{% if %}` and `{% for %}`
+    blocks it sits on. A `{% with %}`, `{% for %}` or `{% block %}` drops a
+    firstof made inside it at its end tag, and a name it binds shadows an outer
+    firstof. Any other `... as name` tag rebinds the name from there on its own
+    arm, and a firstof on a sibling arm is not seen from this one.
+
+    `{# #}` examples are blanked first so a comment that mentions the tag does
+    not count. Positions stay aligned with the source the call-site scan uses.
+    """
+    visible = DJANGO_COMMENT.sub(_blank_kept, src)
+    arms = []  # [block number, arm number] for each open if or for
+    blocks = []  # [tag, whether it pushed a scope] for each open block
+    scopes = [[]]  # each: (arms, name, is_firstof) bindings in source order
+    count = 0
+    marks = []
+
+    def here():
+        return tuple(tuple(arm) for arm in arms)
+
+    for match in DJANGO_TAG.finditer(visible):
+        tag, rest = match.group(1), match.group(2).strip()
+        if tag in ("if", "for"):
+            count += 1
+            arms.append([count, 0])
+        if tag == "if":
+            blocks.append(["if", False])
+        elif tag in SCOPE_OPEN:
+            scopes.append([(here(), name, False) for name in _scoped_names(tag, rest)])
+            blocks.append([tag, True])
+        elif tag in ("elif", "else"):
+            if blocks and blocks[-1][0] == "if":
+                arms[-1][1] += 1
+        elif tag == "empty":
+            if blocks and blocks[-1] == ["for", True]:
+                scopes.pop()
+                blocks[-1][1] = False
+                arms[-1][1] += 1
+        elif tag in BLOCK_END:
+            if blocks:
+                opened, pushed = blocks.pop()
+                if pushed and len(scopes) > 1:
+                    scopes.pop()
+                if opened in ("if", "for") and arms:
+                    arms.pop()
+        elif named := AS_NAME.search(rest):
+            scopes[-1].append((here(), named.group(1), tag == "firstof"))
+        else:
+            continue
+        marks.append((match.end(), _firstof_visible(scopes, here())))
+    return marks
+
+
+def firstof_bound_at(marks, position):
+    """The firstof names in scope at `position`, from firstof_scopes."""
+    index = bisect.bisect_right(marks, position, key=lambda mark: mark[0])
+    return marks[index - 1][1] if index else frozenset()
+
+
+def _firstof_message(rel, line, name, prop, value):
+    root = value.split(".", 1)[0]
+    return (
+        f'{rel}:{line}: <c-{name} :{prop}="{value}"> names a {{% firstof %}} result. '
+        f"firstof stores rendered text, so this prop is a string.\n"
+        f"    An object (a dataclass, a form, a user) arrives with no attributes, "
+        f"and the page still returns 200.\n"
+        f"    Fix: repeat the whole component inside {{% if %}} branches and pass "
+        f"each original dotted path to :{prop}. Use the firstof text only in an "
+        f'attribute that takes text, without the colon, such as label="{{{{ {root} }}}}".'
+    )
 
 
 def declared_props(component):
@@ -241,6 +388,7 @@ def main():
             continue
         src = blank_comments(raw)
         rel = path.relative_to(ROOT)
+        firstof_marks = firstof_scopes(src)
 
         for match in TAG.finditer(src):
             name, attrs = match.group(1), match.group(2)
@@ -352,7 +500,15 @@ def main():
                         f"form ships with the control missing."
                     )
 
-            # 5. a search control with no accessible name
+            # 5. a :prop whose value is a {% firstof … as name %} result.
+            # The name looks like a bare path. It is rendered text.
+            bound = firstof_bound_at(firstof_marks, match.start())
+            if bound:
+                for prop, value in COLON_PROP.findall(attrs):
+                    if DOTTED_PATH.fullmatch(value) and value.split(".", 1)[0] in bound:
+                        found.append(_firstof_message(rel, line, name, prop, value))
+
+            # 6. a search control with no accessible name
             if name in NEEDS_LABEL and not re.search(r"(?:^|\s):?label=", attrs):
                 found.append(
                     f'{rel}:{line}: <c-{name}> needs label="…" — the specific '

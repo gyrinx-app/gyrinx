@@ -10,41 +10,17 @@ Roll is primary because it begins a form. The other controls do not.
 
 <c-vars :table="None" class="" />
 
-<div class="flex flex-col gap-2 {{ class }}">
-    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-4">
-        <h3 class="text-sm font-medium text-ink-900 dark:text-ink-100">
-            {{ table.plural }}
-            {% if table.entries %}
-                <span class="ml-1 text-xs font-normal text-muted">{{ table.held }} held, {{ table.unclaimed }} unclaimed</span>
+<c-n26.section :boxed="True" :flush="True" title="{{ table.plural }}" count="{{ table.held }} held, {{ table.unclaimed }} unclaimed" class="{{ class }}">
+    {% if table.add_href or table.roll_href %}
+        <c-slot name="actions">
+            {% if table.roll_href %}
+                <c-ui.button size="sm" variant="primary" href="{{ table.roll_href }}" hx-get="{{ table.roll_href }}" hx-swap="none">Roll {{ table.plural|lower }}</c-ui.button>
             {% endif %}
-        </h3>
-        {% if table.add_href or table.create_href or table.roll_href %}
-            <div class="flex flex-wrap items-center gap-1">
-
-                {% if table.roll_href %}
-                    {# The response opens a dialog. Swapping this fetch would replace the table. #}
-                    <c-ui.button size="xs"
-                                 variant="primary"
-                                 href="{{ table.roll_href }}"
-                                 hx-get="{{ table.roll_href }}"
-                                 hx-swap="none"
-                                 title="Roll {{ table.plural|lower }} for the campaign’s unclaimed pool.">Roll {{ table.plural|lower }}</c-ui.button>
-                {% endif %}
-                {% if table.add_href %}
-                    <c-ui.button size="xs"
-                                 variant="default"
-                                 href="{{ table.add_href }}"
-                                 title="Add {{ table.plural|lower }} from the campaign type to this campaign.">Add {{ table.plural|lower }}</c-ui.button>
-                {% endif %}
-                {% if table.create_href %}
-                    <c-ui.button size="xs"
-                                 variant="default"
-                                 href="{{ table.create_href }}"
-                                 title="Create a new {{ table.label|lower }} for this campaign">Create {{ table.label|lower }}</c-ui.button>
-                {% endif %}
-            </div>
-        {% endif %}
-    </div>
+            {% if table.add_href %}
+                <c-ui.button size="sm" variant="default" href="{{ table.add_href }}">Add {{ table.plural|lower }}</c-ui.button>
+            {% endif %}
+        </c-slot>
+    {% endif %}
     {% if table.entries %}
         <c-ui.table>
             <thead>
@@ -123,7 +99,7 @@ Roll is primary because it begins a form. The other controls do not.
     {% else %}
         <p class="px-4 pb-4 text-sm text-muted">
             No {{ table.plural|lower }} yet.
-            {% if table.add_href %}Add assets to the pool, then assign them to gangs.{% endif %}
+            {% if table.add_href %}Add {{ table.plural|lower }}, then assign them to gangs.{% endif %}
         </p>
     {% endif %}
-</div>
+</c-n26.section>

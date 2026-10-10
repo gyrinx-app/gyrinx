@@ -173,7 +173,12 @@ def test_compact_description_keeps_full_rich_text_in_disclosure_and_popover(
     soup = BeautifulSoup(response.content, "html.parser")
     overview = soup.find(id="campaign-overview")
     assert overview.find("dt", string="Type")
-    assert overview.find("dt", string="Arbitrator")
+    arbitrator = next(
+        label
+        for label in overview.find_all("dt")
+        if label.get_text(strip=True) == "Arbitrator"
+    )
+    assert arbitrator.find("img", src="/static/n26/arbitrator.svg", alt="")
     assert overview.find("dt", string="Gang budget")
     popover = overview.find(attrs={"popover": "auto"})
     assert overview.find("button", attrs={"popovertarget": popover["id"]})

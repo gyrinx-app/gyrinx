@@ -639,6 +639,13 @@ gtm_container_id, messages, user.
         <meta name="htmx-config" content='{"historyCacheSize": 0}'>
         <script defer src="{% static 'n26/htmx_support.js' %}"></script>
         {% comment %}
+        A focused number field eats the wheel in Chrome and overwrites what was
+        typed. The guard listens at the document, so it covers every page this
+        shell draws, including fields swapped in later, without a call site
+        opting in.
+        {% endcomment %}
+        <script defer src="{% static 'platform/js/number-input-wheel.js' %}"></script>
+        {% comment %}
         The control that started a submission, a request or a navigation goes
         busy until it ends, so a slow post is visibly working and a second
         click cannot buy a second of something. It listens at the document, so

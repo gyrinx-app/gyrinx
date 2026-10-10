@@ -892,6 +892,7 @@ def recipes():
                 for tag, attrs in Elements(str(resolve(name).body)).elements
             ]
             for name in (
+                "plus",
                 "search",
                 "share-2",
                 "x",

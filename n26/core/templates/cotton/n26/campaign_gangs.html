@@ -77,11 +77,7 @@ React draws the menu. Its panel is fixed, so the table's scroll wrapper does not
                         {% if line is None %}
                             <span class="text-muted">&mdash;</span>
                         {% else %}
-                            {% if line.href %}
-                                {% include "n26/includes/campaign_counter_value.html" with counter=line redrawn=False %}
-                            {% else %}
-                                {{ line.value }}
-                            {% endif %}
+                            {% include "n26/includes/campaign_counter_value.html" with counter=line redrawn=False %}
                         {% endif %}
                     </td>
                 {% endfor %}

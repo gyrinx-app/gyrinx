@@ -18,26 +18,31 @@
                                 <h3 id="n26-action-{{ panel.action_id }}-title"
                                     class="font-semibold">{{ panel.name }}</h3>
                             </div>
-                            {% if panel.start_href %}
-                                <c-ui.button href="{{ panel.start_href }}"
-                                             variant="primary"
-                                             size="sm"
-                                             class="ml-auto"
-                                             aria-label="Start {{ panel.name }} flow">
-                                    Start <span aria-hidden="true">→</span>
-                                </c-ui.button>
-                            {% endif %}
-                            {% if panel.drafts|length == 1 %}
-                                {% for draft in panel.drafts %}
-                                    <c-ui.button href="{{ draft.href }}"
+                            <div class="ml-auto flex items-center gap-1">
+                                <c-n26.action-menu :items="panel.menu"
+                                                   label="More for {{ panel.name }}"
+                                                   variant="ghost"
+                                                   align="end"
+                                                   min_width="10rem" />
+                                {% if panel.start_href %}
+                                    <c-ui.button href="{{ panel.start_href }}"
                                                  variant="primary"
                                                  size="sm"
-                                                 class="ml-auto"
-                                                 aria-label="{{ draft.label }}">
-                                        Resume <span aria-hidden="true">→</span>
+                                                 aria-label="Start {{ panel.name }} flow">
+                                        Start <span aria-hidden="true">→</span>
                                     </c-ui.button>
-                                {% endfor %}
-                            {% endif %}
+                                {% endif %}
+                                {% if panel.drafts|length == 1 %}
+                                    {% for draft in panel.drafts %}
+                                        <c-ui.button href="{{ draft.href }}"
+                                                     variant="primary"
+                                                     size="sm"
+                                                     aria-label="{{ draft.label }}">
+                                            Resume <span aria-hidden="true">→</span>
+                                        </c-ui.button>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="space-y-2 text-sm px-4 pb-4 pt-3">
                             <p class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-muted">

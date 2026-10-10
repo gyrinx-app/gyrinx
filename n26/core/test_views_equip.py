@@ -1787,6 +1787,22 @@ def panel_for(response, assignment):
     )
 
 
+def accessorise_link(body, label):
+    """The fallback link and the props the island opens the panel with."""
+    import json
+
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(body, "html.parser")
+    for host in soup.select('[data-react-name="accessorise-link"]'):
+        link = host.find("a", attrs={"aria-label": label})
+        if link is None:
+            continue
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+        return link, props
+    raise AssertionError(label)
+
+
 def name_cell(body, label):
     """Whatever is drawn alongside the control carrying ``label``.
 
@@ -1824,10 +1840,11 @@ class TestTheAccessoryDialog:
         body = client.get(equip_url(fighter, gun_list)).content.decode()
 
         assert f'id="n26-accessorise-{owned_gun.pk}"' in body
-        assert (
-            f"$dispatch('n26-dialog-open', {{ id: 'n26-accessorise-{owned_gun.pk}'"
-            in body
-        )
+        link, props = accessorise_link(body, "Add accessory to Autogun")
+        assert props["dialogId"] == f"n26-accessorise-{owned_gun.pk}"
+        assert props["href"] == link["href"]
+        assert f"accessorise={owned_gun.pk}" in props["href"]
+        assert "$dispatch('n26-dialog-open'" not in body
 
     def test_every_gun_carries_its_own_panel_on_a_plain_visit(
         self, client, tester, gang, fighter, gun_list, owned_gun, accessories

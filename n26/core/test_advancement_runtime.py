@@ -9,6 +9,7 @@ from n26.core.advancements import (
     _fighter_state,
     _stat_gainable,
     advancement_options,
+    carried_skill_rolls,
     recorded_skill,
     skill_options,
 )
@@ -495,7 +496,6 @@ def test_switching_random_skill_access_reuses_the_recorded_die(fighter):
             uuid4(),
             pickable_id=random_secondary.id,
             skill_set_id=secondary.pk,
-            rolled=6,
         )
         replayed = op.record_skill_roll(
             record,
@@ -519,6 +519,134 @@ def test_switching_random_skill_access_reuses_the_recorded_die(fighter):
         ).count()
         == 2
     )
+
+
+def _switch_after_a_roll(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    primary = _primary_agility(fighter)
+    secondary = _secondary_cunning(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=12)
+    options = advancement_options(record, configured)
+    random_primary = next(row for row in options if row.name == "Random Primary skill")
+    random_secondary = next(
+        row for row in options if row.name == "Random Secondary skill"
+    )
+    with operation(fighter.gang) as op:
+        first = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_primary.id,
+            skill_set_id=primary.pk,
+            rolled=1,
+        )
+    record.refresh_from_db()
+    return record, configured, random_secondary, secondary, first
+
+
+def test_a_carried_die_refuses_a_different_recorded_roll(fighter):
+    record, configured, random_secondary, secondary, first = _switch_after_a_roll(
+        fighter
+    )
+
+    with operation(fighter.gang) as op:
+        with pytest.raises(
+            Refusal,
+            match="You cannot record a different roll for Cunning. "
+            "Your D6 roll of 1 carries over to it.",
+        ):
+            op.record_skill_roll(
+                record,
+                configured,
+                uuid4(),
+                pickable_id=random_secondary.id,
+                skill_set_id=secondary.pk,
+                rolled=6,
+            )
+
+    record.refresh_from_db()
+    assert len(record.skill_selection.random_attempts) == 1
+    assert (
+        LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).count()
+        == 2
+    )
+
+
+def test_a_carried_die_accepts_the_same_recorded_roll(fighter):
+    record, configured, random_secondary, secondary, first = _switch_after_a_roll(
+        fighter
+    )
+
+    with operation(fighter.gang) as op:
+        switched = op.record_skill_roll(
+            record,
+            configured,
+            uuid4(),
+            pickable_id=random_secondary.id,
+            skill_set_id=secondary.pk,
+            rolled=1,
+        )
+
+    assert switched["event_id"] == first["event_id"]
+    assert switched["roll"] == 1
+
+
+def test_carried_skill_rolls_names_the_sets_that_reuse_the_die(fighter):
+    record, configured, random_secondary, secondary, first = _switch_after_a_roll(
+        fighter
+    )
+    groups = skill_options(record, configured, random_secondary.id)
+
+    assert carried_skill_rolls(record, configured, random_secondary.id, groups) == {
+        str(secondary.pk): 1
+    }
+
+
+def test_carried_skill_rolls_is_empty_before_any_skill_roll(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    _primary_agility(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=12)
+    random_primary = next(
+        row
+        for row in advancement_options(record, configured)
+        if row.name == "Random Primary skill"
+    )
+    groups = skill_options(record, configured, random_primary.id)
+
+    assert carried_skill_rolls(record, configured, random_primary.id, groups) == {}
+
+
+def test_a_recorded_skill_roll_refuses_a_number_a_d6_cannot_make(fighter):
+    action, outcome, allowance = _advancement(fighter)
+    primary = _primary_agility(fighter)
+    configured = outcome.resolve_advancement
+    with operation(fighter.gang) as op:
+        record = op.start_action(fighter, action, uuid4(), allowance)
+        op.record_action_roll(record, configured, uuid4(), rolled=12)
+    random_primary = next(
+        row
+        for row in advancement_options(record, configured)
+        if row.name == "Random Primary skill"
+    )
+
+    with operation(fighter.gang) as op:
+        with pytest.raises(Refusal, match="You cannot roll 7 on a D6."):
+            op.record_skill_roll(
+                record,
+                configured,
+                uuid4(),
+                pickable_id=random_primary.id,
+                skill_set_id=primary.pk,
+                rolled=7,
+            )
 
 
 def test_revisiting_random_access_restores_its_accepted_attempt(fighter):
@@ -552,7 +680,6 @@ def test_revisiting_random_access_restores_its_accepted_attempt(fighter):
             uuid4(),
             pickable_id=random_secondary.id,
             skill_set_id=secondary.pk,
-            rolled=6,
         )
         accepted_secondary = op.record_skill_roll(
             record,

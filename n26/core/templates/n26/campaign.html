@@ -138,25 +138,36 @@ reader's other campaigns — the same pattern a gang's screens use.
             </c-slot>
         {% endif %}
         <c-slot name="players">
+            <p class="mb-3 text-sm text-muted" data-player-counts>{{ player_count }} accepted player{{ player_count|pluralize }} · {{ invitation_count }} pending invitation{{ invitation_count|pluralize }}</p>
             {% if players %}
                 <c-ui.table>
                     <thead>
                         <tr>
                             <th scope="col">Player</th>
-                            <th scope="col" class="text-right">Invitation</th>
+                            <th scope="col" class="text-right">Status</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for player in players %}
+                        {% for player in player_lines %}
                             <tr>
                                 <td class="font-semibold text-ink-900 dark:text-ink-100">
                                     <c-n26.user-link :user="player.user" tone="current" />
+                                    <ul class="mt-1 space-y-1 text-sm font-normal">
+                                        {% for gang in player.gangs %}
+                                            <li>
+                                                <c-n26.link href="{{ gang.href }}">
+                                                    {{ gang.name }}
+                                                </c-n26.link>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
                                 </td>
                                 <td class="text-right">
                                     {% if player.state == "accepted" %}
                                         <c-ui.badge color="green" size="sm">
                                             Accepted
                                         </c-ui.badge>
+                                        <p class="mt-1 text-xs text-muted">{{ player.participation }}</p>
                                     {% elif player.state == "declined" %}
                                         <c-ui.badge color="ink" size="sm">
                                             Declined

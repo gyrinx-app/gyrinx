@@ -1,3 +1,4 @@
+{% load react %}
 {% comment %}
 One campaign counter value and its existing tally forms. Both the campaign
 table and the gang sheet reserve this host; a tally redraws just this value.
@@ -5,6 +6,12 @@ table and the gang sheet reserve this host; a tally redraws just this value.
 <span id="n26-counter-{{ counter.assignment_id }}"
       class="inline-flex items-center gap-2"
       {% if redrawn %} hx-swap-oob="true"{% endif %}>
-    <span class="tabular-nums" data-counter-value>{{ counter.value }}</span>
-    <c-n26.counter-controls :counter="counter" :htmx="True" :steps="steps" />
+    {% if counter.is_income %}
+        {% react_host "income-tooltip" counter.income_explanation %}
+            <span class="tabular-nums" data-counter-value>{{ counter.value }}</span>
+        {% endreact_host %}
+    {% else %}
+        <span class="tabular-nums" data-counter-value>{{ counter.value }}</span>
+    {% endif %}
+    {% if counter.href %}<c-n26.counter-controls :counter="counter" :htmx="True" :steps="steps" />{% endif %}
 </span>

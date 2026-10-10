@@ -14,7 +14,7 @@ dependencies = [
     "click==8.5.0",
     "defusedxml==0.7.1",
     "Django==6.0.7",
-    "django-allauth==65.19.5",
+    "django-allauth==65.19.7",
     "django-cotton==2.7.2",
     "django-cotton-ui==0.3.4",
     "django-csp==4.0",
@@ -26,13 +26,13 @@ dependencies = [
     "django-simple-history==3.13.0",
     "django-storages[google]==1.14.6",
     "django-tinymce==5.0.0",
-    "djlint==1.46.3",
+    "djlint==1.46.4",
     "docutils==0.23",
     "fido2==2.2.1",
-    "filelock==4.0.7",
-    "google-cloud-logging==3.16.3",
-    "google-cloud-pubsub==2.41.0",
-    "google-cloud-scheduler==2.20.0",
+    "filelock==4.0.12",
+    "google-cloud-logging==3.17.0",
+    "google-cloud-pubsub==2.42.0",
+    "google-cloud-scheduler==2.21.0",
     "google-cloud-sqlcommenter==2.0.0",
     "gunicorn==26.2.0",
     "jsonschema==4.26.0",
@@ -65,18 +65,18 @@ dependencies = [
     "pytest-django==4.14.0",
     "pytest-watcher==0.6.3",
     "pytest-xdist==3.8.0",
-    "python-dotenv==1.2.3",
+    "python-dotenv==1.2.4",
     "qrcode==8.2",
     "referencing==0.37.0",
     "requests==2.34.2",
     "rich==15.0.0",
-    "ruff==0.16.9",
+    "ruff==0.16.10",
     "setuptools==81.0.0",
     "simpleeval==1.0.8",
     "sqlparse==0.6.0",
     # Security: minimum versions for vulnerable transitive dependencies
     "urllib3>=2.8.0",
-    "virtualenv>=21.14.1",
+    "virtualenv>=21.14.5",
     "whitenoise==6.12.0",
     "markdown-it-py>=4.2.0",
 ]
@@ -215,7 +215,10 @@ custom_html = "c-[\\w.-]+"
 # Golden HTML snapshots are RENDERED OUTPUT, not templates. djlint --reformat
 # rewrites them (verified: "16 files would be updated"), which would silently
 # Design explorations are standalone HTML prototypes, not Django templates.
-extend_exclude = "gyrinx/templates/cotton,n26/core/templates/cotton,design/exploration"
+# logs/ is gitignored, but djlint does not read .gitignore. scripts/fmt.sh runs
+# `djlint --reformat .`, which would rewrite an HTTP capture saved as
+# logs/*.html and then fail the lint check on it.
+extend_exclude = "gyrinx/templates/cotton,n26/core/templates/cotton,design/exploration,logs"
 
 [tool.bandit]
 exclude_dirs = [

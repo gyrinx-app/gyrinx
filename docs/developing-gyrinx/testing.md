@@ -135,6 +135,16 @@ second process exits immediately with the pid that holds it. Wait for that
 process, then run one suite. Workers from `-n` are part of the same run and
 do not take a second lock.
 
+pytest-django creates a test database only for tests that request one
+(`django_db`, the `db` fixture, or a Django `TestCase`). A file with none of
+those leaves the connection on `DB_NAME`. The session fixtures that seed
+`ContentStat` and the Fighter statline type, and the one that warms the
+content-type cache, return before opening a connection in that case. They
+still seed the test database when any test in the session needs it. A plain
+pytest run on a fresh worktree therefore does not fail with
+`relation content_contentstat does not exist`, and it does not insert
+ContentStat rows into the dev database.
+
 On a shared Postgres cluster, prefer `-n 4` while another agent is testing.
 `out of shared memory` during schema creation, on a cluster that already has
 `max_locks_per_transaction = 256`, means those other workers are still creating
