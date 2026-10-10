@@ -1,0 +1,79 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+The core Territory content seed's console page: what the seed would write
+or leave alone, an apply button, and the recent runs. The preview is the
+seed run and rolled back, so it is exactly what a run would do.
+Context from seed_core_territory_content_view (n26/maintenance.py): title,
+preview, nothing_to_do, problem, apply_url, recent.
+{% endcomment %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-plan { font-family: monospace; line-height: 1.6; }
+    .mt-form { margin-top: 2rem; }
+    .mt-table { width: 100%; margin-top: 1rem; }
+    .mt-problems { color: var(--error-fg, #ba2121); }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        This writes library rows only: the income of each of the eighteen
+        Territories on the core Territory Selection Table, a Reputation
+        modifier on Generatorium and Gambling Den, and a named rule for each
+        recruit, equipment and special boon. A Territory that already has an
+        income keeps it. The Territories are live, so gangs already holding one
+        see the change at once.
+    </p>
+    {% if problem %}
+        <h2 class="mt-problems">The preview cannot run</h2>
+        <p class="mt-problems">{{ problem }}</p>
+        <p>Nothing can be written while this stands.</p>
+    {% elif nothing_to_do %}
+        <h2>Nothing to write</h2>
+        <p>Every Territory already has its income and boons.</p>
+        <ul class="mt-plan">
+            {% for line in preview|slice:"1:" %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+    {% else %}
+        <h2>What it would do</h2>
+        <ul class="mt-plan">
+            {% for line in preview %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+        <form method="post"
+              class="mt-form"
+              onsubmit="return confirm('Give the core Territories their income and boons? A Territory that already has an income keeps it.')">
+            {% csrf_token %}
+            <button type="submit" class="button default">Write the missing income and boons</button>
+        </form>
+    {% endif %}
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.triggered_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock content %}

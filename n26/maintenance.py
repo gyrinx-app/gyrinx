@@ -98,6 +98,7 @@ __all__ = [
     "rehost_gang_picks",
     "repair_doubled_refunds",
     "repoint_champion_picks",
+    "seed_core_territory_content",
     "seed_journal_content",
     "PlanRefused",
     "run_batched",
@@ -229,6 +230,10 @@ class Operation(models.TextChoices):
         "n26_seed_journal_content",
         "n26: the Gang supertype and the Underhive Journal territories are created",
     )
+    SEED_CORE_TERRITORY_CONTENT = (
+        "n26_seed_core_territory_content",
+        "n26: the core Territories get their income and boons",
+    )
     DELETE_TEST_CONTENT = (
         "n26_delete_test_content",
         "n26: content is deleted along with the test gangs holding it",
@@ -291,6 +296,7 @@ LOCK_KEYS = {
     Operation.ACTIVATE_COUNTER_HISTORY: 826_020_627,
     Operation.INITIALISE_ACTION_ALLOWANCES: 826_020_626,
     Operation.RESET_SPYRER_BUILT_INS: 826_020_628,
+    Operation.SEED_CORE_TERRITORY_CONTENT: 826_020_629,
 }
 
 
@@ -2503,6 +2509,112 @@ register_operation(
 
 
 @task
+def seed_core_territory_content(backfill_id, **said_by_whoever_enqueued_it):
+    """Give the core rulebook's eighteen Territories their income and
+    boons, once, and record what was written.
+
+    Library-only work in one transaction under the runner discipline:
+    every row is matched on its name and pack and left alone where it
+    stands, and a Territory that already has an income keeps it, so a
+    rerun writes nothing and says so.
+    """
+    from n26.library.core_territory_content import seed_all
+
+    _run_recorded(
+        backfill_id,
+        Operation.SEED_CORE_TERRITORY_CONTENT,
+        "Core Territory content seed",
+        seed_all,
+        (),
+    )
+
+
+def seed_core_territory_content_view(request):
+    """Say what the seed would write (GET), or record a run and enqueue it.
+
+    The preview is the seed itself, run and rolled back, so it lists
+    exactly what a run would write or leave alone. A seed with nothing to
+    do records no run.
+    """
+    from n26.library.core_territory_content import NOTHING_TO_DO, preview
+
+    operation = Operation.SEED_CORE_TERRITORY_CONTENT
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That seed is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        try:
+            lines = preview()
+        except (ObjectDoesNotExist, MultipleObjectsReturned, ValidationError) as broke:
+            messages.error(request, f"The seed cannot run: {broke}")
+            return HttpResponseRedirect(address)
+        if lines[0] == NOTHING_TO_DO:
+            messages.info(request, NOTHING_TO_DO)
+            return HttpResponseRedirect(address)
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": lines, "attempts": 0},
+        )
+        seed_core_territory_content.enqueue(backfill_id=str(backfill.id))
+        messages.success(
+            request, "The seed is running. This page shows what it writes."
+        )
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+    problem = ""
+    try:
+        lines = preview()
+    except (ObjectDoesNotExist, MultipleObjectsReturned, ValidationError) as broke:
+        # A library shape the seed does not expect — no Reputation
+        # counter, say — is shown on the page in words rather than as an
+        # error page, so the operation stays reachable.
+        lines, problem = [], str(broke)
+    context = page_context(
+        request,
+        operation.label,
+        preview=lines,
+        nothing_to_do=bool(lines) and lines[0] == NOTHING_TO_DO,
+        problem=problem,
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(
+        request, "admin/maintenance/n26/seed_core_territory_content.html", context
+    )
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.SEED_CORE_TERRITORY_CONTENT.value,
+        name=Operation.SEED_CORE_TERRITORY_CONTENT.label,
+        added=date(2026, 10, 10),
+        description=(
+            "Give the eighteen Territories on the core Territory Selection "
+            "Table their income and boons. Income counts toward the holding "
+            "gang's Income. Generatorium and Gambling Den add 1 Reputation. "
+            "The recruit, equipment and special boons are named rules on the "
+            "gang that holds the Territory, with the name only. A Territory "
+            "that already has an income keeps it, and every rule and modifier "
+            "is matched by name, so running this again writes nothing. The "
+            "Territories are live, so gangs already holding one see the "
+            "change at once. No money moves."
+        ),
+        view=seed_core_territory_content_view,
+        detail_template=(
+            "admin/maintenance/n26/_seed_core_territory_content_detail.html"
+        ),
+    )
+)
+
+
+@task
 def delete_test_content(backfill_id, **said_by_whoever_enqueued_it):
     """Delete content and the test gangs holding it, exactly as the
     authoring page showed it.
@@ -2979,6 +3091,7 @@ task_routes = [
     N26TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(open_founding_actions, ack_deadline=600),
     N26TaskRoute(seed_journal_content, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(seed_core_territory_content, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(clear_item_restrictions, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(order_collections, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(initialise_action_allowances, ack_deadline=600),
