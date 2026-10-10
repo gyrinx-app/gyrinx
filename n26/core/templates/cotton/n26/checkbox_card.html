@@ -1,15 +1,14 @@
 {% comment %}
-<c-n26.checkbox-card> — A checkbox drawn as a card, with nested controls that go inert when it is clear.
+<c-n26.checkbox-card> — A checkbox drawn as a card, with nested ticks that go inert when it is clear.
 
-Nested controls are inert when the box is clear. That blocks clicks and focus.
-It does not keep them out of the POST. Disable those inputs in the caller if they must not submit.
+React draws the card from data. Pass the nested ticks as :items (CheckboxCardItem rows built in Python) and meta as text.
+A body slot, markup in meta, or extra root attributes raise: React does not take server-drawn markup as children.
 
-A card with no body, meta or extra root attributes is a React island. The checkbox posts name and value, and
-React draws the card over that markup and keeps a tick made before it mounted.
-A card with any of those keeps its Alpine toggle. React does not take server-drawn markup as children, so the
-island cannot hold the body's controls. picked is in Alpine scope for nested controls to read.
+Nested ticks are inert while the box is clear. That blocks clicks and focus. It does not keep them out of the POST.
 
-static draws the card with no island and no Alpine. Use it inside another island's fallback, where a second island must not mount.
+Until React mounts, the host holds the same card drawn from the same props, so a form posted early still says what the server drew.
+
+static draws the card with no island, body and meta slots included. Use it inside another island's fallback, where a second island must not mount.
 Its body is dimmed while the box is clear but stays usable, because nothing would turn those controls back on.
 {% endcomment %}
 
@@ -19,46 +18,21 @@ Its body is dimmed while the box is clear but stays usable, because nothing woul
     value=""
     :checked="False"
     :static="False"
+    :items="None"
     label=""
     description=""
     meta=""
     class=""
 />
 
-{# One boolean for every path, so a printed "false" is clear in each. #}
+{# One boolean for the face and the props, so a printed "false" is clear in both. #}
 {% with checked=checked|checkbox_card_flag %}
     {% if static %}
-        {% include "n26/includes/checkbox_card_face.html" %}
-    {% elif slot|checkbox_card_filled or meta|checkbox_card_filled or attrs|checkbox_card_filled %}
-        {% with on="border-accent bg-accent/5" off="border-ink-200 dark:border-ink-700" dim="opacity-50" %}
-            <div {{ attrs }}
-                 x-data="{ picked: {{ checked|yesno:'true,false' }} }"
-                 :class="picked ? '{{ on }}' : '{{ off }}'"
-                 class="rounded-box border-2 p-4 transition-[background-color] {{ class }}">
-                <label class="flex cursor-pointer items-start gap-3">
-                    <input type="checkbox"
-                           name="{{ name }}"
-                           value="{{ value }}"
-                           {% if checked %}checked{% endif %}
-                           @change="picked = $event.target.checked"
-                           class="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)] focus-ring">
-                    <span class="min-w-0 flex-1">
-                        <span class="block truncate text-base font-semibold text-ink-900 dark:text-ink-100">{{ label }}</span>
-                        {% if description %}<span class="block truncate text-muted">{{ description }}</span>{% endif %}
-                    </span>
-                    {% if meta %}{{ meta }}{% endif %}
-                </label>
-                {% if slot.strip %}
-                    {# pl-8 lines the body up with the title, past the checkbox and its gap. #}
-                    <div class="mt-2 border-t border-box-border pt-2 pl-8"
-                         :class="picked ? '' : '{{ dim }}'"
-                         {# inert blocks clicks. It does not keep nested inputs out of the POST. #}
-                         :inert="!picked">{{ slot }}</div>
-                {% endif %}
-            </div>
+        {% with props_=None %}
+            {% include "n26/includes/checkbox_card_face.html" %}
         {% endwith %}
     {% else %}
-        {% checkbox_card_props name=name value=value checked=checked label=label description=description css_class=class as props_ %}
+        {% checkbox_card_props name=name value=value checked=checked label=label description=description css_class=class meta=meta items=items body=slot attrs=attrs as props_ %}
         {# contents keeps the card a direct child of the caller's grid or flex row. #}
         {% react_host "checkbox-card" props_ class="contents" %}
             {% include "n26/includes/checkbox_card_face.html" %}

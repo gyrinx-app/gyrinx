@@ -1,14 +1,17 @@
 {% comment %}
-The checkbox card as the server draws it, before React mounts, and the
-card static renders on its own.
+The checkbox card as the server draws it: the island's fallback until React
+mounts, and the whole of a static card.
 
 The class strings here are the ones the React card copies. checked is a
-boolean. The checkbox carries checked when the card starts ticked, so a
-form posted with JavaScript off still says what the server drew.
+boolean, and each box carries checked when it starts ticked, so a form posted
+before React mounts still says what the server drew.
 
-The body is dimmed while the box is clear and is never inert. Nothing
-would turn nested controls back on. Only a static card has a body or meta:
-the island draws a header-only card.
+With props_ this is the island's fallback, drawn from the same data React
+draws: meta as text and the nested ticks from items. Without it this is a
+static card, drawing its meta and body slots.
+
+The body is dimmed while the box is clear and is never inert here. Nothing
+would turn nested controls back on until React mounts.
 {% endcomment %}
 {% with on="border-accent bg-accent/5" off="border-ink-200 dark:border-ink-700" dim="opacity-50" %}
     <div {{ attrs }}
@@ -26,12 +29,31 @@ the island draws a header-only card.
                     <span class="block truncate text-muted">{{ description }}</span>
                 {% endif %}
             </span>
-            {% if meta %}
+            {% if props_ %}
+                {% if props_.meta %}<span class="shrink-0 text-sm tabular-nums text-muted">{{ props_.meta }}</span>{% endif %}
+            {% elif meta %}
                 {# contents keeps the slot's own boxes as the label's flex items. #}
                 <span data-checkbox-meta class="contents">{{ meta }}</span>
             {% endif %}
         </label>
-        {% if slot.strip %}
+        {% if props_ %}
+            {% if props_.items %}
+                <div data-checkbox-body
+                     class="mt-2 border-t border-box-border pt-2 pl-8{% if not checked %} {{ dim }}{% endif %}">
+                    {% for item in props_.items %}
+                        <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
+                            <input type="checkbox"
+                                   name="{{ item.name }}"
+                                   value="{{ item.value }}"
+                                   {% if item.checked %}checked{% endif %}
+                                   class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                            <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ item.label }}</span>
+                            {% if item.meta %}<span class="shrink-0 text-xs tabular-nums text-muted">{{ item.meta }}</span>{% endif %}
+                        </label>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% elif slot.strip %}
             <div data-checkbox-body
                  class="mt-2 border-t border-box-border pt-2 pl-8{% if not checked %} {{ dim }}{% endif %}">
                 {{ slot }}

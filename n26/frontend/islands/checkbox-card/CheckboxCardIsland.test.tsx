@@ -15,6 +15,33 @@ const props: CheckboxCardIslandProps = {
     label: "Goliath Territories",
     description: "D6 · 6 territories",
     className: "h-full",
+    meta: "",
+    items: [],
+};
+
+const withItems: CheckboxCardIslandProps = {
+    ...props,
+    name: "fighters",
+    value: "vex",
+    label: "Vex",
+    description: "Escher Ganger",
+    meta: "85¢",
+    items: [
+        {
+            name: "weapons",
+            value: "lasgun",
+            label: "Lasgun",
+            checked: true,
+            meta: "15¢",
+        },
+        {
+            name: "weapons",
+            value: "stiletto",
+            label: "Stiletto knife",
+            checked: false,
+            meta: "20¢",
+        },
+    ],
 };
 
 const fallback = `
@@ -25,27 +52,25 @@ const fallback = `
   </label>
 </div>`;
 
-function mountedHost(
-    html = fallback,
-    initial?: Partial<CheckboxCardIslandProps>,
-) {
+const fallbackWithItems = `
+<div data-checkbox-card class="rounded-box">
+  <label>
+    <input type="checkbox" name="fighters" value="vex">
+    <span>Vex</span>
+  </label>
+  <div data-checkbox-body>
+    <label><input type="checkbox" name="weapons" value="lasgun" checked> Lasgun</label>
+    <label><input type="checkbox" name="weapons" value="stiletto"> Stiletto knife</label>
+  </div>
+</div>`;
+
+function mountedHost(html: string) {
     const form = document.createElement("form");
     const host = document.createElement("div");
     host.innerHTML = html;
     form.appendChild(host);
     document.body.appendChild(form);
-    let unmount = () => {};
-    act(() => {
-        unmount = mount(host, { ...props, ...initial });
-    });
-    return {
-        form,
-        host,
-        cleanup() {
-            act(() => unmount());
-            form.remove();
-        },
-    };
+    return { form, host };
 }
 
 afterEach(() => {
@@ -92,12 +117,50 @@ describe("CheckboxCardIsland", () => {
         expect(screen.getByText(label)).toBeTruthy();
         expect(document.querySelector("img")).toBeNull();
     });
+
+    it("makes the nested ticks inert while the card is clear, and still posts them", async () => {
+        const user = userEvent.setup();
+        const { container } = render(
+            <form>
+                <CheckboxCardIsland {...withItems} />
+            </form>,
+        );
+        const form = container.querySelector("form")!;
+        const card = screen.getByRole<HTMLInputElement>("checkbox", {
+            name: "Vex",
+        });
+        const stiletto = screen.getByRole<HTMLInputElement>("checkbox", {
+            name: /Stiletto knife/,
+            hidden: true,
+        });
+
+        expect(form.textContent).toContain("85¢");
+        expect(form.textContent).toContain("20¢");
+        expect(stiletto.closest("[inert]")).not.toBeNull();
+        expect(new FormData(form).getAll("weapons")).toEqual(["lasgun"]);
+
+        await user.click(card);
+        expect(stiletto.closest("[inert]")).toBeNull();
+        await user.click(stiletto);
+        expect(new FormData(form).getAll("weapons")).toEqual([
+            "lasgun",
+            "stiletto",
+        ]);
+
+        await user.click(card);
+        expect(stiletto.closest("[inert]")).not.toBeNull();
+        expect(stiletto.checked).toBe(true);
+    });
 });
 
 describe("mounting over the server-drawn card", () => {
     it("replaces the server-drawn box and posts it once", async () => {
         const user = userEvent.setup();
-        const { form, cleanup } = mountedHost();
+        const { form, host } = mountedHost(fallback);
+        let unmount = () => {};
+        act(() => {
+            unmount = mount(host, props);
+        });
         const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
             name: "Goliath Territories",
         });
@@ -109,34 +172,34 @@ describe("mounting over the server-drawn card", () => {
         await user.click(checkbox);
         expect(checkbox.checked).toBe(true);
         expect(new FormData(form).getAll("open")).toEqual(["table-1"]);
-        cleanup();
+        act(() => unmount());
     });
 
-    it("reads the fallback tick when it differs from the props", () => {
-        const form = document.createElement("form");
-        const host = document.createElement("div");
-        host.innerHTML = fallback;
-        form.appendChild(host);
-        document.body.appendChild(form);
-        const original =
-            host.querySelector<HTMLInputElement>("input[name='open']")!;
-        original.checked = true;
-        original.focus();
+    it("reads the fallback ticks when they differ from the props", () => {
+        const { form, host } = mountedHost(fallbackWithItems);
+        const card = host.querySelector<HTMLInputElement>(
+            "input[name='fighters']",
+        )!;
+        card.checked = true;
+        card.focus();
+        host.querySelector<HTMLInputElement>("input[value='lasgun']")!.checked =
+            false;
+        host.querySelector<HTMLInputElement>(
+            "input[value='stiletto']",
+        )!.checked = true;
 
         let unmount = () => {};
         act(() => {
-            unmount = mount(host, props);
+            unmount = mount(host, withItems);
         });
 
         const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
-            name: "Goliath Territories",
+            name: "Vex",
         });
         expect(checkbox.checked).toBe(true);
         expect(document.activeElement).toBe(checkbox);
-        expect(checkbox.closest("div")?.className).toContain(
-            cotton.checkboxCard.selection.checked,
-        );
+        expect(new FormData(form).getAll("weapons")).toEqual(["stiletto"]);
+        expect(form.querySelectorAll("input[name='weapons']")).toHaveLength(2);
         act(() => unmount());
-        form.remove();
     });
 });

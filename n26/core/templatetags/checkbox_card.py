@@ -5,6 +5,8 @@ from html import unescape
 from django import template
 from django.utils.safestring import SafeData
 
+from n26.core.checkbox_card import CheckboxCardItem
+
 register = template.Library()
 
 
@@ -23,9 +25,8 @@ def checkbox_card_flag(value):
     return _flag(value)
 
 
-@register.filter
-def checkbox_card_filled(value):
-    """Whether a slot, meta or attrs renders to anything.
+def _filled(value):
+    """Whether a slot or attrs renders to anything.
 
     Cotton's attrs is an object, truthy even when it holds no attribute, so
     it is judged by what it prints.
@@ -45,6 +46,20 @@ def _text(value):
     return unescape(str(value)) if isinstance(value, SafeData) else str(value)
 
 
+def _item(item):
+    if not isinstance(item, CheckboxCardItem):
+        raise TypeError(
+            f"A checkbox card's items are CheckboxCardItem, not {type(item).__name__}"
+        )
+    return {
+        "name": item.name,
+        "value": item.value,
+        "label": item.label,
+        "checked": item.checked,
+        "meta": item.meta,
+    }
+
+
 @register.simple_tag
 def checkbox_card_props(
     name="",
@@ -53,15 +68,36 @@ def checkbox_card_props(
     label="",
     description="",
     css_class="",
+    meta="",
+    items=None,
+    body="",
+    attrs="",
 ):
-    """The checkbox the card posts, and the words drawn in its header.
+    """The card's checkbox, its header words, and the nested ticks it holds.
 
     None and the string false are off. An empty value stays empty: a missing
     value attribute would post the browser's default of on.
 
-    Only a card with no body, meta or extra root attributes is an island, so
-    these are all it draws.
+    React draws the card from these props alone. It does not take
+    server-drawn markup as children, so a body slot, markup in meta, or extra
+    root attributes are refused: pass the nested ticks as items and meta as
+    text, or draw the card static.
     """
+    if _filled(body):
+        raise ValueError(
+            "<c-n26.checkbox-card> draws its nested ticks from :items, not from "
+            'markup in its body. Pass CheckboxCardItem rows, or :static="True".'
+        )
+    if "<" in str(meta or ""):
+        raise ValueError(
+            '<c-n26.checkbox-card> takes meta as text, such as meta="85¢". '
+            'Markup in meta needs :static="True".'
+        )
+    if _filled(attrs):
+        raise ValueError(
+            "<c-n26.checkbox-card> as a React island draws no extra root "
+            f'attributes ({str(attrs).strip()}). Pass :static="True" to keep them.'
+        )
     return {
         "name": _text(name),
         "value": _text(value),
@@ -69,4 +105,6 @@ def checkbox_card_props(
         "label": _text(label),
         "description": _text(description),
         "className": _text(css_class),
+        "meta": _text(meta),
+        "items": [_item(item) for item in items or ()],
     }

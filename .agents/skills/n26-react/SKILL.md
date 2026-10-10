@@ -44,6 +44,12 @@ styles.
   Behaviour and accessibility need a React implementation; Alpine markup cannot
   be reused as an interactive primitive. Use the common app stylesheet, not
   island CSS imports (the template loader does not load CSS chunks).
+- A component's slot content (nested controls, a figure in a named slot)
+  becomes typed props built in Python when it moves to React; the island draws
+  it and Cotton draws any fallback from the same props. Never move server-drawn
+  nodes into React or keep the old version for the hard variant. Keep the
+  behaviour; if content cannot be data yet, ask before changing it. See
+  `docs/developing-gyrinx/react.md`.
 - React exclusively owns the host's children. No nested island, Alpine binding,
   htmx swap or externally moved DOM inside it. Keep htmx outside islands and use
   the provided cleanup lifecycle for an island inside an htmx-swapped region.
