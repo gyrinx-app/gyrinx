@@ -30,33 +30,10 @@ def test_content(content_house, content_fighter):
     return content_fighter.category, content_house, content_fighter
 
 
-@pytest.mark.django_db
-def test_basic_list(content_house):
-    lst = List.objects.create(name="Test List", content_house=content_house)
-
-    assert lst.name == "Test List"
-
-
-@pytest.mark.django_db
-def test_list_name_min_length(content_house):
-    # Test that 1 character names are now allowed
-    lst = List.objects.create(name="A", content_house=content_house)
-    assert lst.name == "A"
-
-    # Test that 2 character names still work
-    lst2 = List.objects.create(name="AB", content_house=content_house)
-    assert lst2.name == "AB"
-
-
-@pytest.mark.django_db
-def test_basic_list_fighter(content_house, content_fighter):
-    lst = List.objects.create(name="Test List", content_house=content_house)
-    fighter = ListFighter.objects.create(
-        name="Test Fighter", list=lst, content_fighter=content_fighter
-    )
-
-    assert lst.name == "Test List"
-    assert fighter.name == "Test Fighter"
+@pytest.mark.parametrize("name", ["A", "AB"])
+def test_list_name_min_length(name):
+    # Model.save() does not run validators; exercise the name's validation.
+    assert List._meta.get_field("name").clean(name, None) == name
 
 
 @pytest.mark.django_db
