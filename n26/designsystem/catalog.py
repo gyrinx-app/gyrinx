@@ -1703,9 +1703,9 @@ GROUPS: list[Group] = [
                     "that shared name is the state, and has-[:checked] styles the "
                     "chosen card, so the page is right before any script runs. min "
                     "is the CSS minmax track size, not a column count. Pass form "
-                    "and name together or neither, or no field error is drawn. Use "
-                    "c-n26.checkbox-card where a card's body holds controls of its "
-                    "own."
+                    "and name together or neither, or no field error is drawn. Where "
+                    "a card's body holds controls of its own, compose CheckboxCard "
+                    "in React."
                 ),
             ),
             Component(
@@ -1874,14 +1874,15 @@ GROUPS: list[Group] = [
                 slug="checkbox-card",
                 tag="c-n26.checkbox-card",
                 template="n26/checkbox_card.html",
-                summary="A checkbox drawn as a card whose body stays interactive.",
+                summary="A checkbox drawn as a card, as React draws it.",
                 notes=(
-                    "Use it where the card holds controls of its own. The kit's "
-                    "checkbox cards make the whole surface the toggle, so a click "
-                    "on an inner control would toggle the card. While the box is "
-                    "clear the body is dimmed and inert, which blocks clicks and "
-                    "focus but still submits, so disable any inner input that must "
-                    "not post. static draws the card for a fallback inside another "
+                    "On a page it is a React island with a header only, and a body "
+                    "or meta raises. A card whose body holds controls of its own is "
+                    "composed in React: CheckboxCard inside the island that owns "
+                    "the form, which makes that body inert while the box is clear. "
+                    "Inert blocks clicks and focus but still submits, so disable "
+                    "any inner input that must not post. static draws the card with "
+                    "its body and meta and no island, for a fallback inside another "
                     "React region."
                 ),
             ),

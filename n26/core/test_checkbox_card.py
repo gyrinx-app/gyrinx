@@ -2,6 +2,7 @@
 
 import json
 
+import pytest
 from bs4 import BeautifulSoup
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
@@ -61,9 +62,7 @@ def test_a_known_tick_and_an_empty_value_are_kept():
 def test_the_card_is_an_island_over_the_same_checkbox():
     html = render(
         '<c-n26.checkbox-card name="open" value="table-1" label="Goliath" '
-        'description="D6" :checked="True" class="h-full">'
-        '<input type="checkbox" name="extra" value="lasgun" checked>'
-        "</c-n26.checkbox-card>"
+        'description="D6" :checked="True" class="h-full" />'
     )
     host, props = island(html)
     box = host.find("input", attrs={"name": "open"})
@@ -81,29 +80,26 @@ def test_the_card_is_an_island_over_the_same_checkbox():
     assert box.has_attr("checked")
     assert "h-full" in box.find_parent("div", class_="rounded-box")["class"]
     assert "border-accent" in box.find_parent("div", class_="rounded-box")["class"]
-    nested = host.find("input", attrs={"name": "extra"})
-    assert nested["value"] == "lasgun"
-    assert (
-        nested.find_parent("div", attrs={"data-checkbox-body": True}).has_attr("inert")
-        is False
-    )
+    assert host.find(attrs={"data-checkbox-body": True}) is None
     assert "x-data" not in html
     assert ":inert" not in html
     assert "@change" not in html
 
 
-def test_an_unticked_card_dims_its_body_without_making_it_inert():
-    html = render(
-        '<c-n26.checkbox-card name="open" value="table-1" label="Goliath">'
-        "<span>Notes</span></c-n26.checkbox-card>"
-    )
-    host, props = island(html)
-    body = host.find("div", attrs={"data-checkbox-body": True})
-
-    assert props["checked"] is False
-    assert "opacity-50" in body["class"]
-    assert body.has_attr("inert") is False
-    assert host.find("input").has_attr("checked") is False
+@pytest.mark.parametrize(
+    "inside",
+    [
+        '<input type="checkbox" name="extra" value="lasgun">',
+        '<c-slot name="meta"><span>85¢</span></c-slot>',
+    ],
+)
+def test_the_island_refuses_a_body_or_meta(inside):
+    """React does not take server-drawn markup as children."""
+    with pytest.raises(ValueError, match="static"):
+        render(
+            '<c-n26.checkbox-card name="open" value="table-1" label="Goliath">'
+            f"{inside}</c-n26.checkbox-card>"
+        )
 
 
 def test_a_label_is_text_in_the_props_and_the_fallback():

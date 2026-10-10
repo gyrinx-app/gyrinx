@@ -29,12 +29,24 @@ def checkbox_card_props(
     label="",
     description="",
     css_class="",
+    body="",
+    meta="",
 ):
     """The checkbox the card posts, and the words drawn in its header.
 
     None and the string false are off. An empty value stays empty: a missing
     value attribute would post the browser's default of on.
+
+    The island draws a header-only card. React does not take server-drawn
+    markup as children, so a body or meta is refused: draw that card static,
+    or compose CheckboxCard inside the island that owns the form.
     """
+    if str(body or "").strip() or str(meta or "").strip():
+        raise ValueError(
+            "<c-n26.checkbox-card> draws only a header as a React island. "
+            'For nested controls or meta, pass :static="True", or compose '
+            "CheckboxCard inside the island that owns the form."
+        )
     return {
         "name": _text(name),
         "value": _text(value),

@@ -1,13 +1,13 @@
 {% comment %}
-<c-n26.checkbox-card> — A checkbox drawn as a card, with nested controls that go inert when it is clear.
-
-Nested controls are inert when the box is clear. That blocks clicks and focus.
-It does not keep them out of the POST. Disable those inputs in the caller if they must not submit.
-
-static draws the card with no island. Use it inside another island's fallback, where a second island must not mount.
-Its body is dimmed while the box is clear but stays usable, because nothing would turn those controls back on.
+<c-n26.checkbox-card> — A checkbox drawn as a card.
 
 The checkbox posts name and value. React draws the card over that markup and keeps a tick made before it mounted.
+
+The island draws the header only. React does not take server-drawn markup as children, so a body or meta raises.
+A card with nested controls is composed in React, with CheckboxCard inside the island that owns the form.
+
+static draws the card with no island, body and meta included. Use it inside another island's fallback, where a second island must not mount.
+Its body is dimmed while the box is clear but stays usable, because nothing would turn those controls back on.
 {% endcomment %}
 
 {% load checkbox_card react %}
@@ -25,7 +25,7 @@ The checkbox posts name and value. React draws the card over that markup and kee
 {% if static %}
     {% include "n26/includes/checkbox_card_face.html" %}
 {% else %}
-    {% checkbox_card_props name=name value=value checked=checked label=label description=description css_class=class as props_ %}
+    {% checkbox_card_props name=name value=value checked=checked label=label description=description css_class=class body=slot meta=meta as props_ %}
     {% react_host "checkbox-card" props_ %}
         {% include "n26/includes/checkbox_card_face.html" %}
     {% endreact_host %}

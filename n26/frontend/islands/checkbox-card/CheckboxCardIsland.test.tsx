@@ -22,14 +22,7 @@ const fallback = `
   <label>
     <input type="checkbox" name="open" value="table-1">
     <span>Goliath Territories</span>
-    <span data-checkbox-meta class="contents"><span>85¢</span></span>
   </label>
-  <div data-checkbox-body>
-    <label>
-      <input type="checkbox" name="extra" value="lasgun" checked>
-      Lasgun
-    </label>
-  </div>
 </div>`;
 
 function mountedHost(
@@ -102,30 +95,20 @@ describe("CheckboxCardIsland", () => {
 });
 
 describe("mounting over the server-drawn card", () => {
-    it("keeps nested controls and blocks them until the card is ticked", async () => {
+    it("replaces the server-drawn box and posts it once", async () => {
         const user = userEvent.setup();
         const { form, cleanup } = mountedHost();
         const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
             name: "Goliath Territories",
         });
-        const nested = form.querySelector<HTMLInputElement>(
-            "input[name='extra']",
-        )!;
 
-        expect(checkbox.checked).toBe(false);
-        expect(nested.checked).toBe(true);
-        expect(nested.closest("[inert]")).not.toBeNull();
-        expect(form.textContent).toContain("85¢");
-        expect(form.textContent).toContain("Lasgun");
-        expect(new FormData(form).getAll("extra")).toEqual(["lasgun"]);
+        expect(form.querySelectorAll("input[name='open']")).toHaveLength(1);
+        expect(form.querySelector("[data-checkbox-card]")).toBeNull();
         expect(new FormData(form).getAll("open")).toEqual([]);
 
         await user.click(checkbox);
         expect(checkbox.checked).toBe(true);
-        expect(nested.closest("[inert]")).toBeNull();
-        expect(nested.checked).toBe(true);
         expect(new FormData(form).getAll("open")).toEqual(["table-1"]);
-        expect(new FormData(form).getAll("extra")).toEqual(["lasgun"]);
         cleanup();
     });
 

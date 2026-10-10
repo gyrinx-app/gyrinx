@@ -7,7 +7,8 @@ boolean. The checkbox carries checked when the card starts ticked, so a
 form posted with JavaScript off still says what the server drew.
 
 The body is dimmed while the box is clear and is never inert. Nothing
-would turn nested controls back on. React applies inert once it mounts.
+would turn nested controls back on. Only a static card has a body or meta:
+the island draws a header-only card.
 {% endcomment %}
 {% with on="border-accent bg-accent/5" off="border-ink-200 dark:border-ink-700" dim="opacity-50" %}
     <div data-checkbox-card
