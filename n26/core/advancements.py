@@ -793,6 +793,55 @@ def _attempt_kind(attempt):
     return Power if attempt.get("skill_kind") == "power" else Skill
 
 
+def _matching_attempts(selection, pickable_id, category, access):
+    return [
+        attempt
+        for attempt in selection.random_attempts
+        if attempt.get("pickable_id") == str(pickable_id)
+        and attempt.get("skill_set_id") == str(category.pk)
+        and (
+            attempt.get("access") == access
+            or (
+                "access" not in attempt
+                and selection.access == access
+                and selection.skill_set_id == category.pk
+            )
+        )
+    ]
+
+
+def _carried_attempt(selection, pickable_id, category, access):
+    """The earlier attempt whose die the next roll for this set reuses.
+
+    Switching to another random result or skill set after a roll keeps that
+    die. A fresh D6 is rolled only for the set and result rolled last, or for
+    one that already has its own attempts.
+    """
+    if not selection.random_attempts:
+        return None
+    if _matching_attempts(selection, pickable_id, category, access):
+        return None
+    if selection.access == access and selection.skill_set_id == category.pk:
+        return None
+    return selection.random_attempts[-1]
+
+
+def carried_skill_rolls(record, configured, pickable_id, groups):
+    """Map each skill set's key to the D6 its next roll reuses, if any."""
+    selection = getattr(record, "skill_selection", None)
+    if selection is None or not selection.random_attempts:
+        return {}
+    access = _skill_access(record, configured, pickable_id)
+    carried = {}
+    for category in groups:
+        if category is None:
+            continue
+        attempt = _carried_attempt(selection, pickable_id, category, access)
+        if attempt is not None:
+            carried[str(category.pk)] = attempt["roll"]
+    return carried
+
+
 def record_skill_roll(
     op,
     record,
@@ -838,21 +887,7 @@ def record_skill_roll(
     if category is None:
         raise Refusal("That skill set is not available for this advancement.")
     access = _skill_access(record, configured, pickable_id)
-    latest = selection.random_attempts[-1] if selection.random_attempts else None
-    matching = [
-        attempt
-        for attempt in selection.random_attempts
-        if attempt.get("pickable_id") == str(pickable_id)
-        and attempt.get("skill_set_id") == str(category.pk)
-        and (
-            attempt.get("access") == access
-            or (
-                "access" not in attempt
-                and selection.access == access
-                and selection.skill_set_id == category.pk
-            )
-        )
-    ]
+    matching = _matching_attempts(selection, pickable_id, category, access)
     available_skill_ids = {str(skill.pk) for skill in options[category]}
     accepted = next(
         (
@@ -873,12 +908,14 @@ def record_skill_roll(
         return accepted
     from n26.library.models import Dice
 
-    if (
-        latest is not None
-        and not matching
-        and (selection.access != access or selection.skill_set_id != category.pk)
-    ):
-        event_id, result = latest["event_id"], latest["roll"]
+    carried = _carried_attempt(selection, pickable_id, category, access)
+    if carried is not None:
+        if rolled is not None and rolled != carried["roll"]:
+            raise Refusal(
+                f"You cannot record a different roll for {category.name}. "
+                f"Your D6 roll of {carried['roll']} carries over to it."
+            )
+        event_id, result = carried["event_id"], carried["roll"]
     else:
         if rolled is None:
             rolled = Dice.roll(Dice.D6, rng)
