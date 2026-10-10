@@ -740,7 +740,7 @@ class TestTheQueryBudget:
 
     def test_the_page_costs_a_fixed_number(self, client, tester, gang, vex):
         client.force_login(tester)
-        # Three queries check flags for status, staged content and Model cards, each
+        # Two queries check flags for staged content and Model cards, each
         # taken once for the page rather than once per model, so the count
         # below still holds however large the gang grows. One more reads
         # which offers the owner has dismissed — the whole gang's in one
@@ -750,7 +750,7 @@ class TestTheQueryBudget:
         # active drafts and completed history are three bounded reads.
         # Rank history reads the fighter's earned rank allowances once.
         # Historical table results are one additional bounded read.
-        assert self.measure(client, edit_url(vex)) == 52
+        assert self.measure(client, edit_url(vex)) == 51
 
     def test_the_rest_of_the_gang_costs_nothing(
         self, client, tester, gang, vex, make_profile, make_statline
