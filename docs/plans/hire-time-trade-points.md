@@ -24,7 +24,7 @@ This replaces the previous proposal for an extra gang phase, a stored completion
 - Offer **Spend hire-time TP** on a qualifying later model's Edit page, linked from the roster.
 - Starting that action enables only that model's allowance. Different recruits can have independent actions open.
 - Completing a personal action ends its ordinary spending opportunity. Any supported correction uses the same lifetime balance.
-- Grants remain authored counter contributions. Gangs/models with no relevant grant receive no Start suggestion.
+- Grants remain authored counter contributions. Models with no relevant grant receive no personal action. The Actions square suggests founding only when a model has founding TP; the Trade Points tab lets every eligible gang start and complete founding, including gangs with no TP grants.
 
 Example: a Hunt Leader has 5 TP, spends 3 and finishes founding. A Hunt Champion hired afterwards can spend its own 4 TP. Opening the Champion's action leaves the Leader's remaining 2 unavailable. Explicit founding correction can expose the Leader's 2 and excludes the later Champion.
 
