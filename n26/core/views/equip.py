@@ -885,25 +885,50 @@ def _buy_clicked(
         return _rating_question(request, line, spent, checkbox, at)
     try:
         with operation(gang, actor=request.user) as op:
-            if asked and budget is not None:
-                from n26.core.founding import personal_activity_for
-                from n26.core.models import Activity
-                from n26.core.reconcile import trade_points_spent_by_kind
+            from n26.core.models import Miniature
 
-                active = personal_activity_for(gang, holder)
-                if active is None or active.pk != budget.activity.pk:
+            if (
+                asked
+                and isinstance(holder, Miniature)
+                and may_see_founding(gang, request.user)
+            ):
+                from n26.core.card import build_card, build_modifier_index, carriers
+                from n26.core.effects import compute
+                from n26.core.founding import budget_for
+
+                # The screen predates the lock. Another gang operation may
+                # have changed both the allowance and its lifetime spend.
+                current = Miniature.objects.select_related("membership").get(
+                    pk=holder.pk
+                )
+                card = build_card(current, with_statlines=False, with_options=True)
+                index = build_modifier_index(carriers(card))
+                fresh_budget = budget_for(gang, current, compute(card, index))
+                if (
+                    current.membership.archived
+                    or current.membership.gang_id != gang.pk
+                    or (
+                        budget is not None
+                        and (
+                            fresh_budget is None
+                            or fresh_budget.activity.pk != budget.activity.pk
+                        )
+                    )
+                ):
                     raise Refusal(
                         "This spending action has changed. Reload the page before buying."
                     )
-                budget = replace(
-                    budget,
-                    activity=active,
-                    spent=trade_points_spent_by_kind(
-                        gang, (Activity.Kind.FOUNDING, Activity.Kind.HIRE_TIME), holder
-                    ),
-                )
+                budget = fresh_budget
                 confirmation = _overspend(request, gang, line, asked, at, budget, into)
                 if confirmation is not None:
+                    if budget is not None:
+                        confirmation = replace(
+                            confirmation,
+                            carry=(
+                                *carried(request.POST, leave_out={"personal_activity"}),
+                                ("personal_activity", str(budget.activity.pk)),
+                            ),
+                        )
                     return confirmation
             # The picked sets go to the operation, which materialises
             # them onto the thing caused by this purchase — so selling
