@@ -6,6 +6,7 @@ The weapon's own profile is not among the parts. It is the weapon.
 Their rating is extra on that copy, prefixed with a plus.
 Accessorise opens a dialog whose id is n26-accessorise- plus the copy id.
 The page must host that dialog. Without JS the href navigates.
+The click is a React island. It names that dialog; the panel stays where the page drew it.
 The accessorise panel is already on the page. Opening it must not rebuild a listing of hundreds of lines.
 Keep every control a link. This listing sits inside the catalogue form, and HTML cannot nest a form.
 A part offers no move. Operation.move refuses a weapon profile.
@@ -13,6 +14,7 @@ Chosen options belong on the copy, not on a heading. Two of the same mount may c
 n26-cp-price is the collection picker's price column, so contributed rating lines up with what the listing asks.
 Rating zero draws as nothing. A line that added nothing has no figure to state.
 {% endcomment %}
+{% load accessorise_link react %}
 
 <c-vars :copies="None" :htmx="False" class="" />
 
@@ -24,18 +26,19 @@ Rating zero draws as nothing. A line that added nothing has no figure to state.
                     {{ copy.marked_name }}
 
                     {% if copy.accessorise %}
-                        {# The dispatch names n26-accessorise- plus the copy id. The page must host that dialog. #}
-                        {# This button needs its own x-data. Alpine only walks into elements a component contains. #}
-                        <c-ui.button variant="text"
-                                     size="xs"
-                                     class="ms-0.5 py-0!"
-                                     href="{{ copy.accessorise.target }}"
-                                     aria-label="{{ copy.accessorise.label }} to {{ copy.marked_name }}"
-                                     x-data
-                                     x-on:click.prevent="$dispatch('n26-dialog-open', { id: 'n26-accessorise-{{ copy.id }}', url: $el.getAttribute('href') })">
-                            <span class="n26-icon-inline"><c-n26.icon name="plus" stroke_width="2.5" /></span>
-                            {{ copy.accessorise.label }}
-                        </c-ui.button>
+                        {# The island names n26-accessorise- plus the copy id. The page must host that dialog. #}
+                        {# Without a script this link navigates, and the server draws the panel open. #}
+                        {% accessorise_link_props href=copy.accessorise.target copy_id=copy.id label=copy.accessorise.label name=copy.marked_name as props_ %}
+                        {% react_host "accessorise-link" props_ class="inline" %}
+                            <c-ui.button variant="text"
+                                         size="xs"
+                                         class="ms-0.5 py-0!"
+                                         href="{{ copy.accessorise.target }}"
+                                         aria-label="{{ copy.accessorise.label }} to {{ copy.marked_name }}">
+                                <span class="n26-icon-inline"><c-n26.icon name="plus" stroke_width="2.5" /></span>
+                                {{ copy.accessorise.label }}
+                            </c-ui.button>
+                        {% endreact_host %}
                     {% endif %}
                 </span>
 
