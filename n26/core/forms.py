@@ -864,8 +864,8 @@ class AddAssetTypeForm(forms.Form):
 class EditAssetTypeForm(AddAssetTypeForm):
     """One of the campaign's own asset types, as it stands.
 
-    ``ownership_locked`` disables the ownership once the type has assets,
-    so the form keeps the stored value whatever is posted.
+    ``ownership_locked`` disables the ownership once it can no longer
+    change, so the form keeps the stored value whatever is posted.
     """
 
     def __init__(self, *args, ownership_locked=False, **kwargs):

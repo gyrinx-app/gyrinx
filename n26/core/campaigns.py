@@ -1140,11 +1140,15 @@ class CampaignOperation:
         """Change the labels or ownership of one of this campaign's own
         asset types, and say so in its log.
 
-        Only an asset type the campaign added itself: the shared type's are
+        Only an asset type the campaign added itself: the shared types are
         library content. A label the campaign already uses is refused as it
-        is when adding one. Ownership fixes how every asset of the type
-        behaves, so it cannot change once the type has any assets. Saving
-        what was already there writes nothing.
+        is when adding one. The ownership cannot change once the type has
+        an asset or a table (``ownership_fixed_because``). Saving what was
+        already there writes nothing and returns None.
+
+        The asset type is read again under the campaign's line. The page
+        read it before this transaction began, and the old label in the log
+        and the check for an unchanged save need the stored values.
         """
         from n26.core.operations import Refusal
         from n26.library.models import AssetType
@@ -1153,6 +1157,7 @@ class CampaignOperation:
             raise ValueError(
                 f"{asset_type} is not one of {self.campaign}'s own asset types."
             )
+        asset_type = AssetType.objects.get(pk=asset_type.pk)
         label_singular = (label_singular or "").strip()
         label_plural = (label_plural or "").strip()
         if not label_singular:
@@ -1173,18 +1178,17 @@ class CampaignOperation:
                 f"{self.campaign.name} already has an asset type called "
                 f"{label_singular}."
             )
-        if ownership != asset_type.ownership and asset_type.assets.exists():
-            raise Refusal(
-                "You cannot change the ownership now. "
-                f"{self.campaign.name} already has {asset_type.plural.lower()}."
-            )
+        if ownership != asset_type.ownership and (
+            fixed := ownership_fixed_because(self.campaign, asset_type)
+        ):
+            raise Refusal(f"You cannot change the ownership now. {fixed}")
         was = asset_type.label_singular
         if (label_singular, label_plural, ownership) == (
             was,
             asset_type.label_plural,
             asset_type.ownership,
         ):
-            return asset_type
+            return None
         asset_type.label_singular = label_singular
         asset_type.label_plural = label_plural
         asset_type.ownership = ownership
@@ -1765,6 +1769,21 @@ def _still_held_by(campaign_asset, membership_id):
             f"{campaign_asset} is now held by {campaign_asset.holder.gang.name}, "
             "so you cannot hand it over."
         )
+
+
+def ownership_fixed_because(campaign, asset_type):
+    """Why the asset type's ownership can no longer change, as a sentence,
+    or "" while it still can.
+
+    Ownership decides how each asset of the type is made, and only a
+    Holding type has tables, so one asset or one table fixes it.
+    """
+    plural = asset_type.plural.lower()
+    if asset_type.assets.exists():
+        return f"{campaign.name} already has {plural}."
+    if asset_type.tables.exists():
+        return f"{campaign.name} already has a table of {plural}."
+    return ""
 
 
 def _asset_under_the_lock(campaign_asset):

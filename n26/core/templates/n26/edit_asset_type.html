@@ -1,8 +1,9 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Editing one of the campaign's own asset types. Once the type has assets its
-ownership is fixed, so the page states it rather than offering one radio.
+Editing one of the campaign's own asset types. Once the type has assets or
+a table its ownership is fixed, so the page states it rather than offering
+one radio.
 {% endcomment %}
 {% block head_title %}{{ heading }} in {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}

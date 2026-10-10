@@ -23,6 +23,7 @@ from n26.library.models import AssetType, CampaignType
 from n26.tests.sandbox.actions import (
     add_campaign_asset_type,
     create_campaign_asset,
+    create_campaign_table,
     found_campaign,
     found_gang,
     join_campaign,
@@ -93,8 +94,18 @@ class TestEditingAnAssetType:
 
     def test_saving_what_is_there_writes_nothing(self, campaign, racket):
         before = campaign.events.count()
-        edit(campaign, racket, " Rakit ", HOLDING, plural="Rakits")
+        assert edit(campaign, racket, " Rakit ", HOLDING, plural="Rakits") is None
         assert campaign.events.count() == before
+
+    def test_the_log_names_the_label_as_it_stands_not_as_the_page_read_it(
+        self, campaign, racket
+    ):
+        read_earlier = AssetType.objects.get(pk=racket.pk)
+        edit(campaign, racket, "Racket", HOLDING)
+        edit(campaign, read_earlier, "Rackit", HOLDING)
+        assert sentences(campaign_history(campaign))[-1] == (
+            "edited the asset type Racket, now called Rackit"
+        )
 
     def test_ownership_changes_while_the_type_has_no_assets(self, campaign, racket):
         edit(campaign, racket, "Rakit", POSSESSION, plural="Rakits")
@@ -114,6 +125,19 @@ class TestEditingAnAssetType:
         edit(campaign, racket, "Racket", HOLDING, plural="Rackets")
         racket.refresh_from_db()
         assert racket.label_singular == "Racket"
+
+    def test_ownership_is_fixed_once_the_type_has_a_table(self, campaign, racket):
+        create_campaign_table(campaign, racket, "Rakit table")
+        with pytest.raises(
+            Refusal,
+            match=(
+                "You cannot change the ownership now. "
+                "Dust Falls already has a table of rakits."
+            ),
+        ):
+            edit(campaign, racket, "Rakit", POSSESSION, plural="Rakits")
+        racket.refresh_from_db()
+        assert racket.ownership == HOLDING
 
     def test_a_label_the_campaign_already_uses_is_refused(self, campaign, racket):
         with pytest.raises(Refusal, match="already has an asset type called"):
@@ -240,6 +264,19 @@ class TestTheEditPage:
         assert response.status_code == 302
         racket.refresh_from_db()
         assert (racket.label_singular, racket.ownership) == ("Racket", HOLDING)
+
+    def test_a_table_fixes_the_ownership_on_the_page_too(
+        self, client, campaign, racket
+    ):
+        create_campaign_table(campaign, racket, "Rakit table")
+        client.force_login(campaign.owner)
+        page = client.get(edit_url(campaign, racket)).content.decode()
+        soup = BeautifulSoup(page, "html.parser")
+        assert soup.find("input", {"name": "ownership"}) is None
+        assert (
+            "Transferable. You cannot change this now. "
+            "Dust Falls already has a table of rakits."
+        ) in page
 
     def test_a_shared_type_has_no_edit_page(self, client, campaign, core):
         territory = core.asset_types.get(label_singular="Territory")

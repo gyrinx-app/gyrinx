@@ -2006,6 +2006,7 @@ def edit_asset_type(request, pk, asset_type_pk):
     content and are not found here."""
     from django.urls import reverse
 
+    from n26.core.campaigns import ownership_fixed_because
     from n26.core.forms import EditAssetTypeForm
     from n26.library.models import AssetType
 
@@ -2013,8 +2014,7 @@ def edit_asset_type(request, pk, asset_type_pk):
     asset_type = get_object_or_404(
         AssetType, pk=asset_type_pk, campaign_type_id=found.additions_id
     )
-    locked = asset_type.assets.exists()
-    stored = (asset_type.label_singular, asset_type.label_plural, asset_type.ownership)
+    fixed = ownership_fixed_because(found, asset_type)
     form = EditAssetTypeForm(
         request.POST or None,
         initial={
@@ -2022,26 +2022,24 @@ def edit_asset_type(request, pk, asset_type_pk):
             "label_plural": asset_type.label_plural,
             "ownership": asset_type.ownership,
         },
-        ownership_locked=locked,
+        ownership_locked=bool(fixed),
     )
 
     def act(op, data):
-        op.edit_asset_type(
+        edited = op.edit_asset_type(
             asset_type,
             data["label_singular"],
             data["ownership"],
             label_plural=data["label_plural"],
         )
-        now = (asset_type.label_singular, asset_type.label_plural, asset_type.ownership)
-        if now == stored:
+        if edited is None:
             return "Nothing changed."
-        return f"Saved the asset type {asset_type.label_singular}."
+        return f"Saved the asset type {edited.label_singular}."
 
     ownership_note = ""
-    if locked:
+    if fixed:
         ownership_note = (
-            f"{asset_type.get_ownership_display()}. You cannot change this now. "
-            f"{found.name} already has {asset_type.plural.lower()}."
+            f"{asset_type.get_ownership_display()}. You cannot change this now. {fixed}"
         )
     return _addition_page(
         request,
@@ -2051,10 +2049,10 @@ def edit_asset_type(request, pk, asset_type_pk):
         act,
         reverse("n26-edit-campaign", args=[found.pk]) + "?tab=asset-types",
         asset_type=asset_type,
-        heading=f"Edit {stored[0]}",
+        heading=f"Edit {asset_type.label_singular}",
         ownership_note=ownership_note,
         ownerships=[]
-        if locked
+        if fixed
         else _ownership_cards(str(form["ownership"].value() or "")),
     )
 
