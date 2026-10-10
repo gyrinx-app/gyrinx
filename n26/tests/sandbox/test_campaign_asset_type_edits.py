@@ -77,6 +77,11 @@ def tab_url(campaign):
 
 
 class TestEditingAnAssetType:
+    """The edit is the campaign's own act, logged once for each save that
+    changes something. Labels can change at any time; the ownership only
+    until the type has an asset or a table. Every decision reads the type
+    as it stands under the campaign's line."""
+
     def test_new_labels_are_saved_and_logged_with_the_old_name(self, campaign, racket):
         edit(campaign, racket, "Racket", HOLDING, plural="Rackets")
         racket.refresh_from_db()
@@ -178,6 +183,10 @@ class TestEditingAnAssetType:
 
 
 class TestTheAssetTypesTab:
+    """The tab lists the asset types the campaign added itself, each with
+    a link to edit it, and names the shared ones it cannot edit. The More
+    actions menu opens it for the arbitrator alone."""
+
     def test_it_lists_the_campaigns_own_types_and_names_the_shared_ones(
         self, client, campaign, racket
     ):
@@ -224,6 +233,11 @@ class TestTheAssetTypesTab:
 
 
 class TestTheEditPage:
+    """The page opens filled in and saves through the operation. A refusal
+    stays on the form. A fixed ownership is stated rather than offered,
+    and posting another one changes nothing. Shared types have no page,
+    and players reach none of it."""
+
     def test_it_opens_filled_in_and_saves(self, client, campaign, racket):
         client.force_login(campaign.owner)
         page = client.get(edit_url(campaign, racket))
