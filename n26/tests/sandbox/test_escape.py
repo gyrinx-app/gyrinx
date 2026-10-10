@@ -219,11 +219,6 @@ class TestACapturedModel:
 
 
 class TestThePage:
-    @pytest.fixture(autouse=True)
-    def admitted(self, owner):
-        """The status controls reach the owners the founding flag admits."""
-        admit_to_founding(owner)
-
     def test_the_escape_row_offers_to_roll_a_d6(
         self, client, owner, gang, krago, tables
     ):
@@ -315,10 +310,6 @@ def held_names(miniature):
 
 class TestLeavingCapturedByHand:
     """Leaving a status removes its conditional choices, retaining result history."""
-
-    @pytest.fixture(autouse=True)
-    def admitted(self, owner):
-        admit_to_founding(owner)
 
     def mark(self, client, owner, miniature, status):
         client.force_login(owner)
