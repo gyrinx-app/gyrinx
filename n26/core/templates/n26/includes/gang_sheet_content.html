@@ -13,22 +13,36 @@
                            owner_href="{% url 'n26-user-profile' gang.owner.username %}"
                            owner_flair_label="{{ owner_badge.description }}"
                            gangs_href="{% url 'n26-dashboard' %}">
-        {% if unlimited_in_campaign %}
+        {% if budget_notice %}
             <c-slot name="notice">
-                <c-ui.alert variant="info" title="Unlimited credits">
-                    <p>This gang's credit balance is not tracked. Joining a campaign does not change its credits budget.</p>
-                    <div class="mt-3 flex flex-wrap items-center gap-2">
-                        {% if campaign_budget is not None %}
-                            <form method="post" action="{% url 'n26-use-campaign-budget' gang.pk %}">
-                                {% csrf_token %}
-                                <c-ui.button type="submit" variant="primary">
-                                    Use campaign budget
-                                </c-ui.button>
-                            </form>
-                        {% endif %}
-                        <c-ui.button variant="ghost"
-                                     href="{% url 'n26-edit-gang' gang.pk %}#starting-credits">Use a custom budget</c-ui.button>
-                    </div>
+                <c-ui.alert variant="{{ budget_notice.variant }}"
+                            title="{{ budget_notice.title }}"
+                            class="relative pr-12">
+                    <form method="post"
+                          action="{% url 'n26-dismiss-campaign-budget' gang.pk %}"
+                          class="absolute right-3 top-3">
+                        {% csrf_token %}
+                        <button type="submit"
+                                aria-label="Dismiss budget notice"
+                                class="inline-flex cursor-pointer p-1 opacity-70 transition-opacity hover:opacity-100 focus-ring">
+                            <c-n26.icon name="x" class="size-4" />
+                        </button>
+                    </form>
+                    <p>{{ budget_notice.lead }}</p>
+                    {% if budget_notice.show_budget_options %}
+                        <div class="mt-3 flex flex-wrap items-center gap-2">
+                            {% if budget_notice.budget is not None %}
+                                <form method="post" action="{% url 'n26-use-campaign-budget' gang.pk %}">
+                                    {% csrf_token %}
+                                    <c-ui.button type="submit" variant="success">
+                                        Use campaign budget — {{ budget_notice.budget }}¢
+                                    </c-ui.button>
+                                </form>
+                            {% endif %}
+                            <c-ui.button variant="ghost"
+                                         href="{% url 'n26-edit-gang' gang.pk %}#starting-credits">Use a custom budget</c-ui.button>
+                        </div>
+                    {% endif %}
                 </c-ui.alert>
             </c-slot>
         {% endif %}

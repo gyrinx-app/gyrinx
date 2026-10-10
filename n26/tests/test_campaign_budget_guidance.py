@@ -9,9 +9,17 @@ from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
-from n26.core.models import CampaignParticipant
+from n26.core.models import CampaignParticipant, LedgerEvent
+from n26.core.operations import operation
+from n26.core.reconcile import assert_reconciled
 from n26.flags import CAMPAIGNS
-from n26.tests.sandbox.actions import found_campaign, found_gang
+from n26.tests.sandbox.actions import (
+    buy,
+    create_wargear,
+    found_campaign,
+    found_gang,
+    hire_with_option,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -98,19 +106,22 @@ def test_joining_leaves_the_budget_unchanged_and_owner_can_explicitly_set_it(
     assert "Use a custom budget" not in client.get(sheet_url).content.decode()
 
 
-def test_unlimited_guidance_is_only_for_owner_of_a_participating_gang(
-    client, table, gang_type
+@pytest.mark.parametrize("budget", [None, 1500])
+def test_budget_guidance_is_only_for_owner_of_a_participating_gang(
+    client, table, gang_type, budget
 ):
     owner, campaign = table
-    gang = found_gang("Unlimited gang", gang_type, owner=owner)
+    gang = found_gang("Budget gang", gang_type, owner=owner, budget=budget)
     path = reverse("n26-gang", args=[gang.pk])
-    assert "Use a custom budget" not in client.get(path).content.decode()
+    dismiss_path = reverse("n26-dismiss-campaign-budget", args=[gang.pk])
+    assert dismiss_path not in client.get(path).content.decode()
     join(campaign, gang)
+    assert dismiss_path in client.get(path).content.decode()
     client.logout()
-    assert "Use a custom budget" not in client.get(path).content.decode()
+    assert dismiss_path not in client.get(path).content.decode()
     stranger = User.objects.create_user("stranger")
     client.force_login(stranger)
-    assert "Use a custom budget" not in client.get(path).content.decode()
+    assert dismiss_path not in client.get(path).content.decode()
     assert (
         client.post(
             reverse("n26-edit-gang", args=[gang.pk]),
@@ -199,9 +210,253 @@ def test_the_owner_can_use_the_current_campaign_budget_in_one_submission(
     assert gang.starting_credits == 1000
     assert gang.credits == 1000
     assert "Use campaign budget" not in client.get(response.url).content.decode()
+    assert_reconciled(gang)
 
 
-def test_the_campaign_arbitrator_cannot_set_a_players_budget(client, table, gang_type):
+@pytest.mark.parametrize(
+    "budget,shown",
+    [(None, True), (1500, True), (1000, False), (500, False), (0, False)],
+)
+def test_the_prompt_covers_unlimited_and_above_budget_gangs(
+    client, table, gang_type, budget, shown
+):
+    owner, campaign = table
+    gang = found_gang("Budget gang", gang_type, owner=owner, budget=budget)
+    join(campaign, gang)
+    soup = BeautifulSoup(
+        client.get(reverse("n26-gang", args=[gang.pk])).content, "html.parser"
+    )
+    form = soup.find("form", action=reverse("n26-use-campaign-budget", args=[gang.pk]))
+    custom = soup.find(
+        "a", href=reverse("n26-edit-gang", args=[gang.pk]) + "#starting-credits"
+    )
+    dismiss = soup.find(
+        "form", action=reverse("n26-dismiss-campaign-budget", args=[gang.pk])
+    )
+    assert bool(dismiss) == shown
+    assert bool(form) == (budget is None)
+    assert bool(custom) == (budget is None)
+    if shown:
+        if budget is None:
+            assert (
+                form.find("button").get_text(strip=True)
+                == "Use campaign budget — 1000¢"
+            )
+            assert (
+                "This gang currently has unlimited credits. Set a budget using the options below:"
+                in soup.get_text()
+            )
+        else:
+            assert "Above campaign budget" in soup.get_text()
+            assert "credits (1500¢) total 1500¢" in soup.get_text()
+            assert "The campaign budget is 1000¢." in soup.get_text()
+            assert response_notice(client, gang).variant == "warning"
+
+
+def response_notice(client, gang):
+    return client.get(reverse("n26-gang", args=[gang.pk])).context["budget_notice"]
+
+
+@pytest.mark.parametrize("price", [300, 1200])
+def test_an_above_budget_gang_keeps_its_models_stash_and_credits(
+    client, table, gang_type, make_profile, price
+):
+    owner, campaign = table
+    gang = found_gang("Budget gang", gang_type, owner=owner, budget=1500)
+    fighter = hire_with_option(gang, make_profile("Ganger", price=price), "Ash")
+    buy(gang.stash, thing=create_wargear("Spare armour", price=100))
+    join(campaign, gang)
+    path = reverse("n26-use-campaign-budget", args=[gang.pk])
+    events = LedgerEvent.objects.filter(gang=gang).count()
+    response = client.post(path, {"starting_credits": 2000})
+    assert response.url == reverse("n26-gang", args=[gang.pk])
+    gang.refresh_from_db()
+    assert (gang.starting_credits, gang.credits, gang.rating, gang.stash_rating) == (
+        1500,
+        1400 - price,
+        price,
+        100,
+    )
+    fighter.refresh_from_db()
+    assert not fighter.membership.archived
+    assert response_notice(client, gang).title == "Above campaign budget"
+    client.post(path)
+    assert LedgerEvent.objects.filter(gang=gang).count() == events
+    assert_reconciled(gang)
+
+
+def test_an_above_budget_gang_with_adjusted_credits_gets_only_a_warning(
+    client, table, gang_type
+):
+    owner, campaign = table
+    gang = found_gang("Extra credits", gang_type, owner=owner, budget=1000)
+    with operation(gang, actor=owner) as op:
+        op.adjust_credits(200, "Extra credits")
+    join(campaign, gang)
+    response = client.get(reverse("n26-gang", args=[gang.pk]))
+    html = response.content.decode()
+    assert "Above campaign budget" in html
+    assert "credits (1200¢) total 1200¢" in html
+    assert "Use campaign budget" not in html
+    assert "Use a custom budget" not in html
+    gang.refresh_from_db()
+    assert (gang.starting_credits, gang.credits) == (1000, 1200)
+    assert_reconciled(gang)
+
+
+def test_budget_submission_does_not_validate_unrelated_gang_details(
+    client, table, gang_type
+):
+    owner, campaign = table
+    gang = found_gang("G" * 150, gang_type, owner=owner)
+    join(campaign, gang)
+    response = client.post(reverse("n26-use-campaign-budget", args=[gang.pk]))
+    assert response.url == reverse("n26-gang", args=[gang.pk])
+    gang.refresh_from_db()
+    assert gang.starting_credits == 1000
+    assert gang.name == "G" * 150
+    assert_reconciled(gang)
+
+
+def test_a_budget_that_cannot_cover_the_gang_keeps_the_prompt_and_budget(
+    client, table, gang_type, make_profile
+):
+    owner, campaign = table
+    gang = found_gang("Spent gang", gang_type, owner=owner)
+    hire_with_option(gang, make_profile("Leader", price=1200), "Ash")
+    join(campaign, gang)
+    gang.refresh_from_db()
+    before = (gang.starting_credits, gang.credits)
+    events = LedgerEvent.objects.filter(
+        gang=gang, kind=LedgerEvent.Kind.BUDGET_SET
+    ).count()
+    response = client.post(
+        reverse("n26-use-campaign-budget", args=[gang.pk]), follow=True
+    )
+    assert response.redirect_chain == [(reverse("n26-gang", args=[gang.pk]), 302)]
+    assert "200¢ short" in response.content.decode()
+    assert "Use campaign budget — 1000¢" in response.content.decode()
+    gang.refresh_from_db()
+    assert (gang.starting_credits, gang.credits) == before
+    assert (
+        LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.BUDGET_SET).count()
+        == events
+    )
+    assert_reconciled(gang)
+
+
+@pytest.mark.parametrize("budget", [None, 1500])
+def test_dismissing_the_prompt_leaves_money_unchanged_and_survives_reload(
+    client, table, gang_type, budget
+):
+    owner, campaign = table
+    gang = found_gang("Dismissed gang", gang_type, owner=owner, budget=budget)
+    join(campaign, gang)
+    path = reverse("n26-dismiss-campaign-budget", args=[gang.pk])
+    assert client.get(path).status_code == 405
+    events = LedgerEvent.objects.filter(gang=gang).count()
+    response = client.post(path)
+    assert response.url == reverse("n26-gang", args=[gang.pk])
+    assert path not in client.get(response.url).content.decode()
+    assert path not in client.get(response.url).content.decode()
+    gang.refresh_from_db()
+    assert gang.starting_credits == budget
+    assert gang.credits == (budget or 0)
+    assert LedgerEvent.objects.filter(gang=gang).count() == events
+    assert_reconciled(gang)
+
+
+@pytest.mark.parametrize("change", ["campaign", "gang"])
+def test_a_changed_budget_shows_a_dismissed_prompt_again(
+    client, table, gang_type, change
+):
+    owner, campaign = table
+    gang = found_gang("Dismissed gang", gang_type, owner=owner)
+    join(campaign, gang)
+    client.post(reverse("n26-dismiss-campaign-budget", args=[gang.pk]))
+    if change == "campaign":
+        with campaign_operation(campaign, actor=owner) as op:
+            op.set_budget(900)
+    else:
+        with operation(gang, actor=owner) as op:
+            op.set_budget(1500)
+    assert (
+        reverse("n26-dismiss-campaign-budget", args=[gang.pk])
+        in client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+    )
+
+
+def test_a_new_membership_shows_a_dismissed_prompt_again(client, table, gang_type):
+    owner, campaign = table
+    gang = found_gang("Dismissed gang", gang_type, owner=owner)
+    join(campaign, gang)
+    client.post(reverse("n26-dismiss-campaign-budget", args=[gang.pk]))
+    with campaign_operation(campaign, actor=owner) as op:
+        op.remove_gang(gang.campaign_memberships.get(left__isnull=True))
+    join(campaign, gang)
+    assert (
+        "Use a custom budget"
+        in client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+    )
+
+
+@pytest.mark.parametrize(
+    "route", ["n26-use-campaign-budget", "n26-dismiss-campaign-budget"]
+)
+@pytest.mark.parametrize("unavailable", ["absent", "left", "archived", "flag"])
+def test_budget_actions_need_an_active_available_campaign(
+    client, table, gang_type, route, unavailable
+):
+    owner, campaign = table
+    gang = found_gang("Unlimited gang", gang_type, owner=owner)
+    if unavailable != "absent":
+        join(campaign, gang)
+    if unavailable == "left":
+        with campaign_operation(campaign, actor=owner) as op:
+            op.remove_gang(gang.campaign_memberships.get(left__isnull=True))
+    elif unavailable == "archived":
+        with campaign_operation(campaign, actor=owner) as op:
+            op.archive()
+    elif unavailable == "flag":
+        FeatureFlag.objects.filter(slug=CAMPAIGNS).update(availability=Availability.OFF)
+    assert (
+        "Use a custom budget"
+        not in client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+    )
+    assert client.post(reverse(route, args=[gang.pk])).status_code == 404
+
+
+@pytest.mark.parametrize("budget", [None, 0])
+def test_a_campaign_without_a_budget_or_with_zero_has_the_right_controls(
+    client, table, gang_type, budget
+):
+    owner, campaign = table
+    with campaign_operation(campaign, actor=owner) as op:
+        op.set_budget(budget)
+    gang = found_gang("Unlimited gang", gang_type, owner=owner)
+    join(campaign, gang)
+    html = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+    assert "Use a custom budget" in html
+    if budget is None:
+        assert "Use campaign budget" not in html
+        assert (
+            client.post(reverse("n26-use-campaign-budget", args=[gang.pk])).status_code
+            == 404
+        )
+    else:
+        assert "Use campaign budget — 0¢" in html
+        client.post(reverse("n26-use-campaign-budget", args=[gang.pk]))
+        gang.refresh_from_db()
+        assert gang.starting_credits == 0
+        assert_reconciled(gang)
+
+
+@pytest.mark.parametrize(
+    "route", ["n26-use-campaign-budget", "n26-dismiss-campaign-budget"]
+)
+def test_the_campaign_arbitrator_cannot_set_or_dismiss_a_players_budget(
+    client, table, gang_type, route
+):
     _, campaign = table
     player = User.objects.create_user("player")
     CampaignParticipant.objects.create(
@@ -209,9 +464,6 @@ def test_the_campaign_arbitrator_cannot_set_a_players_budget(client, table, gang
     )
     gang = found_gang("Player gang", gang_type, owner=player)
     join(campaign, gang)
-    assert (
-        client.post(reverse("n26-use-campaign-budget", args=[gang.pk])).status_code
-        == 404
-    )
+    assert client.post(reverse(route, args=[gang.pk])).status_code == 404
     gang.refresh_from_db()
     assert gang.starting_credits is None

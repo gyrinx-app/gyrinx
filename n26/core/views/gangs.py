@@ -48,6 +48,63 @@ CAMPAIGNS_WAITING = mark_safe(  # nosec B703 B308 - literal, no user input
 DASHBOARD_TABS = ("Gangs", "Campaigns", "Content Packs")
 
 
+@dataclass
+class CampaignBudgetNotice:
+    title: str
+    lead: str
+    budget: int | None
+    variant: str
+    show_budget_options: bool
+
+
+def _active_campaign_membership(gang):
+    from n26.core.models import CampaignMembership
+
+    return (
+        CampaignMembership.objects.filter(
+            gang=gang, left__isnull=True, campaign__archived=False
+        )
+        .select_related("campaign")
+        .first()
+    )
+
+
+def _budget_notice_signature(gang, membership):
+    # A new membership or either changed budget needs a fresh decision.
+    return [str(membership.pk), membership.campaign.budget, gang.starting_credits]
+
+
+def _campaign_budget_notice(request, gang):
+    from n26.core.campaigns import over_budget
+
+    membership = _active_campaign_membership(gang)
+    if membership is None:
+        return None
+    if request.session.get(
+        f"n26-budget-dismissed-{gang.pk}"
+    ) == _budget_notice_signature(gang, membership):
+        return None
+    if gang.credits_unlimited:
+        return CampaignBudgetNotice(
+            "Unlimited credits",
+            "This gang currently has unlimited credits. Set a budget using the options below:",
+            membership.campaign.budget,
+            "info",
+            True,
+        )
+    if over_budget(membership.campaign, gang):
+        return CampaignBudgetNotice(
+            "Above campaign budget",
+            f"This gang's rating ({gang.rating}¢), stash ({gang.stash_rating}¢) "
+            f"and credits ({gang.credits}¢) total {gang.wealth}¢. "
+            f"The campaign budget is {membership.campaign.budget}¢.",
+            membership.campaign.budget,
+            "warning",
+            False,
+        )
+    return None
+
+
 @login_required
 def dashboard(request):
     """The edition's front page: your gangs, and what changed lately.
@@ -366,18 +423,11 @@ def gang_sheet(request, pk):
     campaigns_open = link_model_cards(gang, sheet.models, request.user)
     dialog = None
     link_campaign(sheet.campaign, request.user)
-    unlimited_in_campaign = (
-        yours and gang.credits_unlimited and sheet.campaign is not None
+    budget_notice = (
+        _campaign_budget_notice(request, gang)
+        if campaigns_open and sheet.campaign is not None
+        else None
     )
-    campaign_budget = None
-    if unlimited_in_campaign:
-        from n26.core.models import CampaignMembership
-
-        campaign_budget = (
-            CampaignMembership.objects.filter(gang=gang, left__isnull=True)
-            .values_list("campaign__budget", flat=True)
-            .first()
-        )
     link_owners(sheet)
     # The offers the owner has dismissed come off every card and the
     # gang's own strip, whoever is reading: one query. Restore controls
@@ -500,8 +550,7 @@ def gang_sheet(request, pk):
                 gang, marking or ransoming, status_back
             ),
             "dialog": dialog,
-            "unlimited_in_campaign": unlimited_in_campaign,
-            "campaign_budget": campaign_budget,
+            "budget_notice": budget_notice,
         },
     )
 
@@ -1369,44 +1418,29 @@ def gang_notes(request, pk):
 @login_required
 @require_POST
 def use_campaign_budget(request, pk):
-    """Apply the active campaign's current budget to this owner's gang."""
+    """Start tracking this owner's unlimited gang against its campaign budget."""
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.forms import EditGangForm
-    from n26.core.models import CampaignMembership
     from n26.core.operations import NotEnoughCredits, operation
     from n26.flags import CAMPAIGNS, enabled
 
     if not enabled(CAMPAIGNS, request.user):
         raise Http404("Campaigns are not available")
     gang = _own_gang_or_404(request, pk)
-    membership = (
-        CampaignMembership.objects.filter(
-            gang=gang, left__isnull=True, campaign__archived=False
-        )
-        .select_related("campaign")
-        .first()
-    )
+    membership = _active_campaign_membership(gang)
     if membership is None or membership.campaign.budget is None:
         raise Http404("No campaign budget")
-    form = EditGangForm(
-        gang,
-        {
-            "name": gang.name,
-            "colour": gang.colour,
-            "starting_credits": membership.campaign.budget,
-        },
-    )
-    if not form.is_valid():
-        for error in form.errors.get("starting_credits", []):
-            messages.error(request, error)
-        return redirect(reverse("n26-edit-gang", args=[gang.pk]) + "#starting-credits")
+    if not gang.credits_unlimited:
+        return redirect("n26-gang", pk=gang.pk)
     try:
         with operation(gang, actor=request.user) as op:
-            op.set_budget(form.cleaned_data["starting_credits"])
-            op.settle()
+            # The operation refreshes the budget under the gang's lock, so
+            # a repeated submission cannot reset credits that now exist.
+            if not gang.credits_unlimited:
+                return redirect("n26-gang", pk=gang.pk)
+            op.set_budget(membership.campaign.budget)
     except NotEnoughCredits as refusal:
         messages.error(request, str(refusal))
-        return redirect(reverse("n26-edit-gang", args=[gang.pk]) + "#starting-credits")
+        return redirect("n26-gang", pk=gang.pk)
     record(
         request,
         N26Noun.GANG,
@@ -1415,6 +1449,24 @@ def use_campaign_budget(request, pk):
         starting_credits=gang.starting_credits,
     )
     messages.success(request, f"Credits budget set to {gang.starting_credits}¢.")
+    return redirect("n26-gang", pk=gang.pk)
+
+
+@login_required
+@require_POST
+def dismiss_campaign_budget(request, pk):
+    """Hide this owner's budget prompt for this session and these budgets."""
+    from n26.flags import CAMPAIGNS, enabled
+
+    if not enabled(CAMPAIGNS, request.user):
+        raise Http404("Campaigns are not available")
+    gang = _own_gang_or_404(request, pk)
+    membership = _active_campaign_membership(gang)
+    if membership is None:
+        raise Http404("No active campaign")
+    request.session[f"n26-budget-dismissed-{gang.pk}"] = _budget_notice_signature(
+        gang, membership
+    )
     return redirect("n26-gang", pk=gang.pk)
 
 

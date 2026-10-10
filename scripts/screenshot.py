@@ -278,7 +278,7 @@ class ScreenshotCapture:
             # This ensures the toolbar is hidden regardless of its state
             await page.add_style_tag(
                 content="""
-                #djDebug, #djDebugToolbar, .djdt-hidden {
+                #djDebugRoot, #djDebug, #djDebugToolbar, .djdt-hidden {
                     display: none !important;
                 }
                 /* Also hide the sidebar panel */
