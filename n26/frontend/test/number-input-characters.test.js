@@ -87,6 +87,21 @@ describe("number input characters", () => {
         expect(press(input, "v", { metaKey: true })).toBe(false);
     });
 
+    it("ignores a keydown that carries no key", () => {
+        // Chrome's autofill sends keydown events like this.
+        const input = field({ min: "0" });
+        const errors = [];
+        const onError = (event) => errors.push(event.error);
+        const event = new Event("keydown", { bubbles: true, cancelable: true });
+
+        window.addEventListener("error", onError);
+        input.dispatchEvent(event);
+        window.removeEventListener("error", onError);
+
+        expect(errors).toEqual([]);
+        expect(event.defaultPrevented).toBe(false);
+    });
+
     it("keeps a minus sign and a decimal point, even where the field has no use for them", () => {
         // Dropping them would turn -5 into 5 and 2.5 into 25 without a word.
         const input = field({ min: "0" });

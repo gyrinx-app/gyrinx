@@ -27,7 +27,10 @@
         function (event) {
             if (!isNumberField(event.target)) return;
             if (event.ctrlKey || event.metaKey || event.altKey) return;
-            if (event.key.length !== 1) return;
+            // Chrome's autofill sends keydown events with no key.
+            if (typeof event.key !== "string" || event.key.length !== 1) {
+                return;
+            }
             if (REFUSED.test(event.key)) event.preventDefault();
         },
         true,
