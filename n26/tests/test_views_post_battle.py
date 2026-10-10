@@ -31,6 +31,7 @@ from n26.core.operations import operation
 from n26.core.post_battle import start_report
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
+from n26.core.views.post_battle import _initial_payload
 from n26.flags import CAMPAIGNS, FOUNDING
 from n26.library.authoring import (
     add_built_in,
@@ -196,6 +197,20 @@ def record_results_fields(response, url):
 
 
 def start(client, table, *, standalone=False):
+    """Prepare a real draft without exercising another page's entry flow."""
+    battle = None if standalone else table.battle
+    return start_report(
+        table.gang,
+        actor=table.owner,
+        battle=battle,
+        request_key=uuid4(),
+        date=date(2026, 9, 20),
+        reference="Stand-off",
+        payload=_initial_payload(table.gang, battle),
+    )
+
+
+def start_through_page(client, table, *, standalone=False):
     url = start_url(table, standalone=standalone)
     if standalone:
         data = html_fields(client.get(url), date="2026-09-20", reference="Stand-off")
@@ -783,7 +798,7 @@ class TestStartingAndResuming:
             selections=[CrewSelection(str(table.models[0].pk), "starting")],
             confirm=True,
         )
-        report = start(client, table)
+        report = start_through_page(client, table)
         payload = client.get(editor_url(report)).context["payload"]
         by_id = {row["id"]: row for row in payload["models"]}
         assert by_id[str(pet.pk)]["participated"]
@@ -811,7 +826,7 @@ class TestStartingAndResuming:
             role="starting",
             card_name="Full equipment",
         )
-        report = start(client, table)
+        report = start_through_page(client, table)
         payload = client.get(editor_url(report)).context["payload"]
         by_id = {row["id"]: row for row in payload["models"]}
         assert not by_id[str(pet.pk)]["participated"]
@@ -826,7 +841,7 @@ class TestStartingAndResuming:
             role="starting",
             card_name="Full equipment",
         )
-        report = start(client, table)
+        report = start_through_page(client, table)
         payload = client.get(editor_url(report)).context["payload"]
         assert not any(row["participated"] for row in payload["models"])
 
@@ -842,7 +857,7 @@ class TestStartingAndResuming:
             ],
             confirm=True,
         )
-        report = start(client, table)
+        report = start_through_page(client, table)
         payload = client.get(editor_url(report)).context["payload"]
         by_id = {row["id"]: row for row in payload["models"]}
         assert by_id[str(table.models[0].pk)]["participated"]
@@ -853,7 +868,7 @@ class TestStartingAndResuming:
     def test_incomplete_draft_is_saved_and_resumed_without_gameplay_changes(
         self, client, table, feature
     ):
-        report = start(client, table, standalone=True)
+        report = start_through_page(client, table, standalone=True)
         initial = client.get(editor_url(report))
         before = LedgerEvent.objects.count()
         effect_id = str(uuid4())
@@ -899,7 +914,7 @@ class TestStartingAndResuming:
     def test_autosave_returns_the_next_revision_and_persists_the_draft(
         self, client, table, feature
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         response = client.post(
             editor_url(report),
             html_fields(
@@ -923,7 +938,7 @@ class TestApplyingAndCorrecting:
     def test_receipt_uses_a_shared_alert_and_consistent_left_aligned_heading(
         self, client, table, feature, standalone
     ):
-        report = start(client, table, standalone=standalone)
+        report = start_through_page(client, table, standalone=standalone)
         response = client.post(
             editor_url(report), awards(client.get(editor_url(report)), table)
         )
@@ -952,7 +967,7 @@ class TestApplyingAndCorrecting:
     def test_first_apply_needs_no_separate_check_step(
         self, client, table, feature, standalone
     ):
-        report = start(client, table, standalone=standalone)
+        report = start_through_page(client, table, standalone=standalone)
         response = client.post(
             editor_url(report), awards(client.get(editor_url(report)), table)
         )
@@ -969,7 +984,7 @@ class TestApplyingAndCorrecting:
     def test_participation_confirmation_is_mandatory_and_entries_survive_refusal(
         self, client, table, feature
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         data = awards(client.get(editor_url(report)), table)
         data.pop("participation_confirmed")
         before = LedgerEvent.objects.count()
@@ -991,7 +1006,7 @@ class TestApplyingAndCorrecting:
     def test_retry_and_late_autosave_cannot_apply_or_reopen_results(
         self, client, table, feature
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         data = awards(client.get(editor_url(report)), table)
         assert client.post(editor_url(report), data).status_code == 302
         events = LedgerEvent.objects.count()
@@ -1011,7 +1026,7 @@ class TestApplyingAndCorrecting:
     def test_correction_applies_the_difference_and_keeps_the_original_receipt(
         self, client, table, feature
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         original_data = awards(client.get(editor_url(report)), table)
         first = client.post(editor_url(report), original_data)
         assert first.status_code == 302
@@ -1278,7 +1293,7 @@ class TestReportPermissions:
         self, client, table, feature
     ):
         client.force_login(table.arbitrator)
-        report = start(client, table)
+        report = start_through_page(client, table)
         response = client.post(
             editor_url(report),
             html_fields(client.get(editor_url(report)), intent="save", credits="10"),
@@ -1290,7 +1305,7 @@ class TestReportPermissions:
     def test_departed_gang_keeps_owner_access_but_loses_arbitrator_access(
         self, client, table, feature
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         with operation(table.gang, actor=table.owner) as op:
             op.leave_campaign()
         client.force_login(table.arbitrator)
@@ -1302,7 +1317,7 @@ class TestReportPermissions:
     def test_arbitrator_cannot_edit_an_owners_standalone_report(
         self, client, table, feature
     ):
-        report = start(client, table, standalone=True)
+        report = start_through_page(client, table, standalone=True)
         client.force_login(table.arbitrator)
         assert client.get(editor_url(report)).status_code == 404
         assert client.post(editor_url(report), {}).status_code == 404
@@ -1311,7 +1326,7 @@ class TestReportPermissions:
     def test_private_drafts_are_not_readable_by_others(
         self, client, table, feature, who
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         if who == "stranger":
             client.force_login(User.objects.create_user("stranger"))
         else:
@@ -1321,7 +1336,7 @@ class TestReportPermissions:
             assert client.post(url, {}).status_code == 404
 
     def test_flag_off_blocks_every_route(self, client, table, feature):
-        report = start(client, table)
+        report = start_through_page(client, table)
         feature.availability = Availability.OFF
         feature.save()
         urls = [
@@ -1625,7 +1640,7 @@ class TestRecordResultsEntry:
         assert not PostBattleReport.objects.exists()
 
     def test_battle_report_get_with_a_report_goes_to_it(self, client, table, feature):
-        report = start(client, table)
+        report = start_through_page(client, table)
         response = client.get(start_url(table))
         assert response.status_code == 302
         assert response.url == editor_url(report)
@@ -1633,7 +1648,7 @@ class TestRecordResultsEntry:
     def test_record_results_opens_the_editor_with_the_battle_details(
         self, client, table, feature
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         assert report.battle_id == table.battle.pk
         assert report.date == table.battle.date
         assert report.reference == table.battle.title
@@ -1671,7 +1686,7 @@ class TestRecordResultsEntry:
     def test_campaign_report_breadcrumb_links_the_battle_and_the_gang(
         self, client, table, feature, page
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         if page == "receipt":
             applied = client.post(
                 editor_url(report), awards(client.get(editor_url(report)), table)
@@ -1702,7 +1717,7 @@ class TestRecordResultsEntry:
     def test_standalone_breadcrumb_links_the_gang_and_its_reports(
         self, client, table, feature
     ):
-        report = start(client, table, standalone=True)
+        report = start_through_page(client, table, standalone=True)
         document = BeautifulSoup(client.get(editor_url(report)).content, "html.parser")
         header = document.find("h1").find_parent("div", class_="gap-1")
         crumbs = [
@@ -1717,7 +1732,7 @@ class TestRecordResultsEntry:
         assert header.get_text().count(table.gang.name) == 1
 
     def test_the_action_bar_says_entries_save_as_you_go(self, client, table, feature):
-        report = start(client, table)
+        report = start_through_page(client, table)
         text = BeautifulSoup(
             client.get(editor_url(report)).content, "html.parser"
         ).get_text(" ", strip=True)
@@ -1733,7 +1748,7 @@ class TestRecordResultsEntry:
             "button"
         )
         assert button["aria-label"] == f"Record results for {table.gang.name}"
-        start(client, table)
+        start_through_page(client, table)
         document = BeautifulSoup(client.get(battle_page).content, "html.parser")
         link = document.find("a", href=start_url(table))
         assert link.get_text(strip=True) == "Continue draft"

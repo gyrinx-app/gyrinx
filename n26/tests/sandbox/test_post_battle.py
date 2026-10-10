@@ -26,6 +26,7 @@ from n26.core.post_battle import (
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status, status_colour
 from n26.library.authoring import add_picklist_member
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_built_in,
     assign,
@@ -67,6 +68,7 @@ def arbitrator():
 
 
 @pytest.fixture
+@library_setup
 def content(default_pack, gang_type, fighter_type):
     xp = create_counter("XP")
     kind = create_slot_type("Lasting injury", is_lasting_effect=True)
@@ -1571,6 +1573,7 @@ def glitches(model):
 
 
 @pytest.fixture
+@library_setup
 def glitch(content, glitches):
     """An injury whose stored effect adds 1 to Glitch count."""
     pick = create_pickable(

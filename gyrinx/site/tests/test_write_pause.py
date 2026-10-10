@@ -22,7 +22,7 @@ from gyrinx.site.write_pause import (
 )
 from gyrinx.tasks.route import PausedTaskConsumer, TaskRoute
 
-pytestmark = [pytest.mark.core, pytest.mark.django_db(transaction=True)]
+pytestmark = pytest.mark.core
 
 
 def _task(**kwargs):
@@ -30,7 +30,7 @@ def _task(**kwargs):
 
 
 @pytest.fixture
-def scope():
+def scope(db):
     slug = "test-pause"
     register_write_scope(slug, path_prefixes=("/test-pause/",))
     pause, _ = WritePause.objects.get_or_create(scope=slug)
@@ -43,12 +43,14 @@ def scope():
     return pause
 
 
+@pytest.mark.django_db
 def test_write_guard_fails_closed_for_missing_state():
     with transaction.atomic(), pytest.raises(ImproperlyConfigured):
         with write_guard("missing-pause-row"):
             pass
 
 
+@pytest.mark.django_db
 def test_task_delivery_defers_for_missing_state():
     route = TaskRoute(_task, write_scope="missing-task-pause-row")
     with task_delivery_gate(route, {}) as admission:
@@ -120,6 +122,7 @@ def test_exact_bound_task_is_admitted_and_stale_generation_is_deferred(scope):
         assert not admission.allowed
 
 
+@pytest.mark.django_db(transaction=True)
 def test_task_gate_releases_session_lock_when_body_raises(scope):
     route = TaskRoute(_task, write_scope=scope.scope)
     with pytest.raises(RuntimeError):
@@ -130,6 +133,7 @@ def test_task_gate_releases_session_lock_when_body_raises(scope):
     pause_scope(scope.scope, actor=None, reason="Still drainable")
 
 
+@pytest.mark.django_db(transaction=True)
 def test_admitted_delivery_can_take_transaction_guard_while_pause_waits(scope):
     """A queued exclusive pause must not deadlock a delivery already admitted."""
     delivery_admitted = threading.Event()
@@ -182,6 +186,7 @@ def test_admitted_delivery_can_take_transaction_guard_while_pause_waits(scope):
     assert scope.state == WritePause.State.PAUSED
 
 
+@pytest.mark.django_db(transaction=True)
 def test_reused_atomic_decorator_rechecks_pause_between_calls(scope):
     @transaction.atomic
     def guarded_call():
@@ -241,6 +246,7 @@ def test_view_improperly_configured_error_is_not_masked_or_retried(scope):
     assert calls == 1
 
 
+@pytest.mark.django_db(transaction=True)
 @override_settings(WRITE_PAUSE_DRAIN_TIMEOUT_SECONDS=0.02)
 def test_pause_timeout_leaves_scope_open(scope):
     admitted = threading.Event()
@@ -367,6 +373,7 @@ def test_unlock_uses_the_physical_connection_that_acquired_the_lock(monkeypatch)
     assert replacement.calls == []
 
 
+@pytest.mark.django_db(transaction=True)
 def test_exclusive_scope_restores_enclosing_transaction_lock_timeout(scope):
     from django.db import connection
 

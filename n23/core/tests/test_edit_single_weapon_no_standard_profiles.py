@@ -1,4 +1,5 @@
 import pytest
+from bs4 import BeautifulSoup
 from django.urls import reverse
 
 from n23.content.models import (
@@ -95,56 +96,16 @@ def test_standard_profiles_not_in_available_list(
 
     assert response.status_code == 200
 
-    # Check the content
-    content = response.content.decode()
+    paid_ids = {paid_profile1.id, paid_profile2.id}
+    assert {profile["id"] for profile in response.context["profiles"]} == paid_ids
 
-    # Standard profiles should NOT be in the available profiles section
-    # The available profiles are in the third tbody section of the table
-    # Look for profiles that have "Add" buttons (which are available profiles)
-    # Check that paid profiles appear with Add buttons
-    assert "Special Ammo" in content
-    assert "Add" in content
-
-    # Find the section containing available profiles by looking for the Add button forms
-    # This helps us isolate the available profiles section
-    add_button_start = content.find(
-        '<button type="submit" class="btn btn-link btn-sm icon-link">'
-    )
-    if add_button_start > 0:
-        # Get a section around the add buttons to check available profiles
-        available_section = content[
-            max(0, add_button_start - 1000) : add_button_start + 2000
-        ]
-    else:
-        # Fallback to checking the whole content
-        available_section = content
-
-    # Debug: write full section to file to see what's there
-    with open("/tmp/test_available_section.html", "w") as f:
-        f.write(available_section)
-
-    # Paid profiles should appear with Add buttons
-    assert "Special Ammo" in available_section
-    assert "Premium Ammo" in available_section
-
-    # The key test: Standard (cost=0) profiles should NOT have Add buttons
-    # We can check this by looking for Standard Ammo near an Add button
-    # Find all occurrences of "Standard Ammo" and check none have nearby Add buttons
-    standard_index = content.find("Standard Ammo")
-    if standard_index > 0:
-        # Check there's no Add button within 200 chars (same table row)
-        nearby_content = content[standard_index : standard_index + 200]
-        assert "Add" not in nearby_content, (
-            "Standard profile should not have Add button"
-        )
-
-    # Also check context data if available
-    if hasattr(response, "context") and response.context:
-        profiles = response.context.get("profiles", [])
-        # Check that paid profiles are in the list
-        profile_names = [p["name"] for p in profiles]
-        assert "Special Ammo" in profile_names
-        assert "Premium Ammo" in profile_names
-        # Standard profiles should NOT be in the list
-        assert "Standard Ammo" not in profile_names
-        assert "" not in profile_names  # Unnamed standard profile
+    # The available-profile forms must offer exactly the paid profiles; free
+    # profiles may still appear elsewhere as the weapon's standard stats.
+    soup = BeautifulSoup(response.content, "html.parser")
+    add_inputs = soup.select('form input[name="profile_id"]')
+    assert {field["value"] for field in add_inputs} == {
+        str(profile_id) for profile_id in paid_ids
+    }
+    for field in add_inputs:
+        button = field.find_parent("form").find("button", type="submit")
+        assert button.get_text(strip=True) == "Add"

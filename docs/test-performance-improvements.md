@@ -25,6 +25,10 @@ while comparing. Four workers are appropriate for a controlled comparison on
 the shared development machine. A default local run uses pytest's `-n auto`;
 benchmark that command separately before claiming a change to its elapsed time.
 
+The worker count stays unchanged. The work-stealing scheduler can move pending
+tests from a busy worker to an idle one when case durations differ, reducing
+the wait for the last worker without adding processes or runners.
+
 The normal full run recreates test databases from the current models, using
 `--nomigrations`. Use identical database settings for each measurement.
 `--reuse-db` is useful for development, but comparing a cold baseline to a warm
@@ -62,6 +66,44 @@ Its full-suite result was 13,802 passed, 13 skipped and one expected failure in
 41 minutes 57 seconds. Halving that test execution time requires at most
 1,232.32 seconds, without adding runners or increasing the runner size.
 
-The branch's initial local full-suite measurement and the candidate comparisons
-are still being gathered. Query reductions in isolated profiles are preliminary
-evidence; they do not prove a 50% full-suite improvement.
+The local starting revision completed the same selection with four workers in
+2,151.53 seconds, with the same existing gallery failure. Its comparison target
+is at most 1,075.765 seconds. The gallery assertion has since been corrected on
+main and that fix is retained here.
+
+The first candidate, before the test consolidation pass, exceeded both targets.
+Its local run was deliberately interrupted after 10,511 passing tests in
+1,230.03 seconds, and its CI run was cancelled after exceeding the CI target.
+These incomplete runs establish that the first candidate missed the target;
+they are not full-suite passing results. The shared local cases used about 16%
+less summed worker time, which is preliminary evidence only.
+
+## Reducing repeated work
+
+The consolidation pass keeps HTTP coverage at the boundaries where routing,
+permissions, persistence, redirects or rendering are the contract. It moves
+malformed-input permutations to database-free form tests and context-only
+checks to the real context builders. Repeated assertions about the same page
+or operation share one setup and response.
+
+- Ingest and conversion scenarios share their unchanged input and successful
+  application. Changed inputs, fault injection and rollback remain separate.
+- Authoring registry and help guards inspect the registry directly. Populated
+  listings still exercise every route, using one catalogue setup.
+- Power advancements retain selected and random flows, access grades, stale
+  choices, replay and history. Arbitrary family names no longer multiply every
+  scenario; authored D6 endpoint flows pair with a six-position form test.
+- Post-battle editor tests prepare real drafts through the shipped service.
+  Entry, crew selection, permissions and application retain HTTP coverage.
+- Maintenance delivery crosses the real batch boundary with eleven gangs
+  instead of 115. Query growth, reset results and redelivery remain checked.
+- Same-connection pause tests use rollback isolation. Actual outer commits,
+  session locks and threaded concurrency retain transaction tests.
+
+The pass also replaces vacuous checks: an empty filtered collection must be
+nonempty before asserting every row is suppressed, and foundation status and
+campaign actor checks target their actual data or rendered region.
+
+Focused validation and complete local/CI comparisons are still in progress.
+Neither the reduced test count nor isolated timings prove a 50% full-suite
+improvement.

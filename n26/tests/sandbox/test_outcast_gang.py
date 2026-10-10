@@ -43,6 +43,7 @@ from n26.library.authoring import (
     targets_model,
 )
 from n26.library.models import Affiliation, Skill
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     adds,
     choose,
@@ -78,6 +79,7 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
+@library_setup
 def sets(db):
     made = {
         name.lower(): create_category("Skills", name, position)
@@ -90,6 +92,7 @@ def sets(db):
 
 
 @pytest.fixture
+@library_setup
 def skills_collection(sets):
     library = [
         create_skill(name, category=sets[key])
@@ -114,6 +117,7 @@ def skills_collection(sets):
 
 
 @pytest.fixture
+@library_setup
 def subtypes(db):
     """The generic rank vocabulary — shared across gang lists, which is
     exactly why the Champion and Hive Scum rows cannot hang off it."""
@@ -182,12 +186,14 @@ ARCHETYPES = {
 
 
 @pytest.fixture
+@library_setup
 def archetype_type(default_pack):
     """One slot type for both choices. Nobody takes an archetype twice."""
     return create_slot_type("Archetype", allows_repeats=False)
 
 
 @pytest.fixture
+@library_setup
 def archetypes(sets, skills_collection, subtypes, profiles, archetype_type):
     """One carrier per printed archetype, all three rank rows aboard.
 
@@ -241,6 +247,7 @@ def archetypes(sets, skills_collection, subtypes, profiles, archetype_type):
 
 
 @pytest.fixture
+@library_setup
 def affiliation_lists(affiliations):
     """One small collection per question, so each offer narrows to
     exactly its own list."""
@@ -256,6 +263,7 @@ def affiliation_lists(affiliations):
 
 
 @pytest.fixture
+@library_setup
 def house_lists(db):
     from n26.tests.sandbox.actions import create_weapon
 
@@ -274,6 +282,7 @@ def house_lists(db):
 
 
 @pytest.fixture
+@library_setup
 def mutations(db):
     from n26.tests.sandbox.actions import create_wargear
 
@@ -283,6 +292,7 @@ def mutations(db):
 
 
 @pytest.fixture
+@library_setup
 def affiliations(subtypes, house_lists, mutations):
     """Four affiliations; Clan House chains a second pick whose options
     carry their own payloads (each house token knows its own list)."""
@@ -324,6 +334,7 @@ def affiliations(subtypes, house_lists, mutations):
 
 
 @pytest.fixture
+@library_setup
 def outcasts(subtypes, skills_collection, affiliations, affiliation_lists):
     """The gang type: the affiliation slot, the gang rules, the ratio
     ask. The archetype slot is *not* here — it rides the Leader
@@ -385,6 +396,7 @@ def outcasts(subtypes, skills_collection, affiliations, affiliation_lists):
 
 
 @pytest.fixture
+@library_setup
 def profiles(outcasts, subtypes, person_type):
     """The gang list: four Leader variants sharing the Leader subtype,
     and the Champion and Hive Scum entries the archetype rows name."""
@@ -411,6 +423,7 @@ def profiles(outcasts, subtypes, person_type):
 
 
 @pytest.fixture
+@library_setup
 def archetype_question(archetypes, profiles, archetype_type):
     """The pick list, and the two slots that ask it.
 

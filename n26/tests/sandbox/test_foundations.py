@@ -15,6 +15,7 @@ migration:
 """
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 
 from n26.library.models import ProfileType, Stat, StatlineType, Subtype
@@ -178,19 +179,30 @@ class TestWhatTheSeedsCreate:
 
 class TestThePage:
     def test_it_shows_status_before_and_after(self, author, client, default_pack):
-        body = client.get("/n26/authoring/foundations/").content.decode()
-        assert "missing" in body
-        assert "Model characteristics" in body
+        url = "/n26/authoring/foundations/"
+        before = client.get(url)
+        entry = next(
+            item
+            for item in before.context["entries"]
+            if item["key"] == "model-characteristics"
+        )
+        assert entry["status"] == "missing"
+        assert entry["present"] == 0
 
-        # The button's own payload. This test once posted a key the view
-        # never read and still passed, because the old inline stylesheet
-        # happened to contain the word "complete" — the page said nothing
-        # of the sort. The styles are the design system's now, so the
-        # assertion finally means what it says.
-        client.post("/n26/authoring/foundations/", {"create": "model-characteristics"})
-        body = client.get("/n26/authoring/foundations/").content.decode()
-        assert "complete" in body
-        assert "Fighter" in body  # the profile type it made
+        posted = client.post(url, {"create": "model-characteristics"})
+        assert posted.status_code == 302
+        after = client.get(url)
+        entry = next(
+            item
+            for item in after.context["entries"]
+            if item["key"] == "model-characteristics"
+        )
+        assert entry["status"] == "complete"
+        assert entry["present"] == entry["total"] > 0
+        document = BeautifulSoup(after.content, "html.parser")
+        row = document.find("span", string="Model characteristics").find_parent("tr")
+        assert "complete" in row.get_text(" ", strip=True).split()
+        assert ProfileType.objects.filter(name="Fighter").exists()
 
     def test_creating_needs_a_real_seed(self, author, client, default_pack):
         assert (

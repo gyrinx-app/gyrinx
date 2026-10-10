@@ -271,20 +271,27 @@ class TestThePlan:
 
 
 class TestTheApply:
-    def test_every_page_reads_the_same(self, world):
+    def test_the_conversion_preserves_pages_picks_labels_and_archives(self, world):
         gangs, _, _ = world
-        before = {key: gang_state(g) for key, g in gangs.items()}
+        before_states = {key: gang_state(g) for key, g in gangs.items()}
+        _, _, hidden = world
+        offer = next(
+            m
+            for m in hidden.modifiers.all()
+            if getattr(m, "offers_choice", None) is not None
+        )
+        said = offer.offers_choice.kind_label
+        from n26.library.models import Modifier
+
+        before_fossils = Modifier.objects.filter(
+            name="a whole-kind Affiliation offer"
+        ).count()
 
         apply(plan_outcast_affiliation())
 
         for key, gang in gangs.items():
-            assert differences(before[key], gang_state(gang)) == []
+            assert differences(before_states[key], gang_state(gang)) == []
             assert_reconciled(gang)
-
-    def test_the_pick_still_lands_on_the_gang(self, world):
-        gangs, _, _ = world
-
-        apply(plan_outcast_affiliation())
 
         pick = Assignment.objects.get(
             gang=gangs["clanless"], pickable__isnull=False, archived=False
@@ -295,64 +302,26 @@ class TestTheApply:
         assert pick.miniature_id is None
         assert pick.chosen_for_id == pick.caused_by_id
 
-    def test_the_house_pick_lands_on_the_clan_house_slot(self, world):
-        gangs, _, _ = world
-
-        apply(plan_outcast_affiliation())
-
         pick = Assignment.objects.get(
             gang=gangs["housed"], pickable__name="House Cawdor", archived=False
         )
         assert pick.chosen_for_slot == Slot.objects.get(name="Clan House")
         assert pick.affiliation_id is None
 
-    def test_each_slot_is_labelled_the_way_the_offer_already_was(self, world):
-        """The card's own words, carried across rather than guessed.
-
-        A label is stored as the author typed it (only its first letter
-        is forced up), so a conversion that hardcodes the wording gets
-        "Clan house" where production says "Clan House" — and every
-        housed gang's card changes a word, which the proof rejects after
-        doing all the work. Production's own casing is the fixture's, so
-        this fails the moment the label stops being derived.
-        """
-        _, _, hidden = world
-        offer = next(
-            m
-            for m in hidden.modifiers.all()
-            if getattr(m, "offers_choice", None) is not None
-        )
-        said = offer.offers_choice.kind_label
-
-        apply(plan_outcast_affiliation())
-
         assert said == "Affiliation"
         assert Slot.objects.get(name="Affiliation").choice_label == said
         assert Slot.objects.get(name="Clan House").choice_label == "Clan House"
-
-    def test_the_archived_answer_is_rewritten_too(self, world):
-        gangs, _, _ = world
-
-        apply(plan_outcast_affiliation())
 
         archived = Assignment.objects.get(gang=gangs["rechosen"], archived=True)
         assert archived.pickable.name == "Clanless Outcast"
         assert archived.affiliation_id is None
         assert archived.chosen_for_slot == Slot.objects.get(name="Affiliation")
 
-    def test_house_goliath_is_a_pickable_even_though_nobody_picked_it(self, world):
-        apply(plan_outcast_affiliation())
-
         assert Pickable.objects.filter(name="House Goliath").exists()
 
-    def test_the_fossils_are_left_standing(self, world):
-        from n26.library.models import Modifier
-
-        before = Modifier.objects.filter(name="a whole-kind Affiliation offer").count()
-        apply(plan_outcast_affiliation())
         assert (
             Modifier.objects.filter(name="a whole-kind Affiliation offer").count()
-            == before
+            == before_fossils
             == 1
         )
         assert Modifier.objects.filter(name="Corruption").exists()
