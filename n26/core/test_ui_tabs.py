@@ -62,6 +62,19 @@ class TestTheDefaultStrip:
         assert 'x-show="tabs.length > 2"' in html
         assert "'+' + (tabs.length - 1) + ' more'" in html
 
+    def test_a_strip_can_hold_three_tabs_whole(self):
+        html = render(
+            """
+            <c-ui.tabs :narrow_tabs="3">
+                <c-ui.tabs.tab name="Gangs">A table of gangs.</c-ui.tabs.tab>
+                <c-ui.tabs.tab name="Campaigns">Nothing yet.</c-ui.tabs.tab>
+                <c-ui.tabs.tab name="Content Packs">Nothing yet.</c-ui.tabs.tab>
+            </c-ui.tabs>
+            """
+        )
+        assert 'x-show="tabs.length <= 3 || isActive(tab.name)"' in html
+        assert 'x-show="tabs.length > 3"' in html
+
     def test_the_panels_still_register_themselves(self):
         html = render(DEFAULT)
         assert html.count("register('Gangs'") + html.count('register("Gangs"') == 1

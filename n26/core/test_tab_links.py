@@ -90,7 +90,8 @@ class TestTheStrip:
 class TestTheNarrowStrip:
     """Below the sm breakpoint the strip never wraps: up to two tabs are
     drawn whole, and from three the current tab stands alone with the rest
-    behind a switcher whose rows are the same real links."""
+    behind a switcher whose rows are the same real links. A call site can
+    raise that two with :narrow_tabs."""
 
     def test_two_tabs_are_both_drawn_rather_than_one_and_a_menu(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
@@ -143,6 +144,26 @@ class TestTheNarrowStrip:
         assert "Kit &amp; gear" in html
         assert 'href="?list=1&amp;page=2"' in html
         assert "amp;amp;" not in html
+
+    def test_a_strip_that_holds_three_draws_three_tabs_whole(self):
+        html = render(
+            '<c-n26.tab-links label="Which list" :tabs="tabs" :narrow_tabs="3" />',
+            tabs=THREE,
+        )
+        # Three primary choices stay in view on a phone: each uncurrent tab
+        # is a link once per strip, and there is no menu to open.
+        assert "more" not in html
+        assert "data-quick-switcher" not in html
+        assert html.count('href="?list=3"') == 2
+
+    def test_a_strip_that_holds_three_still_folds_a_fourth(self):
+        four = THREE + [{"label": "Hive Scum", "href": "?list=4", "current": False}]
+        html = render(
+            '<c-n26.tab-links label="Which list" :tabs="tabs" :narrow_tabs="3" />',
+            tabs=four,
+        )
+        assert "+3 more" in html
+        assert "data-quick-switcher" in html
 
     def test_a_single_tab_gets_no_switcher(self):
         html = render(

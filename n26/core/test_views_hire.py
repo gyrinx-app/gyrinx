@@ -182,6 +182,20 @@ def test_the_other_scopes_are_offered_to_the_browser_early(
     assert "nav[data-speculate='who-can-be-hired'] a:not([aria-current])" in body
 
 
+def test_a_phone_draws_all_three_scopes_rather_than_one_and_a_menu(
+    client, tester, gang, ganger
+):
+    """Gang list, Supplementary and All profiles are the screen's main
+    choice, so the narrow strip draws all three instead of folding two
+    behind "+2 more"."""
+    client.force_login(tester)
+    body = client.get(hire_url(gang)).content.decode()
+    assert "+2 more" not in body
+    # Once in the wide strip and once in the narrow one: both are always in
+    # the HTML, and CSS picks which one shows.
+    assert body.count(f'href="{hire_url(gang)}?list=all"') == 2
+
+
 def test_the_list_asks_for_no_name(client, tester, gang, ganger):
     """Naming is the dialog's question, and asking it twice would mean two
     places a name could be typed and only one of them read."""
