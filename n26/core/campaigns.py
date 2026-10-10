@@ -364,6 +364,8 @@ class CampaignOperation:
         dice,
         source,
         modifier=0,
+        count=1,
+        modifier_application="total",
         rolled=None,
         gang=None,
         battle=None,
@@ -397,6 +399,12 @@ class CampaignOperation:
             raise Refusal("Enter a reason of up to 200 characters.")
         if dice not in CampaignRoll.Dice.values:
             raise Refusal("Select D3, D6 or D66.")
+        if type(count) is not int or not 1 <= count <= CampaignRoll.MAX_DICE:
+            raise Refusal(f"Enter a number of dice from 1 to {CampaignRoll.MAX_DICE}.")
+        if modifier_application not in CampaignRoll.ModifierApplication.values:
+            raise Refusal(
+                "Select whether the modifier applies to each die or the total."
+            )
         if source not in CampaignRoll.Source.values:
             raise Refusal("Select how to roll the dice.")
         if type(modifier) is not int or not -2147483648 <= modifier <= 2147483647:
@@ -418,13 +426,15 @@ class CampaignOperation:
             and not Battle.objects.filter(pk=battle.pk, campaign=self.campaign).exists()
         ):
             raise Refusal("Select a battle from this campaign.")
+        results = []
         if source == CampaignRoll.Source.MANUAL:
-            if type(rolled) is not int or rolled not in Dice.rolls(dice):
+            if not CampaignRoll.valid_total(dice, count, rolled):
                 raise Refusal("Enter a valid result for the selected dice.")
         else:
             if rolled is not None:
                 raise Refusal("Leave the result blank to generate a roll.")
-            rolled = Dice.roll(dice, rng=rng)
+            results = [Dice.roll(dice, rng=rng) for _ in range(count)]
+            rolled = sum(results)
         roll = CampaignRoll.objects.create(
             campaign=self.campaign,
             actor=self.actor,
@@ -434,6 +444,9 @@ class CampaignOperation:
             source=source,
             rolled=rolled,
             modifier=modifier,
+            count=count,
+            results=results,
+            modifier_application=modifier_application,
             gang=gang,
             battle=battle,
         )
