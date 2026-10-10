@@ -79,7 +79,7 @@ TERRITORIES = (
     Territory("Fighting Pit", 25),
 )
 
-NOTHING_TO_DO = "Nothing to do: every Territory already has its income and boons."
+NOTHING_TO_DO = "Nothing to do: everything this seed can write is already there."
 
 
 def seed_core_territory_content():
@@ -123,7 +123,7 @@ def seed_core_territory_content():
         ).first()
         if asset is None:
             outcome.skipped.append(
-                f"skipped {entry.name}: the system pack has no {TERRITORY} of that name"
+                f"skipped {entry.name}: the system pack has no territory of that name"
             )
             continue
         if asset.asset_type_id != territory_type.pk:

@@ -159,7 +159,7 @@ class TestTheSeed:
 
         lines = seed_all()
 
-        assert "skipped Tunnels: the system pack has no Territory of that name" in (
+        assert "skipped Tunnels: the system pack has no territory of that name" in (
             lines
         )
         assert "Bullet Den: income 15" in lines
@@ -167,7 +167,8 @@ class TestTheSeed:
 
 class TestASeededTerritoryInPlay:
     """A gang holding a seeded Territory reads its income, its Reputation
-    and its rule."""
+    and its rule, whether it took the Territory before the seed ran or
+    after."""
 
     @pytest.fixture(autouse=True)
     def campaigns_open(self, db):
@@ -176,7 +177,7 @@ class TestASeededTerritoryInPlay:
         )
 
     @pytest.fixture
-    def gang(self, seeded, core, gang_type):
+    def gang(self, core, gang_type):
         campaign = found_campaign(
             "Dust Falls", core, owner=User.objects.create_user("arbitrator")
         )
@@ -187,19 +188,30 @@ class TestASeededTerritoryInPlay:
         gang.test_campaign = campaign
         return gang
 
-    def test_bullet_den_brings_its_income_and_the_recruit_rule(self, gang):
+    def test_bullet_den_brings_its_income_and_the_recruit_rule(self, seeded, gang):
         assign_asset(add_asset(gang.test_campaign, territory("Bullet Den")), gang)
 
         assert counter_reading(gang, INCOME) == 15
         assert "Recruit (Bullet Den)" in gang_rules(gang)
 
-    def test_generatorium_brings_one_reputation(self, gang):
+    def test_generatorium_brings_one_reputation(self, seeded, gang):
         before = counter_reading(gang, REPUTATION)
 
         assign_asset(add_asset(gang.test_campaign, territory("Generatorium")), gang)
 
         assert counter_reading(gang, REPUTATION) == before + 1
         assert counter_reading(gang, INCOME) == 15
+
+    def test_a_gang_already_holding_territories_reads_the_seed_at_once(self, gang):
+        assign_asset(add_asset(gang.test_campaign, territory("Bullet Den")), gang)
+        assign_asset(add_asset(gang.test_campaign, territory("Gambling Den")), gang)
+        before = counter_reading(gang, REPUTATION)
+
+        seed_all()
+
+        assert counter_reading(gang, INCOME) == 30
+        assert counter_reading(gang, REPUTATION) == before + 1
+        assert "Recruit (Bullet Den)" in gang_rules(gang)
 
 
 class TestTheMaintenanceOperation:

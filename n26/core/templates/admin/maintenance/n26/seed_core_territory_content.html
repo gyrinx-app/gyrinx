@@ -1,6 +1,6 @@
 {% extends "admin/base_site.html" %}
 {% comment %}
-The core Territory content seed's console page: what the seed would write
+The core territory content seed's console page: what the seed would write
 or leave alone, an apply button, and the recent runs. The preview is the
 seed run and rolled back, so it is exactly what a run would do.
 Context from seed_core_territory_content_view (n26/maintenance.py): title,
@@ -25,19 +25,22 @@ preview, nothing_to_do, problem, apply_url, recent.
     <h1>{{ title }}</h1>
     <p>
         This writes library rows only: the income of each of the eighteen
-        Territories on the core Territory Selection Table, a Reputation
+        territories on the core Territory Selection Table, a Reputation
         modifier on Generatorium and Gambling Den, and a named rule for each
-        recruit, equipment and special boon. A Territory that already has an
-        income keeps it. The Territories are live, so gangs already holding one
+        recruit, equipment and special boon. A territory that already has an
+        income keeps it. The territories are live, so gangs already holding one
         see the change at once.
     </p>
     {% if problem %}
         <h2 class="mt-problems">The preview cannot run</h2>
         <p class="mt-problems">{{ problem }}</p>
-        <p>Nothing can be written while this stands.</p>
+        <p>
+            Nothing can be written until the preview runs. Fix the library content
+            named above, then reload this page.
+        </p>
     {% elif nothing_to_do %}
         <h2>Nothing to write</h2>
-        <p>Every Territory already has its income and boons.</p>
+        <p>Everything this seed can write is already there. It left these alone:</p>
         <ul class="mt-plan">
             {% for line in preview|slice:"1:" %}<li>{{ line }}</li>{% endfor %}
         </ul>
@@ -48,7 +51,7 @@ preview, nothing_to_do, problem, apply_url, recent.
         </ul>
         <form method="post"
               class="mt-form"
-              onsubmit="return confirm('Give the core Territories their income and boons? A Territory that already has an income keeps it.')">
+              onsubmit="return confirm('Give the core territories their income and boons? A territory that already has an income keeps it.')">
             {% csrf_token %}
             <button type="submit" class="button default">Write the missing income and boons</button>
         </form>

@@ -232,7 +232,7 @@ class Operation(models.TextChoices):
     )
     SEED_CORE_TERRITORY_CONTENT = (
         "n26_seed_core_territory_content",
-        "n26: the core Territories get their income and boons",
+        "n26: the core territories get their income and boons",
     )
     DELETE_TEST_CONTENT = (
         "n26_delete_test_content",
@@ -2523,7 +2523,7 @@ def seed_core_territory_content(backfill_id, **said_by_whoever_enqueued_it):
     _run_recorded(
         backfill_id,
         Operation.SEED_CORE_TERRITORY_CONTENT,
-        "Core Territory content seed",
+        "Core territory content seed",
         seed_all,
         (),
     )
@@ -2596,14 +2596,14 @@ register_operation(
         name=Operation.SEED_CORE_TERRITORY_CONTENT.label,
         added=date(2026, 10, 10),
         description=(
-            "Give the eighteen Territories on the core Territory Selection "
+            "Give the eighteen territories on the core Territory Selection "
             "Table their income and boons. Income counts toward the holding "
             "gang's Income. Generatorium and Gambling Den add 1 Reputation. "
             "The recruit, equipment and special boons are named rules on the "
-            "gang that holds the Territory, with the name only. A Territory "
+            "gang that holds the territory, with the name only. A territory "
             "that already has an income keeps it, and every rule and modifier "
             "is matched by name, so running this again writes nothing. The "
-            "Territories are live, so gangs already holding one see the "
+            "territories are live, so gangs already holding one see the "
             "change at once. No money moves."
         ),
         view=seed_core_territory_content_view,
