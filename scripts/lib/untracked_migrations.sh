@@ -43,13 +43,19 @@ hide_untracked_migrations() {
   done < <(git ls-files --others --exclude-standard -z)
 }
 
-# Put back exactly the paths hide moved, links included. If one cannot go
-# back, leave the directory in place and say where it is.
+# Put back exactly the paths hide moved, links included. A path something
+# recreated during the check is newer than the parked copy, so it is not
+# overwritten. If one cannot go back, leave the directory in place and say
+# where it is.
 restore_untracked_migrations() {
   local dir path stuck=0
   dir="${_UNTRACKED_MIGRATIONS_DIR:-}"
   [[ -n "$dir" && -d "$dir" ]] || return 0
   for path in "${_UNTRACKED_MIGRATIONS[@]}"; do
+    if [[ -e "$path" || -L "$path" ]]; then
+      stuck=1
+      continue
+    fi
     mkdir -p -- "$(dirname -- "$path")"
     mv -- "$dir/$path" "$path" || stuck=1
   done

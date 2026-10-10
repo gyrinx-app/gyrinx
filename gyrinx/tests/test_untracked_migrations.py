@@ -108,6 +108,24 @@ def test_an_untracked_migration_link_is_restored(tmp_path):
     )
 
 
+def test_a_migration_recreated_during_the_check_is_not_overwritten(tmp_path):
+    repo = _repo(tmp_path)
+    result = _bash(
+        repo,
+        """
+        hide_untracked_migrations --pre-commit
+        echo "# newer" > app/migrations/0002_other.py
+        parked="$_UNTRACKED_MIGRATIONS_DIR"
+        if restore_untracked_migrations; then exit 3; fi
+        test -e "$parked/app/migrations/0002_other.py"
+        test -e fresh/migrations/0001_initial.py
+        """,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "not put back" in result.stderr
+    assert (repo / "app" / "migrations" / "0002_other.py").read_text() == "# newer\n"
+
+
 def test_hidden_migrations_wait_under_the_git_directory(tmp_path):
     """A check killed before it restores leaves them with the repository."""
     repo = _repo(tmp_path)
