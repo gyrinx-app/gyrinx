@@ -859,14 +859,25 @@ class TestTheShellStillDraws:
         """The gangs table and an assets table both fill from the sample
         sheet, and every slot the view declares is drawn from the page
         rather than from a context variable of the same name."""
+        from bs4 import BeautifulSoup
+
         page = reader.get("/n26/design/shell/campaign/").content.decode()
         assert "Territory campaign" in page
         assert "Gravebolt Kin" in page
         # Each gang names its owner under its name, through the same
         # component the app draws people with — a sample person is a
         # username, so the name comes through and no badge follows it.
-        assert re.search(r"Goliath \(HoC\) · <span[^>]*>marta<", page)
-        assert re.search(r"Escher \(HoB\) · <span[^>]*>tom<", page)
+        document = BeautifulSoup(page, "html.parser")
+        for gang_type, owner in (("Goliath (HoC)", "marta"), ("Escher (HoB)", "tom")):
+            label = next(
+                span
+                for span in document.select('th[scope="rowgroup"] span.text-xs')
+                if gang_type in span.get_text()
+            )
+            assert label.get_text(" ", strip=True) == f"{gang_type} · {owner}"
+            person = label.find("span", string=owner)
+            assert person is not None
+            assert person.find("svg") is None
         # The players and the log name people the same way; the
         # arbitrator's own acts read "You", as the page reads them.
         assert re.search(r"<td[^>]*>\s*<span[^>]*>vey<", page)

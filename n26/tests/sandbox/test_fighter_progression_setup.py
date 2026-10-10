@@ -33,6 +33,7 @@ from n26.library.models import (
     Subtype,
     Trait,
 )
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import found_gang, give_weapon, hire
 
 pytestmark = pytest.mark.django_db
@@ -47,6 +48,7 @@ def _errors(response):
 
 
 @pytest.fixture
+@library_setup
 def progression(
     default_pack, make_profile, make_statline, gang_type, counter_tracking, request
 ):

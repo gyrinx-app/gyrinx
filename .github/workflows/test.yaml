@@ -158,7 +158,7 @@ jobs:
         # runner's vCPUs); `-n logical` uses every vCPU, and the later flag wins.
         run: |
           source .venv/bin/activate
-          pytest --durations=20 -v -n logical
+          python scripts/measure_test_performance.py --label ci-full -- -v -n logical
 
   page-on-main-failure:
     needs: [test, test-full]
