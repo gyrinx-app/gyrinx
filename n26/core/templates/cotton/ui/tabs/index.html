@@ -9,8 +9,8 @@ default_tab must match a tab name exactly. A mismatch leaves every panel hidden 
 Two tabs with the same name both show when that name is active.
 The default variant draws through c-n26.tab-strip.
 On a narrow strip, more than narrow_tabs tabs keep only the active one visible. The rest open from a quick-switcher.
-narrow_tabs defaults to two. Pass it with the colon, :narrow_tabs="3", so it arrives as a number.
-Above two, md narrow tabs pad less, so three short labels fit a 320px phone. Longer labels wrap to a second row.
+narrow_tabs defaults to two. When it is above two, narrow tabs of size md pad less, so three short labels fit a 320px phone.
+Longer labels wrap to a second row. add:0 makes narrow_tabs a number when it is passed without the colon.
 An idle tab's border must stay opaque. A transparent border is a hole in the line under the strip.
 Do not compose these rows from c-n26.quick-switcher.choice. That bakes the label at render, and a tab exists only after Alpine boots.
 Keep the open tab in the menu. Hiding it leaves a search for that tab as a blank menu with no empty state.
@@ -137,7 +137,7 @@ class="w-full space-y-4"
                             disabled:pointer-events-none disabled:opacity-50
                             {% if size == 'sm' %}text-xs px-2.5 py-1
                             {% elif size == 'lg' %}text-base px-4 py-2
-                            {% else %}text-sm {% if narrow_tabs > 2 %}px-2{% else %}px-3{% endif %} py-1.5{% endif %}
+                            {% else %}text-sm {% if narrow_tabs|add:0 > 2 %}px-2{% else %}px-3{% endif %} py-1.5{% endif %}
                         "
                         :class="{
                             {% if accent %}
