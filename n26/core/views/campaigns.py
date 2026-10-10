@@ -302,7 +302,8 @@ def more_actions(campaign, *, yours):
     """The links in the campaign header's More actions menu.
 
     Every player at the table may read the log. Only the arbitrator manages
-    the campaign's counters and labels, or archives it. No separators.
+    the campaign's counters, labels and asset types, or archives it. No
+    separators.
     """
     actions = [
         Action(
@@ -319,6 +320,12 @@ def more_actions(campaign, *, yours):
                 LINK,
                 reverse("n26-edit-campaign", args=[campaign.pk])
                 + "?tab=counters-and-labels",
+                SECONDARY,
+            ),
+            Action(
+                "Asset types",
+                LINK,
+                reverse("n26-edit-campaign", args=[campaign.pk]) + "?tab=asset-types",
                 SECONDARY,
             ),
             Action(
@@ -879,11 +886,13 @@ def edit_campaign(request, pk):
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     tab = request.GET.get("tab", "general")
-    if tab != "counters-and-labels" or request.method == "POST":
+    if tab not in ("counters-and-labels", "asset-types") or request.method == "POST":
         tab = "general"
     edit_url = reverse("n26-edit-campaign", args=[found.pk])
     counters = []
     labels = []
+    asset_types = []
+    shared_asset_types = ""
 
     if request.method == "POST":
         form = EditCampaignForm(request.POST)
@@ -906,6 +915,34 @@ def edit_campaign(request, pk):
                 "status": found.status,
             }
         )
+
+    elif tab == "asset-types":
+        form = None
+        own, shared = [], []
+        for asset_type in _campaign_asset_types(found):
+            if asset_type.campaign_type_id != found.additions_id:
+                shared.append(asset_type.plural)
+                continue
+            own.append(
+                {
+                    "label": asset_type.label_singular,
+                    "plural": asset_type.plural,
+                    "ownership": asset_type.get_ownership_display(),
+                    "href": reverse(
+                        "n26-campaign-edit-asset-type", args=[found.pk, asset_type.pk]
+                    ),
+                }
+            )
+        asset_types = own
+        if shared:
+            names = (
+                shared[0]
+                if len(shared) == 1
+                else f"{', '.join(shared[:-1])} and {shared[-1]}"
+            )
+            shared_asset_types = (
+                f"{names} come with {found.campaign_type}. You cannot edit them here."
+            )
 
     else:
         form = None
@@ -942,9 +979,16 @@ def edit_campaign(request, pk):
                     "href": f"{edit_url}?tab=counters-and-labels",
                     "current": tab == "counters-and-labels",
                 },
+                {
+                    "label": "Asset types",
+                    "href": f"{edit_url}?tab=asset-types",
+                    "current": tab == "asset-types",
+                },
             ],
             "counters": counters,
             "labels": labels,
+            "asset_types": asset_types,
+            "shared_asset_types": shared_asset_types,
         },
     )
 
@@ -1905,7 +1949,6 @@ def _addition_page(request, campaign, form, template, act, back, **context):
 def add_asset_type(request, pk):
     """Declare a new asset type for this campaign alone."""
     from n26.core.forms import AddAssetTypeForm
-    from n26.library.models import AssetType
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     form = AddAssetTypeForm(request.POST or None)
@@ -1918,19 +1961,6 @@ def add_asset_type(request, pk):
         )
         return f"Added the asset type {asset_type.label_singular}."
 
-    submitted = str(form["ownership"].value() or "")
-    # Drawn as cards, Holding first: it is the one an arbitrator adding an
-    # asset type nearly always means.
-    ownerships = (
-        (
-            AssetType.Ownership.HOLDING,
-            "One gang holds it at a time, and it can change hands.",
-        ),
-        (
-            AssetType.Ownership.POSSESSION,
-            "Each gang that receives an asset owns its own.",
-        ),
-    )
     return _addition_page(
         request,
         found,
@@ -1938,15 +1968,94 @@ def add_asset_type(request, pk):
         "n26/add_asset_type.html",
         act,
         _assets_anchor(found),
-        ownerships=[
-            {
-                "value": ownership.value,
-                "label": ownership.label,
-                "description": description,
-                "checked": ownership.value == submitted,
-            }
-            for ownership, description in ownerships
-        ],
+        ownerships=_ownership_cards(str(form["ownership"].value() or "")),
+    )
+
+
+def _ownership_cards(chosen):
+    """The two ownerships as radio cards, ``chosen`` checked. Holding
+    first: it is the one an arbitrator adding an asset type nearly always
+    means."""
+    from n26.library.models import AssetType
+
+    return [
+        {
+            "value": ownership.value,
+            "label": ownership.label,
+            "description": description,
+            "checked": ownership.value == chosen,
+        }
+        for ownership, description in (
+            (
+                AssetType.Ownership.HOLDING,
+                "One gang holds it at a time, and it can change hands.",
+            ),
+            (
+                AssetType.Ownership.POSSESSION,
+                "Each gang that receives an asset owns its own.",
+            ),
+        )
+    ]
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def edit_asset_type(request, pk, asset_type_pk):
+    """Change the labels or ownership of one of the campaign's own asset
+    types. Asset types that come with the campaign type are library
+    content and are not found here."""
+    from django.urls import reverse
+
+    from n26.core.forms import EditAssetTypeForm
+    from n26.library.models import AssetType
+
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    asset_type = get_object_or_404(
+        AssetType, pk=asset_type_pk, campaign_type_id=found.additions_id
+    )
+    locked = asset_type.assets.exists()
+    stored = (asset_type.label_singular, asset_type.label_plural, asset_type.ownership)
+    form = EditAssetTypeForm(
+        request.POST or None,
+        initial={
+            "label_singular": asset_type.label_singular,
+            "label_plural": asset_type.label_plural,
+            "ownership": asset_type.ownership,
+        },
+        ownership_locked=locked,
+    )
+
+    def act(op, data):
+        op.edit_asset_type(
+            asset_type,
+            data["label_singular"],
+            data["ownership"],
+            label_plural=data["label_plural"],
+        )
+        now = (asset_type.label_singular, asset_type.label_plural, asset_type.ownership)
+        if now == stored:
+            return "Nothing changed."
+        return f"Saved the asset type {asset_type.label_singular}."
+
+    ownership_note = ""
+    if locked:
+        ownership_note = (
+            f"{asset_type.get_ownership_display()}. You cannot change this now. "
+            f"{found.name} already has {asset_type.plural.lower()}."
+        )
+    return _addition_page(
+        request,
+        found,
+        form,
+        "n26/edit_asset_type.html",
+        act,
+        reverse("n26-edit-campaign", args=[found.pk]) + "?tab=asset-types",
+        asset_type=asset_type,
+        heading=f"Edit {stored[0]}",
+        ownership_note=ownership_note,
+        ownerships=[]
+        if locked
+        else _ownership_cards(str(form["ownership"].value() or "")),
     )
 
 

@@ -1,0 +1,79 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Editing one of the campaign's own asset types. Once the type has assets its
+ownership is fixed, so the page states it rather than offering one radio.
+{% endcomment %}
+{% block head_title %}{{ heading }} in {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-campaign-edit-asset-type' campaign.pk asset_type.pk %}"
+                     title="{{ heading }}"
+                     lead="Only {{ campaign.name }} has this asset type."
+                     :form="form"
+                     submit_label="Save asset type"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner" tone="current" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    Asset types
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ heading }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="The asset type">
+            <c-ui.field label="Label *"
+                        description='What one of these is called, e.g. "Territory".'
+                        error="x"
+                        :form="form"
+                        name="label_singular"
+                        for="asset-type-label">
+                <c-ui.input id="asset-type-label"
+                            name="label_singular"
+                            autocomplete="off"
+                            value="{{ form.label_singular.value|default:'' }}" />
+            </c-ui.field>
+            <c-ui.field label="Plural label"
+                        description='What several of them are called, e.g. "Territories". Leave blank and an s is added.'
+                        error="x"
+                        :form="form"
+                        name="label_plural"
+                        for="asset-type-plural">
+                <c-ui.input id="asset-type-plural"
+                            name="label_plural"
+                            autocomplete="off"
+                            value="{{ form.label_plural.value|default:'' }}" />
+            </c-ui.field>
+        </c-n26.form-section>
+        <c-n26.form-section title="Ownership">
+            {% if ownership_note %}
+                <p class="text-sm">{{ ownership_note }}</p>
+            {% else %}
+                <c-n26.radio-cards label="Ownership *" :form="form" name="ownership">
+                    {% for ownership in ownerships %}
+                        <c-n26.radio-cards.card name="ownership"
+                                                value="{{ ownership.value }}"
+                                                label="{{ ownership.label }}"
+                                                description="{{ ownership.description }}"
+                                                :wrap="True"
+                                                :checked="ownership.checked" />
+                    {% endfor %}
+                </c-n26.radio-cards>
+            {% endif %}
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

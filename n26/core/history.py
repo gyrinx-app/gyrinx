@@ -1682,6 +1682,14 @@ def _tell_campaign(e):
         case kinds.ASSET_TYPE_ADDED:
             what = f"the asset type {e.note}" if e.note else "an asset type"
             return (Span(f"added {what}"),), "campaign"
+        case kinds.ASSET_TYPE_EDITED:
+            was, _, now = e.note.rpartition(" → ")
+            if was:
+                return (
+                    Span(f"edited the asset type {was}, now called {now}"),
+                ), "campaign"
+            what = f"the asset type {now}" if now else "an asset type"
+            return (Span(f"edited {what}"),), "campaign"
         case kinds.ASSET_CREATED:
             what = f"the asset {e.note}" if e.note else "an asset"
             return (Span(f"created {what}"),), "campaign"

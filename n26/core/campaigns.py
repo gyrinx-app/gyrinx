@@ -1136,6 +1136,65 @@ class CampaignOperation:
         self.event(CampaignEvent.Kind.ASSET_TYPE_ADDED, note=asset_type.label_singular)
         return asset_type
 
+    def edit_asset_type(self, asset_type, label_singular, ownership, label_plural=""):
+        """Change the labels or ownership of one of this campaign's own
+        asset types, and say so in its log.
+
+        Only an asset type the campaign added itself: the shared type's are
+        library content. A label the campaign already uses is refused as it
+        is when adding one. Ownership fixes how every asset of the type
+        behaves, so it cannot change once the type has any assets. Saving
+        what was already there writes nothing.
+        """
+        from n26.core.operations import Refusal
+        from n26.library.models import AssetType
+
+        if asset_type.campaign_type_id != self.campaign.additions_id:
+            raise ValueError(
+                f"{asset_type} is not one of {self.campaign}'s own asset types."
+            )
+        label_singular = (label_singular or "").strip()
+        label_plural = (label_plural or "").strip()
+        if not label_singular:
+            raise Refusal("Give the asset type a label.")
+        taken = (
+            AssetType.objects.filter(
+                campaign_type_id__in=(
+                    self.campaign.campaign_type_id,
+                    self.campaign.additions_id,
+                ),
+                label_singular__iexact=label_singular,
+            )
+            .exclude(pk=asset_type.pk)
+            .exists()
+        )
+        if taken:
+            raise Refusal(
+                f"{self.campaign.name} already has an asset type called "
+                f"{label_singular}."
+            )
+        if ownership != asset_type.ownership and asset_type.assets.exists():
+            raise Refusal(
+                "You cannot change the ownership now. "
+                f"{self.campaign.name} already has {asset_type.plural.lower()}."
+            )
+        was = asset_type.label_singular
+        if (label_singular, label_plural, ownership) == (
+            was,
+            asset_type.label_plural,
+            asset_type.ownership,
+        ):
+            return asset_type
+        asset_type.label_singular = label_singular
+        asset_type.label_plural = label_plural
+        asset_type.ownership = ownership
+        asset_type.save(
+            update_fields=["label_singular", "label_plural", "ownership", "modified"]
+        )
+        note = label_singular if was == label_singular else f"{was} → {label_singular}"
+        self.event(CampaignEvent.Kind.ASSET_TYPE_EDITED, note=note)
+        return asset_type
+
     def create_asset(self, asset_type, name, annotation="", income=0):
         """Write a new asset under one of this campaign's asset types.
 
