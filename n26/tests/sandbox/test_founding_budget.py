@@ -2186,17 +2186,23 @@ class TestHireTimeTradePoints:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
-    @pytest.mark.parametrize("shared", [False, True])
-    def test_standard_setup_checks_and_repairs_a_restricted_champion_grant(
-        self, gang, recruit, hire_into, library, shared
+    @pytest.mark.parametrize(
+        "shape", ["profile", "shared", "broadcast", "subtype", "mixed"]
+    )
+    def test_standard_setup_preserves_incorrect_or_conflicting_champion_grants(
+        self, gang, recruit, hire_into, library, shape
     ):
         from n26.library.authoring import (
+            attach_modifiers_to,
             create_hidden,
             ef_contributes_to_counter,
+            has_subtypes,
             is_profile,
             modifier,
+            targets_every_model,
             targets_model,
         )
+        from n26.library.models import Subtype
         from n26.library.standard_content import (
             STANDARD_CONTENT,
             founding_budget_counter,
@@ -2204,30 +2210,45 @@ class TestHireTimeTradePoints:
 
         profile = library[("Allies", "Bone Scrivener")]
         hidden = create_hidden("Outcast champions")
+        conditions = [is_profile(profile)]
+        if shape == "subtype":
+            conditions.append(has_subtypes(Subtype.objects.get(name="Champion")))
+        scope = (
+            targets_every_model(*conditions)
+            if shape == "broadcast"
+            else targets_model(*conditions)
+        )
         restricted = modifier(
             "Outcast champions may spend 3 Trade Points at hire",
-            targets_model(is_profile(profile)),
+            scope,
             ef_contributes_to_counter(founding_budget_counter(), 3),
             attach_to=hidden,
         )
-        if shared:
-            create_hidden("Other allowance carrier").modifiers.add(restricted)
+        if shape == "shared":
+            attach_modifiers_to(create_hidden("Other allowance carrier"), [restricted])
+        if shape == "mixed":
+            modifier(
+                "Another champion allowance",
+                targets_model(),
+                ef_contributes_to_counter(founding_budget_counter(), 3),
+                attach_to=hidden,
+            )
         ally = hire_into(gang, ("Allies", "Bone Scrivener"), "Ally")
         assign(hidden, miniature=recruit)
         assign(hidden, miniature=ally)
-        assert (reading(recruit), reading(ally)) == (4, 3)
+        before = (reading(recruit), reading(ally))
+        modifier_ids = set(hidden.modifiers.values_list("pk", flat=True))
         present, wanted = STANDARD_CONTENT["founding-budgets"].check()
         assert present < wanted
 
         STANDARD_CONTENT["founding-budgets"].create()
         STANDARD_CONTENT["founding-budgets"].create()
 
+        assert (reading(recruit), reading(ally)) == before
+        assert set(hidden.modifiers.values_list("pk", flat=True)) == modifier_ids
+        restricted.refresh_from_db()
+        assert restricted.targets_miniature_id == scope.pk
+        assert restricted.targets_miniature.is_profile.exists()
         present, wanted = STANDARD_CONTENT["founding-budgets"].check()
-        if shared:
-            assert (reading(recruit), reading(ally)) == (4, 3)
-            assert present < wanted
-            assert restricted.targets_miniature.is_profile.exists()
-        else:
-            assert (reading(recruit), reading(ally)) == (7, 3)
-            assert present == wanted
+        assert present < wanted
         assert_reconciled(gang)
