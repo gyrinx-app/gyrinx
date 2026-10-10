@@ -90,6 +90,21 @@ used 63 minutes 11 seconds in total, exceeding the starting cost. These results
 do not establish the requested improvement. Subsequent candidates must fix
 fixture isolation and pass complete local and CI measurements.
 
+The next candidate, `e287fae0e`, passed the complete CI suite in
+[38086394288](https://github.com/gyrinx-app/gyrinx/actions/runs/38086394288):
+13,404 passed, 13 skipped and one expected failure in 1,316.64 seconds.
+This is about 29% below the starting elapsed time, still above the target.
+The run measured GitHub's clean merge revision `7fa32289f` on a four-CPU
+runner, with eight workers. The required job's elapsed time and the combined
+job cost still need their final results.
+
+An attempted default local baseline used the original revision's twelve workers.
+It was stopped after 553 PostgreSQL shared-memory setup errors, with no tests
+executed, while another worktree was also building test schemas. Its 78.79-second
+partial result is not a performance baseline. The default-command comparison
+still requires an isolated measurement window or a controlled database instance
+with identical settings for both revisions.
+
 ## Reducing repeated work
 
 The consolidation pass keeps HTTP coverage at the boundaries where routing,
@@ -116,6 +131,11 @@ or operation share one setup and response.
 - Advancement skill selection and resolution reuse their local card and skill
   listings. Each new call reads fresh state; eligibility is captured before
   hypothetical stat previews mutate card nodes.
+- Offers within one advancement read share the unfiltered catalogue and its
+  default section. Each offer still gets independent placement, kind, owned
+  and random-result filtering; the next public call reads fresh state.
+- The advancement view derives its result and skill choices from one read
+  before invoking any write. Operations resolve fresh state independently.
 - Shared statline fixtures normalize the supplied values with the shipped
   formatter, then insert their cells in one statement. Stored blanks remain
   blank; production statline saves keep their existing behavior.
@@ -126,6 +146,36 @@ or operation share one setup and response.
   its lifecycle. All assertions remain, while 828 repeated authoring requests
   are removed. Forged selections, dismissal, withdrawal and query growth keep
   separate scenarios.
+- Founding budgets share repeated seed and successful lifecycle scenarios.
+  Buyer-to-stash and buyer-to-recipient movement remain separate, with fresh
+  database state used for reconciliation. Permissions and query growth retain
+  independent tests.
+- Lasting effects seed-only checks build the shipped tables without unrelated
+  characteristic modifiers. Sequential injury scenarios retain assertions at
+  one, two, three and five injuries; collisions, history and cross-fighter
+  isolation remain independent.
+- Outcast rank matrices share their content while all five archetypes retain
+  separate gangs and recruits. Leader, personal skill, Champion and removal
+  assertions follow one lifecycle; all merged spending scenarios reconcile.
+- Journal seed checks inspect the first complete seed before replaying it.
+  Territory and House-table reads share unchanged graphs before real assignment
+  and opening operations; staff visibility, rollback and maintenance delivery
+  remain independent.
+- Advancement action-flow tests share successful draft and correction
+  lifecycles. Each skill tier retains its exact offered choices; dice modes,
+  stale requests, ownership and later-rank refusal scenarios remain distinct.
+
+The advancement skill-choice page was inspected with `manage inspect_page` and
+the Debug Toolbar, using a local agent's gang with an earned advancement, owned
+choices and populated primary skill and power choices. Growing the offered list
+from two to fourteen choices kept all three measured GETs at 302 queries, with
+78 similar groups and 88 duplicate groups. Sharing catalogue loads within each
+advancement read reduced all three GETs of the fourteen-choice page to 224
+queries, with 77 similar groups and 87 duplicate groups. Reusing that read for
+the view's skill choices reduced all three GETs further to 126 queries, with
+19 similar groups and 12 duplicate groups. Existing result-count and power-count
+growth tests also passed. These query counts describe that page's work; they do
+not establish a full-suite time improvement.
 
 The pass also replaces vacuous checks: an empty filtered collection must be
 nonempty before asserting every row is suppressed, and foundation status and
