@@ -550,6 +550,41 @@ class TestTheRestOfTheLibrary:
         assert client.get(at_tab(yolanda, ALL_SETS)).status_code == 404
 
 
+class TestSkillsPencil:
+    """The card opens the same checkbox editor as the Edit page."""
+
+    @pytest.mark.parametrize("tab", ["", OWN_SETS, ALL_SETS])
+    def test_the_pencil_can_clear_one_skill_without_removing_another(
+        self, client, player, gang, yolanda, library, tab
+    ):
+        from bs4 import BeautifulSoup
+
+        catfall = library["skills"]["Catfall"]
+        connected = library["skills"]["Connected"]
+        select(yolanda, catfall)
+        select(yolanda, connected)
+        client.force_login(player)
+        page = BeautifulSoup(client.get(at_tab(yolanda, tab)).content, "html.parser")
+        pencil = page.find("a", attrs={"aria-label": "Edit skills & powers"})
+        assert pencil["href"] == at_tab(yolanda, tab) + "#n26-skills-box"
+
+        opened = client.get(pencil["href"])
+        body = opened.content.decode()
+        assert 'id="n26-skills-box"' in body
+        assert "checked" in box(body, catfall)
+        assert "checked" in box(body, connected)
+        assert sorted(held_by(yolanda)) == ["Catfall", "Connected"]
+        shown_tab = opened.context["skills_tab"]
+        response = post_skills(client, yolanda, connected, tab=shown_tab, follow=True)
+
+        assert response.status_code == 200
+        assert held_by(yolanda) == ["Connected"]
+        reopened = client.get(pencil["href"]).content.decode()
+        assert "checked" not in box(reopened, catfall)
+        assert "checked" in box(reopened, connected)
+        assert_reconciled(gang)
+
+
 # --- The click -------------------------------------------------------------
 
 

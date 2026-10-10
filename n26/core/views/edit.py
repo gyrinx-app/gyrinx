@@ -344,6 +344,8 @@ def link_model_card(
     # actually showing this card.
     if dismissal_at.split("?")[0] == reverse("n26-edit-fighter", args=[miniature.pk]):
         addresses = edit_dialog_addresses(miniature, dismissal_at)
+        if card.skills_href:
+            card.skills_href = f"{addresses.back}#n26-skills-box"
         card.base_rating_href = addresses.rating
         card.rename_href = addresses.rename
     return card

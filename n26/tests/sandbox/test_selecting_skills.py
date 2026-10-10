@@ -264,7 +264,7 @@ class TestTheWordForIt:
 
         assert "Yolanda selected Catfall." in response.content.decode()
 
-    def test_the_control_leading_here_says_selecting_too(
+    def test_the_pencil_opens_the_checkbox_editor(
         self, client, player, yolanda, library
     ):
         """The card's Skills row carries the way in, and it is drawn on the
@@ -273,10 +273,10 @@ class TestTheWordForIt:
 
         client.force_login(player)
         page = BeautifulSoup(client.get(edit_url(yolanda)).content, "html.parser")
-        control = page.find("a", attrs={"aria-label": "Select a skill"})
+        control = page.find("a", attrs={"aria-label": "Edit skills & powers"})
         rename = page.find("a", attrs={"aria-label": f"Rename {yolanda.name}"})
 
-        assert control["href"] == skills_url(yolanda)
+        assert control["href"] == edit_url(yolanda) + "#n26-skills-box"
         assert control.find_parent("dt").get_text(" ", strip=True) == "Skills"
         assert set(control["class"]) == set(rename["class"])
 
@@ -772,7 +772,7 @@ class TestTheSkillsRow:
         link_skills(*sheet.models)
 
         (card,) = sheet.models
-        assert card.skills_href == skills_url(leader_yolanda)
+        assert card.skills_href == edit_url(leader_yolanda) + "#n26-skills-box"
         assert card.skill_choices[0].href.startswith(
             reverse("n26-gang", args=[gang.pk])
         )
