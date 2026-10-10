@@ -44,6 +44,7 @@ class TestTheReactMarks:
         # switch's is in switch/impl.html, which only its index draws.
         assert {
             "action-menu",
+            "checkbox-card",
             "filter-select",
             "pick-list",
             "quick-switcher",

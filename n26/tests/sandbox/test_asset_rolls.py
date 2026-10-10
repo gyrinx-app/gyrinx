@@ -1183,6 +1183,16 @@ class TestThePages:
         client.force_login(arbitrator)
         address = reverse("n26-campaign-tables", args=[campaign.pk])
         page = client.get(address).content.decode()
+        soup = BeautifulSoup(page, "html.parser")
+        cards = []
+        for host in soup.select("[data-react-name='checkbox-card']"):
+            card_props = json.loads(soup.find(id=host["data-react-props"]).string)
+            box = host.find("input", attrs={"name": "open"})
+            assert box is not None
+            assert box["value"] == card_props["value"]
+            assert "x-data" not in host.decode_contents()
+            cards.append(card_props)
+        assert str(journal.pk) in [card["value"] for card in cards]
         assert "Territory Selection Table" in page
         assert "Included with Territory campaign. Available to every gang." in page
         assert "D66 · 18 territories" in page
