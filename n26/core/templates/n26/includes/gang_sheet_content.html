@@ -22,6 +22,9 @@
                           action="{% url 'n26-dismiss-campaign-budget' gang.pk %}"
                           class="absolute right-3 top-3">
                         {% csrf_token %}
+                        <input type="hidden"
+                               name="notice_signature"
+                               value="{{ budget_notice.dismiss_signature }}">
                         <button type="submit"
                                 aria-label="Dismiss budget notice"
                                 class="inline-flex cursor-pointer p-1 opacity-70 transition-opacity hover:opacity-100 focus-ring">

@@ -1,5 +1,6 @@
 """Where a player lands, what they own, and founding one more."""
 
+import json
 from dataclasses import dataclass
 
 from django.contrib import messages
@@ -55,6 +56,7 @@ class CampaignBudgetNotice:
     budget: int | None
     variant: str
     show_budget_options: bool
+    dismiss_signature: str
 
 
 def _active_campaign_membership(gang):
@@ -84,6 +86,7 @@ def _campaign_budget_notice(request, gang):
         f"n26-budget-dismissed-{gang.pk}"
     ) == _budget_notice_signature(gang, membership):
         return None
+    dismiss_signature = json.dumps(_budget_notice_signature(gang, membership))
     if gang.credits_unlimited:
         return CampaignBudgetNotice(
             "Unlimited credits",
@@ -91,6 +94,7 @@ def _campaign_budget_notice(request, gang):
             membership.campaign.budget,
             "info",
             True,
+            dismiss_signature,
         )
     if over_budget(membership.campaign, gang):
         return CampaignBudgetNotice(
@@ -101,6 +105,7 @@ def _campaign_budget_notice(request, gang):
             membership.campaign.budget,
             "warning",
             False,
+            dismiss_signature,
         )
     return None
 
@@ -1420,6 +1425,7 @@ def gang_notes(request, pk):
 def use_campaign_budget(request, pk):
     """Start tracking this owner's unlimited gang against its campaign budget."""
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.campaigns import campaign_operation
     from n26.core.operations import NotEnoughCredits, operation
     from n26.flags import CAMPAIGNS, enabled
 
@@ -1432,12 +1438,21 @@ def use_campaign_budget(request, pk):
     if not gang.credits_unlimited:
         return redirect("n26-gang", pk=gang.pk)
     try:
-        with operation(gang, actor=request.user) as op:
-            # The operation refreshes the budget under the gang's lock, so
-            # a repeated submission cannot reset credits that now exist.
-            if not gang.credits_unlimited:
-                return redirect("n26-gang", pk=gang.pk)
-            op.set_budget(membership.campaign.budget)
+        # Campaign writers take the campaign lock before the gang lock.
+        with campaign_operation(membership.campaign, actor=request.user):
+            with operation(gang, actor=request.user) as op:
+                current = _active_campaign_membership(gang)
+                if (
+                    current is None
+                    or current.pk != membership.pk
+                    or current.campaign.budget is None
+                ):
+                    raise Http404("No campaign budget")
+                # The operation refreshes the budget under the gang's lock, so
+                # a repeated submission cannot reset credits that now exist.
+                if not gang.credits_unlimited:
+                    return redirect("n26-gang", pk=gang.pk)
+                op.set_budget(current.campaign.budget)
     except NotEnoughCredits as refusal:
         messages.error(request, str(refusal))
         return redirect("n26-gang", pk=gang.pk)
@@ -1464,9 +1479,9 @@ def dismiss_campaign_budget(request, pk):
     membership = _active_campaign_membership(gang)
     if membership is None:
         raise Http404("No active campaign")
-    request.session[f"n26-budget-dismissed-{gang.pk}"] = _budget_notice_signature(
-        gang, membership
-    )
+    signature = _budget_notice_signature(gang, membership)
+    if request.POST.get("notice_signature") == json.dumps(signature):
+        request.session[f"n26-budget-dismissed-{gang.pk}"] = signature
     return redirect("n26-gang", pk=gang.pk)
 
 

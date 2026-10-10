@@ -1,5 +1,7 @@
 """Owner budget guidance and privacy-preserving campaign links on gang lists."""
 
+from contextlib import contextmanager
+
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
@@ -257,6 +259,55 @@ def response_notice(client, gang):
     return client.get(reverse("n26-gang", args=[gang.pk])).context["budget_notice"]
 
 
+def dismiss_notice(client, gang):
+    return client.post(
+        reverse("n26-dismiss-campaign-budget", args=[gang.pk]),
+        {"notice_signature": response_notice(client, gang).dismiss_signature},
+    )
+
+
+@pytest.mark.parametrize(
+    "change", ["budget", "no_budget", "removed", "archived", "rejoined"]
+)
+def test_campaign_changes_before_the_budget_lock_are_respected(
+    client, table, gang_type, monkeypatch, change
+):
+    owner, campaign = table
+    gang = found_gang("Unlimited gang", gang_type, owner=owner)
+    join(campaign, gang)
+
+    @contextmanager
+    def changed_before_lock(found, actor=None):
+        with campaign_operation(campaign, actor=owner) as op:
+            if change == "budget":
+                op.set_budget(900)
+            elif change == "no_budget":
+                op.set_budget(None)
+            elif change == "archived":
+                op.archive()
+            else:
+                op.remove_gang(gang.campaign_memberships.get(left__isnull=True))
+                if change == "rejoined":
+                    op.add_gang(gang)
+        with campaign_operation(found, actor=actor) as op:
+            yield op
+
+    monkeypatch.setattr("n26.core.campaigns.campaign_operation", changed_before_lock)
+    response = client.post(reverse("n26-use-campaign-budget", args=[gang.pk]))
+    gang.refresh_from_db()
+    if change == "budget":
+        assert response.status_code == 302
+        assert gang.starting_credits == 900
+        assert gang.credits == 900
+    else:
+        assert response.status_code == 404
+        assert gang.starting_credits is None
+        assert not LedgerEvent.objects.filter(
+            gang=gang, kind=LedgerEvent.Kind.BUDGET_SET
+        ).exists()
+    assert_reconciled(gang)
+
+
 @pytest.mark.parametrize("price", [300, 1200])
 def test_an_above_budget_gang_keeps_its_models_stash_and_credits(
     client, table, gang_type, make_profile, price
@@ -355,7 +406,7 @@ def test_dismissing_the_prompt_leaves_money_unchanged_and_survives_reload(
     path = reverse("n26-dismiss-campaign-budget", args=[gang.pk])
     assert client.get(path).status_code == 405
     events = LedgerEvent.objects.filter(gang=gang).count()
-    response = client.post(path)
+    response = dismiss_notice(client, gang)
     assert response.url == reverse("n26-gang", args=[gang.pk])
     assert path not in client.get(response.url).content.decode()
     assert path not in client.get(response.url).content.decode()
@@ -373,7 +424,7 @@ def test_a_changed_budget_shows_a_dismissed_prompt_again(
     owner, campaign = table
     gang = found_gang("Dismissed gang", gang_type, owner=owner)
     join(campaign, gang)
-    client.post(reverse("n26-dismiss-campaign-budget", args=[gang.pk]))
+    dismiss_notice(client, gang)
     if change == "campaign":
         with campaign_operation(campaign, actor=owner) as op:
             op.set_budget(900)
@@ -390,7 +441,7 @@ def test_a_new_membership_shows_a_dismissed_prompt_again(client, table, gang_typ
     owner, campaign = table
     gang = found_gang("Dismissed gang", gang_type, owner=owner)
     join(campaign, gang)
-    client.post(reverse("n26-dismiss-campaign-budget", args=[gang.pk]))
+    dismiss_notice(client, gang)
     with campaign_operation(campaign, actor=owner) as op:
         op.remove_gang(gang.campaign_memberships.get(left__isnull=True))
     join(campaign, gang)
@@ -398,6 +449,33 @@ def test_a_new_membership_shows_a_dismissed_prompt_again(client, table, gang_typ
         "Use a custom budget"
         in client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
     )
+
+
+@pytest.mark.parametrize("change", ["campaign", "gang", "membership"])
+def test_a_stale_dismissal_does_not_hide_a_new_budget_notice(
+    client, table, gang_type, change
+):
+    owner, campaign = table
+    gang = found_gang("Changed notice", gang_type, owner=owner)
+    join(campaign, gang)
+    signature = response_notice(client, gang).dismiss_signature
+    if change == "campaign":
+        with campaign_operation(campaign, actor=owner) as op:
+            op.set_budget(900)
+    elif change == "gang":
+        with operation(gang, actor=owner) as op:
+            op.set_budget(1500)
+    else:
+        with campaign_operation(campaign, actor=owner) as op:
+            op.remove_gang(gang.campaign_memberships.get(left__isnull=True))
+            op.add_gang(gang)
+    response = client.post(
+        reverse("n26-dismiss-campaign-budget", args=[gang.pk]),
+        {"notice_signature": signature},
+    )
+    assert response.status_code == 302
+    assert response_notice(client, gang) is not None
+    assert_reconciled(gang)
 
 
 @pytest.mark.parametrize(
