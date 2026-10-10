@@ -179,6 +179,11 @@ class CampaignEvent(Base):
         TABLE_OPENED = "table_opened", "Table opened"
         TABLE_CLOSED = "table_closed", "Table closed"
         TABLE_CREATED = "table_created", "Table created"
+        # A scenario from the generator, saved by a player for the
+        # arbitrator to check. The note says whether it was rolled and
+        # what each table landed on. Recording a battle with a scenario is
+        # BATTLE_RECORDED, as every battle is.
+        SCENARIO_SAVED = "scenario_saved", "Scenario saved"
 
     campaign = models.ForeignKey(
         "n26.Campaign",
@@ -436,6 +441,11 @@ class Battle(Base):
     date = models.DateField()
     # An unnamed record is valid; entry forms require a scenario name.
     scenario = models.CharField(max_length=200, blank=True, default="")
+    #: What each scenario generator table landed on, as ``{key: roll}``,
+    #: for the tables the battle was played with. Empty when the scenario
+    #: was not generated. Only the rolls are stored; the battle's page
+    #: looks each entry up in ``n26.core.scenarios``.
+    scenario_rolls = models.JSONField(default=dict, blank=True)
     result = models.CharField(
         max_length=20, choices=Result, default=Result.NOT_RECORDED
     )
@@ -489,6 +499,14 @@ class Battle(Base):
     @property
     def title(self):
         return self.scenario or f"Battle on {format_date(self.date, 'j M Y')}"
+
+    @property
+    def scenario_results(self):
+        """What each scenario table landed on, as the generator draws it,
+        in table order. Empty when the scenario was not generated."""
+        from n26.core.scenarios import results
+
+        return results(self.scenario_rolls or {})
 
     @property
     def gang_outcomes(self):

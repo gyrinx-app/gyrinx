@@ -50,6 +50,16 @@ urlpatterns = [
     ),
     path("campaigns/<str:pk>/log/", views.campaign_log, name="n26-campaign-log"),
     path(
+        "campaigns/<str:pk>/scenario/",
+        views.scenario_generator,
+        name="n26-scenario-generator",
+    ),
+    path(
+        "campaigns/<str:pk>/scenario/save/",
+        views.save_scenario,
+        name="n26-save-scenario",
+    ),
+    path(
         "campaigns/<str:pk>/edit/",
         views.edit_campaign,
         name="n26-edit-campaign",
@@ -98,6 +108,11 @@ urlpatterns = [
         "campaigns/<str:pk>/battles/<str:battle_pk>/edit/",
         views.edit_battle,
         name="n26-campaign-edit-battle",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/outcome/",
+        views.record_battle_outcome,
+        name="n26-campaign-battle-outcome",
     ),
     path(
         "campaigns/<str:pk>/battles/<str:battle_pk>/gangs/<str:gang_pk>/crew/",

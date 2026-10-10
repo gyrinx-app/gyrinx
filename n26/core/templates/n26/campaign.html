@@ -5,6 +5,8 @@ One campaign, to whoever opens it.
 
 Accepted players can record battles and dice rolls. Campaign management stays
 with the arbitrator, and gang owners can hand over the assets they hold.
+Anybody who can read the campaign can generate a scenario, since that saves
+nothing.
 
 The design system's campaign sheet over real rows, as the gang sheet is over
 a gang's. The gallery's shell version (designsystem/shell/campaign.html) is
@@ -128,15 +130,24 @@ reader's other campaigns — the same pattern a gang's screens use.
                 </c-ui.button>
             </c-slot>
         {% endif %}
-        {% if may_record %}
-            <c-slot name="battles_actions">
+        {% comment %}
+        Generating a scenario saves nothing, so every reader gets it.
+        Recording the battle is for the players and the arbitrator.
+        {% endcomment %}
+        <c-slot name="battles_actions">
+            <c-ui.button size="sm"
+                         variant="default"
+                         href="{% url 'n26-scenario-generator' campaign.pk %}">
+                Generate scenario
+            </c-ui.button>
+            {% if may_record %}
                 <c-ui.button size="sm"
                              variant="primary"
                              href="{% url 'n26-campaign-add-battle' campaign.pk %}">
                     Record a battle
                 </c-ui.button>
-            </c-slot>
-        {% endif %}
+            {% endif %}
+        </c-slot>
         <c-slot name="players">
             <p class="mb-3 text-sm text-muted" data-player-counts>{{ player_count }} accepted player{{ player_count|pluralize }} · {{ invitation_count }} pending invitation{{ invitation_count|pluralize }}</p>
             {% if players %}

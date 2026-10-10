@@ -1520,6 +1520,19 @@ def _one_campaign_act(e, viewer):
     )
 
 
+def _scenario_href(campaign_id, rolled, found):
+    """The generator's address for a saved scenario. A rolled one carries
+    a fresh stamp: the log only says rolled for a roll it proved, so the
+    page it opens says rolled too."""
+    from urllib.parse import urlencode
+
+    from n26.core.scenarios import generator_query, rolls_of
+
+    query = generator_query(campaign_id, rolled, rolls_of(found))
+    path = reverse("n26-scenario-generator", args=[campaign_id])
+    return f"{path}?{urlencode(query, doseq=True)}#scenario-results"
+
+
 def _tell_campaign(e):
     """One campaign event as a sentence, lowercase because the actor's name
     comes first. Money is never mentioned: nothing here moves any."""
@@ -1593,12 +1606,44 @@ def _tell_campaign(e):
                     )
                 )
             return tuple(spans), "campaign"
+        case kinds.SCENARIO_SAVED:
+            # The note holds whether it was rolled and each table's roll.
+            # The entries are named from the tables as they are now, and
+            # the line links to the generator showing the same result.
+            from n26.core.scenarios import describe, read_history_note, results
+
+            rolled, rolls, name = read_history_note(e.note)
+            found = results(rolls)
+            verb = "rolled" if rolled else "chose"
+            named = f" for {name}" if name else ""
+            if not found:
+                return (Span(f"{verb} a scenario{named}"),), "campaign"
+            what = describe(found)
+            return (
+                Span(
+                    f"{verb} a scenario{named}: {what}",
+                    _scenario_href(e.campaign_id, rolled, found),
+                ),
+            ), "campaign"
         case kinds.BATTLE_RECORDED:
             href = (
                 reverse("n26-battle", args=[e.campaign_id, e.battle_id])
                 if e.battle_id
                 else ""
             )
+            # A battle recorded from the generator says its scenario the
+            # way a saved scenario does, read from the battle as it is now.
+            found = e.battle.scenario_results if e.battle_id else []
+            if found:
+                from n26.core.scenarios import describe
+
+                return (
+                    Span(
+                        f"recorded a scenario for {e.battle.title} on "
+                        f"{e.battle.date:%-d %B}: {describe(found)}",
+                        href,
+                    ),
+                ), "campaign"
             if e.note:
                 return (Span(f"recorded {e.note}", href),), "campaign"
             when = e.battle.date if e.battle else None

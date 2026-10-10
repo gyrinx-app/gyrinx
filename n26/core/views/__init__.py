@@ -20,7 +20,7 @@ from n26.core.views.assignment_sets import (
     model_cards,
     remove_model_card,
 )
-from n26.core.views.battles import battle, edit_battle
+from n26.core.views.battles import battle, edit_battle, record_battle_outcome
 from n26.core.views.campaign_assets import asset_detail
 from n26.core.views.campaign_rolls import campaign_roll, record_campaign_roll
 from n26.core.views.campaigns import (
@@ -50,6 +50,8 @@ from n26.core.views.campaigns import (
     remove_table_entry,
     roll_asset,
     roll_starting_asset,
+    save_scenario,
+    scenario_generator,
     transfer_asset,
     unassign_asset,
 )
@@ -129,6 +131,7 @@ __all__ = [
     "remove_model_card",
     "battle",
     "edit_battle",
+    "record_battle_outcome",
     "accessorise_assignment",
     "asset_detail",
     "campaign",
@@ -159,6 +162,8 @@ __all__ = [
     "remove_asset",
     "roll_asset",
     "roll_starting_asset",
+    "save_scenario",
+    "scenario_generator",
     "campaign_tables",
     "new_table",
     "campaign_table",

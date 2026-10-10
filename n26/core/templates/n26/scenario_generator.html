@@ -1,0 +1,169 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% load static %}
+{% comment %}
+The scenario generator for one campaign. The controls come first: roll
+every table, roll the tables ticked, or choose each result by hand.
+After a roll or a choice, the results box beneath them shows what each
+table landed on, and says rolled only for a roll whose stamp proves the
+generator made it. Rolling again replaces it.
+
+The form is a GET, because generating saves nothing and the address is
+the whole state: the view rolls once and redirects to an address that
+holds the result. Nothing here is saved, so anyone who can read the
+campaign may use it.
+
+Every part of the form is drawn, and the option ticked decides what
+shows: the table checkboxes under "Generate scenario components", the
+four tables under "Choose my own", and which button. That is CSS reading
+the real radio (group-has-[…]:checked), so it works with no script. A
+part that is hidden still submits, and the view reads only what the
+option ticked asks for.
+{% endcomment %}
+{% block head_title %}Generate a scenario for {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
+        <c-n26.page-header title="Generate a scenario"
+                           lead="Roll on the scenario tables for a battle in {{ campaign.name }}. Nothing is saved until you record the battle.">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item>
+                        <c-n26.user-link :user="campaign.owner"
+                                         tone="current"
+                                         href="{% url 'n26-dashboard' %}" />
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Scenario
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        <form method="get"
+              action="{% url 'n26-scenario-generator' campaign.pk %}"
+              class="group/scenario flex flex-col gap-5">
+            <fieldset class="flex flex-col gap-1.5">
+                <legend class="mb-1.5 text-lg font-semibold text-ink-900 dark:text-ink-100">{{ form.mode.label }}</legend>
+                {% for choice in form.mode %}
+                    <label class="flex min-h-11 items-center gap-3 text-base"
+                           for="{{ choice.id_for_label }}">{{ choice.tag }} {{ choice.choice_label }}</label>
+                    {% if choice.data.value == "components" %}
+                        <fieldset class="ml-8 hidden flex-col gap-1.5 group-has-[input[name=mode][value=components]:checked]/scenario:flex">
+                            <legend class="sr-only">{{ form.tables.label }}</legend>
+                            {% for table in form.tables %}
+                                <label class="flex min-h-11 items-center gap-3 text-base"
+                                       for="{{ table.id_for_label }}">{{ table.tag }} {{ table.choice_label }}</label>
+                            {% endfor %}
+                            <c-ui.error :form="form" name="tables" />
+                        </fieldset>
+                    {% endif %}
+                {% endfor %}
+                <c-ui.error :form="form" name="mode" />
+            </fieldset>
+            <div class="hidden flex-col gap-6 group-has-[input[name=mode][value=choose]:checked]/scenario:flex">
+                {% for choice in choosable %}
+                    <c-n26.radio-cards label="{{ choice.table.name }} table" min="100%">
+                        {% for option in choice.entries %}
+                            <c-n26.radio-cards.card name="{{ choice.table.key }}"
+                                                    value="{{ option.entry.roll }}"
+                                                    :checked="option.picked"
+                                                    label="{{ option.entry.roll }}. {{ option.entry.name }}"
+                                                    :wrap="True">
+                                <span class="flex flex-col gap-2">
+                                    <span>{{ option.entry.text }}</span>
+                                    {% if option.entry.image %}
+                                        <img src="{% static option.entry.image %}"
+                                             alt="Map for {{ option.entry.name }}"
+                                             class="w-full max-w-sm rounded border border-box-border">
+                                    {% endif %}
+                                </span>
+                            </c-n26.radio-cards.card>
+                        {% endfor %}
+                    </c-n26.radio-cards>
+                {% endfor %}
+            </div>
+            <div>
+                <c-ui.error :form="form" name="__all__" class="mb-3" />
+                <c-ui.button type="submit"
+                             name="roll"
+                             value="1"
+                             variant="success"
+                             class="group-has-[input[name=mode][value=choose]:checked]/scenario:hidden">
+                    Roll
+                </c-ui.button>
+                <c-ui.button type="submit"
+                             name="roll"
+                             value="1"
+                             variant="success"
+                             class="hidden group-has-[input[name=mode][value=choose]:checked]/scenario:inline-flex">
+                    Use these options
+                </c-ui.button>
+            </div>
+        </form>
+        {% if results %}
+            <c-n26.section id="scenario-results"
+                           title="Results"
+                           class="scroll-mt-24 rounded-box border border-box-border p-4 sm:p-6">
+                {% if rolled %}
+                    {% include "n26/includes/scenario_results.html" with verb="rolled" %}
+                {% else %}
+                    {% include "n26/includes/scenario_results.html" with verb="chose" %}
+                {% endif %}
+            </c-n26.section>
+            {% comment %}
+            What to do with the result. Copying the link is for everybody, so
+            a player who cannot record can send it on. Recording is for whoever
+            may record battles. Saving is for players, so their arbitrator can
+            check a roll; the hidden fields carry the result and its stamp, and
+            the view proves the stamp again rather than trusting this page.
+            {% endcomment %}
+            <div class="flex flex-wrap items-center gap-3">
+                {% if record_href %}
+                    <c-ui.button variant="primary" href="{{ record_href }}">
+                        Record result
+                    </c-ui.button>
+                {% endif %}
+                <c-n26.share url="{{ share_url }}"
+                             label="Copy scenario"
+                             :compact="False"
+                             size="md"
+                             variant="default"
+                             title="Copies a link to this generated scenario to send to the arbitrator or players" />
+            </div>
+            {% if may_save %}
+                {% comment %}
+                A saved scenario is named, as a battle's scenario is, so the
+                log says what it was for.
+                {% endcomment %}
+                <form method="post"
+                      action="{% url 'n26-save-scenario' campaign.pk %}"
+                      class="flex flex-col gap-2">
+                    {% csrf_token %}
+                    {% for key, value in rolls.items %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+                    {% if check %}<input type="hidden" name="check" value="{{ check }}">{% endif %}
+                    <c-ui.label for="scenario-name">
+                        Scenario name
+                    </c-ui.label>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="min-w-48 flex-1">
+                            <c-ui.input id="scenario-name" name="name" maxlength="200" required />
+                        </div>
+                        <c-ui.button type="submit"
+                                     variant="success"
+                                     title="Saves it to the campaign log for the arbitrator to review">
+                            Save to campaign log
+                        </c-ui.button>
+                    </div>
+                </form>
+            {% endif %}
+        {% endif %}
+    </div>
+{% endblock content %}

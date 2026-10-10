@@ -855,6 +855,131 @@ def campaign_log(request, pk):
 
 @requires_flag(CAMPAIGNS)
 @login_required
+def scenario_generator(request, pk):
+    """The scenario generator for a campaign: roll on the four scenario
+    tables, or some of them, or choose each result by hand.
+
+    It opens for whoever the campaign's page opens for, because players
+    roll a scenario before their battle, not only the arbitrator. Nothing
+    here is saved. A player may save the result to the log for the
+    arbitrator to check, and whoever records the battle may take it to
+    the battle form.
+
+    The whole state is in the query string. Pressing the button
+    (``?roll``) rolls once, or takes the picks, and redirects to an
+    address holding the result, so it can be reloaded or sent round
+    without rolling again, and rolling again replaces it. A roll made
+    here carries a stamp (``?check``), so an address whose rolls were
+    edited reads as chosen rather than rolled.
+    """
+    from urllib.parse import urlencode
+
+    from n26.core.campaign_permissions import may_record_campaign
+    from n26.core.forms import ScenarioGeneratorForm
+    from n26.core.scenarios import (
+        TABLES,
+        choosable,
+        generator_query,
+        is_stamped,
+        results,
+        roll,
+        rolls_of,
+    )
+
+    found = _any_campaign_or_404(request, pk, with_owner_badge=True)
+    rolling = "roll" in request.GET
+    asked = rolling or "mode" in request.GET
+    form = ScenarioGeneratorForm(request.GET if asked else None, rolling=rolling)
+    valid = form.is_valid()
+
+    if rolling and valid:
+        mode = form.cleaned_data["mode"]
+        if mode == ScenarioGeneratorForm.FULL:
+            rolls = roll([table.key for table in TABLES])
+        elif mode == ScenarioGeneratorForm.COMPONENTS:
+            rolls = roll(form.cleaned_data["tables"])
+        else:
+            rolls = form.picks()
+        query = generator_query(found.pk, mode != ScenarioGeneratorForm.CHOOSE, rolls)
+        return redirect(
+            f"{request.path}?{urlencode(query, doseq=True)}#scenario-results"
+        )
+
+    # A result is drawn from the address even if part of it is off a
+    # table, so a hand-edited address shows what it can.
+    shown = form.cleaned_data.get("mode") if asked else None
+    found_results = results(request.GET) if shown and not rolling else []
+    rolls = rolls_of(found_results)
+    rolled = shown != ScenarioGeneratorForm.CHOOSE and is_stamped(
+        found.pk, rolls, request.GET.get("check", "")
+    )
+    record_href = ""
+    if found_results and may_record_campaign(found, request.user):
+        record_href = (
+            reverse("n26-campaign-add-battle", args=[found.pk]) + "?" + urlencode(rolls)
+        )
+    return render(
+        request,
+        "n26/scenario_generator.html",
+        {
+            "campaign": found,
+            "form": form,
+            "results": found_results,
+            "rolled": rolled,
+            "choosable": choosable(request.GET),
+            "share_url": request.get_full_path(),
+            "record_href": record_href,
+            # Saving is for the players: the arbitrator reviews what they
+            # save, and records the battle instead.
+            "may_save": bool(found_results) and _plays_in(found, request.user),
+            "check": request.GET.get("check", "") if rolled else "",
+            "rolls": rolls,
+        },
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def save_scenario(request, pk):
+    """Save a generated scenario to the campaign's log, for the arbitrator.
+
+    POST only, from the generator's Save button. It is saved as rolled
+    only when its stamp proves the generator made those rolls; anything
+    else is saved as chosen. A reader who may not save gets a 404, as
+    every campaign page answers them.
+    """
+    from urllib.parse import urlencode
+
+    from django.http import Http404
+
+    from n26.core.campaigns import campaign_operation
+    from n26.core.operations import Refusal
+    from n26.core.scenarios import generator_query, is_stamped, results, rolls_of
+
+    found = _any_campaign_or_404(request, pk, with_owner_badge=False)
+    if request.method != "POST" or not _plays_in(found, request.user):
+        raise Http404("No such campaign")
+
+    rolls = rolls_of(results(request.POST))
+    check = request.POST.get("check", "")
+    rolled = is_stamped(found.pk, rolls, check)
+    try:
+        with campaign_operation(found, actor=request.user) as act:
+            act.save_scenario(rolls, rolled=rolled, name=request.POST.get("name", ""))
+    except Refusal as refused:
+        messages.error(request, str(refused))
+    else:
+        messages.success(request, "Scenario saved to the campaign log.")
+
+    # Back to the same result, rebuilt from what was saved rather than
+    # from an address the request named.
+    query = generator_query(found.pk, rolled, rolls)
+    path = reverse("n26-scenario-generator", args=[found.pk])
+    return redirect(f"{path}?{urlencode(query, doseq=True)}#scenario-results")
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
 def edit_campaign(request, pk):
     """The facts an arbitrator may change after setting up."""
     from django.db.models import Q
@@ -1239,10 +1364,18 @@ def _playing(campaign):
 @requires_flag(CAMPAIGNS)
 @login_required
 def add_battle(request, pk):
-    """Add a battle before it is fought; its outcome is recorded by editing it."""
+    """Add a battle before it is fought; its outcome is recorded by editing it.
+
+    The generator's Record result opens this page with the scenario's
+    rolls in the query string. They ride the form as hidden fields, are
+    shown under the scenario's name, and are saved with the battle. The
+    name is left for the reader to give, so the log says which battle
+    the scenario was for.
+    """
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import BattleForm
     from n26.core.operations import Refusal
+    from n26.core.scenarios import results, rolls_of
 
     found = _recording_campaign_or_404(
         request, pk, with_owner_badge=request.method == "GET"
@@ -1261,13 +1394,19 @@ def add_battle(request, pk):
                 messages.success(request, "Battle recorded.")
                 return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
     else:
-        form = BattleForm(playing=playing)
+        form = BattleForm(playing=playing, initial=rolls_of(results(request.GET)))
 
     _badge_a_redrawn_page(request, found)
     return render(
         request,
         "n26/add_battle.html",
-        {"form": form, "campaign": found},
+        {
+            "form": form,
+            "campaign": found,
+            "scenario_results": results(
+                request.POST if request.method == "POST" else request.GET
+            ),
+        },
     )
 
 
