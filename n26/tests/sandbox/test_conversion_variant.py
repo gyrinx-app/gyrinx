@@ -265,56 +265,49 @@ class TestThePlan:
 
 
 class TestTheApply:
-    def test_every_page_reads_the_same(self, world):
+    def test_the_conversion_preserves_pages_picks_labels_and_archives(self, world):
         gangs, _, _, _, _ = world
-        before = {key: gang_state(g) for key, g in gangs.items()}
+        before_states = {key: gang_state(g) for key, g in gangs.items()}
+        before_none = gang_state(gangs["none"])
+        assert ("Variant", "None") in before_none["choices"]
+        before_unanswered = gang_state(gangs["unanswered"])
+        plan = plan_variant()
+        wanted = [
+            step.assignment_id for step in plan.steps if isinstance(step, ArchivePick)
+        ]
+        assert wanted
+        before_fossils = Modifier.objects.filter(
+            name="a detached Variant offer"
+        ).count()
 
-        apply(plan_variant())
+        apply(plan)
 
         pair = (("Variant", "None"),)
         for key, gang in gangs.items():
             after = gang_state(gang)
             assert (
                 differences(
-                    _canonicalize_unanswered(before[key], pair),
+                    _canonicalize_unanswered(before_states[key], pair),
                     _canonicalize_unanswered(after, pair),
                 )
                 == []
             )
             assert_reconciled(gang)
 
-    def test_a_none_gang_captures_equal_to_unanswered(self, world):
-        gangs, _, _, _, _ = world
-        before = gang_state(gangs["none"])
-        assert ("Variant", "None") in before["choices"]
-
-        apply(plan_variant())
-
         after = gang_state(gangs["none"])
         assert ("Variant", "") in after["choices"]
         assert ("Variant", "None") not in after["choices"]
         assert (
             differences(
-                _canonicalize_unanswered(before, (("Variant", "None"),)),
+                _canonicalize_unanswered(before_none, (("Variant", "None"),)),
                 _canonicalize_unanswered(after, (("Variant", "None"),)),
             )
             == []
         )
 
-    def test_an_unanswered_gang_stays_unanswered(self, world):
-        gangs, _, _, _, _ = world
-        before = gang_state(gangs["unanswered"])
-
-        apply(plan_variant())
-
         after = gang_state(gangs["unanswered"])
         assert ("Variant", "") in after["choices"]
-        assert differences(before, after) == []
-
-    def test_a_corruption_pick_lands_on_the_variant_slot(self, world):
-        gangs, _, _, _, _ = world
-
-        apply(plan_variant())
+        assert differences(before_unanswered, after) == []
 
         pick = Assignment.objects.get(
             gang=gangs["chaos_god"],
@@ -326,17 +319,11 @@ class TestTheApply:
         assert pick.miniature_id is None
         assert pick.chosen_for_id == pick.caused_by_id
 
-    def test_chaos_corrupted_stays_an_affiliation_and_becomes_a_pickable(self, world):
-        apply(plan_variant())
-
         assert Affiliation.objects.filter(name="Chaos Corrupted").exists()
         assert Pickable.objects.filter(
             name="Chaos Corrupted", slot_type__name="Variant"
         ).exists()
         assert not Pickable.objects.filter(name="None").exists()
-
-    def test_the_slot_is_labelled_the_way_the_offer_already_was(self, world):
-        apply(plan_variant())
 
         slot = _variant_slot()
         assert slot.choice_label == "Variant"
@@ -345,64 +332,30 @@ class TestTheApply:
         assert slot.assigned_to == Slot.WillBeAssignedTo.GANG
         assert Slot.objects.filter(name="Variant").count() == 1
 
-    def test_the_archived_none_stays_archived(self, world):
-        gangs, _, _, _, _ = world
-
-        apply(plan_variant())
-
         archived = Assignment.objects.get(
             gang=gangs["rechosen"], affiliation__name="None"
         )
         assert archived.archived
         assert archived.pickable_id is None
 
-    def test_every_planned_archive_lands(self, world):
-        plan = plan_variant()
-        wanted = [
-            step.assignment_id for step in plan.steps if isinstance(step, ArchivePick)
-        ]
-        assert wanted
-
-        apply(plan)
-
         assert Assignment.objects.filter(pk__in=wanted, archived=True).count() == len(
             wanted
         )
         assert not Assignment.objects.filter(pk__in=wanted, archived=False).exists()
-
-    def test_a_planned_archive_that_did_not_land_is_refused(self, world, monkeypatch):
-        """The page proof treats a printed None as unanswered, so it
-        cannot tell a landed archive from a no-op. Apply still has to
-        see that every planned archive actually archived."""
-        monkeypatch.setattr(ArchivePick, "perform", lambda self, made: None)
-
-        with pytest.raises(ConversionRefused, match="planned archive"):
-            apply(plan_variant())
-
-    def test_every_corruption_is_a_pickable_even_if_nobody_picked_it(self, world):
-        apply(plan_variant())
 
         for name in CORRUPTIONS:
             assert Pickable.objects.filter(
                 name=name, slot_type__name="Variant"
             ).exists()
 
-    def test_the_fossils_are_left_standing(self, world):
-        before = Modifier.objects.filter(name="a detached Variant offer").count()
-        apply(plan_variant())
         assert (
             Modifier.objects.filter(name="a detached Variant offer").count()
-            == before
+            == before_fossils
             == 1
         )
         assert Modifier.objects.filter(
             name="Outcasts: the Leader chooses an Affiliation"
         ).exists()
-
-    def test_an_unanswered_variant_does_not_nag(self, world):
-        gangs, _, _, _, _ = world
-
-        apply(plan_variant())
 
         state = gang_state(gangs["unanswered"])
         assert ("Variant", "") in state["choices"]
@@ -410,9 +363,6 @@ class TestTheApply:
         state = gang_state(gangs["none"])
         assert ("Variant", "") in state["choices"]
         assert all("0 of 1" not in note for note in state["notes"])
-
-    def test_the_vestigial_hidden_is_not_a_door(self, world):
-        apply(plan_variant())
 
         assert Slot.objects.filter(name="Variant").count() == 1
         assert not Slot.objects.filter(name="Variant", qualifier="Hidden").exists()
@@ -429,6 +379,15 @@ class TestTheApply:
         ]
         assert len(grants) == 1
         assert grants[0].adds_assignable.slot == _variant_slot()
+
+    def test_a_planned_archive_that_did_not_land_is_refused(self, world, monkeypatch):
+        """The page proof treats a printed None as unanswered, so it
+        cannot tell a landed archive from a no-op. Apply still has to
+        see that every planned archive actually archived."""
+        monkeypatch.setattr(ArchivePick, "perform", lambda self, made: None)
+
+        with pytest.raises(ConversionRefused, match="planned archive"):
+            apply(plan_variant())
 
 
 class TestTheBehaviourThatMustSurvive:

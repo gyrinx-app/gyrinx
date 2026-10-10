@@ -788,17 +788,31 @@ class TestAuthoredPickerCopy:
     def test_the_lead_and_tier_summary_come_from_the_author(
         self, client, owner, gang, orrus, bolt_launcher_tiers
     ):
+        from bs4 import BeautifulSoup
+
         climb(orrus, "Bolt launchers", bolt_launcher_tiers["Tier 1"])
         ladder = ladder_of(orrus, "Bolt launchers")
         key = f"{orrus.pk}:{ladder.anchor.assignment.pk}:{ladder.identity.pk}"
         client.force_login(owner)
 
-        page = client.get(reverse("n26-choose", args=[gang.pk, key])).content.decode()
+        response = client.get(reverse("n26-choose", args=[gang.pk, key]))
+        page = response.content.decode()
 
         assert "Pick a tier for the bolt launchers." in page
         assert "The launchers have Lethality 2." in page
         assert "The carrier's" not in page
-        assert 'aria-label="Add Tier 1"' in page or "Tier 1" in page
+        tier = next(
+            option
+            for group in response.context["offer"].groups
+            for option in group.options
+            if option.name == "Tier 1"
+        )
+        assert tier.summary == "The launchers have Lethality 2."
+        radio = BeautifulSoup(page, "html.parser").find(
+            "input", attrs={"type": "radio", "name": "thing", "value": tier.key}
+        )
+        assert radio is not None
+        assert tier.summary in radio.find_parent("label").get_text()
 
     def test_an_empty_introduction_adds_no_generated_subhead(
         self, client, owner, gang, orrus, bolt_launcher_tiers

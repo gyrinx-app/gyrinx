@@ -747,6 +747,10 @@ class TestTheLogOnTheCampaignsPage:
         drawn = self.page(client, campaign)
         assert "renamed the campaign Dust Falls to Dust Falls II" in drawn
         assert "set the gang budget to 1200¢" in drawn
+        log = BeautifulSoup(drawn, "html.parser").find(id="n26-campaign-log")
+        actors = log.find_all("span", class_="font-medium")
+        assert actors
+        assert all(actor.get_text(strip=True) == "You" for actor in actors)
 
     def test_saving_an_untouched_form_writes_nothing(
         self, client, campaign, open_to_everyone
@@ -759,15 +763,6 @@ class TestTheLogOnTheCampaignsPage:
         assert [event.kind for event in campaign.events.all()] == [
             CampaignEvent.Kind.CREATED
         ]
-
-    def test_the_arbitrator_reads_their_own_acts_as_their_own(
-        self, client, campaign, open_to_everyone
-    ):
-        client.post(
-            f"/n26/campaigns/{campaign.pk}/edit/",
-            {"name": "Dust Falls II", "budget": "1000", "summary": ""},
-        )
-        assert "You" in self.page(client, campaign)
 
     def test_only_the_most_recent_acts_are_drawn(
         self, client, campaign, open_to_everyone

@@ -30,6 +30,7 @@ from n26.core.render import (
     render_gang,
 )
 from n26.library.models import Affiliation, Skill
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_entry,
     adds,
@@ -70,6 +71,7 @@ def owner(db):
 
 
 @pytest.fixture
+@library_setup
 def sets(default_pack):
     return {
         name.lower(): create_category("Skills", name, position)
@@ -78,6 +80,7 @@ def sets(default_pack):
 
 
 @pytest.fixture
+@library_setup
 def skills(sets):
     return {
         name: create_skill(name, category=sets[key])
@@ -90,6 +93,7 @@ def skills(sets):
 
 
 @pytest.fixture
+@library_setup
 def skills_collection(skills):
     collection = create_collection(
         "Skills", entries=[(skill, {}) for skill in skills.values()]
@@ -101,11 +105,13 @@ def skills_collection(skills):
 
 
 @pytest.fixture
+@library_setup
 def subtypes(db):
     return {"leader": create_subtype("Leader"), "ganger": create_subtype("Ganger")}
 
 
 @pytest.fixture
+@library_setup
 def archetypes(sets, skills_collection, subtypes):
     """Two a gang may take, each opening one skill set as Primary."""
     _, tiers = skills_collection
@@ -123,6 +129,7 @@ def archetypes(sets, skills_collection, subtypes):
 
 
 @pytest.fixture
+@library_setup
 def affiliations(db):
     return {
         name: create_affiliation(name) for name in ("Clanless", "Mutant", "Aranthian")
@@ -130,6 +137,7 @@ def affiliations(db):
 
 
 @pytest.fixture
+@library_setup
 def pick_lists(archetypes, affiliations):
     made = {}
     for key, name, things in [
@@ -142,6 +150,7 @@ def pick_lists(archetypes, affiliations):
 
 
 @pytest.fixture
+@library_setup
 def gang_list(subtypes, skills_collection, pick_lists, affiliations):
     """The gang type: the gang's own affiliation question, a whole-kind
     question beside it, and the skill offer every Leader carries."""
@@ -185,6 +194,7 @@ def gang_list(subtypes, skills_collection, pick_lists, affiliations):
 
 
 @pytest.fixture
+@library_setup
 def profiles(gang_list, subtypes, pick_lists, person_type):
     made = {}
     for key, name in [("leader", "Outcast Leader"), ("ganger", "Outcast Ganger")]:
@@ -210,6 +220,7 @@ def profiles(gang_list, subtypes, pick_lists, person_type):
 
 
 @pytest.fixture
+@library_setup
 def whispers(gang_list, subtypes, skills_collection):
     """A family of powers filed in the skills collection, Primary for
     Leaders — what a psychic gang list looks like.

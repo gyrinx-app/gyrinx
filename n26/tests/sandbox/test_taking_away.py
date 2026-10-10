@@ -402,7 +402,9 @@ class TestInnateRows:
 
         with django_assert_num_queries(0):
             compute(card, index)
-        assert all(node.suppressed for node in card.roots if node.name == "Shotgun")
+        shotguns = [node for node in card.roots if node.name == "Shotgun"]
+        assert shotguns
+        assert all(node.suppressed for node in shotguns)
 
     def test_the_row_is_never_deleted(self, champion, gang, confiscation, shotgun):
         assign(confiscation, gang=gang)

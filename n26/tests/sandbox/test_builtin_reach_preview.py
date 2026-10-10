@@ -21,6 +21,8 @@ from n26.core.models import BuiltInPropagationTask
 from n26.core.operations import operation
 from n26.core.propagation import Reach, reach_of, reach_of_new_built_ins
 from n26.flags import BUILT_IN_PROPAGATION
+from n26.library.ingest import IngestPlan
+from n26.library.views import _ingest_reach_said
 from n26.tests.sandbox.actions import (
     add_built_in,
     assign,
@@ -331,11 +333,10 @@ def grown_profiles_csv():
 
 
 class TestTheIngestPreviewSaysIt:
-    """The upload preview carries the same sentence for the sets the
-    sheets would add members to — counted by the same planner, said in
-    the same words."""
+    """The real upload renders the reach sentence and follows the flag;
+    plans without added members on standing sets need no reach query."""
 
-    def test_the_reach_line_reflects_the_standing_uses(
+    def test_the_reach_line_reflects_standing_uses_and_the_feature_flag(
         self, client, author, foundation, player, default_pack
     ):
         from n26.library.models import Profile
@@ -359,35 +360,40 @@ class TestTheIngestPreviewSaysIt:
         )
         assert said in page.content.decode()
 
-    def test_open_the_line_promises_the_reach_within_seconds(
-        self, client, author, foundation, player, default_pack, flag
-    ):
-        from n26.library.models import Profile
-
-        hold_all(client)
-        client.post(PREVIEW_URL)
-        brethren = Profile.objects.get(name="Way-Brethren")
-        gang = found_gang(
-            "The Bad Girls", brethren.gang_type, owner=player, budget=1000
+        FeatureFlag.objects.create(
+            slug=BUILT_IN_PROPAGATION,
+            name="Built-in propagation",
+            availability=Availability.EVERYONE,
         )
-        hire(gang, brethren, "Ana", paid=45)
-
-        hold(client, "profiles", text=grown_profiles_csv())
         page = client.get(PREVIEW_URL)
-
         assert page.context["preview"]["reach_said"].endswith(
             "each addition reaches it within seconds."
         )
+        assert page.context["preview"]["reach_said"] in page.content.decode()
 
-    def test_an_upload_growing_no_standing_set_says_nothing(
-        self, client, author, foundation, default_pack
+    @pytest.mark.parametrize(
+        "kind, action, changes",
+        [
+            ("DefaultAssignmentSet", "create", {"members": {"added": ["Witch"]}}),
+            ("DefaultAssignmentSet", "unchanged", {}),
+            ("DefaultAssignmentSet", "update", {"members": {"changed": ["Witch"]}}),
+            ("DefaultAssignmentSet", "update", {"members": {"removed": ["Witch"]}}),
+            ("Profile", "update", {"members": {"added": ["Witch"]}}),
+        ],
+    )
+    def test_a_plan_growing_no_standing_set_says_nothing(
+        self, kind, action, changes, monkeypatch
     ):
-        hold_all(client)
-        client.post(PREVIEW_URL)
+        def unexpected_reach_query(*args, **kwargs):
+            pytest.fail("A plan without grown standing sets must not query their uses")
 
-        page = client.get(PREVIEW_URL)
+        monkeypatch.setattr("n26.core.propagation.reach_of_all", unexpected_reach_query)
+        plan = IngestPlan(None)
+        assert _ingest_reach_said(plan) == ""
+        row = plan.add(kind, "The set", {}, None)
+        plan.settle(row, action, changes=changes, existing="standing-set")
 
-        assert page.context["preview"]["reach_said"] == ""
+        assert _ingest_reach_said(plan) == ""
 
 
 class TestRemovalSaysWhatKeepsIt:

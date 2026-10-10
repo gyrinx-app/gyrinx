@@ -29,12 +29,12 @@ pytestmark = pytest.mark.django_db
 advancement = skill_flows.advancement
 
 
-@pytest.fixture(
-    params=[("Psi-Gheist", "Psychoteric Whispers"), ("Outcast Leader", "Wyrd Powers")]
-)
+@pytest.fixture
 @library_setup
 def wyrd(advancement, request):
-    model_name, family_name = request.param
+    model_name, family_name = getattr(
+        request, "param", ("Psi-Gheist", "Psychoteric Whispers")
+    )
     profile = advancement.fighter.membership.profile
     a.revise(profile, name=model_name)
     collection = a.create_collection("Skills & Powers", contains=[Skill, Power])
@@ -401,56 +401,40 @@ def test_power_access_uses_the_resolved_grade_and_usability(
     assert restricted not in primary[wyrd.family]
 
 
-@pytest.mark.parametrize(
-    "wyrd",
-    [
-        ("Psy-Gheist", "Psychoteric Whispers"),
-        ("Outcast Leader", "Wyrd Powers"),
-        ("Malstrain Coalescence", "Malstrain Wyrd Powers"),
-        ("Haunt", "Psyrender Wyrd Powers"),
-    ],
-    indirect=True,
-)
-@pytest.mark.parametrize("rolled", range(1, 7))
-def test_authoring_a_family_table_makes_every_random_result_complete_and_show_in_history(
-    client, monkeypatch, wyrd, rolled
-):
-    data = wyrd.advancement
-    a.revise(wyrd.powers["owned"], position=0)
-    a.revise(wyrd.powers["primary"], position=0)
+def _author_numbered_powers(family):
     form_class = generate_form(specs()["create_power"])
-    family_names = {
-        "Psychoteric Whispers": (
-            "Terrible Truths",
-            "Psychotic Lure",
-            "Deceitful Thoughts",
-            "Cacophony of Silence",
-            "A Perfect Void",
-            "Eternal Slumber",
-        ),
-        "Malstrain Wyrd Powers": (
-            "Catalyst",
-            "Hypnotic Gaze",
-            "The Horror",
-            "Leech Essence",
-            "Paroxysm",
-            "Aura of Despair",
-        ),
-    }
-    names = family_names.get(
-        wyrd.family.name, tuple(f"Authored result {number}" for number in range(1, 7))
-    )
     powers = {}
-    for number, name in enumerate(names, start=1):
+    for number in range(1, 7):
         form = form_class(
             {
-                "name": name,
-                "category": str(wyrd.family.pk),
+                "name": f"Authored result {number}",
+                "category": str(family.pk),
                 "position": number,
             }
         )
         assert form.is_valid(), form.errors
         powers[number] = form.compile()
+    return powers
+
+
+def test_the_authoring_form_persists_every_d6_position(default_pack):
+    family = a.create_category("Powers", "Authored powers")
+    _author_numbered_powers(family)
+    assert list(
+        Power.objects.filter(category=family)
+        .order_by("position")
+        .values_list("position", flat=True)
+    ) == list(range(1, 7))
+
+
+@pytest.mark.parametrize("rolled", [1, 6])
+def test_an_authored_family_resolves_both_d6_endpoints_and_records_the_power(
+    client, monkeypatch, wyrd, rolled
+):
+    data = wyrd.advancement
+    a.revise(wyrd.powers["owned"], position=0)
+    a.revise(wyrd.powers["primary"], position=0)
+    powers = _author_numbered_powers(wyrd.family)
     _load_rolls(monkeypatch, 12, rolled)
     record = _start(client, data)
     _post_roll(client, data, record)

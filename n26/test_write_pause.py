@@ -30,8 +30,6 @@ from n26.library.models import Collection, CollectionSelector, ContentPack, Gang
 from n26.library.models.staging import UploadedSheet
 from n26.maintenance import task_routes
 
-pytestmark = pytest.mark.django_db(transaction=True)
-
 
 def pause(reason="Database maintenance is in progress."):
     held = WritePause.objects.get(scope="n26")
@@ -42,6 +40,7 @@ def pause(reason="Database maintenance is in progress."):
     return held
 
 
+@pytest.mark.django_db
 def test_operation_refuses_before_changing_a_gang():
     gang = Gang.objects.create(
         name="Before", gang_type=GangType.objects.create(name="Type")
@@ -56,6 +55,7 @@ def test_operation_refuses_before_changing_a_gang():
     assert gang.name == "Before"
 
 
+@pytest.mark.django_db
 def test_campaign_operation_refuses_before_writing_an_event():
     owner = User.objects.create_user("arbitrator")
     pack = create_pack("Campaign pack", slug="campaign-pack", owner=owner)
@@ -78,6 +78,7 @@ def test_campaign_operation_refuses_before_writing_an_event():
     assert not campaign.events.exists()
 
 
+@pytest.mark.django_db
 def test_public_deletion_refuses_before_removing_a_gang():
     gang = Gang.objects.create(
         name="Still here", gang_type=GangType.objects.create(name="Type")
@@ -90,6 +91,7 @@ def test_public_deletion_refuses_before_removing_a_gang():
     assert Gang.objects.filter(pk=gang.pk).exists()
 
 
+@pytest.mark.django_db
 def test_public_authoring_refuses_before_creating_content():
     pause()
 
@@ -99,24 +101,23 @@ def test_public_authoring_refuses_before_creating_content():
     assert not ContentPack.objects.filter(slug="blocked").exists()
 
 
-@pytest.mark.parametrize(
-    "write",
-    [
+@pytest.mark.django_db
+def test_public_authoring_helpers_refuse_while_writes_are_paused():
+    pause()
+
+    for write in (
         create_trading_post,
         targets_model,
         targets_every_model,
         targets_gang,
         targets_gang_alone,
         lambda: ef_offers_choice(object()),
-    ],
-)
-def test_public_authoring_helpers_refuse_while_writes_are_paused(write):
-    pause()
-
-    with pytest.raises(WritesPaused):
-        write()
+    ):
+        with pytest.raises(WritesPaused):
+            write()
 
 
+@pytest.mark.django_db
 def test_trading_post_creation_rolls_back_if_a_selector_fails(monkeypatch):
     def fail_selector(*args, **kwargs):
         raise RuntimeError("selector failed")
@@ -129,6 +130,7 @@ def test_trading_post_creation_rolls_back_if_a_selector_fails(monkeypatch):
     assert not Collection.objects.filter(name="Rolled back").exists()
 
 
+@pytest.mark.django_db
 def test_ingest_upload_refuses_before_storing_a_sheet(user):
     pause()
     upload = SimpleUploadedFile("equipment.csv", b"Name,Price\nKnife,5\n")
@@ -139,6 +141,7 @@ def test_ingest_upload_refuses_before_storing_a_sheet(user):
     assert not UploadedSheet.objects.filter(owner=user).exists()
 
 
+@pytest.mark.django_db(transaction=True)
 def test_ingest_replacement_deletes_old_bytes_only_after_commit(user, monkeypatch):
     held = store_sheet(
         user,
@@ -160,6 +163,7 @@ def test_ingest_replacement_deletes_old_bytes_only_after_commit(user, monkeypatc
     assert deleted == [old_name]
 
 
+@pytest.mark.django_db
 def test_ingest_replacement_rollback_keeps_old_bytes(
     user, monkeypatch, django_capture_on_commit_callbacks
 ):
@@ -188,6 +192,7 @@ def test_ingest_replacement_rollback_keeps_old_bytes(
     assert held.file.name == old_name
 
 
+@pytest.mark.django_db
 def test_ingest_discard_rollback_keeps_rows_and_bytes(user, monkeypatch):
     held = store_sheet(
         user,
@@ -206,6 +211,7 @@ def test_ingest_discard_rollback_keeps_rows_and_bytes(user, monkeypatch):
     assert deleted == []
 
 
+@pytest.mark.django_db
 def test_foundations_command_refuses_before_creating_content():
     pause()
     before = ContentPack.objects.count()
@@ -216,6 +222,7 @@ def test_foundations_command_refuses_before_creating_content():
     assert ContentPack.objects.count() == before
 
 
+@pytest.mark.django_db
 def test_unsafe_n26_request_is_refused_before_view_code(client, user):
     gang_type = GangType.objects.create(name="Goliath")
     client.force_login(user)
@@ -236,6 +243,7 @@ def test_unsafe_n26_request_is_refused_before_view_code(client, user):
     assert not Gang.objects.filter(name="Never founded").exists()
 
 
+@pytest.mark.django_db
 def test_gang_clone_is_refused_before_creating_its_first_row(client, user):
     gang = Gang.objects.create(
         name="Original", owner=user, gang_type=GangType.objects.create(name="Type")
@@ -251,6 +259,7 @@ def test_gang_clone_is_refused_before_creating_its_first_row(client, user):
     assert list(Gang.objects.values_list("name", flat=True)) == ["Original"]
 
 
+@pytest.mark.django_db
 def test_unsafe_n26_admin_request_is_refused(client):
     administrator = User.objects.create_superuser("administrator")
     client.force_login(administrator)
@@ -265,6 +274,7 @@ def test_unsafe_n26_admin_request_is_refused(client):
     assert not ContentPack.objects.filter(slug="blocked").exists()
 
 
+@pytest.mark.django_db
 def test_safe_n26_request_stays_available_with_notice(client, user):
     client.force_login(user)
     pause("A short test pause.")
