@@ -710,7 +710,11 @@ def roll_starting_asset(request, pk, gang_pk):
     from django.core.exceptions import ValidationError
     from django.http import Http404
 
-    from n26.core.campaigns import campaign_operation, tables_held_by
+    from n26.core.campaigns import (
+        campaign_operation,
+        starting_asset_types_received,
+        tables_held_by,
+    )
     from n26.core.forms import RollAssetForm
     from n26.core.models import CampaignMembership
     from n26.core.operations import Refusal
@@ -750,6 +754,14 @@ def roll_starting_asset(request, pk, gang_pk):
     if form.is_valid():
         try:
             with campaign_operation(found, actor=request.user) as act:
+                received = starting_asset_types_received(found, [membership])
+                if asset_type.pk in received[membership.pk]:
+                    messages.info(
+                        request,
+                        f"{membership.gang.name} has already received its starting "
+                        f"{asset_type.label_singular.lower()}.",
+                    )
+                    return _roll_made(request, found)
                 roll = act.roll_asset(
                     form.cleaned_data["table"],
                     membership=membership,
@@ -862,7 +874,7 @@ def edit_campaign(request, pk):
 
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.campaigns import campaign_operation
-    from n26.core.forms import CampaignForm
+    from n26.core.forms import EditCampaignForm
     from n26.library.models import DefaultAssignment
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
@@ -874,21 +886,24 @@ def edit_campaign(request, pk):
     labels = []
 
     if request.method == "POST":
-        form = CampaignForm(request.POST)
+        form = EditCampaignForm(request.POST)
         if form.is_valid():
             with campaign_operation(found, actor=request.user) as act:
                 act.rename(form.cleaned_data["name"])
                 act.set_budget(form.cleaned_data["budget"])
                 act.edit_summary(form.cleaned_data["summary"])
+                if form.cleaned_data["status"]:
+                    act.set_status(form.cleaned_data["status"])
             record(request, N26Noun.CAMPAIGN, EventVerb.UPDATE, found)
             messages.success(request, f"Saved {found.name}.")
             return redirect("n26-campaign", pk=found.pk)
     elif tab == "general":
-        form = CampaignForm(
+        form = EditCampaignForm(
             initial={
                 "name": found.name,
                 "budget": found.budget,
                 "summary": found.summary,
+                "status": found.status,
             }
         )
 

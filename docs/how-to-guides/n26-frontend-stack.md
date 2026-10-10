@@ -23,9 +23,13 @@ Two rules bind all three, and they are the ones reviewers hold the line on:
    so every state is linkable and a reload renders it. Alpine may hold
    transient presentation state (a filter's current text); the moment state
    changes what the server would render, it goes in the URL.
-2. **Everything works without JavaScript.** Turn scripting off and every
-   control still functions as a full-page link or form post. JavaScript makes
-   the same controls cheaper, never possible.
+2. **Server-drawn controls work without JavaScript.** Turn scripting off and
+   every Cotton and htmx control still functions as a full-page link or form
+   post. JavaScript makes those controls cheaper, never possible. A React
+   island may need JavaScript: its host shows a loading state and offers a
+   reload if it fails (see `docs/developing-gyrinx/react.md`). Where an island
+   sits in a form whose POST reads missing boxes as cleared, draw a fallback
+   from the same props so an early submit still says what the server drew.
 
 The equip screens — where a player buys and sells a fighter's gear
 (`n26/core/views/equip.py`, `n26/core/templates/n26/equip.html`) — use all
@@ -213,5 +217,6 @@ avoid and expensive to rediscover.
   invisible except as console errors.
 - Check the component gallery page for any component you touched
   (`/n26/design/c/<slug>/`) — gallery pages fail silently too.
-- Turn JavaScript off and walk the screen once. Every control must still
-  work as a link or form.
+- Turn JavaScript off and walk the screen once. Every server-drawn control
+  must still work as a link or form; a React island may show its loading
+  state instead.

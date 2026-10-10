@@ -230,6 +230,11 @@ urlpatterns = [
         views.use_campaign_budget,
         name="n26-use-campaign-budget",
     ),
+    path(
+        "gangs/<str:pk>/budget/dismiss/",
+        views.dismiss_campaign_budget,
+        name="n26-dismiss-campaign-budget",
+    ),
     path("gangs/<str:pk>/edit/", views.edit_gang, name="n26-edit-gang"),
     path("gangs/<str:pk>/clone/", views.clone_gang, name="n26-clone-gang"),
     path("gangs/<str:pk>/history/", views.gang_history, name="n26-gang-history"),

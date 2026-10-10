@@ -839,9 +839,16 @@ def roster_summary():
 
 
 def context():
+    from n26.core.checkbox_card import CheckboxCardItem
     from n26.core.rating import RatingContribution, RatingReceipt
 
     return {
+        "checkbox_card_weapons": (
+            CheckboxCardItem("demo-weapons", "lasgun", "Lasgun", True, "15¢"),
+            CheckboxCardItem(
+                "demo-weapons", "stiletto", "Stiletto knife", False, "20¢"
+            ),
+        ),
         "rating_receipt_demo": RatingReceipt(
             100,
             30,

@@ -1688,6 +1688,7 @@ class CampaignGangLine:
     credits: int
     wealth: int
     colour: str = ""
+    type_icon: str = ""
     credits_unlimited: bool = False
     over_budget: bool = False
     #: One line per ``CampaignSheet.counter_columns``, or None.
@@ -1920,6 +1921,7 @@ class CampaignSheet:
     #: wrote any. Drawn behind the type's name rather than beside it: the
     #: name is the fact, the description is what it means.
     campaign_type_description: str = ""
+    status: str = "Pre-campaign"
     budget: int | None = None
     #: The arbitrator's own words, as editor HTML — sanitised where drawn.
     summary: str = ""
@@ -4222,6 +4224,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     from n26.core.campaigns import (
         foreign_tables,
         over_budget,
+        starting_asset_types_received,
         tables_in_play,
         tables_on,
         withdrawn_members,
@@ -4354,6 +4357,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         if name not in names:
             counter_columns.append(name)
 
+    received = starting_asset_types_received(campaign, memberships)
     lines = []
     for membership in memberships:
         gang = membership.gang
@@ -4381,11 +4385,14 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
                 credits_unlimited=gang.credits_unlimited,
                 wealth=gang.wealth,
                 colour=gang.colour,
+                type_icon=gang.gang_type.artwork,
                 over_budget=over_budget(campaign, gang),
                 counters=[readings_by_name.get(name) for name in counter_columns],
                 labels=[picks[membership.pk].get(slot.pk, "") for slot in label_slots],
                 assets=assets,
-                starting_rolls=_starting_rolls(asset_types, held_tables[membership.pk]),
+                starting_rolls=_starting_rolls(
+                    asset_types, held_tables[membership.pk], received[membership.pk]
+                ),
                 yours=gang.owner_id == reading,
             )
         )
@@ -4434,6 +4441,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         campaign_type_description=campaign.campaign_type.description,
         arbitrator=campaign.owner.username if campaign.owner_id else "",
         budget=campaign.budget,
+        status=campaign.get_status_display(),
         summary=campaign.summary,
         gangs=lines,
         counter_columns=counter_columns,
@@ -4510,13 +4518,13 @@ def _held_table(table):
     )
 
 
-def _starting_rolls(asset_types, held):
+def _starting_rolls(asset_types, held, received):
     """One starting roll per Holding asset type of which the gang holds a
     rolled table, in the columns' order, worded in the type's own
     word."""
     rolls = []
     for asset_type in asset_types:
-        if not asset_type.is_holding:
+        if not asset_type.is_holding or asset_type.pk in received:
             continue
         tables = [t for t in held if t.asset_type_id == str(asset_type.pk)]
         if tables:

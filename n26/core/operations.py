@@ -515,7 +515,13 @@ class Operation:
         """
         if self.gang is None or holding.holder.gang_id != self.gang.pk:
             raise ValueError("The holding must have arrived at this operation's gang.")
-        self.event(holding, LedgerEvent.Kind.GAINED, note=str(holding), **deltas)
+        self.event(
+            holding,
+            LedgerEvent.Kind.GAINED,
+            note=str(holding),
+            received_asset_type=holding.asset.asset_type_id,
+            **deltas,
+        )
         self._run_stored_effects(holding, holding.asset, trigger="grant")
 
     def event(self, about, kind, **deltas):

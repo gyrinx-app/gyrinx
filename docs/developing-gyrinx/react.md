@@ -64,6 +64,18 @@ page. Do not nest islands, pass live Cotton DOM as React children, or swap part
 of a React root with htmx. Compose React children inside one root when they need
 shared state. Independent widgets can have separate roots without a global store.
 
+A Cotton component often takes content as markup: a slot of nested controls, or
+a figure written into a named slot. React cannot own markup the server drew, so
+when such a component moves to React, that content becomes typed props. Python
+builds it (a dataclass per row, say: name, value, label, ticked, a price as
+text) and the island draws it, as `ActionMenu` draws its `Action` links and
+`<c-n26.checkbox-card>` draws its `CheckboxCardItem` ticks. When the host needs
+a fallback, Cotton draws it from the same props, and the island mounts over it.
+Do not detach server-drawn nodes into a React tree, reach out of the root to
+toggle them, or keep the old implementation for the awkward variant. A
+migration keeps behaviour: if a caller's content cannot yet be described as
+data, say so in the PR and ask before changing what that caller does.
+
 Page identity and state people should share or restore belong in the URL:
 server-backed filters, meaningful tabs and form variants. Use normal navigation
 first; an island that changes them with the History API must also handle

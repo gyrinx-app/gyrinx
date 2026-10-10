@@ -456,6 +456,54 @@ class TestSomebodyElsesCampaign:
 
 
 class TestEditing:
+    @pytest.mark.parametrize("status", Campaign.Status.values)
+    def test_the_arbitrator_can_set_status_and_the_log_records_only_changes(
+        self, client, campaign, open_to_everyone, status
+    ):
+        payload = {"name": campaign.name, "budget": campaign.budget, "status": status}
+        response = client.post(f"/n26/campaigns/{campaign.pk}/edit/", payload)
+        assert response.status_code == 302
+        campaign.refresh_from_db()
+        assert campaign.status == status
+        events = campaign.events.filter(kind=CampaignEvent.Kind.STATUS_CHANGED)
+        expected = int(status != Campaign.Status.PRE_CAMPAIGN)
+        assert events.count() == expected
+        if expected:
+            assert (
+                events.get().note == f"Pre-campaign → {campaign.get_status_display()}"
+            )
+        client.post(f"/n26/campaigns/{campaign.pk}/edit/", payload)
+        assert events.count() == expected
+        page = client.get(f"/n26/campaigns/{campaign.pk}/")
+        assert page.context["sheet"].status == campaign.get_status_display()
+        edit = client.get(f"/n26/campaigns/{campaign.pk}/edit/")
+        assert edit.context["form"]["status"].value() == status
+        assert 'id="campaign-status"' in edit.content.decode()
+
+    def test_an_unknown_status_is_refused_and_a_missing_status_preserves_it(
+        self, client, campaign, open_to_everyone
+    ):
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.set_status(Campaign.Status.IN_PROGRESS)
+        payload = {"name": campaign.name, "budget": campaign.budget}
+        assert (
+            client.post(
+                f"/n26/campaigns/{campaign.pk}/edit/", {**payload, "status": "unknown"}
+            ).status_code
+            == 200
+        )
+        assert (
+            client.post(f"/n26/campaigns/{campaign.pk}/edit/", payload).status_code
+            == 302
+        )
+        campaign.refresh_from_db()
+        assert campaign.status == Campaign.Status.IN_PROGRESS
+        assert (
+            campaign.events.filter(kind=CampaignEvent.Kind.STATUS_CHANGED).count() == 1
+        )
+
     def test_it_saves_the_changed_facts(self, client, campaign, open_to_everyone):
         client.post(
             f"/n26/campaigns/{campaign.pk}/edit/",
@@ -864,6 +912,54 @@ class TestTheRollOfGangs:
     ):
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
         assert "added the gang to Dust Falls" in self.page(client, campaign)
+
+    def test_joining_with_many_built_ins_is_one_recent_and_full_campaign_act(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        from n26.core.history import campaign_history, campaign_history_size
+        from n26.core.models import LedgerEvent
+        from n26.library.authoring import add_built_in, create_rule
+
+        for index in range(LOG_ON_THE_PAGE + 5):
+            add_built_in(campaign.additions, create_rule(f"Joining rule {index}"))
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        assert (
+            LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.GRANTED).count()
+            > LOG_ON_THE_PAGE
+        )
+        for limit in (None, 1, LOG_ON_THE_PAGE):
+            acts = campaign_history(campaign, viewer=gang.owner, limit=limit)
+            joined = [
+                act
+                for act in acts
+                if "added the gang" in "".join(span.text for span in act.spans)
+            ]
+            assert len(joined) == 1
+            assert joined[0].gang_name == gang.name
+            assert joined[0].actor_pk == campaign.owner_id
+            assert joined[0].subs == []
+        assert campaign_history_size(campaign) == len(campaign_history(campaign))
+        drawn = self.page(client, campaign)
+        assert "added the gang to Dust Falls" in drawn
+        assert "Joining rule" not in drawn
+
+    def test_the_gang_type_draws_its_existing_icon_next_to_its_name(
+        self, client, campaign, gang, monkeypatch, open_to_everyone
+    ):
+        artwork = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /></svg>'
+        monkeypatch.setattr(
+            "n26.library.models.gang_type.read_artwork", lambda _: artwork
+        )
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        response = client.get(f"/n26/campaigns/{campaign.pk}/")
+        assert response.context["sheet"].gangs[0].type_icon == artwork
+        table = BeautifulSoup(response.content, "html.parser").find(
+            id="n26-campaign-gangs"
+        )
+        circle = table.find("circle")
+        assert circle is not None
+        type_line = circle.find_parent("th").find("span", class_="text-xs")
+        assert gang.gang_type.name in type_line.get_text()
 
     def test_a_key_naming_nothing_is_refused(self, client, campaign, open_to_everyone):
         response = client.post(

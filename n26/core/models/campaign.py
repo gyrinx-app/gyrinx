@@ -48,6 +48,18 @@ class Campaign(Base, Owned, Archived):
     is machinery: no page names it, and the authoring lists leave it out.
     """
 
+    class Status(models.TextChoices):
+        PRE_CAMPAIGN = "pre_campaign", "Pre-campaign"
+        IN_PROGRESS = "in_progress", "In progress"
+        POST_CAMPAIGN = "post_campaign", "Post-campaign"
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status,
+        default=Status.PRE_CAMPAIGN,
+        help_text="The campaign's current status, set by its arbitrator.",
+    )
+
     #: Named here rather than taken from ``Owned`` because the other edition
     #: has a Campaign too, and two models of the same name would claim the
     #: same reverse accessor on the user.
@@ -99,9 +111,9 @@ class Campaign(Base, Owned, Archived):
         blank=True,
         help_text=(
             "What a gang should be worth to join, counting its rating, stash "
-            "and unspent credits. A gang worth more than this can still join, "
-            "and is marked as over budget on the campaign page. Blank means "
-            "the campaign has no budget."
+            "and unspent credits. A gang worth more than this can still join. "
+            "Over-budget warnings appear only while the campaign status is "
+            "Pre-campaign. Leave blank for no budget."
         ),
     )
     #: The arbitrator's own words: what this campaign is, and whatever the
@@ -146,6 +158,7 @@ class CampaignEvent(Base):
         RENAMED = "renamed", "Renamed"
         BUDGET_SET = "budget_set", "Budget set"
         SUMMARY_EDITED = "summary_edited", "Summary edited"
+        STATUS_CHANGED = "status_changed", "Status changed"
         ARCHIVED = "archived", "Archived"
         DICE_ROLLED = "dice_rolled", "Dice rolled"
         DICE_ROLL_NOTED = "dice_roll_noted", "Dice roll noted"
