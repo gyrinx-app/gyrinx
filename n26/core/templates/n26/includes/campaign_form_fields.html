@@ -5,7 +5,7 @@ the two cannot drift into asking different questions.
 The budget is the one worth reading twice. It is what a gang should be worth
 to join — its rating, its stash and the credits it has not spent — and it
 refuses nobody: a bigger gang joins and wears an Over budget badge on the
-campaign page.
+campaign page before the campaign starts.
 
 Blank is not zero and is not the usual 1000 — it means the campaign has no
 budget at all, and the placeholder says so, because a reader who leaves it
@@ -25,8 +25,23 @@ a stored 0 still draws as 0.
                     autocomplete="off"
                     value="{{ form.name.value|default:'' }}" />
     </c-ui.field>
+    {% if form.status %}
+        <c-ui.field label="Status"
+                    error="x"
+                    :form="form"
+                    name="status"
+                    for="campaign-status"
+                    description="{{ form.status.help_text }}">
+            <c-ui.select.native id="campaign-status" name="status" placeholder="">
+                {% for value, label in form.status.field.choices %}
+                    <option value="{{ value }}"
+                            {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </c-ui.select.native>
+        </c-ui.field>
+    {% endif %}
     <c-ui.field label="Gang budget"
-                description="What a gang should be worth to join, counting its rating, stash and unspent credits. A gang worth more than this can still join, and is marked as over budget on the campaign page. Leave blank for no budget."
+                description="What a gang should be worth to join, counting its rating, stash and unspent credits. A gang worth more than this can still join. Over-budget warnings appear only while the campaign status is Pre-campaign. Leave blank for no budget."
                 error="x"
                 :form="form"
                 name="budget"

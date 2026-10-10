@@ -30,6 +30,7 @@ assignment alike.
 
 from django.db import models
 
+from n26.core.fields import ULIDField
 from n26.core.models.abstract import Base
 
 
@@ -309,6 +310,8 @@ class LedgerEvent(Base):
         blank=True,
         related_name="+",
     )
+    #: Snapshot of the gained holding's type, kept if its campaign asset is deleted.
+    received_asset_type = ULIDField(null=True, blank=True, editable=False, default=None)
     #: Set on every event at write. The history's anchor: derivable from
     #: the assignment's roots or the model's membership, but a reader of
     #: "everything done to this gang, in order" should not need a join

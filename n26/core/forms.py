@@ -13,6 +13,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 
 from n26.core.colours import GANG_COLOURS
+from n26.core.models import Campaign
 from n26.core.widgets import CAMPAIGN_SUMMARY_CONFIG, RichText
 from n26.library.income import INCOME_HELP
 from n26.library.models import AssetType, CampaignType, GangType
@@ -447,9 +448,9 @@ class CampaignForm(forms.Form):
         label="Gang budget",
         help_text=(
             "What a gang should be worth to join, counting its rating, stash "
-            "and unspent credits. A gang worth more than this can still join, "
-            "and is marked as over budget on the campaign page. Leave blank "
-            "for no budget."
+            "and unspent credits. A gang worth more than this can still join. "
+            "Over-budget warnings appear only while the campaign status is "
+            "Pre-campaign. Leave blank for no budget."
         ),
     )
     summary = forms.CharField(
@@ -475,6 +476,15 @@ class CampaignForm(forms.Form):
                 "Finish uploading each image before saving, or remove it."
             )
         return summary
+
+
+class EditCampaignForm(CampaignForm):
+    status = forms.ChoiceField(
+        choices=Campaign.Status.choices,
+        required=False,
+        label="Status",
+        help_text="Set In progress when the campaign starts. Over-budget warnings appear only in Pre-campaign.",
+    )
 
 
 def _foundable_campaign_types(include_staged=False):

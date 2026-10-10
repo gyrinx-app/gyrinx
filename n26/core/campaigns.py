@@ -136,6 +136,24 @@ class CampaignOperation:
         self.event(CampaignEvent.Kind.RENAMED, note=f"{was} → {name}")
         return campaign
 
+    def set_status(self, status):
+        """Change the campaign's status without changing its gangs or credits."""
+        from n26.core.operations import Refusal
+
+        if status not in Campaign.Status.values:
+            raise Refusal("Select a campaign status.")
+        campaign = self.campaign
+        if campaign.status == status:
+            return campaign
+        was = campaign.get_status_display()
+        campaign.status = status
+        campaign.save(update_fields=["status", "modified"])
+        self.event(
+            CampaignEvent.Kind.STATUS_CHANGED,
+            note=f"{was} → {campaign.get_status_display()}",
+        )
+        return campaign
+
     def set_budget(self, credits):
         """Change what a gang is founded with here, and record it.
 
@@ -1807,6 +1825,34 @@ def battle_stake(battle, viewer=None):
     )
 
 
+def starting_asset_types_received(campaign, memberships):
+    """Asset types already received during each gang's current membership.
+
+    A starting allocation stays complete after a holding is lost or transferred.
+    An asset assigned by hand also fills that starting allocation.
+    """
+    from django.db.models import F
+
+    received = {membership.pk: set() for membership in memberships}
+    if not received:
+        return received
+    events = (
+        LedgerEvent.objects.filter(
+            campaign=campaign,
+            gang__campaign_memberships__in=received,
+            created__gte=F("gang__campaign_memberships__created"),
+            kind=LedgerEvent.Kind.GAINED,
+            received_asset_type__isnull=False,
+        )
+        .order_by()
+        .values_list("gang__campaign_memberships__pk", "received_asset_type")
+        .distinct()
+    )
+    for membership_id, asset_type_id in events:
+        received[membership_id].add(asset_type_id)
+    return received
+
+
 def over_budget(campaign, gang):
     """Whether this gang is bigger than the campaign's stated size.
 
@@ -1814,9 +1860,14 @@ def over_budget(campaign, gang):
     has not spent. Spending moves credits into rating or stash and changes
     none of the total, so wealth today is what the gang's rating and stash
     come to once it has bought everything it can — which is the number a
-    budget is about. A campaign with no budget is never over it.
+    budget is about. The warning only applies before the campaign starts;
+    a campaign with no budget is never over it.
     """
-    return campaign.budget is not None and gang.wealth > campaign.budget
+    return (
+        campaign.status == Campaign.Status.PRE_CAMPAIGN
+        and campaign.budget is not None
+        and gang.wealth > campaign.budget
+    )
 
 
 def archive_gang(gang, actor=None):
