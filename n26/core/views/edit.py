@@ -13,6 +13,7 @@ from n26.core.views.permissions import (
     credits_href,
     link_model_cards,
     may_mark_status,
+    may_see_founding,
     status_href,
     trade_points_href,
 )
@@ -1098,12 +1099,18 @@ def edit_fighter(request, pk):
     members = roster(gang)
     may_mark = may_mark_status(gang, request.user)
     from n26.core.allowances import missing_progression_counters
+    from n26.core.views.trade_points import hire_time_context
 
     return render(
         request,
         "n26/fighter_edit.html",
         {
             "miniature": miniature,
+            **(
+                hire_time_context(gang, miniature, computed)
+                if may_see_founding(gang, request.user)
+                else {}
+            ),
             "rating_dialog": _base_rating_dialog(request, miniature)
             if request.GET.get("rating") == "1" and not renaming
             else None,

@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
     Button,
     Field,
+    FormActions,
     Input,
     TickList,
     TickListGroup,
@@ -21,12 +22,14 @@ export type TradePointsGroup = {
 
 export type TradePointsProps = {
     amountLabel: string;
+    amountDescription?: string;
     emptyMessage: string;
     groups: TradePointsGroup[];
 };
 
 export function TradePoints({
     amountLabel,
+    amountDescription,
     emptyMessage,
     groups,
 }: TradePointsProps) {
@@ -45,7 +48,7 @@ export function TradePoints({
     );
 
     return (
-        <>
+        <div className="space-y-5">
             {groups.length > 0 ? (
                 <fieldset
                     className="min-w-0 border-0 p-0"
@@ -77,32 +80,43 @@ export function TradePoints({
             ) : (
                 <p className="text-sm text-muted">{emptyMessage}</p>
             )}
-            <Field label={amountLabel} htmlFor="brought">
-                <Input
-                    id="brought"
-                    name="brought"
-                    type="number"
-                    min={0}
-                    max={999}
-                    inputMode="numeric"
-                    value={brought}
-                    onChange={(event) => setBrought(event.target.value)}
-                />
-            </Field>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <Button type="submit" size="sm" variant="primary">
-                    Start TP visit
-                </Button>
+            <div className="max-w-xs">
+                <Field
+                    label={amountLabel}
+                    description={amountDescription}
+                    htmlFor="brought"
+                >
+                    <Input
+                        id="brought"
+                        name="brought"
+                        type="number"
+                        min={0}
+                        max={999}
+                        inputMode="numeric"
+                        value={brought}
+                        onChange={(event) => setBrought(event.target.value)}
+                    />
+                </Field>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-box-border pt-4">
                 {groups.length > 0 && !overridden && (
-                    <p className="text-sm text-muted">
-                        Selected models add{" "}
-                        <span className="font-medium tabular-nums text-ink-900 dark:text-ink-100">
+                    <p
+                        className="text-base text-ink-900 dark:text-ink-100"
+                        aria-live="polite"
+                    >
+                        Total from selected models:{" "}
+                        <span className="font-semibold tabular-nums">
                             {added}
                         </span>{" "}
                         TP
                     </p>
                 )}
+                <FormActions className="ml-auto">
+                    <Button type="submit" size="sm" variant="primary">
+                        Start visit
+                    </Button>
+                </FormActions>
             </div>
-        </>
+        </div>
     );
 }

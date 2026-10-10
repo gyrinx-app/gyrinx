@@ -1,0 +1,12 @@
+{# title: A primary action beside completion #}
+{# note: Put navigation in the actions slot and use a secondary completion button. Help sits above the controls. #}
+{# layout: col #}
+<c-n26.activity-card :card="sample_action_visit"
+                     complete_variant="default"
+                     class="max-w-lg">
+    <c-slot name="actions">
+        <c-ui.button href="#equip" size="sm" variant="primary">
+            Equip model
+        </c-ui.button>
+    </c-slot>
+</c-n26.activity-card>

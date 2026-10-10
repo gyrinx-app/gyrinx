@@ -887,7 +887,7 @@ class TestWhatTheHistorySays:
         with operation(gang, actor=player) as op:
             op.close_activity(gang.open_activity(Activity.Kind.FOUNDING))
 
-        assert self.sentences(gang)[-1] == "completed the Spend built-in TP action"
+        assert self.sentences(gang)[-1] == "completed the Spend founding TP action"
 
 
 class TestWhatAPurchaseCountsAgainst:

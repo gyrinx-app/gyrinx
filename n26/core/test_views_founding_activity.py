@@ -1,4 +1,4 @@
-"""The Spend built-in TP action: opened at founding, closed by hand.
+"""The Spend founding TP action: opened at founding, closed by hand.
 
 An action is a thing a gang is part-way through, and this is the first of
 them. Founding opens one; the card on the gang page completes it; the same
@@ -125,7 +125,7 @@ class TestOneAtATime:
             with operation(gang, actor=tester) as op:
                 op.open_activity(FOUNDING)
 
-        assert "Spend built-in TP" in str(refused.value)
+        assert "Spend founding TP" in str(refused.value)
 
     def test_the_refusal_leaves_nothing_behind(self, gang, tester):
         """It is raised inside the operation, so the event it would have
@@ -224,8 +224,8 @@ class TestTheHistoryReadsIt:
             op.close_activity(gang.open_activity(FOUNDING))
 
         lines = told(gang)
-        assert "started the Spend built-in TP action" in lines
-        assert "completed the Spend built-in TP action" in lines
+        assert "started the Spend founding TP action" in lines
+        assert "completed the Spend founding TP action" in lines
 
     def test_the_kind_it_holds_is_never_printed_as_a_note(self, gang):
         """The note is a record for the code — the sentence has already
@@ -287,9 +287,9 @@ class TestTheSquareOnTheGangPage:
 
     def test_an_open_activity_is_drawn_with_a_way_to_complete_it(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
-        assert "Spend built-in TP" in body
+        assert "Spend founding TP" in body
         assert "Complete action" in body
-        assert "Click when you have finished hiring and equipping the gang." in body
+        assert "Complete when you have finished hiring and equipping the gang." in body
         assert f'action="{act_page(gang)}"' in body
 
     def test_the_action_is_marked(self, client, gang):
@@ -297,7 +297,7 @@ class TestTheSquareOnTheGangPage:
         model cards and the allowance block carry, so a reader meets one
         feature rather than three unrelated screens."""
         body = client.get(sheet(gang)).content.decode()
-        title = body.index("Spend built-in TP")
+        title = body.index("Spend founding TP")
 
         assert MARK in body[body.rindex("<h3", 0, title) : title]
 
@@ -309,17 +309,13 @@ class TestTheSquareOnTheGangPage:
             "spend them at the Trading Post." in body
         )
 
-    def test_the_start_button_names_what_it_lets_you_do(self, client, gang, tester):
-        """Nobody sets out to open an action; they set out to equip the
-        gang. The mark ties the control to the figures it brings."""
+    def test_a_gang_with_no_grants_gets_no_start_control(self, client, gang, tester):
         with operation(gang, actor=tester) as op:
             op.close_activity(gang.open_activity(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
-        label = body.index("Spend built-in TP")
-
-        assert MARK in body[body.rindex("<button", 0, label) : label]
-        assert body.index("Equip the gang using founding Trade Points.") < label
+        assert 'value="start"' not in body
+        assert 'value="reopen"' not in body
 
     def test_the_open_activity_is_badged_as_the_current_one(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
@@ -337,7 +333,7 @@ class TestTheSquareOnTheGangPage:
         body = client.get(sheet(gang)).content.decode()
         assert "Equip the gang using founding Trade Points" not in body
 
-    def test_a_completed_action_leaves_the_way_to_start_another(
+    def test_a_completed_action_does_not_offer_another_start(
         self, client, gang, tester
     ):
         with operation(gang, actor=tester) as op:
@@ -345,54 +341,7 @@ class TestTheSquareOnTheGangPage:
 
         body = client.get(sheet(gang)).content.decode()
         assert "No action is open." in body
-        assert "Equip the gang using founding Trade Points" in body
-        assert "Complete action" not in body
-
-    def test_the_start_row_posts_rather_than_links(self, client, gang, tester):
-        """A link is followed by anything that follows links, and a reload
-        would start the action again."""
-        with operation(gang, actor=tester) as op:
-            op.close_activity(gang.open_activity(FOUNDING))
-
-        body = client.get(sheet(gang)).content.decode()
-        start = body.index("Spend built-in TP")
-        form = body.rindex("<form", 0, start)
-        assert 'method="post"' in body[form:start]
-        assert f'action="{act_page(gang)}"' in body[form:start]
-
-    def plain_start_form(self, body, after):
-        """The start form drawn in the square's body, following ``after``."""
-        start = body.index('value="start"', body.index(after))
-        return body[body.rindex("<form", 0, start) : start]
-
-    def test_an_empty_square_starts_one_without_scripting(self, client, gang, tester):
-        """The start control is a plain form in the square's body. One
-        form, one act."""
-        with operation(gang, actor=tester) as op:
-            op.close_activity(gang.open_activity(FOUNDING))
-
-        body = client.get(sheet(gang)).content.decode()
-        form = self.plain_start_form(body, "No action is open.")
-        assert 'method="post"' in form
-        assert f'action="{act_page(gang)}"' in form
-        assert body.count('value="start"') == 1
-
-    def test_a_visit_open_does_not_take_that_control_away(self, client, gang, tester):
-        """The plain control is drawn whenever the founding action is not
-        open, whatever else the gang has going on. A visit is not the
-        founding action."""
-        with operation(gang, actor=tester) as op:
-            op.close_activity(gang.open_activity(FOUNDING))
-        with operation(gang, actor=tester) as op:
-            op.visit_trading_post(brought=3)
-
-        body = client.get(sheet(gang)).content.decode()
-        assert "Trading Post visit open" in body
-        assert "No action is open." not in body
-        form = self.plain_start_form(body, "Trading Post visit open")
-        assert 'method="post"' in form
-        assert f'action="{act_page(gang)}"' in form
-        assert body.count('value="start"') == 1
+        assert 'value="start"' not in body
 
     def test_an_open_founding_action_takes_the_control_away(self, client, gang):
         """Nothing offers an act that would be refused: one of each kind
@@ -403,13 +352,13 @@ class TestTheSquareOnTheGangPage:
 
     def test_the_square_leads_the_grid(self, client, gang):
         body = client.get(sheet(gang)).content.decode()
-        assert body.index("Spend built-in TP") < body.index("Nothing in the stash")
+        assert body.index("Spend founding TP") < body.index("Nothing in the stash")
 
     def test_a_reader_who_does_not_own_it_gets_no_square(self, client, gang):
         """The roster is theirs to read; the gang's actions are not."""
         client.force_login(User.objects.create_user("stranger"))
         body = client.get(sheet(gang)).content.decode()
-        assert "Spend built-in TP" not in body
+        assert "Spend founding TP" not in body
         assert "Complete action" not in body
 
     def test_the_flag_open_to_everyone_admits_no_reader_but_the_owner(
@@ -424,7 +373,7 @@ class TestTheSquareOnTheGangPage:
         )
         client.force_login(User.objects.create_user("stranger"))
         body = client.get(sheet(gang)).content.decode()
-        assert "Spend built-in TP" not in body
+        assert "Spend founding TP" not in body
         assert 'value="start"' not in body
         assert "No action is open." not in body
 
@@ -437,7 +386,7 @@ class TestTheSquareOnTheGangPage:
         gang.save(update_fields=["owner"])
         client.force_login(plain)
         body = client.get(sheet(gang)).content.decode()
-        assert "Spend built-in TP" not in body
+        assert "Spend founding TP" not in body
         assert "No action is open." not in body
         assert 'value="start"' not in body
         assert "Nothing in the stash" in body
@@ -558,7 +507,7 @@ class TestTheStoryUnderIt:
         panel = self.panel(client, gang)
         text = panel.get_text()
         assert "Recent history" not in text
-        assert "started the Spend built-in TP action" not in text
+        assert "started the Spend founding TP action" not in text
         assert "created the gang" not in text
 
     def test_hires_are_not_listed_on_the_square(
@@ -603,7 +552,7 @@ class TestTheStoryUnderIt:
         body = client.get(sheet(gang)).content.decode()
         assert self.panel(client, gang) is None
         assert reverse("n26-gang-history", args=[gang.pk]) not in body
-        assert "started the Spend built-in TP action" not in body
+        assert "started the Spend founding TP action" not in body
 
 
 class TestWhatTheSquareCosts:
@@ -670,11 +619,16 @@ class TestTheActsBehindIt:
         client.force_login(tester)
 
     def test_completing_it_closes_the_action(self, client, gang):
-        answer = client.post(act_page(gang), {"act": "finish"}, follow=True)
+        answer = client.post(
+            act_page(gang),
+            {"act": "finish", "activity": str(gang.open_activity(FOUNDING).pk)},
+            follow=True,
+        )
 
+        gang.refresh_from_db()
         assert gang.open_activity(FOUNDING) is None
         lines = [str(m) for m in answer.context["messages"]]
-        assert "Completed the Spend built-in TP action." in lines
+        assert "Completed the Spend founding TP action." in lines
 
     def test_a_gang_past_its_budget_is_told_so_rather_than_broken(
         self, client, gang, tester, make_profile, make_statline
@@ -692,7 +646,11 @@ class TestTheActsBehindIt:
         # rule this is about.
         Gang.objects.filter(pk=gang.pk).update(starting_credits=100)
 
-        answer = client.post(act_page(gang), {"act": "finish"}, follow=True)
+        answer = client.post(
+            act_page(gang),
+            {"act": "finish", "activity": str(gang.open_activity(FOUNDING).pk)},
+            follow=True,
+        )
 
         assert answer.status_code == 200
         assert answer.redirect_chain == [(sheet(gang), 302)]
@@ -700,17 +658,22 @@ class TestTheActsBehindIt:
         lines = [str(m) for m in answer.context["messages"]]
         assert any("Not enough credits" in line for line in lines)
 
-    def test_starting_one_opens_it_again(self, client, gang, tester):
+    def test_reopening_one_explicitly_opens_it_for_correction(
+        self, client, gang, tester
+    ):
+        previous = gang.open_activity(FOUNDING)
         with operation(gang, actor=tester) as op:
-            op.close_activity(gang.open_activity(FOUNDING))
+            op.close_activity(previous)
 
-        answer = client.post(act_page(gang), {"act": "start"}, follow=True)
+        answer = client.post(
+            act_page(gang), {"act": "reopen", "activity": str(previous.pk)}, follow=True
+        )
 
         assert gang.open_activity(FOUNDING) is not None
         lines = [str(m) for m in answer.context["messages"]]
-        assert "Started the Spend built-in TP action." in lines
+        assert "Reopened the Spend founding TP action." in lines
 
-    def test_starting_one_while_one_is_open_is_told_no(self, client, gang):
+    def test_starting_one_while_one_is_open_changes_nothing(self, client, gang):
         """The card offers the other control, so this is a stale page
         rather than an intention — and it changes nothing."""
         opened = gang.open_activity(FOUNDING)
@@ -718,15 +681,47 @@ class TestTheActsBehindIt:
 
         assert gang.open_activity(FOUNDING).pk == opened.pk
         lines = [str(m) for m in answer.context["messages"]]
-        assert any("Complete the open" in line for line in lines)
+        assert not lines
 
     def test_completing_one_that_is_already_done_changes_nothing(self, client, gang):
-        client.post(act_page(gang), {"act": "finish"})
+        active = gang.open_activity(FOUNDING)
+        client.post(act_page(gang), {"act": "finish", "activity": str(active.pk)})
         before = LedgerEvent.objects.filter(gang=gang).count()
 
         client.post(act_page(gang), {"act": "finish"})
 
         assert LedgerEvent.objects.filter(gang=gang).count() == before
+
+    def test_completing_without_an_activity_id_leaves_the_action_open(
+        self, client, gang
+    ):
+        active = gang.open_activity(FOUNDING)
+        before = LedgerEvent.objects.filter(gang=gang).count()
+
+        answer = client.post(act_page(gang), {"act": "finish"}, follow=True)
+
+        assert gang.open_activity(FOUNDING).pk == active.pk
+        assert LedgerEvent.objects.filter(gang=gang).count() == before
+        assert any(
+            "This action has changed" in str(m) for m in answer.context["messages"]
+        )
+
+    def test_a_stale_completion_cannot_close_the_replacement(
+        self, client, gang, tester
+    ):
+        previous = gang.open_activity(FOUNDING)
+        with operation(gang, actor=tester) as op:
+            op.close_activity(previous)
+            current = op.open_activity(FOUNDING)
+
+        answer = client.post(
+            act_page(gang), {"act": "finish", "activity": str(previous.pk)}, follow=True
+        )
+
+        assert gang.open_activity(FOUNDING).pk == current.pk
+        assert any(
+            "This action has changed" in str(m) for m in answer.context["messages"]
+        )
 
     def test_following_a_link_here_acts_on_nothing(self, client, gang):
         answer = client.get(act_page(gang))

@@ -9,13 +9,14 @@ Put extra markup in the named body slot. Default children are dropped.
 
 That markup sits above the complete form, not inside it.
 Fields there will not submit with the button.
+Use the actions slot for a link beside completion. Set complete_variant to default when that link is the primary action.
 Pass boxed as a boolean. The string False still draws the card chrome.
 Only an open action reaches here. The way to start one belongs to whatever holds this card.
 Title, mark, about, and tally all come from the card. Do not draw one action's identity onto another.
 The complete button posts act. Do not turn it into a link. Following a link must never start or end an action.
 {% endcomment %}
 
-<c-vars :card="None" :boxed="True" body="" class="" />
+<c-vars :card="None" :boxed="True" body="" actions="" complete_variant="success" class="" />
 
 {% if boxed %}
     <c-ui.card class="{{ class }}">
@@ -27,7 +28,7 @@ The complete button posts act. Do not turn it into a link. Following a link must
             </h2>
             {% if card.about %}<p class="mt-1 text-sm text-muted">{{ card.about }}</p>{% endif %}
         </c-slot>
-        <c-n26.activity-card.body :card="card">{{ body }}</c-n26.activity-card.body>
+        <c-n26.activity-card.body :card="card" :actions="actions" complete_variant="{{ complete_variant }}">{{ body }}</c-n26.activity-card.body>
     </c-ui.card>
 {% else %}
 
@@ -40,6 +41,6 @@ The complete button posts act. Do not turn it into a link. Following a link must
             <c-ui.badge color="ink" size="sm">Current action</c-ui.badge>
         </div>
         {% if card.about %}<p class="mb-2 text-xs text-muted">{{ card.about }}</p>{% endif %}
-        <c-n26.activity-card.body :card="card" button_size="xs" help_size="xs">{{ body }}</c-n26.activity-card.body>
+        <c-n26.activity-card.body :card="card" :actions="actions" complete_variant="{{ complete_variant }}" button_size="xs" help_size="xs">{{ body }}</c-n26.activity-card.body>
     </div>
 {% endif %}

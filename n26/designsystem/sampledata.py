@@ -2702,7 +2702,9 @@ def gang_sheet_context():
         # part-way through the founding: its own allowance, and the
         # gang's open visit beside it. Real structures, so the tally is
         # the arithmetic the screen does rather than a copy of it.
-        "sample_founding_budget": FoundingBudget(activity=None, granted=5, spent=2),
+        "sample_founding_budget": FoundingBudget(
+            activity=Activity(kind=Activity.Kind.FOUNDING), granted=5, spent=2
+        ),
         "sample_founding_model": {"name": "Yolanda Kray"},
         # A gang with no visit open, so the stash card offers to start
         # one. The sheet above is mid-trip and shows the other state.

@@ -233,7 +233,7 @@ def join_campaign_after_deletion(gang, campaign, actor=None):
 
 
 def open_founding(gang, actor=None):
-    """Start the gang's Spend built-in TP action, as its owner does from the
+    """Start the gang's Spend founding TP action, as its owner does from the
     Actions square. A new gang does not have it open."""
     from n26.core.models import Activity
     from n26.core.operations import operation

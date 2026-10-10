@@ -602,6 +602,11 @@ class TestFinishingAndStartingAgain:
         start_action(gang, FOUNDING_KIND)
 
         assert budget(leader).spent == 3
+        assert budget(kel) is None
+        from n26.core.operations import operation
+
+        with operation(gang, actor=gang.owner) as op:
+            op.start_hire_time_tp(kel)
         assert budget(kel).spent == 0
         assert budget(kel).remaining == 4
 
@@ -1136,12 +1141,12 @@ class TestTheRosterReadInOneGo:
     def test_the_cost_does_not_follow_the_roster(
         self, gang, hire_into, leader, django_assert_num_queries
     ):
-        """Two reads for the allowances however many models carry one:
+        """Three reads for the allowances however many models carry one:
         the standard counter, asked once for the roster rather than once
         a model, and what every model has spent under every founding
-        action. Which actions the gang has open is a third, and the sheet
-        pays it for the visit's figure whether or not anybody has an
-        allowance.
+        action, plus the copied-membership check. Which actions the gang has
+        open is another read, paid for the visit's figure whether or not
+        anybody has an allowance.
         """
         from n26.core.models import Gang
         from n26.core.render import render_gang
@@ -1158,16 +1163,16 @@ class TestTheRosterReadInOneGo:
 
     #: What drawing this gang's sheet reads. Pinned so it changes
     #: deliberately: the rows, the fold's own lookups, the gang's open
-    #: actions, the campaign it is playing, the standard counter and the
-    #: one sum of what has been spent against the founding action, plus
+    #: actions, the campaign it is playing, the standard counter, the
+    #: copied-membership check and the one sum of what has been spent against the founding action, plus
     #: the modifier index’s one read of authored status conditions.
-    SHEET = 36
+    SHEET = 37
 
-    def test_the_allowances_are_two_of_those_reads(
+    def test_the_allowances_use_four_reads_without_a_prepared_roster(
         self, gang, hire_into, leader, django_assert_num_queries
     ):
-        """The standard counter, so a homebrew one of the same name is
-        not mistaken for it, and one sum of what the roster has spent.
+        """The model memberships, the copied-membership check, the standard
+        counter and one sum of what the roster has spent.
         Which actions the gang has open is not among them: the sheet asks
         that for the visit's figure whether or not anybody has an
         allowance."""
@@ -1188,19 +1193,19 @@ class TestTheRosterReadInOneGo:
         folds = {pk: compute(member, index) for pk, member in card.members.items()}
         fresh.open_activities()
 
-        with django_assert_num_queries(2):
+        with django_assert_num_queries(4):
             budgets_by_model(fresh, folds)
 
     def test_a_reader_who_is_not_the_owner_pays_for_none_of_it(
         self, gang, hire_into, leader, django_assert_num_queries
     ):
         """The figure is the owner's, so a stranger's read of the same
-        roster neither shows it nor spends the two reads it takes."""
+        roster neither shows it nor spends its three extra reads."""
         from n26.core.models import Gang
         from n26.core.render import render_gang
 
         fresh = Gang.objects.get(pk=gang.pk)
-        with django_assert_num_queries(self.SHEET - 2):
+        with django_assert_num_queries(self.SHEET - 3):
             sheet = render_gang(fresh)
 
         assert all(not card.founding_budget for card in sheet.models)
@@ -1249,7 +1254,7 @@ class TestTheFigureOnTheGangPage:
     #: What the hover says. The whole of it, because a
     #: substring of it would pass on a page that had drawn half a
     #: sentence.
-    HOVER = "This model can spend these founding Trade Points at the Trading Post while the Spend built-in TP action is open."
+    HOVER = "This model can spend these Trade Points at the Trading Post while the Spend founding TP action is open."
 
     def page(self, gang):
         from django.urls import reverse
@@ -1267,7 +1272,7 @@ class TestTheFigureOnTheGangPage:
         assert self.HOVER in self.body(client, gang)
 
     def test_the_figure_carries_the_founding_mark(self, client, gang, leader):
-        """The same mark the Spend built-in TP action carries in the
+        """The same mark the Spend founding TP action carries in the
         Actions square and the allowance block carries on an equip
         screen, so one feature is learnt once. Its colour is stated in
         <c-n26.founding-mark> and nowhere else."""
@@ -1313,3 +1318,560 @@ class TestTheFigureOnTheGangPage:
         body = self.body(client, gang, reader=plain)
         assert self.HOVER not in body
         assert " TP<span" not in body
+
+
+class TestHireTimeTradePoints:
+    """First completion separates founding models from later recruits.
+
+    Each later recruit spends their own lifetime allowance. Completing an
+    action ends ordinary availability; correction reopens the same balance.
+    """
+
+    def test_a_zero_grant_gang_can_finish_founding_before_its_first_tp_recruit(
+        self, client, outcast, player, hire_into
+    ):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        gang = found_gang("The Quiet Ones", outcast, owner=player, budget=1000)
+        original = hire_into(gang, ("Outcast", "Hive Scum"), "Wren")
+        assert reading(original) == 0
+        client.force_login(player)
+        tab = reverse("n26-gang-trade-points", args=[gang.pk])
+        action = reverse("n26-gang-founding-action", args=[gang.pk])
+        page = BeautifulSoup(client.get(tab).content, "html.parser")
+        start = page.select_one('input[name="act"][value="start"]')
+        assert start is not None
+        assert start.find_parent("form")["action"].startswith(action)
+
+        response = client.post(start.find_parent("form")["action"], {"act": "start"})
+        assert response.url == tab
+        page = BeautifulSoup(client.get(tab).content, "html.parser")
+        finish = page.select_one('input[name="act"][value="finish"]')
+        activity = finish.find_parent("form").select_one('input[name="activity"]')
+        response = client.post(
+            finish.find_parent("form")["action"],
+            {"act": "finish", "activity": activity["value"]},
+        )
+        assert response.url == tab
+        gang.refresh_from_db()
+        assert gang.founding_completed_at() is not None
+
+        recruit = hire_into(gang, ("Outcast", "Champion"), "Kel")
+        edit = BeautifulSoup(
+            client.get(reverse("n26-edit-fighter", args=[recruit.pk])).content,
+            "html.parser",
+        )
+        assert "Spend hire-time TP" in edit.get_text()
+        self.open_personal(recruit)
+        assert budget(recruit).remaining == 3
+        assert_reconciled(gang)
+
+    @pytest.fixture
+    def recruit(self, gang, leader, hire_into):
+        complete_action(gang, FOUNDING_KIND)
+        return hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
+
+    def open_personal(self, model, *, reopen=False):
+        from n26.core.operations import operation
+
+        with operation(model.gang, actor=model.gang.owner) as op:
+            return op.start_hire_time_tp(model, reopen=reopen)
+
+    def finish_personal(self, model):
+        from n26.core.operations import operation
+
+        with operation(model.gang, actor=model.gang.owner) as op:
+            return op.close_activity(
+                model.gang.open_activity(Activity.Kind.HIRE_TIME, model)
+            )
+
+    def action_url(self, model):
+        from django.urls import reverse
+
+        return reverse("n26-fighter-hire-time-action", args=[model.pk])
+
+    def test_a_later_recruit_cannot_spend_a_reopened_founding_action(
+        self, gang, leader, recruit
+    ):
+        boundary = gang.founding_completed_at()
+        start_action(gang, FOUNDING_KIND)
+        assert budget(leader).remaining == 5
+        assert budget(recruit) is None
+        complete_action(gang, FOUNDING_KIND)
+        assert gang.founding_completed_at() == boundary
+        self.open_personal(recruit)
+        assert budget(recruit).remaining == 4
+
+    def test_two_recruits_can_spend_independently(self, gang, recruit, hire_into, post):
+        other = hire_into(gang, ("Venators", "Hunt Champion"), "Vex")
+        first = self.open_personal(recruit)
+        second = self.open_personal(other)
+        assert first.pk != second.pk
+        bought = buy(recruit, line_for(browse(post), "Flak plate"), activity=first)
+        assert budget(recruit).remaining == 1
+        assert budget(other).remaining == 4
+        move(bought, other)
+        refund(bought)
+        assert budget(recruit).remaining == 4
+        assert budget(other).remaining == 4
+        self.finish_personal(recruit)
+        assert budget(recruit) is None
+        assert budget(other).remaining == 4
+        assert_reconciled(gang)
+
+    def test_activity_reads_hold_only_the_boundary_and_latest_personal_sessions(
+        self, gang, recruit, hire_into, django_assert_num_queries
+    ):
+        from n26.core.models import Gang
+
+        boundary = gang.founding_completed_at()
+        for index in range(6):
+            start_action(gang, FOUNDING_KIND)
+            complete_action(gang, FOUNDING_KIND)
+            latest = self.open_personal(recruit, reopen=index > 0)
+            self.finish_personal(recruit)
+        other = hire_into(gang, ("Venators", "Hunt Champion"), "Vex")
+        open_now = self.open_personal(other)
+        fresh = Gang.objects.get(pk=gang.pk)
+
+        latest_founding = (
+            Activity.objects.filter(gang=gang, kind=FOUNDING_KIND)
+            .order_by("-created", "-pk")
+            .first()
+        )
+        with django_assert_num_queries(1):
+            assert fresh.founding_completed_at() == boundary
+            assert fresh.hire_time_activities() == {
+                recruit.pk: latest,
+                other.pk: open_now,
+            }
+            assert fresh.open_activity(Activity.Kind.HIRE_TIME, other) == open_now
+            assert fresh.latest_founding_activity() == latest_founding
+            assert len(fresh._activity_history) == 4
+        assert Activity.objects.filter(gang=gang).count() == 14
+
+    def test_equip_action_opens_the_post_even_when_the_model_has_an_equipment_list(
+        self, client, gang, recruit, player, legacy_list, post
+    ):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        assign(legacy_list, miniature=recruit)
+        self.open_personal(recruit)
+        client.force_login(player)
+        edit = BeautifulSoup(
+            client.get(reverse("n26-edit-fighter", args=[recruit.pk])).content,
+            "html.parser",
+        )
+        equip = next(
+            a for a in edit.select("a") if a.get_text(strip=True) == "Equip model"
+        )
+        assert (
+            equip["href"]
+            == reverse("n26-equip", args=[recruit.pk]) + f"?list={post.pk}"
+        )
+        response = client.get(equip["href"])
+        assert response.context["chosen"] == post
+        assert "Spend hire-time TP" in response.content.decode()
+
+    def test_completion_requires_explicit_correction_and_keeps_previous_spend(
+        self, gang, recruit, post
+    ):
+        from n26.core.operations import Refusal
+
+        activity = self.open_personal(recruit)
+        buy(recruit, line_for(browse(post), "Flak plate"), activity=activity)
+        self.finish_personal(recruit)
+        assert budget(recruit) is None
+        with pytest.raises(Refusal, match="correction"):
+            self.open_personal(recruit)
+        corrected = self.open_personal(recruit, reopen=True)
+        assert corrected.pk != activity.pk
+        assert budget(recruit).spent == 3
+        assert budget(recruit).remaining == 1
+        assert_reconciled(gang)
+
+    def test_historical_founding_purchases_count_towards_a_recruits_personal_balance(
+        self, gang, recruit, post
+    ):
+        from n26.core.operations import operation
+
+        start_action(gang, FOUNDING_KIND)
+        line = line_for(browse(post), "Flak plate")
+        # Reproduce the ledger of a purchase made before personal actions existed.
+        with operation(gang, actor=gang.owner) as op:
+            op.assign(
+                line.thing,
+                miniature=recruit,
+                paid=line.credits,
+                trade_points=line.trade_points,
+                activity=gang.open_activity(FOUNDING_KIND),
+                spent_by=recruit,
+            )
+        complete_action(gang, FOUNDING_KIND)
+        self.open_personal(recruit)
+        assert budget(recruit).remaining == 1
+        assert_reconciled(gang)
+
+    def test_departure_completes_the_open_personal_action(self, gang, recruit):
+        from n26.core.operations import operation
+
+        activity = self.open_personal(recruit)
+        with operation(gang, actor=gang.owner) as op:
+            op.remove(recruit.membership)
+        activity.refresh_from_db()
+        assert not activity.is_open
+        assert_reconciled(gang)
+
+    def test_cloning_a_model_does_not_grant_another_allowance(
+        self, gang, leader, recruit
+    ):
+        from n26.core.operations import Refusal, operation
+
+        with operation(gang, actor=gang.owner) as op:
+            cloned = op.clone_miniature(recruit)
+        assert budget(cloned) is None
+        with pytest.raises(Refusal, match="no available"):
+            self.open_personal(cloned)
+        start_action(gang, FOUNDING_KIND)
+        with operation(gang, actor=gang.owner) as op:
+            founder_copy = op.clone_miniature(leader)
+        assert budget(founder_copy) is None
+        assert_reconciled(gang)
+
+    def test_the_owner_gets_an_action_on_edit_and_a_roster_link(
+        self, client, gang, recruit, player
+    ):
+        from django.urls import reverse
+
+        client.force_login(player)
+        edit = reverse("n26-edit-fighter", args=[recruit.pk])
+        page = client.get(edit).content.decode()
+        assert self.action_url(recruit) in page
+        assert "Spend hire-time TP" in page
+        roster_page = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Spend hire-time TP" in roster_page
+        answer = client.post(self.action_url(recruit), {"act": "start"})
+        assert answer.status_code == 302
+        active = gang.open_activity(Activity.Kind.HIRE_TIME, recruit)
+        assert active is not None
+        assert "Complete action" in client.get(edit).content.decode()
+        client.post(
+            self.action_url(recruit), {"act": "finish", "activity": str(active.pk)}
+        )
+        gang.forget_open_activities()
+        assert budget(recruit) is None
+        assert "Reopen for correction" in client.get(edit).content.decode()
+
+    def test_a_stale_completion_cannot_close_a_reopened_action(
+        self, client, gang, recruit, player
+    ):
+        client.force_login(player)
+        first = self.open_personal(recruit)
+        self.finish_personal(recruit)
+        current = self.open_personal(recruit, reopen=True)
+        client.post(
+            self.action_url(recruit), {"act": "finish", "activity": str(first.pk)}
+        )
+        assert gang.open_activity(Activity.Kind.HIRE_TIME, recruit).pk == current.pk
+
+    def test_a_stale_purchase_cannot_spend_a_completed_action(
+        self, client, gang, recruit, player, post
+    ):
+        from django.urls import reverse
+
+        from n26.core.owned import thing_key
+
+        client.force_login(player)
+        activity = self.open_personal(recruit)
+        self.finish_personal(recruit)
+        line = line_for(browse(post), "Flak plate")
+        at = reverse("n26-equip", args=[recruit.pk]) + f"?list={post.pk}"
+        before = gang.rating
+        answer = client.post(
+            at, {"thing": thing_key(line.thing), "personal_activity": str(activity.pk)}
+        )
+        assert answer.status_code == 302
+        from django.contrib.messages import get_messages
+
+        assert any(
+            "spending action has changed" in str(message)
+            for message in get_messages(answer.wsgi_request)
+        )
+        gang.refresh_from_db()
+        assert gang.rating == before
+        assert not recruit.assignments.filter(wargear=line.thing).exists()
+        assert_reconciled(gang)
+
+    def test_another_player_cannot_open_it(self, client, recruit):
+        stranger = User.objects.create_user("stranger")
+        admit_to_founding(stranger)
+        client.force_login(stranger)
+        assert (
+            client.post(self.action_url(recruit), {"act": "start"}).status_code == 404
+        )
+        assert not Activity.objects.filter(miniature=recruit).exists()
+
+    def test_personal_purchases_leave_an_open_gang_visit_alone(
+        self, client, gang, recruit, player, post
+    ):
+        from django.urls import reverse
+
+        from n26.core.owned import thing_key
+
+        client.force_login(player)
+        activity = self.open_personal(recruit)
+        visit_trading_post(gang, brought=5)
+        line = line_for(browse(post), "Flak plate")
+        at = reverse("n26-equip", args=[recruit.pk]) + f"?list={post.pk}"
+        answer = client.post(
+            at, {"thing": thing_key(line.thing), "personal_activity": str(activity.pk)}
+        )
+        assert answer.status_code == 302
+        gang.refresh_from_db()
+        assert budget(recruit).remaining == 1
+        assert gang.trade_points_left == 5
+        assert_reconciled(gang)
+
+    def test_low_level_purchases_cannot_charge_another_models_action(
+        self, gang, recruit, hire_into, post
+    ):
+        from n26.core.operations import Refusal
+
+        activity = self.open_personal(recruit)
+        other = hire_into(gang, ("Venators", "Hunt Champion"), "Vex")
+        with pytest.raises(Refusal, match="spending action has changed"):
+            buy(other, line_for(browse(post), "Flak plate"), activity=activity)
+        assert budget(recruit).remaining == 4
+        assert_reconciled(gang)
+
+    def test_low_level_purchases_cannot_charge_founding_for_a_later_recruit(
+        self, gang, recruit, post
+    ):
+        from n26.core.operations import Refusal
+
+        activity = start_action(gang, FOUNDING_KIND)
+        with pytest.raises(Refusal, match="spending action has changed"):
+            buy(recruit, line_for(browse(post), "Flak plate"), activity=activity)
+        assert_reconciled(gang)
+
+    def test_low_level_purchases_cannot_charge_a_completed_founding_action(
+        self, gang, leader, post
+    ):
+        from n26.core.operations import Refusal
+
+        activity = gang.open_activity(FOUNDING_KIND)
+        complete_action(gang, FOUNDING_KIND)
+        with pytest.raises(Refusal, match="spending action has changed"):
+            buy(leader, line_for(browse(post), "Flak plate"), activity=activity)
+        assert_reconciled(gang)
+
+    def test_the_same_feature_flag_gates_personal_controls(
+        self, client, gang, recruit, player, monkeypatch
+    ):
+        from django.urls import reverse
+
+        from n26.tests.fixtures import FOUNDING_GROUP_NAME
+
+        monkeypatch.setattr(
+            "n26.core.views.edit.may_mark_status", lambda gang, user: True
+        )
+
+        player.groups.remove(*player.groups.filter(name=FOUNDING_GROUP_NAME))
+        client.force_login(player)
+        assert (
+            client.post(self.action_url(recruit), {"act": "start"}).status_code == 404
+        )
+        edit = reverse("n26-edit-fighter", args=[recruit.pk])
+        assert "Spend hire-time TP" not in client.get(edit).content.decode()
+
+    def test_founding_offers_start_once_and_explicit_correction_after_completion(
+        self, client, venators, player, hire_into
+    ):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        gang = found_gang("Fresh hunters", venators, owner=player, budget=1000)
+        hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
+        client.force_login(player)
+        at = reverse("n26-gang", args=[gang.pk])
+        action = reverse("n26-gang-founding-action", args=[gang.pk])
+        page = BeautifulSoup(client.get(at).content, "html.parser")
+        assert page.select_one('input[name="act"][value="start"]') is not None
+        client.post(action, {"act": "start"})
+        active = gang.open_activity(FOUNDING_KIND)
+        client.post(action, {"act": "finish", "activity": str(active.pk)})
+        page = BeautifulSoup(client.get(at).content, "html.parser")
+        assert page.select_one('input[name="act"][value="start"]') is None
+        assert page.select_one('input[name="act"][value="reopen"]') is None
+        trade_points = reverse("n26-gang-trade-points", args=[gang.pk])
+        page = BeautifulSoup(client.get(trade_points).content, "html.parser")
+        form = page.select_one('input[name="act"][value="reopen"]').find_parent("form")
+        assert "Reopen action" in form.get_text()
+        client.post(action, {"act": "start"})
+        gang.refresh_from_db()
+        assert gang.open_activity(FOUNDING_KIND) is None
+        answer = client.post(
+            form["action"],
+            {
+                "act": "reopen",
+                "activity": form.select_one('input[name="activity"]')["value"],
+            },
+        )
+        assert answer.url == trade_points
+        gang.refresh_from_db()
+        assert gang.open_activity(FOUNDING_KIND) is not None
+        assert "Complete action" in client.get(trade_points).content.decode()
+
+    def test_a_stale_founding_reopen_cannot_start_another_correction(
+        self, client, gang, recruit, player
+    ):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        client.force_login(player)
+        tab = reverse("n26-gang-trade-points", args=[gang.pk])
+        page = BeautifulSoup(client.get(tab).content, "html.parser")
+        form = page.select_one('input[name="act"][value="reopen"]').find_parent("form")
+        previous = form.select_one('input[name="activity"]')["value"]
+        payload = {"act": "reopen", "activity": previous}
+        client.post(form["action"], payload)
+        gang.refresh_from_db()
+        current = gang.open_activity(FOUNDING_KIND)
+        client.post(form["action"], {"act": "finish", "activity": str(current.pk)})
+        before = Activity.objects.filter(gang=gang).count()
+
+        answer = client.post(form["action"], payload, follow=True)
+
+        gang.refresh_from_db()
+        assert gang.open_activity(FOUNDING_KIND) is None
+        assert Activity.objects.filter(gang=gang).count() == before
+        assert "Reload the page before reopening it." in answer.content.decode()
+        client.post(form["action"], {"act": "reopen"})
+        gang.refresh_from_db()
+        assert gang.open_activity(FOUNDING_KIND) is None
+        fresh = BeautifulSoup(client.get(tab).content, "html.parser")
+        activity = (
+            fresh.select_one('input[name="act"][value="reopen"]')
+            .find_parent("form")
+            .select_one('input[name="activity"]')
+        )
+        assert activity["value"] == str(current.pk)
+        client.post(form["action"], {"act": "reopen", "activity": activity["value"]})
+        gang.refresh_from_db()
+        assert gang.open_activity(FOUNDING_KIND) is not None
+
+    def test_an_open_action_can_finish_after_its_authored_grant_is_removed(
+        self, client, gang, recruit, player
+    ):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        from n26.library.models import Modifier
+        from n26.library.standard_content import founding_budget_counter
+
+        activity = self.open_personal(recruit)
+        Modifier.objects.filter(
+            contributes_to_counter__counter=founding_budget_counter()
+        ).delete()
+        assert reading(recruit) == 0
+        client.force_login(player)
+        edit = reverse("n26-edit-fighter", args=[recruit.pk])
+        response = client.get(edit)
+        assert response.context["hire_time_state"].activity_id == str(activity.pk)
+        form = (
+            BeautifulSoup(response.content, "html.parser")
+            .select_one('input[name="act"][value="finish"]')
+            .find_parent("form")
+        )
+        answer = client.post(
+            form["action"],
+            {
+                "act": "finish",
+                "activity": form.select_one('input[name="activity"]')["value"],
+            },
+        )
+        assert answer.url == edit + "#actions"
+        gang.refresh_from_db()
+        assert gang.open_activity(Activity.Kind.HIRE_TIME, recruit) is None
+        assert client.get(edit).context["hire_time_state"] is None
+        client.post(
+            self.action_url(recruit), {"act": "reopen", "activity": str(activity.pk)}
+        )
+        gang.refresh_from_db()
+        assert gang.open_activity(Activity.Kind.HIRE_TIME, recruit) is None
+        assert_reconciled(gang)
+
+    def test_founding_return_targets_are_validated(self, client, gang, player):
+        from django.urls import reverse
+
+        client.force_login(player)
+        action = reverse("n26-gang-founding-action", args=[gang.pk])
+        answer = client.post(
+            action, {"act": "reopen", "return_url": "https://example.com/"}
+        )
+        assert answer.url == reverse("n26-gang", args=[gang.pk])
+
+    def test_the_history_names_whose_spending_action_was_opened_and_completed(
+        self, gang, recruit
+    ):
+        from n26.core.history import build
+
+        self.open_personal(recruit)
+        self.finish_personal(recruit)
+        acts = [
+            act
+            for act in build(gang)
+            if "Spend hire-time TP" in "".join(span.text for span in act.spans)
+        ]
+        assert len(acts) == 2
+        assert all(
+            act.category == "model" and act.miniature_pk == str(recruit.pk)
+            for act in acts
+        )
+        assert all(
+            "for Kel" in "".join(span.text for span in act.spans) for act in acts
+        )
+
+    def test_personal_actions_add_no_query_per_recruit(self, gang, recruit, hire_into):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.models import Gang
+        from n26.core.render import render_gang
+
+        def measure():
+            with CaptureQueriesContext(connection) as captured:
+                sheet = render_gang(Gang.objects.get(pk=gang.pk), for_owner=True)
+            assert any(model.hire_time_state for model in sheet.models)
+            return len(captured)
+
+        self.open_personal(recruit)
+        few = measure()
+        for name in ("Vex", "Nix", "Sura"):
+            self.open_personal(hire_into(gang, ("Venators", "Hunt Champion"), name))
+        assert measure() == few
+
+    def test_the_founding_control_adds_no_query_per_recruit(
+        self, client, player, gang, recruit, hire_into
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from django.urls import reverse
+
+        client.force_login(player)
+        at = reverse("n26-gang-trade-points", args=[gang.pk])
+        client.get(at)
+
+        def measure():
+            with CaptureQueriesContext(connection) as captured:
+                response = client.get(at)
+            assert response.status_code == 200
+            assert "Reopen action" in response.content.decode()
+            return len(captured)
+
+        few = measure()
+        for name in ("Vex", "Nix", "Sura"):
+            hire_into(gang, ("Venators", "Hunt Champion"), name)
+        assert measure() == few

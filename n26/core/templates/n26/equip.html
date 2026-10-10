@@ -180,6 +180,9 @@ breadcrumb above it has the gang as well, so nothing is lost.
                   hx-post="{{ action }}"
                   hx-swap="none">
                 {% csrf_token %}
+                <input type="hidden"
+                       name="personal_activity"
+                       value="{{ founding_budget.activity.pk }}">
                 {% comment %}
                 Sections keep their own strip, at the bottom of the same pinned
                 bar. The two strips are choosing different things at different
