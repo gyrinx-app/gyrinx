@@ -153,8 +153,26 @@ def entry_key(collection_key, item_key):
 @pytest.fixture
 @library_setup
 def foundation(default_pack):
-    """Standard content, created exactly as the foundations page's
-    buttons would create it (library/standard_content.py)."""
+    """The real foundations the sheets resolve against: statline shapes,
+    types, subtypes, skills, XP, gang names and the two swept collections."""
+    for key in (
+        "model-characteristics",
+        "weapon-characteristics",
+        "core-subtypes",
+        "skills",
+        "progression-counters",
+        "gang-types",
+        "skills-collection",
+        "trading-post",
+    ):
+        STANDARD_CONTENT[key].create()
+
+
+@pytest.fixture
+@library_setup
+def full_foundation(default_pack):
+    """Clearing must leave every foundation whole, including the action
+    and status tables the upload itself never reads."""
     for item in STANDARD_CONTENT.values():
         item.create()
 
@@ -2149,7 +2167,7 @@ class TestClearing:
     creates.
     """
 
-    def test_clearing_leaves_the_foundations_standing(self, foundation, sheets):
+    def test_clearing_leaves_the_foundations_standing(self, full_foundation, sheets):
         from n26.library.ingest import clear_imported
 
         perform(plan_ingest(pack=None, **sheets))
@@ -2162,7 +2180,7 @@ class TestClearing:
         for key, seed in STANDARD_CONTENT.items():
             assert seed.status() == "complete", key
 
-    def test_clearing_takes_the_imported_content_away(self, foundation, sheets):
+    def test_clearing_takes_the_imported_content_away(self, full_foundation, sheets):
         from n26.library.ingest import clear_imported
         from n26.library.models.collection import Collection, CollectionEntry
 
@@ -2184,7 +2202,7 @@ class TestClearing:
         assert Skill.objects.filter(name="Catfall").exists()
         assert Subtype.objects.filter(name="Leader").exists()
 
-    def test_import_clear_import_lands_in_the_same_place(self, foundation, sheets):
+    def test_import_clear_import_lands_in_the_same_place(self, full_foundation, sheets):
         """The round trip the whole thing is for."""
         from n26.library.ingest import clear_imported
 
@@ -2202,7 +2220,9 @@ class TestClearing:
 
         assert census() == first
 
-    def test_a_modifier_naming_imported_content_goes_with_it(self, foundation, sheets):
+    def test_a_modifier_naming_imported_content_goes_with_it(
+        self, full_foundation, sheets
+    ):
         """A modifier holds its scope and effect in tables of their own,
         and those rows are what hold the trait — so they are what a clear
         sweeps, and the modifier cascades away with them. Left behind,
@@ -2247,7 +2267,7 @@ class TestClearing:
         assert standing.filter(lasting_effect_status_modifiers()).exists()
 
     def test_a_reworded_seed_modifier_still_stands_after_a_clear(
-        self, foundation, sheets
+        self, full_foundation, sheets
     ):
         """A clear recognises standard content the way the seed that made
         it does — by what a modifier raises, never by its name — so
@@ -2273,7 +2293,7 @@ class TestClearing:
             for name in seeded.values_list("name", flat=True)
         )
 
-    def test_a_gang_using_the_content_stops_the_clear(self, foundation, sheets):
+    def test_a_gang_using_the_content_stops_the_clear(self, full_foundation, sheets):
         """Player data protects what it uses: the content does not go out
         from under a gang that holds it."""
         from django.db.models import ProtectedError
@@ -2287,7 +2307,7 @@ class TestClearing:
             clear_imported()
         assert Weapon.objects.exists()  # and the transaction held
 
-    def test_a_refused_clear_takes_nothing_at_all(self, foundation, sheets):
+    def test_a_refused_clear_takes_nothing_at_all(self, full_foundation, sheets):
         """The holders are only found part-way through — the wargear is
         already gone when a weapon turns out to be spoken for — so this
         is all or nothing however it is called. A caller left holding
@@ -2326,7 +2346,9 @@ def _found_a_gang_holding_a_weapon():
 
 
 @pytest.mark.django_db
-def test_ingest_clear_preserves_the_gang_status_choice_without_reseeding(foundation):
+def test_ingest_clear_preserves_the_gang_status_choice_without_reseeding(
+    full_foundation,
+):
     from django.contrib.auth import get_user_model
 
     from n26.core.card import build_card, build_modifier_index, carriers
