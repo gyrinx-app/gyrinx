@@ -131,6 +131,20 @@ def test_a_label_is_text_in_the_props_and_the_fallback():
     assert label in host.get_text()
 
 
+@pytest.mark.parametrize("static", [False, True])
+def test_a_printed_false_is_clear_in_the_face_and_the_props(static):
+    flag = ' :static="True"' if static else ""
+    html = render(
+        f'<c-n26.checkbox-card{flag} name="open" value="1" label="L" checked="false" />'
+    )
+    box = BeautifulSoup(html, "html.parser").find("input", attrs={"name": "open"})
+
+    assert box.has_attr("checked") is False
+    if not static:
+        _host, props = island(html)
+        assert props["checked"] is False
+
+
 def test_a_plain_string_keeps_its_entities():
     """Only escaped template output is decoded. A :prop string is its text."""
     html = render(

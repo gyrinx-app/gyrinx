@@ -23,12 +23,15 @@ Its body is dimmed while the box is clear but stays usable, because nothing woul
     class=""
 />
 
-{% if static %}
-    {% include "n26/includes/checkbox_card_face.html" %}
-{% else %}
-    {% checkbox_card_props name=name value=value checked=checked label=label description=description css_class=class body=slot meta=meta attrs=attrs as props_ %}
-    {# contents keeps the card a direct child of the caller's grid or flex row. #}
-    {% react_host "checkbox-card" props_ class="contents" %}
+{# One boolean for the face and the props, so a printed "false" is clear in both. #}
+{% with checked=checked|checkbox_card_flag %}
+    {% if static %}
         {% include "n26/includes/checkbox_card_face.html" %}
-    {% endreact_host %}
-{% endif %}
+    {% else %}
+        {% checkbox_card_props name=name value=value checked=checked label=label description=description css_class=class body=slot meta=meta attrs=attrs as props_ %}
+        {# contents keeps the card a direct child of the caller's grid or flex row. #}
+        {% react_host "checkbox-card" props_ class="contents" %}
+            {% include "n26/includes/checkbox_card_face.html" %}
+        {% endreact_host %}
+    {% endif %}
+{% endwith %}

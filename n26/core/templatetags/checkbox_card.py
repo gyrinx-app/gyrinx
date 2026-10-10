@@ -17,6 +17,12 @@ def _flag(value):
     return str(value).strip().lower() in {"true", "1", "on", "yes"}
 
 
+@register.filter
+def checkbox_card_flag(value):
+    """checked as a boolean, for the server-drawn face and the props alike."""
+    return _flag(value)
+
+
 def _text(value):
     """Plain text for React.
 
