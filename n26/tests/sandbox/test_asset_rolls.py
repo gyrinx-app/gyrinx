@@ -1198,7 +1198,8 @@ class TestThePages:
         assert "D66 · 18 territories" in page
         assert "D6 · 6 territories" in page
         assert "Goliath Territories" in page
-        assert "Available to every gang</legend>" in page
+        assert "Optional territory tables</legend>" in page
+        assert "Available to every gang</legend>" not in page
         assert "Tables of territories the gangs in this campaign can use." in page
         assert (
             "Gangs can roll for a starting territory from any of these. You can "
