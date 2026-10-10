@@ -44,7 +44,7 @@ React draws the menu. Its panel is fixed, so the table's scroll wrapper does not
                                 {{ gang.name }}
                             </c-n26.link>
                         </span>
-                        <span class="text-xs text-muted"><c-n26.flair-link text="{{ gang.gang_type }}" tone="current"><c-n26.flair.gang-type :icon="gang.type_icon" /></c-n26.flair-link>{% if gang.owner %} · <c-n26.user-link :user="gang.owner" tone="current" />{% endif %}</span>
+                        <span class="text-xs text-muted">{{ gang.gang_type }}<c-n26.flair-link tone="current"><c-n26.flair.gang-type :icon="gang.type_icon" /></c-n26.flair-link>{% if gang.owner %} · <c-n26.user-link :user="gang.owner" tone="current" />{% endif %}</span>
                         {% if gang.over_budget %}
                             <span class="mt-1 self-start">
                                 <c-ui.badge color="amber" size="sm">Over budget</c-ui.badge>
