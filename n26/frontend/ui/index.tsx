@@ -529,6 +529,41 @@ export function CheckboxCard({
     );
 }
 
+/** One nested tick inside a CheckboxCard body, as the Cotton card draws it. */
+export function CheckboxCardItem({
+    name,
+    value,
+    label,
+    defaultChecked = false,
+    meta,
+}: {
+    name: string;
+    value: string;
+    label: string;
+    defaultChecked?: boolean;
+    meta?: string;
+}) {
+    const recipe = cotton.checkboxCard;
+    return (
+        <label className={recipe.item}>
+            <input
+                type="checkbox"
+                name={name}
+                value={value}
+                defaultChecked={defaultChecked}
+                className={recipe.itemInput}
+            />
+            <span className={recipe.itemLabel}>{label}</span>
+            {meta && <span className={recipe.itemMeta}>{meta}</span>}
+        </label>
+    );
+}
+
+/** A figure beside a CheckboxCard's label, as text. */
+export function CheckboxCardMeta({ children }: { children: ReactNode }) {
+    return <span className={cotton.checkboxCard.meta}>{children}</span>;
+}
+
 export function Callout({
     children,
     className = "",

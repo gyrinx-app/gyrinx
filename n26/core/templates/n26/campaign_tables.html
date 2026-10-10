@@ -64,7 +64,7 @@ word for what a table contains.
                 {% endif %}
                 {% if section.offered %}
                     <fieldset>
-                        <legend class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">Available to every gang</legend>
+                        <legend class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">Optional {{ section.label }} tables</legend>
                         <p class="mb-2 text-muted">{{ section.ticks_help }}</p>
                         <div class="flex flex-col gap-2">
                             {% for table in section.offered %}

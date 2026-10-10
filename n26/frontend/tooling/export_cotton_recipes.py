@@ -228,30 +228,97 @@ def switch_recipe():
     }
 
 
+def _state_classes(checked_cls, unchecked_cls):
+    """Split the classes shared by both states from the ones each state adds."""
+    checked, unchecked = checked_cls.split(), unchecked_cls.split()
+    checked_set, unchecked_set = set(checked), set(unchecked)
+    base = [token for token in checked if token in unchecked_set]
+    on = [token for token in checked if token not in unchecked_set]
+    off = [token for token in unchecked if token not in checked_set]
+    return " ".join(base), " ".join(on), " ".join(off)
+
+
 def checkbox_card_recipe():
-    parts = attributes(
-        '<c-n26.checkbox-card label="Model" description="Profile">Controls</c-n26.checkbox-card>',
-        "div",
-        "label",
-        "input",
-        "span",
-        "span",
-        "span",
-        "div",
+    """Class strings from the server-drawn card, including both ticked states.
+
+    Inert lives in React. The static card never sets it, because nothing
+    would clear it again.
+    """
+    tags = ("div", "label", "input", "span", "span", "span", "div")
+    checked = attributes(
+        '<c-n26.checkbox-card :static="True" :checked="True" '
+        'label="Model" description="Profile">Controls</c-n26.checkbox-card>',
+        *tags,
     )
-    root, _, checkbox, _, _, _, body = parts
-    if checkbox.get("type") != "checkbox" or body.get(":inert") != "!picked":
-        raise ValueError("Checkbox card control or nested inert state changed")
+    unchecked = attributes(
+        '<c-n26.checkbox-card :static="True" '
+        'label="Model" description="Profile">Controls</c-n26.checkbox-card>',
+        *tags,
+    )
+    names = ("root", "header", "checkbox", "text", "label", "description", "body")
+    parts = {}
+    selection = nested = {}
+    for name, on_attrs, off_attrs in zip(names, checked, unchecked, strict=True):
+        if any(key.startswith(("x-", "@", ":")) for key in (*on_attrs, *off_attrs)):
+            raise ValueError(f"Checkbox card {name} still carries Alpine")
+        on_cls, off_cls = class_name(on_attrs), class_name(off_attrs)
+        if name in ("root", "body"):
+            base, picked, clear = _state_classes(on_cls, off_cls)
+            parts[name] = base
+            state = {"checked": picked, "unchecked": clear}
+            if name == "root":
+                selection = state
+            else:
+                nested = state
+        elif on_cls != off_cls:
+            raise ValueError(f"Checkbox card {name} classes changed with state")
+        else:
+            parts[name] = on_cls
+    if checked[2].get("type") != "checkbox":
+        raise ValueError("Checkbox card control changed")
     return {
-        **dict(
-            zip(
-                ("root", "header", "checkbox", "text", "label", "description", "body"),
-                map(class_name, parts),
-                strict=True,
-            )
-        ),
-        "selection": checked_classes(root),
-        "nested": checked_classes(body),
+        **parts,
+        "selection": selection,
+        "nested": nested,
+        **checkbox_card_item_recipe(),
+    }
+
+
+def checkbox_card_item_recipe():
+    """Class strings of a nested tick and of the header's meta text.
+
+    The island's fallback draws both from data, so they are read from that
+    fallback holding one item. React's rows then match the markup it replaces.
+    The fallback is rendered on its own: the island's host needs the React
+    build's manifest, which this export runs before.
+    """
+    from n26.core.checkbox_card import CheckboxCardItem
+    from n26.core.templatetags.checkbox_card import checkbox_card_props
+
+    props = checkbox_card_props(
+        label="Model", meta="1¢", items=[CheckboxCardItem("n", "v", "Item", meta="1¢")]
+    )
+    rendered = Template('{% include "n26/includes/checkbox_card_face.html" %}').render(
+        Context({"props_": props, "label": "Model", "checked": False, "attrs": ""})
+    )
+    elements = Elements(rendered).elements
+    metas = [attrs for _, attrs in elements if "data-checkbox-meta" in attrs]
+    start = next(
+        (i for i, (_, attrs) in enumerate(elements) if "data-checkbox-item" in attrs),
+        None,
+    )
+    row = elements[start : start + 4] if start is not None else []
+    if len(metas) != 1 or [tag for tag, _ in row] != ["label", "input", "span", "span"]:
+        raise ValueError(f"Checkbox card item structure changed: {row}")
+    if row[1][1].get("type") != "checkbox":
+        raise ValueError("Checkbox card item control changed")
+    item, control, text, figure = (class_name(attrs) for _, attrs in row)
+    return {
+        "meta": class_name(metas[0]),
+        "item": item,
+        "itemInput": control,
+        "itemLabel": text,
+        "itemMeta": figure,
     }
 
 
