@@ -3360,16 +3360,23 @@ def _now():
 def _boons_reaching(holding):
     """The pks of the holding's modifiers that its gang's own card notes.
 
-    The gang's card is computed the way the sheet computes it, holding
+    The gang's own card is computed the way the sheet computes it, holding
     included, so a stored boon counts as reaching the gang exactly when its
     scope does there: a boon for Goliath gangs reaches a Goliath gang and a
-    Clan House Goliath Outcast gang, and no other.
+    Clan House Goliath Outcast gang, and no other. The members' cards play
+    no part in that, so they are not loaded.
     """
-    from n26.core.card import build_gang_card, build_modifier_index, carriers
-    from n26.core.effects import ModifierIndex, compute_gang
+    from n26.core.card import (
+        build_gang_cards,
+        build_modifier_index,
+        carriers,
+        held_assets,
+    )
+    from n26.core.effects import ModifierIndex, compute
 
-    card = build_gang_card(holding.holder.gang, with_statlines=False)
-    computed = compute_gang(card, build_modifier_index(carriers(card)))
+    gang = holding.holder.gang
+    card = build_gang_cards([gang], {gang.pk: held_assets(gang)})[gang.pk]
+    computed = compute(card, build_modifier_index(carriers(card)))
     held = ModifierIndex.key(holding)
     return {
         step.modifier.pk
