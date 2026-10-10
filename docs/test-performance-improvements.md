@@ -6,6 +6,44 @@ Keep the worker count fixed when isolating fixture changes; record it when
 comparing different concurrency settings. A faster focused suite or a warm
 reused database does not establish a faster full suite.
 
+## Validated result
+
+Candidate `c0f543979` passed both full-suite time targets on unchanged hardware.
+Each run recreated its test databases; neither used `--reuse-db`.
+
+| Measurement | Original `42fdc46f3` | Candidate | Reduction |
+| --- | ---: | ---: | ---: |
+| Full local suite | 2,151.53 seconds, four workers | 645.74 seconds, default twelve workers | 69.99% |
+| Full CI suite | 1,864.56 seconds, four workers | 798.73 seconds, eight workers | 57.16% |
+| Combined CI test-job time | 51 minutes 13 seconds | 24 minutes 29 seconds | 52.20% |
+
+The local run selected 13,272 cases: 13,258 passed, 13 skipped and one expected
+failure, with no failures or setup errors. It used the same twelve-CPU macOS
+machine as the original four-worker baseline. The original default twelve-worker
+command failed during schema creation, so it supplies no usable timing baseline.
+The candidate's dedicated schema-startup lock made that default command usable
+without changing PostgreSQL settings. The helper recorded 647.78 seconds of
+wall time and 1,661.76 seconds of child-process CPU time with a clean source digest.
+
+[CI run 38092004429](https://github.com/gyrinx-app/gyrinx/actions/runs/38092004429)
+measured clean merge revision `3f0f9ce09`: 13,282 passed, 13 skipped and one
+expected failure among 13,296 selected cases. Its extra 24 cases came from main.
+The same four-CPU runner used eight workers. The helper recorded 800.80 seconds
+of wall time and 2,169.61 seconds of child-process CPU time, with no failures or
+setup errors. Both pytest and helper elapsed times are below the 932.28-second
+CI target; the local result is below its 1,075.765-second target.
+
+The required full-suite job took 14 minutes 40 seconds, fresh-database took
+9 minutes 18 seconds, and the job omitting duplicate execution took 31 seconds.
+Their sum includes setup, PostgreSQL, frontend preparation and cleanup. No new
+runners, larger machines or separate PostgreSQL server were added. CI Checks
+and the fresh-database migration job also passed.
+
+CI's PostgreSQL 16.4 had LLVM compilation available, with server `jit=on` and
+`jit_above_cost=100000`. The real backend guard verified `jit=off` on disposable
+test connections. Local PostgreSQL lacked LLVM support. The combined change
+meets the targets; these measurements do not isolate each optimisation's share.
+
 ## Recording a run
 
 The measurement command provisions this worktree's Python and frontend
@@ -149,8 +187,17 @@ An attempted default local baseline used the original revision's twelve workers.
 It was stopped after 553 PostgreSQL shared-memory setup errors, with no tests
 executed, while another worktree was also building test schemas. Its 78.79-second
 partial result is not a performance baseline. The default-command comparison
-still requires an isolated measurement window or a controlled database instance
-with identical settings for both revisions.
+was repeated without another observed pytest startup. That attempt also failed
+during schema creation: 5,016 setup errors, twelve skipped cases and no tests
+executed in 134.42 seconds before interruption. Neither attempt is a usable
+baseline. The original twelve-worker command exceeds the available schema-lock
+capacity. The valid original four-worker run is the local baseline, with the
+candidate's default twelve-worker result recorded above and server settings
+unchanged.
+
+The subsequent merge from main retains the new hire-time Trade Points scenarios
+and gallery examples. All 386 tests in the five affected gallery, founding,
+asset-roll, fighter-action and post-battle modules passed in 82.58 seconds.
 
 ## Reducing repeated work
 
@@ -281,6 +328,6 @@ history counts after five real transaction-test flushes. It also verified that
 the seeders correct canonical fields while preserving existing extra-stat,
 statline-link and equipment-category overrides and their history behaviour.
 
-Focused validation and complete local/CI comparisons are still in progress.
-Neither the reduced test count nor isolated timings prove a 50% full-suite
-improvement.
+The complete candidate results above establish the requested full-suite
+improvement and CI cost limit. Reduced test counts and isolated timings remain
+supporting diagnostics rather than substitutes for those full measurements.
