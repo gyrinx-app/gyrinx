@@ -1316,6 +1316,24 @@ def load_actor_badges(acts):
         prefetch_related_objects(people, "profile", "badge_grants")
 
 
+def _joining_companions():
+    """Automatic grants in a join share its mark; only the join is a campaign act.
+
+    Exclude companions before taking the recent window so they cannot displace
+    the join. The gang's own history keeps the full acquisition detail.
+    """
+    from django.db.models import Exists, OuterRef, Q
+
+    return ~Q(kind=Kind.JOINED_CAMPAIGN) & Exists(
+        LedgerEvent.objects.filter(
+            campaign_id=OuterRef("campaign_id"),
+            gang_id=OuterRef("gang_id"),
+            batch=OuterRef("batch"),
+            kind=Kind.JOINED_CAMPAIGN,
+        )
+    )
+
+
 def campaign_history_size(campaign):
     """How many acts the history holds, without building any of them.
 
@@ -1337,7 +1355,8 @@ def campaign_history_size(campaign):
     )
     return (
         campaign.events.count()
-        + campaign.gang_events.exclude(riders)
+        + campaign.gang_events.exclude(_joining_companions())
+        .exclude(riders)
         .exclude(handed_over)
         .exclude(kind=Kind.CLONED, assignment__isnull=False)
         .exclude(kind=Kind.RATING_SET, note__startswith=CLONED_RATING_NOTE_PREFIX)
@@ -1386,6 +1405,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
 
     events = (
         LedgerEvent.objects.filter(campaign=campaign)
+        .exclude(_joining_companions())
         # A clone's assignment-level openings are ledger machinery. Its one
         # standalone event already holds the visible act and its totals, so
         # letting the openings consume a page would make one large clone hide
@@ -1541,6 +1561,9 @@ def _tell_campaign(e):
             if now:
                 return (Span(f"set the gang budget to {now}¢"),), "campaign"
             return (Span("changed the gang budget"),), "campaign"
+        case kinds.STATUS_CHANGED:
+            _, _, now = e.note.rpartition(" → ")
+            return (Span(f"set the campaign status to {now}"),), "campaign"
         case kinds.SUMMARY_EDITED:
             return (Span("edited the campaign's summary"),), "campaign"
         case kinds.ARCHIVED:

@@ -220,6 +220,26 @@ class TestTheGangsTable:
         assert not line_named(sheet, "The Ashen Choir").over_budget
         assert sheet.gangs_over_budget == 1
 
+    @pytest.mark.parametrize("status", ["in_progress", "post_campaign"])
+    def test_only_pre_campaign_shows_the_over_budget_warning(
+        self, campaign, gangs, make_profile, arbitrator, status
+    ):
+        from datetime import date
+
+        from n26.core.campaigns import campaign_operation
+
+        hire_with_option(gangs[0], make_profile("Ganger", price=1200), "Vex")
+        assert line_named(render_campaign(campaign), "The Rust Kings").over_budget
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.record_battle(date.today(), gangs[:2], scenario="Opening battle")
+        assert line_named(render_campaign(campaign), "The Rust Kings").over_budget
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.set_status(status)
+        assert not any(line.over_budget for line in render_campaign(campaign).gangs)
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.set_status("pre_campaign")
+        assert line_named(render_campaign(campaign), "The Rust Kings").over_budget
+
 
 class TestTheAssetsTables:
     """One table per Holding asset type, each asset with its name, income,

@@ -766,6 +766,44 @@ class TestThePages:
             "Each rolled territory will be added to the campaign as unclaimed." in body
         )
 
+    def test_a_starting_roll_disappears_after_use_and_stays_gone_after_loss(
+        self, client, campaign, territory, journal, slag_kings, wild_cats, arbitrator
+    ):
+        from n26.core.campaigns import campaign_operation
+
+        client.force_login(arbitrator)
+        page = reverse("n26-campaign", args=[campaign.pk])
+        action = reverse(
+            "n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]
+        )
+        payload = {"type": str(territory.pk), "table": str(journal.pk), "rolled": 1}
+        response = client.post(action, payload, HTTP_HX_REQUEST="true")
+        assert response.status_code == 200
+        sheet = render_campaign(campaign)
+        kings = next(line for line in sheet.gangs if line.gang_id == str(slag_kings.pk))
+        cats = next(line for line in sheet.gangs if line.gang_id == str(wild_cats.pk))
+        assert kings.starting_rolls == []
+        assert cats.starting_rolls
+        assert f"?starting={slag_kings.pk}" not in response.content.decode()
+        assert "Roll territories" in client.get(page).content.decode()
+
+        holding = CampaignAsset.objects.get(campaign=campaign, holder__gang=slag_kings)
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.unassign(holding)
+        assert not next(
+            line
+            for line in render_campaign(campaign).gangs
+            if line.gang_id == str(slag_kings.pk)
+        ).starting_rolls
+        assert client.post(action, payload).status_code == 302
+        assert CampaignAsset.objects.filter(campaign=campaign).count() == 1
+        assert (
+            "Roll starting territory for Slag Kings"
+            not in client.get(
+                page, {"starting": str(slag_kings.pk), "type": str(territory.pk)}
+            ).content.decode()
+        )
+
     def test_the_starting_dialog_offers_only_the_tables_the_gang_holds(
         self, client, campaign, territory, journal, slag_kings, wild_cats, arbitrator
     ):
@@ -1227,7 +1265,7 @@ class TestThePages:
         client.get(address)
         with CaptureQueriesContext(connection) as few:
             body = client.get(address).content.decode()
-        assert body.count("Roll starting territory") == 1
+        assert body.count("Roll starting territory") == 0
 
         for index in range(3):
             more = found_gang(
@@ -1240,7 +1278,7 @@ class TestThePages:
         with CaptureQueriesContext(connection) as more_queries:
             body = client.get(address).content.decode()
 
-        assert body.count("Roll starting territory") == 4
+        assert body.count("Roll starting territory") == 0
         # No more than before: three more gangs, three more rolls and three
         # more tables add nothing per gang or per table.
         assert len(more_queries.captured_queries) <= len(few.captured_queries)
