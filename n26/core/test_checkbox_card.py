@@ -131,6 +131,17 @@ def test_a_label_is_text_in_the_props_and_the_fallback():
     assert label in host.get_text()
 
 
+def test_a_plain_string_keeps_its_entities():
+    """Only escaped template output is decoded. A :prop string is its text."""
+    html = render(
+        '<c-n26.checkbox-card name="open" value="1" :label="label" />',
+        label="Fish &amp; chips",
+    )
+    _host, props = island(html)
+
+    assert props["label"] == "Fish &amp; chips"
+
+
 def test_static_draws_the_card_without_an_island():
     html = render(
         '<c-n26.checkbox-card :static="True" name="fighters" value="vex" '

@@ -3,6 +3,7 @@
 from html import unescape
 
 from django import template
+from django.utils.safestring import SafeData
 
 register = template.Library()
 
@@ -17,8 +18,15 @@ def _flag(value):
 
 
 def _text(value):
-    """Plain text for React. Cotton attribute values arrive already escaped."""
-    return "" if value is None else unescape(str(value))
+    """Plain text for React.
+
+    A Cotton string attribute arrives already escaped, and React escapes again
+    when it draws, so that is decoded here, once. A plain Python string, as a
+    :prop passes it, is left alone: its entities are its text.
+    """
+    if value is None:
+        return ""
+    return unescape(str(value)) if isinstance(value, SafeData) else str(value)
 
 
 @register.simple_tag
