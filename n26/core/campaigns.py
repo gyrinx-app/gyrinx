@@ -1842,12 +1842,10 @@ def starting_asset_types_received(campaign, memberships):
             gang__campaign_memberships__in=received,
             created__gte=F("gang__campaign_memberships__created"),
             kind=LedgerEvent.Kind.GAINED,
-            campaign_asset__isnull=False,
+            received_asset_type__isnull=False,
         )
         .order_by()
-        .values_list(
-            "gang__campaign_memberships__pk", "campaign_asset__asset__asset_type_id"
-        )
+        .values_list("gang__campaign_memberships__pk", "received_asset_type")
         .distinct()
     )
     for membership_id, asset_type_id in events:

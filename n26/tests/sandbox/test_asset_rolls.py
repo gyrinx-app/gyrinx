@@ -790,13 +790,17 @@ class TestThePages:
         holding = CampaignAsset.objects.get(campaign=campaign, holder__gang=slag_kings)
         with campaign_operation(campaign, actor=arbitrator) as act:
             act.unassign(holding)
+            act.remove_asset(holding)
+        gained = LedgerEvent.objects.get(gang=slag_kings, kind=LedgerEvent.Kind.GAINED)
+        assert gained.campaign_asset_id is None
+        assert gained.received_asset_type == territory.pk
         assert not next(
             line
             for line in render_campaign(campaign).gangs
             if line.gang_id == str(slag_kings.pk)
         ).starting_rolls
         assert client.post(action, payload).status_code == 302
-        assert CampaignAsset.objects.filter(campaign=campaign).count() == 1
+        assert CampaignAsset.objects.filter(campaign=campaign).count() == 0
         assert (
             "Roll starting territory for Slag Kings"
             not in client.get(
