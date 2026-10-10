@@ -105,6 +105,27 @@ PORT=$(worktree_port)
 lsof -i :$PORT -sTCP:LISTEN
 ```
 
+## When the Server Restarts or Stops by Itself
+
+`gyrinx/devserver/guard.py` runs inside every `runserver` started with
+`settings_dev`, whether through `dev.sh` or `manage runserver`:
+
+- Past 2,048 MB it restarts, on the same port, once requests in flight finish.
+  With `--noreload` there is no autoreloader to start it again, so it stops
+  instead. Set `GYRINX_DEV_MEMORY_LIMIT_MB` to change the limit, or `0` to turn
+  it off.
+- Started from an agent session, it stops when that session's process exits.
+  Claude Code is found through `CLAUDE_PID`, Codex among the process's
+  ancestors.
+- Started from an agent session, it stops after 120 minutes with no requests.
+  Set `GYRINX_DEV_IDLE_MINUTES` to change that, or `0` to turn it off.
+
+Each of these prints a line starting `Restarting the dev server:` or
+`Stopping the dev server:`, with the reason. Under `./scripts/dev.sh` that line
+is also in `logs/runserver.log`; a direct `manage runserver` prints it to the
+terminal only. After a stop, run `./scripts/dev.sh` again. A server you start
+yourself, outside an agent session, only restarts on memory.
+
 ## Log Files
 
 All logs are in the `./logs/` directory (gitignored):
