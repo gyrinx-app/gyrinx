@@ -89,6 +89,41 @@ def test_pre_commit_hides_an_untracked_migration_and_restores_it(tmp_path):
     assert result.returncode == 0, result.stderr
 
 
+def test_an_untracked_migration_link_is_restored(tmp_path):
+    repo = _repo(tmp_path)
+    (repo / "app" / "migrations" / "0003_linked.py").symlink_to("0001_initial.py")
+    result = _bash(
+        repo,
+        """
+        hide_untracked_migrations --pre-commit
+        test ! -e app/migrations/0003_linked.py
+        test ! -L app/migrations/0003_linked.py
+        restore_untracked_migrations
+        test -L app/migrations/0003_linked.py
+        """,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (repo / "app" / "migrations" / "0003_linked.py").readlink() == Path(
+        "0001_initial.py"
+    )
+
+
+def test_hidden_migrations_wait_under_the_git_directory(tmp_path):
+    """A check killed before it restores leaves them with the repository."""
+    repo = _repo(tmp_path)
+    result = _bash(
+        repo,
+        """
+        hide_untracked_migrations --pre-commit
+        echo "$_UNTRACKED_MIGRATIONS_DIR"
+        """,
+    )
+    assert result.returncode == 0, result.stderr
+    parked = Path(result.stdout.strip())
+    assert parked.parent == (repo / ".git").resolve()
+    assert (parked / "app" / "migrations" / "0002_other.py").is_file()
+
+
 def test_a_failed_check_still_restores_the_migration(tmp_path):
     repo = _repo(tmp_path)
     result = _bash(
