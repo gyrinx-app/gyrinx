@@ -122,6 +122,10 @@ or operation share one setup and response.
 - Equipment category fixtures are restored after transaction-test flushes.
   Each test receives a fresh query, so scheduling an ordinary test after a
   transaction test cannot leave it with missing or stale categories.
+- Gang legacy authoring and successful player flows share one graph and follow
+  its lifecycle. All assertions remain, while 828 repeated authoring requests
+  are removed. Forged selections, dismissal, withdrawal and query growth keep
+  separate scenarios.
 
 The pass also replaces vacuous checks: an empty filtered collection must be
 nonempty before asserting every row is suppressed, and foundation status and
