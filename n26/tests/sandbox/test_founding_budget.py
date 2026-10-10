@@ -2059,3 +2059,68 @@ class TestHireTimeTradePoints:
         assert reading(recruit) == 6
         STANDARD_CONTENT["founding-budgets"].create()
         assert reading(recruit) == 6
+
+    @pytest.mark.parametrize(
+        "admitted, item_name",
+        [(True, "Mesh armour"), (True, "Flak plate"), (False, "Mesh armour")],
+    )
+    def test_purchase_rechecks_a_restored_grant_before_charging_a_visit(
+        self,
+        client,
+        gang,
+        leader,
+        hire_into,
+        player,
+        post,
+        monkeypatch,
+        admitted,
+        item_name,
+    ):
+        from django.urls import reverse
+
+        from n26.core.owned import thing_key
+        from n26.tests.fixtures import FOUNDING_GROUP_NAME
+        from n26.tests.sandbox.actions import remove
+
+        complete_action(gang, FOUNDING_KIND)
+        recruit = hire_into(gang, ("Allies", "Bone Scrivener"), "Kel")
+        hidden = grant_on_hidden("Restored hire allowance", 2)
+        extra = assign(hidden, miniature=recruit)
+        activity = self.open_personal(recruit)
+        remove(extra)
+        assert budget(recruit) is None
+        visit_trading_post(gang, brought=5)
+        if not admitted:
+            player.groups.remove(*player.groups.filter(name=FOUNDING_GROUP_NAME))
+        client.force_login(player)
+        line = line_for(browse(post), item_name)
+        at = reverse("n26-equip", args=[recruit.pk]) + f"?list={post.pk}"
+        change_before_lock(monkeypatch, lambda op: op.assign(hidden, miniature=recruit))
+        payload = {"thing": thing_key(line.thing), "personal_activity": ""}
+
+        response = client.post(at, payload)
+
+        if admitted and item_name == "Flak plate":
+            assert response.status_code == 200
+            assert "Kel has 2." in response.content.decode()
+            assert not recruit.assignments.filter(wargear=line.thing).exists()
+            from bs4 import BeautifulSoup
+
+            from n26.core.confirm import CONFIRM_FIELD
+
+            form = (
+                BeautifulSoup(response.content, "html.parser")
+                .select_one(f'input[name="{CONFIRM_FIELD}"]')
+                .find_parent("form")
+            )
+            confirmed = {
+                field["name"]: field.get("value", "")
+                for field in form.select("input[name]")
+            }
+            assert confirmed["personal_activity"] == str(activity.pk)
+            response = client.post(form["action"], confirmed)
+        assert response.status_code == 302
+        gang.refresh_from_db()
+        assert budget(recruit).remaining == (2 - line.trade_points if admitted else 2)
+        assert gang.trade_points_left == (5 if admitted else 5 - line.trade_points)
+        assert_reconciled(gang)

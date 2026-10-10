@@ -885,11 +885,16 @@ def _buy_clicked(
         return _rating_question(request, line, spent, checkbox, at)
     try:
         with operation(gang, actor=request.user) as op:
-            if asked and budget is not None:
+            from n26.core.models import Miniature
+
+            if (
+                asked
+                and isinstance(holder, Miniature)
+                and may_see_founding(gang, request.user)
+            ):
                 from n26.core.card import build_card, build_modifier_index, carriers
                 from n26.core.effects import compute
                 from n26.core.founding import budget_for
-                from n26.core.models import Miniature
 
                 # The screen predates the lock. Another gang operation may
                 # have changed both the allowance and its lifetime spend.
@@ -902,8 +907,13 @@ def _buy_clicked(
                 if (
                     current.membership.archived
                     or current.membership.gang_id != gang.pk
-                    or fresh_budget is None
-                    or fresh_budget.activity.pk != budget.activity.pk
+                    or (
+                        budget is not None
+                        and (
+                            fresh_budget is None
+                            or fresh_budget.activity.pk != budget.activity.pk
+                        )
+                    )
                 ):
                     raise Refusal(
                         "This spending action has changed. Reload the page before buying."
@@ -911,6 +921,14 @@ def _buy_clicked(
                 budget = fresh_budget
                 confirmation = _overspend(request, gang, line, asked, at, budget, into)
                 if confirmation is not None:
+                    if budget is not None:
+                        confirmation = replace(
+                            confirmation,
+                            carry=(
+                                *carried(request.POST, leave_out={"personal_activity"}),
+                                ("personal_activity", str(budget.activity.pk)),
+                            ),
+                        )
                     return confirmation
             # The picked sets go to the operation, which materialises
             # them onto the thing caused by this purchase — so selling
