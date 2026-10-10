@@ -70,13 +70,18 @@ def hire_time_context(gang, miniature, computed):
     from n26.core.activities import ActivityCard
     from n26.core.founding import budget_for, hire_time_states
     from n26.core.models import Activity
+    from n26.core.views.gangs import _the_trading_post
 
     state = hire_time_states(gang, [miniature], {str(miniature.pk): computed}).get(
         str(miniature.pk)
     )
     at = reverse("n26-fighter-hire-time-action", args=[miniature.pk])
     card = None
+    equip_at = ""
     if state is not None and state.act == "finish":
+        post = _the_trading_post()
+        if post is not None:
+            equip_at = reverse("n26-equip", args=[miniature.pk]) + f"?list={post.pk}"
         budget = budget_for(gang, miniature, computed)
         card = ActivityCard(
             title=Activity.Kind.HIRE_TIME.label,
@@ -91,4 +96,5 @@ def hire_time_context(gang, miniature, computed):
         "hire_time_state": state,
         "hire_time_card": card,
         "hire_time_action_url": at,
+        "hire_time_equip_url": equip_at,
     }

@@ -146,7 +146,8 @@ class Gang(Base, Owned, Archived, Rated):
     def open_activities(self):
         """Open gang activities by kind, with personal history held alongside.
 
-        One query for open activities and founding/personal completions,
+        One query for open activities, the first founding completion and
+        each model's latest personal activity,
         held on the instance. A page asks
         about more than one kind — the gang sheet draws the founding
         card and the visit's figure in the same breath — and asking per
@@ -163,15 +164,27 @@ class Gang(Base, Owned, Archived, Rated):
         that opened or closed one still reads the truth.
         """
         if self._open_activities is None:
-            from django.db.models import Q
+            from django.db.models import Q, Subquery
 
             from n26.core.models import Activity
 
+            history = Activity.objects.filter(gang=self)
+            boundary = (
+                history.filter(kind=Activity.Kind.FOUNDING, closed__isnull=False)
+                .order_by("closed__created", "pk")
+                .values("pk")[:1]
+            )
+            latest = (
+                history.filter(kind=Activity.Kind.HIRE_TIME)
+                .order_by("miniature_id", "-created", "-pk")
+                .distinct("miniature_id")
+                .values("pk")
+            )
             self._activity_history = list(
-                Activity.objects.filter(gang=self)
-                .filter(
+                history.filter(
                     Q(closed__isnull=True)
-                    | Q(kind__in=[Activity.Kind.FOUNDING, Activity.Kind.HIRE_TIME])
+                    | Q(pk=Subquery(boundary))
+                    | Q(pk__in=Subquery(latest))
                 )
                 .select_related("opened", "closed")
                 .order_by("created", "pk")

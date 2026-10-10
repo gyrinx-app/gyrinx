@@ -1,7 +1,11 @@
 {% if hire_time_card %}
     <c-n26.activity-card :card="hire_time_card" complete_variant="default">
         <c-slot name="actions">
-            <c-ui.button href="{% url 'n26-equip' miniature.pk %}" size="sm" variant="primary">Equip model</c-ui.button>
+            {% if hire_time_equip_url %}
+                <c-ui.button href="{{ hire_time_equip_url }}" size="sm" variant="primary">
+                    Equip model
+                </c-ui.button>
+            {% endif %}
         </c-slot>
     </c-n26.activity-card>
 {% elif hire_time_state %}

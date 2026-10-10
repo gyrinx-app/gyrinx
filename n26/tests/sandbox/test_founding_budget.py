@@ -1420,6 +1420,55 @@ class TestHireTimeTradePoints:
         assert budget(other).remaining == 4
         assert_reconciled(gang)
 
+    def test_activity_reads_hold_only_the_boundary_and_latest_personal_sessions(
+        self, gang, recruit, hire_into, django_assert_num_queries
+    ):
+        from n26.core.models import Gang
+
+        boundary = gang.founding_completed_at()
+        for index in range(6):
+            start_action(gang, FOUNDING_KIND)
+            complete_action(gang, FOUNDING_KIND)
+            latest = self.open_personal(recruit, reopen=index > 0)
+            self.finish_personal(recruit)
+        other = hire_into(gang, ("Venators", "Hunt Champion"), "Vex")
+        open_now = self.open_personal(other)
+        fresh = Gang.objects.get(pk=gang.pk)
+
+        with django_assert_num_queries(1):
+            assert fresh.founding_completed_at() == boundary
+            assert fresh.hire_time_activities() == {
+                recruit.pk: latest,
+                other.pk: open_now,
+            }
+            assert fresh.open_activity(Activity.Kind.HIRE_TIME, other) == open_now
+            assert len(fresh._activity_history) == 3
+        assert Activity.objects.filter(gang=gang).count() == 14
+
+    def test_equip_action_opens_the_post_even_when_the_model_has_an_equipment_list(
+        self, client, gang, recruit, player, legacy_list, post
+    ):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        assign(legacy_list, miniature=recruit)
+        self.open_personal(recruit)
+        client.force_login(player)
+        edit = BeautifulSoup(
+            client.get(reverse("n26-edit-fighter", args=[recruit.pk])).content,
+            "html.parser",
+        )
+        equip = next(
+            a for a in edit.select("a") if a.get_text(strip=True) == "Equip model"
+        )
+        assert (
+            equip["href"]
+            == reverse("n26-equip", args=[recruit.pk]) + f"?list={post.pk}"
+        )
+        response = client.get(equip["href"])
+        assert response.context["chosen"] == post
+        assert "Spend hire-time TP" in response.content.decode()
+
     def test_completion_requires_explicit_correction_and_keeps_previous_spend(
         self, gang, recruit, post
     ):

@@ -34,11 +34,11 @@ Completing ends the opportunity. Explicit correction restores its remaining bala
 
 Extend `Activity` with a nullable model target and a hire-time spending kind. Preserve gang-scoped founding/visit activities. Change uniqueness so there can be one open personal action per model, rather than one for the entire gang, and validate the kind/target combination and ownership.
 
-Keep gang-scoped activity accessors intact and add batched model-scoped readers. The current kind-only activity dictionary cannot represent simultaneous recruit actions.
+Keep gang-scoped activity accessors intact and add batched model-scoped readers. Fetch open activities, the first founding completion and the latest personal action per model in one query. Repeated correction sessions must not increase the number of rows held in the cache.
 
 Generalise the existing personal TP budget reader. A model's remaining points continue to be its authored grant minus its own lifetime personal spending. Include both historical founding purchases and new hire-time purchases; ordinary visit purchases remain separate. Preserve `spent_by`, so moving equipment does not move the allowance and refunds return to the original buyer.
 
-Keep equipment-list purchases, stash purchases, normal Trading Post visits and TP overspend confirmation as they work today. An active personal allowance remains selected when exhausted; do not silently switch to a visit's balance.
+Keep equipment-list purchases, stash purchases, normal Trading Post visits and TP overspend confirmation as they work today. The hire-time action's Equip button opens the standard Trading Post. An active personal allowance remains selected when exhausted; do not silently switch to a visit's balance.
 
 Recheck eligibility and the selected activity under the existing gang operation lock when buying or completing. A stale post must not charge a different allowance or close a replacement session. Reuse existing forms, activity cards and tallies; prepare roster information in batches with no query per model.
 
