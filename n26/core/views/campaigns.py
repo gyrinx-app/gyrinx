@@ -533,6 +533,23 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
             chosen = tables[0].table_id
         question["chosen"] = chosen
         question["choices"] = [(table, table.table_id == chosen) for table in tables]
+        if rolling:
+            question["pool_fields"] = {
+                name: {
+                    "label": form[name].label,
+                    "helpText": form[name].help_text,
+                    "value": (
+                        "" if form[name].value() is None else str(form[name].value())
+                    ),
+                    "errors": list(form[name].errors),
+                }
+                for name in ("count", "rolled")
+            }
+            question["pool_fields"]["ranges"] = [
+                f"{table.name + ': ' if not question['only'] else ''}"
+                f"A {table.die} roll is {table.lowest} to {table.highest}."
+                for table in tables
+            ]
     return {
         "campaign": campaign,
         "rolling": rolling,
