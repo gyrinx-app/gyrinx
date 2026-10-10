@@ -34,7 +34,7 @@ Completing ends the opportunity. Explicit correction restores its remaining bala
 
 Extend `Activity` with a nullable model target and a hire-time spending kind. Preserve gang-scoped founding/visit activities. Change uniqueness so there can be one open personal action per model, rather than one for the entire gang, and validate the kind/target combination and ownership.
 
-Keep gang-scoped activity accessors intact and add batched model-scoped readers. Fetch open activities, the first founding completion and the latest personal action per model in one query. Repeated correction sessions must not increase the number of rows held in the cache.
+Keep gang-scoped activity accessors intact and add batched model-scoped readers. Fetch open activities, the first founding completion, the latest founding action and the latest personal action per model in one query. Repeated correction sessions must not increase the number of rows held in the cache.
 
 Generalise the existing personal TP budget reader. A model's remaining points continue to be its authored grant minus its own lifetime personal spending. Include both historical founding purchases and new hire-time purchases; ordinary visit purchases remain separate. Preserve `spent_by`, so moving equipment does not move the allowance and refunds return to the original buyer.
 

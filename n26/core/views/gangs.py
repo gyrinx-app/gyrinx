@@ -1934,6 +1934,9 @@ def gang_trade_points(request, pk):
             if completed is None and not gang.visiting_trading_post
             else "",
             "reopen_founding": founding_at if reopen_founding else "",
+            "founding_activity": gang.latest_founding_activity()
+            if reopen_founding
+            else None,
             "visitors": offered,
             "start_help": _start_help(offered),
             # The box is an alternative to the ticks only where there are
@@ -2026,6 +2029,14 @@ def gang_founding_action(request, pk):
                     raise Refusal(
                         "Founding is complete. Reopen the action from Trade Points to use the remaining points."
                     )
+                if act == "reopen":
+                    previous = gang.latest_founding_activity()
+                    if previous is None or str(previous.pk) != request.POST.get(
+                        "activity"
+                    ):
+                        raise Refusal(
+                            "This action has changed. Reload the page before reopening it."
+                        )
                 if gang.open_activity(kind) is not None:
                     return redirect(at)
                 op.open_activity(kind)

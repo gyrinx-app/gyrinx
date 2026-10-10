@@ -146,9 +146,9 @@ class Gang(Base, Owned, Archived, Rated):
     def open_activities(self):
         """Open gang activities by kind, with personal history held alongside.
 
-        One query for open activities, the first founding completion and
-        each model's latest personal activity,
-        held on the instance. A page asks
+        One query holds open activities, the first founding completion,
+        the latest founding action and each model's latest personal action
+        on the instance. A page asks
         about more than one kind — the gang sheet draws the founding
         card and the visit's figure in the same breath — and asking per
         kind would cost a query each, so they are read together and the
@@ -174,6 +174,11 @@ class Gang(Base, Owned, Archived, Rated):
                 .order_by("closed__created", "pk")
                 .values("pk")[:1]
             )
+            latest_founding = (
+                history.filter(kind=Activity.Kind.FOUNDING)
+                .order_by("-created", "-pk")
+                .values("pk")[:1]
+            )
             latest = (
                 history.filter(kind=Activity.Kind.HIRE_TIME)
                 .order_by("miniature_id", "-created", "-pk")
@@ -184,6 +189,7 @@ class Gang(Base, Owned, Archived, Rated):
                 history.filter(
                     Q(closed__isnull=True)
                     | Q(pk=Subquery(boundary))
+                    | Q(pk=Subquery(latest_founding))
                     | Q(pk__in=Subquery(latest))
                 )
                 .select_related("opened", "closed")
@@ -246,6 +252,20 @@ class Gang(Base, Owned, Archived, Rated):
                 if a.kind == Activity.Kind.FOUNDING and a.closed_id
             ),
             default=None,
+        )
+
+    def latest_founding_activity(self):
+        """The session a founding correction must name before reopening."""
+        from n26.core.models import Activity
+
+        self.open_activities()
+        return next(
+            (
+                a
+                for a in reversed(self._activity_history)
+                if a.kind == Activity.Kind.FOUNDING
+            ),
+            None,
         )
 
     def hire_time_activities(self):

@@ -88,7 +88,7 @@ def hire_time_context(gang, miniature, computed):
             action=at,
             about="Spend these Trade Points at the Trading Post.",
             help="Complete when you have finished equipping. Unspent Trade Points become unavailable.",
-            facts=budget.facts,
+            facts=budget.facts if budget is not None else (),
             marked=True,
             activity_id=state.activity_id,
         )

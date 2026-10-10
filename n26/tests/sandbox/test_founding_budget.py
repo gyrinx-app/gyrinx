@@ -1435,6 +1435,11 @@ class TestHireTimeTradePoints:
         open_now = self.open_personal(other)
         fresh = Gang.objects.get(pk=gang.pk)
 
+        latest_founding = (
+            Activity.objects.filter(gang=gang, kind=FOUNDING_KIND)
+            .order_by("-created", "-pk")
+            .first()
+        )
         with django_assert_num_queries(1):
             assert fresh.founding_completed_at() == boundary
             assert fresh.hire_time_activities() == {
@@ -1442,7 +1447,8 @@ class TestHireTimeTradePoints:
                 other.pk: open_now,
             }
             assert fresh.open_activity(Activity.Kind.HIRE_TIME, other) == open_now
-            assert len(fresh._activity_history) == 3
+            assert fresh.latest_founding_activity() == latest_founding
+            assert len(fresh._activity_history) == 4
         assert Activity.objects.filter(gang=gang).count() == 14
 
     def test_equip_action_opens_the_post_even_when_the_model_has_an_equipment_list(
@@ -1706,11 +1712,96 @@ class TestHireTimeTradePoints:
         client.post(action, {"act": "start"})
         gang.refresh_from_db()
         assert gang.open_activity(FOUNDING_KIND) is None
-        answer = client.post(form["action"], {"act": "reopen"})
+        answer = client.post(
+            form["action"],
+            {
+                "act": "reopen",
+                "activity": form.select_one('input[name="activity"]')["value"],
+            },
+        )
         assert answer.url == trade_points
         gang.refresh_from_db()
         assert gang.open_activity(FOUNDING_KIND) is not None
         assert "Complete action" in client.get(trade_points).content.decode()
+
+    def test_a_stale_founding_reopen_cannot_start_another_correction(
+        self, client, gang, recruit, player
+    ):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        client.force_login(player)
+        tab = reverse("n26-gang-trade-points", args=[gang.pk])
+        page = BeautifulSoup(client.get(tab).content, "html.parser")
+        form = page.select_one('input[name="act"][value="reopen"]').find_parent("form")
+        previous = form.select_one('input[name="activity"]')["value"]
+        payload = {"act": "reopen", "activity": previous}
+        client.post(form["action"], payload)
+        gang.refresh_from_db()
+        current = gang.open_activity(FOUNDING_KIND)
+        client.post(form["action"], {"act": "finish", "activity": str(current.pk)})
+        before = Activity.objects.filter(gang=gang).count()
+
+        answer = client.post(form["action"], payload, follow=True)
+
+        gang.refresh_from_db()
+        assert gang.open_activity(FOUNDING_KIND) is None
+        assert Activity.objects.filter(gang=gang).count() == before
+        assert "Reload the page before reopening it." in answer.content.decode()
+        client.post(form["action"], {"act": "reopen"})
+        gang.refresh_from_db()
+        assert gang.open_activity(FOUNDING_KIND) is None
+        fresh = BeautifulSoup(client.get(tab).content, "html.parser")
+        activity = (
+            fresh.select_one('input[name="act"][value="reopen"]')
+            .find_parent("form")
+            .select_one('input[name="activity"]')
+        )
+        assert activity["value"] == str(current.pk)
+        client.post(form["action"], {"act": "reopen", "activity": activity["value"]})
+        gang.refresh_from_db()
+        assert gang.open_activity(FOUNDING_KIND) is not None
+
+    def test_an_open_action_can_finish_after_its_authored_grant_is_removed(
+        self, client, gang, recruit, player
+    ):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        from n26.library.models import Modifier
+        from n26.library.standard_content import founding_budget_counter
+
+        activity = self.open_personal(recruit)
+        Modifier.objects.filter(
+            contributes_to_counter__counter=founding_budget_counter()
+        ).delete()
+        assert reading(recruit) == 0
+        client.force_login(player)
+        edit = reverse("n26-edit-fighter", args=[recruit.pk])
+        response = client.get(edit)
+        assert response.context["hire_time_state"].activity_id == str(activity.pk)
+        form = (
+            BeautifulSoup(response.content, "html.parser")
+            .select_one('input[name="act"][value="finish"]')
+            .find_parent("form")
+        )
+        answer = client.post(
+            form["action"],
+            {
+                "act": "finish",
+                "activity": form.select_one('input[name="activity"]')["value"],
+            },
+        )
+        assert answer.url == edit + "#actions"
+        gang.refresh_from_db()
+        assert gang.open_activity(Activity.Kind.HIRE_TIME, recruit) is None
+        assert client.get(edit).context["hire_time_state"] is None
+        client.post(
+            self.action_url(recruit), {"act": "reopen", "activity": str(activity.pk)}
+        )
+        gang.refresh_from_db()
+        assert gang.open_activity(Activity.Kind.HIRE_TIME, recruit) is None
+        assert_reconciled(gang)
 
     def test_founding_return_targets_are_validated(self, client, gang, player):
         from django.urls import reverse

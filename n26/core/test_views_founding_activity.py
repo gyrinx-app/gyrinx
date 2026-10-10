@@ -661,10 +661,13 @@ class TestTheActsBehindIt:
     def test_reopening_one_explicitly_opens_it_for_correction(
         self, client, gang, tester
     ):
+        previous = gang.open_activity(FOUNDING)
         with operation(gang, actor=tester) as op:
-            op.close_activity(gang.open_activity(FOUNDING))
+            op.close_activity(previous)
 
-        answer = client.post(act_page(gang), {"act": "reopen"}, follow=True)
+        answer = client.post(
+            act_page(gang), {"act": "reopen", "activity": str(previous.pk)}, follow=True
+        )
 
         assert gang.open_activity(FOUNDING) is not None
         lines = [str(m) for m in answer.context["messages"]]

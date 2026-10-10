@@ -115,6 +115,7 @@ their own endpoint and return to this tab through a validated return URL.
                     <form method="post" action="{{ reopen_founding }}">
                         {% csrf_token %}
                         <input type="hidden" name="act" value="reopen">
+                        <input type="hidden" name="activity" value="{{ founding_activity.pk }}">
                         <c-n26.form-actions submit_label="Reopen action" submit_variant="default" size="sm" />
                     </form>
                 </c-n26.form-section>

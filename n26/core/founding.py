@@ -244,19 +244,12 @@ class HireTimeState:
 def hire_time_states(gang, models, computed, *, grants=None):
     """Read pending and completed recruit actions with a fixed query count."""
     computed = {str(pk): fold for pk, fold in computed.items()}
-    named = {
-        str(model.pk): model
-        for model in models
-        if _names_the_counter(computed[str(model.pk)])
-    }
-    if not named:
-        return {}
     boundary = gang.founding_completed_at()
     if boundary is None:
         return {}
     later = {
-        pk: model
-        for pk, model in named.items()
+        str(model.pk): model
+        for model in models
         if not model.membership.archived and model.membership.created > boundary
     }
     if not later:
@@ -267,4 +260,5 @@ def hire_time_states(gang, models, computed, *, grants=None):
         pk: HireTimeState(latest.get(model.pk))
         for pk, model in later.items()
         if grants.get(pk, 0) > 0
+        or (latest.get(model.pk) is not None and latest[model.pk].is_open)
     }
