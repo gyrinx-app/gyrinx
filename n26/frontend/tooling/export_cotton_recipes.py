@@ -287,14 +287,19 @@ def checkbox_card_recipe():
 def checkbox_card_item_recipe():
     """Class strings of a nested tick and of the header's meta text.
 
-    The island's fallback draws both from data, so they are read from a live
-    card holding one item. React's rows then match the fallback it replaces.
+    The island's fallback draws both from data, so they are read from that
+    fallback holding one item. React's rows then match the markup it replaces.
+    The fallback is rendered on its own: the island's host needs the React
+    build's manifest, which this export runs before.
     """
     from n26.core.checkbox_card import CheckboxCardItem
+    from n26.core.templatetags.checkbox_card import checkbox_card_props
 
-    source = '<c-n26.checkbox-card label="Model" meta="1¢" :items="items" />'
-    rendered = Template(CottonCompiler().process(source)).render(
-        Context({"items": [CheckboxCardItem("n", "v", "Item", meta="1¢")]})
+    props = checkbox_card_props(
+        label="Model", meta="1¢", items=[CheckboxCardItem("n", "v", "Item", meta="1¢")]
+    )
+    rendered = Template('{% include "n26/includes/checkbox_card_face.html" %}').render(
+        Context({"props_": props, "label": "Model", "checked": False, "attrs": ""})
     )
     elements = Elements(rendered).elements
     metas = [attrs for _, attrs in elements if "data-checkbox-meta" in attrs]
