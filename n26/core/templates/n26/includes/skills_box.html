@@ -18,7 +18,9 @@ is drawn only if there is something in it: a library holding no set for a
 model to take from is not worth a heading over an empty box.
 {% endcomment %}
 {% if skills %}
-    <div id="n26-skills-box" {% if oob %}hx-swap-oob="true"{% endif %}>
+    <div id="n26-skills-box"
+         class="scroll-mt-32"
+         {% if oob %}hx-swap-oob="true"{% endif %}>
         <c-n26.tab-links label="Which sets" :tabs="skills_tabs" :htmx="True" class="mb-3" />
         <form method="post" action="{{ edit_url }}">
             {% csrf_token %}
