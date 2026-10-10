@@ -10,6 +10,7 @@ import re
 from html import unescape
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth import get_user_model
 
 from n26.core import icons
@@ -866,8 +867,13 @@ class TestTheShellStillDraws:
         # Each gang names its owner under its name, through the same
         # component the app draws people with — a sample person is a
         # username, so the name comes through and no badge follows it.
-        assert re.search(r"Goliath \(HoC\) · <span[^>]*>marta<", page)
-        assert re.search(r"Escher \(HoB\) · <span[^>]*>tom<", page)
+        document = BeautifulSoup(page, "html.parser")
+        gang_headers = document.select('th[scope="rowgroup"]')
+        for gang_type, owner in [("Goliath (HoC)", "marta"), ("Escher (HoB)", "tom")]:
+            header = next(
+                header for header in gang_headers if gang_type in header.get_text()
+            )
+            assert header.find("span", string=owner) is not None
         # The players and the log name people the same way; the
         # arbitrator's own acts read "You", as the page reads them.
         assert re.search(r"<td[^>]*>\s*<span[^>]*>vey<", page)
