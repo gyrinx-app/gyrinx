@@ -28,7 +28,7 @@ from n26.core.effects import compute
 from n26.core.founding import budget_for, budget_granted
 from n26.core.models import Activity
 from n26.core.reconcile import assert_reconciled
-from n26.tests.fixtures import admit_to_founding
+from n26.tests.fixtures import admit_to_founding, library_setup
 from n26.tests.sandbox.actions import (
     add_entry,
     assign,
@@ -103,6 +103,7 @@ ALLIES = [("Bone Scrivener", "Champion")]
 
 
 @pytest.fixture
+@library_setup
 def ranks(default_pack):
     from n26.library.models import Subtype
 
@@ -113,6 +114,7 @@ def ranks(default_pack):
 
 
 @pytest.fixture
+@library_setup
 def library(ranks, make_profile, make_statline):
     """Two gang lists and one allied entry, then the seed.
 
@@ -197,6 +199,7 @@ def leader(gang, hire_into):
 
 
 @pytest.fixture
+@library_setup
 def kit(db):
     """Two pieces of wargear, both priced in credits and in Trade Points,
     and one an equipment list alone stocks."""
@@ -213,6 +216,7 @@ def post(kit):
 
 
 @pytest.fixture
+@library_setup
 def legacy_list(kit):
     """The list a Gang Legacy grants, written out by hand."""
     listed = create_collection("House Escher Equipment List")
@@ -254,15 +258,9 @@ class TestWhatTheBooksGrant:
     a model hired from somebody else's list reads nothing.
     """
 
-    def test_a_venator_leader_may_spend_five(self, leader):
+    def test_each_venator_rank_reads_its_own_allowance(self, gang, leader, hire_into):
         assert reading(leader) == 5
-
-    def test_a_venator_champion_may_spend_four(self, gang, hire_into):
         assert reading(hire_into(gang, ("Venators", "Hunt Champion"), "Kel")) == 4
-
-    def test_a_venator_hunter_may_spend_three(self, gang, hire_into):
-        """Every Venator Hunter entry is a Specialist, which is how the
-        gang list marks the rank."""
         assert reading(hire_into(gang, ("Venators", "Hunter"), "Tuk")) == 3
 
     def test_an_outcast_hive_scum_may_spend_nothing(self, outcast, player, hire_into):
@@ -439,15 +437,21 @@ class TestMovingWhatWasBought:
     Trade Points back.
     """
 
-    def test_stashing_it_does_not_hand_the_points_back(self, gang, leader, post):
+    def test_stashing_preserves_the_buyers_points_and_display_facts(
+        self, gang, leader, post
+    ):
         bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
+        before = budget(leader).facts
 
         move(bought, gang.stash)
 
         assert budget(leader).spent == 3
         assert budget(leader).remaining == 2
+        assert budget(leader).facts == before
+        gang.refresh_from_db()
+        assert_reconciled(gang)
 
-    def test_handing_it_to_somebody_else_does_not_either(
+    def test_handing_it_over_preserves_the_buyer_and_refunds_return_to_them(
         self, gang, leader, hire_into, post
     ):
         kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
@@ -458,15 +462,7 @@ class TestMovingWhatWasBought:
         assert budget(leader).spent == 3
         assert budget(kel).spent == 0
         assert budget(kel).remaining == 4
-
-    def test_and_refunding_it_there_returns_them_to_whoever_spent_them(
-        self, gang, leader, hire_into, post
-    ):
-        """Otherwise the model it was handed to goes below zero for points
-        it never spent, and the one who bought it never gets them back."""
-        kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
-        bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
-        move(bought, kel)
+        assert_reconciled(gang)
 
         refund(bought)
 
@@ -475,14 +471,6 @@ class TestMovingWhatWasBought:
         assert budget(kel).remaining == 4
         gang.refresh_from_db()
         assert_reconciled(gang)
-
-    def test_the_tally_a_screen_draws_does_not_move(self, gang, leader, post):
-        bought = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
-        before = budget(leader).facts
-
-        move(bought, gang.stash)
-
-        assert budget(leader).facts == before
 
 
 class TestGivingSomethingBack:
@@ -558,32 +546,30 @@ class TestFinishingAndStartingAgain:
     allowance. A model hired after the first founding closed has spent
     nothing yet, and meets its figure whole."""
 
-    def test_a_completed_action_leaves_no_budget(self, gang, leader):
+    def test_a_completed_action_hides_the_budget_without_changing_the_grant(
+        self, gang, leader
+    ):
         complete_action(gang, FOUNDING_KIND)
 
         assert budget(leader) is None
-
-    def test_the_reading_stands_whatever_the_action_is_doing(self, gang, leader):
-        """What a model may spend is its card's, not the action's: the
-        allowance disappears because there is nothing open to spend it
-        against, never because the figure changed."""
-        complete_action(gang, FOUNDING_KIND)
-
         assert reading(leader) == 5
 
-    def test_starting_again_remembers_what_was_spent(self, gang, leader, post):
-        buy_at_founding(leader, line_for(browse(post), "Flak plate"))
+    def test_restarting_retains_spend_and_its_action_then_adds_later_purchases(
+        self, gang, leader, hire_into, post
+    ):
+        first = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
         complete_action(gang, FOUNDING_KIND)
+        kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
 
         start_action(gang, FOUNDING_KIND)
 
         assert budget(leader).spent == 3
         assert budget(leader).remaining == 2
-
-    def test_a_later_purchase_adds_to_what_was_already_spent(self, gang, leader, post):
-        buy_at_founding(leader, line_for(browse(post), "Flak plate"))
-        complete_action(gang, FOUNDING_KIND)
-        start_action(gang, FOUNDING_KIND)
+        assert budget(leader).spent == 3
+        assert budget(kel).spent == 0
+        assert budget(kel).remaining == 4
+        assert first.ledger_entry.activity != gang.open_activity(FOUNDING_KIND)
+        assert_reconciled(gang)
 
         buy_at_founding(leader, line_for(browse(post), "Mesh armour"))
 
@@ -591,26 +577,6 @@ class TestFinishingAndStartingAgain:
         assert budget(leader).remaining == 1
         gang.refresh_from_db()
         assert_reconciled(gang)
-
-    def test_somebody_hired_after_the_founding_closed_starts_at_nothing_spent(
-        self, gang, leader, hire_into, post
-    ):
-        buy_at_founding(leader, line_for(browse(post), "Flak plate"))
-        complete_action(gang, FOUNDING_KIND)
-        kel = hire_into(gang, ("Venators", "Hunt Champion"), "Kel")
-
-        start_action(gang, FOUNDING_KIND)
-
-        assert budget(leader).spent == 3
-        assert budget(kel).spent == 0
-        assert budget(kel).remaining == 4
-
-    def test_the_earlier_actions_purchases_stay_on_it(self, gang, leader, post):
-        first = buy_at_founding(leader, line_for(browse(post), "Flak plate"))
-        complete_action(gang, FOUNDING_KIND)
-        start_action(gang, FOUNDING_KIND)
-
-        assert first.ledger_entry.activity != gang.open_activity(FOUNDING_KIND)
 
 
 class TestTwoAllowancesAtOnce:
@@ -690,36 +656,9 @@ class TestTheSeed:
         assert sorted(raising.values_list("pk", flat=True)) == before
         assert raising.count() == 3
 
-    def test_an_entry_authored_later_shows_it_incomplete(
+    def test_a_later_entry_is_reported_and_added_to_the_existing_modifier(
         self, budgets, venators, ranks, make_profile, make_statline
     ):
-        """A new Hunt Leader entry is one nobody has given a figure to
-        yet. Saying so is the point: the alternative is an entry that is
-        quietly unbudgeted and nothing to show for it."""
-        from n26.library.authoring import add_built_in, create_category
-        from n26.library.standard_content import GANG_LIST_SECTION, STANDARD_CONTENT
-
-        newcomer = make_profile(
-            "Ogryn Hunt Leader",
-            price=50,
-            gang_type=venators,
-            category=create_category(GANG_LIST_SECTION, "Venators Ogryn"),
-        )
-        make_statline(newcomer)
-        add_built_in(newcomer, ranks["Leader"])
-
-        present, wanted = STANDARD_CONTENT["founding-budgets"].check()
-        assert present == wanted - 1
-
-        STANDARD_CONTENT["founding-budgets"].create()
-
-        assert STANDARD_CONTENT["founding-budgets"].check() == (wanted, wanted)
-
-    def test_and_the_entry_is_named_by_the_modifier_already_standing(
-        self, budgets, venators, ranks, make_profile, make_statline
-    ):
-        """Added to the one there rather than given a second: two
-        modifiers granting the same figure would raise it twice."""
         from n26.library.authoring import add_built_in, create_category
         from n26.library.standard_content import (
             GANG_LIST_SECTION,
@@ -735,12 +674,18 @@ class TestTheSeed:
         )
         make_statline(newcomer)
         add_built_in(newcomer, ranks["Leader"])
+
         raising = venators.modifiers.filter(
             contributes_to_counter__counter=founding_budget_counter()
         )
         before = sorted(raising.values_list("pk", flat=True))
 
+        present, wanted = STANDARD_CONTENT["founding-budgets"].check()
+        assert present == wanted - 1
+
         STANDARD_CONTENT["founding-budgets"].create()
+
+        assert STANDARD_CONTENT["founding-budgets"].check() == (wanted, wanted)
 
         assert sorted(raising.values_list("pk", flat=True)) == before
         named = raising.get(contributes_to_counter__amount=5).targets_miniature
@@ -785,11 +730,9 @@ class TestTheSeed:
         assert STANDARD_CONTENT["founding-budgets"].check() == (wanted, wanted)
         assert raising.count() == 3
 
-    def test_an_entry_given_a_better_rank_stops_being_named_by_the_lesser(
-        self, budgets, venators, ranks, library
+    def test_a_better_rank_replaces_the_lesser_contribution_and_reads_once(
+        self, gang, budgets, venators, ranks, library, hire_into
     ):
-        """Left named by both, the entry would raise the counter twice and
-        its models would read 9 rather than 5."""
         from n26.library.authoring import add_built_in
         from n26.library.standard_content import (
             STANDARD_CONTENT,
@@ -827,23 +770,11 @@ class TestTheSeed:
         )
         assert 4 not in named
 
-    def test_and_the_model_then_reads_the_better_figure_alone(
-        self, gang, budgets, ranks, library, hire_into
-    ):
-        from n26.library.authoring import add_built_in
-        from n26.library.standard_content import STANDARD_CONTENT
-
-        add_built_in(library[("Venators", "Hunt Champion")], ranks["Leader"])
-        STANDARD_CONTENT["founding-budgets"].create()
-
         assert reading(hire_into(gang, ("Venators", "Hunt Champion"), "Kel")) == 5
 
-    def test_a_rank_the_library_no_longer_lists_loses_its_modifier(
-        self, budgets, venators, library
+    def test_a_removed_rank_loses_its_modifier_without_changing_other_grants(
+        self, gang, budgets, venators, library, hire_into
     ):
-        """A figure with no entry to reach is not a figure this library
-        grants. Left standing with an empty set, it would name nothing —
-        and a scope naming nothing narrows nothing."""
         from n26.library.standard_content import (
             STANDARD_CONTENT,
             founding_budget_counter,
@@ -863,27 +794,12 @@ class TestTheSeed:
             contributes_to_counter__amount=3,
         ).exists()
 
-    def test_and_nobody_reads_a_figure_from_the_emptied_one(
-        self, gang, budgets, library, hire_into
-    ):
-        """The entry is gone, so nothing is hired from it — what matters
-        is that everybody else still reads their own figure and not
-        somebody else's."""
-        from n26.library.standard_content import STANDARD_CONTENT
-
-        library[("Venators", "Hunter")].delete()
-        STANDARD_CONTENT["founding-budgets"].create()
-
         assert reading(hire_into(gang, ("Venators", "Hunt Leader"), "Rasp")) == 5
         assert reading(hire_into(gang, ("Venators", "Hunt Champion"), "Kel")) == 4
 
-    def test_the_scope_names_the_rank_as_well_as_the_entries(
-        self, budgets, venators, library
+    def test_the_rank_scope_survives_an_emptied_entry_set_without_reaching_others(
+        self, gang, budgets, venators, ranks, hire_into
     ):
-        """Two conditions, narrowing together. While the set of entries is
-        intact they say the same thing; emptied by something outside the
-        seed, what is left reaches that rank rather than the whole
-        roster."""
         from n26.library.standard_content import founding_budget_counter
 
         carried = venators.modifiers.get(
@@ -891,22 +807,9 @@ class TestTheSeed:
             contributes_to_counter__amount=5,
         )
         scope = carried.targets_miniature
-
         assert scope.is_profile.filter(negate=False).exists()
         assert scope.has_subtypes.filter(negate=False).exists()
 
-    def test_an_emptied_set_reaches_that_rank_and_no_further(
-        self, gang, budgets, venators, ranks, hire_into
-    ):
-        """What an author deleting the last entry from the admin would
-        leave: the seed rebuilds it, but until it is run the figure must
-        not land on everybody."""
-        from n26.library.standard_content import founding_budget_counter
-
-        carried = venators.modifiers.get(
-            contributes_to_counter__counter=founding_budget_counter(),
-            contributes_to_counter__amount=5,
-        )
         for row in carried.targets_miniature.is_profile.all():
             row.profiles.clear()
 
@@ -1260,33 +1163,26 @@ class TestTheFigureOnTheGangPage:
         client.force_login(reader or gang.owner)
         return client.get(self.page(gang)).content.decode()
 
-    def test_a_budgeted_model_shows_what_it_has_left(self, client, gang, leader):
-        assert ">5 TP<span" in self.body(client, gang)
-
-    def test_the_hover_says_what_the_figure_is(self, client, gang, leader):
-        assert self.HOVER in self.body(client, gang)
-
-    def test_the_figure_carries_the_founding_mark(self, client, gang, leader):
-        """The same mark the Spend built-in TP action carries in the
-        Actions square and the allowance block carries on an equip
-        screen, so one feature is learnt once. Its colour is stated in
-        <c-n26.founding-mark> and nowhere else."""
+    def test_the_owner_reads_the_marked_allowance_as_it_is_spent_and_completed(
+        self, client, gang, leader, kit, post, player
+    ):
         body = self.body(client, gang)
+        assert ">5 TP<span" in body
+        assert self.HOVER in body
         figure = body.index(">5 TP<span")
-
         assert (
             "text-violet-600" in body[body.rindex("<span class=", 0, figure) : figure]
         )
 
-    def test_spending_moves_it(self, client, gang, leader, kit, post):
         buy_at_founding(leader, line_for(browse(post), "Flak plate"))
 
         assert ">2 TP<span" in self.body(client, gang)
+        assert_reconciled(gang)
 
-    def test_completing_the_action_takes_it_away(self, client, gang, leader, player):
         complete_action(gang, FOUNDING_KIND, actor=player)
 
         assert self.HOVER not in self.body(client, gang)
+        assert_reconciled(gang)
 
     def test_a_model_with_no_allowance_shows_nothing(self, client, gang, hire_into):
         """The ally is ranked Champion by its own book, and no gang's

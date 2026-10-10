@@ -17,7 +17,7 @@ from n26.core.operations import Refusal, operation
 
 
 def advancement_step(request, fighter, record, *, step="choose", correction=False):
-    from n26.core.advancements import advancement_options, skill_options
+    from n26.core.advancements import _advancement_read, _skill_options
     from n26.core.promotions import (
         may_decline,
         prepare_promotion,
@@ -99,9 +99,8 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
             submit_variant="primary",
         )
 
-    options = tuple(
-        option for option in advancement_options(record, configured) if option.gainable
-    )
+    read = _advancement_read(record, configured)
+    options = tuple(option for option in read[0] if option.gainable)
     threshold_roll = (
         not replacement and configured.slot.picklist.roll_selects == "threshold"
     )
@@ -124,7 +123,7 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
             return redirect(
                 flow_url(fighter, record, "correct" if correction else "choose")
             )
-        groups = skill_options(record, configured, chosen.id)
+        groups = _skill_options(record, configured, chosen.id, read=read)
         return _skill_step(
             request, fighter, record, configured, chosen, groups, correction=correction
         )

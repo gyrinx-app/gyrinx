@@ -277,7 +277,9 @@ def _stat_gainable(fighter, pickable, *, evaluation=None):
     ]
 
 
-def _listed_skills(record, offer, *, computed=None, owned=None, fighter=None):
+def _listed_skills(
+    record, offer, *, computed=None, owned=None, fighter=None, _catalogues=None
+):
     from n26.core.browse import offered_by, usability_for
     from n26.library.models.assignable import USABLE_BY_LISTS
 
@@ -287,7 +289,7 @@ def _listed_skills(record, offer, *, computed=None, owned=None, fighter=None):
     if computed is None:
         computed = compute(card, build_modifier_index(carriers(card)))
     question = SimpleNamespace(slot=None, offer=offer, kind_label=offer.kind_label)
-    listed = offered_by(question, computed)
+    listed = offered_by(question, computed, _catalogues=_catalogues)
     rows = listed.all_lines() if hasattr(listed, "all_lines") else listed
     if fighter is None:
         fighter = usability_for(computed)
@@ -399,7 +401,7 @@ def _roll_table(configured):
             Prefetch(
                 "pickable__modifiers",
                 queryset=Modifier.objects.select_related(
-                    *SCOPE_FIELDS, *EFFECT_FIELDS
+                    *SCOPE_FIELDS, *EFFECT_FIELDS, "offers_choice__of_kind"
                 ).prefetch_related(*condition_paths),
             )
         )
@@ -660,11 +662,17 @@ def _advancement_read(record, configured):
         if getattr(contribution.thing, "pk", None) is not None
     )
     skill_cache = {}
+    catalogues = {}
 
     def skills_for(offer):
         if offer.pk not in skill_cache:
             skill_cache[offer.pk] = _listed_skills(
-                record, offer, computed=computed, owned=owned, fighter=fighter
+                record,
+                offer,
+                computed=computed,
+                owned=owned,
+                fighter=fighter,
+                _catalogues=catalogues,
             )
         return skill_cache[offer.pk]
 
