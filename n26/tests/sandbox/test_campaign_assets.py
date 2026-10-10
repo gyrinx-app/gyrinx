@@ -861,6 +861,104 @@ class TestRecruitBoons:
         assert_reconciled(gang)
 
 
+class TestARecruitCountsAtItsFullValue:
+    """A recruit a territory brings costs no credits, and still adds its
+    full value to the gang's rating and wealth: nothing else carries its
+    price, as a pet's wargear carries the pet's. The value is what a hire
+    with the standard options would ask, and it stays after the territory
+    goes."""
+
+    def test_the_recruit_adds_its_price_to_the_rating_and_spends_nothing(
+        self, campaign, gang, recruiting_asset
+    ):
+        from n26.core.models import Miniature
+
+        asset, profile = recruiting_asset
+        gang.refresh_from_db()
+        rating, credits, wealth = gang.rating, gang.credits, gang.wealth
+
+        assign_asset(add_asset(campaign, asset), gang)
+
+        recruit = Miniature.objects.get(
+            membership__gang=gang, membership__profile=profile
+        )
+        entry = recruit.membership.ledger_entry
+        assert (entry.paid, entry.list_price, entry.discount) == (0, 50, 50)
+        assert entry.rating_contribution == 50
+        assert recruit.rating == 50
+        gang.refresh_from_db()
+        assert gang.rating == rating + 50
+        assert gang.credits == credits
+        assert gang.wealth == wealth + 50
+        assert_reconciled(gang)
+
+    def test_the_recruit_counts_its_standard_option_as_a_hire_would(
+        self, campaign, gang, recruiting_asset
+    ):
+        from n26.core.models import Miniature
+        from n26.library.authoring import offer_option
+
+        asset, profile = recruiting_asset
+        offer_option(profile, "with a stub gun", price=15, thing=create_rule("Stub"))
+
+        assign_asset(add_asset(campaign, asset), gang)
+
+        recruit = Miniature.objects.get(
+            membership__gang=gang, membership__profile=profile
+        )
+        assert profile.price_with() == 65
+        assert recruit.membership.ledger_entry.rating_contribution == 65
+        assert recruit.membership.ledger_entry.paid == 0
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_losing_the_territory_keeps_the_recruits_value(
+        self, campaign, gang, recruiting_asset
+    ):
+        asset, _profile = recruiting_asset
+        held = add_asset(campaign, asset)
+        assign_asset(held, gang)
+        gang.refresh_from_db()
+        rating = gang.rating
+
+        unassign_asset(held)
+
+        gang.refresh_from_db()
+        assert gang.rating == rating
+        assert_reconciled(gang)
+
+    def test_a_model_a_recruit_brings_with_it_counts_for_nothing_of_its_own(
+        self, campaign, gang, recruiting_asset
+    ):
+        """Only the territory's own recruit is valued: a model the recruit
+        brings is its kit's, priced by the recruit, as a pet is."""
+        from n26.core.models import Miniature
+        from n26.tests.sandbox.actions import create_profile, op_adds_model
+
+        asset, profile = recruiting_asset
+        hound = create_profile(
+            "Sump hound", profile.profile_type, profile.gang_type, price=30
+        )
+        modifier(
+            "Sump recruit brings a hound",
+            targets_gang(),
+            op_adds_model(hound),
+            attach_to=profile,
+        )
+        gang.refresh_from_db()
+        rating = gang.rating
+
+        assign_asset(add_asset(campaign, asset), gang)
+
+        brought = Miniature.objects.get(
+            membership__gang=gang, membership__profile=hound
+        )
+        assert brought.membership.ledger_entry.rating_contribution == 0
+        gang.refresh_from_db()
+        assert gang.rating == rating + 50
+        assert_reconciled(gang)
+
+
 @pytest.fixture
 def houses(default_pack, gang_type):
     """Goliath and Escher gang types with the Gang supertype built in, each

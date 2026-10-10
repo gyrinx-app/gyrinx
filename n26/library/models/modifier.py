@@ -1815,7 +1815,9 @@ class OpAddsMiniature(models.Model):
     entry says what the pet is worth and that nothing was paid for it here.
 
     When a gang gains a campaign holding with this effect, a new model joins
-    the gang. The model stays with the gang after the holding is lost.
+    the gang. The model stays with the gang after the holding is lost, and
+    nothing else carries its price, so it counts at its full list price in
+    the gang's rating although nothing was paid for it.
     """
 
     is_stored = True
@@ -1845,20 +1847,25 @@ class OpAddsMiniature(models.Model):
         return self._hire(operation, caused_by=assignment)
 
     def perform_grant(self, operation, holding):
-        """A recruit belongs to the gang after the holding is lost."""
-        return self._hire(operation, note=f"Recruited from {holding}.")
+        """Hire the model, free, at the price a hire with its standard
+        options would ask, which is also what it is worth."""
+        price = self.profile.price_with()
+        return self._hire(
+            operation, price=price, rating=price, note=f"Recruited from {holding}."
+        )
 
-    def _hire(self, operation, caused_by=None, note=""):
+    def _hire(self, operation, price=None, rating=0, caused_by=None, note=""):
         from n26.core.models import Reason
 
-        price = self.profile.price
+        if price is None:
+            price = self.profile.price
         return operation.hire(
             self.profile,
             str(self.profile),
             paid=0,
             list_price=price,
             discount=price,
-            rating=0,
+            rating=rating,
             reason=Reason.GRANTED,
             caused_by=caused_by,
             note=note,
