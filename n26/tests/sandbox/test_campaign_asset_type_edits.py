@@ -19,7 +19,7 @@ from n26.core.operations import Refusal
 from n26.core.views.campaigns import more_actions
 from n26.flags import CAMPAIGNS
 from n26.library.core_campaign import seed_core_campaign
-from n26.library.models import AssetType, CampaignType
+from n26.library.models import AssetType, CampaignType, DefaultAssignment
 from n26.tests.sandbox.actions import (
     add_campaign_asset_type,
     create_campaign_asset,
@@ -138,6 +138,25 @@ class TestEditingAnAssetType:
             edit(campaign, racket, "Rakit", POSSESSION, plural="Rakits")
         racket.refresh_from_db()
         assert racket.ownership == HOLDING
+
+    def test_an_asset_made_from_an_earlier_read_takes_the_ownership_as_it_is(
+        self, campaign, racket
+    ):
+        read_earlier = AssetType.objects.get(pk=racket.pk)
+        edit(campaign, racket, "Rakit", POSSESSION, plural="Rakits")
+        still = create_campaign_asset(campaign, read_earlier, "Still")
+        assert still.asset_type.ownership == POSSESSION
+        assert DefaultAssignment.objects.filter(
+            default_set_id=campaign.additions.built_ins_id, asset=still
+        ).exists()
+
+    def test_a_table_made_from_an_earlier_read_is_refused_once_inherent(
+        self, campaign, racket
+    ):
+        read_earlier = AssetType.objects.get(pk=racket.pk)
+        edit(campaign, racket, "Rakit", POSSESSION, plural="Rakits")
+        with pytest.raises(Refusal, match="You cannot make a table of Rakits."):
+            create_campaign_table(campaign, read_earlier, "Rakit table")
 
     def test_a_label_the_campaign_already_uses_is_refused(self, campaign, racket):
         with pytest.raises(Refusal, match="already has an asset type called"):

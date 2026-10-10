@@ -1144,11 +1144,9 @@ class CampaignOperation:
         library content. A label the campaign already uses is refused as it
         is when adding one. The ownership cannot change once the type has
         an asset or a table (``ownership_fixed_because``). Saving what was
-        already there writes nothing and returns None.
-
-        The asset type is read again under the campaign's line. The page
-        read it before this transaction began, and the old label in the log
-        and the check for an unchanged save need the stored values.
+        already there writes nothing and returns None. The old label in the
+        log and the check for an unchanged save use the type as it is under
+        the campaign's line, not as the page read it.
         """
         from n26.core.operations import Refusal
         from n26.library.models import AssetType
@@ -1157,7 +1155,7 @@ class CampaignOperation:
             raise ValueError(
                 f"{asset_type} is not one of {self.campaign}'s own asset types."
             )
-        asset_type = AssetType.objects.get(pk=asset_type.pk)
+        asset_type = _asset_type_under_the_lock(asset_type)
         label_singular = (label_singular or "").strip()
         label_plural = (label_plural or "").strip()
         if not label_singular:
@@ -1231,6 +1229,7 @@ class CampaignOperation:
                 f"{asset_type} is an asset type of {asset_type.campaign_type}, "
                 "not of this campaign's type or the campaign's own."
             )
+        asset_type = _asset_type_under_the_lock(asset_type)
         name = (name or "").strip()
         if Asset.objects.filter(pack=self.campaign.pack, name__iexact=name).exists():
             raise Refusal(f"{self.campaign.name} already has an asset called {name}.")
@@ -1445,6 +1444,7 @@ class CampaignOperation:
                 f"{asset_type} is an asset type of {asset_type.campaign_type}, "
                 "not of this campaign's type or the campaign's own."
             )
+        asset_type = _asset_type_under_the_lock(asset_type)
         if not asset_type.is_holding:
             raise Refusal(
                 f"You cannot make a table of {asset_type.plural}. Every gang has "
@@ -1784,6 +1784,19 @@ def ownership_fixed_because(campaign, asset_type):
     if asset_type.tables.exists():
         return f"{campaign.name} already has a table of {plural}."
     return ""
+
+
+def _asset_type_under_the_lock(asset_type):
+    """The asset type as it stands now that the campaign's line is held.
+
+    Whoever submitted the form read it before this transaction began, and
+    ``edit_asset_type`` may have changed its labels or ownership since.
+    Every writer to a campaign's own asset type holds that campaign's line,
+    and its ownership decides how an asset or a table of it is made.
+    """
+    from n26.library.models import AssetType
+
+    return AssetType.objects.get(pk=asset_type.pk)
 
 
 def _asset_under_the_lock(campaign_asset):
