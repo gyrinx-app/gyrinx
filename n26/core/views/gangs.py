@@ -27,6 +27,7 @@ from n26.core.views.permissions import (
     link_model_cards,
     may_mark_status,
     may_see_founding,
+    own_address,
     trade_points_href,
 )
 
@@ -1979,7 +1980,6 @@ def gang_founding_action(request, pk):
     act that moves no money. The reader gets the sentence and the page
     back rather than a server error.
     """
-    from gyrinx.http import get_return_url
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import Activity
     from n26.core.operations import Refusal, operation
@@ -1987,7 +1987,9 @@ def gang_founding_action(request, pk):
     gang = _own_gang_or_404(request, pk)
     if not may_see_founding(gang, request.user):
         raise Http404
-    at = get_return_url(request, reverse("n26-gang", args=[gang.pk]))
+    at = own_address(
+        request, request.POST.get("return_url") or request.GET.get("return_url")
+    ) or reverse("n26-gang", args=[gang.pk])
     if request.method != "POST":
         return redirect(at)
 
@@ -2000,7 +2002,7 @@ def gang_founding_action(request, pk):
             with operation(gang, actor=request.user) as op:
                 open_now = gang.open_activity(kind)
                 expected = request.POST.get("activity")
-                if expected and (open_now is None or str(open_now.pk) != expected):
+                if open_now is not None and str(open_now.pk) != expected:
                     raise Refusal(
                         "This action has changed. Reload the page before completing it."
                     )

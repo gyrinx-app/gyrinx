@@ -2824,8 +2824,15 @@ class Operation:
         else:
             host, buyer = {"miniature": holder}, holder
 
-        if activity is not None and activity.kind == Activity.Kind.HIRE_TIME:
-            active = self.gang.open_activity(activity.kind, buyer)
+        if activity is not None and activity.kind in (
+            Activity.Kind.FOUNDING,
+            Activity.Kind.HIRE_TIME,
+        ):
+            from n26.core.founding import personal_activity_for
+
+            active = (
+                personal_activity_for(self.gang, buyer) if buyer is not None else None
+            )
             if active is None or active.pk != activity.pk:
                 raise Refusal(
                     "This spending action has changed. Reload the page before buying."

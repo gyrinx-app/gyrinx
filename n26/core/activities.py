@@ -34,7 +34,7 @@ FOUNDING_ABOUT = (
 
 #: The same, for a trip to the trading post — where the book also has
 #: something to say about what completing it takes away.
-VISIT_HELP = "Complete when you have finished shopping. Unspent Trade Points are lost."
+VISIT_HELP = "Complete when you have finished at the Trading Post. Unspent Trade Points are lost."
 
 POST_BATTLE_HELP = "Record XP, credits and each model's results after a battle."
 

@@ -1400,8 +1400,20 @@ class TestHireTimeTradePoints:
     def test_historical_founding_purchases_count_towards_a_recruits_personal_balance(
         self, gang, recruit, post
     ):
+        from n26.core.operations import operation
+
         start_action(gang, FOUNDING_KIND)
-        buy_at_founding(recruit, line_for(browse(post), "Flak plate"))
+        line = line_for(browse(post), "Flak plate")
+        # Reproduce the ledger of a purchase made before personal actions existed.
+        with operation(gang, actor=gang.owner) as op:
+            op.assign(
+                line.thing,
+                miniature=recruit,
+                paid=line.credits,
+                trade_points=line.trade_points,
+                activity=gang.open_activity(FOUNDING_KIND),
+                spent_by=recruit,
+            )
         complete_action(gang, FOUNDING_KIND)
         self.open_personal(recruit)
         assert budget(recruit).remaining == 1
@@ -1539,12 +1551,37 @@ class TestHireTimeTradePoints:
         assert budget(recruit).remaining == 4
         assert_reconciled(gang)
 
+    def test_low_level_purchases_cannot_charge_founding_for_a_later_recruit(
+        self, gang, recruit, post
+    ):
+        from n26.core.operations import Refusal
+
+        activity = start_action(gang, FOUNDING_KIND)
+        with pytest.raises(Refusal, match="spending action has changed"):
+            buy(recruit, line_for(browse(post), "Flak plate"), activity=activity)
+        assert_reconciled(gang)
+
+    def test_low_level_purchases_cannot_charge_a_completed_founding_action(
+        self, gang, leader, post
+    ):
+        from n26.core.operations import Refusal
+
+        activity = gang.open_activity(FOUNDING_KIND)
+        complete_action(gang, FOUNDING_KIND)
+        with pytest.raises(Refusal, match="spending action has changed"):
+            buy(leader, line_for(browse(post), "Flak plate"), activity=activity)
+        assert_reconciled(gang)
+
     def test_the_same_feature_flag_gates_personal_controls(
-        self, client, gang, recruit, player
+        self, client, gang, recruit, player, monkeypatch
     ):
         from django.urls import reverse
 
         from n26.tests.fixtures import FOUNDING_GROUP_NAME
+
+        monkeypatch.setattr(
+            "n26.core.views.edit.may_mark_status", lambda gang, user: True
+        )
 
         player.groups.remove(*player.groups.filter(name=FOUNDING_GROUP_NAME))
         client.force_login(player)
@@ -1568,7 +1605,8 @@ class TestHireTimeTradePoints:
         page = BeautifulSoup(client.get(at).content, "html.parser")
         assert page.select_one('input[name="act"][value="start"]') is not None
         client.post(action, {"act": "start"})
-        client.post(action, {"act": "finish"})
+        active = gang.open_activity(FOUNDING_KIND)
+        client.post(action, {"act": "finish", "activity": str(active.pk)})
         page = BeautifulSoup(client.get(at).content, "html.parser")
         assert page.select_one('input[name="act"][value="start"]') is None
         assert page.select_one('input[name="act"][value="reopen"]') is None

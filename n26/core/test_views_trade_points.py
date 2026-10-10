@@ -782,7 +782,7 @@ class TestTheReceipt:
         start(client, gang, roster["Vex"])
 
         body = client.get(page(gang)).content.decode()
-        assert "Complete when you have finished shopping." in body
+        assert "Complete when you have finished at the Trading Post." in body
         assert "Unspent Trade Points are lost." in body
 
     def test_it_names_the_ranks_that_added_the_figure(self, client, roster, gang):

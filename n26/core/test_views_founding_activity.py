@@ -619,8 +619,13 @@ class TestTheActsBehindIt:
         client.force_login(tester)
 
     def test_completing_it_closes_the_action(self, client, gang):
-        answer = client.post(act_page(gang), {"act": "finish"}, follow=True)
+        answer = client.post(
+            act_page(gang),
+            {"act": "finish", "activity": str(gang.open_activity(FOUNDING).pk)},
+            follow=True,
+        )
 
+        gang.refresh_from_db()
         assert gang.open_activity(FOUNDING) is None
         lines = [str(m) for m in answer.context["messages"]]
         assert "Completed the Spend founding TP action." in lines
@@ -641,7 +646,11 @@ class TestTheActsBehindIt:
         # rule this is about.
         Gang.objects.filter(pk=gang.pk).update(starting_credits=100)
 
-        answer = client.post(act_page(gang), {"act": "finish"}, follow=True)
+        answer = client.post(
+            act_page(gang),
+            {"act": "finish", "activity": str(gang.open_activity(FOUNDING).pk)},
+            follow=True,
+        )
 
         assert answer.status_code == 200
         assert answer.redirect_chain == [(sheet(gang), 302)]
@@ -672,12 +681,44 @@ class TestTheActsBehindIt:
         assert not lines
 
     def test_completing_one_that_is_already_done_changes_nothing(self, client, gang):
-        client.post(act_page(gang), {"act": "finish"})
+        active = gang.open_activity(FOUNDING)
+        client.post(act_page(gang), {"act": "finish", "activity": str(active.pk)})
         before = LedgerEvent.objects.filter(gang=gang).count()
 
         client.post(act_page(gang), {"act": "finish"})
 
         assert LedgerEvent.objects.filter(gang=gang).count() == before
+
+    def test_completing_without_an_activity_id_leaves_the_action_open(
+        self, client, gang
+    ):
+        active = gang.open_activity(FOUNDING)
+        before = LedgerEvent.objects.filter(gang=gang).count()
+
+        answer = client.post(act_page(gang), {"act": "finish"}, follow=True)
+
+        assert gang.open_activity(FOUNDING).pk == active.pk
+        assert LedgerEvent.objects.filter(gang=gang).count() == before
+        assert any(
+            "This action has changed" in str(m) for m in answer.context["messages"]
+        )
+
+    def test_a_stale_completion_cannot_close_the_replacement(
+        self, client, gang, tester
+    ):
+        previous = gang.open_activity(FOUNDING)
+        with operation(gang, actor=tester) as op:
+            op.close_activity(previous)
+            current = op.open_activity(FOUNDING)
+
+        answer = client.post(
+            act_page(gang), {"act": "finish", "activity": str(previous.pk)}, follow=True
+        )
+
+        assert gang.open_activity(FOUNDING).pk == current.pk
+        assert any(
+            "This action has changed" in str(m) for m in answer.context["messages"]
+        )
 
     def test_following_a_link_here_acts_on_nothing(self, client, gang):
         answer = client.get(act_page(gang))
