@@ -766,8 +766,18 @@ class TestThePages:
             "Each rolled territory will be added to the campaign as unclaimed." in body
         )
 
+    @pytest.mark.parametrize("allocation", ["roll", "assign"])
     def test_a_starting_roll_disappears_after_use_and_stays_gone_after_loss(
-        self, client, campaign, territory, journal, slag_kings, wild_cats, arbitrator
+        self,
+        client,
+        campaign,
+        territory,
+        journal,
+        slag_kings,
+        wild_cats,
+        arbitrator,
+        allocation,
+        selection_table,
     ):
         from n26.core.campaigns import campaign_operation
 
@@ -777,7 +787,13 @@ class TestThePages:
             "n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]
         )
         payload = {"type": str(territory.pk), "table": str(journal.pk), "rolled": 1}
-        response = client.post(action, payload, HTTP_HX_REQUEST="true")
+        if allocation == "roll":
+            response = client.post(action, payload, HTTP_HX_REQUEST="true")
+        else:
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                holding = act.add_asset(selection_table.entries.first().asset)
+                act.assign(holding, campaign.memberships.get(gang=slag_kings))
+            response = client.get(page)
         assert response.status_code == 200
         sheet = render_campaign(campaign)
         kings = next(line for line in sheet.gangs if line.gang_id == str(slag_kings.pk))
