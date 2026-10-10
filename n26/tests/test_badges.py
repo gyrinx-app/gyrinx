@@ -561,6 +561,7 @@ class TestTheNamesOnACampaign:
             reverse("n26-campaign-asset-remove", args=[table.pk, unheld.pk]),
             reverse("n26-campaign-asset-transfer", args=[table.pk, held.pk]),
             reverse("n26-campaign-add-asset-type", args=[table.pk]),
+            reverse("n26-campaign-edit-asset-type", args=[table.pk, racket.pk]),
             reverse("n26-campaign-new-asset", args=[table.pk]),
             reverse("n26-campaign-add-counter", args=[table.pk]),
             reverse("n26-campaign-add-label", args=[table.pk]),

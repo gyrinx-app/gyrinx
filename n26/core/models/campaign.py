@@ -183,6 +183,7 @@ class CampaignEvent(Base):
         # onto its additions type. What a member gang then receives is
         # that gang's ledger event, as every built-in is.
         ASSET_TYPE_ADDED = "asset_type_added", "Asset type added"
+        ASSET_TYPE_EDITED = "asset_type_edited", "Asset type edited"
         ASSET_CREATED = "asset_created", "Asset created"
         COUNTER_ADDED = "counter_added", "Counter added"
         LABEL_ADDED = "label_added", "Label added"

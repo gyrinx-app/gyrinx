@@ -2,8 +2,9 @@
 {% load navigation %}
 {% load static %}
 {% comment %}
-The URL selects General or Counters and labels. General edits the same
-fields as campaign setup; the other tab lists the campaign's definitions.
+The URL selects General, Counters and labels, or Asset types. General edits
+the same fields as campaign setup; the other tabs list the campaign's own
+definitions.
 {% endcomment %}
 {% block head_title %}Edit {{ campaign.name }}{% endblock head_title %}
 {% comment %}
@@ -25,7 +26,7 @@ django-tinymce reads its config.
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    {% if tab == "counters-and-labels" %}
+    {% if tab != "general" %}
         <div class="max-w-3xl space-y-8">
             <c-n26.page-header title="Edit {{ campaign.name }}">
                 <c-slot name="breadcrumb">
@@ -42,47 +43,89 @@ django-tinymce reads its config.
                 </c-slot>
             </c-n26.page-header>
             <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
-            <c-n26.section title="Counters">
-                <c-slot name="actions">
-                    <c-ui.button size="sm"
-                                 variant="primary"
-                                 href="{% url 'n26-campaign-add-counter' campaign.pk %}">Add counter</c-ui.button>
-                </c-slot>
-                {% if counters %}
-                    <c-ui.table>
-                        <thead>
-                            <tr>
-                                <th scope="col">Counter</th>
-                                <th scope="col" class="text-right">Starting value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for counter in counters %}
+            {% if tab == "asset-types" %}
+                <c-n26.section title="Asset types">
+                    <c-slot name="actions">
+                        <c-ui.button size="sm"
+                                     variant="primary"
+                                     href="{% url 'n26-campaign-add-asset-type' campaign.pk %}">Add asset type</c-ui.button>
+                    </c-slot>
+                    {% if asset_types %}
+                        <c-ui.table>
+                            <thead>
                                 <tr>
-                                    <td>{{ counter.name }}</td>
-                                    <td class="text-right tabular-nums">{{ counter.opening }}</td>
+                                    <th scope="col">Asset type</th>
+                                    <th scope="col">Plural</th>
+                                    <th scope="col">Ownership</th>
+                                    <th scope="col">
+                                        <span class="sr-only">Actions</span>
+                                    </th>
                                 </tr>
-                            {% endfor %}
-                        </tbody>
-                    </c-ui.table>
-                {% else %}
-                    <p class="text-sm text-muted">No campaign counters.</p>
-                {% endif %}
-            </c-n26.section>
-            <c-n26.section title="Labels">
-                <c-slot name="actions">
-                    <c-ui.button size="sm"
-                                 variant="primary"
-                                 href="{% url 'n26-campaign-add-label' campaign.pk %}">Add label</c-ui.button>
-                </c-slot>
-                {% if labels %}
-                    <ul class="divide-y divide-box-border">
-                        {% for label in labels %}<li class="py-3 text-sm">{{ label.name }}</li>{% endfor %}
-                    </ul>
-                {% else %}
-                    <p class="text-sm text-muted">No campaign labels.</p>
-                {% endif %}
-            </c-n26.section>
+                            </thead>
+                            <tbody>
+                                {% for asset_type in asset_types %}
+                                    <tr>
+                                        <td>{{ asset_type.label }}</td>
+                                        <td>{{ asset_type.plural }}</td>
+                                        <td>{{ asset_type.ownership }}</td>
+                                        <td class="text-right">
+                                            <c-n26.link href="{{ asset_type.href }}"
+                                                        aria-label="Edit {{ asset_type.label }}">
+                                                Edit
+                                            </c-n26.link>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </c-ui.table>
+                    {% else %}
+                        <p class="text-sm text-muted">This campaign has no asset types of its own yet.</p>
+                    {% endif %}
+                    {% if shared_asset_types %}<p class="mt-3 text-sm text-muted">{{ shared_asset_types }}</p>{% endif %}
+                </c-n26.section>
+            {% else %}
+                <c-n26.section title="Counters">
+                    <c-slot name="actions">
+                        <c-ui.button size="sm"
+                                     variant="primary"
+                                     href="{% url 'n26-campaign-add-counter' campaign.pk %}">Add counter</c-ui.button>
+                    </c-slot>
+                    {% if counters %}
+                        <c-ui.table>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Counter</th>
+                                    <th scope="col" class="text-right">Starting value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for counter in counters %}
+                                    <tr>
+                                        <td>{{ counter.name }}</td>
+                                        <td class="text-right tabular-nums">{{ counter.opening }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </c-ui.table>
+                    {% else %}
+                        <p class="text-sm text-muted">No campaign counters.</p>
+                    {% endif %}
+                </c-n26.section>
+                <c-n26.section title="Labels">
+                    <c-slot name="actions">
+                        <c-ui.button size="sm"
+                                     variant="primary"
+                                     href="{% url 'n26-campaign-add-label' campaign.pk %}">Add label</c-ui.button>
+                    </c-slot>
+                    {% if labels %}
+                        <ul class="divide-y divide-box-border">
+                            {% for label in labels %}<li class="py-3 text-sm">{{ label.name }}</li>{% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-sm text-muted">No campaign labels.</p>
+                    {% endif %}
+                </c-n26.section>
+            {% endif %}
         </div>
     {% else %}
         <c-n26.form-page action="{% url 'n26-edit-campaign' campaign.pk %}"
