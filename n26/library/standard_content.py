@@ -798,15 +798,39 @@ def _empty_budget_modifiers(counter):
     Deleting a fighter entry takes it out of the sets naming it, and a
     modifier that named nothing else is then a contribution with nothing
     to reach. It is rebuilt below where the library still has entries for
-    it, and stays gone where it does not.
+    it, and stays gone where it does not. A bearer grant without a profile
+    condition is authored content, not an emptied seed modifier.
     """
     from n26.library.models import Modifier
 
     return [
         row
         for row in Modifier.objects.filter(contributes_to_counter__counter=counter)
-        if not _named_profiles(row)
+        if _naming_rows(row) and not _named_profiles(row)
     ]
+
+
+def _outcast_champion_budget_carrier():
+    """The existing marker carried by the As Outcast Champion hire option."""
+    from n26.library.models import Hidden
+
+    return _by_name(Hidden, "Outcast champions")
+
+
+def _create_outcast_champion_budget(counter):
+    from n26.library.authoring import ef_contributes_to_counter, modifier, targets_model
+
+    carrier = _outcast_champion_budget_carrier()
+    if (
+        carrier is not None
+        and not _raises_founding_budget(carrier, counter, 3).exists()
+    ):
+        modifier(
+            "Outcast champions may spend 3 Trade Points at hire",
+            targets_model(),
+            ef_contributes_to_counter(counter, 3),
+            attach_to=carrier,
+        )
 
 
 def _create_founding_budgets():
@@ -835,6 +859,7 @@ def _create_founding_budgets():
 
     for row in _empty_budget_modifiers(counter):
         _drop_modifier(row)
+    _create_outcast_champion_budget(counter)
 
     for gang_type_name, ranks in FOUNDING_BUDGETS:
         gang_type = _by_name(GangType, gang_type_name) or GangType.objects.create(
@@ -902,6 +927,14 @@ def _check_founding_budgets():
 
     counter = founding_budget_counter()
     wanted, present = 1, 1 if counter is not None else 0
+    champion_carrier = _outcast_champion_budget_carrier()
+    if champion_carrier is not None:
+        wanted += 1
+        if (
+            counter is not None
+            and _raises_founding_budget(champion_carrier, counter, 3).exists()
+        ):
+            present += 1
 
     def settled(carrier, amount, entries):
         """Whether this figure already says what a run would make it say —

@@ -886,22 +886,29 @@ def _buy_clicked(
     try:
         with operation(gang, actor=request.user) as op:
             if asked and budget is not None:
-                from n26.core.founding import personal_activity_for
-                from n26.core.models import Activity
-                from n26.core.reconcile import trade_points_spent_by_kind
+                from n26.core.card import build_card, build_modifier_index, carriers
+                from n26.core.effects import compute
+                from n26.core.founding import budget_for
+                from n26.core.models import Miniature
 
-                active = personal_activity_for(gang, holder)
-                if active is None or active.pk != budget.activity.pk:
+                # The screen predates the lock. Another gang operation may
+                # have changed both the allowance and its lifetime spend.
+                current = Miniature.objects.select_related("membership").get(
+                    pk=holder.pk
+                )
+                card = build_card(current, with_statlines=False, with_options=True)
+                index = build_modifier_index(carriers(card))
+                fresh_budget = budget_for(gang, current, compute(card, index))
+                if (
+                    current.membership.archived
+                    or current.membership.gang_id != gang.pk
+                    or fresh_budget is None
+                    or fresh_budget.activity.pk != budget.activity.pk
+                ):
                     raise Refusal(
                         "This spending action has changed. Reload the page before buying."
                     )
-                budget = replace(
-                    budget,
-                    activity=active,
-                    spent=trade_points_spent_by_kind(
-                        gang, (Activity.Kind.FOUNDING, Activity.Kind.HIRE_TIME), holder
-                    ),
-                )
+                budget = fresh_budget
                 confirmation = _overspend(request, gang, line, asked, at, budget, into)
                 if confirmation is not None:
                     return confirmation

@@ -248,6 +248,47 @@ def buy_at_founding(miniature, line, **kwargs):
     )
 
 
+def grant_on_hidden(name, amount):
+    from n26.library.authoring import (
+        create_hidden,
+        ef_contributes_to_counter,
+        modifier,
+        targets_model,
+    )
+    from n26.library.standard_content import founding_budget_counter
+
+    hidden = create_hidden(name)
+    modifier(
+        name,
+        targets_model(),
+        ef_contributes_to_counter(founding_budget_counter(), amount),
+        attach_to=hidden,
+    )
+    return hidden
+
+
+def change_before_lock(monkeypatch, change):
+    """Another committed gang operation after the screen read, before its lock."""
+    from contextlib import contextmanager
+
+    from n26.core import operations
+
+    original = operations.operation
+    changed = False
+
+    @contextmanager
+    def intervening_operation(gang, **kwargs):
+        nonlocal changed
+        if not changed:
+            changed = True
+            with original(gang, actor=gang.owner) as op:
+                change(op)
+        with original(gang, **kwargs) as op:
+            yield op
+
+    monkeypatch.setattr(operations, "operation", intervening_operation)
+
+
 class TestWhatTheBooksGrant:
     """The figure is a counter reading, raised by the gang type and by
     what the gang is affiliated with. It names the gang's own entries, so
@@ -1875,3 +1916,146 @@ class TestHireTimeTradePoints:
         for name in ("Vex", "Nix", "Sura"):
             hire_into(gang, ("Venators", "Hunt Champion"), name)
         assert measure() == few
+
+    def test_purchase_rechecks_a_reduced_grant_under_the_lock(
+        self, client, gang, recruit, player, post, monkeypatch
+    ):
+        from django.urls import reverse
+
+        from n26.core.owned import thing_key
+
+        extra = assign(grant_on_hidden("Extra hire allowance", 2), miniature=recruit)
+        activity = self.open_personal(recruit)
+        assert budget(recruit).remaining == 6
+        item = create_wargear("Rare armour", price=40, trade_point_price=5)
+        client.force_login(player)
+        at = reverse("n26-equip", args=[recruit.pk]) + f"?list={post.pk}"
+        change_before_lock(monkeypatch, lambda op: op.remove(extra))
+        payload = {"thing": thing_key(item), "personal_activity": str(activity.pk)}
+
+        response = client.post(at, payload)
+
+        assert response.status_code == 200
+        assert "Not enough Trade Points" in response.content.decode()
+        assert "Kel has 4." in response.content.decode()
+        assert not recruit.assignments.filter(wargear=item).exists()
+        assert budget(recruit).remaining == 4
+        # The owner can still explicitly accept an overspend.
+        from n26.core.confirm import CONFIRM_FIELD
+
+        response = client.post(at, {**payload, CONFIRM_FIELD: "yes"})
+        assert response.status_code == 302
+        assert budget(recruit).remaining == -1
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_purchase_refuses_a_removed_grant_under_the_lock(
+        self, client, gang, leader, hire_into, player, post, monkeypatch
+    ):
+        from django.contrib.messages import get_messages
+        from django.urls import reverse
+
+        from n26.core.owned import thing_key
+
+        complete_action(gang, FOUNDING_KIND)
+        recruit = hire_into(gang, ("Allies", "Bone Scrivener"), "Kel")
+        extra = assign(grant_on_hidden("Only hire allowance", 2), miniature=recruit)
+        activity = self.open_personal(recruit)
+        line = line_for(browse(post), "Mesh armour")
+        client.force_login(player)
+        at = reverse("n26-equip", args=[recruit.pk]) + f"?list={post.pk}"
+        change_before_lock(monkeypatch, lambda op: op.remove(extra))
+
+        response = client.post(
+            at, {"thing": thing_key(line.thing), "personal_activity": str(activity.pk)}
+        )
+
+        assert response.status_code == 302
+        assert any(
+            "spending action has changed" in str(message)
+            for message in get_messages(response.wsgi_request)
+        )
+        assert not recruit.assignments.filter(wargear=line.thing).exists()
+        assert budget(recruit) is None
+        self.finish_personal(recruit)
+        gang.refresh_from_db()
+        assert gang.open_activity(Activity.Kind.HIRE_TIME, recruit) is None
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("loss", ["grant", "model"])
+    def test_founding_reopen_rechecks_original_model_eligibility(
+        self, client, outcast, player, hire_into, monkeypatch, loss
+    ):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        gang = open_founding(
+            found_gang("Original crew", outcast, owner=player, budget=1000)
+        )
+        original = hire_into(gang, ("Outcast", "Hive Scum"), "Wren")
+        extra = assign(grant_on_hidden("Founding allowance", 3), miniature=original)
+        complete_action(gang, FOUNDING_KIND)
+        client.force_login(player)
+        tab = reverse("n26-gang-trade-points", args=[gang.pk])
+        page = BeautifulSoup(client.get(tab).content, "html.parser")
+        form = page.select_one('input[name="act"][value="reopen"]').find_parent("form")
+        previous = form.select_one('input[name="activity"]')["value"]
+        change_before_lock(
+            monkeypatch,
+            lambda op: op.remove(extra if loss == "grant" else original.membership),
+        )
+
+        response = client.post(
+            form["action"], {"act": "reopen", "activity": previous}, follow=True
+        )
+
+        gang.refresh_from_db()
+        assert gang.open_activity(FOUNDING_KIND) is None
+        assert "Reload the page before reopening it." in response.content.decode()
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("later", [False, True])
+    def test_an_unusual_outcast_champions_option_grants_personal_tp(
+        self, hire_into, library, player, outcast, later
+    ):
+        from n26.library.authoring import create_hidden, offer_option
+        from n26.library.standard_content import STANDARD_CONTENT
+
+        gang = open_founding(
+            found_gang("Outcast crew", outcast, owner=player, budget=1000)
+        )
+        ordinary = hire_into(gang, ("Outcast", "Champion"), "Ordinary")
+        assert reading(ordinary) == 3
+        hidden = create_hidden("Outcast champions")
+        profile = library[("Allies", "Bone Scrivener")]
+        allied_option = offer_option(profile, "As allied Champion")
+        option = offer_option(profile, "As Outcast Champion", thing=hidden)
+        # The setup creates the missing marker grant exactly once.
+        STANDARD_CONTENT["founding-budgets"].create()
+        STANDARD_CONTENT["founding-budgets"].create()
+        present, wanted = STANDARD_CONTENT["founding-budgets"].check()
+        assert present == wanted
+        if later:
+            complete_action(gang, FOUNDING_KIND)
+        unusual = hire_with_option(gang, profile, "Unusual", option=option.default_set)
+        assert reading(unusual) == 3
+        if later:
+            self.open_personal(unusual)
+        assert budget(unusual).remaining == 3
+        assert budget(unusual).activity.kind == (
+            Activity.Kind.HIRE_TIME if later else FOUNDING_KIND
+        )
+        # The same allied profile without the Outcast option gets no grant.
+        ordinary_ally = hire_with_option(
+            gang, profile, "Ally", option=allied_option.default_set
+        )
+        assert reading(ordinary_ally) == 0
+        assert_reconciled(gang)
+
+    def test_standard_setup_preserves_authored_bearer_grants(self, recruit):
+        from n26.library.standard_content import STANDARD_CONTENT
+
+        assign(grant_on_hidden("Custom hire allowance", 2), miniature=recruit)
+        assert reading(recruit) == 6
+        STANDARD_CONTENT["founding-budgets"].create()
+        assert reading(recruit) == 6

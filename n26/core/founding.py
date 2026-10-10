@@ -151,6 +151,16 @@ def grants_by_model(computed, *, models=None):
     }
 
 
+def original_models_have_grants(completed, computed, *, models):
+    """Whether any original roster member still has personal TP to correct."""
+    original = [model for model in models if model.membership.created <= completed]
+    wanted = {str(model.pk) for model in original}
+    cards = {pk: fold for pk, fold in computed.items() if str(pk) in wanted}
+    return any(
+        amount > 0 for amount in grants_by_model(cards, models=original).values()
+    )
+
+
 def _cloned_memberships(models):
     """Copied models retain possessions, rather than receiving a new allowance."""
     from n26.core.models import LedgerEvent
