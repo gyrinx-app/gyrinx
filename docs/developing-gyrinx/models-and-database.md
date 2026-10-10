@@ -211,9 +211,16 @@ manage makemigrations --empty content
 # Apply migrations
 manage migrate
 
-# Check for issues
+# Check the working tree, including untracked migration files
 ./scripts/check_migrations.sh
 ```
+
+pre-commit runs the same script with `--pre-commit`. It checks the staged
+tree. Unstaged edits to tracked files are put aside, and untracked migration
+files are hidden for the check, then put back. A migration you have not
+staged, left over from another branch, no longer makes this commit fail.
+Stage the migration with the model change it belongs to. A manual run does
+not pass `--pre-commit`, so it still sees untracked migration files.
 
 ### Migration Best Practices
 

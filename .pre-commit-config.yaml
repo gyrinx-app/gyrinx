@@ -153,6 +153,7 @@ repos:
       - id: check-migrations
         name: Check for missing migrations
         entry: ./scripts/check_migrations.sh
+        args: [--pre-commit]
         language: script
         pass_filenames: false
         always_run: true

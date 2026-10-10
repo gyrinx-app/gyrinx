@@ -165,6 +165,12 @@ pytest `FAILURES` excerpt.
 - A branch adds at most one leaf per app. Run
   `manage check_migration_overlap --base origin/main` when another branch may
   touch the same schema or data.
+- pre-commit runs `./scripts/check_migrations.sh --pre-commit`. It checks the
+  staged tree: unstaged edits to tracked files are put aside, and untracked
+  migration files are hidden for that check, then put back. An untracked
+  migration for another branch no longer fails this commit. Stage the
+  migration with its model change. A manual `./scripts/check_migrations.sh`
+  still sees untracked migration files.
 - `manage prodshell` is read-only. Never work around that protection.
 - Keep piped `prodshell` queries to one expression because IPython echoes
   multi-line loops unreliably. For example:

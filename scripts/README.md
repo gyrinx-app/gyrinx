@@ -89,7 +89,9 @@ the generated image out of git and check it for private data before uploading.
   `.codex/run.sh`, cleanup scripts, and pre-commit wrappers.
 - `test.sh`: Thin wrapper over `pytest`. All args are passed through. Parallel execution
   (`-n auto`) is already enabled via `pyproject.toml` addopts; use `-n 0` to force serial.
-- `check_migrations.sh`: Checks for migration conflicts.
+- `check_migrations.sh`: Runs `makemigrations --check`. The pre-commit hook
+  passes `--pre-commit`, which hides untracked migration files for the check
+  and restores them afterwards. A manual run still sees those files.
 - `check_core_suite_bounds.py`: CI helper. Given a collected `pytest -m core` count,
   refuses a value outside `CORE_SUITE_MIN`..`MAX` and warns when the count is
   within 50 of the max (the next core test would fail the required job).
