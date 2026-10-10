@@ -490,20 +490,27 @@ class Operation:
         modifiers = getattr(assignable, "modifiers", None)
         if modifiers is None or self._effect_depth >= self.MAX_STORED_EFFECT_DEPTH:
             return
+        stored = []
+        for modifier in modifiers.all():
+            effect = modifier.effect
+            if effect is None or not getattr(effect, "is_stored", False):
+                continue
+            # A holding has no assignment to cascade from. Effects opt into
+            # its grant trigger with their own lifetime rule.
+            perform = (
+                getattr(effect, "perform_grant", None)
+                if trigger == "grant"
+                else effect.perform
+            )
+            if perform is not None:
+                stored.append((modifier, perform))
+        if stored and trigger == "grant":
+            reaching = _boons_reaching(assignment)
+            stored = [(m, perform) for m, perform in stored if m.pk in reaching]
         self._effect_depth += 1
         try:
-            for modifier in modifiers.all():
-                effect = modifier.effect
-                if effect is not None and getattr(effect, "is_stored", False):
-                    # A holding has no assignment to cascade from. Effects
-                    # opt into its grant trigger with their own lifetime rule.
-                    perform = (
-                        getattr(effect, "perform_grant", None)
-                        if trigger == "grant"
-                        else effect.perform
-                    )
-                    if perform is not None:
-                        perform(self, assignment)
+            for _modifier, perform in stored:
+                perform(self, assignment)
         finally:
             self._effect_depth -= 1
 
@@ -512,6 +519,9 @@ class Operation:
 
         The campaign operation has already set the holder under its lock.
         A repeated assignment to the same holder never reaches this trigger.
+        Only a boon whose scope reaches the receiving gang runs, read as the
+        gang's sheet reads it: a boon for one House hires for that House's
+        gangs alone.
         """
         if self.gang is None or holding.holder.gang_id != self.gang.pk:
             raise ValueError("The holding must have arrived at this operation's gang.")
@@ -3345,6 +3355,27 @@ def _now():
     from django.utils import timezone
 
     return timezone.now()
+
+
+def _boons_reaching(holding):
+    """The pks of the holding's modifiers that its gang's own card notes.
+
+    The gang's card is computed the way the sheet computes it, holding
+    included, so a stored boon counts as reaching the gang exactly when its
+    scope does there: a boon for Goliath gangs reaches a Goliath gang and a
+    Clan House Goliath Outcast gang, and no other.
+    """
+    from n26.core.card import build_gang_card, build_modifier_index, carriers
+    from n26.core.effects import ModifierIndex, compute_gang
+
+    card = build_gang_card(holding.holder.gang, with_statlines=False)
+    computed = compute_gang(card, build_modifier_index(carriers(card)))
+    held = ModifierIndex.key(holding)
+    return {
+        step.modifier.pk
+        for step in computed.plan
+        if step.outcome == "noted" and ModifierIndex.key(step.source) == held
+    }
 
 
 def _under_the_lock(assignment):

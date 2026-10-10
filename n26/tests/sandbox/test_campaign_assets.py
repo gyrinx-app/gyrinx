@@ -861,7 +861,119 @@ class TestRecruitBoons:
         assert_reconciled(gang)
 
 
-class TestCampaignSuppression:
+@pytest.fixture
+def houses(default_pack, gang_type):
+    """Goliath and Escher gang types with the Gang supertype built in, each
+    with its own House picked: the fact a boon for one House reads. The
+    shared gang type is the Escher one."""
+    from n26.library.gang_supertypes import seed_gang_supertypes
+    from n26.tests.sandbox.actions import create_gang_type
+
+    made = {"Goliath": create_gang_type("Goliath"), "Escher": gang_type}
+    seed_gang_supertypes()
+    for gang_type in made.values():
+        gang_type.refresh_from_db()
+    return made
+
+
+@pytest.fixture
+def house_gangs(campaign, houses):
+    made = {}
+    for name, house in (("Irontooth", "Goliath"), ("Wild Roses", "Escher")):
+        gang = found_gang(name, houses[house], owner=User.objects.create_user(name))
+        join_campaign(gang, campaign)
+        made[house] = gang
+    return made
+
+
+@pytest.fixture
+def goliath_recruit(old_ruins, person_type, houses):
+    """Old Ruins recruits a fighter for a Goliath holder alone."""
+    from n26.library.authoring import has_gang_pickable, targets_gang_alone
+    from n26.library.gang_supertypes import supertype_pick
+    from n26.tests.sandbox.actions import create_profile, op_adds_model
+
+    recruit = create_profile("Pit slave", person_type, houses["Goliath"], price=50)
+    modifier(
+        "Old Ruins recruits for Goliath",
+        targets_gang_alone(has_gang_pickable(supertype_pick("Goliath"))),
+        op_adds_model(recruit),
+        attach_to=old_ruins,
+    )
+    return old_ruins, recruit
+
+
+def recruits(gang, profile):
+    """How many models of this profile the gang has on its roster."""
+    from n26.core.models import Miniature
+
+    return Miniature.objects.filter(
+        membership__gang=gang, membership__profile=profile, membership__archived=False
+    ).count()
+
+
+class TestARecruitBoonForOneHouse:
+    """A recruit boon limited to one House hires only for a gang of that
+    House, read the way the gang sheet reads the same boon. A recruit boon
+    with no condition still hires for any holder."""
+
+    def test_a_goliath_holder_gains_the_recruit(
+        self, campaign, house_gangs, goliath_recruit
+    ):
+        asset, profile = goliath_recruit
+        goliath = house_gangs["Goliath"]
+
+        assign_asset(add_asset(campaign, asset), goliath)
+
+        assert recruits(goliath, profile) == 1
+        goliath.refresh_from_db()
+        assert_reconciled(goliath)
+
+    def test_an_escher_holder_gains_no_recruit(
+        self, campaign, house_gangs, goliath_recruit
+    ):
+        asset, profile = goliath_recruit
+        escher = house_gangs["Escher"]
+
+        assign_asset(add_asset(campaign, asset), escher)
+
+        assert recruits(escher, profile) == 0
+        # The territory's other boons still reach the Escher holder.
+        assert reputation(escher) == 1
+        escher.refresh_from_db()
+        assert_reconciled(escher)
+
+    def test_handing_it_to_an_escher_gang_recruits_nothing_more(
+        self, campaign, house_gangs, goliath_recruit
+    ):
+        from n26.tests.sandbox.actions import transfer_asset
+
+        asset, profile = goliath_recruit
+        goliath, escher = house_gangs["Goliath"], house_gangs["Escher"]
+        held = add_asset(campaign, asset)
+
+        assign_asset(held, goliath)
+        transfer_asset(held, escher)
+
+        assert recruits(goliath, profile) == 1
+        assert recruits(escher, profile) == 0
+        for gang in (goliath, escher):
+            gang.refresh_from_db()
+            assert_reconciled(gang)
+
+    def test_a_recruit_boon_for_every_gang_hires_for_either_house(
+        self, campaign, house_gangs, recruiting_asset
+    ):
+        asset, profile = recruiting_asset
+
+        for gang in house_gangs.values():
+            assign_asset(add_asset(campaign, asset), gang)
+
+        for gang in house_gangs.values():
+            assert recruits(gang, profile) == 1
+            gang.refresh_from_db()
+            assert_reconciled(gang)
+
     def test_additions_suppress_a_shared_rule_only_in_their_own_campaign(
         self, core, gang_type, arbitrator, player
     ):
