@@ -11,7 +11,8 @@ would turn nested controls back on. Only a static card has a body or meta:
 the island draws a header-only card.
 {% endcomment %}
 {% with on="border-accent bg-accent/5" off="border-ink-200 dark:border-ink-700" dim="opacity-50" %}
-    <div data-checkbox-card
+    <div {{ attrs }}
+         data-checkbox-card
          class="rounded-box border-2 p-4 transition-[background-color] {{ class }}{% if checked %} {{ on }}{% else %} {{ off }}{% endif %}">
         <label class="flex cursor-pointer items-start gap-3">
             <input type="checkbox"

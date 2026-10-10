@@ -31,6 +31,7 @@ def checkbox_card_props(
     css_class="",
     body="",
     meta="",
+    attrs="",
 ):
     """The checkbox the card posts, and the words drawn in its header.
 
@@ -39,13 +40,19 @@ def checkbox_card_props(
 
     The island draws a header-only card. React does not take server-drawn
     markup as children, so a body or meta is refused: draw that card static,
-    or compose CheckboxCard inside the island that owns the form.
+    or compose CheckboxCard inside the island that owns the form. Extra root
+    attributes are refused too, since React would not draw them.
     """
     if str(body or "").strip() or str(meta or "").strip():
         raise ValueError(
             "<c-n26.checkbox-card> draws only a header as a React island. "
             'For nested controls or meta, pass :static="True", or compose '
             "CheckboxCard inside the island that owns the form."
+        )
+    if str(attrs or "").strip():
+        raise ValueError(
+            "<c-n26.checkbox-card> as a React island draws no extra root "
+            f'attributes ({str(attrs).strip()}). Pass :static="True" to keep them.'
         )
     return {
         "name": _text(name),

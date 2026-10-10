@@ -81,9 +81,24 @@ def test_the_card_is_an_island_over_the_same_checkbox():
     assert "h-full" in box.find_parent("div", class_="rounded-box")["class"]
     assert "border-accent" in box.find_parent("div", class_="rounded-box")["class"]
     assert host.find(attrs={"data-checkbox-body": True}) is None
+    # The host is transparent to layout, so the card stays the grid's item.
+    assert "contents" in host["class"]
     assert "x-data" not in html
     assert ":inert" not in html
     assert "@change" not in html
+
+
+def test_the_island_refuses_root_attributes_and_static_keeps_them():
+    with pytest.raises(ValueError, match="static"):
+        render('<c-n26.checkbox-card name="open" value="1" label="L" id="pick" />')
+
+    html = render(
+        '<c-n26.checkbox-card :static="True" name="open" value="1" label="L" '
+        'id="pick" data-row="7" />'
+    )
+    card = BeautifulSoup(html, "html.parser").find(attrs={"data-checkbox-card": True})
+    assert card["id"] == "pick"
+    assert card["data-row"] == "7"
 
 
 @pytest.mark.parametrize(
