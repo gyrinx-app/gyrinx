@@ -116,7 +116,7 @@ def test_write_pause_control_is_gated_to_superusers(client, make_user):
     assert response.status_code == 403
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db
 def test_write_pause_control_records_pause_and_resume(client, maintenance_superuser):
     held, _ = WritePause.objects.get_or_create(scope="n26")
     client.force_login(maintenance_superuser)
@@ -137,7 +137,7 @@ def test_write_pause_control_records_pause_and_resume(client, maintenance_superu
     assert LogEntry.objects.filter(object_id=str(held.pk)).count() == 2
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db
 def test_write_pause_control_does_not_resume_a_newer_pause(
     client, maintenance_superuser
 ):

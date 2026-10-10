@@ -490,6 +490,7 @@ def test_ganger_promotion_to_specialist(fighter_with_xp, skill):
     fighter_with_xp.refresh_from_db()
 
     # Check fighter has been promoted
+    assert advancement.advancement_choice == "skill_promote_specialist"
     assert fighter_with_xp.category_override == "SPECIALIST"
     assert fighter_with_xp.get_category() == "SPECIALIST"
     assert skill in fighter_with_xp.skills.all()
@@ -727,34 +728,6 @@ def test_can_fighter_roll_dice_for_advancement():
 
     leader = MockFighter("LEADER")
     assert can_fighter_roll_dice_for_advancement(leader) is False
-
-
-@pytest.mark.django_db
-def test_promotion_outcome_includes_promotion_text(fighter_with_xp, skill):
-    """Test that promotion advancements include 'and was promoted' in the outcome."""
-    # Create a promotion advancement directly
-    advancement = ListFighterAdvancement.objects.create(
-        fighter=fighter_with_xp,
-        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
-        advancement_choice="skill_promote_specialist",
-        skill=skill,
-        xp_cost=6,
-        cost_increase=20,
-    )
-
-    # Apply the advancement
-    advancement.apply_advancement()
-    fighter_with_xp.refresh_from_db()
-
-    # Check that the advancement was created with correct choice
-    assert advancement.advancement_choice == "skill_promote_specialist"
-
-    # Check fighter was promoted
-    assert fighter_with_xp.category_override == "SPECIALIST"
-    assert fighter_with_xp.get_category() == "SPECIALIST"
-
-    # Check skill was added
-    assert skill in fighter_with_xp.skills.all()
 
 
 @pytest.mark.django_db

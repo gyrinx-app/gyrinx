@@ -38,6 +38,7 @@ from n26.library.models import (
 )
 from n26.library.models.collection import Collection, CollectionEntry
 from n26.library.standard_content import STANDARD_CONTENT
+from n26.tests.fixtures import library_setup
 
 # --- The upload: four small sheets in the real sheets' shape -----------------
 #
@@ -150,9 +151,28 @@ def entry_key(collection_key, item_key):
 
 
 @pytest.fixture
+@library_setup
 def foundation(default_pack):
-    """Standard content, created exactly as the foundations page's
-    buttons would create it (library/standard_content.py)."""
+    """The real foundations the sheets resolve against: statline shapes,
+    types, subtypes, skills, XP, gang names and the two swept collections."""
+    for key in (
+        "model-characteristics",
+        "weapon-characteristics",
+        "core-subtypes",
+        "skills",
+        "progression-counters",
+        "gang-types",
+        "skills-collection",
+        "trading-post",
+    ):
+        STANDARD_CONTENT[key].create()
+
+
+@pytest.fixture
+@library_setup
+def full_foundation(default_pack):
+    """Clearing must leave every foundation whole, including the action
+    and status tables the upload itself never reads."""
     for item in STANDARD_CONTENT.values():
         item.create()
 
@@ -201,8 +221,7 @@ class TestPlanning:
         assert rows[0]["Name"] == "Autogun"
         assert rows[0]["SR"] == '8"'
 
-    def test_the_plan_says_what_each_row_becomes(self, plan):
-        # The equipment sheet fixes identity and price...
+    def test_the_catalogue_plan_preserves_identity_prices_and_profiles(self, plan):
         autogun = plan.get(AUTOGUN)
         assert autogun.action == "create"
         assert autogun.fields["price"] == 20
@@ -232,20 +251,11 @@ class TestPlanning:
         assert plan.get(LANCE_PRIMED).fields["position"] == 0
         assert plan.get(LANCE_SPENT).fields["position"] == 1
 
-    def test_one_printed_name_two_weapons_are_told_apart(self, plan):
-        # A power fist is Exo kit and a Power weapon: two weapons wearing
-        # one name, kept apart by the category the sheet files them under
-        # and by the author-facing qualifier.
         assert plan.get(POWER_FIST).fields["qualifier"] == "Power weapons"
         assert plan.get(EXO_FIST).fields["qualifier"] == "Exo weapons"
         assert plan.get(POWER_FIST).fields["price"] == 0  # "-", list-priced
         assert plan.get(EXO_FIST).fields["price"] == 105
 
-    def test_a_grenade_is_a_weapon_that_takes_no_slot(self, plan):
-        """The sheet types grenades Wargear for one reason: they do not
-        count against the weapons a fighter holds. But a thing with a
-        profile is a weapon, so it arrives as one — and slots 0
-        carries the fact the typing was standing in for."""
         grenade = plan.get(FRAG_GRENADES)
         assert grenade.kind == "Weapon"
         assert grenade.fields["slots"] == 0
@@ -266,10 +276,6 @@ class TestPlanning:
         assert own.fields["stats"]["LR"] == '6"'
         assert own.fields["position"] == 0
 
-    def test_an_accessory_is_its_own_kind(self, plan):
-        """A sight bolts onto a weapon rather than being carried, which
-        is a different table and a different thing on a card — so the
-        sheet says which, and it is not filed as wargear."""
         sight = plan.get(SIGHT)
         assert sight.kind == "WeaponAccessory"
         assert sight.fields["price"] == 20
@@ -286,21 +292,15 @@ class TestPlanning:
             if p.name == "Telescopic sight" and p.kind == "Wargear"
         ]
 
-    def test_ordinary_wargear_stays_wargear(self, plan):
-        # Only a profile makes the difference — a respirator has none.
         assert plan.get(RESPIRATOR).kind == "Wargear"
         assert plan.get(PHELYNX).kind == "Wargear"
 
-    def test_the_tp_column_is_the_whole_trading_post_story(self, plan):
-        # "E" is never-sold-there; a digit is its price there. Nothing
-        # plans a Trading Post — membership is having the price.
         assert plan.get(RESPIRATOR).fields["trade_point_price"] == 1
         assert plan.get(RESPIRATOR).fields["is_exclusive"] is False
         assert plan.get(PHELYNX).fields["trade_point_price"] is None
         assert plan.get(PHELYNX).fields["is_exclusive"] is True
         assert not [p for p in plan.planned if p.name == "Trading Post"]
 
-    def test_traits_are_planned_once_with_annotations(self, plan):
         melee = plan.get("Trait:melee:")
         assert melee.action == "create"
         knockback = plan.get("Trait:knockback:5+")
@@ -308,7 +308,7 @@ class TestPlanning:
         # Melee appears on four sheet rows; the plan holds one trait.
         assert sum(1 for p in plan.planned if p.key == "Trait:melee:") == 1
 
-    def test_profiles_plan_price_statline_and_built_ins(self, plan):
+    def test_fighter_plans_preserve_their_home_built_ins_and_skill_grid(self, plan):
         queen = plan.get("Profile:gang queen")
         assert queen.fields["price"] == 120  # Rating IS the price (§5a)
         assert queen.fields["stats"]["M"] == '6"'
@@ -320,6 +320,38 @@ class TestPlanning:
         assert "Rule:witch:" in members
         assert "Skill:catfall" in members
         assert {"item": "Counter:xp", "amount": 61} in built_ins.fields["members"]
+
+        queen = plan.get("Profile:gang queen")
+        assert queen.fields["category"] == "Category:gang list:leaders"
+
+        croc = plan.get("Profile:sumpkroc")
+        assert croc.fields["category"] == "Category:supplementary fighters:beasts"
+        assert plan.get(croc.fields["category"]).fields["section"] == (
+            "Supplementary Fighters"
+        )
+
+        home = plan.get(plan.get("Profile:gang queen").fields["category"])
+        assert home.fields["section"] == "Gang List"
+
+        assert plan.get("Category:gang list:leaders").fields["section_position"] == 0
+        assert (
+            plan.get("Category:supplementary fighters:beasts").fields[
+                "section_position"
+            ]
+            == 1
+        )
+
+        croc = plan.get("Profile:sumpkroc")
+        built_ins = plan.get(croc.fields["built_ins"])
+        assert {"item": JAWS} in built_ins.fields["members"]
+
+        primary = plan.get("Modifier:Profile:gang queen:agility:primary")
+        assert primary.fields["attach_to"] == "Profile:gang queen"
+        assert primary.fields["places"] == {
+            "category": "Category:skills:agility",
+            "section": "Primary",
+        }
+        assert plan.get("Modifier:Profile:gang queen:cunning:secondary")
 
     def test_a_heading_typed_in_another_case_is_the_same_column(
         self, foundation, sheets
@@ -334,33 +366,6 @@ class TestPlanning:
 
         queen = planned.get("Profile:gang queen")
         assert queen.fields["category"] == "Category:gang list:leaders"
-
-    def test_a_fighter_is_homed_where_the_sheet_says(self, plan):
-        """The hire list groups by each fighter's home category, so the
-        sheet's Category and Section are what place it."""
-        queen = plan.get("Profile:gang queen")
-        assert queen.fields["category"] == "Category:gang list:leaders"
-
-        croc = plan.get("Profile:sumpkroc")
-        assert croc.fields["category"] == "Category:supplementary fighters:beasts"
-        assert plan.get(croc.fields["category"]).fields["section"] == (
-            "Supplementary Fighters"
-        )
-
-    def test_a_blank_section_means_the_gang_list(self, plan):
-        # The sheet spells out Supplementary Fighters and leaves the
-        # ordinary case empty, so an empty cell is the gang's own list.
-        home = plan.get(plan.get("Profile:gang queen").fields["category"])
-        assert home.fields["section"] == "Gang List"
-
-    def test_the_gang_list_reads_before_the_supplementary_fighters(self, plan):
-        assert plan.get("Category:gang list:leaders").fields["section_position"] == 0
-        assert (
-            plan.get("Category:supplementary fighters:beasts").fields[
-                "section_position"
-            ]
-            == 1
-        )
 
     def test_a_heading_the_sheet_invents_reads_after_the_known_ones(
         self, foundation, sheets
@@ -380,23 +385,7 @@ Escher,Alliances,Hangers-On,Rogue Doc,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,Gang
         assert home.fields["section"] == "Alliances"
         assert home.fields["section_position"] == 2
 
-    def test_built_ins_resolve_against_the_catalogue(self, plan):
-        croc = plan.get("Profile:sumpkroc")
-        built_ins = plan.get(croc.fields["built_ins"])
-        assert {"item": JAWS} in built_ins.fields["members"]
-
-    def test_the_grid_columns_become_placement_modifiers(self, plan):
-        primary = plan.get("Modifier:Profile:gang queen:agility:primary")
-        assert primary.fields["attach_to"] == "Profile:gang queen"
-        assert primary.fields["places"] == {
-            "category": "Category:skills:agility",
-            "section": "Primary",
-        }
-        assert plan.get("Modifier:Profile:gang queen:cunning:secondary")
-
-    def test_list_lines_become_a_named_collection_of_entries(self, plan):
-        # The sheet splits the kind from the name; the library holds one
-        # row, so the two go back together.
+    def test_list_plans_preserve_entries_prices_and_restrictions(self, plan):
         assert plan.get(CAWDOR_LIST).name == "Cawdor Equipment List"
 
         entry = plan.get(entry_key(CAWDOR_LIST, FRAG_LANCE))
@@ -411,10 +400,6 @@ Escher,Alliances,Hangers-On,Rogue Doc,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,Gang
         # A listing that names a Profile sells one profile of a gun.
         assert plan.get(entry_key(GOLIATH_LIST, WARP_ROUND))
 
-    def test_an_entry_overrides_only_where_it_disagrees(self, plan):
-        # The catalogue prices a respirator at 15. Escher agrees, so its
-        # entry says nothing and a later correction flows through;
-        # Goliath charges 20, which is this list's own fact.
         assert plan.get(RESPIRATOR).fields["price"] == 15
         assert (
             plan.get(entry_key(ESCHER_LIST, RESPIRATOR)).fields["price_override"]
@@ -424,9 +409,6 @@ Escher,Alliances,Hangers-On,Rogue Doc,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,Gang
             plan.get(entry_key(GOLIATH_LIST, RESPIRATOR)).fields["price_override"] == 20
         )
 
-    def test_a_list_only_item_takes_its_price_from_the_list(self, plan):
-        # "-" is no reference price at all, so the list price is the only
-        # price the thing has ever had and is always written.
         assert plan.get(POWER_FIST).fields["price"] == 0
         assert (
             plan.get(entry_key(ESCHER_LIST, POWER_FIST)).fields["price_override"] == 25
@@ -440,7 +422,7 @@ Escher,Alliances,Hangers-On,Rogue Doc,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,Gang
 
 
 class TestPreview:
-    def test_the_preview_counts_what_the_upload_creates(self, plan):
+    def test_the_preview_counts_samples_and_serialises_the_planned_rows(self, plan):
         preview = plan.preview()
         assert preview["ok"] is True
         assert preview["counts"]["Weapon"] == 6  # two named "Power fist"; one a grenade
@@ -454,7 +436,6 @@ class TestPreview:
             1 for p in plan.planned if p.action == "create"
         )
 
-    def test_examples_pair_sheet_rows_with_planned_objects(self, plan):
         preview = plan.preview(examples=1)
         by_sheet = {
             example["source"]["sheet"]: example for example in preview["examples"]
@@ -477,19 +458,15 @@ class TestPreview:
         kinds = {c["kind"] for c in profiles_example["creates"]}
         assert {"Profile", "DefaultAssignmentSet", "Modifier"} <= kinds
 
-    def test_examples_can_be_sampled(self, plan):
         preview = plan.preview(examples=2, sample=True, seed=26)
         assert (
             len([e for e in preview["examples"] if e["source"]["sheet"] == "equipment"])
             == 2
         )
 
-    def test_the_preview_is_plain_data(self, plan):
-        # JSON round-trips: the preview is a structure, not objects.
         parsed = json.loads(json.dumps(plan.preview()))
         assert parsed["counts"] == plan.preview()["counts"]
 
-    def test_notes_are_said_but_do_not_block(self, plan):
         preview = plan.preview()
         notes = [p for p in preview["problems"] if p["severity"] == "note"]
         # A gang-wide cap is not a restriction on *use* at all, so it is
@@ -712,7 +689,7 @@ Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),St
 
 
 class TestPerform:
-    def test_creates_exactly_what_the_preview_said(self, plan):
+    def test_the_import_matches_its_preview_and_preserves_list_restrictions(self, plan):
         preview = plan.preview()
         result = perform(plan)
         planned_creates = {}
@@ -732,85 +709,6 @@ class TestPerform:
         assert set(result.existing) <= already
         assert not set(result.created) & set(result.existing)
 
-    def test_weapons_arrive_with_profiles_statlines_and_traits(self, plan):
-        perform(plan)
-        autogun = Weapon.objects.get(name="Autogun")
-        assert autogun.price == 20
-        own, warp = autogun.profiles.order_by("position")
-        assert own.price == 0 and warp.price == 10
-        assert warp.trade_point_price == 4
-        assert own.name == ""  # the weapon's own line prints as the weapon
-        assert own.statline.as_dict() == {
-            "short_range": '8"',
-            "long_range": '24"',
-            "strength": "3",  # the one shared Strength row
-            "armour_piercing": "-",
-            "lethality": "1",
-        }
-        assert sorted(warp.trait_names) == ["Cursed", "Single Shot"]
-
-        lance = Weapon.objects.get(name="Frag lance")
-        assert lance.is_exclusive is True
-        primed, spent = lance.profiles.order_by("position")
-        assert primed.statline.as_dict()["strength"] == "4"
-        assert spent.statline.as_dict()["strength"] == "S"
-
-    def test_profiles_arrive_with_statline_built_ins_and_grid(self, plan):
-        perform(plan)
-        queen = Profile.objects.get(name="Gang Queen")
-        assert queen.price == 120
-        assert queen.stats()["movement"] == '6"'
-        assert queen.stats()["weapon_skill"] == "3+"
-        assert queen.stats()["leadership"] == "8"  # plain number, no plus
-
-        members = {str(m.assignable) for m in queen.built_ins.members.all()}
-        assert {"Leader", "Witch", "Catfall"} <= members
-        xp_row = queen.built_ins.members.get(counter__isnull=False)
-        assert xp_row.assignable.name == "XP"
-        assert xp_row.amount == 61
-
-        placement = queen.modifiers.get(name="Gang Queen: Agility is Primary")
-        assert placement.places_category.category.name == "Agility"
-        assert placement.places_category.section.name == "Primary"
-
-    def test_profiles_arrive_homed_under_their_heading(self, plan):
-        """A fighter's home is what the hire list groups it by, and the
-        two headings have a reading order: the gang's own list, then
-        everyone hired beside it."""
-        perform(plan)
-        queen = Profile.objects.get(name="Gang Queen")
-        assert queen.category.name == "Leaders"
-        assert queen.category.section.name == "Gang List"
-        assert queen.category.section.position == 0
-
-        croc = Profile.objects.get(name="Sumpkroc")
-        assert croc.category.section.name == "Supplementary Fighters"
-        assert croc.category.section.position == 1
-
-    def test_the_equipment_headings_keep_their_own_order(self, plan):
-        """Only the two fighter headings are numbered. Everything the
-        catalogue founds sorts by name, and an import must not renumber
-        it on its way past."""
-        from n26.library.models import Section
-
-        perform(plan)
-        assert [
-            section.position
-            for section in Section.objects.filter(
-                name__in=["Ranged weapons", "Close combat weapons", "Wargear"]
-            )
-        ] == [0, 0, 0]
-
-    def test_built_ins_attach_at_price_zero_whatever_the_lists_say(self, plan):
-        perform(plan)
-        croc = Profile.objects.get(name="Sumpkroc")
-        members = {str(m.assignable) for m in croc.built_ins.members.all()}
-        assert members == {"Beast", "Pet", "Ferocious jaws"}
-        jaws = croc.built_ins.members.get(weapon__isnull=False).assignable
-        assert jaws.price == 0  # never priced from a list (§5a)
-
-    def test_equipment_lists_arrive_with_overrides_and_restrictions(self, plan):
-        perform(plan)
         respirator = Wargear.objects.get(name="Respirator")
         assert respirator.price == 15
         goliath_list = Collection.objects.get(name="Goliath Equipment List")
@@ -834,6 +732,121 @@ class TestPerform:
         listed = CollectionEntry.objects.get(collection=cawdor_list, weapon=lance)
         assert [p.name for p in listed.usable_by_profiles.all()] == ["Way-Brethren"]
         assert lance.usable_by_words() == ""
+
+    def test_catalogue_rows_arrive_with_their_profiles_prices_and_headings(self, plan):
+        perform(plan)
+        autogun = Weapon.objects.get(name="Autogun")
+        assert autogun.price == 20
+        own, warp = autogun.profiles.order_by("position")
+        assert own.price == 0 and warp.price == 10
+        assert warp.trade_point_price == 4
+        assert own.name == ""  # the weapon's own line prints as the weapon
+        assert own.statline.as_dict() == {
+            "short_range": '8"',
+            "long_range": '24"',
+            "strength": "3",  # the one shared Strength row
+            "armour_piercing": "-",
+            "lethality": "1",
+        }
+        assert sorted(warp.trait_names) == ["Cursed", "Single Shot"]
+
+        lance = Weapon.objects.get(name="Frag lance")
+        assert lance.is_exclusive is True
+        primed, spent = lance.profiles.order_by("position")
+        assert primed.statline.as_dict()["strength"] == "4"
+        assert spent.statline.as_dict()["strength"] == "S"
+
+        from n26.library.models import Section
+
+        assert [
+            section.position
+            for section in Section.objects.filter(
+                name__in=["Ranged weapons", "Close combat weapons", "Wargear"]
+            )
+        ] == [0, 0, 0]
+
+        category = Category.objects.get(name="Auto/stub weapons")
+        assert category.section.name == "Ranged weapons"
+
+        from n26.library.models import WeaponAccessory
+
+        sight = WeaponAccessory.objects.get(name="Telescopic sight")
+        assert sight.price == 20
+        assert sight.trade_point_price == 1
+        assert sight.category.name == "Weapon accessories"
+        assert sight.fits_category is None
+        assert sight.fits_asterisked is False
+
+        # It is a listable thing like any other, so a list may offer it.
+        escher = Collection.objects.get(name="Escher Equipment List")
+        assert CollectionEntry.objects.filter(
+            collection=escher, weapon_accessory=sight
+        ).exists()
+
+        # And an exclusive one keeps out of the Trading Post.
+        assert WeaponAccessory.objects.get(name="Suspensors").is_exclusive is True
+
+        from n26.library.standard_content import TRADING_POST_COLLECTION
+
+        post = Collection.objects.get(name=TRADING_POST_COLLECTION)
+        assert post.entries.count() == 0  # nothing was listed by hand
+
+        swept = {
+            item.name
+            for selector in post.selectors.all()
+            for item in selector.contents(include_exclusive=False)
+        }
+        assert "Autogun" in swept  # TP 0 — free there, but offered
+        assert "Respirator" in swept  # TP 1
+        # An accessory is bought there as readily as the gun it bolts
+        # onto, so its own sweep is part of what makes the post.
+        assert "Telescopic sight" in swept
+        assert "Frag lance" not in swept  # TP "E" — list only
+        assert "Phelynx" not in swept
+
+        # And the two halves never both hold, which the database also
+        # refuses (exclusive_has_no_trade_points).
+        assert not Weapon.objects.filter(
+            is_exclusive=True, trade_point_price__isnull=False
+        ).exists()
+
+        fists = Weapon.objects.filter(name="Power fist").order_by("qualifier")
+        assert [w.qualifier for w in fists] == ["Exo weapons", "Power weapons"]
+        # The qualifier is for authors; a card prints the name alone.
+        assert {str(w) for w in fists} == {"Power fist"}
+
+    def test_fighters_arrive_with_their_home_statline_and_free_built_ins(self, plan):
+        perform(plan)
+        queen = Profile.objects.get(name="Gang Queen")
+        assert queen.price == 120
+        assert queen.stats()["movement"] == '6"'
+        assert queen.stats()["weapon_skill"] == "3+"
+        assert queen.stats()["leadership"] == "8"  # plain number, no plus
+
+        members = {str(m.assignable) for m in queen.built_ins.members.all()}
+        assert {"Leader", "Witch", "Catfall"} <= members
+        xp_row = queen.built_ins.members.get(counter__isnull=False)
+        assert xp_row.assignable.name == "XP"
+        assert xp_row.amount == 61
+
+        placement = queen.modifiers.get(name="Gang Queen: Agility is Primary")
+        assert placement.places_category.category.name == "Agility"
+        assert placement.places_category.section.name == "Primary"
+
+        queen = Profile.objects.get(name="Gang Queen")
+        assert queen.category.name == "Leaders"
+        assert queen.category.section.name == "Gang List"
+        assert queen.category.section.position == 0
+
+        croc = Profile.objects.get(name="Sumpkroc")
+        assert croc.category.section.name == "Supplementary Fighters"
+        assert croc.category.section.position == 1
+
+        croc = Profile.objects.get(name="Sumpkroc")
+        members = {str(m.assignable) for m in croc.built_ins.members.all()}
+        assert members == {"Beast", "Pet", "Ferocious jaws"}
+        jaws = croc.built_ins.members.get(weapon__isnull=False).assignable
+        assert jaws.price == 0  # never priced from a list (§5a)
 
     def test_a_restriction_stays_on_the_list_that_prints_it(self, foundation, sheets):
         """The same item on two lists, one of them bracketed: the other
@@ -860,11 +873,6 @@ class TestPerform:
         assert goliath.usable_by_words() == ""
         assert autogun.usable_by_words() == ""
 
-    def test_categories_land_under_their_sections(self, plan):
-        perform(plan)
-        category = Category.objects.get(name="Auto/stub weapons")
-        assert category.section.name == "Ranged weapons"
-
     def test_skill_sets_resolve_to_the_standard_ones(self, plan):
         """The sheet names Agility and Combat, and standard content
         already has them, so an upload joins those sets rather than
@@ -880,69 +888,6 @@ class TestPerform:
         assert {"Agility", "Combat"} <= before  # already there, not invented here
         assert set(after.values_list("name", flat=True)) == before
         assert after.filter(name="Agility").count() == 1
-
-    def test_an_accessory_arrives_bolted_to_nothing_in_particular(self, plan):
-        """It lands in its own table, priced, and fitting anything —
-        which weapons it may bolt onto is not in the sheets, so it is
-        narrowed by hand afterwards rather than guessed at here."""
-        from n26.library.models import WeaponAccessory
-
-        perform(plan)
-        sight = WeaponAccessory.objects.get(name="Telescopic sight")
-        assert sight.price == 20
-        assert sight.trade_point_price == 1
-        assert sight.category.name == "Weapon accessories"
-        assert sight.fits_category is None
-        assert sight.fits_asterisked is False
-
-        # It is a listable thing like any other, so a list may offer it.
-        escher = Collection.objects.get(name="Escher Equipment List")
-        assert CollectionEntry.objects.filter(
-            collection=escher, weapon_accessory=sight
-        ).exists()
-
-        # And an exclusive one keeps out of the Trading Post.
-        assert WeaponAccessory.objects.get(name="Suspensors").is_exclusive is True
-
-    def test_the_trading_post_fills_itself(self, plan):
-        """Ingest builds no Trading Post, and the post is full anyway.
-
-        Membership there is *having a trade point price*, swept in by
-        standard content's two selectors — so setting the field from the
-        sheet's TP column is ingest's whole part in it. "E" is the other
-        half of the same fact: never sold there, equipment list only.
-        """
-        from n26.library.standard_content import TRADING_POST_COLLECTION
-
-        perform(plan)
-        post = Collection.objects.get(name=TRADING_POST_COLLECTION)
-        assert post.entries.count() == 0  # nothing was listed by hand
-
-        swept = {
-            item.name
-            for selector in post.selectors.all()
-            for item in selector.contents(include_exclusive=False)
-        }
-        assert "Autogun" in swept  # TP 0 — free there, but offered
-        assert "Respirator" in swept  # TP 1
-        # An accessory is bought there as readily as the gun it bolts
-        # onto, so its own sweep is part of what makes the post.
-        assert "Telescopic sight" in swept
-        assert "Frag lance" not in swept  # TP "E" — list only
-        assert "Phelynx" not in swept
-
-        # And the two halves never both hold, which the database also
-        # refuses (exclusive_has_no_trade_points).
-        assert not Weapon.objects.filter(
-            is_exclusive=True, trade_point_price__isnull=False
-        ).exists()
-
-    def test_one_name_two_weapons_both_arrive(self, plan):
-        perform(plan)
-        fists = Weapon.objects.filter(name="Power fist").order_by("qualifier")
-        assert [w.qualifier for w in fists] == ["Exo weapons", "Power weapons"]
-        # The qualifier is for authors; a card prints the name alone.
-        assert {str(w) for w in fists} == {"Power fist"}
 
     def test_the_whole_upload_is_one_transaction(self, foundation, sheets, monkeypatch):
         import n26.library.ingest as ingest_module
@@ -1186,94 +1131,6 @@ class TestSpottingWhatChanged:
             "to": "Wargear: Pets",
         }
 
-    def test_a_rewritten_profile_changes_its_traits_and_its_stats(self, imported):
-        plan = plan_ingest(
-            **{
-                **imported,
-                "weapon_profiles": edited(
-                    WEAPON_PROFILES_CSV,
-                    '8",24",3,-,1,Rapid Fire (1)',
-                    '8",24",4,-,1,"Rapid Fire (2), Unwieldy"',
-                ),
-            }
-        )
-        own = plan.get(AUTOGUN_OWN)
-        assert own.action == "update"
-        assert own.changes["stats"] == {"changed": ["Str 3 → 4"]}
-        assert own.changes["traits"]["added"] == ["Rapid Fire (2)", "Unwieldy"]
-        assert own.changes["traits"]["removed"] == ["Rapid Fire (1)"]
-
-    def test_a_new_special_rule_joins_the_fighters_built_ins(self, imported):
-        plan = plan_ingest(
-            **{
-                **imported,
-                "profiles": edited(
-                    PROFILES_CSV,
-                    "Fighter,Leader,61,120,Witch,",
-                    'Fighter,Leader,61,120,"Witch, Overseer",',
-                ),
-            }
-        )
-        built_ins = plan.get("DefaultAssignmentSet:gang queen built-ins")
-        assert built_ins.action == "update"
-        assert built_ins.changes == {"members": {"added": ["Overseer"]}}
-
-    def test_a_relisted_price_is_a_change_to_the_entry(self, imported):
-        plan = plan_ingest(
-            **{
-                **imported,
-                "equipment_lists": edited(
-                    EQUIPMENT_LISTS_CSV,
-                    "Goliath,Wargear,Personal equipment,Respirator,,20,",
-                    "Goliath,Wargear,Personal equipment,Respirator,,40,",
-                ),
-            }
-        )
-        entry = plan.get(entry_key(GOLIATH_LIST, RESPIRATOR))
-        assert entry.action == "update"
-        assert entry.changes == {"price_override": {"from": 20, "to": 40}}
-
-    def test_a_restriction_added_later_is_planned_on_its_own_terms(self, imported):
-        """The entry is already there, so nothing about *it* changes.
-        The restriction is a separate fact about the item, and it is
-        made — where before it inherited the entry's "already there"
-        and was never applied at all."""
-        plan = plan_ingest(
-            **{
-                **imported,
-                "equipment_lists": edited(
-                    EQUIPMENT_LISTS_CSV,
-                    "Escher,Ranged weapons,Auto/stub weapons,Autogun,,20,,",
-                    "Escher,Ranged weapons,Auto/stub weapons,Autogun,,20,Way-Brethren only,",
-                ),
-            }
-        )
-        entry = plan.get(entry_key(ESCHER_LIST, AUTOGUN))
-        assert entry.action == "unchanged"
-        assert plan.get(f"Restriction:{entry.key}").action == "create"
-
-    def test_a_skill_set_moved_between_tiers_leaves_the_tier_it_left(self, imported):
-        """The live wrong-card case: adding the new placement without
-        retracting the old one leaves the fighter with Combat in both
-        tiers, which is not a tidiness problem — it is a fighter who
-        can buy the same skills twice as cheaply as the book allows."""
-        plan = plan_ingest(
-            **{
-                **imported,
-                "profiles": edited(
-                    PROFILES_CSV,
-                    ',Combat,"Agility, Shooting"',
-                    ',,"Agility, Shooting, Combat"',
-                ),
-            }
-        )
-        brethren = plan.get("Profile:way-brethren")
-        assert brethren.action == "update"
-        assert brethren.changes["skill_grid"] == {
-            "added": ["Way-Brethren: Combat is Secondary"],
-            "removed": ["Way-Brethren: Combat is Primary"],
-        }
-
     def test_a_fighter_given_a_home_is_rehomed_and_the_category_is_not_orphaned(
         self, foundation, sheets
     ):
@@ -1312,7 +1169,9 @@ class TestThePreviewShowsTheDifference:
             }
         )
 
-    def test_the_preview_names_every_field_that_would_change(self, changed):
+    def test_the_preview_serialises_and_groups_every_changed_field(
+        self, changed, sheets
+    ):
         preview = changed.preview()
         assert preview["actions"]["update"] == 1
         assert preview["changes"] == [
@@ -1325,16 +1184,6 @@ class TestThePreviewShowsTheDifference:
             }
         ]
 
-    def test_a_corrected_reference_price_reaches_the_lists_that_agreed_with_it(
-        self, foundation, sheets
-    ):
-        """An entry stores nothing where it agrees with the catalogue,
-        so the two can only disagree afterwards by the entry taking on
-        the old price as its own. That is the sheets' meaning — Escher
-        still charges 20 for an autogun the catalogue now prices at 25 —
-        and it is worth seeing in the preview rather than discovering
-        on a card."""
-        perform(plan_ingest(pack=None, **sheets))
         plan = plan_ingest(
             **{
                 **sheets,
@@ -1348,11 +1197,9 @@ class TestThePreviewShowsTheDifference:
             "price_override": {"from": None, "to": 20}
         }
 
-    def test_the_preview_is_still_plain_data(self, changed):
         parsed = json.loads(json.dumps(changed.preview()))
         assert parsed["changes"] == changed.preview()["changes"]
 
-    def test_the_page_groups_changes_by_what_changed(self, changed):
         from n26.library.views import _changes_by_shape
 
         grouped = _changes_by_shape(changed.preview()["changes"])
@@ -1405,6 +1252,11 @@ class TestApplyingWhatChanged:
                 ),
             }
         )
+        own = plan.get(AUTOGUN_OWN)
+        assert own.action == "update"
+        assert own.changes["stats"] == {"changed": ["Str 3 → 4"]}
+        assert own.changes["traits"]["added"] == ["Rapid Fire (2)", "Unwieldy"]
+        assert own.changes["traits"]["removed"] == ["Rapid Fire (1)"]
         perform(plan)
         own = Weapon.objects.get(name="Autogun").profiles.get(name="")
         assert sorted(own.trait_names) == ["Rapid Fire (2)", "Unwieldy"]
@@ -1423,6 +1275,9 @@ class TestApplyingWhatChanged:
                 ),
             }
         )
+        built_ins = plan.get("DefaultAssignmentSet:gang queen built-ins")
+        assert built_ins.action == "update"
+        assert built_ins.changes == {"members": {"added": ["Overseer"]}}
         perform(plan)
         queen = Profile.objects.get(name="Gang Queen")
         members = {str(m.assignable) for m in queen.built_ins.members.all()}
@@ -1440,6 +1295,9 @@ class TestApplyingWhatChanged:
                 ),
             }
         )
+        entry = plan.get(entry_key(GOLIATH_LIST, RESPIRATOR))
+        assert entry.action == "update"
+        assert entry.changes == {"price_override": {"from": 20, "to": 40}}
         perform(plan)
         entry = CollectionEntry.objects.get(
             collection__name="Goliath Equipment List",
@@ -1464,6 +1322,9 @@ class TestApplyingWhatChanged:
                 ),
             }
         )
+        entry = plan.get(entry_key(ESCHER_LIST, AUTOGUN))
+        assert entry.action == "unchanged"
+        assert plan.get(f"Restriction:{entry.key}").action == "create"
         perform(plan)
         autogun = Weapon.objects.get(name="Autogun")
         entry = CollectionEntry.objects.get(
@@ -1472,12 +1333,11 @@ class TestApplyingWhatChanged:
         assert [p.name for p in entry.usable_by_profiles.all()] == ["Way-Brethren"]
         assert autogun.usable_by_words() == ""
 
-    def test_a_restriction_on_a_named_profile_lands_on_the_entry_for_that_line(
+    def test_a_named_profile_restriction_lands_only_on_its_entry_and_repreviews_unchanged(
         self, imported
     ):
-        """The launcher is open to everyone; one of its rounds is not.
-        "Autogun (warp round) — Sumpkroc only" narrows the list's offer
-        of the round, and neither the round nor the gun is touched."""
+        """A named round's restriction belongs to its list entry. The gun
+        and round remain open, and the same sheet plans no second restriction."""
         plan = plan_ingest(
             **{
                 **imported,
@@ -1501,10 +1361,6 @@ class TestApplyingWhatChanged:
         assert warp_round.usable_by_words() == ""
         assert autogun.usable_by_words() == ""
 
-    def test_a_restricted_profile_previews_again_as_unchanged(self, imported):
-        """The preview re-plans on every visit. Once the round carries
-        its restriction, planning the same sheet again finds it there
-        rather than failing to ask a profile who may use it."""
         sheets = {
             **imported,
             "equipment_lists": edited(
@@ -1514,7 +1370,6 @@ class TestApplyingWhatChanged:
                 "Sumpkroc only,",
             ),
         }
-        perform(plan_ingest(**sheets))
 
         plan = plan_ingest(**sheets)
 
@@ -1536,6 +1391,12 @@ class TestApplyingWhatChanged:
                 ),
             }
         )
+        brethren = plan.get("Profile:way-brethren")
+        assert brethren.action == "update"
+        assert brethren.changes["skill_grid"] == {
+            "added": ["Way-Brethren: Combat is Secondary"],
+            "removed": ["Way-Brethren: Combat is Primary"],
+        }
         perform(plan)
         brethren = Profile.objects.get(name="Way-Brethren")
         tiers = {
@@ -1894,10 +1755,9 @@ class TestResolvingAgainstThePack:
     """A partial upload — a list on its own, say — resolves against what
     the pack already holds rather than what this run planned."""
 
-    def test_a_shared_name_resolves_by_its_whole_id(self, foundation, sheets):
-        """Two weapons print "Power fist". Matching on the name alone
-        takes whichever comes first, which can hand a list the other
-        one at the other price."""
+    def test_partial_uploads_resolve_whole_ids_profile_weapons_and_unique_names(
+        self, foundation, sheets
+    ):
         perform(plan_ingest(pack=None, **sheets))
         only_lists = plan_ingest(
             equipment_lists=read_csv(
@@ -1912,10 +1772,6 @@ Equipment List,Cawdor,Close combat weapons,Exo weapons,Power fist,,105,,x
         assert resolved.fields["qualifier"] == "Exo weapons"
         assert resolved.fields["price"] == 105
 
-    def test_a_profile_brings_its_weapon_with_it(self, foundation, sheets):
-        """An entry asks a profile which weapon it hangs on, to know
-        whether it is already listed — so resolution has to say."""
-        perform(plan_ingest(pack=None, **sheets))
         only_lists = plan_ingest(
             equipment_lists=read_csv(
                 """
@@ -1928,11 +1784,6 @@ Equipment List,Cawdor,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,,x
         ammo = only_lists.get(WARP_ROUND)
         assert only_lists.get(ammo.fields["weapon"]).name == "Autogun"
 
-    def test_a_name_the_pack_holds_once_still_resolves(self, foundation, sheets):
-        """Exactness must not lock out a hand-authored item filed under
-        a category of its author's choosing: where the name is the
-        pack's alone, it is not ambiguous and it is found."""
-        perform(plan_ingest(pack=None, **sheets))
         only_lists = plan_ingest(
             equipment_lists=read_csv(
                 """
@@ -2300,25 +2151,28 @@ class TestClearing:
     creates.
     """
 
-    def test_clearing_leaves_the_foundations_standing(self, foundation, sheets):
+    def test_clearing_preserves_foundations_removes_the_import_and_reimports_identically(
+        self, full_foundation, sheets
+    ):
         from n26.library.ingest import clear_imported
+        from n26.library.models.collection import Collection, CollectionEntry
+
+        def census():
+            return {
+                model.__name__: model.objects.count()
+                for model in (Weapon, Wargear, Profile, Trait, Skill, Subtype)
+            }
 
         perform(plan_ingest(pack=None, **sheets))
+        first = census()
         assert Weapon.objects.exists()
 
-        clear_imported()
+        gone = clear_imported()
 
         # Every seed still says it is whole — the one contract that
         # keeps this from being "delete the library".
         for key, seed in STANDARD_CONTENT.items():
             assert seed.status() == "complete", key
-
-    def test_clearing_takes_the_imported_content_away(self, foundation, sheets):
-        from n26.library.ingest import clear_imported
-        from n26.library.models.collection import Collection, CollectionEntry
-
-        perform(plan_ingest(pack=None, **sheets))
-        gone = clear_imported()
 
         assert Weapon.objects.count() == 0
         assert Wargear.objects.count() == 0
@@ -2335,25 +2189,13 @@ class TestClearing:
         assert Skill.objects.filter(name="Catfall").exists()
         assert Subtype.objects.filter(name="Leader").exists()
 
-    def test_import_clear_import_lands_in_the_same_place(self, foundation, sheets):
-        """The round trip the whole thing is for."""
-        from n26.library.ingest import clear_imported
-
-        def census():
-            return {
-                model.__name__: model.objects.count()
-                for model in (Weapon, Wargear, Profile, Trait, Skill, Subtype)
-            }
-
-        perform(plan_ingest(pack=None, **sheets))
-        first = census()
-
-        clear_imported()
         perform(plan_ingest(pack=None, **sheets))
 
         assert census() == first
 
-    def test_a_modifier_naming_imported_content_goes_with_it(self, foundation, sheets):
+    def test_a_modifier_naming_imported_content_goes_with_it(
+        self, full_foundation, sheets
+    ):
         """A modifier holds its scope and effect in tables of their own,
         and those rows are what hold the trait — so they are what a clear
         sweeps, and the modifier cascades away with them. Left behind,
@@ -2398,7 +2240,7 @@ class TestClearing:
         assert standing.filter(lasting_effect_status_modifiers()).exists()
 
     def test_a_reworded_seed_modifier_still_stands_after_a_clear(
-        self, foundation, sheets
+        self, full_foundation, sheets
     ):
         """A clear recognises standard content the way the seed that made
         it does — by what a modifier raises, never by its name — so
@@ -2424,26 +2266,11 @@ class TestClearing:
             for name in seeded.values_list("name", flat=True)
         )
 
-    def test_a_gang_using_the_content_stops_the_clear(self, foundation, sheets):
-        """Player data protects what it uses: the content does not go out
-        from under a gang that holds it."""
-        from django.db.models import ProtectedError
-
-        from n26.library.ingest import clear_imported
-
-        perform(plan_ingest(pack=None, **sheets))
-        _found_a_gang_holding_a_weapon()
-
-        with pytest.raises(ProtectedError):
-            clear_imported()
-        assert Weapon.objects.exists()  # and the transaction held
-
-    def test_a_refused_clear_takes_nothing_at_all(self, foundation, sheets):
-        """The holders are only found part-way through — the wargear is
-        already gone when a weapon turns out to be spoken for — so this
-        is all or nothing however it is called. A caller left holding
-        half a library has a worse problem than the one it started with.
-        """
+    def test_a_gang_using_the_content_refuses_the_clear_and_takes_nothing(
+        self, full_foundation, sheets
+    ):
+        """A protected weapon refuses the clear after earlier rows were visited;
+        the transaction leaves the entire imported graph standing."""
         from django.db.models import ProtectedError
 
         from n26.library.ingest import clear_imported, count_imported
@@ -2454,6 +2281,7 @@ class TestClearing:
 
         with pytest.raises(ProtectedError):
             clear_imported()
+        assert Weapon.objects.exists()  # and the transaction held
 
         assert count_imported() == before
 
@@ -2477,7 +2305,9 @@ def _found_a_gang_holding_a_weapon():
 
 
 @pytest.mark.django_db
-def test_ingest_clear_preserves_the_gang_status_choice_without_reseeding(foundation):
+def test_ingest_clear_preserves_the_gang_status_choice_without_reseeding(
+    full_foundation,
+):
     from django.contrib.auth import get_user_model
 
     from n26.core.card import build_card, build_modifier_index, carriers

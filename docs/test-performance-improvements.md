@@ -1,131 +1,194 @@
-# Test Performance Improvements with pytest-xdist
+# Measuring full-suite performance
 
-## Overview
+The full suite already uses pytest-xdist and PostgreSQL. Compare changes
+against a complete run of the same test selection on the same hardware.
+Keep the worker count fixed when isolating fixture changes; record it when
+comparing different concurrency settings. A faster focused suite or a warm
+reused database does not establish a faster full suite.
 
-This document outlines the performance improvements achieved by introducing `pytest-xdist` for parallel test execution in the Gyrinx project.
+## Recording a run
 
-## Current State Analysis
-
-- **Total tests**: 451 test cases
-- **Test distribution**:
-  - Core app: 45 test files
-  - Content app: 14 test files
-  - Pages app: 1 test file
-  - API app: 1 test file
-- **Current execution**: Sequential (one test at a time)
-- **Parallelization**: None configured
-
-## Changes Implemented
-
-### 1. Added pytest-xdist to requirements.txt
-
-```txt
-pytest-xdist==3.6.1
-```
-
-### 2. Parallel Test Execution
-
-With pytest-xdist installed, you can now run tests in parallel:
+The measurement command provisions this worktree's Python and frontend
+environment through `.codex/run.sh`, then runs pytest with the arguments given.
+It records wall time, child-process CPU time, exit status, Git revision and
+working-tree digest, and JUnit test counts under `logs/test-performance/`.
+It returns pytest's exit status, including collection failures and empty
+selections.
 
 ```bash
-# Use all available CPU cores
-pytest -n auto
-
-# Use specific number of workers (e.g., 4)
-pytest -n 4
-
-# Use number of workers equal to CPU count
-pytest -n $(nproc)
+./scripts/measure_test_performance.sh --label baseline -- -n 4
+# Apply the candidate change, then use the same arguments.
+./scripts/measure_test_performance.sh --label candidate -- -n 4
 ```
 
-## Expected Performance Improvements
+Keep the PostgreSQL server configuration fixed, and avoid competing test runs
+while comparing. Four workers are appropriate for a controlled comparison on
+the shared development machine. A default local run uses pytest's `-n auto`;
+benchmark that command separately before claiming a change to its elapsed time.
 
-Based on typical Django test suite characteristics:
+The work-stealing scheduler can move pending tests from a busy worker to an
+idle one when case durations differ. Local runs retain `-n auto`. CI uses
+eight worker processes on the existing runner size, allowing another worker
+to run while one waits on PostgreSQL. It adds no runners or larger machines.
+Verify the cost separately by comparing the sum of the required, full-suite
+and fresh-database job durations, not just the fastest job.
 
-- **Sequential execution**: All 451 tests run one after another
-- **Parallel execution (4 cores)**: ~3-4x speedup expected
-- **Parallel execution (8 cores)**: ~5-6x speedup expected
+The normal full run recreates test databases from the current models, using
+`--nomigrations`. Use identical database settings for each measurement.
+`--reuse-db` is useful for development, but comparing a cold baseline to a warm
+candidate measures database reuse as well as the code change.
 
-The actual speedup depends on:
+Under pytest, the PostgreSQL schema editor creates unlogged tables only in
+databases whose names start with `test_`. Constraints, indexes, transactions
+and row locks still use PostgreSQL. Unlogged test data is disposable after a
+database crash; development databases and ordinary migration commands keep
+logged tables. The shared PostgreSQL server's durability settings are unchanged.
+Only connections to these disposable test databases disable synchronous commit.
+Set `GYRINX_TEST_UNLOGGED_TABLES=False` to compare ordinary logged test tables.
 
-- Number of CPU cores available
-- Test isolation and database transaction overhead
-- Amount of I/O-bound vs CPU-bound operations
-
-## Additional Optimizations
-
-### 1. Database Reuse (pytest-django feature)
-
-Since `pytest-django==4.11.1` is already installed, you can also use:
+For a single-worker profile of an expensive test, after the full run finishes:
 
 ```bash
-# Reuse test database between runs
-pytest --reuse-db
-
-# Create new database only when needed
-pytest --reuse-db --create-db
+.codex/run.sh python -m cProfile -o logs/test-profile.pstats -m pytest \
+  -n 0 --durations=20 path/to/test_file.py::test_name
 ```
 
-### 2. Combined Usage
+## CI baseline
 
-For maximum performance:
+The exact starting commit, `42fdc46f3`, ran in
+[38076349949](https://github.com/gyrinx-app/gyrinx/actions/runs/38076349949).
+It completed all 13,826 tests with 13,811 passed, 13 skipped, one expected
+failure and one existing campaign-gallery assertion failure in 1,864.56
+seconds. The assertion expected the gang type and owner to have no intervening
+markup, but the component now draws a gang-type icon there. The comparison
+target is at most 932.28 seconds on the same runner size. The three test jobs
+used 51 minutes 13 seconds of runner time in total.
 
-```bash
-# Parallel execution + database reuse
-pytest -n auto --reuse-db
+The local starting revision completed the same selection with four workers in
+2,151.53 seconds, with the same existing gallery failure. Its comparison target
+is at most 1,075.765 seconds. The gallery assertion has since been corrected on
+main and that fix is retained here.
 
-# Run specific app tests in parallel
-pytest -n auto n23/core/tests/
-```
+The first candidate, before the test consolidation pass, exceeded both targets.
+Its local run was deliberately interrupted after 10,511 passing tests in
+1,230.03 seconds, and its CI run was cancelled after exceeding the CI target.
+These incomplete runs establish that the first candidate missed the target;
+they are not full-suite passing results. The shared local cases used about 16%
+less summed worker time, which is preliminary evidence only.
 
-## CI/CD Configuration
+The first complete consolidation candidate, `4455741c6`, also missed the target:
 
-For GitHub Actions or other CI systems:
+| Measurement | Workers | Pytest elapsed | Result |
+| --- | ---: | ---: | --- |
+| Local | 4 | 1,440.05 seconds | 13,385 passed; two failures and one setup error |
+| [CI 38082880416](https://github.com/gyrinx-app/gyrinx/actions/runs/38082880416) | 4 | 1,878.72 seconds | 13,348 passed; 40 failures |
 
-```yaml
-# Example GitHub Actions configuration
-- name: Run tests
-  run: |
-    pytest -n auto --durations=20 -v
-```
+The local failures were PostgreSQL shared-memory errors; all three cases passed
+unchanged in a sequential rerun. The CI failures were missing equipment category
+fixtures after a transaction test flushed the database. Its three test jobs
+used 63 minutes 11 seconds in total, exceeding the starting cost. These results
+do not establish the requested improvement. Subsequent candidates must fix
+fixture isolation and pass complete local and CI measurements.
 
-## Monitoring Test Performance
+The next candidate, `e287fae0e`, passed the complete CI suite in
+[38086394288](https://github.com/gyrinx-app/gyrinx/actions/runs/38086394288):
+13,404 passed, 13 skipped and one expected failure in 1,316.64 seconds.
+This is about 29% below the starting elapsed time, still above the target.
+The run measured GitHub's clean merge revision `7fa32289f` on a four-CPU
+runner, with eight workers. The required job's elapsed time and the combined
+job cost still need their final results.
 
-Use pytest's built-in duration reporting:
+An attempted default local baseline used the original revision's twelve workers.
+It was stopped after 553 PostgreSQL shared-memory setup errors, with no tests
+executed, while another worktree was also building test schemas. Its 78.79-second
+partial result is not a performance baseline. The default-command comparison
+was repeated without another observed pytest startup. That attempt also failed
+during schema creation: 5,016 setup errors, twelve skipped cases and no tests
+executed in 134.42 seconds before interruption. Neither attempt is a usable
+baseline. The original twelve-worker command exceeds the available schema-lock
+capacity; the next complete local comparison therefore uses the valid original
+four-worker run, with the PostgreSQL settings unchanged.
 
-```bash
-# Show 20 slowest tests
-pytest --durations=20
+The subsequent merge from main retains the new hire-time Trade Points scenarios
+and gallery examples. All 386 tests in the five affected gallery, founding,
+asset-roll, fighter-action and post-battle modules passed in 82.58 seconds.
 
-# Show all test durations
-pytest --durations=0
-```
+## Reducing repeated work
 
-## Best Practices
+The consolidation pass keeps HTTP coverage at the boundaries where routing,
+permissions, persistence, redirects or rendering are the contract. It moves
+malformed-input permutations to database-free form tests and context-only
+checks to the real context builders. Repeated assertions about the same page
+or operation share one setup and response.
 
-1. **Ensure test isolation**: Tests must not depend on execution order
-2. **Use transactions**: Django's TestCase handles this automatically
-3. **Avoid shared state**: Don't use module-level variables that tests modify
-4. **Monitor resource usage**: More workers isn't always better
+- Ingest and conversion scenarios share their unchanged input and successful
+  application. Changed inputs, fault injection and rollback remain separate.
+  Ordinary ingest fixtures create the foundations their sheets read; clearing
+  tests retain the complete catalogue and verify every foundation survives.
+- Authoring registry and help guards inspect the registry directly. Populated
+  listings still exercise every route, using one catalogue setup.
+- Power advancements retain selected and random flows, access grades, stale
+  choices, replay and history. Arbitrary family names no longer multiply every
+  scenario; authored D6 endpoint flows pair with a six-position form test.
+- Post-battle editor tests prepare real drafts through the shipped service.
+  Entry, crew selection, permissions and application retain HTTP coverage.
+- Maintenance delivery crosses the real batch boundary with eleven gangs
+  instead of 115. Query growth, reset results and redelivery remain checked.
+- Same-connection pause tests use rollback isolation. Actual outer commits,
+  session locks and threaded concurrency retain transaction tests.
+- Advancement skill selection and resolution reuse their local card and skill
+  listings. Each new call reads fresh state; eligibility is captured before
+  hypothetical stat previews mutate card nodes.
+- Offers within one advancement read share the unfiltered catalogue and its
+  default section. Each offer still gets independent placement, kind, owned
+  and random-result filtering; the next public call reads fresh state.
+- The advancement view derives its result and skill choices from one read
+  before invoking any write. Operations resolve fresh state independently.
+- Shared statline fixtures normalize the supplied values with the shipped
+  formatter, then insert their cells in one statement. Stored blanks remain
+  blank; production statline saves keep their existing behavior.
+- Equipment category fixtures are restored after transaction-test flushes.
+  Each test receives a fresh query, so scheduling an ordinary test after a
+  transaction test cannot leave it with missing or stale categories.
+- Gang legacy authoring and successful player flows share one graph and follow
+  its lifecycle. All assertions remain, while 828 repeated authoring requests
+  are removed. Forged selections, dismissal, withdrawal and query growth keep
+  separate scenarios.
+- Founding budgets share repeated seed and successful lifecycle scenarios.
+  Buyer-to-stash and buyer-to-recipient movement remain separate, with fresh
+  database state used for reconciliation. Permissions and query growth retain
+  independent tests.
+- Lasting effects seed-only checks build the shipped tables without unrelated
+  characteristic modifiers. Sequential injury scenarios retain assertions at
+  one, two, three and five injuries; collisions, history and cross-fighter
+  isolation remain independent.
+- Outcast rank matrices share their content while all five archetypes retain
+  separate gangs and recruits. Leader, personal skill, Champion and removal
+  assertions follow one lifecycle; all merged spending scenarios reconcile.
+- Journal seed checks inspect the first complete seed before replaying it.
+  Territory and House-table reads share unchanged graphs before real assignment
+  and opening operations; staff visibility, rollback and maintenance delivery
+  remain independent.
+- Advancement action-flow tests share successful draft and correction
+  lifecycles. Each skill tier retains its exact offered choices; dice modes,
+  stale requests, ownership and later-rank refusal scenarios remain distinct.
 
-## Troubleshooting
+The advancement skill-choice page was inspected with `manage inspect_page` and
+the Debug Toolbar, using a local agent's gang with an earned advancement, owned
+choices and populated primary skill and power choices. Growing the offered list
+from two to fourteen choices kept all three measured GETs at 302 queries, with
+78 similar groups and 88 duplicate groups. Sharing catalogue loads within each
+advancement read reduced all three GETs of the fourteen-choice page to 224
+queries, with 77 similar groups and 87 duplicate groups. Reusing that read for
+the view's skill choices reduced all three GETs further to 126 queries, with
+19 similar groups and 12 duplicate groups. Existing result-count and power-count
+growth tests also passed. These query counts describe that page's work; they do
+not establish a full-suite time improvement.
 
-If tests fail with parallel execution:
+The pass also replaces vacuous checks: an empty filtered collection must be
+nonempty before asserting every row is suppressed, and foundation status and
+campaign actor checks target their actual data or rendered region.
 
-1. Run tests sequentially to isolate the issue:
-
-   ```bash
-   pytest -n 0  # or just pytest
-   ```
-
-2. Run specific test in isolation:
-
-   ```bash
-   pytest path/to/test_file.py::test_function -vv
-   ```
-
-3. Check for test interdependencies or shared state issues
-
-## Conclusion
-
-Adding pytest-xdist enables significant test performance improvements through parallel execution. Combined with database reuse, this can reduce test execution time by 60-80% on multi-core systems.
+Focused validation and complete local/CI comparisons are still in progress.
+Neither the reduced test count nor isolated timings prove a 50% full-suite
+improvement.

@@ -42,7 +42,9 @@ pytestmark = pytest.mark.django_db
 def test_fighter_action_content_is_complete_and_idempotent():
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()
+    before = dict(Action.objects.values_list("pk", "modified"))
     content.create()
+    assert dict(Action.objects.values_list("pk", "modified")) == before
     assert content.check() == (42, 42)
     table = Picklist.objects.get(name="Fighter advancement table")
     assert table.dice == "2d6"
@@ -143,16 +145,6 @@ def test_fighter_action_content_is_complete_and_idempotent():
     ] == ["Spyrer Hunting Rig Glitch"]
 
 
-def test_reseeding_does_not_modify_unchanged_actions():
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    before = dict(Action.objects.values_list("pk", "modified"))
-
-    content.create()
-
-    assert dict(Action.objects.values_list("pk", "modified")) == before
-
-
 def test_reseeding_repairs_authored_rank_titles():
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()
@@ -173,21 +165,55 @@ def test_reseeding_repairs_authored_rank_titles():
     assert content.status() == "complete"
 
 
-def test_lowercase_standard_action_is_reused_without_duplication(default_pack):
+def test_standard_content_reuses_existing_casing_without_duplication(default_pack):
+    glitch = Counter.objects.create(
+        pack=default_pack, name="Glitch Count", qualifier=""
+    )
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()
+    assert Counter.objects.get(pack=default_pack, name__iexact="Glitch count") == glitch
+    assert content.status() == "complete"
+
     action = Action.objects.get(name="Advancement", qualifier="")
-    action.name = "advancement"
-    action.save(update_fields=["name", "modified"])
+    outcome = action.outcomes.get().outcome
+    movement = (
+        Picklist.objects.get(name="Fighter advancement table")
+        .members.get(pickable__name="Movement")
+        .pickable
+    )
+    modifier = movement.modifiers.get()
+    xp = Counter.objects.get(pack=default_pack, name="XP", qualifier="")
+    for existing in (action, outcome, modifier, xp):
+        existing.name = existing.name.lower()
+        existing.save(update_fields=["name", "modified"])
 
     content.create()
 
+    assert (
+        Action.objects.get(pack=default_pack, name__iexact="Advancement", qualifier="")
+        == action
+    )
     assert (
         Action.objects.filter(
             pack=default_pack, name__iexact="Advancement", qualifier=""
         ).count()
         == 1
     )
+    assert (
+        type(outcome)
+        .objects.filter(pack=default_pack, name__iexact="Advancement")
+        .count()
+        == 1
+    )
+    assert action.outcomes.get().outcome == outcome
+    assert movement.modifiers.get() == modifier
+    assert Counter.objects.filter(pack=default_pack, name__iexact="XP").count() == 1
+    assert Counter.objects.get(pack=default_pack, name__iexact="XP") == xp
+    assert (
+        Counter.objects.filter(pack=default_pack, name__iexact="Glitch count").count()
+        == 1
+    )
+    assert Counter.objects.get(pack=default_pack, name__iexact="Glitch count") == glitch
     assert content.status() == "complete"
 
 
@@ -462,26 +488,6 @@ def test_homebrew_modifier_does_not_satisfy_advancement_completeness(
     assert content.status() == "complete"
 
 
-def test_lowercase_standard_outcome_is_reused_without_duplication(default_pack):
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    outcome = (
-        Action.objects.get(name="Advancement", qualifier="").outcomes.get().outcome
-    )
-    outcome.name = "advancement"
-    outcome.save(update_fields=["name", "modified"])
-
-    content.create()
-
-    assert (
-        type(outcome)
-        .objects.filter(pack=default_pack, name__iexact="Advancement")
-        .count()
-        == 1
-    )
-    assert content.status() == "complete"
-
-
 def test_same_named_picklist_for_another_slot_type_is_left_untouched(default_pack):
     other_type = SlotType.objects.create(pack=default_pack, name="Other advancement")
     other_table = Picklist.objects.create(
@@ -733,24 +739,6 @@ def test_reseeding_does_not_reuse_an_unrelated_same_named_modifier(default_pack)
     assert content.status() == "complete"
 
 
-def test_lowercase_advancement_modifier_is_reused():
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    movement = (
-        Picklist.objects.get(name="Fighter advancement table")
-        .members.get(pickable__name="Movement")
-        .pickable
-    )
-    modifier = movement.modifiers.get()
-    modifier.name = modifier.name.lower()
-    modifier.save(update_fields=["name", "modified"])
-
-    content.create()
-
-    assert movement.modifiers.get() == modifier
-    assert content.status() == "complete"
-
-
 def test_reseeding_does_not_modify_a_shared_advancement_modifier(default_pack):
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()
@@ -776,32 +764,6 @@ def test_reseeding_does_not_modify_a_shared_advancement_modifier(default_pack):
     assert shared.targets_miniature.reach == shared.targets_miniature.Reach.EVERY_MODEL
     assert unrelated.modifiers.get() == shared
     assert movement.modifiers.get() != shared
-    assert content.status() == "complete"
-
-
-def test_lowercase_xp_counter_is_reused_without_duplication(default_pack):
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    xp = Counter.objects.get(pack=default_pack, name="XP", qualifier="")
-    xp.name = "xp"
-    xp.save(update_fields=["name", "modified"])
-
-    content.create()
-
-    assert Counter.objects.filter(pack=default_pack, name__iexact="XP").count() == 1
-    assert content.status() == "complete"
-
-
-def test_existing_glitch_count_casing_is_reused_and_complete(default_pack):
-    Counter.objects.create(pack=default_pack, name="Glitch Count", qualifier="")
-    content = STANDARD_CONTENT["fighter-actions"]
-
-    content.create()
-
-    assert (
-        Counter.objects.filter(pack=default_pack, name__iexact="Glitch count").count()
-        == 1
-    )
     assert content.status() == "complete"
 
 
@@ -886,20 +848,6 @@ def test_reseeding_files_advancement_skill_choices_in_the_skills_row():
     assert content.status() == "complete"
 
 
-def test_clearing_imported_content_preserves_advancement_modifiers():
-    from n26.library.ingest import clear_imported
-
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-
-    clear_imported()
-
-    assert content.status() == "complete"
-    assert Modifier.objects.filter(
-        library_pickable_set__listed_on__picklist__name=("Fighter advancement table")
-    ).count() == len(FIGHTER_ADVANCEMENTS)
-
-
 def test_clearing_imported_content_does_not_spare_a_same_named_other_table(
     default_pack,
 ):
@@ -934,6 +882,9 @@ def test_clearing_imported_content_does_not_spare_a_same_named_other_table(
 
     assert not Modifier.objects.filter(pk=lookalike.pk).exists()
     assert content.status() == "complete"
+    assert Modifier.objects.filter(
+        library_pickable_set__listed_on__picklist__name=("Fighter advancement table")
+    ).count() == len(FIGHTER_ADVANCEMENTS)
 
 
 @pytest.mark.parametrize(

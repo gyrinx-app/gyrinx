@@ -76,6 +76,7 @@ from n26.library.models import (
 from n26.library.tables import build_in_missing
 from n26.library.territory_table import TABLE, seed_territory_table
 from n26.maintenance import Operation, seed_journal_content
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_asset,
     add_built_in,
@@ -145,6 +146,7 @@ def core(default_pack):
 
 
 @pytest.fixture
+@library_setup
 def gang_types(default_pack):
     """The six Clan House gang types and Outcast, as the system pack has
     them, with no supertype built in yet."""
@@ -154,6 +156,7 @@ def gang_types(default_pack):
 
 
 @pytest.fixture
+@library_setup
 def clan_house(default_pack, gang_types, person_type):
     """The Outcast gang's Clan House choice as it stands in the system
     pack: its own slot type and pickables, House Goliath among them, on
@@ -219,8 +222,8 @@ class TestTheSeedCreatesEverythingOnce:
     """Every row the programme needs, in the system pack, matched by name
     and pack; a second run creates nothing and says so."""
 
-    def test_the_supertype_is_one_slot_type_six_markers_one_list_one_hidden_slot(
-        self, seeded, default_pack
+    def test_the_complete_seed_is_wired_once_and_the_tables_cover_every_roll(
+        self, seeded, default_pack, gang_types, clan_house, core
     ):
         (slot_type,) = SlotType.objects.filter(name=SLOT_TYPE)
         assert slot_type.pack == default_pack
@@ -252,10 +255,6 @@ class TestTheSeedCreatesEverythingOnce:
         )
         assert slot.picklist == picklist
 
-    def test_each_clan_house_gang_type_builds_the_slot_in_with_its_house_picked(
-        self, seeded, gang_types
-    ):
-        slot = Slot.objects.get(name=SLOT)
         for house in HOUSES:
             gang_type = gang_types[house]
             (member,) = DefaultAssignment.objects.filter(
@@ -264,17 +263,12 @@ class TestTheSeedCreatesEverythingOnce:
             assert member.default_pickable == supertype_pick(house)
         assert gang_types["Outcast"].built_ins is None
 
-    def test_each_outcast_clan_house_pick_gives_the_slot_with_its_house_picked(
-        self, seeded, clan_house
-    ):
-        slot = Slot.objects.get(name=SLOT)
         for house in HOUSES:
             clan_pick = clan_house["picks"][house]
             (grant,) = clan_pick.modifiers.filter(adds_assignable__slot=slot)
             assert grant.adds_assignable.with_pick == supertype_pick(house)
             assert grant.targets_gang.echoes is False
 
-    def test_twelve_staged_territories_with_the_books_income(self, seeded, core):
         territory = core.asset_types.get(label_singular="Territory")
         for _house, _table, territories in JOURNALS:
             for entry in territories:
@@ -283,7 +277,6 @@ class TestTheSeedCreatesEverythingOnce:
                 assert asset.staged
                 assert income_of(asset) == entry.income
 
-    def test_the_house_controlled_boons_are_income_or_a_named_rule(self, seeded):
         for house, _table, territories in JOURNALS:
             pick = supertype_pick(house)
             for entry in territories:
@@ -304,7 +297,6 @@ class TestTheSeedCreatesEverythingOnce:
                     assert rule.staged
         assert Rule.objects.filter(name__endswith="Controlled").count() == 11
 
-    def test_two_staged_d6_tables_in_the_books_order(self, seeded):
         for _house, table_name, territories in JOURNALS:
             table = AssetTable.objects.get(name=table_name)
             assert table.staged
@@ -316,22 +308,27 @@ class TestTheSeedCreatesEverythingOnce:
             ]
             assert all(e.staged for e in entries)
 
-    def test_the_house_tables_are_not_built_into_the_campaign_type(self, seeded, core):
+        for table_name in (GOLIATH_TABLE, ESCHER_TABLE):
+            table = AssetTable.objects.get(name=table_name)
+            said = table.coverage()
+            assert said.whole
+            assert (said.covered, said.total) == (6, 6)
+            assert [table.landing(roll).roll_low for roll in range(1, 7)] == list(
+                range(1, 7)
+            )
+
         given = [m.assignable.name for m in core.built_in_members]
         assert TABLE in given
         assert GOLIATH_TABLE not in given and ESCHER_TABLE not in given
 
-    def test_a_later_built_in_pass_leaves_the_house_tables_alone(self, seeded, core):
-        """The rule that builds a table into its campaign type runs again
-        whenever the Territory Selection Table is seeded; a table a pick
-        gives is one House's and must not be swept up by it."""
-        assert build_in_missing(apps, core) == []
-        seed_territory_table(apps)
-        assert not DefaultAssignment.objects.filter(
-            asset_table__name__in=[GOLIATH_TABLE, ESCHER_TABLE]
-        ).exists()
+        assert f"created the {SLOT_TYPE} slot type" in seeded
+        assert f"built the {SLOT} slot into Goliath, picked Goliath" in seeded
+        assert f"House Goliath now gives the {SLOT} slot, picked Goliath" in seeded
+        assert "created the Slug House Territory with income 20, staged" in seeded
+        assert "Amneo-vats: 10 more income for gangs that have picked Goliath" in seeded
+        assert f"Goliath gangs now hold the {GOLIATH_TABLE} table" in seeded
+        assert not any(line.startswith("skipped") for line in seeded)
 
-    def test_running_it_again_creates_nothing_and_says_so(self, seeded):
         before = {
             model: model.objects.count()
             for model in (
@@ -353,14 +350,11 @@ class TestTheSeedCreatesEverythingOnce:
         assert again == [NOTHING_TO_DO]
         assert before == {model: model.objects.count() for model in before}
 
-    def test_the_first_run_says_what_it_made(self, seeded):
-        assert f"created the {SLOT_TYPE} slot type" in seeded
-        assert f"built the {SLOT} slot into Goliath, picked Goliath" in seeded
-        assert f"House Goliath now gives the {SLOT} slot, picked Goliath" in seeded
-        assert "created the Slug House Territory with income 20, staged" in seeded
-        assert "Amneo-vats: 10 more income for gangs that have picked Goliath" in seeded
-        assert f"Goliath gangs now hold the {GOLIATH_TABLE} table" in seeded
-        assert not any(line.startswith("skipped") for line in seeded)
+        assert build_in_missing(apps, core) == []
+        seed_territory_table(apps)
+        assert not DefaultAssignment.objects.filter(
+            asset_table__name__in=[GOLIATH_TABLE, ESCHER_TABLE]
+        ).exists()
 
     def test_the_preview_says_the_same_and_writes_nothing(
         self, core, gang_types, clan_house, task_queue
@@ -437,7 +431,7 @@ class TestWhoHasASupertype:
     Outcast have not."""
 
     def test_a_goliath_gang_founded_after_the_seed_has_the_pick(
-        self, seeded, gang_types, owner
+        self, seeded, gang_types, owner, campaigns_open
     ):
         gang = found_gang("Irontooth", gang_types["Goliath"], owner=owner, budget=1000)
 
@@ -449,6 +443,12 @@ class TestWhoHasASupertype:
         gang.refresh_from_db()
         assert gang.rating == 0
         assert_reconciled(gang)
+
+        lines = told(history.build(gang))
+
+        assert lines
+        assert not any(SLOT_TYPE in line for line in lines)
+        assert not any("Goliath comes with" in line for line in lines)
 
     def test_a_goliath_gang_founded_before_the_seed_catches_up(
         self, core, gang_types, clan_house, owner, propagating, task_queue
@@ -467,7 +467,7 @@ class TestWhoHasASupertype:
         assert_reconciled(gang)
 
     def test_a_clan_house_goliath_outcast_gang_counts_as_goliath(
-        self, seeded, gang_types, clan_house, owner
+        self, seeded, gang_types, clan_house, owner, campaigns_open
     ):
         gang = found_gang(
             "The Cast Out", gang_types["Outcast"], owner=owner, budget=1000
@@ -492,6 +492,11 @@ class TestWhoHasASupertype:
         gang.refresh_from_db()
         assert_reconciled(gang)
         assert boss.gang == gang
+
+        lines = told(history.build(gang))
+
+        assert any("House Goliath" in line for line in lines)
+        assert not any(SLOT_TYPE in line for line in lines)
 
     def test_an_escher_gang_and_a_clanless_outcast_are_not_goliath(
         self, seeded, gang_types, clan_house, owner
@@ -529,17 +534,6 @@ class TestNothingIsToldAboutTheSupertype:
     def flag(self, campaigns_open):
         return campaigns_open
 
-    def test_founding_a_goliath_gang_writes_no_line_naming_it(
-        self, seeded, gang_types, owner
-    ):
-        gang = found_gang("Irontooth", gang_types["Goliath"], owner=owner, budget=1000)
-
-        lines = told(history.build(gang))
-
-        assert lines
-        assert not any(SLOT_TYPE in line for line in lines)
-        assert not any("Goliath comes with" in line for line in lines)
-
     def test_the_propagation_pass_writes_no_line_naming_it(
         self,
         core,
@@ -563,25 +557,6 @@ class TestNothingIsToldAboutTheSupertype:
             assert lines
             assert not any(SLOT_TYPE in line for line in lines)
             assert not any("comes with" in line for line in lines)
-
-    def test_a_visible_slots_pick_is_still_told(
-        self, seeded, gang_types, clan_house, owner
-    ):
-        gang = found_gang(
-            "The Cast Out", gang_types["Outcast"], owner=owner, budget=1000
-        )
-        boss = hire(gang, clan_house["leader"], "Boss")
-        card = build_card(boss, with_statlines=True)
-        computed = compute(
-            card, build_modifier_index([n.assignable for n in card.all_nodes()])
-        )
-        (choice,) = [c for c in computed.choices if c.kind_label == "Clan House"]
-        choose(choice.anchor.assignment, clan_house["picks"]["Goliath"])
-
-        lines = told(history.build(gang))
-
-        assert any("House Goliath" in line for line in lines)
-        assert not any(SLOT_TYPE in line for line in lines)
 
 
 # --- The boons on a held territory ------------------------------------------
@@ -611,9 +586,29 @@ class TestAJournalTerritoryInPlay:
             made[house] = gang
         return made
 
-    def test_amneo_vats_reads_25_for_goliath_and_15_for_escher(self, campaign, gangs):
+    def test_the_campaign_boons_name_their_scope_and_income_reaches_the_holder(
+        self, campaign, gangs
+    ):
+        for name in ("Amneo-vats", "Slug House"):
+            add_asset(campaign, Asset.objects.get(name=name))
+
+        (territories,) = render_campaign(campaign, viewer=campaign.owner).assets
+        by_name = {entry.name: entry for entry in territories.entries}
+
+        # Each boon in the Income column's register: the gangs it applies
+        # to, then what it does. The rule by its plain name — the row
+        # already says Slug House — and never a word about picking.
+        vats = by_name["Amneo-vats"]
+        assert vats.income == 15
+        assert vats.boons == ["Goliath gangs: +10 Income."]
+
+        slug = by_name["Slug House"]
+        assert slug.income == 20
+        assert slug.boons == ["Goliath gangs: Goliath Controlled."]
+        assert INCOME == "Income"
+
         vats = Asset.objects.get(name="Amneo-vats")
-        held = add_asset(campaign, vats)
+        held = campaign.campaign_assets.get(asset=vats)
 
         assign_asset(held, gangs["Goliath"])
         assert income_reading(gangs["Goliath"]) == 25
@@ -641,14 +636,20 @@ class TestAJournalTerritoryInPlay:
         assert income_reading(gangs["Goliath"]) == 20
         assert income_reading(gangs["Escher"]) == 20
 
-    def test_a_boon_aimed_at_the_models_keeps_its_whole_sentence(self, campaign):
-        """The short form reads as the holding gang gaining the thing, so a
-        boon scoped to the gang's models is not shortened to a bare name."""
+    def test_a_boon_aimed_at_the_models_keeps_its_whole_sentence(self, default_pack):
         from n26.core.render import boon_said
-        from n26.library.authoring import create_rule, targets_every_model
+        from n26.library.authoring import (
+            add_asset_type,
+            create_asset,
+            create_campaign_type,
+            create_rule,
+            targets_every_model,
+        )
         from n26.tests.sandbox.actions import adds, modifier
 
-        vats = Asset.objects.get(name="Amneo-vats")
+        campaign_type = create_campaign_type("Territory campaign")
+        territory = add_asset_type(campaign_type, "Territory", "pooled")
+        vats = create_asset("Amneo-vats", territory, staged=True)
         catfall = create_rule("Catfall")
         every = modifier(
             "Amneo-vats: Catfall", targets_every_model(), adds(catfall), carried_by=vats
@@ -658,25 +659,6 @@ class TestAJournalTerritoryInPlay:
 
         assert "Catfall" in said
         assert said != "Catfall."
-
-    def test_the_campaign_page_prints_each_boon_with_its_scope(self, campaign, gangs):
-        for name in ("Amneo-vats", "Slug House"):
-            add_asset(campaign, Asset.objects.get(name=name))
-
-        (territories,) = render_campaign(campaign, viewer=campaign.owner).assets
-        by_name = {entry.name: entry for entry in territories.entries}
-
-        # Each boon in the Income column's register: the gangs it applies
-        # to, then what it does. The rule by its plain name — the row
-        # already says Slug House — and never a word about picking.
-        vats = by_name["Amneo-vats"]
-        assert vats.income == 15
-        assert vats.boons == ["Goliath gangs: +10 Income."]
-
-        slug = by_name["Slug House"]
-        assert slug.income == 20
-        assert slug.boons == ["Goliath gangs: Goliath Controlled."]
-        assert INCOME == "Income"
 
 
 # --- The House table and the starting roll ---------------------------------
@@ -714,7 +696,9 @@ class TestTheHouseTable:
             f"{page}?starting={gang.pk}&type={territory.pk}"
         ).content.decode()
 
-    def test_each_house_holds_its_own_table(self, campaign, gangs):
+    def test_the_house_pick_offers_its_table_and_opening_it_reaches_the_other_house(
+        self, client, campaign, gangs, staff_arbitrator, propagating, task_queue
+    ):
         goliath = AssetTable.objects.get(name=GOLIATH_TABLE)
         escher = AssetTable.objects.get(name=ESCHER_TABLE)
         selection = AssetTable.objects.get(name=TABLE)
@@ -724,9 +708,6 @@ class TestTheHouseTable:
         }
         assert held == {"Goliath": {goliath, selection}, "Escher": {escher, selection}}
 
-    def test_a_staff_arbitrator_is_offered_the_house_table(
-        self, client, campaign, gangs, staff_arbitrator
-    ):
         client.force_login(staff_arbitrator)
 
         kings = self.dialog(client, campaign, gangs["Goliath"])
@@ -737,15 +718,10 @@ class TestTheHouseTable:
         assert ESCHER_TABLE in cats and TABLE in cats
         assert GOLIATH_TABLE not in cats
 
-    def test_opening_the_table_offers_it_to_the_other_house(
-        self, client, campaign, gangs, staff_arbitrator, propagating, task_queue
-    ):
-        goliath = AssetTable.objects.get(name=GOLIATH_TABLE)
         with task_queue.capture():
             open_table(campaign, goliath)
         task_queue.deliver_all()
 
-        client.force_login(staff_arbitrator)
         assert GOLIATH_TABLE in self.dialog(client, campaign, gangs["Escher"])
         assert goliath in tables_held_by(gangs["Escher"], campaign, include_staged=True)
 
@@ -807,21 +783,6 @@ class TestTheHouseTable:
         page = client.get(reverse("n26-campaign-tables", args=[campaign.pk]))
         assert GOLIATH_TABLE not in page.content.decode()
         assert TABLE in page.content.decode()
-
-
-# --- Coverage ----------------------------------------------------------------
-
-
-class TestBothTablesCoverEveryRoll:
-    def test_every_roll_of_a_d6_lands_on_exactly_one_entry(self, seeded):
-        for table_name in (GOLIATH_TABLE, ESCHER_TABLE):
-            table = AssetTable.objects.get(name=table_name)
-            said = table.coverage()
-            assert said.whole
-            assert (said.covered, said.total) == (6, 6)
-            assert [table.landing(roll).roll_low for roll in range(1, 7)] == list(
-                range(1, 7)
-            )
 
 
 # --- The console -------------------------------------------------------------

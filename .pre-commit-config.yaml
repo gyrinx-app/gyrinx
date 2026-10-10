@@ -58,6 +58,8 @@ repos:
     hooks:
       - id: bandit
         types_or: [python, pyi]
+        # Bandit's manifest pins python3, overriding default_language_version.
+        language_version: python3.14
         pass_filenames: false
         args:
           [

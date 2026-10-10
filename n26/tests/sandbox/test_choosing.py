@@ -30,6 +30,7 @@ from n26.core.render import (
     render_gang,
 )
 from n26.library.models import Affiliation, Skill
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_entry,
     adds,
@@ -70,6 +71,7 @@ def owner(db):
 
 
 @pytest.fixture
+@library_setup
 def sets(default_pack):
     return {
         name.lower(): create_category("Skills", name, position)
@@ -78,6 +80,7 @@ def sets(default_pack):
 
 
 @pytest.fixture
+@library_setup
 def skills(sets):
     return {
         name: create_skill(name, category=sets[key])
@@ -90,6 +93,7 @@ def skills(sets):
 
 
 @pytest.fixture
+@library_setup
 def skills_collection(skills):
     collection = create_collection(
         "Skills", entries=[(skill, {}) for skill in skills.values()]
@@ -101,11 +105,13 @@ def skills_collection(skills):
 
 
 @pytest.fixture
+@library_setup
 def subtypes(db):
     return {"leader": create_subtype("Leader"), "ganger": create_subtype("Ganger")}
 
 
 @pytest.fixture
+@library_setup
 def archetypes(sets, skills_collection, subtypes):
     """Two a gang may take, each opening one skill set as Primary."""
     _, tiers = skills_collection
@@ -123,6 +129,7 @@ def archetypes(sets, skills_collection, subtypes):
 
 
 @pytest.fixture
+@library_setup
 def affiliations(db):
     return {
         name: create_affiliation(name) for name in ("Clanless", "Mutant", "Aranthian")
@@ -130,6 +137,7 @@ def affiliations(db):
 
 
 @pytest.fixture
+@library_setup
 def pick_lists(archetypes, affiliations):
     made = {}
     for key, name, things in [
@@ -142,6 +150,7 @@ def pick_lists(archetypes, affiliations):
 
 
 @pytest.fixture
+@library_setup
 def gang_list(subtypes, skills_collection, pick_lists, affiliations):
     """The gang type: the gang's own affiliation question, a whole-kind
     question beside it, and the skill offer every Leader carries."""
@@ -185,6 +194,7 @@ def gang_list(subtypes, skills_collection, pick_lists, affiliations):
 
 
 @pytest.fixture
+@library_setup
 def profiles(gang_list, subtypes, pick_lists, person_type):
     made = {}
     for key, name in [("leader", "Outcast Leader"), ("ganger", "Outcast Ganger")]:
@@ -210,6 +220,7 @@ def profiles(gang_list, subtypes, pick_lists, person_type):
 
 
 @pytest.fixture
+@library_setup
 def whispers(gang_list, subtypes, skills_collection):
     """A family of powers filed in the skills collection, Primary for
     Leaders — what a psychic gang list looks like.
@@ -324,7 +335,9 @@ class TestAnOpenSlotIsAnInvitation:
     """A slot nobody has chosen for draws as something to click, and
     as nothing else: it is not an error and nothing counts it."""
 
-    def test_every_open_slot_carries_the_address_of_its_own_picker(self, gang, crew):
+    def test_the_sheet_links_each_open_offer_to_its_own_picker(
+        self, client, owner, gang, crew
+    ):
         slots = sheet_slots(gang)
         assert set(slots) == {
             "Affiliation",
@@ -335,11 +348,13 @@ class TestAnOpenSlotIsAnInvitation:
         assert not any(line.is_resolved for line in slots.values())
         assert all(line.href for line in slots.values())
 
-    def test_two_slots_on_one_carrier_get_two_addresses(self, gang, crew):
-        """Both gang questions ride the same row, so only the offer tells
-        them apart."""
-        slots = sheet_slots(gang)
+        # The two gang questions share a carrier but keep separate addresses.
         assert slots["Affiliation"].href != slots["Favoured set"].href
+        client.force_login(owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Choose" in body
+        assert slots["Affiliation"].href in body
+        assert slots["Sorrow: Primary skill"].href in body
 
     def test_two_cards_asked_the_same_question_get_two_addresses(
         self, gang, crew, profiles
@@ -347,16 +362,6 @@ class TestAnOpenSlotIsAnInvitation:
         hire_with_option(gang, profiles["leader"], "Ash")
         slots = sheet_slots(gang)
         assert slots["Sorrow: Archetype"].href != slots["Ash: Archetype"].href
-
-    def test_the_sheet_says_choose(self, client, owner, gang, crew):
-        client.force_login(owner)
-        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
-        assert "Choose" in body
-        slots = sheet_slots(gang)
-        # The gang's strip and a fighter's card both, each pointing at its
-        # own slot rather than at some page-wide picker.
-        assert slots["Affiliation"].href in body
-        assert slots["Sorrow: Primary skill"].href in body
 
     def test_a_card_with_no_stored_rows_has_no_address(self, gang_list, profiles):
         """A hire preview has real offers and nothing to choose against,
@@ -385,7 +390,9 @@ class TestWhatOneCardMayPick:
         assert names_on(offer) == {"Berserker", "Parry"}
         assert [group.name for group in offer.groups] == ["Combat"]
 
-    def test_an_unnarrowed_offer_lists_the_whole_kind(self, gang, crew):
+    def test_the_whole_kind_offer_and_affiliation_picker_draw_their_own_lists(
+        self, client, owner, gang, crew
+    ):
         offer = offer_for(sheet_slots(gang)["Favoured set"])
         assert names_on(offer) == {
             "Clanless",
@@ -397,7 +404,6 @@ class TestWhatOneCardMayPick:
         # Nothing narrows it, so there is nothing to head the list with.
         assert [group.name for group in offer.groups] == [""]
 
-    def test_the_pick_page_draws_the_list(self, client, owner, gang, crew):
         client.force_login(owner)
         body = client.get(sheet_slots(gang)["Affiliation"].href).content.decode()
         for name in ("Clanless", "Mutant", "Aranthian"):
@@ -422,29 +428,16 @@ class TestATierHoldingTwoKinds:
     question open with a stray row beside it.
     """
 
-    def test_a_skill_question_lists_the_skills_and_not_the_powers(
-        self, gang, crew, archetypes, whispers
-    ):
-        choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
-        offer = offer_for(sheet_slots(gang)["Sorrow: Primary skill"])
-
-        assert names_on(offer) == {"Berserker", "Parry"}
-        assert [group.name for group in offer.groups] == ["Combat"]
-
-    def test_a_tier_of_nothing_but_powers_offers_nothing(self, gang, crew, whispers):
-        """Without the archetype no skill set is Primary, so the whispers
-        are all that tier holds — and the question says it has nothing on
-        offer rather than drawing clicks that write nothing."""
-        assert offer_for(sheet_slots(gang)["Sorrow: Primary skill"]).is_empty
-
-    def test_the_powers_are_still_there_to_browse(
-        self, gang, crew, whispers, skills_collection
+    def test_powers_remain_browsable_while_the_skill_question_follows_the_archetype(
+        self, gang, crew, archetypes, whispers, skills_collection
     ):
         """Nothing is hidden from the fighter. The family really is in
         their Primary tier, so a screen that deals in powers finds it
         there — it is the skill question, and only that, which declines to
         offer them."""
         from n26.core.browse import browse, placements_for, regrouped_by_placement
+
+        assert offer_for(sheet_slots(gang)["Sorrow: Primary skill"]).is_empty
 
         collection, _ = skills_collection
         computed = fighter_computed(crew["leader"])
@@ -461,6 +454,11 @@ class TestATierHoldingTwoKinds:
             category.name for category in primary.categories
         ]
 
+        choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
+        offer = offer_for(sheet_slots(gang)["Sorrow: Primary skill"])
+        assert names_on(offer) == {"Berserker", "Parry"}
+        assert [group.name for group in offer.groups] == ["Combat"]
+
 
 class TestGettingToTheNextFighter:
     """A fighter's question carries the gang's other fighters beside the
@@ -472,18 +470,14 @@ class TestGettingToTheNextFighter:
     all have.
     """
 
-    def test_a_fighters_question_offers_the_others(self, client, owner, gang, crew):
+    def test_a_fighters_question_lists_the_roster_and_marks_the_current_model(
+        self, client, owner, gang, crew
+    ):
         client.force_login(owner)
         body = client.get(sheet_slots(gang)["Sorrow: Archetype"].href).content.decode()
 
         assert reverse("n26-equip", args=[crew["ganger"].pk]) in body
         assert "Rat" in body
-
-    def test_the_fighter_being_asked_is_marked_as_the_one_you_are_on(
-        self, client, owner, gang, crew
-    ):
-        client.force_login(owner)
-        body = client.get(sheet_slots(gang)["Sorrow: Archetype"].href).content.decode()
 
         theirs = body.index(reverse("n26-equip", args=[crew["leader"].pk]))
         assert 'aria-current="page"' in body[theirs : body.index("</a>", theirs)]
@@ -1305,12 +1299,17 @@ class TestDismissingAnOffer:
         assert line.href not in body
         assert sheet_slots(gang)["Favoured set"].href in body
 
-    def test_it_lands_back_where_it_was_clicked(self, client, owner, gang, crew):
+    def test_dismissing_returns_to_the_clicked_page_and_a_retry_writes_no_second_row(
+        self, client, owner, gang, crew
+    ):
         client.force_login(owner)
         line = sheet_slots(gang)["Sorrow: Archetype"]
         back = reverse("n26-edit-fighter", args=[crew["leader"].pk])
         response = client.post(dismiss_url(gang, line), {"back": back})
         assert response["Location"] == back
+
+        client.post(dismiss_url(gang, line))
+        assert gang.dismissed_offers.count() == 1
 
     def test_an_address_off_this_site_is_not_followed(self, client, owner, gang, crew):
         client.force_login(owner)
@@ -1319,13 +1318,6 @@ class TestDismissingAnOffer:
             dismiss_url(gang, line), {"back": "https://elsewhere.example/"}
         )
         assert response["Location"] == reverse("n26-gang", args=[gang.pk])
-
-    def test_a_second_click_writes_no_second_row(self, client, owner, gang, crew):
-        client.force_login(owner)
-        line = sheet_slots(gang)["Sorrow: Archetype"]
-        client.post(dismiss_url(gang, line))
-        client.post(dismiss_url(gang, line))
-        assert gang.dismissed_offers.count() == 1
 
     def test_an_offer_holding_a_pick_is_refused(
         self, client, owner, gang, crew, affiliations
@@ -1918,9 +1910,8 @@ class TestShowingDismissedOffers:
         assert_reconciled(gang)
 
     @pytest.mark.parametrize("screen", ("edit", "gang"))
-    @pytest.mark.parametrize("htmx", (False, True))
     def test_equipment_dialogs_keep_dismissed_choices_on_their_edit_pages(
-        self, client, owner, gang, crew, screen, htmx
+        self, client, owner, gang, crew, screen
     ):
         from urllib.parse import parse_qs, urlsplit
 
@@ -1965,22 +1956,23 @@ class TestShowingDismissedOffers:
             ["show"] if screen == "edit" else []
         )
 
-        headers = {"HX-Request": "true"} if htmx else {}
-        response = client.get(sell, headers=headers)
-        assert response.status_code == 200
-        if not htmx:
-            assert (restore_url(gang, line) in response.content.decode()) == (
-                screen == "edit"
-            )
-        page = BeautifulSoup(response.content, "html.parser")
-        form = page.find("form", action=reverse("n26-sell", args=[bought.pk]))
-        assert form is not None
-        data = {
-            field["name"]: field.get("value", "")
-            for field in form.find_all("input", type="hidden")
-        }
-        assert data.get("dismissed", "") == ("show" if screen == "edit" else "")
-        assert not form.has_attr("hx-post")
+        for htmx in (False, True):
+            headers = {"HX-Request": "true"} if htmx else {}
+            response = client.get(sell, headers=headers)
+            assert response.status_code == 200
+            if not htmx:
+                assert (restore_url(gang, line) in response.content.decode()) == (
+                    screen == "edit"
+                )
+            page = BeautifulSoup(response.content, "html.parser")
+            form = page.find("form", action=reverse("n26-sell", args=[bought.pk]))
+            assert form is not None
+            data = {
+                field["name"]: field.get("value", "")
+                for field in form.find_all("input", type="hidden")
+            }
+            assert data.get("dismissed", "") == ("show" if screen == "edit" else "")
+            assert not form.has_attr("hx-post")
         response = client.post(form["action"], data)
         assert response.status_code == 302
         assert response.url == shown

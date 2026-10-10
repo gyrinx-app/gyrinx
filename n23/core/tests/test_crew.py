@@ -10,6 +10,7 @@ lifecycle views.
 import re
 from itertools import count
 from random import Random
+from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 import pytest
@@ -23,6 +24,7 @@ from django.urls import NoReverseMatch, reverse
 from n23.core.forms.crew import (
     CrewForm,
     CrewLineItemForm,
+    CrewSetupForm,
     equipment_set_field_name,
 )
 from n23.core.handlers.battle import (
@@ -71,6 +73,8 @@ from n23.core.models.list import (
     ListFighterEquipmentAssignment,
     ListFighterEquipmentSet,
 )
+from n23.core.views.battle import BattleDetailView
+from n23.core.views.crew import _method_picker
 from n23.models import FighterCategoryChoices
 
 # --- Selection-spec parser --------------------------------------------------
@@ -255,10 +259,8 @@ def test_cost_int_for_full_coverage_set_equals_full_kit(
 # --- Crew model -------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_method_label_uses_rulebook_notation(crew_setup):
-    battle, gang = crew_setup["battle"], crew_setup["gang"]
-    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+def test_method_label_uses_rulebook_notation():
+    crew = Crew()
 
     # Custom Selection with no number in brackets: the whole gang may take part.
     assert crew.method_label() == "Custom Selection"
@@ -276,24 +278,16 @@ def test_method_label_uses_rulebook_notation(crew_setup):
     assert crew.method_label() == "Hybrid Selection (2+D6+2)"
 
 
-@pytest.mark.django_db
-def test_pending_roll_by_method(crew_setup):
-    battle, gang = crew_setup["battle"], crew_setup["gang"]
-    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
-
-    # Custom has nothing to roll, whatever the recipe says.
-    assert crew.pending_roll is False
-    crew.custom_count = 3
-    assert crew.pending_roll is False
-
-    for method in (Crew.RANDOM, Crew.HYBRID):
-        crew.selection_method = method
+def test_pending_roll_by_method():
+    for method, _ in Crew.SELECTION_METHOD_CHOICES:
+        crew = Crew(selection_method=method, custom_count=3)
+        for empty_spec in ("", " ", None):
+            crew.random_spec = empty_spec
+            assert crew.pending_roll is False
         crew.random_spec = "D3"
-        assert crew.pending_roll is True
-
-    # A locked crew has already been drawn.
-    crew.status = Crew.LOCKED
-    assert crew.pending_roll is False
+        assert crew.pending_roll is (method in (Crew.RANDOM, Crew.HYBRID))
+        crew.status = Crew.LOCKED
+        assert crew.pending_roll is False
 
 
 @pytest.mark.django_db
@@ -1513,6 +1507,9 @@ def test_eligibility_screen_stores_only_changed_fighters(client, crew_setup):
     crew.refresh_from_db()
     # Only the fighter moved off their default is stored.
     assert crew.eligibility_overrides == {str(excluded.id): CREW_NOT_ELIGIBLE}
+    assert excluded not in eligible_crew_fighters(
+        crew.list, overrides=crew.eligibility_overrides
+    )
 
 
 @pytest.mark.django_db
@@ -1529,25 +1526,6 @@ def test_eligibility_screen_stores_nothing_when_all_default(client, crew_setup):
 
     crew.refresh_from_db()
     assert crew.eligibility_overrides == {}
-
-
-@pytest.mark.django_db
-def test_eligibility_screen_change_drops_fighter_from_the_pool(client, crew_setup):
-    """Excluding a fighter on the screen removes them from the selection pool."""
-    crew = Crew.objects.create(
-        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
-    )
-    excluded = crew_setup["fighters"][0]
-    client.force_login(crew_setup["user"])
-
-    client.post(
-        reverse("core:crew-setup", args=[crew.battle_id, crew.id]),
-        _eligibility_post_data(crew, {excluded.id: CREW_NOT_ELIGIBLE}),
-    )
-
-    crew.refresh_from_db()
-    pool = set(eligible_crew_fighters(crew.list, overrides=crew.eligibility_overrides))
-    assert excluded not in pool
 
 
 @pytest.mark.django_db
@@ -2065,6 +2043,16 @@ def test_locked_crew_preserves_member_source(crew_setup):
 # --- Views ------------------------------------------------------------------
 
 
+def _assert_crew_markup(response):
+    """Check shared markup regressions on pages the HTTP flows already render."""
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "{#" not in content
+    assert "#}" not in content
+    assert "hand-pick" not in content.lower()
+    assert "hand pick" not in content.lower()
+
+
 @pytest.mark.django_db
 def test_crew_new_creates_crew(client, crew_setup):
     client.force_login(crew_setup["user"])
@@ -2072,7 +2060,20 @@ def test_crew_new_creates_crew(client, crew_setup):
     url = reverse("core:crew-new", args=[battle.id])
 
     # The setup screen renders with the gang chosen via query string.
-    assert client.get(url, {"list": str(gang.id)}).status_code == 200
+    response = client.get(url, {"list": str(gang.id)})
+    _assert_crew_markup(response)
+    picker = BeautifulSoup(response.content, "html.parser").select_one(
+        '[aria-label="Selection method"]'
+    )
+    links = picker.find_all("a")
+    assert [link.get_text(strip=True) for link in links] == [
+        label for _, label in Crew.SELECTION_METHOD_CHOICES
+    ]
+    for link, (method, _) in zip(links, Crew.SELECTION_METHOD_CHOICES, strict=True):
+        params = parse_qs(urlsplit(link["href"]).query)
+        assert params["method"] == [method]
+        assert params["list"] == [str(gang.id)]
+        assert link.get("aria-current") == ("page" if method == Crew.CUSTOM else None)
 
     # Two steps: set up, then choose.
     crew = _create_crew(
@@ -2152,9 +2153,11 @@ def test_crew_detail_and_edit(client, crew_setup):
     )
     add_chosen(crew, crew_setup["fighters"][:1])
 
-    assert (
-        client.get(reverse("core:crew", args=[battle.id, crew.id])).status_code == 200
-    )
+    response = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+    _assert_crew_markup(response)
+    content = response.content.decode()
+    assert reverse("core:crew-extra-new", args=[battle.id, crew.id]) in content
+    assert "added once the crew is confirmed" not in content
 
     # Set up: change method, config, and name.
     resp = client.post(
@@ -2211,10 +2214,11 @@ def test_crew_lock_view(client, crew_setup):
     )
     add_chosen(crew, crew_setup["fighters"][:1])
 
-    assert (
-        client.get(reverse("core:crew-lock", args=[battle.id, crew.id])).status_code
-        == 200
-    )
+    response = client.get(reverse("core:crew-lock", args=[battle.id, crew.id]))
+    _assert_crew_markup(response)
+    content = response.content.decode()
+    assert "the crew's membership is fixed" in content
+    assert "can no longer be changed" not in content
     resp = client.post(reverse("core:crew-lock", args=[battle.id, crew.id]))
     assert resp.status_code == 302
     crew.refresh_from_db()
@@ -2654,45 +2658,38 @@ def _create_crew(
     return crew
 
 
-@pytest.mark.django_db
-@pytest.mark.parametrize("method", [Crew.CUSTOM, Crew.RANDOM, Crew.HYBRID])
-def test_method_picker_links_to_the_other_methods(client, crew_setup, method):
-    client.force_login(crew_setup["user"])
-    resp = client.get(_crew_new_url(crew_setup, method))
-    assert resp.status_code == 200
-    content = resp.content.decode()
-
-    # Every method is offered, and each link carries the gang so switching
-    # method doesn't lose it.
-    for other, label in Crew.SELECTION_METHOD_CHOICES:
-        assert label in content
-        if other != method:
-            assert f"method={other}" in content
-    assert f"list={crew_setup['gang'].id}" in content
-
-
-@pytest.mark.django_db
-def test_random_form_has_no_fighter_checkboxes(client, crew_setup):
-    """The invalid state is unrepresentable: with no chosen_fighters field on
-    the Random form, a user cannot tick fighters for an all-random selection."""
-    client.force_login(crew_setup["user"])
-    resp = client.get(_crew_new_url(crew_setup, Crew.RANDOM))
-    form = resp.context["form"]
-
-    assert "chosen_fighters" not in form.fields
-    assert "custom_count" not in form.fields
-    assert "random_dice" in form.fields
-    assert 'name="chosen_fighters"' not in resp.content.decode()
+def test_method_picker_preserves_parameters_and_marks_the_current_method():
+    gang_id = str(uuid4())
+    for current, _ in Crew.SELECTION_METHOD_CHOICES:
+        entries = _method_picker(
+            base_url="/crew/new",
+            current=current,
+            extra={"list": gang_id, "include": "hanger,crew"},
+        )
+        assert [(entry["method"], entry["label"]) for entry in entries] == list(
+            Crew.SELECTION_METHOD_CHOICES
+        )
+        for entry in entries:
+            url = urlsplit(entry["url"])
+            assert url.path == "/crew/new"
+            assert parse_qs(url.query) == {
+                "list": [gang_id],
+                "include": ["hanger,crew"],
+                "method": [entry["method"]],
+            }
+            assert entry["is_current"] is (entry["method"] == current)
 
 
-@pytest.mark.django_db
-def test_custom_form_has_no_random_fields(client, crew_setup):
-    client.force_login(crew_setup["user"])
-    form = client.get(_crew_new_url(crew_setup, Crew.CUSTOM)).context["form"]
-
-    assert "random_dice" not in form.fields
-    assert "random_number" not in form.fields
-    assert "custom_count" in form.fields
+def test_setup_form_contains_only_the_fields_for_its_method():
+    for method, fields in (
+        (Crew.CUSTOM, {"name", "custom_count"}),
+        (Crew.RANDOM, {"name", "random_dice", "random_number"}),
+        (Crew.HYBRID, {"name", "custom_count", "random_dice", "random_number"}),
+    ):
+        form = CrewSetupForm(method=method)
+        assert set(form.fields) == fields
+        assert form.shows_count is ("custom_count" in fields)
+        assert form.shows_random is ("random_dice" in fields)
 
 
 @pytest.mark.django_db
@@ -2739,6 +2736,7 @@ def test_edit_without_method_keeps_the_stored_one(client, crew_setup):
     resp = client.get(
         reverse("core:crew-edit", args=[crew_setup["battle"].id, crew.id])
     )
+    _assert_crew_markup(resp)
     assert resp.context["method"] == Crew.HYBRID
     assert resp.context["form"].fields["chosen_fighters"].initial == [
         crew_setup["fighters"][0].id
@@ -2838,45 +2836,15 @@ def test_count_over_roster_saves_whatever_is_picked(client, crew_setup):
     assert crew.members.count() == 5
 
 
-@pytest.mark.django_db
-def test_random_requires_a_spec(client, crew_setup):
-    client.force_login(crew_setup["user"])
-    resp = client.post(
-        _crew_new_url(crew_setup, Crew.RANDOM),
-        {
-            "list": str(crew_setup["gang"].id),
-            "method": Crew.RANDOM,
-            "name": "",
-            "random_dice": "",
-            "random_number": "",
-        },
+def test_hybrid_requires_both_numbers():
+    form = CrewSetupForm(
+        method=Crew.HYBRID,
+        data={"custom_count": "", "random_dice": "", "random_number": ""},
     )
-    assert resp.status_code == 200
-    assert "Random Selection always shows a number in brackets." in (
-        resp.content.decode()
-    )
-    assert not Crew.objects.filter(battle=crew_setup["battle"]).exists()
-
-
-@pytest.mark.django_db
-def test_hybrid_requires_both_numbers(client, crew_setup):
-    client.force_login(crew_setup["user"])
-    resp = client.post(
-        _crew_new_url(crew_setup, Crew.HYBRID),
-        {
-            "list": str(crew_setup["gang"].id),
-            "method": Crew.HYBRID,
-            "name": "",
-            "custom_count": "",
-            "random_dice": "",
-            "random_number": "",
-        },
-    )
-    assert resp.status_code == 200
-    content = resp.content.decode()
-    assert "the first number in brackets." in content
-    assert "the second number in brackets." in content
-    assert not Crew.objects.filter(battle=crew_setup["battle"]).exists()
+    assert not form.is_valid()
+    assert set(form.errors) == {"custom_count", "random_number"}
+    assert "the first number in brackets." in form.errors["custom_count"][0]
+    assert "the second number in brackets." in form.errors["random_number"][0]
 
 
 @pytest.mark.django_db
@@ -2895,8 +2863,18 @@ def test_method_round_trips_through_a_validation_error(client, crew_setup):
     )
     assert resp.status_code == 200
     assert resp.context["method"] == Crew.RANDOM
-    assert "chosen_fighters" not in resp.context["form"].fields
-    assert 'value="random"' in resp.content.decode()
+    form = resp.context["form"]
+    assert "chosen_fighters" not in form.fields
+    assert "custom_count" not in form.fields
+    assert "random_dice" in form.fields
+    assert (
+        "Random Selection always shows a number in brackets."
+        in (form.errors["random_number"][0])
+    )
+    content = resp.content.decode()
+    assert 'value="random"' in content
+    assert 'name="chosen_fighters"' not in content
+    assert not Crew.objects.filter(battle=crew_setup["battle"]).exists()
 
 
 @pytest.mark.django_db
@@ -3394,30 +3372,6 @@ def test_crew_locked_before_snapshots_computes_live_and_says_nothing(crew_setup)
 # --- Wording ----------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_crew_pages_use_rulebook_vocabulary(client, crew_setup):
-    """The rulebook never says "hand-pick" — it says Custom Selection."""
-    client.force_login(crew_setup["user"])
-    battle, gang = crew_setup["battle"], crew_setup["gang"]
-    crew = Crew.objects.create(
-        battle=battle, list=gang, owner=crew_setup["user"], custom_count=1
-    )
-    add_chosen(crew, crew_setup["fighters"][:1])
-
-    pages = [
-        _crew_new_url(crew_setup, Crew.CUSTOM),
-        _crew_new_url(crew_setup, Crew.RANDOM),
-        _crew_new_url(crew_setup, Crew.HYBRID),
-        reverse("core:crew", args=[battle.id, crew.id]),
-        reverse("core:crew-edit", args=[battle.id, crew.id]),
-        reverse("core:crew-lock", args=[battle.id, crew.id]),
-    ]
-    for url in pages:
-        content = client.get(url).content.decode().lower()
-        assert "hand-pick" not in content, url
-        assert "hand pick" not in content, url
-
-
 # --- Pre-lock loadout overrides (whole-gang crews) --------------------------
 #
 # A whole-gang crew has no members until the lock enrols the roster, so the
@@ -3911,23 +3865,6 @@ def test_loadouts_page_sends_chosen_crews_to_the_recipe(client, crew_setup):
     assert resp.url == reverse("core:crew", args=[battle.id, crew.id])
 
 
-@pytest.mark.django_db
-def test_pending_roll_needs_a_spec_that_actually_draws(crew_setup):
-    """Random/Hybrid with a blank spec draws nobody, so it must not advertise an
-    unknown rating. The form requires a spec; the column allows a blank."""
-    crew = Crew.objects.create(
-        battle=crew_setup["battle"],
-        list=crew_setup["gang"],
-        owner=crew_setup["user"],
-        selection_method=Crew.RANDOM,
-        random_spec="",
-    )
-    assert crew.pending_roll is False
-
-    crew.random_spec = "D3"
-    assert crew.pending_roll is True
-
-
 # --- Saving loadouts keeps choices the form couldn't offer -------------------
 #
 # The form only lists currently *eligible* fighters, so rebuilding the stored
@@ -4017,52 +3954,6 @@ def test_saving_loadouts_overwrites_the_fighters_the_form_did_offer(
 
     crew.refresh_from_db()
     assert crew.loadout_overrides == {str(fighter.pk): {"equipment_set": None}}
-
-
-@pytest.mark.django_db
-def test_battle_page_forecasts_a_whole_gang_draft(client, crew_setup):
-    """A whole-gang crew enrols nobody until it is confirmed, so its own rating
-    is 0 — which on the battle page would read as "no fighters" rather than "the
-    whole gang attends". The row must forecast instead."""
-    battle, gang = crew_setup["battle"], crew_setup["gang"]
-    client.force_login(crew_setup["user"])
-    crew = Crew.objects.create(
-        battle=battle, list=gang, owner=crew_setup["user"], selection_method=Crew.CUSTOM
-    )
-    assert crew.is_whole_gang
-    assert crew.rating() == 0  # nobody enrolled yet
-
-    resp = client.get(reverse("core:battle", args=[battle.id]))
-    summary = next(
-        p["crew"]
-        for group in resp.context["participant_groups"]
-        for p in group["participants"]
-        if p["crew"]
-    )
-    assert summary["is_forecast"] is True
-    assert summary["rating"] == crew_whole_gang_projection(crew)["total"]
-    assert summary["rating"] > 0
-    assert "provisional" in resp.content.decode()
-
-
-@pytest.mark.django_db
-def test_no_template_comment_leaks_into_crew_pages(client, crew_setup):
-    """Django's ``{# #}`` comment is single-line only: spread it over multiple
-    lines and it renders as visible page text. That has now happened twice on
-    crew templates, so pin it for the pages a player actually sees."""
-    battle, gang = crew_setup["battle"], crew_setup["gang"]
-    client.force_login(crew_setup["user"])
-    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
-
-    urls = [
-        reverse("core:battle", args=[battle.id]),
-        reverse("core:crew", args=[battle.id, crew.id]),
-        reverse("core:crew-new", args=[battle.id]) + f"?list={gang.id}",
-    ]
-    for url in urls:
-        content = client.get(url).content.decode()
-        assert "{#" not in content, url
-        assert "#}" not in content, url
 
 
 @pytest.mark.django_db
@@ -4294,13 +4185,21 @@ def test_crew_battle_spread_is_the_gap_below_the_top(
 
 def _battle_response(client, crew_setup):
     resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
-    assert resp.status_code == 200
+    _assert_crew_markup(resp)
     return resp
 
 
-def _participant_row(resp, gang_name):
+def _battle_participant_context(crew_setup):
+    context = {}
+    BattleDetailView()._add_participant_context(
+        context, crew_setup["battle"], crew_setup["user"]
+    )
+    return context
+
+
+def _participant_row(context, gang_name):
     """The participant row for ``gang_name`` in the battle-page context."""
-    for group in resp.context["participant_groups"]:
+    for group in context["participant_groups"]:
         for row in group["participants"]:
             if row["list"].name == gang_name:
                 return row
@@ -4327,8 +4226,8 @@ def test_battle_table_shows_crew_and_gang_deltas(
     resp = _battle_response(client, crew_setup)
     content = resp.content.decode()
 
-    riot_row = _participant_row(resp, "Riot Gang")
-    iron_row = _participant_row(resp, "Iron Skulls")
+    riot_row = _participant_row(resp.context, "Riot Gang")
+    iron_row = _participant_row(resp.context, "Iron Skulls")
     # Gang deltas: Riot is 400¢ below the top gang; Iron is the top.
     assert riot_row["rating_delta"] == 400
     assert iron_row["rating_delta"] is None
@@ -4337,6 +4236,8 @@ def test_battle_table_shows_crew_and_gang_deltas(
     assert iron_row["crew"]["rating_delta"] is None
 
     assert "vs top" in content  # the column header
+    assert "Before balancing" in content
+    assert "After balancing" in content
     assert "500¢" in content  # crew delta (only 500¢ on the page)
     assert "400¢" in content  # gang delta (only 400¢ on the page)
     # No rules read for the player.
@@ -4346,7 +4247,7 @@ def test_battle_table_shows_crew_and_gang_deltas(
 
 @pytest.mark.django_db
 def test_battle_table_no_crew_delta_with_fewer_than_two_crews(
-    client, crew_setup, make_list, make_list_fighter
+    crew_setup, make_list, make_list_fighter
 ):
     """A crew delta needs two crews to compare; with one crew there is none,
     though the gang deltas still show."""
@@ -4357,17 +4258,15 @@ def test_battle_table_no_crew_delta_with_fewer_than_two_crews(
     _set_gang_rating(riot, 200)
     _set_gang_rating(iron, 600)
 
-    client.force_login(crew_setup["user"])
-    resp = _battle_response(client, crew_setup)
-
-    riot_row = _participant_row(resp, "Riot Gang")
+    context = _battle_participant_context(crew_setup)
+    riot_row = _participant_row(context, "Riot Gang")
     assert riot_row["crew"]["rating_delta"] is None  # only one crew
     assert riot_row["rating_delta"] == 400  # gang delta still shown
 
 
 @pytest.mark.django_db
 def test_battle_table_pending_crew_has_no_delta(
-    client, crew_setup, make_list, make_list_fighter
+    crew_setup, make_list, make_list_fighter
 ):
     """A crew still to be drawn has no rating, so no delta."""
     riot = crew_setup["gang"]
@@ -4378,15 +4277,13 @@ def test_battle_table_pending_crew_has_no_delta(
     _pending_crew(crew_setup, riot)
     _locked_crew(crew_setup, iron, iron_fighters[:6])
 
-    client.force_login(crew_setup["user"])
-    resp = _battle_response(client, crew_setup)
-
-    assert _participant_row(resp, "Riot Gang")["crew"]["rating_delta"] is None
+    context = _battle_participant_context(crew_setup)
+    assert _participant_row(context, "Riot Gang")["crew"]["rating_delta"] is None
 
 
 @pytest.mark.django_db
 def test_battle_table_every_crew_in_a_multi_gang_battle_has_a_delta(
-    client, crew_setup, make_list, make_list_fighter
+    crew_setup, make_list, make_list_fighter
 ):
     """Three gangs: each trailing crew shows its own gap below the top — none is
     hidden."""
@@ -4402,17 +4299,15 @@ def test_battle_table_every_crew_in_a_multi_gang_battle_has_a_delta(
     _locked_crew(crew_setup, orlock, orlock_fighters[:5])  # 500 — 100¢ below
     _locked_crew(crew_setup, riot, crew_setup["fighters"][:4])  # 400 — 200¢ below
 
-    client.force_login(crew_setup["user"])
-    resp = _battle_response(client, crew_setup)
-
-    assert _participant_row(resp, "Iron Skulls")["crew"]["rating_delta"] is None
-    assert _participant_row(resp, "Orlock")["crew"]["rating_delta"] == 100
-    assert _participant_row(resp, "Riot Gang")["crew"]["rating_delta"] == 200
+    context = _battle_participant_context(crew_setup)
+    assert _participant_row(context, "Iron Skulls")["crew"]["rating_delta"] is None
+    assert _participant_row(context, "Orlock")["crew"]["rating_delta"] == 100
+    assert _participant_row(context, "Riot Gang")["crew"]["rating_delta"] == 200
 
 
 @pytest.mark.django_db
 def test_battle_table_archived_crew_drops_out_of_the_deltas(
-    client, crew_setup, make_list, make_list_fighter
+    crew_setup, make_list, make_list_fighter
 ):
     """Archiving (withdrawing) a crew removes it from the delta comparison."""
     riot = crew_setup["gang"]
@@ -4423,14 +4318,13 @@ def test_battle_table_archived_crew_drops_out_of_the_deltas(
     _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # crew 100
     iron_crew = _locked_crew(crew_setup, iron, iron_fighters[:6])  # crew 600 (top)
 
-    client.force_login(crew_setup["user"])
-    before = _battle_response(client, crew_setup)
+    before = _battle_participant_context(crew_setup)
     assert _participant_row(before, "Riot Gang")["crew"]["rating_delta"] == 500
 
     # Withdraw Iron Skulls' crew — Riot's is now the only crew, so no delta.
     Crew.objects.filter(pk=iron_crew.pk).update(archived=True)
 
-    after = _battle_response(client, crew_setup)
+    after = _battle_participant_context(crew_setup)
     riot_row = _participant_row(after, "Riot Gang")
     assert riot_row["crew"] is not None  # Riot still has its crew
     assert riot_row["crew"]["rating_delta"] is None  # nothing to compare now
@@ -5399,8 +5293,8 @@ def test_spread_rating_of_a_forecast_crew_counts_stash_and_spending(
 
 
 @pytest.mark.django_db
-def test_battle_page_rating_includes_the_stash(client, crew_setup, make_equipment):
-    """End to end: the figure on the battle overview counts the brought stash."""
+def test_battle_page_rating_includes_the_stash(crew_setup, make_equipment):
+    """The battle overview's prepared rating counts the brought stash."""
     _, gear = _stash_with_gear(crew_setup, make_equipment)
     gang = crew_setup["gang"]
     crew_setup["battle"].set_participants([gang])
@@ -5411,9 +5305,8 @@ def test_battle_page_rating_includes_the_stash(client, crew_setup, make_equipmen
         assignment_ids={gear["Boarding Ram"].id},  # 35¢
     )
 
-    client.force_login(crew_setup["user"])
-    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
-    crew_row = resp.context["participant_groups"][0]["participants"][0]["crew"]
+    context = _battle_participant_context(crew_setup)
+    crew_row = context["participant_groups"][0]["participants"][0]["crew"]
 
     assert crew_row["rating"] == 135
 
@@ -5423,7 +5316,7 @@ def test_battle_page_rating_includes_the_stash(client, crew_setup, make_equipmen
 
 @pytest.mark.django_db
 def test_battle_page_splits_the_spread_either_side_of_balancing(
-    client, crew_setup, make_list, make_list_fighter
+    crew_setup, make_list, make_list_fighter
 ):
     """Two crews, one behind. The allowance it spends closes the gap, so the gap
     before balancing is the one it was granted for and the gap after is what
@@ -5437,11 +5330,10 @@ def test_battle_page_splits_the_spread_either_side_of_balancing(
     ahead = _locked_crew(crew_setup, iron, iron_fighters[:3])  # 300¢
     _extra(behind, crew_setup["user"], "Underdog hire", 150, Crew.PAY_ALLOWANCE)
 
-    client.force_login(crew_setup["user"])
-    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
+    context = _battle_participant_context(crew_setup)
     rows = {
         p["list"].id: p["crew"]
-        for group in resp.context["participant_groups"]
+        for group in context["participant_groups"]
         for p in group["participants"]
     }
 
@@ -5462,7 +5354,7 @@ def test_battle_page_splits_the_spread_either_side_of_balancing(
 
 @pytest.mark.django_db
 def test_balancing_can_overtake_and_the_after_column_says_so(
-    client, crew_setup, make_list, make_list_fighter
+    crew_setup, make_list, make_list_fighter
 ):
     """An allowance big enough to pass the leader makes the underdog top of the
     post-balancing column — so that column must be measured against its own top,
@@ -5476,11 +5368,10 @@ def test_balancing_can_overtake_and_the_after_column_says_so(
     _locked_crew(crew_setup, iron, iron_fighters[:2])  # 200¢
     _extra(behind, crew_setup["user"], "Big hire", 250, Crew.PAY_ALLOWANCE)
 
-    client.force_login(crew_setup["user"])
-    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
+    context = _battle_participant_context(crew_setup)
     rows = {
         p["list"].id: p["crew"]
-        for group in resp.context["participant_groups"]
+        for group in context["participant_groups"]
         for p in group["participants"]
     }
 
@@ -5493,42 +5384,19 @@ def test_balancing_can_overtake_and_the_after_column_says_so(
 
 
 @pytest.mark.django_db
-def test_battle_page_pending_crew_has_no_rating_either_side(client, crew_setup):
+def test_battle_page_pending_crew_has_no_rating_either_side(crew_setup):
     """A crew whose draw hasn't happened drops out of both comparisons rather
     than reading as 0¢."""
     gang = crew_setup["gang"]
     crew_setup["battle"].set_participants([gang])
     _pending_crew(crew_setup, gang)
 
-    client.force_login(crew_setup["user"])
-    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
-    crew_row = resp.context["participant_groups"][0]["participants"][0]["crew"]
+    context = _battle_participant_context(crew_setup)
+    crew_row = context["participant_groups"][0]["participants"][0]["crew"]
 
     assert crew_row["pending_roll"] is True
     assert crew_row["rating"] is None
     assert crew_row["rating_after"] is None
-
-
-@pytest.mark.django_db
-def test_battle_page_labels_both_halves_of_the_spread(
-    client, crew_setup, make_list, make_list_fighter
-):
-    """The two-tier header is what tells a reader which pair of columns is
-    which — without it the table shows two unexplained ratings."""
-    riot = crew_setup["gang"]
-    iron, iron_fighters = _spread_gang(
-        crew_setup, make_list, make_list_fighter, "Iron Skulls", 2
-    )
-    crew_setup["battle"].set_participants([riot, iron])
-    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])
-    _locked_crew(crew_setup, iron, iron_fighters[:2])
-
-    client.force_login(crew_setup["user"])
-    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
-    body = resp.content.decode()
-
-    assert "Before balancing" in body
-    assert "After balancing" in body
 
 
 def _crew_bringing_stash(crew_setup, make_list, make_list_fighter, equipment, i):
@@ -5623,6 +5491,7 @@ def test_battle_page_marks_a_forecast_provisional_in_both_columns(
     )
     _locked_crew(crew_setup, iron, iron_fighters[:2])
     assert forecast.is_whole_gang
+    assert forecast.rating() == 0
 
     client.force_login(crew_setup["user"])
     resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
@@ -5633,6 +5502,8 @@ def test_battle_page_marks_a_forecast_provisional_in_both_columns(
     }[riot.id]
 
     assert crew_row["is_forecast"] is True
+    assert crew_row["rating"] == crew_whole_gang_projection(forecast)["total"]
+    assert crew_row["rating"] > 0
     # Once for the pre-balancing rating, once for the post-balancing one.
     words = BeautifulSoup(resp.content, "html.parser").stripped_strings
     assert list(words).count("provisional") == 2
@@ -5679,26 +5550,6 @@ def test_extras_can_be_added_to_a_draft_crew(client, crew_setup):
 
 
 @pytest.mark.django_db
-def test_draft_crew_page_offers_the_add_extra_link(client, crew_setup):
-    """The link was replaced by a 'confirm the crew first' note on a draft."""
-    crew = Crew.objects.create(
-        battle=crew_setup["battle"],
-        list=crew_setup["gang"],
-        owner=crew_setup["user"],
-        custom_count=1,
-    )
-    add_chosen(crew, crew_setup["fighters"][:1])
-
-    client.force_login(crew_setup["user"])
-    body = client.get(
-        reverse("core:crew", args=[crew.battle_id, crew.id])
-    ).content.decode()
-
-    assert reverse("core:crew-extra-new", args=[crew.battle_id, crew.id]) in body
-    assert "added once the crew is confirmed" not in body
-
-
-@pytest.mark.django_db
 def test_crew_sheet_shows_the_ratings_the_battle_page_compares(client, crew_setup):
     """The crew sheet spells out both battle-page figures, so a player can see
     where that screen's number comes from: the pre-balancing rating on its own
@@ -5718,24 +5569,12 @@ def test_crew_sheet_shows_the_ratings_the_battle_page_compares(client, crew_setu
     assert crew_spread_rating(crew)[0] == resp.context["rating_before"]
 
     body = resp.content.decode()
+    assert crew.get_status_display() == "Membership locked"
+    assert "Membership locked" in body
     assert "Rating before balancing" in body
     assert "Total (after balancing)" in body
     # The redundant second rating row is gone — the total carries that figure.
     assert "Rating after balancing" not in body
-
-
-@pytest.mark.django_db
-def test_locked_badge_says_membership_locked(client, crew_setup):
-    """What freezes at lock is who is in the crew — loadouts, stash and extras
-    all stay editable, and a bare "Locked" read as though nothing could."""
-    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
-    assert crew.get_status_display() == "Membership locked"
-
-    client.force_login(crew_setup["user"])
-    body = client.get(
-        reverse("core:crew", args=[crew.battle_id, crew.id])
-    ).content.decode()
-    assert "Membership locked" in body
 
 
 @pytest.mark.django_db
@@ -5793,27 +5632,6 @@ def test_confirm_page_describes_a_custom_crew_with_no_picks(client, crew_setup):
 
     assert "No fighters have been chosen" in body
     assert "fighters will be drawn at random" not in body
-
-
-@pytest.mark.django_db
-def test_confirm_page_says_what_stays_editable(client, crew_setup):
-    """ "The crew can no longer be changed" outlived the change that let
-    loadouts, stash and extras keep moving after the lock."""
-    crew = Crew.objects.create(
-        battle=crew_setup["battle"],
-        list=crew_setup["gang"],
-        owner=crew_setup["user"],
-        custom_count=1,
-    )
-    add_chosen(crew, crew_setup["fighters"][:1])
-
-    client.force_login(crew_setup["user"])
-    body = client.get(
-        reverse("core:crew-lock", args=[crew.battle_id, crew.id])
-    ).content.decode()
-
-    assert "the crew's membership is fixed" in body
-    assert "can no longer be changed" not in body
 
 
 # --- Ready state and charging spending at battle start -----------------------
@@ -6024,8 +5842,7 @@ def test_timeline_never_completes_a_step_before_an_earlier_one(
 # --- The spending & balancing form ------------------------------------------
 
 
-@pytest.mark.django_db
-def test_free_entry_needs_no_amount(crew_setup):
+def test_free_entry_needs_no_amount():
     """The unscripted path: a player picks Free, leaves the amount blank, and
     the form accepts it. The reveal script is an enhancement, so the form has
     to stand up without it."""
@@ -6036,8 +5853,7 @@ def test_free_entry_needs_no_amount(crew_setup):
     assert form.cleaned_data["cost"] == 0
 
 
-@pytest.mark.django_db
-def test_free_entry_floors_a_typed_amount(crew_setup):
+def test_free_entry_floors_a_typed_amount():
     """Both paths must agree about the same input. Without the script the
     amount box stays visible, so a player can type into it and then pick Free;
     with the script it is cleared. Either way, free means zero."""
@@ -6048,8 +5864,7 @@ def test_free_entry_floors_a_typed_amount(crew_setup):
     assert form.cleaned_data["cost"] == 0
 
 
-@pytest.mark.django_db
-def test_paid_entries_keep_their_amount(crew_setup):
+def test_paid_entries_keep_their_amount():
     """Only Free is floored — the two paid sources record what was entered."""
     for payment in (Crew.PAY_CREDITS, Crew.PAY_ALLOWANCE):
         form = CrewLineItemForm(
@@ -6059,8 +5874,7 @@ def test_paid_entries_keep_their_amount(crew_setup):
         assert form.cleaned_data["cost"] == 75
 
 
-@pytest.mark.django_db
-def test_form_asks_rating_then_payment_then_price(crew_setup):
+def test_form_asks_rating_then_payment_then_price():
     """Free is the exception at the end, so the choice reads "who pays … or
     nobody does" — and the amount sits below the source it depends on."""
     form = CrewLineItemForm()
@@ -6100,8 +5914,7 @@ def test_extra_form_page_asks_both_amounts(client, crew_setup):
     assert f'data-free-payment="{Crew.PAY_FREE}"' in body
 
 
-@pytest.mark.django_db
-def test_a_free_entry_is_worth_something_but_costs_nothing(crew_setup):
+def test_a_free_entry_is_worth_something_but_costs_nothing():
     """The case the rules forced: Feigned Nobility and friends hand you a
     fighter for free. They cost nothing and are worth their full value."""
     form = CrewLineItemForm(
@@ -6269,8 +6082,7 @@ def test_battle_page_survives_a_gang_with_no_owner(client, crew_setup):
     assert resp.status_code == 200
 
 
-@pytest.mark.django_db
-def test_a_paid_entry_must_say_what_it_cost(crew_setup):
+def test_a_paid_entry_must_say_what_it_cost():
     """Blank would save as 0 — "free" wearing the wrong label — and blank is
     what doing nothing gives you when the reveal script isn't running."""
     form = CrewLineItemForm(
@@ -6474,7 +6286,7 @@ def test_started_battle_offers_no_ready_button(client, crew_setup):
 
 
 @pytest.mark.django_db
-def test_started_battle_drops_the_overspend_warning(client, crew_setup):
+def test_started_battle_drops_the_overspend_warning(crew_setup):
     """The battle page's overspend list answers "who can't afford to start?",
     which is not a question once the battle has started."""
     gang = crew_setup["gang"]
@@ -6484,14 +6296,10 @@ def test_started_battle_drops_the_overspend_warning(client, crew_setup):
     CrewLineItem.objects.create(
         crew=crew, label="Tactics card", cost=500, owner=crew_setup["user"]
     )
-    client.force_login(crew_setup["user"])
-
-    resp = client.get(reverse("core:battle", args=[battle.id]))
-    assert resp.context["overspending_crews"]
+    assert _battle_participant_context(crew_setup)["overspending_crews"]
 
     battle.states.transition_to(Battle.IN_PROGRESS)
-    resp = client.get(reverse("core:battle", args=[battle.id]))
-    assert resp.context["overspending_crews"] == []
+    assert _battle_participant_context(crew_setup)["overspending_crews"] == []
 
 
 @pytest.mark.django_db

@@ -115,7 +115,7 @@ required-version = ">=0.11.12"
 manage = "scripts.manage:main"
 
 [tool.pytest.ini_options]
-addopts = "--import-mode=importlib -p no:warnings -p gyrinx.pytest_worktree_lock -n auto --nomigrations --strict-markers"
+addopts = "--import-mode=importlib -p no:warnings -p gyrinx.pytest_worktree_lock -n auto --dist worksteal --nomigrations --strict-markers"
 DJANGO_SETTINGS_MODULE = "gyrinx.settings_dev"
 python_files = "tests.py test_*.py *_tests.py"
 markers = [

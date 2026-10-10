@@ -1,5 +1,8 @@
+from functools import wraps
+
 import pytest
 from django.contrib.auth.models import Group
+from django.db import transaction
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.flags import FOUNDING
@@ -16,8 +19,24 @@ from n26.library.models import (
     get_default_pack,
 )
 from n26.library.standard_content import MODEL_CHARACTERISTICS, MODEL_STATLINE
+from n26.write_pause import write_guard
 
 FOUNDING_GROUP_NAME = "Founding preview"
+
+
+def library_setup(builder):
+    """Build fixture content inside one admitted transaction.
+
+    Nested authoring verbs keep their savepoints, and reuse the admission
+    check while the fixture is built. The scope closes before the test runs.
+    """
+
+    @wraps(builder)
+    def build(*args, **kwargs):
+        with transaction.atomic(), write_guard():
+            return builder(*args, **kwargs)
+
+    return build
 
 
 @pytest.fixture
@@ -82,20 +101,22 @@ def other_pack(db):
 
 
 @pytest.fixture
-def make_stat(db):
+def make_stat(default_pack):
     def _make(short_name, full_name, **kwargs):
+        if "pack" not in kwargs and "pack_id" not in kwargs:
+            kwargs["pack_id"] = default_pack.pk
         return Stat.objects.create(short_name=short_name, full_name=full_name, **kwargs)
 
     return _make
 
 
 @pytest.fixture
-def person_statline_type(make_stat):
+def person_statline_type(make_stat, default_pack):
     """A small three-stat statline, exercising each display rule.
 
     ``M`` is a distance, ``WS`` a roll target, ``T`` a plain number.
     """
-    statline_type = StatlineType.objects.create(name="Person")
+    statline_type = StatlineType.objects.create(name="Person", pack_id=default_pack.pk)
     definitions = [
         ("M", "Movement", {"is_inches": True}),
         ("WS", "Weapon Skill", {"is_target": True, "is_inverted": True}),
@@ -106,6 +127,7 @@ def person_statline_type(make_stat):
             statline_type=statline_type,
             stat=make_stat(short_name, full_name, **flags),
             position=position,
+            pack_id=default_pack.pk,
         )
     return statline_type
 
@@ -119,13 +141,15 @@ def person_type(person_statline_type):
     the Type. A test wants one or the other, never both.
     """
     return ProfileType.objects.create(
-        name="Fighter", statline_type=person_statline_type
+        name="Fighter",
+        statline_type=person_statline_type,
+        pack_id=person_statline_type.pack_id,
     )
 
 
 @pytest.fixture
-def gang_type(db):
-    return GangType.objects.create(name="Escher")
+def gang_type(default_pack):
+    return GangType.objects.create(name="Escher", pack_id=default_pack.pk)
 
 
 @pytest.fixture
@@ -145,38 +169,62 @@ FIGHTER_STAT_DEFINITIONS = MODEL_CHARACTERISTICS
 
 
 @pytest.fixture
-def fighter_stats(make_stat):
+def fighter_stats(default_pack):
     """The thirteen real characteristics, keyed by short name.
 
     Stat definitions are shared across statline types by design — a
     weapon's Strength is the fighter's Strength — so an existing
     definition is reused rather than redefined.
     """
+    existing = {}
+    for stat in Stat.objects.filter(
+        full_name__in=[full for _, full, _, _ in FIGHTER_STAT_DEFINITIONS]
+    ):
+        existing.setdefault(stat.full_name, stat)
+    missing = []
     made = {}
     for short, full, flags, _ in FIGHTER_STAT_DEFINITIONS:
-        made[short] = Stat.objects.filter(full_name=full).first() or make_stat(
-            short, full, **flags
-        )
+        stat = existing.get(full)
+        if stat is None:
+            stat = Stat(
+                short_name=short,
+                full_name=full,
+                field_name=Stat.derive_field_name(full),
+                pack_id=default_pack.pk,
+                **flags,
+            )
+            missing.append(stat)
+        made[short] = stat
+    Stat.objects.bulk_create(missing)
     return made
 
 
 @pytest.fixture
-def fighter_statline_type(fighter_stats):
-    statline_type = StatlineType.objects.create(name=MODEL_STATLINE)
-    for position, (short, _, _, display) in enumerate(FIGHTER_STAT_DEFINITIONS):
-        StatlineTypeStat.objects.create(
-            statline_type=statline_type,
-            stat=fighter_stats[short],
-            position=position,
-            **display,
-        )
+def fighter_statline_type(fighter_stats, default_pack):
+    statline_type = StatlineType.objects.create(
+        name=MODEL_STATLINE, pack_id=default_pack.pk
+    )
+    StatlineTypeStat.objects.bulk_create(
+        [
+            StatlineTypeStat(
+                statline_type=statline_type,
+                stat=fighter_stats[short],
+                position=position,
+                pack_id=default_pack.pk,
+                **display,
+            )
+            for position, (short, _, _, display) in enumerate(FIGHTER_STAT_DEFINITIONS)
+        ]
+    )
     return statline_type
 
 
 @pytest.fixture
 def fighter_type(fighter_statline_type):
     return ProfileType.objects.create(
-        name="Fighter", statline_type=fighter_statline_type
+        name="Fighter",
+        statline_type=fighter_statline_type,
+        pack_id=fighter_statline_type.pack_id,
     )
 
 
@@ -187,6 +235,7 @@ def vehicle_type(fighter_statline_type):
     return ProfileType.objects.create(
         name="Vehicle",
         statline_type=fighter_statline_type,
+        pack_id=fighter_statline_type.pack_id,
     )
 
 
@@ -197,24 +246,35 @@ def make_profile(person_type, gang_type):
     def _make(name, **kwargs):
         kwargs.setdefault("profile_type", person_type)
         kwargs.setdefault("gang_type", gang_type)
+        if "pack" not in kwargs and "pack_id" not in kwargs:
+            kwargs["pack_id"] = person_type.pack_id
         return Profile.objects.create(name=name, **kwargs)
 
     return _make
 
 
 @pytest.fixture
-def make_statline(db):
+def make_statline(default_pack):
     """Attach a statline to a profile, given values keyed by field name."""
 
     def _make(profile, **values):
-        statline = Statline.objects.create(profile=profile)
-        for type_stat in profile.statline_type.stats.all():
+        statline = Statline.objects.create(profile=profile, pack_id=default_pack.pk)
+        stats = []
+        for type_stat in profile.statline_type.stats.select_related("stat"):
             if type_stat.field_name in values:
-                StatlineStat.objects.create(
-                    statline=statline,
-                    statline_type_stat=type_stat,
-                    value=str(values[type_stat.field_name]),
+                value = str(values[type_stat.field_name])
+                # Match StatlineStat.save(), including leaving stored blanks blank.
+                if value:
+                    value = type_stat.stat.format_value(value)
+                stats.append(
+                    StatlineStat(
+                        statline=statline,
+                        statline_type_stat=type_stat,
+                        value=value,
+                        pack_id=default_pack.pk,
+                    )
                 )
+        StatlineStat.objects.bulk_create(stats)
         return statline
 
     return _make

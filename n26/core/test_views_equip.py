@@ -18,8 +18,6 @@ from n26.core.taxonomy import UNCATEGORISED
 from n26.library.authoring import create_category, create_collection, create_wargear
 from n26.library.models import Collection
 
-pytestmark = pytest.mark.django_db
-
 
 @pytest.fixture
 def tester(db):
@@ -69,56 +67,73 @@ def key_of(thing):
     return f"{thing._meta.label_lower}:{thing.pk}"
 
 
-def test_the_list_draws(client, tester, fighter, house_list):
+def test_the_page_wires_the_catalogue_controls_and_update_hosts(
+    client, tester, fighter, house_list
+):
+    from n26.library.authoring import create_trading_post
+
+    create_trading_post()
     client.force_login(tester)
-    body = client.get(equip_url(fighter)).content.decode()
-    assert "Knife" in body
-    assert "Sword" in body
-    # The entry's own price, not the item's reference price.
-    assert "35" in body
+    response = client.get(equip_url(fighter, house_list))
+    body = response.content.decode()
+
+    assert response.status_code == 200
+    assert response.context["dialog"] is None
+    assert set(rows_of(response)) == {"Knife", "Sword"}
+    assert rows_of(response)["Sword"].price == 35
+    assert 'data-busy-replaces="#equip-catalogue"' in body
+    assert 'id="equip-catalogue"' in body
+    assert "<template data-busy-wait>" in body
+    assert 'aria-label="Which list"' in body
+    assert 'role="tablist"' in body
+    assert 'x-show="!tabbed"' in body
+    assert body.count('type="submit"') == body.count('name="thing"')
+    assert "@keydown.enter.prevent" in body
+    assert body.count("--n26-sticky-top, 0px") == 1
+    inside = pinned_tags(body)
+    assert not any(tag.get("aria-label") == "Which list" for tag in inside)
+    assert any(tag.get("role") == "search" for tag in inside)
+    assert any(tag.get("role") == "tablist" for tag in inside)
+    assert not any(tag.get("name") == "thing" for tag in inside)
+    assert (
+        'x-show="countInSection(name) > 0 '
+        '&& (liveSections.length <= 2 || visibleSection === name)"'
+    ) in body
+    assert 'x-show="liveSections.length > 2"' in body
+    assert "`+${picker.liveSections.length - 1} more`" in body
+    assert "{ picker: $data }" in body
+    assert "picker.countInSection(label)" in body
+    assert "picker.visibleSection" in body
+    assert 'x-text="shown"' in body
+    assert "this.countInSection(this.visibleSection)" in body
+    assert 'x-show="shown !== total"' in body
+    assert "this.counts.sectionTotal[this.visibleSection]" in body
+    assert "n26/htmx_support.js" in body
+    assert '<meta name="n26-carry" content="section owned">' in body
+    for host_id in ("n26-dialog-host", "n26-accessorise-host", "n26-gang-wealth"):
+        assert f'id="{host_id}"' in body
 
 
-def test_a_buy_lands_on_the_fighter_at_the_servers_price(
+def test_a_buy_pays_the_servers_price_and_returns_to_its_list_and_section(
     client, tester, gang, fighter, house_list
 ):
+    from n26.core.reconcile import assert_reconciled
     from n26.library.models import Wargear
 
     sword = Wargear.objects.get(name="Sword")
     client.force_login(tester)
-    response = client.post(equip_url(fighter, house_list), {"thing": key_of(sword)})
-    assert response.status_code == 302
-
-    bought = Assignment.objects.get(wargear=sword)
-    assert bought.miniature == fighter
-    gang.refresh_from_db()
-    # The list's override, not the wargear's 20 — the pricing seam.
-    assert gang.credits == 65
-
-
-def test_a_buy_stays_on_the_equip_page(client, tester, fighter, house_list):
-    from n26.library.models import Wargear
-
-    knife = Wargear.objects.get(name="Knife")
-    client.force_login(tester)
-    response = client.post(equip_url(fighter, house_list), {"thing": key_of(knife)})
-    assert response.url == equip_url(fighter, house_list)
-
-
-def test_a_buy_stays_on_the_section_tab_too(client, tester, fighter, house_list):
-    """The picker's section tab is client state, posted along and echoed
-    back in the redirect — buying from the Wargear tab must not land the
-    reader back on the first tab."""
-    from n26.library.models import Wargear
-
-    knife = Wargear.objects.get(name="Knife")
-    client.force_login(tester)
     response = client.post(
         equip_url(fighter, house_list),
-        {"thing": key_of(knife), "section": "Close combat weapons"},
+        {"thing": key_of(sword), "section": "Close combat weapons"},
     )
     assert response.status_code == 302
     assert f"list={house_list.pk}" in response.url
     assert "section=Close+combat+weapons" in response.url
+    bought = Assignment.objects.get(wargear=sword)
+    assert bought.miniature == fighter
+    gang.refresh_from_db()
+    assert gang.credits == 65
+    assert_reconciled(gang)
 
 
 def test_a_thing_not_on_the_list_is_refused(client, tester, gang, fighter, house_list):
@@ -306,20 +321,6 @@ def test_a_collection_of_skills_is_no_tab_however_the_fighter_holds_it(
     assert "Catfall" not in response.content.decode()
 
 
-def test_the_rail_says_where_a_clicked_tabs_page_will_land(
-    client, tester, fighter, house_list
-):
-    """A tab is a whole render, so the wait is shown on the catalogue it
-    replaces, not on the tab. The rail names the catalogue, the catalogue
-    carries that name, and the rail holds the spinner to draw."""
-    client.force_login(tester)
-    html = client.get(equip_url(fighter)).content.decode()
-
-    assert 'data-busy-replaces="#equip-catalogue"' in html
-    assert 'id="equip-catalogue"' in html
-    assert "<template data-busy-wait>" in html
-
-
 def test_a_lone_list_is_still_a_choice_beside_the_library(
     client, tester, fighter, house_list
 ):
@@ -385,20 +386,6 @@ def test_two_names_that_shorten_alike_keep_their_full_names():
     ]
 
 
-def test_the_filter_bar_offers_nothing_to_submit(client, tester, fighter, house_list):
-    """The bar narrows rows already on the page, as you type. There is no
-    server search behind it, so a Search button would be a control that
-    cannot do anything — and a real submit would post the Buy form it sits
-    inside."""
-    client.force_login(tester)
-    body = client.get(equip_url(fighter, house_list)).content.decode()
-    assert 'role="search"' in body
-    # Every submit on this page buys something.
-    assert body.count('type="submit"') == body.count('name="thing"')
-    # Enter in the box would otherwise buy the first listed item.
-    assert "@keydown.enter.prevent" in body
-
-
 def test_the_strip_names_each_section_once(client, tester, gang, fighter):
     """The strip keys its tabs by name, so a repeat draws neither — and
     the page would serve rows no tab could reach. The catalogue gives each
@@ -455,26 +442,6 @@ def test_the_trading_post_draws_one(client, tester, gang, fighter):
 
     assert response.context["has_trade_points"] is True
     assert response.context["tp_ceiling"] == 3
-
-
-def test_the_page_has_a_strip_for_the_list_and_a_strip_for_the_section(
-    client, tester, fighter, house_list
-):
-    """Two strips, choosing two different things. The upper one picks the
-    list and is links the server answers; the lower one picks which section
-    of that list is on screen and swaps it in the hand. Lose the lower one
-    and every section draws at once, one under the next."""
-    from n26.library.authoring import create_trading_post
-
-    create_trading_post()
-
-    client.force_login(tester)
-    body = client.get(equip_url(fighter, house_list)).content.decode()
-    assert 'aria-label="Which list"' in body
-    assert 'role="tablist"' in body
-    # The section strip is the picker's, so the sections must not also be
-    # drawing themselves as headings to open.
-    assert 'x-show="!tabbed"' in body
 
 
 def test_only_the_chosen_lists_rows_are_on_the_page(
@@ -693,20 +660,16 @@ def test_the_gun_alone_costs_what_it_says(client, tester, gang, fighter, gun_lis
     assert_reconciled(gang)
 
 
-@pytest.mark.parametrize("tampered", ["1", "-1", "nonsense", ""])
-def test_an_index_the_row_does_not_offer_is_refused(
-    client, tester, gang, fighter, gun_list, tampered
+def test_an_index_the_row_does_not_offer_buys_nothing(
+    client, tester, gang, fighter, gun_list
 ):
-    """The row offers one part, at index 0. Anything else is a broken
-    link rather than a rule to explain, and it buys nothing at all —
-    not even the gun."""
     from n26.library.models import Weapon
 
     autogun = Weapon.objects.get(name="Autogun")
     client.force_login(tester)
     response = client.post(
         equip_url(fighter, gun_list),
-        {"thing": key_of(autogun), parts_field(autogun): tampered},
+        {"thing": key_of(autogun), parts_field(autogun): "-1"},
     )
     assert response.status_code == 404
     assert not Assignment.objects.filter(weapon=autogun).exists()
@@ -714,21 +677,22 @@ def test_an_index_the_row_does_not_offer_is_refused(
     assert gang.credits == 100
 
 
-def test_the_same_ammo_twice_is_refused(client, tester, gang, fighter, gun_list):
-    """A checkbox cannot be ticked twice, so a repeated index is a
-    tampered form — and one click was never an order for two rounds."""
-    from n26.library.models import Weapon
+def test_part_selection_refuses_invalid_and_repeated_indices():
+    from types import SimpleNamespace
 
-    autogun = Weapon.objects.get(name="Autogun")
-    client.force_login(tester)
-    response = client.post(
-        equip_url(fighter, gun_list),
-        {"thing": key_of(autogun), parts_field(autogun): ["0", "0"]},
-    )
-    assert response.status_code == 404
-    assert not Assignment.objects.filter(weapon=autogun).exists()
-    gang.refresh_from_db()
-    assert gang.credits == 100
+    from django.http import Http404, QueryDict
+
+    from n26.core.views.equip import _parts_picked
+
+    part = object()
+    line = SimpleNamespace(parts=[part])
+    for values in (["1"], ["-1"], ["nonsense"], [""], ["0", "0"]):
+        data = QueryDict(mutable=True)
+        data.setlist("gun:parts", values)
+        with pytest.raises(Http404, match="No such option"):
+            _parts_picked(data, "gun", line)
+    valid = QueryDict("gun:parts=0")
+    assert _parts_picked(valid, "gun", line) == [(0, part)]
 
 
 def test_ammo_ticked_on_one_row_does_not_ride_another_click(
@@ -787,50 +751,29 @@ def test_the_listing_quotes_its_price_in_a_box(client, tester, fighter, house_li
     assert 'x-data="{ quoted:' not in body
 
 
-def test_the_price_typed_in_is_the_price_charged(
+def test_a_typed_discount_charges_the_deal_and_pins_the_listing_rating(
     client, tester, gang, fighter, house_list
 ):
-    from n26.core.reconcile import assert_reconciled
-    from n26.library.models import Wargear
-
-    sword = Wargear.objects.get(name="Sword")
-    client.force_login(tester)
-    client.post(
-        equip_url(fighter, house_list),
-        {"thing": key_of(sword), price_field(sword): "8", CONFIRM_FIELD: "1"},
-    )
-
-    gang.refresh_from_db()
-    assert gang.credits == 92  # 100 - 8, not 100 - 35
-    assert_reconciled(gang)
-
-
-def test_a_discount_leaves_the_gang_owning_the_same_thing(
-    client, tester, gang, fighter, house_list
-):
-    """What a purchase adds to a gang's worth is the thing's price, not
-    the deal struck on it: a sword haggled down is not a lesser sword.
-    The entry says both numbers, and the gap between them is the
-    discount."""
     from n26.core.models import LedgerEntry
     from n26.core.reconcile import assert_reconciled
     from n26.library.models import Wargear
 
     sword = Wargear.objects.get(name="Sword")
     client.force_login(tester)
-    client.post(
+    response = client.post(
         equip_url(fighter, house_list),
         {"thing": key_of(sword), price_field(sword): "8", CONFIRM_FIELD: "1"},
     )
-
+    assert response.status_code == 302
+    assert response.url == equip_url(fighter, house_list)
     entry = LedgerEntry.objects.get(assignment__wargear=sword)
     assert (entry.paid, entry.list_price, entry.discount) == (8, 35, 27)
     assert entry.rating_contribution == 35
-
+    assert entry.assignment.miniature == fighter
     fighter.refresh_from_db()
     gang.refresh_from_db()
-    assert fighter.rating == 35
-    assert gang.rating == 35
+    assert gang.credits == 92
+    assert fighter.rating == gang.rating == 35
     assert_reconciled(gang)
 
 
@@ -901,40 +844,27 @@ def test_an_empty_box_leaves_the_listing_to_price_it(
     assert_reconciled(gang)
 
 
-@pytest.mark.parametrize(
-    "hostile",
-    [
-        "-5",  # would hand the gang credits
-        "+5",
-        "abc",
-        "12.5",
-        "1_0",  # Python's int() would read this as ten
-        "1e3",
-        "100001",  # past the ceiling
-        "999999999999",  # past the ledger's column, too
-    ],
-)
-def test_a_price_that_is_not_whole_credits_in_range_buys_nothing(
-    client, tester, gang, fighter, house_list, hostile
-):
-    """The box is typed into by hand and arrives from the browser, so it
-    is read as a whole number of credits and nothing else. Anything else
-    is refused outright rather than trimmed to fit: charging a figure
-    nobody typed is the worse answer."""
-    from n26.core.models import Assignment
+def test_an_invalid_price_buys_nothing(client, tester, gang, fighter, house_list):
     from n26.library.models import Wargear
 
     sword = Wargear.objects.get(name="Sword")
     client.force_login(tester)
     response = client.post(
         equip_url(fighter, house_list),
-        {"thing": key_of(sword), price_field(sword): hostile},
+        {"thing": key_of(sword), price_field(sword): "-5"},
     )
-
     assert response.status_code == 302
     assert not Assignment.objects.filter(wargear=sword).exists()
     gang.refresh_from_db()
     assert gang.credits == 100
+
+
+def test_price_validation_rejects_malformed_or_out_of_range_credit_amounts():
+    from n26.core.views.equip import BadPrice, price_typed
+
+    for hostile in ("-5", "+5", "abc", "12.5", "1_0", "1e3", "100001", "999999999999"):
+        with pytest.raises(BadPrice, match="whole number of credits"):
+            price_typed({"price": hostile}, "price", 35, "Sword")
 
 
 @pytest.fixture
@@ -1235,31 +1165,6 @@ def pinned_tags(body):
     return reader.tags
 
 
-def test_the_bands_a_reader_steers_with_stay_on_screen_together(
-    client, tester, fighter, house_list
-):
-    """How the list is narrowed and which section is on screen: both stay
-    put while the rows scroll under them, pinned by sitting in one sticky
-    box rather than two, so neither band has to know how tall the other
-    is. Which list is the rail's business — beside the catalogue, not
-    pinned over it — so it must not be in the box."""
-    from n26.library.authoring import create_trading_post
-
-    create_trading_post()
-
-    client.force_login(tester)
-    body = client.get(equip_url(fighter, house_list)).content.decode()
-
-    assert body.count("--n26-sticky-top, 0px") == 1
-    assert 'aria-label="Which list"' in body
-    inside = pinned_tags(body)
-    assert not any(tag.get("aria-label") == "Which list" for tag in inside)
-    assert any(tag.get("role") == "search" for tag in inside)
-    assert any(tag.get("role") == "tablist" for tag in inside)
-    # The rows themselves are not: they are what scrolls under it.
-    assert not any(tag.get("name") == "thing" for tag in inside)
-
-
 def test_a_section_the_strip_has_no_room_for_is_still_reachable(
     client, tester, fighter, house_list
 ):
@@ -1294,42 +1199,6 @@ def test_a_section_the_strip_has_no_room_for_is_still_reachable(
         assert any(section_name in (tag.get("x-data") or "") for tag in rows)
 
 
-def test_the_narrow_strip_draws_two_tabs_whole_and_a_counted_menu_from_three(
-    client, tester, fighter, house_list
-):
-    """Below sm the strip draws every live section as a tab while there are
-    two or fewer, and from three shows the section you are on plus a menu of
-    the rest. Filtering changes how many are live, so the shape is bound in
-    Alpine rather than decided at render. The menu's button counts what it
-    holds, so it always says at least "+2 more" and a chevron beside a lone
-    tab is never mistaken for decoration."""
-    client.force_login(tester)
-    body = client.get(equip_url(fighter, house_list)).content.decode()
-
-    assert (
-        'x-show="countInSection(name) > 0 '
-        '&& (liveSections.length <= 2 || visibleSection === name)"'
-    ) in body
-    assert 'x-show="liveSections.length > 2"' in body
-    assert "`+${picker.liveSections.length - 1} more`" in body
-
-
-def test_the_section_menu_asks_the_catalogue_and_not_the_menu(
-    client, tester, fighter, house_list
-):
-    """The switcher's panel keeps state under the same names this component
-    does — items, matches, register — so a row asking how full a section is
-    gets the menu's own row count instead, every section reads as empty, and
-    nothing anywhere says why. The catalogue's scope is therefore held under
-    a name of its own for the rows to reach."""
-    client.force_login(tester)
-    body = client.get(equip_url(fighter, house_list)).content.decode()
-
-    assert "{ picker: $data }" in body
-    assert "picker.countInSection(label)" in body
-    assert "picker.visibleSection" in body
-
-
 def test_two_sections_sharing_a_category_name_count_apart(
     client, tester, gang, fighter
 ):
@@ -1360,24 +1229,6 @@ def test_two_sections_sharing_a_category_name_count_apart(
     assert "countIn(categoryName)" not in body
 
 
-def test_the_count_above_the_list_counts_the_section_on_screen(
-    client, tester, fighter, house_list
-):
-    """The readout is client-side, so what is pinned here is the
-    arrangement that keeps it honest: it counts the same array the rows
-    come from, narrowed to the section the tab strip is showing. A total
-    spanning the sections a tab is hiding is a number that contradicts the
-    list directly beneath it."""
-    client.force_login(tester)
-    body = client.get(equip_url(fighter, house_list)).content.decode()
-
-    assert 'x-text="shown"' in body
-    assert "this.countInSection(this.visibleSection)" in body
-    # The "N of M" form: how many are left, out of how many the section has.
-    assert 'x-show="shown !== total"' in body
-    assert "this.counts.sectionTotal[this.visibleSection]" in body
-
-
 def buy_one(gang, fighter, tester, thing, **kwargs):
     """One of these on the fighter, through the ledger like anything else."""
     with operation(gang, actor=tester) as op:
@@ -1389,53 +1240,63 @@ def rows_of(response):
     return {row.name: row for row in response.context["catalogue"].all_rows()}
 
 
-def test_owning_one_is_a_state_of_the_row_whatever_kind_of_thing_it_is(
+def test_an_owned_row_counts_each_copy_keeps_buy_and_addresses_its_actions(
     client, tester, gang, fighter, house_list
 ):
-    """Not a treatment reserved for some rows. The knife is an ordinary
-    line — freely available, no exclusivity, nothing special about it —
-    and holding one turns its row into the owned kind all the same."""
     from n26.core.listing import Listing, OwnedRow
+    from n26.core.reconcile import assert_reconciled
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")
     client.force_login(tester)
     rows = rows_of(client.get(equip_url(fighter, house_list)))
-    assert rows["Knife"].is_exclusive is False
     assert isinstance(rows["Knife"], Listing)
+    assert rows["Knife"].is_exclusive is False
 
-    buy_one(gang, fighter, tester, knife, paid=10)
-
-    rows = rows_of(client.get(equip_url(fighter, house_list)))
+    first = buy_one(gang, fighter, tester, knife, paid=10)
+    response = client.get(equip_url(fighter, house_list))
+    rows = rows_of(response)
     assert isinstance(rows["Knife"], OwnedRow)
     assert rows["Knife"].count == 1
+    for act in ("sell", "reassign", "refund", "remove"):
+        assert (
+            f"?list={house_list.pk}&amp;{act}={first.pk}" in response.content.decode()
+        )
 
-
-def test_two_of_one_weapon_are_two_lines_that_can_be_told_apart(
-    client, tester, gang, fighter, gun_list
-):
-    """Each is its own row in the ledger, each may carry different ammo,
-    and each is sold on its own — so one line counted twice would be a
-    control that acts on whichever the server picked. The page carries an
-    address per copy and per part; the shape behind it is pinned in the
-    listing module's own suite."""
-    from n26.library.models import Weapon, WeaponProfile
-
-    autogun = Weapon.objects.get(name="Autogun")
-    warp = WeaponProfile.objects.get(name="warp round")
-    with operation(gang, actor=tester) as op:
-        first = op.give_weapon(fighter, autogun, paid=20)
-        ammo = op.buy_weapon_profile(first, warp)
-        second = op.give_weapon(fighter, autogun, paid=20)
-
-    client.force_login(tester)
-    response = client.get(equip_url(fighter, gun_list))
-    row = rows_of(response)["Autogun"]
-
-    assert {copy.id for copy in row.copies} == {str(first.pk), str(second.pk)}
+    bought = client.post(equip_url(fighter, house_list), {"thing": key_of(knife)})
+    assert bought.status_code == 302
+    response = client.get(equip_url(fighter, house_list))
+    rows = rows_of(response)
+    assert rows["Knife"].count == 2
+    assert isinstance(rows["Sword"], Listing)
     body = response.content.decode()
-    for assignment in (first, second, ammo):
-        assert f"sell={assignment.pk}" in body
+    assert "2</span> equipped" in body
+    assert f'value="{key_of(knife)}"' in body
+    gang.refresh_from_db()
+    assert_reconciled(gang)
+
+
+def test_the_owned_line_renders_a_separate_sale_link_per_copy_and_part():
+    from django.template.loader import render_to_string
+    from django.test import RequestFactory
+
+    from n26.core.listing import Action, OwnedCopyRow, OwnedPartRow, OwnedRow
+
+    def sale(pk):
+        return Action("Sell", "link", f"/equip/?sell={pk}", "danger")
+
+    ammo = OwnedPartRow("round", "round", "warp round", 10, sale("round"), ())
+    copies = (
+        OwnedCopyRow("first", "gun", "Autogun", 20, (ammo,), sale("first"), ()),
+        OwnedCopyRow("second", "gun", "Autogun", 20, (), sale("second"), ()),
+    )
+    body = render_to_string(
+        "n26/includes/equip_owned_line.html",
+        {"row": OwnedRow("gun", "Autogun", 2, copies)},
+        request=RequestFactory().get("/equip/?list=1"),
+    )
+    for pk in ("first", "second", "round"):
+        assert f'href="/equip/?sell={pk}"' in body
 
 
 def test_what_a_fighter_is_gets_no_controls(client, tester, gang, fighter, house_list):
@@ -1453,53 +1314,6 @@ def test_what_a_fighter_is_gets_no_controls(client, tester, gang, fighter, house
     assert f"sell={fighter.membership.pk}" not in body
 
 
-def test_a_row_for_something_owned_counts_it_and_still_sells_another(
-    client, tester, gang, fighter, house_list
-):
-    """The count stands where Buy was, and Buy moves under it. A reader
-    looking at a row for a thing they are carrying is usually asking what
-    to do with the one they have — but owning one has never been a reason
-    the equip page stops selling it, so the offer is still on the page."""
-    from n26.core.listing import Listing
-    from n26.library.models import Wargear
-
-    knife = Wargear.objects.get(name="Knife")
-    client.force_login(tester)
-    assert isinstance(
-        rows_of(client.get(equip_url(fighter, house_list)))["Knife"], Listing
-    )
-
-    buy_one(gang, fighter, tester, knife, paid=10)
-    buy_one(gang, fighter, tester, knife, paid=10)
-
-    response = client.get(equip_url(fighter, house_list))
-    rows = rows_of(response)
-    assert rows["Knife"].count == 2
-    assert isinstance(rows["Sword"], Listing)
-    # The count is drawn in words, and the Buy the row replaced is still
-    # submitted by the same key from inside it.
-    body = response.content.decode()
-    assert "2</span> equipped" in body
-    assert f'value="{key_of(knife)}"' in body
-
-
-def test_buying_another_from_inside_an_owned_row_buys_one(
-    client, tester, gang, fighter, house_list
-):
-    """The nested row is the ordinary row, so its click is the ordinary
-    click: same key, same purchase, same result as a fighter with none."""
-    from n26.library.models import Wargear
-
-    knife = Wargear.objects.get(name="Knife")
-    buy_one(gang, fighter, tester, knife, paid=10)
-
-    client.force_login(tester)
-    response = client.post(equip_url(fighter, house_list), {"thing": key_of(knife)})
-
-    assert response.status_code == 302
-    assert rows_of(client.get(equip_url(fighter, house_list)))["Knife"].count == 2
-
-
 def test_a_thing_taken_off_the_card_stops_being_counted(
     client, tester, gang, fighter, house_list
 ):
@@ -1514,26 +1328,6 @@ def test_a_thing_taken_off_the_card_stops_being_counted(
     client.force_login(tester)
     rows = rows_of(client.get(equip_url(fighter, house_list)))
     assert isinstance(rows["Knife"], Listing)
-
-
-def test_the_owned_row_offers_everything_that_can_happen_to_a_copy(
-    client, tester, gang, fighter, house_list
-):
-    from n26.library.models import Wargear
-
-    assignment = buy_one(
-        gang, fighter, tester, Wargear.objects.get(name="Knife"), paid=10
-    )
-    client.force_login(tester)
-    body = client.get(equip_url(fighter, house_list)).content.decode()
-
-    for act in ("sell", "reassign", "refund", "remove"):
-        assert f"?list={house_list.pk}&amp;{act}={assignment.pk}" in body
-
-
-def test_no_dialog_until_the_url_asks_for_one(client, tester, fighter, house_list):
-    client.force_login(tester)
-    assert client.get(equip_url(fighter, house_list)).context["dialog"] is None
 
 
 def test_a_sale_confirmation_states_its_arithmetic(
@@ -2096,136 +1890,42 @@ class TestBuyingWithoutRebuildingThePage:
             headers={"HX-Request": "true"},
         )
 
-    def test_a_plain_buy_still_answers_with_the_whole_page(
+    def test_a_buy_returns_the_owned_row_updated_card_hosts_and_success_toast(
         self, client, tester, fighter, house_list
     ):
-        """Nothing here is the only way to buy: without the header the
-        purchase responds with a redirect to the page."""
+        import json
+
+        from n26.core.reconcile import assert_reconciled
         from n26.library.models import Wargear
 
+        knife = Wargear.objects.get(name="Knife")
         client.force_login(tester)
-        response = client.post(
-            equip_url(fighter, house_list),
-            {"thing": key_of(Wargear.objects.get(name="Knife"))},
-        )
-        assert response.status_code == 302
-
-    def test_the_answer_is_the_row_and_not_a_redirect(
-        self, client, tester, fighter, house_list
-    ):
-        from n26.library.models import Wargear
-
-        client.force_login(tester)
-        response = self.asked(
-            client, fighter, house_list, Wargear.objects.get(name="Knife")
-        )
+        response = self.asked(client, fighter, house_list, knife)
         assert response.status_code == 200
         body = response.content.decode()
         assert 'data-row="library.wargear:' in body
-        # The row, and not the screen around it.
         assert "<html" not in body
-
-    def test_the_row_that_comes_back_says_the_fighter_holds_one(
-        self, client, tester, fighter, house_list
-    ):
-        """Owning something is a state of its row, so the row a purchase
-        hands back is a different row from the one that was clicked."""
-        from n26.library.models import Wargear
-
-        client.force_login(tester)
-        body = self.asked(
-            client, fighter, house_list, Wargear.objects.get(name="Knife")
-        ).content.decode()
-        # The count and the word are separated by the markup that makes the
-        # figure line up, so they are looked for one at a time.
         assert ">1</span>" in body
         assert "equipped" in body
-        # An owned row offers another of the same underneath the copies.
         assert "Buy another" in body
-
-    def test_the_row_draws_nothing_of_the_answer_it_travelled_in(
-        self, client, tester, fighter, house_list
-    ):
-        """A row is built by the same component whether the page or an
-        update drew it, and a component may only draw what it was given.
-        The update hands the template its list of rows to walk; a row
-        that reaches past its own arguments for a name of that spelling
-        prints the list itself into the reader's screen."""
-        from n26.library.models import Wargear
-
-        client.force_login(tester)
-        body = self.asked(
-            client, fighter, house_list, Wargear.objects.get(name="Knife")
-        ).content.decode()
-
-        # The row itself arrived, and none of the list it arrived in.
-        assert 'data-row="library.wargear:' in body
         assert "OwnedRow(" not in body
         assert "OwnedCopyRow(" not in body
-
-    def test_every_part_of_the_answer_says_what_it_stands_in_for(
-        self, client, tester, fighter, house_list
-    ):
-        """The click targets nothing. What a purchase changes is the
-        server's to decide, so each part of the answer names the place on
-        the page it replaces — which is what lets a third place be added
-        later without a call site being edited."""
-        from n26.library.models import Wargear
-
-        knife = Wargear.objects.get(name="Knife")
-        client.force_login(tester)
-        body = self.asked(client, fighter, house_list, knife).content.decode()
-
-        # The row, addressed by the row it stands in for.
         assert f'id="n26-row-{slugify(key_of(knife))}"' in body
-        # The gang's money beside it — and not the model count, which a
-        # purchase never changes.
         assert 'id="n26-gang-wealth"' in body
-        # And the accessory questions, since a gun that has just arrived
-        # offers a control that names its own panel.
         assert 'id="n26-accessorise-host"' in body
-        # The model's card above the listing, which now names the knife.
         host = body[body.index('id="n26-model-card-host"') :]
         assert 'hx-swap-oob="true"' in host[: host.index(">")]
-        # All four, and nothing left targeted.
         assert body.count('hx-swap-oob="true"') == 4
-
-    def test_the_card_comes_back_carrying_what_was_bought(
-        self, client, tester, fighter, house_list
-    ):
-        """The card above the listing says what the model holds; a
-        purchase that left it as drawn would have it contradict the row
-        under it."""
-        from n26.library.models import Wargear
-
-        knife = Wargear.objects.get(name="Knife")
-        client.force_login(tester)
-        body = self.asked(client, fighter, house_list, knife).content.decode()
-
-        card = body[body.index('id="n26-model-card-host"') :]
-        card = card[: card.index('id="n26-gang-wealth"')]
+        card = host[: host.index('id="n26-gang-wealth"')]
         assert "Knife" in card
-        # In edit mode, with the kit acts out: the copy just bought
-        # carries its menu, addressed to this screen.
         assert "More for Knife" in card
         assert "sell=" in card
-
-    def test_the_confirmation_travels_in_the_header(
-        self, client, tester, fighter, house_list
-    ):
-        """A page that is not rebuilt has no alert block to draw in, so
-        what the server has to say rides back to be raised as a toast."""
-        import json
-
-        from n26.library.models import Wargear
-
-        client.force_login(tester)
-        response = self.asked(
-            client, fighter, house_list, Wargear.objects.get(name="Knife")
-        )
         said = json.loads(response["HX-Trigger"])["n26-toasts"]
         assert [item["variant"] for item in said] == ["success"]
         assert "Bought Knife" in said[0]["message"]
+        assert Assignment.objects.filter(miniature=fighter, wargear=knife).count() == 1
+        fighter.gang.refresh_from_db()
+        assert_reconciled(fighter.gang)
 
     def test_a_refusal_swaps_nothing_and_still_says_why(
         self, client, tester, gang, fighter, house_list
@@ -2258,55 +1958,19 @@ class TestOpeningAConfirmationWithoutRebuildingThePage:
             headers={"HX-Request": "true"},
         )
 
-    def test_the_answer_is_the_panel_and_not_the_page(
+    def test_the_partial_panel_carries_its_host_address_and_submission(
         self, client, tester, fighter, gun_list, owned_gun
     ):
         client.force_login(tester)
         response = self.asked(client, fighter, gun_list, owned_gun)
-
         assert response.status_code == 200
         body = response.content.decode()
         assert "<html" not in body
         assert "Sell Autogun?" in body
-
-    def test_the_panel_stands_in_for_the_pages_dialog_host(
-        self, client, tester, fighter, gun_list, owned_gun
-    ):
-        """Closing and opening are the same act said with different
-        content, which is why both are this one place on the page."""
-        client.force_login(tester)
-        body = self.asked(client, fighter, gun_list, owned_gun).content.decode()
-
         assert 'id="n26-dialog-host"' in body
         assert 'hx-swap-oob="true"' in body
-
-    def test_the_address_is_corrected_to_the_one_that_draws_it(
-        self, client, tester, fighter, gun_list, owned_gun
-    ):
-        """So a reload still opens the panel and the link is still a link."""
-        client.force_login(tester)
-        response = self.asked(client, fighter, gun_list, owned_gun)
-
         assert f"sell={owned_gun.pk}" in response["HX-Replace-Url"]
-
-    def test_the_panel_knows_it_arrived_on_its_own(
-        self, client, tester, fighter, gun_list, owned_gun
-    ):
-        """Leaving it must put the address back rather than fetch the
-        screen the reader is still looking at."""
-        client.force_login(tester)
-        body = self.asked(client, fighter, gun_list, owned_gun).content.decode()
-
         assert "clicked = true" in body
-
-    def test_the_panel_posts_partially_on_this_screen(
-        self, client, tester, fighter, gun_list, owned_gun
-    ):
-        """The equip screen holds every element an update names, so the
-        panel's own submit goes the same way the click that opened it did."""
-        client.force_login(tester)
-        body = self.asked(client, fighter, gun_list, owned_gun).content.decode()
-
         assert "hx-post" in body
 
     def test_asking_with_nothing_named_closes_whatever_was_open(
@@ -2348,18 +2012,6 @@ class TestTheWiringEveryActLeansOn:
     """The glue that nothing else on the page would miss, and whose
     absence looks like the acts themselves being broken."""
 
-    def test_the_page_loads_the_client_glue_and_declares_its_state(
-        self, client, tester, fighter, gun_list
-    ):
-        """The page carries the script tag and the meta tag naming the
-        URL parameters its requests carry; the glue itself is a static
-        file."""
-        client.force_login(tester)
-        body = client.get(equip_url(fighter, gun_list)).content.decode()
-
-        assert "n26/htmx_support.js" in body
-        assert '<meta name="n26-carry" content="section owned">' in body
-
     def test_a_click_on_a_control_built_after_load_is_still_caught(self):
         """The copies inside an opened row are built by Alpine after the
         page loads, so htmx has never wired them; without the delegated
@@ -2396,20 +2048,6 @@ class TestTheWiringEveryActLeansOn:
         assert 'querySelectorAll("noscript")' in js
         assert "replaceChildren()" in js
 
-    @pytest.mark.parametrize("host_id", ["n26-dialog-host", "n26-accessorise-host"])
-    def test_the_page_holds_every_element_an_update_replaces(
-        self, client, tester, fighter, gun_list, host_id
-    ):
-        """An update addresses elements by id, and htmx drops an element
-        whose id is missing from the page silently — so a screen that
-        opts in must hold every one of them. The gang sheet pins the
-        other side: not opted in, none of this markup."""
-        client.force_login(tester)
-        body = client.get(equip_url(fighter, gun_list)).content.decode()
-
-        assert f'id="{host_id}"' in body
-        assert 'id="n26-gang-wealth"' in body
-
 
 class TestSellingWithoutRebuildingThePage:
     """Confirming the act, not just opening the panel. Selling is what the
@@ -2423,60 +2061,31 @@ class TestSellingWithoutRebuildingThePage:
             headers={"HX-Request": "true"},
         )
 
-    def test_the_answer_is_the_row_the_sale_changed(
-        self, client, tester, fighter, gun_list, owned_gun
-    ):
-        from django.utils.text import slugify
-
-        client.force_login(tester)
-        response = self.sold(client, fighter, gun_list, owned_gun)
-
-        assert response.status_code == 200
-        body = response.content.decode()
-        assert "<html" not in body
-        assert f'id="n26-row-{slugify(key_of(owned_gun.assignable))}"' in body
-
-    def test_the_row_goes_back_to_offering_the_thing(
-        self, client, tester, fighter, gun_list, owned_gun
-    ):
-        """The last copy sold, so the row is an offer again rather than a
-        count — what is held is a state of its row."""
-        client.force_login(tester)
-        body = self.sold(client, fighter, gun_list, owned_gun).content.decode()
-
-        assert "equipped" not in body
-        assert "Buy" in body
-
-    def test_the_panel_goes_with_the_answer(
-        self, client, tester, fighter, gun_list, owned_gun
-    ):
-        """The question has been answered, so it stops standing over the
-        page — an empty host stands in for whatever was open."""
-        client.force_login(tester)
-        body = self.sold(client, fighter, gun_list, owned_gun).content.decode()
-
-        assert 'id="n26-dialog-host"' in body
-        assert "Sell Autogun?" not in body
-
-    def test_the_address_goes_back_behind_the_panel(
-        self, client, tester, fighter, gun_list, owned_gun
-    ):
-        client.force_login(tester)
-        response = self.sold(client, fighter, gun_list, owned_gun)
-
-        assert "sell=" not in response["HX-Replace-Url"]
-
-    def test_what_the_sale_paid_is_said_as_a_toast(
+    def test_a_sale_restores_the_listing_closes_the_panel_and_reports_success(
         self, client, tester, fighter, gun_list, owned_gun
     ):
         import json
 
+        from n26.core.reconcile import assert_reconciled
+
         client.force_login(tester)
         response = self.sold(client, fighter, gun_list, owned_gun)
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "<html" not in body
+        assert f'id="n26-row-{slugify(key_of(owned_gun.assignable))}"' in body
+        assert "equipped" not in body
+        assert "Buy" in body
+        assert 'id="n26-dialog-host"' in body
+        assert "Sell Autogun?" not in body
+        assert "sell=" not in response["HX-Replace-Url"]
         said = json.loads(response["HX-Trigger"])["n26-toasts"]
-
         assert said[0]["variant"] == "success"
         assert "Sold Autogun" in said[0]["message"]
+        owned_gun.refresh_from_db()
+        assert owned_gun.archived
+        fighter.gang.refresh_from_db()
+        assert_reconciled(fighter.gang)
 
     def test_the_row_comes_back_open_where_it_was_open(
         self, client, tester, fighter, gun_list, gang, tester_kit=None

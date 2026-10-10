@@ -66,14 +66,29 @@ def test_the_skill_roll_field_is_disabled_unless_recording():
     assert not _skill_form(roll_mode="record").fields["rolled"].disabled
 
 
-def test_the_2d6_roll_still_needs_a_mode_and_its_own_bounds():
+def test_the_2d6_roll_needs_a_mode_and_a_recorded_total():
     missing = AdvancementRollForm({"request_key": str(uuid4())})
     assert missing.errors["roll_mode"] == ["Choose how to roll."]
 
-    low = AdvancementRollForm(
-        {"request_key": str(uuid4()), "roll_mode": "record", "rolled": "1"}
-    )
-    assert "rolled" in low.errors
-
     blank = AdvancementRollForm({"request_key": str(uuid4()), "roll_mode": "record"})
     assert blank.errors["rolled"] == ["Enter the total of your two dice."]
+
+
+@pytest.mark.parametrize("rolled", ["", "0", "1", "13", "not a number"])
+def test_a_recorded_advancement_roll_refuses_totals_two_dice_cannot_make(rolled):
+    form = AdvancementRollForm(
+        {"request_key": str(uuid4()), "roll_mode": "record", "rolled": rolled}
+    )
+
+    assert not form.is_valid()
+    assert "rolled" in form.errors
+
+
+@pytest.mark.parametrize("rolled", ["2", "12"])
+def test_a_recorded_advancement_roll_accepts_both_ends_of_2d6(rolled):
+    form = AdvancementRollForm(
+        {"request_key": str(uuid4()), "roll_mode": "record", "rolled": rolled}
+    )
+
+    assert form.is_valid(), form.errors
+    assert form.cleaned_data["rolled"] == int(rolled)

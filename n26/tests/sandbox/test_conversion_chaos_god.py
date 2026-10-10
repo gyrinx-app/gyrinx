@@ -225,20 +225,27 @@ class TestThePlan:
 
 
 class TestTheApply:
-    def test_every_page_reads_the_same(self, world):
+    def test_the_conversion_preserves_pages_picks_labels_and_archives(self, world):
         gangs, _, _ = world
-        before = {key: gang_state(g) for key, g in gangs.items()}
+        before_states = {key: gang_state(g) for key, g in gangs.items()}
+        _, hidden, _ = world
+        offer = next(
+            m
+            for m in hidden.modifiers.all()
+            if getattr(m, "offers_choice", None) is not None
+        )
+        said = offer.offers_choice.kind_label
+        from n26.library.models import Modifier
+
+        before_fossils = Modifier.objects.filter(
+            name="a detached Chaos God offer"
+        ).count()
 
         apply(plan_chaos_god())
 
         for key, gang in gangs.items():
-            assert differences(before[key], gang_state(gang)) == []
+            assert differences(before_states[key], gang_state(gang)) == []
             assert_reconciled(gang)
-
-    def test_a_helot_pick_lands_on_the_helots_slot(self, world):
-        gangs, _, _ = world
-
-        apply(plan_chaos_god())
 
         pick = Assignment.objects.get(
             gang=gangs["helot_answered"], pickable__isnull=False, archived=False
@@ -249,11 +256,6 @@ class TestTheApply:
         assert pick.miniature_id is None
         assert pick.chosen_for_id == pick.caused_by_id
 
-    def test_a_corrupted_pick_lands_on_the_corrupted_slot(self, world):
-        gangs, _, _ = world
-
-        apply(plan_chaos_god())
-
         pick = Assignment.objects.get(
             gang=gangs["corrupted_answered"],
             pickable__name="Blood God",
@@ -262,23 +264,8 @@ class TestTheApply:
         assert pick.chosen_for_slot == _corrupted_slot()
         assert pick.affiliation_id is None
 
-    def test_chaos_corrupted_stays_an_affiliation(self, world):
-        apply(plan_chaos_god())
-
         assert Affiliation.objects.filter(name="Chaos Corrupted").exists()
         assert not Pickable.objects.filter(name="Chaos Corrupted").exists()
-
-    def test_each_slot_is_labelled_the_way_the_offer_already_was(self, world):
-        """The card's own words, carried across rather than guessed."""
-        _, hidden, _ = world
-        offer = next(
-            m
-            for m in hidden.modifiers.all()
-            if getattr(m, "offers_choice", None) is not None
-        )
-        said = offer.offers_choice.kind_label
-
-        apply(plan_chaos_god())
 
         assert said == "Chaos God"
         for slot in Slot.objects.filter(name="Chaos God"):
@@ -288,43 +275,22 @@ class TestTheApply:
             assert slot.assigned_to == Slot.WillBeAssignedTo.GANG
         assert Slot.objects.filter(name="Chaos God").count() == 2
 
-    def test_the_archived_answer_is_rewritten_too(self, world):
-        gangs, _, _ = world
-
-        apply(plan_chaos_god())
-
         archived = Assignment.objects.get(gang=gangs["rechosen"], archived=True)
         assert archived.pickable.name == "Plague Lord"
         assert archived.affiliation_id is None
         assert archived.chosen_for_slot == _helot_slot()
-
-    def test_every_god_is_a_pickable_even_if_nobody_picked_it(self, world):
-        # Architect of Fate is picked by the rechosen gang; the other
-        # three are covered by live or archived answers. The claim is
-        # the menu, not the picks.
-        apply(plan_chaos_god())
 
         for name in GODS:
             assert Pickable.objects.filter(
                 name=name, slot_type__name="Chaos God"
             ).exists()
 
-    def test_the_fossils_are_left_standing(self, world):
-        from n26.library.models import Modifier
-
-        before = Modifier.objects.filter(name="a detached Chaos God offer").count()
-        apply(plan_chaos_god())
         assert (
             Modifier.objects.filter(name="a detached Chaos God offer").count()
-            == before
+            == before_fossils
             == 1
         )
         assert Modifier.objects.filter(name="Offer Variants").exists()
-
-    def test_an_unanswered_helot_does_not_nag(self, world):
-        gangs, _, _ = world
-
-        apply(plan_chaos_god())
 
         state = gang_state(gangs["helot_unanswered"])
         assert ("Chaos God", "") in state["choices"]

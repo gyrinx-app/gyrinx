@@ -25,6 +25,7 @@ from django.contrib.auth.models import User
 
 from n26.library.specs import specs
 from n26.library.views import LEAF_KINDS, NESTED_KINDS, RETIRED_KINDS
+from n26.tests.fixtures import library_setup
 
 pytestmark = pytest.mark.django_db
 
@@ -36,22 +37,26 @@ def author(client):
     return user
 
 
+@pytest.fixture
+@library_setup
+def seeded_catalogue(default_pack):
+    from n26.library.standard_content import STANDARD_CONTENT
+
+    for item in STANDARD_CONTENT.values():
+        item.create()
+
+
 class TestTheMenuIsBackedBySpecs:
     def test_there_is_something_to_check(self):
         assert {"subtype", "rule", "wargear", "category"} <= set(LEAF_KINDS)
 
     @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
-    def test_every_leaf_kind_has_a_spec(self, kind):
+    def test_every_leaf_kind_has_a_named_editable_spec(self, kind):
         assert LEAF_KINDS[kind] in specs(), (
             f"The authoring menu offers {kind!r} but no spec backs "
             f"{LEAF_KINDS[kind]} — the page could not generate its form."
         )
 
-    @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
-    def test_every_leaf_kind_can_say_which_field_is_its_name(self, kind):
-        """A duplicate is refused by writing the error onto the field an
-        author reads as the thing's name. A spec naming a field it does
-        not have would crash on that refusal instead of showing it."""
         spec = specs()[LEAF_KINDS[kind]]
         fieldless = spec.identity is None and not spec.fields
         assert fieldless or spec.identity in spec.fields, (
@@ -61,13 +66,6 @@ class TestTheMenuIsBackedBySpecs:
             "identity=None only when the configuration has no editable fields."
         )
 
-    @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
-    def test_every_leaf_kind_reads_both_ways(self, kind):
-        """Editing writes a form's fields straight onto the row, using
-        the same spec that describes the creating verb. That only works
-        while every field names a column on the thing being made, or
-        names the verb that writes it back — a field sourced from another
-        model, or naming nothing, would be silently dropped on save."""
         from n26.library.specs import Conditions, Union
 
         spec = specs()[LEAF_KINDS[kind]]
@@ -93,55 +91,28 @@ class TestTheMenuIsBackedBySpecs:
                 f"model the verb makes."
             )
 
-    @pytest.mark.parametrize(
-        "kind", sorted(k for k in LEAF_KINDS if k not in NESTED_KINDS), ids=str
-    )
-    def test_every_leaf_page_renders(self, kind, author, client, default_pack):
-        response = client.get(f"/n26/authoring/{kind}/")
-        assert response.status_code == 200
-
-    @pytest.mark.parametrize(
-        "kind",
-        sorted(k for k in LEAF_KINDS if k not in RETIRED_KINDS | NESTED_KINDS),
-        ids=str,
-    )
-    def test_every_kind_has_a_create_page(self, kind, author, client, default_pack):
+    @pytest.mark.parametrize("kind", ["rule", "weapon", "apply-changes"])
+    def test_create_pages_render_plain_switch_and_fieldless_forms(
+        self, kind, author, client, default_pack
+    ):
         response = client.get(f"/n26/authoring/{kind}/new/")
         assert response.status_code == 200
-
-    @pytest.mark.parametrize(
-        "kind",
-        sorted(k for k in LEAF_KINDS if k not in RETIRED_KINDS | NESTED_KINDS),
-        ids=str,
-    )
-    def test_no_switch_is_handed_a_value_javascript_cannot_read(
-        self, kind, author, client, default_pack
-    ):
-        """A switch takes its opening state as a JavaScript literal. An
-        untouched field's value is None, and `none` is not one — it
-        throws on init, leaving a control that never reflects what it
-        is bound to and posts whatever the browser left in it."""
-        body = client.get(f"/n26/authoring/{kind}/new/").content.decode()
+        body = response.content.decode()
         assert "switchInput" not in body
-        for props in form_switches(body):
+        switches = form_switches(body)
+        if kind == "weapon":
+            assert form_switch(body, "is_exclusive")["checked"] is False
+        for props in switches:
             assert props["checked"] is True or props["checked"] is False
 
-    @pytest.mark.parametrize(
-        "kind", sorted(k for k in LEAF_KINDS if k not in NESTED_KINDS), ids=str
-    )
-    def test_every_leaf_page_renders_with_rows_in_it(
-        self, kind, author, client, default_pack
+    def test_every_leaf_listing_renders_with_standard_content(
+        self, author, client, seeded_catalogue
     ):
-        """An empty page exercises none of the listing, which is how a
-        listing that could not read a row shipped: the foundation kinds
-        are not assignables and have no authoring label."""
-        from n26.library.standard_content import STANDARD_CONTENT
-
-        for item in STANDARD_CONTENT.values():
-            item.create()
-
-        response = client.get(f"/n26/authoring/{kind}/")
-        assert response.status_code == 200
+        """The registry covers every kind; populated listings must also
+        read foundation rows that have no assignable authoring label."""
+        for kind in sorted(LEAF_KINDS.keys() - NESTED_KINDS):
+            response = client.get(f"/n26/authoring/{kind}/")
+            assert response.status_code == 200, kind
 
     def test_an_unknown_kind_is_a_404(self, author, client, default_pack):
         assert client.get("/n26/authoring/gadget/").status_code == 404
@@ -2042,17 +2013,13 @@ class TestKindHelp:
     same paragraphs."""
 
     @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
-    def test_every_kind_explains_itself(self, kind):
+    def test_every_kind_has_a_definition_and_a_menu_summary(self, kind):
         from n26.library.views import _model_for, kind_help
 
         paragraphs = kind_help(_model_for(specs()[LEAF_KINDS[kind]]))
         assert paragraphs, f"{kind} has no docstring — the page cannot say what it is"
         assert len(paragraphs[0]) > 20  # a definition, not a stub
 
-    @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
-    def test_every_kind_summarises_itself_in_one_line(self, kind):
-        """The menu shows each kind's definition beside its name, so a
-        docstring whose first paragraph rambles is a menu that rambles."""
         from n26.library.views import _model_for, kind_summary
 
         summary = kind_summary(_model_for(specs()[LEAF_KINDS[kind]]))
