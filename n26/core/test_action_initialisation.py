@@ -2,6 +2,8 @@ from contextlib import contextmanager
 from uuid import uuid4
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
@@ -19,6 +21,18 @@ from n26.library.models import (
 )
 
 pytestmark = pytest.mark.django_db
+
+
+def completed_preview():
+    record = Backfill.objects.create(
+        operation=maintenance.Operation.PREVIEW_ACTION_ALLOWANCES,
+        status=Backfill.Status.RUNNING,
+        summary={"attempts": 0},
+    )
+    maintenance.preview_action_allowances.call(backfill_id=str(record.pk))
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.DONE
+    return record
 
 
 @pytest.fixture
@@ -222,13 +236,18 @@ def test_preview_builds_effective_action_access_once_per_fighter(
 
 
 @pytest.mark.core
-def test_task_delivery_records_progress_and_is_idempotent(legacy_fighter):
+def test_task_delivery_records_progress_and_is_idempotent(legacy_fighter, monkeypatch):
     gang, fighter, action, _ = legacy_fighter
     record = Backfill.objects.create(
         operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
         status=Backfill.Status.RUNNING,
-        summary={"preview": find().preview(), "attempts": 0},
+        summary={"preview_id": str(completed_preview().pk), "attempts": 0},
     )
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Initialisation repeated the full preview scan")
+
+    monkeypatch.setattr(action_initialisation, "find", forbidden)
     maintenance.initialise_action_allowances.call(backfill_id=str(record.pk))
     record.refresh_from_db()
     assert record.status == Backfill.Status.DONE
@@ -247,10 +266,19 @@ def test_admin_preview_is_read_only_and_post_enqueues(
     address = reverse("admin:maintenance_n26_initialise_action_allowances")
     page = client.get(address)
     assert page.status_code == 200
-    assert "1 gang(s) contain legacy fighter counters" in page.content.decode()
+    assert "Prepare preview" in page.content.decode()
     assert not Backfill.objects.exists()
 
-    response = client.post(address)
+    response = client.post(address, {"action": "preview"})
+    assert response.status_code == 302
+    preview = Backfill.objects.get(
+        operation=maintenance.Operation.PREVIEW_ACTION_ALLOWANCES
+    )
+    assert preview.status == Backfill.Status.DONE
+    assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()
+    page = client.get(address)
+    assert "1 gang(s) contain legacy fighter counters" in page.content.decode()
+    response = client.post(address, {"preview_id": str(preview.pk)})
     assert response.status_code == 302
     run = Backfill.objects.get(
         operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES
@@ -275,13 +303,184 @@ def test_admin_preview_is_read_only_and_post_enqueues(
     ).exists()
 
 
+def test_requests_do_not_scan_fighters_and_query_growth_is_flat(
+    client, admin_user, legacy_fighter, monkeypatch, task_queue
+):
+    gang, fighter, action, _ = legacy_fighter
+    client.force_login(admin_user)
+    address = reverse("admin:maintenance_n26_initialise_action_allowances")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("HTTP request scanned fighter cards")
+
+    monkeypatch.setattr(action_initialisation, "find", forbidden)
+    monkeypatch.setattr(action_initialisation, "candidates", forbidden)
+    client.get(address)
+    with CaptureQueriesContext(connection) as small:
+        assert client.get(address).status_code == 200
+    Gang.objects.bulk_create(
+        [
+            Gang(name=f"Extra {number}", owner=gang.owner, gang_type=gang.gang_type)
+            for number in range(100)
+        ]
+    )
+    with CaptureQueriesContext(connection) as large:
+        assert client.get(address).status_code == 200
+    assert len(large) <= len(small)
+
+    with task_queue.capture():
+        assert client.post(address, {"action": "preview"}).status_code == 302
+    preview = Backfill.objects.get(
+        operation=maintenance.Operation.PREVIEW_ACTION_ALLOWANCES
+    )
+    assert preview.status == Backfill.Status.RUNNING
+    assert client.get(address).status_code == 200
+    assert client.post(address, {"preview_id": str(preview.pk)}).status_code == 302
+    assert not Backfill.objects.filter(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES
+    ).exists()
+    assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()
+
+
+def test_preview_is_read_only_idempotent_and_reports_conflicts(legacy_fighter):
+    gang, fighter, action, held = legacy_fighter
+    held.ledger_events.all().delete()
+    preview = completed_preview()
+    plan = maintenance._allowance_preview_plan(preview)
+    assert len(plan.missing_baselines) == 1
+    report = preview.summary["report"]
+    maintenance.preview_action_allowances.call(backfill_id=str(preview.pk))
+    preview.refresh_from_db()
+    assert preview.summary["report"] == report
+    assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()
+
+    conflict = RankTable.objects.create(name="Conflicting ranks", counter=held.counter)
+    with operation(gang) as op:
+        op.assign(conflict, miniature=fighter)
+    plan = maintenance._allowance_preview_plan(completed_preview())
+    assert len(plan.problems) == 1
+
+
+def test_a_conflicted_preview_blocks_the_admin_apply(
+    client, admin_user, legacy_fighter
+):
+    gang, fighter, _, held = legacy_fighter
+    conflict = RankTable.objects.create(name="Conflicting ranks", counter=held.counter)
+    with operation(gang) as op:
+        op.assign(conflict, miniature=fighter)
+    preview = completed_preview()
+    client.force_login(admin_user)
+    address = reverse("admin:maintenance_n26_initialise_action_allowances")
+    page = client.get(address)
+    assert b"Problems to resolve" in page.content
+    assert b"Initialise earned allowances" not in page.content
+    assert client.post(address, {"preview_id": str(preview.pk)}).status_code == 302
+    assert not Backfill.objects.filter(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES
+    ).exists()
+    assert not ActionAllowance.objects.exists()
+
+
+def test_preview_detail_shows_progress_without_raw_scan_results(
+    client, admin_user, legacy_fighter
+):
+    preview = completed_preview()
+    client.force_login(admin_user)
+    page = client.get(reverse("admin:maintenance_backfill_detail", args=[preview.pk]))
+    assert page.status_code == 200
+    assert b"1 of 1 gangs checked" in page.content
+    assert b"Review allowance initialisation" in page.content
+    assert b"missing_baselines" not in page.content
+
+
+@pytest.mark.parametrize(
+    "status",
+    [Backfill.Status.RUNNING, Backfill.Status.FAILED, Backfill.Status.CANCELLED],
+)
+def test_partial_previews_cannot_authorise_initialisation(legacy_fighter, status):
+    preview = completed_preview()
+    preview.status = status
+    preview.save(update_fields=["status", "modified"])
+    record = Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        summary={"preview_id": str(preview.pk), "attempts": 0},
+        status=Backfill.Status.RUNNING,
+    )
+    maintenance.initialise_action_allowances.call(backfill_id=str(record.pk))
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.FAILED
+    assert "completed allowance preview" in record.error
+    assert not ActionAllowance.objects.exists()
+
+
+def test_completed_empty_preview_is_reviewable(counter_tracking):
+    plan = maintenance._allowance_preview_plan(completed_preview())
+    assert plan.nothing_here
+    assert not plan.problems
+
+
+def test_preview_resumes_from_its_frozen_gang_list(
+    legacy_fighter, monkeypatch, task_queue
+):
+    from datetime import timedelta
+
+    from n26.core.action_initialisation import InitialisationPlan
+
+    gang, fighter, action, _ = legacy_fighter
+    extra = Gang.objects.create(
+        name="Extra", owner=gang.owner, gang_type=gang.gang_type
+    )
+    calls = []
+    real_find = action_initialisation.find
+
+    def watched(gang):
+        calls.append(gang.pk)
+        return real_find(gang)
+
+    monkeypatch.setattr(action_initialisation, "find", watched)
+    monkeypatch.setattr(
+        action_initialisation,
+        "candidates",
+        lambda: InitialisationPlan(((gang.pk,), (extra.pk,)), (), ()),
+    )
+    real_run = maintenance.run_per_gang
+
+    def short_delivery(*args, **kwargs):
+        return real_run(*args, **kwargs, batch_size=1, budget=timedelta(seconds=-1))
+
+    monkeypatch.setattr(maintenance, "run_per_gang", short_delivery)
+    preview = Backfill.objects.create(
+        operation=maintenance.Operation.PREVIEW_ACTION_ALLOWANCES,
+        summary={"attempts": 0},
+        status=Backfill.Status.RUNNING,
+    )
+    with task_queue.capture():
+        maintenance.preview_action_allowances.call(backfill_id=str(preview.pk))
+    preview.refresh_from_db()
+    assert preview.status == Backfill.Status.RUNNING
+    assert preview.summary["done"] == 1
+
+    def forbidden():
+        raise AssertionError("Continuation rebuilt its frozen gang list")
+
+    monkeypatch.setattr(action_initialisation, "candidates", forbidden)
+    task_queue.deliver_all()
+    preview.refresh_from_db()
+    assert preview.status == Backfill.Status.DONE
+    assert preview.summary["done"] == 2
+    assert set(calls) == {gang.pk, extra.pk}
+    assert len(calls) == 2
+    assert maintenance._allowance_preview_plan(preview).gangs == ((str(gang.pk),),)
+    assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()
+
+
 @pytest.mark.core
 def test_a_new_task_record_refuses_after_a_successful_run(legacy_fighter):
     gang, fighter, action, _ = legacy_fighter
     first = Backfill.objects.create(
         operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
         status=Backfill.Status.RUNNING,
-        summary={"preview": find().preview(), "attempts": 0},
+        summary={"preview_id": str(completed_preview().pk), "attempts": 0},
     )
     maintenance.initialise_action_allowances.call(backfill_id=str(first.pk))
     second = Backfill.objects.create(

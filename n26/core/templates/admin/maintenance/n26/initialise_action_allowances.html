@@ -20,23 +20,46 @@
             <a href="{% url 'admin:maintenance_backfill_detail' completed.id %}">{{ completed.created }}</a>.
             It cannot be run again against later rank-table changes.
         </p>
-    {% else %}
+    {% elif inactive_reason %}
+        <p>{{ inactive_reason }}</p>
+    {% elif plan %}
         <h2>Dry run</h2>
+        <p>Preview completed on {{ preview.modified }}. Each gang is checked again when initialisation runs.</p>
         <ul>
             {% for line in plan.preview %}<li>{{ line }}</li>{% endfor %}
         </ul>
+    {% else %}
+        <h2>Prepare a preview</h2>
+        <p>The preview checks fighters in the background without changing allowances.</p>
+        {% if preview %}
+            <p>
+                Latest preview: <a href="{% url 'admin:maintenance_backfill_detail' preview.id %}">{{ preview.get_status_display }}</a>.
+                {{ preview.summary.done|default:0 }} of {{ preview.summary.total|default:"—" }} gangs checked.
+                <a href="{{ apply_url }}">Refresh</a>
+            </p>
+        {% endif %}
     {% endif %}
-    {% if not completed %}
-        {% if plan.problems %}
-            <h2>Problems to resolve</h2>
-            <ul>{% for line in plan.problems %}<li>{{ line }}</li>{% endfor %}</ul>
-        {% elif not plan.nothing_here %}
+    {% if not completed and not inactive_reason %}
+        {% if not preview or preview.status != "running" %}
             <form method="post">
                 {% csrf_token %}
-                <button type="submit" class="button default">Initialise earned allowances</button>
+                <input type="hidden" name="action" value="preview">
+                <button type="submit" class="button">Prepare preview</button>
             </form>
-        {% else %}
-            <h2>Nothing to initialise</h2>
+        {% endif %}
+        {% if plan %}
+            {% if plan.problems %}
+                <h2>Problems to resolve</h2>
+                <ul>{% for line in plan.problems %}<li>{{ line }}</li>{% endfor %}</ul>
+            {% elif not plan.nothing_here %}
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="preview_id" value="{{ preview.pk }}">
+                    <button type="submit" class="button default">Initialise earned allowances</button>
+                </form>
+            {% else %}
+                <h2>Nothing to initialise</h2>
+            {% endif %}
         {% endif %}
     {% endif %}
     {% if recent %}
