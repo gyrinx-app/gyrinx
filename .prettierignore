@@ -40,3 +40,11 @@ content.egg-info/
 n26/core/static/n26/react/
 n26/frontend/generated/
 n26/frontend/tooling/alpine-baseline.json
+
+# Generated files in the isolated admin-editor exploration
+design/exploration/admin-text-editor/public/
+design/exploration/admin-text-editor/qa/
+design/exploration/admin-text-editor/src/cotton.json
+design/exploration/admin-text-editor/src/lucide-icons.json
+design/exploration/admin-text-editor/src/theme.css
+design/exploration/admin-text-editor/src/cotton-ui.sources.css

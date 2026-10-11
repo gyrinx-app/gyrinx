@@ -1,0 +1,32 @@
+{
+  "name": "gyrinx-admin-editor-playground",
+  "private": true,
+  "type": "module",
+  "overrides": {
+    "@parcel/watcher": "^2.6.0"
+  },
+  "scripts": {
+    "build": "vite build",
+    "check": "node check.mjs && node check_colours.mjs && node check_callouts.mjs && node check_html_blocks.mjs",
+    "format": "prettier --write src/*.{js,jsx} src/editor.css src/callouts.css src/callout-schema.json *.mjs",
+    "format:check": "prettier --check src/*.{js,jsx} src/editor.css src/callouts.css src/callout-schema.json *.mjs"
+  },
+  "dependencies": {
+    "@tiptap/core": "^3.31.4",
+    "@tiptap/extension-image": "^3.0.0",
+    "@tiptap/extension-table": "^3.0.0",
+    "@tiptap/pm": "^3.0.0",
+    "@tiptap/react": "^3.0.0",
+    "@tiptap/starter-kit": "^3.0.0",
+    "lucide-react": "^1.53.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.0",
+    "playwright": "^1.0.0",
+    "prettier": "3.9.9",
+    "tailwindcss": "4.3.0",
+    "vite": "^7.0.0"
+  }
+}

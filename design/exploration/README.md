@@ -4,6 +4,7 @@ Small, interactive prototypes for discussing product behaviour and the data stru
 
 | Exploration | Purpose |
 | --- | --- |
+| [Staff-admin text editor](admin-text-editor/README.md) | TinyMCE replacement controls, editable callouts and HTML-source blocks in an isolated Django flat-page form. |
 | [Fighter actions](fighter-actions/README.md) | n26 Suit Evolution, advancements, assignable actions, payments and earned allowances. |
 
 For a new exploration:
