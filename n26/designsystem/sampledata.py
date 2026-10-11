@@ -120,14 +120,6 @@ HOUSES = [
     },
 ]
 
-SORTS = [
-    {"value": "recent", "label": "Recently edited"},
-    {"value": "created", "label": "Newest first"},
-    {"value": "name", "label": "Name A–Z"},
-    {"value": "rating", "label": "Gang rating"},
-    {"value": "starred", "label": "Most starred"},
-]
-
 STATUSES = [
     {"value": "active", "label": "Active"},
     {"value": "campaign", "label": "In a campaign"},
@@ -940,7 +932,6 @@ def context():
         # a real page's view hands them — never spelt out in a demo.
         "sample_picture_shape": PORTRAIT,
         "sample_picture_max": MAX_PX,
-        "sorts": SORTS,
         "choice_offer": choice_offer(),
         "empty_choice_offer": ChoiceOffer(label="Primary skill"),
         # The screen after an act: what arrived, and the choices it asks.

@@ -1354,22 +1354,6 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
-                slug="choice-menu",
-                tag="c-n26.choice-menu",
-                template="n26/choice_menu.html",
-                summary=("A dropdown of radios that applies one named value."),
-                needs=(ALPINE, KIT_JS, FOCUS),
-                notes=(
-                    "Use it where only one value applies at a time, a sort order "
-                    "being the usual case. c-n26.filter-menu is the many-of-a-set "
-                    "sibling, and c-ui.menu applies the moment you pick. OK "
-                    "dispatches choice-apply on the window with name and value, and "
-                    "a parent must listen or nothing is applied. Cancel restores "
-                    "the snapshot taken when the panel opened. The trigger shows "
-                    "the chosen label rather than a count."
-                ),
-            ),
-            Component(
                 slug="toggle",
                 tag="c-n26.toggle",
                 template="n26/toggle.html",
