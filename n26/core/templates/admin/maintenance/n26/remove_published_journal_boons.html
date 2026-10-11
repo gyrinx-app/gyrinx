@@ -1,0 +1,59 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        Remove the original Goliath Controlled and Escher Controlled territory modifiers
+        and unused placeholder rules that were published without other changes.
+        Edited or archived content, reused modifiers and rules referenced by player
+        history are kept and listed below. Holdings, their history and baseline income
+        stay unchanged.
+    </p>
+    {% if problem %}
+        <h2>The preview cannot run</h2>
+        <p>{{ problem }}</p>
+        <p>Resolve this problem before applying the cleanup.</p>
+    {% elif nothing_to_do %}
+        <h2>Nothing to remove</h2>
+        <ul>
+            {% for line in preview %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+    {% else %}
+        <h2>What it would do</h2>
+        <ul>
+            {% for line in preview %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="button default">Remove published placeholders</button>
+        </form>
+    {% endif %}
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.triggered_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock content %}
