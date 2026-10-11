@@ -28,12 +28,16 @@ Assets retain their authored groups and links. This card owns its container.
                             <form method="post" action="{{ choice.dismiss_href }}" class="inline shrink-0">
                                 {% csrf_token %}
                                 <input type="hidden" name="back" value="{{ choice.back }}">
-                                <c-ui.button type="submit" size="xs" variant="ghost" aria-label="Hide {{ choice.kind_label }}"><c-n26.icon name="x" class="size-3.5" /></c-ui.button>
+                                {% if choice.holding_name %}
+                                    <c-ui.button type="submit" size="xs" variant="ghost" aria-label="Hide {{ choice.kind_label }} for {{ choice.holding_name }}"><c-n26.icon name="x" class="size-3.5" /></c-ui.button>
+                                {% else %}
+                                    <c-ui.button type="submit" size="xs" variant="ghost" aria-label="Hide {{ choice.kind_label }}"><c-n26.icon name="x" class="size-3.5" /></c-ui.button>
+                                {% endif %}
                             </form>
                         {% endif %}
                         {% if choice.href %}
                             {% if choice.holding_name %}
-                                <c-ui.button size="xs" variant="text" href="{{ choice.href }}" aria-label="Edit {{ choice.kind_label }}" class="shrink-0 py-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>
+                                <c-ui.button size="xs" variant="text" href="{{ choice.href }}" aria-label="Edit {{ choice.kind_label }} for {{ choice.holding_name }}" class="shrink-0 py-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>
                             {% else %}
                                 <c-ui.button size="xs" variant="text" href="{{ choice.href }}" hx-get="{{ choice.href }}" hx-swap="none" aria-label="Edit {{ choice.kind_label }}" class="shrink-0 py-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>
                             {% endif %}
