@@ -183,6 +183,10 @@ class CounterContribution:
     root_key: object = None
     #: Direct holding grants have no assignment at their root.
     holding: CampaignAsset | None = None
+    #: The actual carrier distinguishes catalogue Income from the same
+    #: modifier reached through a chosen grant.
+    modifier: object = None
+    carrier_key: object = None
 
 
 @dataclass
@@ -1220,6 +1224,8 @@ def compute(card, index):
                             source_kind=label_kind,
                             root_key=step.root_key,
                             holding=step.holding,
+                            modifier=step.modifier,
+                            carrier_key=source_key,
                         )
                         computed.counter_contributions.append(contributed)
                         log.applied.append(
@@ -1489,6 +1495,7 @@ class CounterReading:
 
     thing: object
     value: int
+    contributions: tuple[CounterContribution, ...] = ()
 
     @property
     def name(self):
@@ -1553,6 +1560,10 @@ def counter_readings(card, computed=None):
     from n26.library.models import Counter
 
     contributed = counter_totals(computed)
+    sources = {}
+    for contribution in computed.counter_contributions if computed else ():
+        key = ModifierIndex.key(contribution.counter)
+        sources.setdefault(key, []).append(contribution)
     readings, taken = [], set()
     for node in card.all_nodes():
         if not isinstance(node.assignable, Counter):
@@ -1566,11 +1577,14 @@ def counter_readings(card, computed=None):
         # Contributions land on the first assignment of a counter and
         # nowhere else: two assignments of one counter are two lines,
         # and adding a figure to each would read as twice what is due.
+        additions = () if thing_key in taken else tuple(sources.get(thing_key, ()))
         added = 0 if thing_key in taken else contributed.get(thing_key, 0)
         taken.add(thing_key)
         readings.append(
             CounterReading(
-                thing=node.assignable, value=(held.value if held else 0) + added
+                thing=node.assignable,
+                value=(held.value if held else 0) + added,
+                contributions=additions,
             )
         )
     for contribution in computed.counter_contributions if computed else ():
@@ -1579,7 +1593,11 @@ def counter_readings(card, computed=None):
             continue
         taken.add(thing_key)
         readings.append(
-            CounterReading(thing=contribution.counter, value=contributed[thing_key])
+            CounterReading(
+                thing=contribution.counter,
+                value=contributed[thing_key],
+                contributions=tuple(sources[thing_key]),
+            )
         )
     return readings
 

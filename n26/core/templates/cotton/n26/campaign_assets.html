@@ -7,6 +7,7 @@ Draw a control only when the structure carries its address. A reader with none s
 Position the Actions header so its hidden label stays inside the scrolling table.
 Roll is primary because it begins a form. The other controls do not.
 {% endcomment %}
+{% load react %}
 
 <c-vars :table="None" class="" />
 
@@ -39,7 +40,9 @@ Roll is primary because it begins a form. The other controls do not.
                             {% if entry.asset_name %}<span class="block text-xs text-muted">{{ entry.asset_name }}</span>{% endif %}
                         </td>
                         <td class="text-right tabular-nums whitespace-nowrap">
-                            {% if entry.income %}{{ entry.income }}¢{% else %}<span class="text-muted">&mdash;</span>{% endif %}
+                            {% react_host "income-tooltip" entry.income_explanation %}
+                                <span class="tabular-nums">{{ entry.income }}¢</span>
+                            {% endreact_host %}
                         </td>
                         <td class="w-1/3 min-w-40 max-w-64">
                             {% if entry.held %}

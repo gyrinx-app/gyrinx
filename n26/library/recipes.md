@@ -918,3 +918,35 @@ later or remove its selected option. Reading the territory or giving it to
 the same holder again preserves that selection. Recurring recruitment and
 equipment rewards need a separate recorded action; selecting a standing boon
 does not repeat them each cycle.
+
+## A territory with a standing boon
+
+Generatorium has Income 15 and adds 1 Reputation while held. Amneo-vats
+has Income 15 for every holder and adds 10 more Income for a Goliath gang.
+
+1. Open the asset under the Territory campaign type and enter its baseline
+   in **Income**.
+2. For Generatorium, add a modifier targeting **The gang carrying it**, with
+   **Adds to a counter**: Reputation, amount 1.
+3. For Amneo-vats, add a modifier targeting **The gang carrying it**, narrowed
+   to gangs with the **Goliath** pickable from **Gang supertype**. Use
+   **Adds to a counter**: Income, amount 10. Keep the shared Income 15 in
+   the asset's Income box.
+4. Assign two copies to a Goliath gang in a test campaign. Each contributes
+   25 Income. Transfer one to an Escher gang: that copy contributes 15.
+   Release the other and check that the old holder loses its contribution.
+5. Check the territory page, the gang's campaign section and the campaign
+   table. The territory's Income is its current contribution, including
+   applicable House additions. An arbitrator's Income override replaces the
+   baseline; the House addition still applies.
+
+The **Add territory income and standing boons** maintenance operation fills
+missing baseline figures and the four supported standing additions. Its
+preview lists every change and any authored content it preserves. Run the
+journal content update first if the Gang supertype choices are missing.
+
+New content is staged. Attaching a new modifier to an asset already held by
+a gang changes that gang's readings immediately, even when the modifier is
+staged. Check the preview and the current holders before applying the update.
+Collect credits manually. Recruiting at a discount and adding equipment to a
+stash need a separate recorded post-cycle action; they are not standing boons.

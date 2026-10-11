@@ -7,18 +7,17 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET
 
 from n26.core.history import asset_ownership_history
+from n26.core.income import holding_income_sources, unclaimed_income_source
 from n26.core.models import Battle
 from n26.core.render import (
     CampaignAssetAction,
     CampaignAssetBattle,
     CampaignAssetDetails,
-    holding_income,
 )
 from n26.core.views.campaigns import _campaign_asset_or_404, _holding_owner
 from n26.core.views.gangs import _pages
 from n26.core.views.permissions import _any_campaign_or_404
 from n26.flags import CAMPAIGNS, requires_flag
-from n26.library.income import income_of
 
 
 @requires_flag(CAMPAIGNS)
@@ -115,9 +114,10 @@ def _asset_context(request, pk, asset_pk, *, back=None):
         card = build_gang_card(gang)
         index = build_modifier_index(carriers(card))
         computed = compute_gang(card, index)
-        income = holding_income(computed).get(
-            (holding.pk, holding.ownership_revision), 0
+        income_source = holding_income_sources(computed).get(
+            (holding.pk, holding.ownership_revision)
         )
+        income = income_source.value if income_source is not None else 0
         offered = holding_choices(computed, holding)
         owning = _holding_owner(holding, request.user)
         hide_dismissed_choices(
@@ -126,18 +126,15 @@ def _asset_context(request, pk, asset_pk, *, back=None):
         if owning:
             link_slots(gang, offered, back=back or request.get_full_path())
         choices = offered.questions
-    elif not holding.income_override_id:
+    else:
         income_modifiers = list(
             holding.asset.modifiers.select_related(
                 "contributes_to_counter__counter", "targets_gang"
             ).prefetch_related("targets_gang__has_gang_pickable__pickables")
         )
     if not held:
-        income = (
-            holding.income_override.contributes_to_counter.amount
-            if holding.income_override_id
-            else income_of(holding.asset, income_modifiers)
-        )
+        income_source = unclaimed_income_source(holding, income_modifiers)
+        income = income_source.value
     return {
         "campaign": campaign,
         "details": CampaignAssetDetails(
@@ -146,6 +143,7 @@ def _asset_context(request, pk, asset_pk, *, back=None):
             kind=holding.asset.asset_type.label_singular,
             created=holding.created,
             income=income,
+            income_source=income_source,
             holder=holding.holder.gang.name if held else "",
             holder_href=reverse("n26-gang", args=[holding.holder.gang_id])
             if held

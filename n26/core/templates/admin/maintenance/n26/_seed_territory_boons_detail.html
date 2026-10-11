@@ -1,0 +1,30 @@
+{% comment %}
+    The summary of one territory content seed run, on the Backfill detail
+    page: what it set out to change, and — once it has finished — what it
+    changed. The update is one transaction, so a failed run commits no changes.
+{% endcomment %}
+{% if backfill.summary.report %}
+    <h2>What it did</h2>
+    <ul>
+        {% for line in backfill.summary.report %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+    {% if backfill.summary.seconds is not None %}
+        <p>Took {{ backfill.summary.seconds }} second{{ backfill.summary.seconds|pluralize }}.</p>
+    {% endif %}
+{% elif backfill.summary.preview %}
+    <h2>What it is doing</h2>
+    <p>
+        These are the planned content changes. The update is one transaction,
+        so changes are committed together when it finishes. A failed or interrupted
+        run commits no changes.
+    </p>
+    <ul>
+        {% for line in backfill.summary.preview %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% endif %}
+{% if backfill.summary.warning %}
+    <p>{{ backfill.summary.warning }}</p>
+{% endif %}
+{% if backfill.summary.attempts %}
+    <p>Started {{ backfill.summary.attempts }} time{{ backfill.summary.attempts|pluralize }}.</p>
+{% endif %}

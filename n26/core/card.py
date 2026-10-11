@@ -1232,7 +1232,7 @@ def build_modifier_index(assignables, max_depth=3):
 
         # The attachment rows first — one narrow query per kind, onto the
         # objects we already hold. What the modifiers' halves read is then
-        # hydrated once, over the distinct modifiers of the whole level:
+        # hydrated once, over the modifiers of the whole level:
         # a small query per path. Joining every path into each kind's
         # fetch instead would make a many-join select whose *planning*
         # costs more than all of these run in.
@@ -1241,11 +1241,17 @@ def build_modifier_index(assignables, max_depth=3):
             if hasattr(model, "income_override"):
                 prefetch_related_objects(things, "income_override")
         hydrated = {}
+        modifier_instances = []
         for things in by_model.values():
             for thing in things:
                 for modifier in _modifiers_of(thing):
                     hydrated.setdefault(modifier.pk, modifier)
-        prefetch_related_objects(list(hydrated.values()), *related, *also_prefetch)
+                    modifier_instances.append(modifier)
+        # An M2M attachment can return separate instances of one modifier
+        # for different assets. Hydrate every copy: catalogue Income
+        # readers use the carrier's own prefetched attachments, including
+        # the base figure replaced by a holding's override.
+        prefetch_related_objects(modifier_instances, *related, *also_prefetch)
 
         granted = []
         for things in by_model.values():
