@@ -825,6 +825,20 @@ def range_menu_recipe():
     }
 
 
+def toggle_recipe():
+    """The label <c-n26.toggle> wraps round its switch and words.
+
+    The switch inside is an island, and this export runs before Vite has
+    written the manifest that names its module, so a stand-in module is used.
+    """
+    from unittest import mock
+
+    with mock.patch(
+        "n26.core.templatetags.react._entry", return_value=("/island.js", "")
+    ):
+        return classes('<c-n26.toggle label="Hide" />', "label", "span", "span")[0]
+
+
 def user_link_recipe():
     """A person's name in the surrounding colour, with their badge's wrapper."""
     link, text, flair = attributes(
@@ -1046,7 +1060,7 @@ def recipes():
         "reactMark": react_mark_recipe(),
         "rangeMenu": range_menu_recipe(),
         "userLink": user_link_recipe(),
-        "toggle": classes('<c-n26.toggle label="Hide" />', "label", "span", "span")[0],
+        "toggle": toggle_recipe(),
         "popover": {
             "panel": classes(
                 '<c-ui.popover panel_label="Help">Body</c-ui.popover>',
