@@ -45,7 +45,7 @@ from n26.library.core_campaign import (
 )
 from n26.library.gang_supertypes import SLOT, Outcome, seed_gang_supertypes
 from n26.library.territory_table import TERRITORY
-from n26.write_pause import guarded_write, write_guard
+from n26.write_pause import SCOPE, exclusive_write_scope, write_guard
 
 #: The stored value of ``Dice.D6``.
 DICE = "d6"
@@ -359,11 +359,12 @@ def seed_journal_content():
     return outcome
 
 
-@guarded_write
 def seed_all():
     """Seed and reset in one transaction, reporting creations and removals,
     then skipped content. A run with no changes reports nothing to do."""
-    with transaction.atomic():
+    # The complete candidate graph must stay unchanged between inspection
+    # and deletion, including references added by an authoring transaction.
+    with exclusive_write_scope(SCOPE), write_guard():
         outcome = seed_journal_content()
     if outcome.created:
         return outcome.lines
@@ -380,10 +381,8 @@ def preview():
     own and nothing is written — not even the propagation filings, whose
     messages publish only on commit."""
     try:
-        # Although this is a GET preview, the exact seed runs transiently.
-        # Join the same admission barrier as committed writes before making
-        # any scratch rows, so a checkpoint's exclusive lock also drains it.
-        with transaction.atomic(), write_guard():
+        # seed_all takes exclusive admission before any nested authoring guard.
+        with transaction.atomic():
             raise _RolledBack(seed_all())
     except _RolledBack as rolled_back:
         return rolled_back.args[0]

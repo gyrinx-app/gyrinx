@@ -26,13 +26,18 @@ into the campaign type; and the console previews, enqueues, records and
 stands down on a redelivery.
 """
 
+import threading
+
 import pytest
 from django.apps import apps
 from django.contrib.auth.models import User
+from django.db import close_old_connections, transaction
+from django.test import override_settings
 from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
 from gyrinx.site.models import Availability, FeatureFlag, WritePause
+from gyrinx.tasks.worker import Outcome as TaskOutcome
 from n26.core import history, select
 from n26.core.campaigns import tables_held_by
 from n26.core.card import build_card, build_gang_card, build_modifier_index, carriers
@@ -102,6 +107,7 @@ from n26.tests.sandbox.actions import (
     roll_asset,
     targets_gang_alone,
 )
+from n26.write_pause import WritesPaused, write_guard
 
 pytestmark = pytest.mark.django_db
 
@@ -649,6 +655,56 @@ class TestTheSeededControlledBoonsAreReset:
     """Reset exact seeded content, retaining baseline income, holdings,
     House tables, authored content and any directly assigned rules."""
 
+    @pytest.mark.django_db(transaction=True)
+    @pytest.mark.parametrize("run", [seed_all, preview], ids=["apply", "preview"])
+    @override_settings(WRITE_PAUSE_DRAIN_TIMEOUT_SECONDS=0.02)
+    def test_the_reset_drains_authoring_before_inspecting_content(
+        self, legacy_boons, core, run
+    ):
+        admitted = threading.Event()
+        release = threading.Event()
+        errors = []
+        boon, rule = legacy_boons["Slug House"]
+
+        def author():
+            close_old_connections()
+            try:
+                with transaction.atomic(), write_guard():
+                    admitted.set()
+                    assert release.wait(5)
+                    CampaignType.objects.filter(pk=core.pk).update(
+                        description="Our campaign's own description."
+                    )
+                    Rule.objects.filter(pk=rule.pk).update(
+                        library_author_help="Our territory's own rule."
+                    )
+            except Exception as exc:  # pragma: no cover - surfaced below
+                errors.append(exc)
+            finally:
+                close_old_connections()
+
+        thread = threading.Thread(target=author)
+        thread.start()
+        try:
+            assert admitted.wait(5)
+            with pytest.raises(WritesPaused, match="maintenance timeout"):
+                run()
+            assert Modifier.objects.filter(pk=boon.pk).exists()
+        finally:
+            release.set()
+            thread.join(5)
+        assert not thread.is_alive()
+        assert errors == []
+
+        lines = run()
+
+        core.refresh_from_db()
+        rule.refresh_from_db()
+        assert core.description == "Our campaign's own description."
+        assert rule.library_author_help == "Our territory's own rule."
+        assert Modifier.objects.filter(pk=boon.pk).exists()
+        assert any(f"skipped rule {rule}" in line for line in lines)
+
     @library_setup
     def test_old_seeded_campaign_copy_is_reset_and_authored_copy_is_kept(
         self, seeded, core
@@ -1150,6 +1206,31 @@ class TestTheMaintenanceOperation:
         assert record.summary["preview"] == record.summary["report"]
         assert not Modifier.objects.filter(name__endswith="Controlled").exists()
         assert not Rule.objects.filter(name__endswith="Controlled").exists()
+
+    def test_a_paused_delivery_does_not_start_or_consume_a_maintenance_attempt(
+        self, core, gang_types, clan_house, task_queue
+    ):
+        record = Backfill.objects.create(
+            operation=Operation.SEED_JOURNAL_CONTENT,
+            status=Backfill.Status.RUNNING,
+            summary={"attempts": 0},
+        )
+        with task_queue.capture():
+            seed_journal_content.enqueue(backfill_id=str(record.pk))
+        WritePause.objects.filter(scope="n26").update(state=WritePause.State.PAUSED)
+
+        assert task_queue.deliver_next() == TaskOutcome.DEFERRED
+
+        record.refresh_from_db()
+        assert record.summary["attempts"] == 0
+        assert not SlotType.objects.filter(name=SLOT_TYPE).exists()
+
+        WritePause.objects.filter(scope="n26").update(state=WritePause.State.OPEN)
+        task_queue.deliver_all()
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.DONE
+        assert record.summary["attempts"] == 1
 
     def test_only_a_superuser_reaches_it(self, client, staff_arbitrator, address):
         client.force_login(staff_arbitrator)

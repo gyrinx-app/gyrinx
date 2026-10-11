@@ -83,7 +83,7 @@ def register_operation(operation):
 
 
 def register_control_operation(operation):
-    """Register a pause control page that must remain reachable while paused."""
+    """Register a page whose service takes exclusive admission itself."""
     register_platform_operation(operation)
 
 
@@ -2478,7 +2478,7 @@ def seed_journal_content_view(request):
     return render(request, "admin/maintenance/n26/seed_journal_content.html", context)
 
 
-register_operation(
+register_control_operation(
     MaintenanceOperation(
         operation=Operation.SEED_JOURNAL_CONTENT.value,
         name=Operation.SEED_JOURNAL_CONTENT.label,
@@ -2982,7 +2982,12 @@ task_routes = [
     ),
     N26TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(open_founding_actions, ack_deadline=600),
-    N26TaskRoute(seed_journal_content, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(
+        seed_journal_content,
+        exclusive_write=True,
+        ack_deadline=600,
+        min_retry_delay=60,
+    ),
     N26TaskRoute(clear_item_restrictions, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(order_collections, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(initialise_action_allowances, ack_deadline=600),
