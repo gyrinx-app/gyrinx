@@ -20,10 +20,13 @@ from gyrinx.accounts.public_profiles import (
     profile_redirect as profile_redirect,
 )
 from n26.core.models import Campaign, Gang
-from n26.flags import CAMPAIGNS, enabled
+from n26.flags import CAMPAIGNS, enabled_for_request
+
+__all__ = ["profile_person", "profile_redirect"]
 
 
-def sections(person, viewer):
+def sections(person, request):
+    viewer = request.user
     entries = tuple(
         ProfileEntry(
             gang.name,
@@ -44,7 +47,7 @@ def sections(person, viewer):
             reverse("n26-create-gang") if own else "",
         ),
     ]
-    if viewer.is_authenticated and enabled(CAMPAIGNS, viewer):
+    if viewer.is_authenticated and enabled_for_request(CAMPAIGNS, request):
         campaigns = tuple(
             ProfileEntry(
                 campaign.name,
@@ -68,13 +71,14 @@ def sections(person, viewer):
     return tuple(result)
 
 
-def actions(person, viewer):
+def actions(person, request) -> tuple[ProfileAction, ...]:
     from n26.core.views.profiles import _owned_campaigns
 
+    viewer = request.user
     if (
         viewer.is_authenticated
         and viewer.pk != person.pk
-        and enabled(CAMPAIGNS, viewer)
+        and enabled_for_request(CAMPAIGNS, request)
         and _owned_campaigns(viewer, person).exists()
     ):
         return (

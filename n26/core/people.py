@@ -25,5 +25,5 @@ def person_link(user, badges, *, linked=True):
             key = badge.slug
     person = {"name": user.username, "badge": key}
     if linked:
-        person["href"] = reverse("n26-user-profile", args=[user.username])
+        person["href"] = reverse("user-profile", args=[user.username])
     return person

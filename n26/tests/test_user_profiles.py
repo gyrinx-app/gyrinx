@@ -4,7 +4,7 @@ from urllib.parse import unquote
 
 import pytest
 from bs4 import BeautifulSoup
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -70,6 +70,27 @@ def test_public_profile_shows_gang_links_without_account_or_campaign_details(
         "Invite to campaign",
     ]:
         assert hidden not in html
+
+
+@pytest.mark.parametrize("tab", ["n23", "n26"])
+def test_profile_sections_actions_and_navigation_share_one_flag_check(
+    client, people, tab
+):
+    arbitrator, player, _ = people
+    group = Group.objects.create(name="Campaign readers")
+    arbitrator.groups.add(group)
+    flag = FeatureFlag.objects.get(slug=CAMPAIGNS)
+    flag.availability = Availability.ALLOWLIST
+    flag.group = group
+    flag.save()
+    url = reverse("user-profile", args=[player.username])
+    client.get(url, {"tab": tab})
+    with CaptureQueriesContext(connection) as queries:
+        response = client.get(url, {"tab": tab})
+    assert response.status_code == 200
+    table = FeatureFlag._meta.db_table
+    checks = [query for query in queries if f'FROM "{table}"' in query["sql"]]
+    assert len(checks) == 1
 
 
 def test_public_gang_wealth_includes_models_credits_and_stashed_equipment(

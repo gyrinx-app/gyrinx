@@ -21,18 +21,13 @@ def feature_open(context, slug):
     include — and the page's query budget is a fixed number rather than one
     that grows with how often a template happens to ask.
     """
-    from n26.flags import enabled
+    from n26.flags import enabled_for_request
 
     request = context.get("request")
     if request is None:
         return False
 
-    asked = getattr(request, "_n26_open_features", None)
-    if asked is None:
-        asked = request._n26_open_features = {}
-    if slug not in asked:
-        asked[slug] = enabled(slug, getattr(request, "user", None))
-    return asked[slug]
+    return enabled_for_request(slug, request)
 
 
 @register.simple_tag(takes_context=True)

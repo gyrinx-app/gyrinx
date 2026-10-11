@@ -48,7 +48,7 @@ class ProfileAction:
 class ProfileSource:
     edition: str
     sections: Callable
-    actions: Callable = lambda person, viewer: ()
+    actions: Callable = lambda person, request: ()
 
 
 _sources: dict[str, ProfileSource] = {}
@@ -93,11 +93,11 @@ def user_profile(request, username):
     tab = request.GET.get("tab")
     if tab not in EDITIONS:
         tab = getattr(request, "edition", N23)
-    sections = _sources[tab].sections(person, request.user)
+    sections = _sources[tab].sections(person, request)
     actions = tuple(
         action
         for source in _sources.values()
-        for action in source.actions(person, request.user)
+        for action in source.actions(person, request)
     )
     note_page_subject(request, person)
     may_impersonate = not getattr(

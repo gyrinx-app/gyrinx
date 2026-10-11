@@ -543,7 +543,7 @@ class TestTheNamesOnACampaign:
         assert owners == {
             name: {
                 "name": name,
-                "href": reverse("n26-user-profile", args=[name]),
+                "href": reverse("user-profile", args=[name]),
                 "badge": "guilder",
             }
             for name in ("vex", "kesh")

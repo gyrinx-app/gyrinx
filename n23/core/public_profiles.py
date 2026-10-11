@@ -1,6 +1,6 @@
 """N23 records visible on a shared public account page."""
 
-from django.db.models import Count
+from django.db.models import Count, Exists, OuterRef
 from django.urls import reverse
 
 from gyrinx.accounts.public_profiles import (
@@ -14,7 +14,8 @@ from n23.core.models.list import List
 from n23.core.models.pack import CustomContentPack
 
 
-def sections(person, viewer):
+def sections(person, request):
+    viewer = request.user
     own = viewer.is_authenticated and viewer.pk == person.pk
     gangs = (
         List.objects.filter(
@@ -28,6 +29,14 @@ def sections(person, viewer):
     )
     if not own:
         gangs = gangs.filter(public=True)
+        if viewer.is_authenticated:
+            gangs = gangs.annotate(
+                viewer_participates=Exists(
+                    Campaign.objects.filter(
+                        pk=OuterRef("campaign_id"), lists__owner=viewer
+                    )
+                )
+            )
     public, unlisted, campaign_gangs = [], [], []
     for gang in gangs:
         campaign = gang.campaign
@@ -37,6 +46,7 @@ def sections(person, viewer):
             and (
                 own
                 or campaign.public
+                or getattr(gang, "viewer_participates", False)
                 or viewer.is_authenticated
                 and campaign.owner_id == viewer.pk
             )

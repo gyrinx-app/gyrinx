@@ -295,7 +295,7 @@ def test_a_printed_breadcrumb_names_the_owner_without_a_link(owner):
     screen = render_to_string("core/includes/breadcrumb.html", context)
 
     assert owner.username in printed and "<a" not in printed
-    assert f'href="/user/{owner.username}"' in screen
+    assert f'href="{reverse("user-profile", args=[owner.username])}"' in screen
     assert MARK in screen and MARK not in printed
 
 

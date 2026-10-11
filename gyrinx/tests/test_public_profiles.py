@@ -154,7 +154,7 @@ def test_n23_visibility_covers_gangs_campaigns_packs_and_archives(
 
 
 def test_a_public_gang_does_not_disclose_its_private_campaign(
-    client, user, make_list, make_campaign
+    client, user, make_list, make_campaign, make_user
 ):
     campaign = make_campaign("Private league", public=False)
     gang = make_list(
@@ -167,6 +167,14 @@ def test_a_public_gang_does_not_disclose_its_private_campaign(
     assert gang.name in public
     assert campaign.name not in public
     assert reverse("core:campaign", args=[campaign.pk]) not in public
+    participant = make_user("participant", "password")
+    client.force_login(participant)
+    assert campaign.name not in client.get(url).content.decode()
+    playing = make_list("Participant gang", owner=participant)
+    campaign.lists.add(playing)
+    visible = client.get(url).content.decode()
+    assert campaign.name in visible
+    assert reverse("core:campaign", args=[campaign.pk]) in visible
     client.force_login(user)
     assert campaign.name in client.get(url).content.decode()
 
@@ -209,11 +217,13 @@ def test_old_username_addresses_preserve_explicit_tabs(client, user, tab):
         assert client.get(response.url).status_code == 200
 
 
+@pytest.mark.parametrize("viewer", ["owner", "participant"])
 def test_n23_repeated_records_do_not_add_queries(
-    client, user, make_list, make_campaign
+    client, user, make_list, make_campaign, make_user, viewer
 ):
     Pack = apps.get_model("core", "CustomContentPack")
-    client.force_login(user)
+    reader = user if viewer == "owner" else make_user("participant", "password")
+    client.force_login(reader)
     url = reverse("user-profile", args=[user.username]) + "?tab=n23"
 
     def count():
@@ -230,6 +240,7 @@ def test_n23_repeated_records_do_not_add_queries(
             status=apps.get_model("core", "List").CAMPAIGN_MODE,
             campaign=campaign,
         )
+        campaign.lists.add(make_list(f"Reader gang {number}", owner=reader))
         Pack.objects.create(name=f"Pack {number}", owner=user, listed=True)
 
     add(0)
