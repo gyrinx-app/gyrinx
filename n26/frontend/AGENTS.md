@@ -34,7 +34,7 @@ at the root instead of copying them.
   when at least three real callers have established the same behaviour.
 - `ui` is the public design-system adapter boundary. Islands import from
   `../../ui`, not from `generated` or an adapter's internal file.
-- `runtime` knows how to mount React but knows nothing about feature props,
+- `runtime` mounts React islands. It must not depend on feature props,
   Django routes, or design-system components.
 - `tooling` may read Django and Cotton at build time. Browser code must never
   import it.

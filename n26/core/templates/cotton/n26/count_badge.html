@@ -4,10 +4,10 @@
 Pass count as a number. The string 0 is true, so a zero count would still draw the badge.
 add:0 coerces count and max to numbers. String comparison would treat 100 as less than 99.
 The visible number is hidden from assistive tech. Omit label and the badge is silent.
-The visible face caps at max. label still speaks the real count.
-Three digits would widen the pill past whatever it rides.
+The visible number caps at max. label still gives screen readers the real count.
+Three digits would make the pill wider than the control it sits on.
 Omit label when the control around it already names the count.
-aria-label on a parent replaces everything inside. A labelled badge would be read to nobody and could disagree.
+aria-label on a parent replaces everything inside, so a badge label would never be read and could contradict the parent.
 {% endcomment %}
 
 <c-vars count="" max="99" label="" class="" />

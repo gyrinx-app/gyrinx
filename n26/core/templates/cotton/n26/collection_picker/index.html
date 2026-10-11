@@ -10,7 +10,7 @@ Pass the filter menu in the filters slot. Its name must be category so apply and
 </c-n26.collection-picker>
 
 A picker with no sections ignores tabs and stacks every section.
-Exclusive lines are equipment-list only. Moving the trade-points cap treats the picker as a trading post and hides them.
+Exclusive lines are equipment-list only. Lowering the trade-points filter below tp_ceiling counts as a trading post search and hides them.
 Stickiness reads --n26-sticky-top from the page. Without it the bar sits under the nav.
 Only recount() walks the items. Alpine does not cache getters, so a count per read repeats on every click.
 Items are keyed, so a redrawn line replaces its registration instead of adding a second one.

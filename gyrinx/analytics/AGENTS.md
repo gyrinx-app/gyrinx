@@ -19,14 +19,15 @@ Two editions write to one events table, so every `Event` carries an `edition`.
   (`user`, `banner`) is the platform's, because an account and a site-wide
   banner are the same thing whichever edition you are reading.
 - **A noun value belongs to exactly one edition**, enforced at registration
-  (`gyrinx/analytics/nouns.py`). That is what lets `edition` be derived from
-  the noun instead of passed in — there is no argument to thread through the
-  call sites, and so none to forget. A noun nobody registered is recorded as
-  `unknown` with an error logged, never inferred into a real edition.
+  (`gyrinx/analytics/nouns.py`). This lets `edition` be derived from the noun,
+  so call sites do not pass an `edition` argument. A noun nobody registered is
+  recorded as `unknown` with an error logged, never inferred into a real
+  edition.
 - `Event.noun`'s `choices` is the registry callable, so adding a noun does
   not require a migration.
-- Anything grouping events must group by edition too, or it adds two products
-  together. The growth chart's lines each declare an edition for this reason.
+- Anything grouping events must group by edition too, or it mixes the two
+  editions' counts. The growth chart's lines each declare an edition for this
+  reason.
 
 ## Graph Types
 

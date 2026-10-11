@@ -6,15 +6,10 @@ from n26.core.models.abstract import Archived, Base, Owned
 
 class CampaignQuerySet(models.QuerySet):
     def involving(self, user):
-        """Every campaign this person arbitrates or has accepted a place in.
+        """Every campaign this person arbitrates or has accepted an invitation to.
 
-        The two halves of what somebody means by their campaigns: the ones
-        they run, and the ones they were asked into and said yes to. An
-        invitation still waiting is not one of them.
-
-        Says nothing about archiving: an archived campaign is still one this
-        person is in, so a caller listing campaigns to read must ask for
-        ``archived=False`` itself.
+        Pending invitations are excluded. Archived campaigns are included;
+        callers that want them hidden must filter ``archived=False``.
         """
         if user is None or not user.is_authenticated:
             return self.none()
@@ -30,22 +25,21 @@ class CampaignQuerySet(models.QuerySet):
 class Campaign(Base, Owned, Archived):
     """A run of linked battles, and the gangs playing them.
 
-    The owner is the arbitrator: the person who sets the campaign up, says
-    who is in it, and settles what the book leaves to a table. Owning a
-    campaign is not owning the gangs in it — each of those stays its own
-    player's, and a campaign never writes to one.
+    The owner is the arbitrator, who sets the campaign up, decides who is in
+    it, and rules on what the rulebook leaves to the players. Owning a
+    campaign does not make the arbitrator the owner of the gangs in it:
+    each gang stays its player's.
 
-    Deliberately not ``Rated``. A campaign holds no assignments, so there is
-    nothing for a rating to sum; what it is worth is not a question anybody
-    asks of it.
+    Not ``Rated``: a campaign holds no assignments, so it has no rating to
+    sum.
 
-    A campaign is founded on a **campaign type** from the system pack, and
-    carries two things of its own from that moment: a **pack** the arbitrator
-    owns, and an **additions** type created empty in it. A gang that joins is
-    assigned both types, so what the shared type gives every member and what
-    the arbitrator adds for this campaign reach the gang by the same path a
-    gang type's built-ins do (design/campaign-assets.md). The additions type
-    is machinery: no page names it, and the authoring lists leave it out.
+    A campaign is founded on a **campaign type** from the system pack. At
+    founding it also gets a **pack** the arbitrator owns and an empty
+    **additions** type in that pack. A joining gang is assigned both types,
+    so the shared type's built-ins and the arbitrator's additions reach the
+    gang the same way a gang type's built-ins do
+    (design/campaign-assets.md). The additions type is internal: no page
+    names it, and authoring lists exclude it.
     """
 
     class Status(models.TextChoices):
@@ -134,23 +128,20 @@ class Campaign(Base, Owned, Archived):
 
 
 class CampaignEvent(Base):
-    """One append-only record of a change to the campaign, with who made it.
+    """An append-only record of one change to the campaign, and who made it.
 
-    The campaign's own acts and no others: set up, renamed, its budget
-    changed, its summary edited, archived. What happens to a *gang* in a
-    campaign belongs to that gang's ledger instead, so one question decides
-    where anything is written — did a gang change? Nothing is recorded twice,
-    and the campaign's log is read from both.
+    Only changes to the campaign itself are recorded here: setup, renames,
+    budget, summary, archiving and so on. A change to a gang in the
+    campaign is that gang's ledger event instead, so nothing is recorded
+    twice. The campaign's log reads both.
 
-    No sentence is stored. What a reader sees is built when the page is drawn,
-    from the kind and the note, so the wording stays something we can change
-    and the log stays something that can be filtered by what happened rather
-    than by what it happened to say.
+    No display sentence is stored. The page builds the wording from the
+    kind and the note, so the wording can change and the log can be
+    filtered by kind.
     """
 
-    #: Long enough for a rename, which holds two campaign names and the mark
-    #: between them. Nothing here is ever rewritten, so a note cut short stays
-    #: cut short, and a reader is left with half a name for good.
+    #: Long enough for a rename: two campaign names and the arrow between
+    #: them. Events are never rewritten, so a truncated note stays truncated.
     NOTE_LENGTH = 512
 
     class Kind(models.TextChoices):
@@ -174,10 +165,9 @@ class CampaignEvent(Base):
         # is that gang's ledger event instead.
         ASSET_ADDED = "asset_added", "Asset added"
         ASSET_REMOVED = "asset_removed", "Asset removed"
-        # A roll on an asset table. One act, one line: the asset it adds is
-        # named in the note, so no ASSET_ADDED is written beside it. A roll
-        # for a gang assigns the asset too, and that is the gang's own
-        # ledger event, as every assignment is.
+        # A roll for an asset table. The note names the asset it adds, so no
+        # separate ASSET_ADDED is written. A roll for a gang also assigns
+        # the asset, which is recorded as that gang's ledger event.
         ASSET_ROLLED = "asset_rolled", "Rolled"
         # Content the arbitrator wrote into the campaign's own pack and
         # onto its additions type. What a member gang then receives is
@@ -187,9 +177,9 @@ class CampaignEvent(Base):
         ASSET_CREATED = "asset_created", "Asset created"
         COUNTER_ADDED = "counter_added", "Counter added"
         LABEL_ADDED = "label_added", "Label added"
-        # Which asset tables every gang in the campaign may roll on, beyond
-        # the ones its type gives: a table built into the campaign's
-        # additions, taken out again, or written for this campaign.
+        # Changes to the asset tables available to every gang in the
+        # campaign beyond its type's own: a table added to the campaign's
+        # additions, removed from them, or created for this campaign.
         TABLE_OPENED = "table_opened", "Table opened"
         TABLE_CLOSED = "table_closed", "Table closed"
         TABLE_CREATED = "table_created", "Table created"
@@ -200,8 +190,8 @@ class CampaignEvent(Base):
         related_name="events",
     )
     kind = models.CharField(max_length=20, choices=Kind)
-    #: Who did this. Kept when the account goes, because the campaign's log is
-    #: a record of what happened to it rather than of who is still here.
+    #: Who made the change. SET_NULL so deleting an account keeps the
+    #: campaign's history.
     actor = models.ForeignKey(
         "auth.User",
         on_delete=models.SET_NULL,
@@ -209,9 +199,8 @@ class CampaignEvent(Base):
         blank=True,
         related_name="+",
     )
-    #: The person an act was about, where it was about one. Kept as a plain
-    #: link: the name a line reads is looked up when the page is drawn, as
-    #: every other name here is.
+    #: The person the change was about, if any. Only the link is stored; the
+    #: page looks up the name when it renders, as for every name in the log.
     about_user = models.ForeignKey(
         "auth.User",
         on_delete=models.SET_NULL,
@@ -219,9 +208,8 @@ class CampaignEvent(Base):
         blank=True,
         related_name="+",
     )
-    #: The battle an act was about, where it was about one. Set to nothing if
-    #: the battle goes, which leaves the line saying a battle was recorded
-    #: without offering a page that is not there.
+    #: The battle the change was about, if any. SET_NULL: if the battle is
+    #: deleted, the line still says a battle was recorded but links nowhere.
     battle = models.ForeignKey(
         "n26.Battle",
         on_delete=models.SET_NULL,
@@ -236,14 +224,12 @@ class CampaignEvent(Base):
         blank=True,
         related_name="events",
     )
-    #: What changed, where the kind alone cannot say it: "1000 → 1200" for a
-    #: budget, the two names for a rename. Figures are stored bare and given
-    #: their mark when the page is drawn. Never the summary's own words — the
-    #: log is a list of acts, not a copy of the arbitrator's prose.
+    #: Detail the kind cannot carry: "1000 → 1200" for a budget, both names
+    #: for a rename. Figures are stored bare and formatted when the page
+    #: renders. A summary edit does not store the summary's text.
     note = models.CharField(max_length=NOTE_LENGTH, blank=True)
-    #: One mark per act, shared by every event that act wrote. Events sharing
-    #: a mark were written together — three fields changed on one submit — so
-    #: what was one act stays recognisable as one.
+    #: Shared by every event one change wrote, such as three fields saved in
+    #: one submit, so the log can show them as one change.
     batch = models.UUIDField(null=True, blank=True, editable=False)
 
     class Meta:
@@ -259,22 +245,21 @@ class CampaignEvent(Base):
 
 
 class CampaignMembership(Base):
-    """One gang's place in one campaign, for as long as it lasts.
+    """One gang's time in one campaign.
 
-    A gang is in at most one campaign at a time, and the database holds it to
-    that: only one membership per gang may be open. Leaving closes the one it
-    has rather than deleting it, so a gang that plays a campaign, leaves, and
-    joins another still says what it did and when.
+    A database constraint allows one open membership per gang, so a gang is
+    in at most one campaign at a time. Leaving sets ``left`` instead of
+    deleting the membership, so the gang keeps a record of past campaigns.
 
-    ``created`` is when the gang joined; ``left`` is when it stopped, and is
-    unset while it is still playing.
+    ``created`` is when the gang joined; ``left`` is when it left, and is
+    null while it is still playing.
 
     Joining assigns the campaign's two types to the gang, and the two
-    **carriers** point at those assignments the way ``Gang.founding`` points
-    at the founding one. Everything the gang has because it is in this
-    campaign — its Settlement, its Reputation counter — is caused by one of
-    them, so the card can say where each came from and leaving can take them
-    all away at once.
+    **carriers** point at those assignments, as ``Gang.founding`` points at
+    the founding assignment. Everything the gang has from the campaign, such
+    as its Settlement or Reputation counter, is caused by one of them. The
+    card can then show where each came from, and leaving removes them all
+    at once.
     """
 
     campaign = models.ForeignKey(
@@ -287,8 +272,8 @@ class CampaignMembership(Base):
         on_delete=models.CASCADE,
         related_name="campaign_memberships",
     )
-    #: When the gang stopped playing. Unset while it still is, which is what
-    #: the one-at-a-time constraint counts.
+    #: When the gang left. Null while it is still playing; the one-open
+    #: constraint counts only null rows.
     left = models.DateTimeField(null=True, blank=True)
     #: The gang-hosted assignment naming the campaign's shared type.
     #: What the type gives every member gang is caused by it.
@@ -343,26 +328,25 @@ class CampaignMembership(Base):
 
 
 class CampaignAsset(Base):
-    """An asset from the campaign's point of view: one of the campaign's
-    own, kept by it, and who holds it.
+    """One of a campaign's assets, and the gang that holds it.
 
-    Only assets of a Holding asset type are recorded here. Such an asset is
-    a **holding**, not a possession: the campaign owns it, a gang only ever
-    holds it, and this row says which gang that is. Nothing is assigned to
-    the gang, no ledger entry is written, and the gang's rating never counts
-    it — so assigning, unassigning and handing over are one column changing
-    under the campaign's own line, with a journal-only event on each gang
-    touched so both histories say what happened
-    (design/campaign-assets.md).
+    Only assets of a Holding asset type are recorded here. A **holding**
+    belongs to the campaign; a gang only holds it, and ``holder`` says
+    which. The holding itself is not assigned to the gang, and the gang's
+    rating never counts it. Assigning, unassigning and handing over change
+    ``holder`` under the campaign's lock and write an event on each gang
+    involved (design/campaign-assets.md). Gaining a holding can also fill
+    its required slots with default picks
+    (``Operation._default_holding_picks``), which are ordinary assignments.
 
-    ``holder`` is a membership rather than a gang so a campaign asset cannot
-    point at a gang that has left the campaign. ``name`` is an optional
-    name for this asset in this campaign — "the Old Ruins by the sump" —
-    drawn in place of the library asset's where it is set.
+    ``holder`` is a membership, not a gang, so an asset cannot point at a
+    gang that has left the campaign. ``name`` optionally renames the asset
+    in this campaign ("the Old Ruins by the sump") and is shown instead of
+    the library asset's name.
 
-    A holding contributes computed effects to its holder's card while it
-    is held, credited to this row. What a stored effect does when an asset
-    is assigned is decided where assignments are made, not here.
+    While held, a holding adds computed effects to its holder's card,
+    credited to this asset. What a stored effect does on assignment is
+    decided by the code that makes assignments.
     """
 
     #: Where the effects engine finds a campaign asset's modifiers: on the
@@ -380,8 +364,8 @@ class CampaignAsset(Base):
         related_name="campaign_assets",
         help_text="Which asset in the library this is.",
     )
-    #: Set to nothing when the membership goes, which is the only way a
-    #: campaign asset comes to point at nobody other than being unassigned.
+    #: SET_NULL when the membership is deleted. Apart from unassigning, that
+    #: is the only way ``holder`` becomes null.
     holder = models.ForeignKey(
         "n26.CampaignMembership",
         on_delete=models.SET_NULL,
@@ -446,8 +430,8 @@ class Battle(Base):
         on_delete=models.CASCADE,
         related_name="battles",
     )
-    #: When it was fought, which is the players' own date rather than when
-    #: somebody got round to writing it down.
+    #: The date the battle was played, as the players enter it, not when it
+    #: was recorded.
     date = models.DateField()
     # An unnamed record is valid; entry forms require a scenario name.
     scenario = models.CharField(max_length=200, blank=True, default="")
@@ -479,9 +463,10 @@ class Battle(Base):
         blank=True,
         related_name="stakes_awarded",
     )
-    #: The mark shared by the LOST and GAINED events of the transfer this
-    #: battle made. Set means the stake has moved, so saving again moves
-    #: nothing twice; a correction reverses that transfer first.
+    #: The ledger batch shared by the LOST and GAINED events of this
+    #: battle's stake transfer. When set, the stake has moved, so saving
+    #: again does not move it twice; a correction reverses the transfer
+    #: first.
     stake_transfer_mark = models.UUIDField(null=True, blank=True, editable=False)
 
     class Meta:
@@ -543,17 +528,17 @@ class Battle(Base):
 
 
 class CampaignParticipant(Base):
-    """One player the arbitrator has asked into a campaign, and their answer.
+    """A person the arbitrator has invited to a campaign, and their response.
 
-    Being a player is about the *person*, not their gangs: an invitation
-    says somebody is at this table, and which gangs they bring is a separate
-    question the campaign answers elsewhere. So there is one row per person
-    per campaign, and inviting somebody who has already declined asks the same
-    row again rather than starting a second conversation.
+    A participant is a person, not a gang. Which gangs they bring is
+    recorded separately (``CampaignMembership``). There is one participant
+    per person per campaign, so re-inviting someone who declined reuses the
+    same participant.
 
-    The arbitrator owns the campaign and is not a player in it. Being one
-    grants membership and nothing else: what a player may do is a question
-    their campaign's own screens answer.
+    The arbitrator owns the campaign and is not a participant. An accepted
+    participant is a member of the campaign and nothing more; invited and
+    declined participants are not members. The campaign's views decide
+    what a member may do.
     """
 
     class State(models.TextChoices):
@@ -572,11 +557,11 @@ class CampaignParticipant(Base):
         related_name="n26_campaign_participations",
     )
     state = models.CharField(max_length=20, choices=State, default=State.INVITED)
-    #: What the arbitrator said when they asked. Theirs, not ours: shown to
-    #: the person invited and never rewritten.
+    #: The arbitrator's invitation message, shown to the invitee and never
+    #: rewritten.
     message = models.TextField(blank=True, default="")
-    #: Who asked. Kept when the account goes, because the invitation is a
-    #: record of what happened rather than of who is still here.
+    #: Who sent the invitation. SET_NULL keeps the invitation when that
+    #: account is deleted.
     invited_by = models.ForeignKey(
         "auth.User",
         on_delete=models.SET_NULL,
@@ -584,7 +569,8 @@ class CampaignParticipant(Base):
         blank=True,
         related_name="+",
     )
-    #: When they answered, either way. Unset while the question stands.
+    #: When the invitee accepted or declined. Null while the invitation is
+    #: pending.
     answered = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -611,11 +597,8 @@ class CampaignParticipant(Base):
         return self.state == self.State.INVITED
 
     def get_absolute_url(self):
-        """The campaign this invitation is to.
-
-        What a notification about it points at, because the campaign is what
-        somebody asked into one wants to look at. Who may open that page is
-        the campaign's own question, answered by its views.
+        """The invited campaign's page, which notifications about this
+        invitation link to. The campaign's views decide who may open it.
         """
         from django.urls import reverse
 

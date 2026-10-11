@@ -1,8 +1,8 @@
 {% comment %}
 <c-n26.choice-slots> — Detail-list lines for choice slots, with dismiss or restore on each.
 
-choices is an iterable of ChoiceLine. A single line is not enough. This always loops.
-An unresolved line with no href draws a dash and no control. That is print and other readers.
+choices must be an iterable of ChoiceLine. This always loops, so wrap a single line in a list.
+An unresolved line with no href draws a dash and no control. That covers print and viewers who cannot edit.
 Dismissed lines say Dismissed and offer Restore. Open lines with href offer Choose.
 Must sit inside a detail-list. This emits rows and no container, and class lands on every row.
 A settled slot with an href is still a control. Clicking it is how that choice is changed.

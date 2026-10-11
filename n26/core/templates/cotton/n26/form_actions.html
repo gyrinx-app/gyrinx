@@ -1,12 +1,12 @@
 {% comment %}
-<c-n26.form-actions> — Cancel, extra controls, then the submit that ends the form.
+<c-n26.form-actions> — A form footer: Cancel, extra controls, then the submit button.
 
 Extra controls go in the default slot and land between Cancel and Submit.
 Cancel is a link, so it never submits.
-Do not script Cancel as history.back. The href is the place they already were.
+Do not script Cancel as history.back. cancel_url already names the page to return to.
 No submit_label means no submit button.
-A second act in the slot needs its own name and value. Only the clicked submit is sent.
-Leave the end submit unnamed so it sends nothing extra.
+A second submit button in the slot needs its own name and value. The browser sends only the clicked one.
+Leave the submit_label button unnamed so it adds no field to the POST.
 {% endcomment %}
 
 <c-vars

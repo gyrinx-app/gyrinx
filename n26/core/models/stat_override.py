@@ -1,26 +1,24 @@
-"""Characteristics an owner has set on their own model, cell by cell.
+"""Characteristics an owner has set by hand on their own model.
 
-A model's characteristics come from the entry it was hired from, and the
-rules move them about from there. Sometimes neither is what is on the
-table: a campaign hands out an advance nothing in the library carries, a
-group agrees a change between themselves, an entry was typed differently
-from the book. So an owner may set a characteristic themselves.
+A model's characteristics come from the profile it was hired from, then
+rules adjust them. Sometimes neither matches the table: a campaign awards
+an advance the library does not have, a group agrees a house rule, or a
+profile was entered differently from the book. An owner can then set a
+characteristic directly.
 
-One row per cell they have taken over, and none for the cells they have
-left alone — overriding a Strength therefore leaves the rest of the row
-following the entry, including whatever an author corrects in it later.
+There is one ``StatOverride`` per overridden characteristic and none for
+the rest. Overriding Strength leaves every other characteristic following
+the profile, including later author corrections.
 
-What is set replaces the **base** value the card is drawn from, before
-anything computed folds on top: a rule that improves a Weapon Skill
-improves what the owner set, not what the entry prints.
+The override replaces the **base** value, before computed effects apply: a
+rule that improves Weapon Skill improves the owner's value, not the
+profile's.
 
-Nothing here is bought, and setting a characteristic leaves what the
-gang is worth alone — but it is part of the gang's story, so the rows
-are written through ``Operation.set_stats`` and each change lands in
-the history as a journal event. The line operations draw is the gang's
-story, not only its money: what a reader of the gang's log would want
-said goes through that one door, while device preferences
-(``AssignmentSet``, ``PrintConfig``) stay plain saves.
+Overrides are not bought and do not change rating. They are part of the
+gang's history, so they are written through ``Operation.set_stats``, which
+records a journal event per change. Anything the gang's history should
+show goes through an operation; device preferences (``AssignmentSet``,
+``PrintConfig``) stay plain saves.
 """
 
 from django.db import models
@@ -34,9 +32,9 @@ class StatOverride(Base):
     miniature = models.ForeignKey(
         "n26.Miniature", on_delete=models.CASCADE, related_name="stat_overrides"
     )
-    #: Which cell of the statline this stands in — the same row a library
-    #: statline names, so an override and a printed value are values of
-    #: the same thing and the shape they are drawn to is unchanged.
+    #: The statline characteristic this overrides. It is the same
+    #: ``StatlineTypeStat`` a library statline uses, so an override and a
+    #: profile value fill the same cell.
     statline_type_stat = models.ForeignKey(
         "library.StatlineTypeStat", on_delete=models.PROTECT, related_name="+"
     )
@@ -61,12 +59,11 @@ class StatOverride(Base):
         return f"{self.miniature}: {self.statline_type_stat.short_name} {self.value}"
 
     def save(self, *args, **kwargs):
-        """Store the value as its stat says it reads.
+        """Store the value in its stat's canonical format.
 
-        An owner typing 4 for a Movement means 4", the same as an author
-        typing it does, so the same canonical form is stored. Otherwise
-        the box they type in and the card they are editing would print
-        the value differently, with nothing to say which was meant.
+        An owner typing 4 for Movement means 4", as an author's 4 does.
+        Without this, the edit box and the card would show the value
+        differently.
         """
         if self.value and self.statline_type_stat_id:
             self.value = self.statline_type_stat.stat.format_value(self.value)

@@ -1,22 +1,21 @@
-"""Activities — a thing a gang opens, does over several clicks, and closes.
+"""Activities: gang actions that span several requests, opened and later closed.
 
-The books give a gang acts that are not one click: founding and equipping
-it, a trip to the trading post. Each has a beginning and an end, purchases
-in between that count against it, and a state a screen has to be able to
-name. A row here is one of those, from the click that opened it to the
-click that closed it.
+Some actions in the rules take more than one click: founding and equipping a gang,
+spending a model's hire-time Trade Points, or visiting the Trading Post.
+Purchases made while one is open count against it, and pages need to show
+whether it is open. An ``Activity`` covers one of these from its opening
+event to its closing event.
 
-The row is thin on purpose. What an activity *did* is the ledger, as
-everything else in this edition is: ``opened`` and ``closed`` name the two
-events, and the story between them is what the log holds in that stretch.
-Events name the gang or the model performing the action, so folding an
-entry's events still reproduces the entry (``n26.core.reconcile``) and
-nothing here is inside that arithmetic.
+Apart from its kind, target and Trade Points, the model stores only the
+boundaries. ``opened`` and ``closed`` point at two
+ledger events, and what the activity did is the ledger between them. Those
+events name the gang or the model performing the action, not an assignment,
+so they take no part in the fold that reproduces each ledger entry
+(``n26.core.reconcile``).
 
-One of each kind per target at a time, held by the database rather than by whoever
-remembered to look: a gang cannot be founding twice, and a second visit
-opened while the first was still open would leave every purchase in
-between unable to say which one it counted against.
+Database constraints allow one open activity of each kind per gang, or per
+model for hire-time activities. With two open, a purchase made in between
+could not be attributed to either.
 """
 
 from django.db import models
@@ -42,15 +41,12 @@ class Activity(Base):
         help_text="The model spending its hire-time Trade Points. Empty for gang actions.",
     )
     kind = models.CharField(max_length=32, choices=Kind)
-    #: Cascades: an activity whose opening is gone is a record of nothing.
-    #: Which kind of event it is follows from the act — one that writes a
-    #: boundary of its own points at that rather than at a second event
-    #: saying the same thing twice.
+    #: CASCADE: an activity means nothing without its opening event.
     opened = models.ForeignKey(
         "n26.LedgerEvent", on_delete=models.CASCADE, related_name="+"
     )
-    #: Null while the activity is still being performed — that is the
-    #: whole of what "open" means.
+    #: Null while the activity is open. Whether an activity is open
+    #: depends on this field alone.
     closed = models.ForeignKey(
         "n26.LedgerEvent",
         on_delete=models.CASCADE,
@@ -72,9 +68,9 @@ class Activity(Base):
         verbose_name_plural = "activities"
         ordering = ["created"]
         constraints = [
-            # One at a time, per kind, per gang. A purchase counts against
-            # the open activity of its kind, so two would leave it with no
-            # answer to which.
+            # One open activity per kind per gang. A purchase counts against
+            # the open activity of its kind, so two open would make it
+            # ambiguous.
             models.UniqueConstraint(
                 fields=["gang", "kind"],
                 condition=models.Q(closed__isnull=True, miniature__isnull=True),
@@ -108,10 +104,10 @@ class Activity(Base):
 def note_for(kind, figure=None):
     """The note for the event opening or closing an activity of this kind.
 
-    The kind comes first, so the history can say which activity was
-    started without a join. A figure follows it where the act has one:
-    what a visit brought when it opened, and what it still had when it
-    closed. An act with no figure carries the kind alone.
+    The kind comes first, so the history can name the activity without a
+    join. A figure follows where there is one: the Trade Points a visit
+    brought when it opened, or had left when it closed. Otherwise the note
+    is the kind alone.
     """
     if figure is None:
         return str(kind)
@@ -119,11 +115,11 @@ def note_for(kind, figure=None):
 
 
 def read_note(note):
-    """An activity note's two parts: the kind's name, and its figure.
+    """Split an activity note into the kind's label and its figure.
 
-    The name is empty for a note naming no kind this edition has, which
-    leaves a sentence saying an activity was started without inventing
-    which one. The figure is None where the note carries none.
+    The label is empty when the note names an unknown kind, so the history
+    can say an activity started without guessing which. The figure is None
+    when the note has none.
     """
     kind, _, figure = note.partition(" ")
     try:

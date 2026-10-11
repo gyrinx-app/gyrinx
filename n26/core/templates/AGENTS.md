@@ -25,8 +25,8 @@ interactive template. The component gallery instructions live in
   add demos so it appears in the gallery.
 - Use `<c-n26.icon>` for new or edited general-purpose interface icons. Choose
   a Lucide name from `/n26/design/c/icon/`; add `label` when adjacent text does
-  not explain the icon. Bespoke edition marks and data illustrations may own
-  their SVG. `core/brand_icons.py` remains the exception for brand marks.
+  not explain the icon. Bespoke edition marks and data illustrations may use
+  their own SVG. `core/brand_icons.py` remains the exception for brand marks.
 
 ## Silent Cotton failures
 

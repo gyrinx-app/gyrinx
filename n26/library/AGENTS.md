@@ -1,7 +1,7 @@
 # N26 content library
 
 Game content, and the tools for writing it. Everything an author can put
-in the library flows through one chain, and nothing skips a layer:
+in the library goes through these layers in order, and no layer is skipped:
 
 ```
 models/          the content rows (Weapon, Skill, Profile, Collection, …)
@@ -43,21 +43,22 @@ Adding a verb means touching, in order:
    to the rows belonging to one carrier, and it can only do so where the
    carrier is handed to the form. The detail view does that for its part
    forms. A spec reused anywhere else gets a picker over the whole table
-   and rejects the stray row only afterwards. Nothing catches this — the
-   picker looks wired and is simply wide.
+   and rejects the stray row only afterwards. No check catches this: the
+   picker appears to work but lists every row.
 
 Several parallel lists are deliberate extension points, each guarded by
 a check or a generated constraint (`ASSIGNABLE_FIELDS`, `SCOPE_FIELDS`,
 `EFFECT_FIELDS`, `OFFERABLE_KINDS`, `GRANTABLE_FIELDS`, …). Widening one
-is one line plus a migration plus deliberate thought — never quietly.
+takes one line and a migration. Do it only as a deliberate, visible
+change.
 
-Kinds declare, forms derive: `ATTACHMENT_ASKS` and
-`SUGGESTED_BUILT_INS` sit on the model class and `offers.py` computes
-what a form shows — no form hardcodes a kind there (the inline-create
-shortcut for rules and subtypes in `forms.py` is the one deliberate
-exception). Note: `ATTACHMENT_ASKS` replaces rather than merges — a
-kind that declares its own must restate the inherited asks it still
-wants. `takes_built_ins` is the third of these declarations: a kind that
+Each kind declares what its forms offer: `ATTACHMENT_ASKS` and
+`SUGGESTED_BUILT_INS` sit on the model class, and `offers.py` computes
+what a form shows from them. No form hardcodes a kind there (the
+inline-create shortcut for rules and subtypes in `forms.py` is the one
+deliberate exception). Note: `ATTACHMENT_ASKS` replaces rather than
+merges — a kind that declares its own must restate the inherited asks it
+still wants. `takes_built_ins` is the third of these declarations: a kind that
 only ever arrives by being *chosen* sets it False, its pages offer no
 built-ins attachment, and `add_built_in` rejects one.
 
@@ -120,20 +121,20 @@ An upload is **held** between the stages — an `UploadedSheet` row per
 sheet per author, with the bytes in the site's storage. A file input
 cannot be filled back in by the server, so holding the file is what lets
 a preview be read, reloaded, and then imported without choosing the file
-again. The three acts are three pages, each named in the address:
+again. Each step has its own page and address:
 `/authoring/ingest/` shows what is held, `…/ingest/sheet/<sheet>/`
 takes one file, `…/ingest/preview/` plans and imports. **The plan is
-never held** — it is made again on the visit that shows it and again on
-the post that imports it, because the contract is about the library as
-it stands, and an import redirects back to a fresh reading rather than
-rendering its own result.
+never held.** It is made again on the GET that shows it and again on
+the POST that imports it, because the preview must match the library
+as it is at that moment. An import redirects back to the preview, which
+plans again, rather than rendering its own result.
 
 Planning ends in one settling pass that decides every row's action
 (`create`, `update`, `unchanged`, or `resolved` for a row that is only a
 lookup) and, for an update, names each field that differs. Planning
 and performing use one function to decide what counts as the same row
-(`find_existing`), because two statements of that drift, and the drift
-is silent.
+(`find_existing`), because two copies of that logic would drift apart
+without any error.
 
 A new planned kind means four tables. `perform()` rejects a plan
 naming a kind missing from any of them rather than skipping it:
@@ -146,11 +147,11 @@ naming a kind missing from any of them rather than skipping it:
 - `CREATORS` — how it is made, or a reason in `NEVER_CREATED`.
 - `UPDATERS` — how it is changed, for any kind with updatable fields.
 
-Each set has its own rule for a member the sheet no longer names, and
-the deciding question is whether the set is somewhere hand-authored
-content lives: traits, a list's lines and a fighter's skill grid are
-replaced; built-in kit and restrictions are only added to, with a note
-saying what was kept. The one exception inside a built-ins set is the
-fighter's equipment list, which is access rather than kit and comes one
-at a time — naming a list replaces whichever the set held
-(`REPLACED_BUILT_INS`). A blank cell still replaces nothing.
+Each set has its own rule for a member the sheet no longer names. The
+rule depends on whether hand-authored content lives in the set: traits,
+a list's lines and a fighter's skill grid are replaced; built-in kit and
+restrictions are only added to, with a note saying what was kept. The
+one exception inside a built-ins set is the fighter's equipment list. It
+grants access rather than kit, and ingest assumes a fighter buys from one
+list, so naming a list replaces whichever list the set held (`REPLACED_BUILT_INS`). A
+blank cell still replaces nothing.

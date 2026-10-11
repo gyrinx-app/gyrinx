@@ -13,7 +13,7 @@ No href draws a span. Tone and underline do not apply on that branch.
 underline="dashed" marks text that opens an explanation.
 An unknown tone or underline key adds no class and does not error.
 The default slot is trusted HTML because strip would otherwise escape it.
-Put colour on tone, not on class. A text-muted class over the default leaves two equal utilities fighting, settled by the order Tailwind emits.
+Put colour on tone, not on class. A text-muted class over the default gives two equal utilities, and the winner depends on the order Tailwind emits them.
 This renders inline. Keep the tags packed tight and do not add a trailing newline.
 Newlines around the markup collapse to a space in the surrounding sentence.
 Strip the default slot. Newlines around it would sit inside the underline span and get a rule drawn under them.

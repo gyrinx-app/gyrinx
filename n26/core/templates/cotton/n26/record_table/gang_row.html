@@ -1,12 +1,12 @@
 {% comment %}
-<c-n26.record-table.gang-row> — One gang listing in a record table, with wealth and either buttons or an actions menu.
+<c-n26.record-table.gang-row> — One gang row in a record table, with wealth and either buttons or an actions menu.
 
-A record table filters these data attributes without replacing the listing markup.
+A record table filters these data attributes without replacing the row markup.
 Search includes the gang type as well as the name.
 The wide layout keys off the table's query container, not the viewport.
-The listing itself must stay relative too. Drop either and the stretched link swallows Print.
+The row itself must stay relative too. Drop either and the stretched link covers Print.
 Keep the actions cell relative so its buttons stay clickable above the stretched link.
-Name the column widths. Auto sizes each listing to its own content, so wealth strips will not line up.
+Name the column widths. Auto sizes each row to its own content, so wealth strips will not line up.
 Keep the type outside the name link so the accessible name stays the gang's name only.
 The colour mark sits inside the name link so the focus ring covers both and they cannot wrap apart.
 The actions cell spans both grid rows so the buttons sit against the name and the wealth strip together.

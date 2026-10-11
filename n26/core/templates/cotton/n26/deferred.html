@@ -3,8 +3,8 @@
 
 <c-n26.deferred url="{{ card_url }}" follows="card" />
 
-follows is an Alpine expression in the parent scope, used as the fetch address when it changes.
-A slower response is dropped when at does not match the latest address. A stale fetch cannot overwrite a newer one.
+follows is an Alpine expression in the parent scope, used as the fetch URL when it changes.
+A response is dropped when at does not match the latest URL, so a stale fetch cannot overwrite a newer one.
 x-html injects the response as HTML. The URL must return trusted markup.
 The spinner box holds a fixed height so the slot does not jump when the fragment arrives.
 The fetch runs on this component's init.
@@ -13,7 +13,7 @@ Put it inside a template x-if so it fetches when that template first instantiate
 Alpine initialises whatever lands in the document, so a fetched fragment's own behaviours work as if they were inline.
 The URL must be a side-effect-free GET that returns an HTML fragment, with no doctype and no shell.
 This component does not cache. Cache headers on the fragment make a reopened disclosure instant.
-A failed fetch draws a retry control. Silence would read as the detail not existing.
+A failed fetch draws a retry control, so a failure does not look like missing content.
 {% endcomment %}
 
 <c-vars url="" follows="" class="" />
@@ -30,7 +30,7 @@ A failed fetch draws a retry control. Silence would read as the detail not exist
                 const response = await fetch(at);
                 if (!response.ok) throw new Error(response.status);
                 const drawn = await response.text();
-                {# Drop the payload unless this request is still the latest address. #}
+                {# Drop the response unless this request is still for the latest URL. #}
                 if (this.at === at) { this.html = drawn; }
             } catch {
                 if (this.at === at) { this.failed = true; }

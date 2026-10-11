@@ -17,13 +17,13 @@ a membership bringing a fighter's built-in kit, a purchase bringing what
 came with it. Removal follows the cause chain down, and provenance ("came
 with the Cutter") is read off the same link.
 
-The payoff over a loose pointer: real referential integrity, and resolving
-a whole gang's assignments to their assignables is **one** query with a few
-left joins rather than one query per kind present.
+Compared with a generic foreign key, this keeps referential integrity, and
+resolving a whole gang's assignments to their assignables is **one** query
+with a few left joins rather than one query per kind present.
 
 Three **root** columns name the gang, model, and stash at the top of the
-chain, written at save time, so "everything on this gang" is one indexed
-query at any depth — no walking.
+chain, written at save time, so everything on a gang is one indexed query
+at any depth, without walking the chain.
 """
 
 from django.core.exceptions import ValidationError
@@ -251,28 +251,27 @@ class Assignment(NamesAnAssignable, Base, Archived):
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="caused"
     )
 
-    # An assignment that takes its assignable away rather than holding
-    # it: the owner's own removal of a subtype or rule. Never a line on
-    # a card — it is compiled at read time to an unconditional removal,
-    # so what it cancels is suppressed rather than written to, and comes
-    # back the moment this assignment is archived.
+    # True when this assignment removes its assignable from the model
+    # instead of granting it: an owner's own removal of a subtype or rule.
+    # It never shows as a card line. Assembly compiles it to an
+    # unconditional removal, so the removed item is hidden, not changed,
+    # and returns as soon as this assignment is archived.
     removes = models.BooleanField(default=False)
 
-    # Which choice this settles: the slot's own assignment, not the library
-    # Slot — so two slots of one type on one holder stay independent and a
-    # card reads what was chosen without inferring anything from kinds.
-    # Declared like ``caused_by`` because it names the same assignment: a
-    # pick's cause is the slot that offered it, and one link protecting
-    # what the other cascades would make the assignment impossible to delete.
+    # The assignment that offered the slot this pick fills. It points at an
+    # assignment, not the library Slot, so two slots of one type on one
+    # holder stay independent and a card finds each pick without matching
+    # on kinds. CASCADE to match ``caused_by``, which names the same
+    # assignment: if one link PROTECTed what the other cascades, that
+    # assignment could never be deleted.
     chosen_for = models.ForeignKey(
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="picks"
     )
 
-    # Which slot this pick settles. One assignment may ask twice — a
-    # thing giving two skill-tree choices opens both from one line — so
-    # the asking assignment alone cannot say which choice a pick
-    # answers. PROTECT: a library row must not vanish out from under a
-    # player's pick.
+    # The library Slot this pick fills. One assignment can offer two slots
+    # (two skill-tree choices from one line), so ``chosen_for`` alone
+    # cannot tell them apart. PROTECT stops a Slot being deleted while a
+    # player's pick points at it.
     chosen_for_slot = models.ForeignKey(
         "library.Slot",
         on_delete=models.PROTECT,
@@ -295,15 +294,15 @@ class Assignment(NamesAnAssignable, Base, Archived):
     )
     chosen_for_holding_revision = models.PositiveIntegerField(null=True, blank=True)
 
-    # Which offer this pick settles. One line may offer two choices of a
-    # kind, both answered by the same kind of thing, so nothing about the
-    # answer says which question it was.
+    # The OffersChoice this pick fills. One assignment may carry two offers
+    # for the same kind of assignable, and the pick alone cannot show which
+    # offer it fills.
     #
-    # SET_NULL where a slot PROTECTs: a slot is edited in place, while an
-    # offer is rewritten every time its modifier is composed. Holding the
-    # old row hostage would make renaming a question fail for everyone
-    # who had answered it. Losing the link is survivable — an unnamed
-    # answer is read by what it is instead.
+    # SET_NULL, unlike ``chosen_for_slot``'s PROTECT: a Slot is edited in
+    # place, but an OffersChoice is recreated each time its modifier is
+    # composed. PROTECT would make that edit fail once any gang had picked
+    # from the offer. A pick without this link is matched to an offer by
+    # its assignable instead (``effects._fill_choice_slots``).
     chosen_for_offer = models.ForeignKey(
         "library.OffersChoice",
         on_delete=models.SET_NULL,
@@ -312,15 +311,13 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="+",
     )
 
-    # The roll this pick came from, where a table was rolled for it: the
-    # ledger event that recorded the roll. A roll is applied once — one
-    # *standing* pick per roll, checked by the operation under the gang's
-    # lock — and a pick that was taken back frees its roll, so this is a
-    # plain key rather than a one-to-one: the removed pick keeps saying
-    # which roll it came from. Null on a pick made without rolling, and
-    # on everything that is not a pick. SET_NULL because the ledger is
-    # append-only and an event is never deleted in the ordinary run of
-    # things; the pick outliving its roll is survivable.
+    # The ROLLED ledger event this pick came from, where a table was rolled
+    # for it. Null on a pick made without rolling and on anything that is
+    # not a pick. Only one unarchived pick may use a roll, checked by
+    # ``Operation._choose_for_slot`` under the gang's lock. A plain foreign
+    # key, not one-to-one, because an archived pick keeps its roll when a
+    # new pick reuses it. SET_NULL: ledger events are not deleted in normal
+    # use, and a pick stays valid without its roll.
     roll = models.ForeignKey(
         "n26.LedgerEvent",
         on_delete=models.SET_NULL,
@@ -329,15 +326,15 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="picks",
     )
 
-    # Which built-in membership this materialised, and for which carrier
-    # — the profile's membership, the gang's founding, the bought mount's
-    # own assignment. Null on everything that was not materialised from a
-    # set — purchases, rewards, picks — and on copies that carry no
-    # recorded link, which are matched by the shape they were written in
-    # instead. The pair is what says a member is already satisfied on a
-    # carrier, so nothing infers it from reasons or newest-first
-    # ordering. PROTECT holds because a member is only ever archived,
-    # never deleted, once anything has materialised from it.
+    # The built-in set member (``DefaultAssignment``) this assignment was
+    # materialised from, and the carrier it was materialised for: a
+    # model's membership, the gang's founding, or a bought mount's own
+    # assignment. Both are null on purchases, rewards and picks, and on
+    # copies stored without the link, which are matched by shape instead.
+    # The pair records that a member is already materialised on a carrier,
+    # so nothing infers it from reasons or creation order. PROTECT is safe
+    # because a member is archived, never deleted, once anything has been
+    # materialised from it.
     materialised_from = models.ForeignKey(
         "library.DefaultAssignment",
         on_delete=models.PROTECT,
@@ -403,11 +400,10 @@ class Assignment(NamesAnAssignable, Base, Archived):
                 condition=exactly_one_of(ASSIGNABLE_FIELDS),
                 name="assignment_exactly_one_assignable",
             ),
-            # A removal names what it takes away, and only the kinds an
-            # owner edits by hand may be taken away this way — hosted on
-            # the model it edits, because assembly compiles removals off
-            # a model's own rows and a gang-hosted one would broadcast
-            # as a held line instead.
+            # A removal must be hosted on a model and name a subtype or
+            # rule, the only kinds an owner removes by hand. Assembly
+            # compiles removals from a model's own assignments; a
+            # gang-hosted removal would broadcast as a held line instead.
             models.CheckConstraint(
                 condition=models.Q(removes=False)
                 | (
@@ -424,19 +420,17 @@ class Assignment(NamesAnAssignable, Base, Archived):
                 condition=models.Q(archived=False),
                 name="assignment_one_live_materialisation",
             ),
-            # A removal is machinery, never a grant: it suppresses its
-            # assignable rather than holding it, so it must never satisfy
-            # the provenance lookup that says a built-in member is already
-            # materialised for a carrier.
+            # A removal suppresses its assignable instead of granting it,
+            # so it must never satisfy the provenance lookup that says a
+            # built-in member is already materialised for a carrier.
             models.CheckConstraint(
                 condition=models.Q(removes=False)
                 | models.Q(materialised_from__isnull=True),
                 name="assignment_removal_carries_no_provenance",
             ),
-            # Provenance is a pair or nothing. A copy naming only half
-            # would slip both grant lookups and the unique constraint
-            # (NULLs never collide), so the half-written shape is refused
-            # outright.
+            # Set both provenance fields or neither. A copy with only one
+            # would be missed by both grant lookups and by the unique
+            # constraint (NULLs never collide).
             models.CheckConstraint(
                 condition=(
                     models.Q(
@@ -468,7 +462,7 @@ class Assignment(NamesAnAssignable, Base, Archived):
 
     @property
     def rating(self):
-        """What this contributes. Lives on the ledger entry — read it there."""
+        """The rating contribution on this assignment's ledger entry, or 0."""
         entry = getattr(self, "ledger_entry", None)
         return entry.rating_contribution if entry else 0
 

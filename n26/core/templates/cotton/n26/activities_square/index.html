@@ -2,16 +2,15 @@
 <c-n26.activities-square> — What a gang has open, and what is waiting.
 
 Say no action is open only when nothing is running and nothing is waiting.
-A reader with something waiting is not told there is nothing to do.
 An open founding is drawn unboxed, as the current action.
 The start control posts only while founding is not already open.
 A waiting step is a form when it has post, and a link otherwise.
 Every step and the start control share one row: help text, then a short button.
 A step that acts on the click must post. Following a link must not change the roster.
 Pass a square containing only the controls the owner may use.
-Post-battle is a next step, not an open activity or a separate component prop.
-Whoever draws this owns the gang. There is no reader-facing shape.
-History is a link. The square does not list acts.
+Post-battle arrives in square as a next step. Do not add it as an open activity or a separate prop.
+Only the gang's owner sees this. There is no read-only version.
+History is a header link. The square does not list past actions.
 {% endcomment %}
 
 <c-vars :square="None" class="" />

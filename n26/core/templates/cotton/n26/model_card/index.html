@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.model-card> — One model's card: name, rating, and the body or Card, Lore and Notes tabs.
 
-id="model-<pk>" is the fragment owner links jump to. Only a stored model has an id; a hire preview must not grow an empty anchor.
+id="model-<pk>" is the anchor that owner_href links jump to. Only a stored model has an id; a hire preview must not draw an empty anchor.
 .n26-card-tabs in app.css sits outside any layer so it can beat the kit's margin utilities. Its selectors assume the kit's strip then panels DOM.
 Pass mode into the body. Nested mode checks read that value from context, not from their own props.
 Rating includes the model and the equipment selected for this card. The all-equipment card includes all of the model's equipment; selecting a card does not change the stored gang rating.
@@ -86,7 +86,7 @@ status_hx needs the host in n26/includes/status_dialogs.html.
             <div class="contents">
                 <div class="col-start-2 row-start-1 flex min-w-0 items-baseline justify-end gap-1 whitespace-nowrap text-sm font-medium tabular-nums">
 
-                        {# Do not swap this control. The server answers with a dialog or an out-of-band update. #}
+                        {# Do not swap this control. The server responds with a dialog or an out-of-band update. #}
                         {% if card.status_label %}
                             {% if status_hx and status_href %}
                                 <c-ui.badge size="sm" href="{{ status_href }}" hx-get="{{ status_href }}" hx-swap="none" color="{{ card.status_colour }}">{{ card.status_label }}</c-ui.badge>

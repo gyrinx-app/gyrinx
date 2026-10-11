@@ -1,12 +1,12 @@
 {% comment %}
-<c-n26.print.statline> — Characteristics in the book's two-row groups.
+<c-n26.print.statline> — Characteristics in two-row groups, as the rulebook prints them.
 
 This is its own table. A data table rules every row; a statline is a centred grid ruled between groups.
 Pass :statline a Statline. groups splits on first_of_group. An empty statline draws an empty table.
 Header rows stay in tbody. A table may have only one thead, and only at the top, which cannot interleave with values.
 The first group sets the column count. A later group that is wider overflows the table.
 Type and XP share the last group's leftover columns. They render only when type_line is set; xp alone is dropped.
-A modified value is a dotted underline only. Paper has nowhere to put what changed it.
+A modified value gets a dotted underline only. Print has no tooltip to say what changed it.
 {% endcomment %}
 
 {% load arith %}

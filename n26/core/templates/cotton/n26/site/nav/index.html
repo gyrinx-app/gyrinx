@@ -8,7 +8,7 @@ The bar background is set outside the utility layer in app.css, so kit backgroun
 unread fills the badge and the trigger's accessible name together.
 heading must be a slot. A Django block inside a Cotton attribute never runs.
 Pass :unread so it arrives a number. Written without the colon, the string 0 is true and draws a badge for an empty inbox.
-aria-label replaces the trigger's inner text. A badge inside is announced to nobody.
+aria-label replaces the trigger's inner text, so a screen reader never reads the badge inside.
 account is the account-menu island's props, from {% account_menu %}. Without it there is no menu.
 user_label is the name the button shows until the island mounts; the island draws the same button.
 The drawer's root is display:contents, so the burger sits in this row. The panel teleports to the body and leaves this header's dark subtree.

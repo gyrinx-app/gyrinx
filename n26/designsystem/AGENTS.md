@@ -1,15 +1,16 @@
 # N26 design system gallery
 
-The living component gallery at `/n26/design/`. It documents the
-components; it owns none of them — they live in
-`n26/core/templates/cotton/`. Two principles carry the whole app:
+The component gallery at `/n26/design/`. It documents the components
+but defines none of them; they live in `n26/core/templates/cotton/`.
+The gallery follows two principles:
 
-1. **The file you read is the file that rendered.** A demo page renders
-   a template *and* prints its source; there is no second copy to
-   drift.
-2. **Nothing is transcribed.** A component's props are parsed at
-   runtime from its own `<c-vars>` block; its documentation panel is its
-   own leading `{% comment %}` block. The catalog never restates props.
+1. **A demo shows the source of the template it rendered.** A demo page
+   renders a template *and* prints that template's source, so there is
+   no second copy to fall out of date.
+2. **Props and documentation are read from the component.** A
+   component's props are parsed at runtime from its own `<c-vars>`
+   block; its documentation panel is its own leading `{% comment %}`
+   block. The catalog never restates props.
 
 Read `demos.py` (a hundred lines) first, then `introspect.py`.
 
@@ -83,7 +84,7 @@ beyond its summary, source documentation and prop table has no notes.
   soft fallbacks, not errors. After any change, load the component's
   gallery page and check the props table and demos actually appear.
 - A demo that raises takes the whole component page down with it.
-- Print styling is its own world: read the header comment in
+- Print styling has its own rules: read the header comment in
   `assets/print.css` before touching anything print-shaped, and use
   `printlab` (every control is a query parameter) to test it.
   None of `sampledata`, `printlab`, or the token pages duplicate values

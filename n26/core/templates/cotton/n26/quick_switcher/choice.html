@@ -5,7 +5,7 @@ Must sit inside quick-switcher. Click dispatches quick-switcher-choose with valu
 available and current_value are Alpine expressions interpolated into JS. Pass them as strings, not Python flags.
 value defaults to label. The parent that listens must treat that as the identity.
 available hides the row. Arrow keys still walk it, so a caller must handle a choice it cannot honour.
-A button, not a link with a dead href. A link that goes nowhere is offered as a place and is read as a lie.
+A button, not a link with a dead href. Screen readers announce a link as a destination, and this goes nowhere.
 Each row draws its own bottom rule. Filtering hides rows without removing them, and divide-y would leave a rule above a gap.
 {% endcomment %}
 

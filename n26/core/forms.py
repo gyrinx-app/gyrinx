@@ -427,14 +427,14 @@ class _SummaryImages(HTMLParser):
 
 
 class CampaignForm(forms.Form):
-    """Setting a campaign up, and editing one afterwards.
+    """Form for setting up a campaign and for editing one afterwards.
 
-    ``budget`` is what a gang should be worth to join — its rating, its
-    stash and the credits it has not spent. It refuses nobody: a bigger gang
-    joins and wears an Over budget badge. The field's ``initial`` is 1000,
-    the usual figure, so set-up opens there. Edit supplies the stored value,
-    so a campaign that sets none stays blank. Blank is not zero — it means
-    no budget at all — and lands as ``budget=None``.
+    ``budget`` is what a gang should be worth to join: its rating, its
+    stash and its unspent credits. It does not block anyone; a gang worth
+    more can still join and shows an Over budget badge. ``initial`` is
+    1000, so set-up starts there. Edit supplies the stored value, so a
+    campaign with no budget stays blank. Blank means no budget, not zero,
+    and is saved as ``budget=None``.
     """
 
     name = forms.CharField(

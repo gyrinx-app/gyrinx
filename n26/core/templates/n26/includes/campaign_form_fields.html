@@ -1,18 +1,16 @@
 {% comment %}
-The answers a campaign is made of, shared by the set-up and edit screens so
-the two cannot drift into asking different questions.
+Campaign fields shared by the set-up and edit pages, so both ask for the same
+things.
 
-The budget is the one worth reading twice. It is what a gang should be worth
-to join — its rating, its stash and the credits it has not spent — and it
-refuses nobody: a bigger gang joins and wears an Over budget badge on the
-campaign page before the campaign starts.
+The budget is what a gang should be worth to join: its rating, its stash and
+its unspent credits. It does not block anyone. A gang worth more can still
+join, and shows an Over budget badge on the campaign page before the campaign
+starts.
 
-Blank is not zero and is not the usual 1000 — it means the campaign has no
-budget at all, and the placeholder says so, because a reader who leaves it
-empty expecting a default gets a campaign that says nothing about size. The
-1000 default lives on the unbound form, so it is only for set-up; edit
-supplies the stored value, including blank. The box uses default_if_none so
-a stored 0 still draws as 0.
+A blank budget means the campaign has no budget. It is not 0 and not the 1000
+default, and the placeholder says so. The 1000 default is set on the unbound
+form, so only set-up uses it; edit shows the stored value, including blank.
+The input uses default_if_none so a stored 0 still shows as 0.
 {% endcomment %}
 <c-n26.form-section title="General">
     <c-ui.field label="Campaign name *"

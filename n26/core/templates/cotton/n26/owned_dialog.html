@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.owned-dialog> — Confirms an act on held kit from the dialog dict the owned view builds.
+<c-n26.owned-dialog> — Confirms an action on held gear, from the dialog dict the owned view builds.
 
 Pass dialog from owned_dialog(). Kinds this template does not name use the delete copy.
 
@@ -146,7 +146,7 @@ A page that draws one panel per weapon must pass a distinct id. The accessory fi
         {% elif dialog.models %}
 
             <c-ui.field label="To" for="reassign-to">
-                {# No placeholder option: Move must already have an answer. #}
+                {# No placeholder option, so Move always submits a model. #}
                 <c-ui.select.native name="miniature" id="reassign-to" placeholder="">
                     {% for model in dialog.models %}
                         <c-ui.select.option value="{{ model.pk }}">{{ model.name }}</c-ui.select.option>

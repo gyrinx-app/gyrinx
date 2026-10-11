@@ -2,7 +2,7 @@
 <c-n26.choice-dismiss> — Posts Restore or Dismiss for one ChoiceLine, when that line carries the matching URL.
 
 choice must be a ChoiceLine. restore_href wins over dismiss_href. Empty URLs draw nothing.
-Both acts POST back so the next render is the screen that asked, not the act's own address.
+Both buttons POST a back field, so the response returns to the page that drew them.
 A line that already holds a pick has neither URL, so this draws nothing.
 {% endcomment %}
 

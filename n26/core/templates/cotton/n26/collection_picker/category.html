@@ -25,7 +25,7 @@ Ask for the count by section and name. The same category name can be filed under
 
         <span class="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wide text-muted">{{ name }}</span>
 
-        {# aria-hidden: the list already conveys the number. Announcing it before the items reads as a correction. #}
+        {# aria-hidden keeps the count out of the button's accessible name, which stays the category name. #}
         <span class="shrink-0 text-xs tabular-nums text-muted" aria-hidden="true"
               x-text="countIn(sectionName, categoryName)"></span>
     </button>

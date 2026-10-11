@@ -9,11 +9,11 @@ Lead is a named slot so an option name can carry an ampersand.
 
 fields become hidden inputs the hire view needs. Drop them and the POST has no option.
 
-The price box posts paid. It shows how far the typed figure sits from the quote. Without a script the box still posts the quote and the difference is unsaid.
+The price box posts paid. It shows how far the typed figure is from the quote. Without script the box still posts the quote, but no difference is shown.
 
 Put the csrf token in the default slot.
 Use a plain checkbox, not the kit's. The kit checkbox needs Alpine group scope, and this panel must work with scripting off.
-Pass rate_at_paid from the posted form. A redraw must keep an untick after a name the field refused.
+Pass rate_at_paid from the posted form. If the name is rejected and the form redraws, an unticked box must stay unticked.
 {% endcomment %}
 
 {% load arith hire_price react %}

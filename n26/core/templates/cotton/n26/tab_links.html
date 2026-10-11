@@ -7,9 +7,9 @@ Linked pages must be side-effect-free GETs. The browser may fetch them before an
 busy is a CSS selector for the element whose children hide while a spinner is shown.
 If the selector matches nothing, the click looks like it did nothing.
 Pass :htmx only on a page that hosts every id the response will swap out of band.
-This is a nav, not a tablist. A reader told tab expects arrow keys and a panel swapping underneath.
+This is a nav, not a tablist. A screen reader that announces tabs leads users to expect arrow keys and an in-page panel.
 Do not put a count on a tab. Only the chosen tab's contents have been built.
-htmx cancels an anchor's own navigation whatever key is held, so modified clicks are named on the trigger.
+htmx cancels the anchor's navigation even with a modifier key held, so hx-trigger excludes modified clicks.
 The spinner lives in a template. It is cloned only while waiting, and removed whole on restore.
 narrow_tabs is how many tabs a narrow strip draws whole. With more, it draws the current tab and puts the rest behind "+N more".
 When narrow_tabs is above two, the narrow tabs pad less, so three short labels fit a 320px phone. Longer labels wrap to a second row.

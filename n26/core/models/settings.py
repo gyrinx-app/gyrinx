@@ -48,9 +48,9 @@ class ProfileRole(Base):
 class ChosenProfileOption(Base):
     """One option a hire took, recorded on the membership.
 
-    Derivable from which default assignments exist, but stored: display
-    wants the chosen name without reverse-engineering it, and a later
-    edit needs to know what it is changing from. One row per set taken.
+    Derivable from which default assignments exist, but stored so display
+    can show the option's name directly and a later edit can read the
+    previous option. One row per set taken.
     """
 
     assignment = models.ForeignKey(
