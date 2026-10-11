@@ -56,7 +56,8 @@
                 {% comment %}
                 The gallery-nav island draws the filter and the links. This
                 markup, from the same props, shows until it mounts and without a
-                script, when the filter does nothing.
+                script, when the filter does nothing. GalleryNav.tsx repeats its
+                classes; change both.
                 {% endcomment %}
                 {% gallery_nav as gallery_nav_ %}
                 {% react_host "gallery-nav" gallery_nav_ class="flex min-h-0 flex-1 flex-col" %}
@@ -74,6 +75,7 @@
                             {% for page in gallery_nav_.pages %}
                                 <li>
                                     <a href="{{ page.href }}"
+                                       {% if page.current %}aria-current="page"{% endif %}
                                        class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if page.current %}nav-current{% endif %}">{{ page.label }}</a>
                                 </li>
                             {% endfor %}

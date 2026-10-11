@@ -26,7 +26,10 @@ export type GalleryNavProps = {
 
 const link = "rounded-control px-3 py-1.5 hover:bg-ink-500/10";
 
-/** The design gallery's sidebar: a filter over its component links. */
+/**
+ * The design gallery's sidebar: a filter over its component links.
+ * designsystem/base.html draws the same classes as the fallback; change both.
+ */
 export function GalleryNav(props: GalleryNavProps) {
     const [query, setQuery] = useState(props.query ?? "");
     const filterRef = useRef<HTMLInputElement>(null);
@@ -79,6 +82,9 @@ export function GalleryNav(props: GalleryNavProps) {
                             <li key={page.href}>
                                 <a
                                     href={page.href}
+                                    aria-current={
+                                        page.current ? "page" : undefined
+                                    }
                                     className={`block font-medium ${link} ${page.current ? "nav-current" : ""}`}
                                 >
                                     {page.label}

@@ -17,7 +17,7 @@ const component = (slug: string, group: string, extra = {}) => ({
 const props: GalleryNavProps = {
     pages: [
         { label: "Overview", href: "/n26/design/", current: false },
-        { label: "Tokens", href: "/n26/design/tokens/", current: false },
+        { label: "Tokens", href: "/n26/design/tokens/", current: true },
     ],
     shell: { label: "App shell", href: "/n26/design/shell/" },
     groups: [
@@ -56,6 +56,16 @@ describe("gallery nav", () => {
             screen.getByRole("link", { name: "Overview" }).getAttribute("href"),
         ).toBe("/n26/design/");
         expect(screen.getByRole("link", { name: "App shell" })).toBeTruthy();
+        expect(
+            screen
+                .getByRole("link", { name: "Tokens" })
+                .getAttribute("aria-current"),
+        ).toBe("page");
+        expect(
+            screen
+                .getByRole("link", { name: "Overview" })
+                .hasAttribute("aria-current"),
+        ).toBe(false);
         const button = screen.getByRole("link", { name: /^button/ });
         expect(button.getAttribute("aria-current")).toBe("page");
         expect(button.className).toContain("nav-current");
@@ -93,6 +103,17 @@ describe("gallery nav", () => {
         expect(
             screen.getAllByRole("link", { name: /button|dropdown|input/ }),
         ).toHaveLength(3);
+    });
+
+    it("hides the pages but keeps every component for a query of spaces", async () => {
+        const user = userEvent.setup();
+        render(<GalleryNav {...props} />);
+        await user.type(filter(), "   ");
+        expect(screen.queryByRole("link", { name: "Overview" })).toBeNull();
+        expect(
+            screen.getAllByRole("link", { name: /button|dropdown|input/ }),
+        ).toHaveLength(3);
+        expect(screen.queryByText(/Nothing matches/)).toBeNull();
     });
 
     it("says what was typed when nothing matches", async () => {

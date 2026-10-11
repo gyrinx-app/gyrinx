@@ -139,6 +139,10 @@ class TestTheSidebar:
     def test_the_page_or_component_being_read_is_current(self, reader):
         host, props = self._nav(reader, "/n26/design/tokens/")
         assert [p["label"] for p in props["pages"] if p["current"]] == ["Tokens"]
+        assert not any(g["current"] for g in props["groups"])
+        assert not any(c["current"] for g in props["groups"] for c in g["components"])
+        (marked,) = host.select("[aria-current='page']")
+        assert marked["href"] == "/n26/design/tokens/"
 
         host, props = self._nav(reader, "/n26/design/c/button/")
         assert not any(p["current"] for p in props["pages"])
