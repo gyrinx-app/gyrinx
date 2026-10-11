@@ -757,7 +757,8 @@ class TestTheNavigation:
         assert 'aria-label="Theme"' in menu
         # Each state still sets it: a control that renders and no longer
         # switches looks right in every screenshot and works for nobody. The
-        # island's own tests click each one; here every scheme reaches it.
+        # island's own tests click each one and check the group; here every
+        # scheme reaches it.
         soup = BeautifulSoup(menu, "html.parser")
         host = soup.select_one('[data-react-name="theme-choice"]')
         props = json.loads(soup.find(id=host["data-react-props"]).string)

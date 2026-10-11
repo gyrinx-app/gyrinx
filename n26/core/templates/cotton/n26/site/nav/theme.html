@@ -2,18 +2,18 @@
 <c-n26.site.nav.theme> — Light, dark and system theme choices, drawn by the theme-choice island.
 
 storage_key must match <c-ui.mode-toggle.head> on the page, or the first paint disagrees with the stored choice.
-It sits inside the account dropdown's Theme group; the dropdown's arrow keys reach its buttons.
+It sits inside the account dropdown's Theme group. Tab reaches its buttons; the dropdown's arrow keys do not.
 The buttons below show until the island mounts. ThemeChoice.tsx repeats their classes; change both.
 Keep a flex row, not a three-column grid. A grid column can be narrower than System and wrap it.
 {% endcomment %}
 
 {% load react theme_choice %}
-<c-vars storage_key="theme" />
-{% theme_choice_props storage_key as props_ %}
+<c-vars storage_key="theme" class="" />
+{% theme_choice_props storage_key class as props_ %}
 {% react_host "theme-choice" props_ %}
     <div role="group"
          aria-label="Theme"
-         class="mx-3 my-1 flex gap-1 rounded-control bg-ink-100 p-1 dark:bg-ink-800">
+         class="mx-3 my-1 flex gap-1 rounded-control bg-ink-100 p-1 dark:bg-ink-800 {{ class }}">
         {% for scheme, label, icon in props_.choices %}
             <button type="button"
                     role="menuitemradio"

@@ -9,6 +9,8 @@ export type ThemeChoiceProps = {
     defaultMode: Mode;
     /** Each scheme with its words and drawing, in the order shown. */
     choices: [Mode, string, "sun" | "moon" | "monitor"][];
+    /** A caller's classes for the group. */
+    className?: string;
 };
 
 const QUERY = "(prefers-color-scheme: dark)";
@@ -31,23 +33,21 @@ function darkFor(mode: Mode) {
     );
 }
 
-// theme.html draws the same classes as the fallback; change both.
 /**
  * Light, dark or the device's choice. The `dark` class on the root element
- * is the shared truth: another control, the head script or another tab may
- * change it, and this follows.
+ * is the shared truth: another control or the head script may change it, and
+ * this follows; another tab's choice arrives through storage. theme.html's
+ * fallback buttons repeat these classes; change both.
  */
 export function ThemeChoice({
     storageKey,
     defaultMode,
     choices,
+    className = "",
 }: ThemeChoiceProps) {
+    // The head script painted from the same two, so this matches the page.
     const [mode, setMode] = useState<Mode>(
-        () =>
-            stored(storageKey) ??
-            (document.documentElement.classList.contains("dark")
-                ? "dark"
-                : defaultMode),
+        () => stored(storageKey) ?? defaultMode,
     );
     const [deviceDark, setDeviceDark] = useState(
         () => window.matchMedia(QUERY).matches,
@@ -63,8 +63,16 @@ export function ThemeChoice({
         media.addEventListener("change", followDevice);
         const observer = new MutationObserver(() => {
             const dark = document.documentElement.classList.contains("dark");
+            // A control sharing the key stored its choice first; that keeps System.
+            const saved = stored(storageKey);
             setMode((current) =>
-                dark === darkFor(current) ? current : dark ? "dark" : "light",
+                saved && darkFor(saved) === dark
+                    ? saved
+                    : dark === darkFor(current)
+                      ? current
+                      : dark
+                        ? "dark"
+                        : "light",
             );
         });
         observer.observe(document.documentElement, {
@@ -96,7 +104,7 @@ export function ThemeChoice({
         <div
             role="group"
             aria-label="Theme"
-            className="mx-3 my-1 flex gap-1 rounded-control bg-ink-100 p-1 dark:bg-ink-800"
+            className={`mx-3 my-1 flex gap-1 rounded-control bg-ink-100 p-1 dark:bg-ink-800 ${className}`}
         >
             {choices.map(([scheme, label, icon]) => {
                 const checked = mode === scheme;
@@ -108,7 +116,7 @@ export function ThemeChoice({
                         aria-checked={checked}
                         aria-label={
                             scheme === "system"
-                                ? `System — your device asks for ${deviceDark ? "dark" : "light"}`
+                                ? `System — this device is set to ${deviceDark ? "dark" : "light"}`
                                 : undefined
                         }
                         onClick={() => choose(scheme)}

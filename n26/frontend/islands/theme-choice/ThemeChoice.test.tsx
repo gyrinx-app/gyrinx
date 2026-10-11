@@ -53,9 +53,40 @@ describe("theme choice", () => {
         expect(dark()).toBe(true);
     });
 
-    it("adopts what the head script painted when nothing is stored", () => {
+    it("starts in System when nothing is stored, as the head script did", () => {
+        deviceDark = true;
         document.documentElement.classList.add("dark");
         render(<ThemeChoice {...props} />);
+        expect(choice(/^System/).getAttribute("aria-checked")).toBe("true");
+        device(false);
+        expect(dark()).toBe(false);
+    });
+
+    it("keeps System when another control on the page stores it", async () => {
+        localStorage.setItem("theme", "light");
+        render(<ThemeChoice {...props} />);
+        deviceDark = true;
+        localStorage.setItem("theme", "system");
+        await act(async () => {
+            document.documentElement.classList.add("dark");
+        });
+        expect(choice(/^System/).getAttribute("aria-checked")).toBe("true");
+    });
+
+    it("puts a caller's classes on the group", () => {
+        render(<ThemeChoice {...props} className="mt-2" />);
+        expect(
+            screen.getByRole("group", { name: "Theme" }).className,
+        ).toContain("mt-2");
+    });
+
+    it("stores and paints Dark, in a group named Theme", async () => {
+        const user = userEvent.setup();
+        render(<ThemeChoice {...props} />);
+        expect(screen.getByRole("group", { name: "Theme" })).toBeTruthy();
+        await user.click(choice(/^Dark$/));
+        expect(localStorage.getItem("theme")).toBe("dark");
+        expect(dark()).toBe(true);
         expect(choice(/^Dark$/).getAttribute("aria-checked")).toBe("true");
     });
 
@@ -75,12 +106,12 @@ describe("theme choice", () => {
         render(<ThemeChoice {...props} />);
         await user.click(choice(/^System/));
         expect(choice(/^System/).getAttribute("aria-label")).toBe(
-            "System — your device asks for light",
+            "System — this device is set to light",
         );
         device(true);
         expect(dark()).toBe(true);
         expect(choice(/^System/).getAttribute("aria-label")).toBe(
-            "System — your device asks for dark",
+            "System — this device is set to dark",
         );
     });
 
