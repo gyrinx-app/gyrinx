@@ -423,7 +423,8 @@ class TestAcquisitionDefaults:
     ):
         asset = add_asset(campaign, content["asset"])
         before = counts()
-        with pytest.raises(RuntimeError, match="cancel acquisition"):
+
+        def abort_acquisition():
             with campaign_operation(campaign, actor=campaign.owner) as act:
                 act.assign(
                     asset,
@@ -432,6 +433,9 @@ class TestAcquisitionDefaults:
                     ),
                 )
                 raise RuntimeError("cancel acquisition")
+
+        caught = pytest.raises(RuntimeError, abort_acquisition)
+        assert str(caught.value) == "cancel acquisition"
         asset.refresh_from_db()
         assert asset.holder_id is None and asset.ownership_revision == 0
         assert counts() == before
