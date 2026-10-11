@@ -552,11 +552,23 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
                 }
                 for name in ("count", "rolled")
             }
-            question["pool_fields"]["ranges"] = [
-                f"{table.name + ': ' if not question['only'] else ''}"
-                f"A {table.die} roll is {table.lowest} to {table.highest}."
+            question["pool_fields"]["previewUrl"] = reverse(
+                "n26-campaign-preview-pool-roll", args=[campaign.pk]
+            )
+            question["pool_fields"]["assetType"] = question["asset_type_id"]
+            question["pool_fields"]["table"] = chosen
+            question["pool_fields"]["tableErrors"] = list(form["table"].errors)
+            question["pool_fields"]["tables"] = [
+                {
+                    "value": table.table_id,
+                    "label": table.name,
+                    "die": table.die,
+                    "lowest": table.lowest,
+                    "highest": table.highest,
+                }
                 for table in tables
             ]
+
     return {
         "campaign": campaign,
         "rolling": rolling,

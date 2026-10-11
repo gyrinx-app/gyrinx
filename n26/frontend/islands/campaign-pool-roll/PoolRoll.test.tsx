@@ -6,7 +6,7 @@ import {
     waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PoolRoll, type PoolRollProps } from "./PoolRoll";
 import { mount } from "./entry";
 
@@ -24,7 +24,19 @@ const props: PoolRollProps = {
         value: "",
         errors: [],
     },
-    ranges: ["A D66 roll is 11 to 66."],
+    table: "territories",
+    tableErrors: [],
+    previewUrl: "",
+    assetType: "territory",
+    tables: [
+        {
+            value: "territories",
+            label: "Territories",
+            die: "D66",
+            lowest: 11,
+            highest: 66,
+        },
+    ],
 };
 
 function inputs() {
@@ -89,10 +101,10 @@ describe("campaign pool roll", () => {
         expect(screen.getByText("You cannot roll 7 on a D66.")).toBeTruthy();
         expect(rolled.getAttribute("aria-invalid")).toBe("true");
         expect(
-            screen.getByText(props.ranges[0]).parentElement?.id,
+            screen.getByText("A D66 roll is 11 to 66.").parentElement?.id,
         ).toBeTruthy();
         expect(rolled.getAttribute("aria-describedby")).toContain(
-            screen.getByText(props.ranges[0]).parentElement?.id,
+            screen.getByText("A D66 roll is 11 to 66.").parentElement?.id,
         );
     });
 
@@ -132,5 +144,92 @@ describe("campaign pool roll", () => {
             dispose!();
         });
         host.remove();
+    });
+});
+
+function previewFetch() {
+    const fetcher = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ status: "valid", message: "Corpse Farm" }),
+    });
+    vi.stubGlobal("fetch", fetcher);
+    return fetcher;
+}
+afterEach(() => vi.unstubAllGlobals());
+
+describe("manual territory preview", () => {
+    it("looks up a manual roll without submitting the form and clears the preview", async () => {
+        const fetcher = previewFetch();
+        render(<PoolRoll {...props} previewUrl="/preview/" />);
+        fireEvent.change(inputs().rolled, { target: { value: "34" } });
+        expect(await screen.findByText("Preview: Corpse Farm.")).toBeTruthy();
+        const url = fetcher.mock.calls[0][0] as URL;
+        expect(url.searchParams.get("table")).toBe("territories");
+        expect(url.searchParams.get("rolled")).toBe("34");
+        fireEvent.change(inputs().rolled, { target: { value: "" } });
+        expect(screen.queryByText("Preview: Corpse Farm.")).toBeNull();
+    });
+
+    it("rechecks a changed table and ignores an older response", async () => {
+        let resolveOld: (value: unknown) => void = () => {};
+        const fetcher = previewFetch();
+        fetcher.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    resolveOld = resolve;
+                }),
+        );
+        render(
+            <PoolRoll
+                {...props}
+                previewUrl="/preview/"
+                tables={[
+                    ...props.tables,
+                    {
+                        value: "other",
+                        label: "Other table",
+                        die: "D6",
+                        lowest: 1,
+                        highest: 6,
+                    },
+                ]}
+            />,
+        );
+        fireEvent.change(inputs().rolled, { target: { value: "3" } });
+        await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+        fireEvent.click(screen.getByRole("radio", { name: /Other table/ }));
+        expect(await screen.findByText("Preview: Corpse Farm.")).toBeTruthy();
+        await act(async () =>
+            resolveOld({
+                ok: true,
+                json: async () => ({ status: "valid", message: "Old result" }),
+            }),
+        );
+        expect(screen.queryByText(/Old result/)).toBeNull();
+        const url = fetcher.mock.calls[1][0] as URL;
+        expect(url.searchParams.get("table")).toBe("other");
+    });
+
+    it("shows invalid results and recovers when the preview request fails", async () => {
+        const fetcher = previewFetch();
+        fetcher.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                status: "invalid",
+                message: "You cannot roll 17 on a D66.",
+            }),
+        });
+        render(<PoolRoll {...props} previewUrl="/preview/" />);
+        fireEvent.change(inputs().rolled, { target: { value: "17" } });
+        expect(
+            await screen.findByText("You cannot roll 17 on a D66."),
+        ).toBeTruthy();
+        fetcher.mockRejectedValueOnce(new Error("offline"));
+        fireEvent.change(inputs().rolled, { target: { value: "18" } });
+        expect(
+            await screen.findByText(
+                "Preview unavailable. You can still submit your roll.",
+            ),
+        ).toBeTruthy();
     });
 });

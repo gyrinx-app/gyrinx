@@ -1972,15 +1972,7 @@ class CampaignSheet:
                         continue
                     names = line.assets[i]
                     if i == territory:
-                        names = [
-                            *(
-                                name
-                                if name.casefold() == "settlement"
-                                else f"{name} (settlement)"
-                                for name in line.assets[settlement]
-                            ),
-                            *names,
-                        ]
+                        names = [*line.assets[settlement], *names]
                     groups.append(GangDetail(label=kind.plural, text=", ".join(names)))
                 line.grouped_assets = groups
 

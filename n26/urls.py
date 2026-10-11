@@ -180,6 +180,11 @@ urlpatterns = [
     # starting asset. Both dialogs are drawn on the campaign's page; these
     # are the acts behind them.
     path(
+        "campaigns/<str:pk>/assets/roll/preview/",
+        views.preview_pool_roll,
+        name="n26-campaign-preview-pool-roll",
+    ),
+    path(
         "campaigns/<str:pk>/assets/roll/",
         views.roll_asset,
         name="n26-campaign-roll-asset",

@@ -16,7 +16,7 @@ from n26.core.campaigns import campaign_operation
 from n26.core.models import CounterValue, LedgerEvent
 from n26.core.operations import operation
 from n26.core.render import render_campaign, render_gang
-from n26.flags import CAMPAIGNS
+from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
 from n26.library.authoring import (
     create_asset,
     ef_contributes_to_counter,
@@ -28,6 +28,7 @@ from n26.library.models import CampaignType, Counter, Modifier
 from n26.tests.sandbox.actions import (
     add_asset,
     assign_asset,
+    create_campaign_asset,
     found_campaign,
     found_gang,
     join_campaign,
@@ -177,6 +178,37 @@ def test_settlement_is_first_in_one_territories_detail_without_changing_types(
     settlement = gang.assignments.get(asset__name="Settlement")
     assert not settlement.asset.asset_type.is_holding
     assert not campaign.campaign_assets.filter(asset=settlement.asset).exists()
+
+
+def test_named_settlements_share_the_territories_detail_without_an_added_suffix(
+    client, dashboard, task_queue
+):
+    campaign, gang, _, _, _ = dashboard
+    FeatureFlag.objects.create(
+        slug=BUILT_IN_PROPAGATION,
+        name="Built-in propagation",
+        availability=Availability.EVERYONE,
+    )
+    settlement_type = campaign.campaign_type.asset_types.get(
+        label_singular="Settlement"
+    )
+    with task_queue.capture():
+        create_campaign_asset(campaign, settlement_type, "Home")
+    task_queue.deliver_all()
+    line = render_campaign(campaign).gangs[0]
+    assets = [
+        detail
+        for detail in line.details
+        if detail.label in {"Settlements", "Territories"}
+    ]
+    assert [(detail.label, detail.text) for detail in assets] == [
+        ("Territories", "Settlement, Home, Old Ruins")
+    ]
+    assert gang.assignments.filter(asset__name="Home", archived=False).exists()
+    assert gang.assignments.filter(asset__name="Settlement", archived=False).exists()
+    body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
+    assert "Settlement, Home, Old Ruins" in body
+    assert "Home (settlement)" not in body
 
 
 @pytest.mark.parametrize("override", [0, 7])

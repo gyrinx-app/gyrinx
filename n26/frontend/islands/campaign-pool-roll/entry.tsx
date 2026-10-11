@@ -9,8 +9,12 @@ export function mount(element: HTMLElement, props: PoolRollProps) {
     const rolled = element.querySelector<HTMLInputElement>(
         'input[name="rolled"]',
     );
+    const table = element.querySelector<HTMLInputElement>(
+        'input[name="table"]:checked, input[type="hidden"][name="table"]',
+    );
     return mountRoot(element, PoolRoll, {
         ...props,
+        table: table?.value ?? props.table,
         count: { ...props.count, value: count?.value ?? props.count.value },
         rolled: { ...props.rolled, value: rolled?.value ?? props.rolled.value },
         focusedField:

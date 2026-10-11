@@ -55,6 +55,7 @@
                 <p class="mt-2 text-sm text-muted">Modifier: {{ roll.modifier }} · {{ roll.get_modifier_application_display }}</p>
             {% endif %}
             {% if roll.gang %}<p class="mt-2 text-sm text-muted">Gang: {{ roll.gang.name }}</p>{% endif %}
+            {% if roll.miniature %}<p class="mt-2 text-sm text-muted">Model: {{ roll.miniature.name }}</p>{% endif %}
             {% if roll.battle %}<p class="mt-2 text-sm text-muted">Battle: <c-n26.link href="{% url 'n26-battle' campaign.pk roll.battle.pk %}">{{ roll.battle.title }}</c-n26.link></p>{% endif %}
         </c-ui.card>
         {% if may_note %}

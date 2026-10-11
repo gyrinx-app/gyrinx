@@ -24,23 +24,23 @@ The surrounding dialog owns modal and htmx behaviour.
            name="request_key"
            value="{{ form.request_key.value|default:'' }}">
     <input type="hidden" name="type" value="{{ question.asset_type_id }}">
-    {% if question.only %}
-        <input type="hidden" name="table" value="{{ question.only.table_id }}">
-        {% include "n26/includes/campaign_roll_table.html" %}
-        <c-ui.error :form="form" name="table" />
-    {% else %}
-        <c-n26.radio-cards label="Table" name="table" :form="form" min="12rem">
-            {% for table, checked in question.choices %}
-                <c-n26.radio-cards.card name="table"
-                                        value="{{ table.table_id }}"
-                                        label="{{ table.name }}"
-                                        description="{{ table.die }}"
-                                        :checked="checked"
-                                        :wrap="True" />
-            {% endfor %}
-        </c-n26.radio-cards>
-    {% endif %}
     {% react_host "campaign-pool-roll" question.pool_fields class="space-y-5" %}
+        {% if question.only %}
+            <input type="hidden" name="table" value="{{ question.only.table_id }}">
+            {% include "n26/includes/campaign_roll_table.html" %}
+            <c-ui.error :form="form" name="table" />
+        {% else %}
+            <c-n26.radio-cards label="Table" name="table" :form="form" min="12rem">
+                {% for table, checked in question.choices %}
+                    <c-n26.radio-cards.card name="table"
+                                            value="{{ table.table_id }}"
+                                            label="{{ table.name }}"
+                                            description="{{ table.die }}"
+                                            :checked="checked"
+                                            :wrap="True" />
+                {% endfor %}
+            </c-n26.radio-cards>
+        {% endif %}
         <c-ui.field error="x"
                     label="{{ form.count.label }}"
                     :form="form"

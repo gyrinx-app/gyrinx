@@ -1,5 +1,5 @@
-import { useId, useLayoutEffect, useRef, useState } from "react";
-import { Field, Input } from "../../ui";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Field, Input, RadioCard, RadioCards } from "../../ui";
 
 type RollField = {
     label: string;
@@ -11,7 +11,17 @@ type RollField = {
 export type PoolRollProps = {
     count: RollField;
     rolled: RollField;
-    ranges: string[];
+    table: string;
+    tableErrors: string[];
+    tables: {
+        value: string;
+        label: string;
+        die: string;
+        lowest: number;
+        highest: number;
+    }[];
+    previewUrl: string;
+    assetType: string;
     focusedField?: string;
 };
 
@@ -22,7 +32,47 @@ export function PoolRoll(props: PoolRollProps) {
     const [rolled, setRolled] = useState(props.rolled.value);
     const countRef = useRef<HTMLInputElement>(null);
     const rollRef = useRef<HTMLInputElement>(null);
+    const [table, setTable] = useState(props.table);
+    const [preview, setPreview] = useState<{
+        key: string;
+        status: string;
+        message: string;
+    } | null>(null);
     const manual = rolled !== "";
+    const previewKey = `${table}:${rolled}`;
+    const selectedTable = props.tables.find((option) => option.value === table);
+    useEffect(() => {
+        if (!rolled || !table || !props.previewUrl) return;
+        const controller = new AbortController();
+        const key = `${table}:${rolled}`;
+        const timer = window.setTimeout(async () => {
+            try {
+                const url = new URL(props.previewUrl, window.location.origin);
+                url.searchParams.set("type", props.assetType);
+                url.searchParams.set("table", table);
+                url.searchParams.set("rolled", rolled);
+                const response = await fetch(url, {
+                    signal: controller.signal,
+                    headers: { Accept: "application/json" },
+                });
+                if (!response.ok) throw new Error("Preview unavailable");
+                const result = await response.json();
+                if (!controller.signal.aborted) setPreview({ key, ...result });
+            } catch {
+                if (!controller.signal.aborted)
+                    setPreview({
+                        key,
+                        status: "unavailable",
+                        message:
+                            "Preview unavailable. You can still submit your roll.",
+                    });
+            }
+        }, 200);
+        return () => {
+            window.clearTimeout(timer);
+            controller.abort();
+        };
+    }, [rolled, table, props.previewUrl, props.assetType]);
     const rangesId = useId();
 
     useLayoutEffect(() => {
@@ -32,6 +82,46 @@ export function PoolRoll(props: PoolRollProps) {
 
     return (
         <>
+            {props.tables.length === 1 ? (
+                <>
+                    <input
+                        id="pool-table"
+                        type="hidden"
+                        name="table"
+                        value={table}
+                    />
+                    <Field
+                        label="Table"
+                        htmlFor="pool-table"
+                        errors={props.tableErrors}
+                    >
+                        <p className="text-base">
+                            {selectedTable?.label}{" "}
+                            <span className="text-muted">
+                                · {selectedTable?.die}
+                            </span>
+                        </p>
+                    </Field>
+                </>
+            ) : (
+                <RadioCards
+                    legend="Table"
+                    errors={props.tableErrors}
+                    min="12rem"
+                >
+                    {props.tables.map((option) => (
+                        <RadioCard
+                            key={option.value}
+                            name="table"
+                            value={option.value}
+                            label={option.label}
+                            description={option.die}
+                            checked={table === option.value}
+                            onChange={() => setTable(option.value)}
+                        />
+                    ))}
+                </RadioCards>
+            )}
             <Field
                 label={props.count.label}
                 htmlFor="pool-count"
@@ -79,9 +169,25 @@ export function PoolRoll(props: PoolRollProps) {
                 />
             </Field>
             <div id={rangesId} className="text-sm text-muted">
-                {props.ranges.map((range, index) => (
-                    <p key={index}>{range}</p>
-                ))}
+                {selectedTable && (
+                    <p>
+                        A {selectedTable.die} roll is {selectedTable.lowest} to{" "}
+                        {selectedTable.highest}.
+                    </p>
+                )}
+            </div>
+            <div role="status" aria-live="polite" className="text-sm">
+                {manual &&
+                    props.previewUrl &&
+                    (preview?.key === previewKey ? (
+                        <p>
+                            {preview.status === "valid"
+                                ? `Preview: ${preview.message}.`
+                                : preview.message}
+                        </p>
+                    ) : (
+                        <p className="text-muted">Checking this roll…</p>
+                    ))}
             </div>
         </>
     );

@@ -1375,7 +1375,13 @@ def _campaign_own_acts(campaign, viewer, limit=None):
     # would widen every row for the page's worth drawn. What a page still
     # lacks, ``load_actor_badges`` reads once it is cut.
     events = campaign.events.select_related(
-        "actor", "battle", "about_user", "roll", "roll__gang", "roll__battle"
+        "actor",
+        "battle",
+        "about_user",
+        "roll",
+        "roll__gang",
+        "roll__miniature",
+        "roll__battle",
     )
     if limit is not None:
         events = events.select_related("actor__profile")
@@ -1610,6 +1616,8 @@ def _tell_campaign(e):
                     href,
                 )
             ]
+            if roll.miniature_id:
+                spans.append(Span(f" · model: {roll.miniature.name}"))
             if roll.battle_id:
                 spans.append(
                     Span(

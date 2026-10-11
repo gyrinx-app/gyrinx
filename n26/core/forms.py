@@ -1194,6 +1194,9 @@ class CampaignRollForm(forms.Form):
     gang = forms.ModelChoiceField(
         queryset=None, required=False, empty_label="No related gang"
     )
+    miniature = forms.ModelChoiceField(
+        label="Model", queryset=None, required=False, empty_label="No related model"
+    )
     battle = forms.ModelChoiceField(
         queryset=None, required=False, empty_label="No related battle"
     )
@@ -1201,7 +1204,7 @@ class CampaignRollForm(forms.Form):
     def __init__(self, *args, campaign, **kwargs):
         from uuid import uuid4
 
-        from n26.core.models import CampaignRoll, Gang
+        from n26.core.models import CampaignRoll, Gang, Miniature
 
         super().__init__(*args, **kwargs)
         self.fields["dice"].choices = CampaignRoll.Dice.choices
@@ -1214,12 +1217,25 @@ class CampaignRollForm(forms.Form):
             campaign_memberships__left__isnull=True,
             archived=False,
         ).order_by("name")
+        self.fields["miniature"].queryset = (
+            Miniature.objects.filter(
+                membership__gang__in=self.fields["gang"].queryset,
+                membership__archived=False,
+            )
+            .select_related("membership")
+            .order_by("name", "pk")
+        )
         self.fields["battle"].queryset = campaign.battles.order_by("-date", "-created")
 
     def clean(self):
         from n26.core.models import CampaignRoll
 
         cleaned = super().clean()
+        miniature, gang = cleaned.get("miniature"), cleaned.get("gang")
+        if miniature is not None and (
+            gang is None or miniature.membership.gang_id != gang.pk
+        ):
+            self.add_error("miniature", "Select a model from the related gang.")
         cleaned["modifier"] = cleaned.get("modifier") or 0
         cleaned["count"] = cleaned.get("count") if self["count"].value() else 1
         cleaned["modifier_application"] = cleaned.get("modifier_application") or "total"
