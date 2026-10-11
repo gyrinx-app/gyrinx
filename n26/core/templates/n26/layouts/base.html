@@ -193,16 +193,15 @@ gtm_container_id, messages, user.
                             :account="account_menu_"
                             class="dark">
                 {% comment %}
-            The account button's name, with the badge the account holds. A slot
-            rather than the user_label attribute because an attribute is escaped
-            and the badge would arrive as its own source code; drawn only when
-            there is someone to name, because an empty label is what tells the
-            bar a visitor has no account menu to open.
+            The account button's name, with the badge the account holds, as
+            the bar shows it until the account-menu island draws the button. A
+            slot rather than the user_label attribute because an attribute is
+            escaped and the badge would arrive as its own source code.
 
             Which badge is the platform's answer rather than this edition's —
             supporter standing and staff flag belong to the account — and
-            c-n26.user-link is what asks. No href: the button around it is the
-            control, and a link inside a button is a click with two answers.
+            c-n26.user-link is what asks. No href: a link inside a button is a
+            click with two answers.
                 {% endcomment %}
                 {% if user.is_authenticated %}
                     <c-slot name="user_label">

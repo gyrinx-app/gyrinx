@@ -1,4 +1,6 @@
 import {
+    createContext,
+    useContext,
     useEffect,
     useId,
     useRef,
@@ -15,6 +17,9 @@ const ITEMS =
     '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
 
 type Edge = "first" | "last";
+
+// How a row closes the menu it sits in.
+const CloseMenu = createContext<() => void>(() => {});
 
 /**
  * A button that opens a menu of mixed rows, following the WAI-ARIA menu
@@ -77,6 +82,17 @@ export function MenuButton({
         if (open && pendingFocus.current) focusEdge(pendingFocus.current);
         pendingFocus.current = null;
     }, [open]);
+
+    // A posting row cannot close the menu as it is used: a form taken out
+    // of the page before its submission runs is not sent. So a page the
+    // browser restores from its back-forward cache closes the menu instead.
+    useEffect(() => {
+        function onPageShow(event: PageTransitionEvent) {
+            if (event.persisted) setOpen(false);
+        }
+        window.addEventListener("pageshow", onPageShow);
+        return () => window.removeEventListener("pageshow", onPageShow);
+    }, []);
 
     function openAt(edge: Edge) {
         if (open) {
@@ -187,7 +203,9 @@ export function MenuButton({
                         item?.focus({ preventScroll: true });
                     }}
                 >
-                    {children}
+                    <CloseMenu.Provider value={() => setOpen(false)}>
+                        {children}
+                    </CloseMenu.Provider>
                 </div>
             )}
         </div>
@@ -207,12 +225,14 @@ export function MenuLink({
     tone?: "default" | "danger";
     children: ReactNode;
 }) {
+    const close = useContext(CloseMenu);
     return (
         <a
             role="menuitem"
             tabIndex={-1}
             href={href}
             className={itemClass(tone)}
+            onClick={close}
         >
             <span className={cotton.actionMenu.itemLabel}>{children}</span>
         </a>

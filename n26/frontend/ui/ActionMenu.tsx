@@ -1,5 +1,4 @@
 import {
-    createElement,
     Fragment,
     useId,
     useEffect,
@@ -9,33 +8,7 @@ import {
 } from "react";
 import cotton from "../generated/cotton.json";
 import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
-
-function Glyph({
-    name,
-    className,
-    strokeWidth,
-}: {
-    name: "chevron-down" | "ellipsis-vertical";
-    className: string;
-    strokeWidth: number;
-}) {
-    return (
-        <svg
-            className={className}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-        >
-            {cotton.icons[name].map(({ tag, attrs }, key) =>
-                createElement(tag, { ...attrs, key }),
-            )}
-        </svg>
-    );
-}
+import { Glyph } from "./glyph";
 
 export type ActionMenuItem = {
     label: string;

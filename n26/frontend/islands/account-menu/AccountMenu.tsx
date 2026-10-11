@@ -43,7 +43,7 @@ export type AccountMenuProps = {
     unread: number;
     /** The unread count in words, singular or plural, for the button's name. */
     unreadText: string;
-    person: { name: string; href: string; badge: string | null };
+    person: { name: string; badge: string | null };
     badges: Record<string, BadgeMark>;
     /** In the order they are drawn; the server decides every break. */
     items: AccountMenuEntry[];

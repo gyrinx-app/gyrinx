@@ -112,6 +112,7 @@ export function ThemeChoice({
                         key={scheme}
                         type="button"
                         role="menuitemradio"
+                        tabIndex={-1}
                         aria-checked={checked}
                         aria-label={
                             scheme === "system"

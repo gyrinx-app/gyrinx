@@ -4,6 +4,9 @@ The menu is an ordered list of items the island draws as they come: the
 reader's name, separators, links, headed groups, the theme choice and posting
 rows. A section draws the break above itself, so one that is absent leaves no
 rule behind; a headed group needs no rule, because its heading is the break.
+
+Its rows are the platform's account pages, notifications and impersonation:
+the account concerns N26 shares with the platform, reached by URL name.
 """
 
 from django import template
@@ -37,7 +40,7 @@ def account_menu(context, compact=False):
     unread = context.get("unread_notification_count") or 0
     unread_noun = "unread notification" if unread == 1 else "unread notifications"
     badges = {}
-    person = person_link(user, badges)
+    person = person_link(user, badges, linked=False)
     notifications = {
         "type": "link",
         "label": "Notifications",

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountMenu, type AccountMenuProps } from "./AccountMenu";
@@ -7,7 +7,7 @@ const props: AccountMenuProps = {
     label: "Open account menu",
     unread: 0,
     unreadText: "0 unread notifications",
-    person: { name: "boss", href: "/n26/users/@boss/", badge: "staff" },
+    person: { name: "boss", badge: "staff" },
     badges: {
         staff: {
             label: "Gyrinx staff",
@@ -188,12 +188,73 @@ describe("account menu", () => {
         document.documentElement.classList.remove("dark");
     });
 
-    it("closes on Tab and leaves focus on the button", async () => {
+    it("closes on Tab and moves on past the button", async () => {
         const user = userEvent.setup();
-        render(<AccountMenu {...props} />);
+        render(
+            <>
+                <AccountMenu {...props} />
+                <button type="button">After</button>
+            </>,
+        );
         trigger().focus();
         await user.keyboard("{ArrowDown}");
         await user.keyboard("{Tab}");
         expect(screen.queryByRole("menu")).toBeNull();
+        expect(document.activeElement).toBe(
+            screen.getByRole("button", { name: "After" }),
+        );
+    });
+
+    it("lets Tab pass a menu the pointer opened", async () => {
+        const user = userEvent.setup();
+        render(
+            <>
+                <AccountMenu {...props} />
+                <button type="button">After</button>
+            </>,
+        );
+        await user.click(trigger());
+        expect(screen.getByRole("menu")).toBeTruthy();
+        await user.tab();
+        expect(screen.queryByRole("menu")).toBeNull();
+        expect(document.activeElement).toBe(
+            screen.getByRole("button", { name: "After" }),
+        );
+    });
+
+    it("closes when a link row is used", async () => {
+        const user = userEvent.setup();
+        render(<AccountMenu {...props} />);
+        await user.click(trigger());
+        const row = screen.getByRole("menuitem", { name: "Your account" });
+        row.addEventListener("click", (event) => event.preventDefault());
+        await user.click(row);
+        expect(screen.queryByRole("menu")).toBeNull();
+    });
+
+    it("closes when the browser restores the page from its cache", async () => {
+        const user = userEvent.setup();
+        render(<AccountMenu {...props} />);
+        await user.click(trigger());
+        act(() => {
+            const event = new Event("pageshow");
+            Object.defineProperty(event, "persisted", { value: true });
+            window.dispatchEvent(event);
+        });
+        expect(screen.queryByRole("menu")).toBeNull();
+    });
+
+    it("caps the Notifications row's face and says the real number", async () => {
+        const user = userEvent.setup();
+        const items = props.items.map((entry) =>
+            entry.type === "link" && entry.label === "Notifications"
+                ? { ...entry, count: 120 }
+                : entry,
+        );
+        render(<AccountMenu {...props} items={items} />);
+        await user.click(trigger());
+        const row = screen.getByRole("menuitem", { name: /^Notifications/ });
+        expect(row.textContent).toContain("99+");
+        expect(row.textContent).toContain("120 unread notifications");
     });
 });

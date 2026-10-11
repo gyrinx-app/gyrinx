@@ -837,6 +837,7 @@ def _sample_account_menu(*, unread=0, theme=True):
     n26.core.templatetags.account_menu builds for a signed-in reader."""
     from n26.core.templatetags.theme_choice import theme_choice_props
 
+    unread_noun = "unread notification" if unread == 1 else "unread notifications"
     items = [
         {"type": "person"},
         {"type": "separator"},
@@ -846,7 +847,7 @@ def _sample_account_menu(*, unread=0, theme=True):
             "label": "Notifications",
             "href": "#",
             "count": unread,
-            "countLabel": "unread notifications",
+            "countLabel": unread_noun,
         },
     ]
     if theme:
@@ -864,7 +865,8 @@ def _sample_account_menu(*, unread=0, theme=True):
     return {
         "label": "Open account menu",
         "unread": unread,
-        "person": {"name": "tom", "href": "#", "badge": None},
+        "unreadText": f"{unread} {unread_noun}",
+        "person": {"name": "tom", "badge": None},
         "badges": {},
         "items": items,
     }

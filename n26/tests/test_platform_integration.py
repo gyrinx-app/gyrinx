@@ -1104,8 +1104,8 @@ class TestTheNavigation:
         self, staff, client, default_pack
     ):
         """Alpine builds the drawer out of a template that never runs, and
-        the account menu is a dropdown that needs it as well — so with no
-        script the strip under the bar is the only way to these pages."""
+        the account menu is a React island — so with no script the strip
+        under the bar is the only way to these pages."""
         strip = nav_noscript(client.get("/n26/").content.decode())
         assert "Modifiers" in links_in(strip)
 
@@ -1257,7 +1257,7 @@ class TestTheInbox:
         button = account_button(body)
         assert reads_as(button) == "tester 99+"
         # Read aloud, both still say the real number — they have the room.
-        # CountBadge caps the face at 99+ in the menu as well.
+        # AccountMenu.test.tsx checks the menu row's 99+.
         assert 'aria-label="Open account menu — 120 unread notifications"' in button
         assert menu_entry(account_menu(body), "link", "Notifications")["count"] == 120
 
