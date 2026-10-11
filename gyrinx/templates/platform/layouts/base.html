@@ -21,8 +21,16 @@
                  height="24"
                  class="size-6">
         </c-slot>
+        <c-slot name="brand_actions">
+            <a href="{% url 'core:dice' %}"
+               title="Dice roller"
+               aria-label="Dice roller"
+               class="inline-flex shrink-0 items-center rounded-control p-1.5 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-ring dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-white">
+                <c-n26.icon name="dice-6" class="size-5" />
+            </a>
+        </c-slot>
         <c-slot name="heading">
-            Account
+            {% block site_heading %}Account{% endblock %}
         </c-slot>
         <c-slot name="actions">
             {% if user.is_authenticated %}
@@ -43,17 +51,22 @@
             {% endif %}
         </c-slot>
         {% if user.is_authenticated %}
+            <c-slot name="gangs">
+                {% block site_nav_gangs %}{% endblock %}
+            </c-slot>
             <c-slot name="user_label">
                 <c-n26.user-link :user="user" :linked="False" tone="current" underline="none" />
             </c-slot>
         {% endif %}
-        <c-ui.navbar.item href="{{ edition_home_url }}">
-            Home
-        </c-ui.navbar.item>
-        <c-ui.navbar.item href="{% url 'core:dice' %}">Dice roller</c-ui.navbar.item>
-        <c-ui.navbar.item href="/help/">
-            Help
-        </c-ui.navbar.item>
-        {% if user.is_authenticated %}<c-ui.navbar.item href="{% url 'core:account_home' %}">Your account</c-ui.navbar.item>{% endif %}
+        {% block site_nav_items %}
+            <c-ui.navbar.item href="{{ edition_home_url }}">
+                Home
+            </c-ui.navbar.item>
+            <c-ui.navbar.item href="{% url 'core:dice' %}">Dice roller</c-ui.navbar.item>
+            <c-ui.navbar.item href="/help/">
+                Help
+            </c-ui.navbar.item>
+            {% if user.is_authenticated %}<c-ui.navbar.item href="{% url 'core:account_home' %}">Your account</c-ui.navbar.item>{% endif %}
+        {% endblock %}
     </c-n26.site.nav>
 {% endblock site_nav %}

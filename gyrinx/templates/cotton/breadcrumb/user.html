@@ -14,4 +14,4 @@
 
     Props
       user  a User.
-{% endcomment %}{% load badge_tags %}<c-vars user="" /><c-breadcrumb.item href="{% url "core:user" user.username %}">{{ user }}{% if not print %}{% user_badge user %}{% endif %}</c-breadcrumb.item>
+{% endcomment %}{% load badge_tags %}<c-vars user="" /><c-breadcrumb.item href="{% url "user-profile" user.username %}">{{ user }}{% if not print %}{% user_badge user %}{% endif %}</c-breadcrumb.item>

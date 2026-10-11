@@ -1,43 +1,23 @@
 """Public account destinations and a route into the existing invitation flow."""
 
-from dataclasses import dataclass
-
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.db.models import OuterRef, Q, Subquery
-from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from n26.core.campaigns import campaign_operation
-from n26.core.models import Campaign, CampaignParticipant, Gang
+from n26.core.models import Campaign, CampaignParticipant
 from n26.core.operations import Refusal
-from n26.flags import CAMPAIGNS, enabled, requires_flag
-
-
-@dataclass(frozen=True)
-class PublicGang:
-    name: str
-    gang_type: str
-    href: str
-
-
-def _person(username):
-    people = User.objects.filter(is_active=True)
-    exact = people.filter(username=username).first()
-    if exact is not None:
-        return exact
-    matches = list(people.filter(username__iexact=username)[:2])
-    if len(matches) == 1:
-        return matches[0]
-    raise Http404("No unambiguous active username matches.")
+from n26.flags import CAMPAIGNS, requires_flag
+from n26.profiles import profile_person, profile_redirect
 
 
 def user_profile_by_id(request, pk):
     person = get_object_or_404(User, pk=pk, is_active=True)
-    return redirect("n26-user-profile", username=person.username)
+    return profile_redirect(request, person, "n26")
 
 
 @requires_flag(CAMPAIGNS)
@@ -59,25 +39,8 @@ def _owned_campaigns(user, person):
 
 
 def user_profile(request, username):
-    """Public username and gang links; account details and campaigns stay private."""
-    person = _person(username)
-    gangs = [
-        PublicGang(name=name, gang_type=kind, href=reverse("n26-gang", args=[pk]))
-        for pk, name, kind in Gang.objects.filter(owner=person, archived=False)
-        .order_by("name", "pk")
-        .values_list("pk", "name", "gang_type__name")
-    ]
-    may_invite = (
-        request.user.is_authenticated
-        and request.user.pk != person.pk
-        and enabled(CAMPAIGNS, request.user)
-        and _owned_campaigns(request.user, person).exists()
-    )
-    return render(
-        request,
-        "n26/user_profile.html",
-        {"person": person, "gangs": gangs, "may_invite": may_invite},
-    )
+    """Old N26 public account addresses open the shared profile."""
+    return profile_redirect(request, profile_person(username), "n26")
 
 
 class InviteCampaignForm(forms.Form):
@@ -103,9 +66,9 @@ class InviteCampaignForm(forms.Form):
 @login_required
 def invite_user(request, username):
     """Send a campaign invitation and its optional message from one form."""
-    person = _person(username)
+    person = profile_person(username)
     if person.pk == request.user.pk:
-        return redirect("n26-user-profile", username=person.username)
+        return profile_redirect(request, person, "n26")
     campaigns = _owned_campaigns(request.user, person)
     eligible = campaigns.filter(
         Q(invitation_state__isnull=True)

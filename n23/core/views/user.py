@@ -3,7 +3,6 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from gyrinx.account_forms import (
@@ -12,130 +11,19 @@ from gyrinx.account_forms import (
     UsernameChangeForm,
 )
 from gyrinx.accounts.models import UserProfile
+from gyrinx.accounts.public_profiles import profile_person, profile_redirect
 from gyrinx.analytics.models import EventVerb, log_event
 from gyrinx.analytics.nouns import PlatformNoun
 from gyrinx.badges import HIDE_BADGE
-from gyrinx.impersonation import can_impersonate_target
-from n23.core.models.campaign import Campaign
-from n23.core.models.list import List
-from n23.core.models.pack import CustomContentPack
 
 
 def user(request, slug_or_id):
-    """
-    Display a user profile page.
-
-    **Context**
-
-    ``profile_user``
-        The requested user object.
-    ``is_own_profile``
-        Whether the viewer is viewing their own profile.
-    ``public_lists``
-        Non-campaign-mode, non-archived lists visible to the viewer.
-    ``campaign_gangs``
-        Campaign-mode lists visible to the viewer.
-    ``campaigns``
-        Campaigns owned by the profile user, visible to the viewer.
-    ``packs``
-        Content packs owned by the profile user.
-    ``show_packs``
-        Whether the packs section should be shown.
-
-    **Template**
-
-    :template:`core/user.html`
-    """
-    User = get_user_model()
-    slug_or_id = str(slug_or_id).lower()
-    if slug_or_id.isnumeric():
-        query = Q(id=slug_or_id)
+    """Redirect legacy account names and numeric IDs to the shared profile."""
+    if str(slug_or_id).isnumeric():
+        person = get_object_or_404(get_user_model(), pk=slug_or_id, is_active=True)
     else:
-        query = Q(username__iexact=slug_or_id)
-    profile_user = get_object_or_404(User.objects.select_related("profile"), query)
-
-    is_own_profile = request.user.is_authenticated and request.user == profile_user
-
-    # Admins (superusers) may impersonate this user, unless already impersonating.
-    can_impersonate_user = not getattr(
-        request, "is_impersonating", False
-    ) and can_impersonate_target(request.user, profile_user)
-
-    # --- Public Lists (non-campaign, non-archived) ---
-    public_lists_qs = (
-        List.objects.filter(
-            owner=profile_user, status=List.LIST_BUILDING, archived=False, public=True
-        )
-        .select_related("content_house", "owner")
-        .annotate(star_count=Count("starred_by", distinct=True))
-    )
-    public_lists = public_lists_qs
-
-    # --- Unlisted Lists (only visible to the owner) ---
-    unlisted_lists = List.objects.none()
-    if is_own_profile:
-        unlisted_lists = (
-            List.objects.filter(
-                owner=profile_user,
-                status=List.LIST_BUILDING,
-                archived=False,
-                public=False,
-            )
-            .select_related("content_house", "owner")
-            .annotate(star_count=Count("starred_by", distinct=True))
-        )
-
-    # --- Campaign Gangs (campaign-mode lists) ---
-    campaign_gangs_qs = List.objects.filter(
-        owner=profile_user, status=List.CAMPAIGN_MODE, archived=False
-    )
-    if not is_own_profile:
-        campaign_gangs_qs = campaign_gangs_qs.filter(public=True)
-    campaign_gangs = campaign_gangs_qs.select_related(
-        "content_house", "owner", "campaign"
-    ).annotate(star_count=Count("starred_by", distinct=True))
-
-    # --- Campaigns owned by the user ---
-    campaigns_qs = Campaign.objects.filter(owner=profile_user, archived=False)
-    if not is_own_profile:
-        campaigns_qs = campaigns_qs.filter(public=True)
-    campaigns = campaigns_qs.annotate(star_count=Count("starred_by", distinct=True))
-
-    # --- Packs ---
-    show_packs = True
-    packs_qs = CustomContentPack.objects.filter(owner=profile_user, archived=False)
-    if not is_own_profile:
-        packs_qs = packs_qs.filter(listed=True)
-    packs = packs_qs
-
-    # Log the user profile view
-    if request.user.is_authenticated:
-        log_event(
-            user=request.user,
-            noun=PlatformNoun.USER,
-            verb=EventVerb.VIEW,
-            object=profile_user,
-            request=request,
-            viewed_user_id=str(profile_user.id),
-            viewed_username=profile_user.username,
-            public_lists_count=public_lists.count(),
-        )
-
-    return render(
-        request,
-        "core/user.html",
-        {
-            "profile_user": profile_user,
-            "is_own_profile": is_own_profile,
-            "can_impersonate_user": can_impersonate_user,
-            "public_lists": public_lists,
-            "unlisted_lists": unlisted_lists,
-            "campaign_gangs": campaign_gangs,
-            "campaigns": campaigns,
-            "packs": packs,
-            "show_packs": show_packs,
-        },
-    )
+        person = profile_person(slug_or_id)
+    return profile_redirect(request, person)
 
 
 @login_required

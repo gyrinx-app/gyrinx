@@ -30,7 +30,7 @@ def test_own_profile_separates_public_and_unlisted_lists(client, user, content_h
     assert public_list.name in content
     assert unlisted_list.name in content
     # The public list should appear in the public section, unlisted in the unlisted section
-    assert "Public lists" in content
+    assert "Public gangs" in content
     assert "Unlisted" in content
 
 

@@ -27,4 +27,4 @@
              the url tag then has no username to build from.
       class  the link's classes. `linked` by default; `linked-body` and
              `linked-secondary` are the other two in use.
-{% endcomment %}{% load badge_tags %}<c-vars user="" class="linked" />{% if user %}<a href="{% url "core:user" user.username %}" class="{{ class }}">{{ user.username }}</a>{% if not print %}{% user_badge user %}{% endif %}{% endif %}
+{% endcomment %}{% load badge_tags %}<c-vars user="" class="linked" />{% if user %}<a href="{% url "user-profile" user.username %}" class="{{ class }}">{{ user.username }}</a>{% if not print %}{% user_badge user %}{% endif %}{% endif %}

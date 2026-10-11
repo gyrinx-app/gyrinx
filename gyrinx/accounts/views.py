@@ -1,7 +1,5 @@
 """Combined platform account screens; allauth owns authentication operations."""
 
-from base64 import b64encode
-
 from allauth.account.internal.flows import manage_email
 from allauth.account.views import EmailView, PasswordChangeView, PasswordSetView
 from allauth.mfa.base.views import IndexView
@@ -31,12 +29,7 @@ def _flat_choices(choices):
 def _field_props(form):
     badge_images = {}
     for badge in form.badge_form.profile.available_badges:
-        svg = badge.inline_svg()
-        badge_images[badge.slug] = (
-            f"data:image/svg+xml;base64,{b64encode(svg.encode()).decode()}"
-            if svg
-            else ""
-        )
+        badge_images[badge.slug] = badge.image_url()
     return [
         {
             "name": field.name,

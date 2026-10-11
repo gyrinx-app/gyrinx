@@ -1,6 +1,7 @@
 """Tests for the badge selection form, account page, and inline profile render."""
 
 import pytest
+from bs4 import BeautifulSoup
 from django.urls import reverse
 
 from gyrinx.account_forms import BadgeSelectionForm
@@ -198,7 +199,7 @@ def test_profile_page_shows_badge_for_supporter(client, user):
     response = client.get(url)
     content = response.content.decode()
     assert response.status_code == 200
-    assert 'data-bs-title="Gyrinx supporter — Guilder tier"' in content
+    assert 'title="Gyrinx supporter — Guilder tier"' in content
 
 
 @pytest.mark.django_db
@@ -209,7 +210,7 @@ def test_profile_page_shows_default_badge_without_selection(client, user):
     response = client.get(url)
     content = response.content.decode()
     assert response.status_code == 200
-    assert 'data-bs-title="Gyrinx supporter — Guilder tier"' in content
+    assert 'title="Gyrinx supporter — Guilder tier"' in content
 
 
 @pytest.mark.django_db
@@ -221,7 +222,7 @@ def test_profile_page_shows_staff_badge(client, user):
     response = client.get(url)
     content = response.content.decode()
     assert response.status_code == 200
-    assert 'data-bs-title="Gyrinx staff"' in content
+    assert 'title="Gyrinx staff"' in content
 
 
 @pytest.mark.django_db
@@ -236,7 +237,7 @@ def test_profile_page_hides_badge_when_opted_out(client, user):
     response = client.get(url)
     content = response.content.decode()
     assert response.status_code == 200
-    assert "user-badge" not in content
+    assert BeautifulSoup(content, "html.parser").find("h1").parent.find("img") is None
 
 
 @pytest.mark.django_db
@@ -251,7 +252,7 @@ def test_profile_page_hides_badge_for_former_supporter(client, user):
     response = client.get(url)
     content = response.content.decode()
     assert response.status_code == 200
-    assert "user-badge" not in content
+    assert BeautifulSoup(content, "html.parser").find("h1").parent.find("img") is None
 
 
 # --- Inline render in the breadcrumb (list detail page) ---

@@ -2,6 +2,7 @@ from django.urls import path
 
 import gyrinx.views_impersonation
 import n23.core.views
+from gyrinx.accounts.public_profiles import user_profile_compat
 
 patterns = [
     path("", n23.core.views.index, name="index"),
@@ -23,7 +24,8 @@ patterns = [
     ),
     path("dice/", n23.core.views.dice, name="dice"),
     # Users
-    path("user/<slug_or_id>", n23.core.views.user, name="user"),
+    path("user/@<str:slug_or_id>", user_profile_compat, name="user"),
+    path("user/<slug_or_id>", n23.core.views.user),
     # Impersonation (superuser only). Platform views, routed here so the URLs
     # and their `core:` names stay where they were.
     path(

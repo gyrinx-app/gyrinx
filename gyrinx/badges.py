@@ -20,6 +20,7 @@ what makes it impossible for a grant to hand somebody the staff badge: there is
 no row to point a grant at.
 """
 
+from base64 import b64encode
 from dataclasses import dataclass, field
 from hashlib import sha256
 
@@ -74,6 +75,18 @@ class BadgeDef:
         if self.svg:
             return _committed_svg(self)
         return ""
+
+    def image_url(self) -> str:
+        """The same sanitised artwork as an image, preserving its SVG rendering.
+
+        An image's SVG does not inherit the surrounding page's icon CSS.
+        """
+        svg = self.inline_svg()
+        return (
+            f"data:image/svg+xml;base64,{b64encode(svg.encode()).decode()}"
+            if svg
+            else ""
+        )
 
 
 def _committed_svg(badge: BadgeDef) -> str:

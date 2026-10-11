@@ -32,6 +32,7 @@ When it is present, read the relevant note before a non-trivial change.
 | `n26/uploads.py` | `gyrinx.widgets` | Reuse the authenticated rich-text image upload handler; widgets opt in through this seam. |
 | `n26/notifications.py` | `gyrinx.site.models` notifications | This is the only N26 file that writes notifications. |
 | `n26/impersonation.py` | `gyrinx.impersonation` | Keep the shared session and audit behaviour behind this file. |
+| `n26/profiles.py` | `gyrinx.accounts.public_profiles` | Register public account display data and reuse canonical username lookup and redirects. |
 | `n26/write_pause.py` | `gyrinx.site.write_pause` | Keep the platform write-pause state behind this file. |
 | `n26/maintenance.py` | `gyrinx.maintenance`, `gyrinx.tasks` | Register edition repairs here. Never import `gyrinx.maintenance.admin`. |
 | `n26/library/artwork.py` | `gyrinx.artwork` | Bind N26's upload folder here; keep storage-address checks in the platform. |
