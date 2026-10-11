@@ -168,7 +168,7 @@ def test_missing_baseline_is_reported_and_skipped(legacy_fighter):
     assert not ActionAllowance.objects.filter(fighter=fighter, action=action).exists()
 
 
-def test_a_rank_table_conflict_does_not_abort_other_counters(legacy_fighter):
+def test_a_rank_table_conflict_refuses_the_gang(legacy_fighter):
     gang, fighter, conflicted_action, held = legacy_fighter
     conflict = RankTable.objects.create(name="Conflicting ranks", counter=held.counter)
     RankThreshold.objects.create(rank_table=conflict, threshold=64)
@@ -201,16 +201,77 @@ def test_a_rank_table_conflict_does_not_abort_other_counters(legacy_fighter):
     assert plan.gangs == ((gang.pk,),)
     assert len(plan.problems) == 1
 
-    summary = apply_one(gang.pk)
-
-    assert "granted 2 earned use(s); skipped 1 counter(s)" in summary
+    with pytest.raises(Refusal):
+        apply_one(gang.pk)
     assert not ActionAllowance.objects.filter(
         fighter=fighter, action=conflicted_action
     ).exists()
     assert (
         ActionAllowance.objects.filter(fighter=fighter, action=second_action).count()
-        == 2
+        == 0
     )
+
+
+def test_a_conflict_after_preview_fails_and_can_be_retried(legacy_fighter):
+    gang, fighter, action, held = legacy_fighter
+    table = RankTable.objects.get(counter=held.counter)
+    with operation(gang) as op:
+        later = op.hire(fighter.membership.profile, "Later fighter", paid=0)
+        op.assign(action, miniature=later)
+        op.assign(table, miniature=later)
+        counter = op.assign(held.counter, miniature=later)
+        value = op.open_counter(counter, 61)
+        op.event(
+            counter,
+            LedgerEvent.Kind.TALLIED,
+            counter_before=61,
+            counter_delta=6,
+            counter_after=67,
+        )
+        value.value = 67
+        value.save(update_fields=["value"])
+    preview = completed_preview()
+    conflict = RankTable.objects.create(name="Later conflict", counter=held.counter)
+    with operation(gang) as op:
+        conflicting = op.assign(conflict, miniature=later)
+    record = Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        status=Backfill.Status.RUNNING,
+        summary={"preview_id": str(preview.pk), "attempts": 0},
+    )
+    maintenance.initialise_action_allowances.call(backfill_id=str(record.pk))
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.FAILED
+    assert str(gang.pk) in record.summary["failures"]
+    assert not ActionAllowance.objects.filter(action=action).exists()
+    conflicting.delete()
+    retry = Backfill.objects.create(
+        operation=maintenance.Operation.INITIALISE_ACTION_ALLOWANCES,
+        status=Backfill.Status.RUNNING,
+        summary={"preview_id": str(completed_preview().pk), "attempts": 0},
+    )
+    maintenance.initialise_action_allowances.call(backfill_id=str(retry.pk))
+    retry.refresh_from_db()
+    assert retry.status == Backfill.Status.DONE
+    assert ActionAllowance.objects.filter(action=action).count() == 4
+
+
+def test_background_preview_query_growth_is_flat_with_more_fighters(legacy_fighter):
+    gang, fighter, action, held = legacy_fighter
+    table = RankTable.objects.get(counter=held.counter)
+    find(gang)
+    with CaptureQueriesContext(connection) as small:
+        assert find(gang).gangs == ((gang.pk,),)
+    with operation(gang) as op:
+        for number in range(8):
+            extra = op.hire(fighter.membership.profile, f"Extra {number}", paid=0)
+            op.assign(action, miniature=extra)
+            op.assign(table, miniature=extra)
+            counter = op.assign(held.counter, miniature=extra)
+            op.open_counter(counter, 61)
+    with CaptureQueriesContext(connection) as large:
+        assert find(gang).gangs == ((gang.pk,),)
+    assert len(large) <= len(small)
 
 
 def test_preview_builds_effective_action_access_once_per_fighter(

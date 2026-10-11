@@ -210,9 +210,10 @@ def apply_one(gang_id):
                         table_access = rank_table_for(
                             fighter, assignment.counter, card=card, computed=computed
                         )
-                    except Refusal, ValueError:
-                        skipped += 1
-                        continue
+                    except (Refusal, ValueError) as error:
+                        # A failed gang keeps the one-off run retryable. Any
+                        # grants earlier in this operation roll back with it.
+                        raise Refusal(str(error)) from error
                     if table_access is None:
                         continue
                     baseline = baselines[assignment.pk]
