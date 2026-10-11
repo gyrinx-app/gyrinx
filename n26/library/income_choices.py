@@ -88,6 +88,7 @@ def validate_income_choice(asset):
     slot = grant.adds_assignable.slot
     if (
         grant.targets_gang_id is None
+        or grant.targets_gang.echoes
         or grant.targets_gang.is_conditional
         or grant.adds_assignable.with_pick_id is not None
         or slot.pack_id != asset.pack_id

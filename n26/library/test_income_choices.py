@@ -14,7 +14,7 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def income_choice(default_pack):
+def income_choice_graph(default_pack):
     campaign_type = authoring.create_campaign_type("Territory campaign")
     asset_type = authoring.add_asset_type(
         campaign_type, "Territory", AssetType.Ownership.HOLDING
@@ -38,8 +38,14 @@ def income_choice(default_pack):
     )
     authoring.detach_modifier(asset, baseline)
     authoring.attach_modifiers_to(income, [baseline])
-    authoring.set_base_income_modifier(asset, baseline)
     return asset, baseline, income, alternative, slot, grant
+
+
+@pytest.fixture
+def income_choice(income_choice_graph):
+    asset, baseline, *_ = income_choice_graph
+    authoring.set_base_income_modifier(asset, baseline)
+    return income_choice_graph
 
 
 def test_the_declaration_points_to_the_existing_income_option(income_choice):
@@ -48,6 +54,32 @@ def test_the_declaration_points_to_the_existing_income_option(income_choice):
     assert (choice.modifier, choice.pickable, choice.slot) == (baseline, income, slot)
     assert income_of(asset) == 15
     assert not asset.modifiers.filter(pk=baseline.pk).exists()
+
+
+def test_an_echoing_grant_cannot_be_declared_as_the_assets_income_choice(
+    income_choice_graph,
+):
+    asset, baseline, *_, grant = income_choice_graph
+    authoring.revise(grant.targets_gang, echoes=True)
+    with pytest.raises(ValidationError, match="standard gang choice"):
+        authoring.set_base_income_modifier(asset, baseline)
+    asset.refresh_from_db()
+    assert asset.base_income_modifier_id is None
+    assert grant.targets_gang.echoes
+
+
+def test_an_existing_income_choices_grant_must_remain_the_gangs_alone(
+    income_choice,
+):
+    asset, baseline, _, _, slot, grant = income_choice
+    scope = grant.targets_gang
+    with pytest.raises(ValidationError, match="standard gang choice"):
+        authoring.revise(scope, echoes=True)
+    scope.refresh_from_db()
+    asset.refresh_from_db()
+    assert not scope.echoes
+    assert asset.base_income_modifier_id == baseline.pk
+    assert declared_income_choice(asset).slot == slot
 
 
 def test_setting_zero_preserves_the_option_and_its_modifier(income_choice):
