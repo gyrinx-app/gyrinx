@@ -2,12 +2,16 @@
 {% block head_title %}{{ person.username }}{% endblock %}
 {% block content %}
     <div class="max-w-3xl space-y-8">
-        <c-n26.page-header title="{{ person.username }}">
+        {# The person's name carries their badge here as everywhere else; it is this page, so it does not link. #}
+        <c-n26.page-header>
+            <c-slot name="title">
+                <c-n26.user-link :user="person" :linked="False" tone="current" underline="none" />
+            </c-slot>
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
                     <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">Home</c-ui.breadcrumbs.item>
                     <c-ui.breadcrumbs.item :current="True">
-                        {{ person.username }}
+                        <c-n26.user-link :user="person" :linked="False" tone="current" underline="none" />
                     </c-ui.breadcrumbs.item>
                 </c-ui.breadcrumbs>
             </c-slot>

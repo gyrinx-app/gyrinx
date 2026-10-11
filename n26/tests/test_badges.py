@@ -191,6 +191,37 @@ class TestTheHomePageGreeting:
         assert FLAIR_WRAPPER not in body
 
 
+class TestTheProfilePage:
+    """A person's profile is headed by their name, so the name there
+    carries the same mark it carries everywhere else."""
+
+    def test_the_heading_and_trail_mark_the_person(
+        self, supporter, tester, client, default_pack
+    ):
+        tester("reader")
+        body = client.get(
+            reverse("n26-user-profile", args=[supporter.username])
+        ).content.decode()
+        heading = body[body.index("<h1") : body.index("</h1>")]
+        assert "patron" in heading
+        assert badge_svg(GUILDER).strip() in heading
+        assert "[--n26-icon-size:1em]" in heading
+        below_the_bar = body.split("</header>")[-1]
+        # The trail and the heading; neither links back to this page.
+        assert below_the_bar.count(badge_svg(GUILDER).strip()) == 2
+        profile = reverse("n26-user-profile", args=[supporter.username])
+        assert f'href="{profile}"' not in below_the_bar
+
+    def test_someone_entitled_to_nothing_is_headed_by_name_alone(
+        self, tester, client, default_pack
+    ):
+        tester("nobody")
+        body = client.get(reverse("n26-user-profile", args=["nobody"])).content.decode()
+        heading = body[body.index("<h1") : body.index("</h1>")]
+        assert "nobody" in heading
+        assert FLAIR_WRAPPER not in body.split("</header>")[-1]
+
+
 class TestTheOwnerOfAGang:
     """A gang's breadcrumb names its owner, so it carries the owner's
     badge — the same answer the owner's own pages give."""
