@@ -23,8 +23,10 @@ After deploying both maintenance entries, open **Admin → Maintenance**:
 
 Edited or archived rules, changed House conditions and modifiers used on other
 content are retained. An unused rule can be removed even if its obsolete
-modifier was already deleted. Rules referenced by content or player history
-remain protected; their exact obsolete territory modifier can still be removed.
+modifier or territory catalogue was already deleted. A remaining modifier is
+retained if its exact territory carrier cannot be found. Rules referenced by
+content or player history remain protected; their exact obsolete territory
+modifier can still be removed.
 
 Both operations preview their writes with rollback and record their task result
 in a Backfill. The published cleanup makes its changes in one transaction and

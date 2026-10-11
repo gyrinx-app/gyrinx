@@ -50,18 +50,14 @@ def remove_published_journal_boons():
         pack = ContentPack.objects.filter(
             slug=settings.DEFAULT_CONTENT_PACK_SLUG
         ).first()
-        territory = (
-            AssetType.objects.filter(
-                campaign_type__pack=pack,
-                campaign_type__name=CAMPAIGN_TYPE,
-                campaign_type__qualifier="",
-                label_singular=TERRITORY,
-            ).first()
-            if pack is not None
-            else None
-        )
-        if territory is None:
+        if pack is None:
             return [NOTHING_TO_DO]
+        territory = AssetType.objects.filter(
+            campaign_type__pack=pack,
+            campaign_type__name=CAMPAIGN_TYPE,
+            campaign_type__qualifier="",
+            label_singular=TERRITORY,
+        ).first()
         for house, _table, territories in JOURNALS:
             pick = supertype_pick(house)
             for entry in territories:
@@ -86,12 +82,16 @@ def remove_published_journal_boons():
                     skipped.append(f"skipped rule {rule} and its modifier: {reason}")
                     continue
                 if boon is not None:
-                    asset = Asset.objects.filter(
-                        pack=pack,
-                        name=entry.name,
-                        qualifier="",
-                        asset_type=territory,
-                    ).first()
+                    asset = (
+                        Asset.objects.filter(
+                            pack=pack,
+                            name=entry.name,
+                            qualifier="",
+                            asset_type=territory,
+                        ).first()
+                        if territory is not None
+                        else None
+                    )
                     if asset is None or not _is_seeded_boon(
                         boon, asset, pick, rule, income=None
                     ):

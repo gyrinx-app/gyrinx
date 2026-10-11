@@ -217,6 +217,35 @@ class TestPublishedPlaceholders:
         assert not Rule.objects.filter(pk=rule.pk).exists()
         assert remove_published_journal_boons() == [NOTHING_TO_DO]
 
+    def test_an_unused_published_rule_can_be_removed_without_a_territory_catalogue(
+        self, default_pack
+    ):
+        rule = create_rule(
+            "Goliath Controlled",
+            annotation="Slug House",
+            pack=default_pack,
+            staged=True,
+        )
+        put_live(rule)
+        before = {
+            model: list(model.objects.order_by("pk").values())
+            for model in (Asset, AssetTable, CampaignType, Counter, Modifier)
+        }
+        assert not CampaignType.objects.filter(
+            pack=default_pack, name=CAMPAIGN_TYPE
+        ).exists()
+
+        report = preview()
+
+        assert report == [f"removed rule {rule}"]
+        assert Rule.objects.filter(pk=rule.pk).exists()
+        assert remove_published_journal_boons() == report
+        assert not Rule.objects.filter(pk=rule.pk).exists()
+        assert before == {
+            model: list(model.objects.order_by("pk").values()) for model in before
+        }
+        assert remove_published_journal_boons() == [NOTHING_TO_DO]
+
     def test_the_original_journal_update_precedes_the_separate_published_cleanup(
         self, published_boons
     ):
@@ -309,6 +338,7 @@ class TestPublishedPlaceholders:
             "wrong_rule",
             "shared",
             "wrong_carrier",
+            "wrong_catalogue",
         ],
     )
     def test_changed_or_shared_modifiers_keep_their_rules(
@@ -329,6 +359,8 @@ class TestPublishedPlaceholders:
             )
         elif change == "wrong_rule":
             revise(boon.adds_assignable, rule=create_rule("Authored rule"))
+        elif change == "wrong_catalogue":
+            revise(slug.asset_type, label_singular="Relic")
         else:
             other = create_asset("Authored territory", slug.asset_type)
             attach_modifiers_to(other, [boon])
