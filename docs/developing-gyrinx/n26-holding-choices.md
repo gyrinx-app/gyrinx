@@ -22,8 +22,8 @@ Assignment origins and causes.
 The choice address is `holding:<holding id>@<ownership revision>:<Slot id>`.
 Two territories from the same library Asset can select independently.
 Effective acquisition, release and transfer advance `ownership_revision`.
-Reacquiring the same territory creates a fresh choice; old forms, rolls
-and dismissal addresses belong to the old period.
+Reacquiring the same territory creates a fresh choice with a new default;
+old forms, rolls and dismissal addresses belong to the old period.
 
 Release, transfer and leaving the campaign call ordinary recursive removal
 on that period's root picks before changing ownership. This archives their
@@ -35,6 +35,31 @@ revision and ledger history.
 Cloning excludes picks dependent on a holding and their descendants, because
 a clone holds no territory. A model brought by a holding pick cannot be
 cloned independently.
+
+## Acquisition defaults
+
+Assignment and transfer call `Operation.gain_asset` after setting the new
+holder. In the same transaction, each visible, required single-pick holding
+Slot selects its first available standing option in the picklist's authored
+order. Put the income option first to make it the default. The selection
+uses ordinary `Operation.choose`, so its Assignment, ledger and stored
+effects have the same behaviour as a selection made in the picker. The owner
+can replace it there.
+
+Availability follows the receiving gang owner's staged-content visibility.
+Archived members, options and packs are excluded. Staged Slots, picklists,
+members and options are excluded for recipients who cannot see staged
+content. Record-only options belong in history and are skipped. An empty
+available list stays unselected. Optional, multiple-pick, hidden, status,
+tier-ladder and rolled choices keep their own selection rules and receive
+no automatic selection.
+
+Only acquisition applies a default. Reads, content changes and repeated
+assignment to the same holder preserve the current selection. A removed
+pick stays unselected until the player chooses again or a new ownership
+period starts. Nested choices introduced by the selected option remain available
+through the ordinary picker. Each subsequent holding choice is rederived
+before its default is selected, because an earlier selection can retract it.
 
 ## Write and read boundaries
 

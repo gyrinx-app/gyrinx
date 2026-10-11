@@ -518,6 +518,78 @@ class Operation:
             received_asset_type=holding.asset.asset_type_id,
             **deltas,
         )
+        self._default_holding_picks(holding)
+
+    def _default_holding_picks(self, holding):
+        """Apply the first available option to required one-pick holding choices.
+
+        Acquisition is the only trigger. Reading a holding, removing its
+        pick or changing content never recreates a selection. Each default
+        uses ordinary choosing, including its ledger and stored effects.
+        """
+        from n26.library.models import Slot
+        from n26.library.staged import sees_staged
+
+        include_staged = sees_staged(self.gang.owner)
+
+        def eligible(choice):
+            slot = choice.slot
+            return (
+                slot is not None
+                and choice.min_picks == choice.max_picks == 1
+                and slot.mode == Slot.Mode.STANDARD
+                and not slot.hidden
+                and not slot.follows_status
+                and not slot.picklist.dice
+                and (include_staged or not (slot.staged or slot.picklist.staged))
+            )
+
+        slots = [
+            choice.slot for choice in self._holding_choices(holding) if eligible(choice)
+        ]
+        for slot in slots:
+            # A previous default may remove another offered choice. Read
+            # the current card before applying each subsequent selection.
+            choice = next(
+                (
+                    current
+                    for current in self._holding_choices(holding)
+                    if current.slot.pk == slot.pk
+                ),
+                None,
+            )
+            if choice is None or choice.picks or not eligible(choice):
+                continue
+            if Assignment.objects.filter(
+                gang_root=self.gang,
+                chosen_for_holding=holding,
+                chosen_for_holding_revision=holding.ownership_revision,
+                chosen_for_slot=slot,
+            ).exists():
+                continue
+            member = (
+                slot.picklist.available_members(include_staged=include_staged)
+                .filter(pickable__record_only=False)
+                .first()
+            )
+            if member is not None:
+                self.choose(holding, member.pickable, slot=slot)
+
+    def _holding_choices(self, holding):
+        """Derive the choices offered for this holding's ownership period."""
+        from n26.core.card import build_gang_card, build_modifier_index, carriers
+        from n26.core.effects import compute_gang
+
+        card = build_gang_card(self.gang)
+        computed = compute_gang(card, build_modifier_index(carriers(card)))
+        return [
+            choice
+            for choice in computed.choices
+            if choice.holding is not None
+            and choice.holding.pk == holding.pk
+            and choice.holding.ownership_revision == holding.ownership_revision
+            and choice.slot is not None
+        ]
 
     def event(self, about, kind, **deltas):
         """Append to the log. Nothing already written is ever altered.
@@ -2659,9 +2731,6 @@ class Operation:
         ownership writer. A submitted ownership revision never follows an
         asset into a new holding period.
         """
-        from n26.core.card import build_gang_card, build_modifier_index, carriers
-        from n26.core.effects import compute_gang
-
         current = (
             CampaignAsset.objects.select_related("holder", "campaign")
             .filter(pk=holding.pk)
@@ -2677,14 +2746,8 @@ class Operation:
             raise Refusal(
                 "You cannot choose for this holding. Its ownership has changed."
             )
-        card = build_gang_card(self.gang)
-        computed = compute_gang(card, build_modifier_index(carriers(card)))
         if not any(
-            choice.holding is not None
-            and choice.holding.pk == current.pk
-            and choice.slot is not None
-            and choice.slot.pk == slot.pk
-            for choice in computed.choices
+            choice.slot.pk == slot.pk for choice in self._holding_choices(current)
         ):
             raise Refusal("That choice is no longer available for this holding.")
 

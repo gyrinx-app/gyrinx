@@ -881,31 +881,40 @@ that asset keep their assignments. A granted asset lasts as long as its source
 and the applicable campaign membership. This does not protect a transferable
 territory against loss; that needs a separate campaign rule.
 
-## A territory with a choice of standing benefits
+## A territory with a choice of boons
 
 For a test territory, let Workshop offer either +5 Income or +2 Reputation
 while held. These are standing contributions; collecting credits is manual.
 
-1. Create a **slot type** named **Territory benefit**. Add two **pickables**:
+1. Create a **slot type** named **Territory boon**. Add two **pickables**:
    **Extra income** and **Local reputation**. Give each a short summary of
-   its benefit.
+   its boon.
 2. On Extra income, add a **modifier** targeting **The gang carrying it**
    with **Adds to a counter**: Income, amount 5. On Local reputation, add
    the same kind of modifier for Reputation, amount 2.
-3. Create a **picklist** containing those two pickables. Create a **slot**
-   using that list and the Territory benefit slot type. Set **Assigned to**
-   to **The gang**, with one pick required and one pick allowed.
+3. Create a **picklist** containing those two pickables, with Extra income
+   first. Create a **slot** using that list and the Territory boon slot type.
+   Set **Assigned to** to **The gang**, with one pick required and one pick
+   allowed.
 4. On Workshop, add a **modifier** targeting **The gang carrying it**, with
    **Gives something**: the new slot. Keep any income shared by both options
    in the territory's Income box; the selected extra income adds to it.
-5. Give Workshop to a gang in a test campaign. Open the territory's page
-   and choose a benefit. Replace it with the other option, then transfer
-   the territory. The old gang loses the selected benefit; the new holder
-   has an unselected choice. Give the gang two Workshops to check that
-   each can select independently.
+5. Give Workshop to a gang in a test campaign. Extra income applies
+   immediately because it is the first available option. Open the territory's
+   page and replace it with Local reputation, then transfer the territory.
+   The old gang loses the selected boon; the new holder starts with Extra
+   income. Give the gang two Workshops to check that each can select
+   independently.
 
-Releasing the territory or leaving the campaign removes the selected benefit
+The first available option uses your picklist order. Archived options and
+options staged for other readers are skipped. Optional choices, choices with
+several picks, hidden choices, status choices, tier ladders and roll tables
+keep their own selection rules. An empty available list stays unselected.
+
+Releasing the territory or leaving the campaign removes the selected boon
 and its nested choices. The history keeps the selection. Regaining the same
-territory starts a new choice. Recurring recruitment and equipment rewards
-need a separate recorded action; selecting a standing benefit does not repeat
-them each cycle.
+territory starts a new choice with a new default. You can change the choice
+later or remove its selected option. Reading the territory or giving it to
+the same holder again preserves that selection. Recurring recruitment and
+equipment rewards need a separate recorded action; selecting a standing boon
+does not repeat them each cycle.

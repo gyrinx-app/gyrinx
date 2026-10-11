@@ -1566,6 +1566,14 @@ class CampaignBlock:
     def other_lines(self):
         return [line for line in self.lines if not line.type_plural]
 
+    @property
+    def holding_choices(self):
+        return [choice for choice in self.choices if choice.holding_name]
+
+    @property
+    def other_choices(self):
+        return [choice for choice in self.choices if not choice.holding_name]
+
 
 @dataclass
 class GangSheet:

@@ -32,7 +32,9 @@ def asset_detail(request, pk, asset_pk):
 def _asset_detail_update(request, pk, asset_pk):
     from n26.core.views.htmx import with_toasts
 
-    context = _asset_context(request, pk, asset_pk)
+    context = _asset_context(
+        request, pk, asset_pk, back=reverse("n26-campaign-asset", args=[pk, asset_pk])
+    )
     context["redrawn"] = True
     response = with_toasts(
         request, render(request, "n26/includes/campaign_asset_update.html", context)
@@ -41,7 +43,7 @@ def _asset_detail_update(request, pk, asset_pk):
     return response
 
 
-def _asset_context(request, pk, asset_pk):
+def _asset_context(request, pk, asset_pk, *, back=None):
     campaign = _any_campaign_or_404(request, pk)
     holding = _campaign_asset_or_404(campaign, asset_pk)
     held = holding.held
@@ -119,7 +121,7 @@ def _asset_context(request, pk, asset_pk):
             DismissedOffer.keys_for(gang), offered.questions, reveal=owning
         )
         if owning:
-            link_slots(gang, offered, back=request.get_full_path())
+            link_slots(gang, offered, back=back or request.get_full_path())
         choices = offered.questions
     elif not holding.income_override_id:
         income_modifiers = list(

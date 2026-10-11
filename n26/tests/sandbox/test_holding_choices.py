@@ -21,6 +21,7 @@ from n26.core.history import build
 from n26.core.models import (
     Assignment,
     CampaignAsset,
+    CampaignMembership,
     DismissedOffer,
     LedgerEvent,
     Miniature,
@@ -37,6 +38,7 @@ from n26.library.authoring import (
     create_campaign_type,
     create_counter,
     create_hidden,
+    create_pack,
     create_pickable,
     create_picklist,
     create_profile,
@@ -45,9 +47,11 @@ from n26.library.authoring import (
     create_wargear,
     ef_adds,
     ef_contributes_to_counter,
+    ef_removes,
     modifier,
     op_adds_model,
     op_changes_counter,
+    revise,
     targets_every_model,
     targets_gang,
     targets_gang_alone,
@@ -170,9 +174,18 @@ def key_for(gang, holding, slot):
 
 
 def choose_for(holding, pick, slot, *, gang=None, previous=None, roll=None):
+    """Replace a single pick within this holding's current ownership period."""
     gang = gang or holding.holder.gang
     with campaign_operation(holding.campaign, actor=gang.owner):
         with operation(gang, actor=gang.owner) as op:
+            if previous is None and slot.max_picks == 1:
+                previous = Assignment.objects.filter(
+                    gang_root=gang,
+                    chosen_for_holding=holding,
+                    chosen_for_holding_revision=holding.ownership_revision,
+                    chosen_for_slot=slot,
+                    archived=False,
+                ).first()
             if previous is not None:
                 op.remove(previous)
             return op.choose(holding, pick, slot=slot, roll=roll)
@@ -194,14 +207,246 @@ def sentences(gang):
     return ["".join(span.text for span in act.spans) for act in build(gang)]
 
 
+class TestAcquisitionDefaults:
+    """A new holding starts with the first available standing boon."""
+
+    def test_authored_order_determines_the_default_instead_of_option_names(
+        self, gang, campaign, content
+    ):
+        revise(
+            content["slot"].picklist.members.get(pickable=content["reputation_pick"]),
+            position=0,
+        )
+        revise(
+            content["slot"].picklist.members.get(pickable=content["income_pick"]),
+            position=1,
+        )
+        holding = assign_asset(add_asset(campaign, content["asset"]), gang)
+        assert (
+            question(gang, holding, content["slot"]).chosen_name == "Local reputation"
+        )
+        assert values(gang) == {"Income": 15, "Reputation": 2}
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize(
+        "unavailable",
+        [
+            "archived_member",
+            "archived_pick",
+            "archived_pack",
+            "staged_member",
+            "staged_pick",
+            "record_only",
+        ],
+    )
+    def test_unavailable_options_are_skipped_before_the_default_is_written(
+        self, gang, campaign, content, unavailable
+    ):
+        member = content["slot"].picklist.members.get(pickable=content["income_pick"])
+        if unavailable == "archived_member":
+            revise(member, archived=True)
+        elif unavailable == "archived_pick":
+            revise(content["income_pick"], archived=True)
+        elif unavailable == "archived_pack":
+            pack = create_pack("Withdrawn boons")
+            revise(content["income_pick"], pack=pack)
+            revise(pack, archived=True)
+        elif unavailable == "staged_member":
+            revise(member, staged=True)
+        elif unavailable == "staged_pick":
+            revise(content["income_pick"], staged=True)
+        else:
+            revise(content["income_pick"], record_only=True)
+        holding = assign_asset(add_asset(campaign, content["asset"]), gang)
+        assert (
+            question(gang, holding, content["slot"]).chosen_name == "Local reputation"
+        )
+        assert not Assignment.objects.filter(
+            chosen_for_holding=holding, pickable=content["income_pick"]
+        ).exists()
+
+    def test_an_empty_available_list_stays_unselected_and_reads_never_fill_it(
+        self, gang, campaign, content
+    ):
+        revise(content["income_pick"], archived=True)
+        revise(content["reputation_pick"], staged=True)
+        holding = assign_asset(add_asset(campaign, content["asset"]), gang)
+        assert not question(gang, holding, content["slot"]).picks
+        revise(content["income_pick"], archived=False)
+        before = counts()
+        render_gang(gang)
+        render_gang(gang)
+        assign_asset(holding, gang)
+        assert counts() == before
+        assert not question(gang, holding, content["slot"]).picks
+
+    @pytest.mark.parametrize("recipient_is_staff", [False, True])
+    def test_staged_options_follow_the_recipient_visibility_rather_than_the_arbitrator(
+        self, gang, campaign, content, recipient_is_staff
+    ):
+        campaign.owner.is_staff = True
+        campaign.owner.save(update_fields=["is_staff"])
+        gang.owner.is_staff = recipient_is_staff
+        gang.owner.save(update_fields=["is_staff"])
+        revise(content["income_pick"], staged=True)
+        asset = add_asset(campaign, content["asset"])
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            holding = act.assign(
+                asset,
+                CampaignMembership.objects.get(
+                    campaign=campaign, gang=gang, left__isnull=True
+                ),
+            )
+        expected = "Extra income" if recipient_is_staff else "Local reputation"
+        assert question(gang, holding, content["slot"]).chosen_name == expected
+
+    @pytest.mark.parametrize("staged", ["slot", "picklist"])
+    def test_a_staged_choice_or_list_is_not_automatically_selected_for_a_player(
+        self, gang, campaign, content, staged
+    ):
+        target = content["slot"] if staged == "slot" else content["slot"].picklist
+        revise(target, staged=True)
+        holding = assign_asset(add_asset(campaign, content["asset"]), gang)
+        assert not question(gang, holding, content["slot"]).picks
+        assert values(gang) == {"Income": 15, "Reputation": 0}
+
+    @pytest.mark.parametrize(
+        "special", ["optional", "multiple", "none", "hidden", "status", "tier", "roll"]
+    )
+    def test_choices_with_other_selection_rules_stay_unselected(
+        self, gang, campaign, content, special
+    ):
+        slot = content["slot"]
+        if special == "optional":
+            revise(slot, min_picks=0)
+        elif special == "multiple":
+            revise(slot, min_picks=2, max_picks=2)
+        elif special == "none":
+            revise(slot, min_picks=0, max_picks=0)
+        elif special == "hidden":
+            revise(slot, hidden=True)
+        elif special == "status":
+            revise(slot, follows_status=True, assigned_to="bearer")
+        elif special == "tier":
+            for level, member in enumerate(slot.picklist.members.all(), start=1):
+                revise(member, level=level)
+            revise(slot, mode="tier_ladder")
+        else:
+            revise(slot.picklist, dice="d6", roll_selects="band")
+        holding = assign_asset(add_asset(campaign, content["asset"]), gang)
+        assert not Assignment.objects.filter(chosen_for_holding=holding).exists()
+        assert values(gang) == {"Income": 15, "Reputation": 0}
+
+    def test_a_removed_default_is_not_reapplied_by_reads_or_repeated_assignment(
+        self, holding, gang, content
+    ):
+        pick = question(gang, holding, content["slot"]).picks[0].assignment
+        remove(pick)
+        before = counts()
+        render_gang(gang)
+        render_gang(gang)
+        assign_asset(holding, gang)
+        assert counts() == before
+        assert not question(gang, holding, content["slot"]).picks
+        assert values(gang) == {"Income": 15, "Reputation": 0}
+
+    def test_a_default_runs_stored_effects_once_and_leaves_nested_choices_open(
+        self, gang, campaign, content
+    ):
+        modifier(
+            "Workshop records goodwill on acquisition",
+            targets_gang_alone(),
+            op_changes_counter(content["reputation"], "add", 3),
+            attach_to=content["income_pick"],
+        )
+        follow_up = create_slot(
+            "Workshop follow-up",
+            content["kind"],
+            content["slot"].picklist,
+            assigned_to="gang",
+        )
+        modifier(
+            "Extra income offers a follow-up",
+            targets_gang_alone(),
+            ef_adds(follow_up),
+            attach_to=content["income_pick"],
+        )
+        holding = assign_asset(add_asset(campaign, content["asset"]), gang)
+        assert values(gang) == {"Income": 20, "Reputation": 3}
+        follow_up_choice = next(
+            choice
+            for choice in computed(gang).choices
+            if choice.slot.pk == follow_up.pk
+        )
+        assert follow_up_choice.holding is None and not follow_up_choice.picks
+        before = counts()
+        assign_asset(holding, gang)
+        render_gang(gang)
+        render_gang(gang)
+        assert counts() == before
+        assert values(gang) == {"Income": 20, "Reputation": 3}
+        unassign_asset(holding)
+        assert values(gang) == {"Income": 0, "Reputation": 3}
+        assert_reconciled(gang)
+
+    def test_a_default_that_retracts_a_later_choice_does_not_fill_the_retracted_choice(
+        self, gang, campaign, content
+    ):
+        later = create_slot(
+            "Workshop alternative",
+            content["kind"],
+            content["slot"].picklist,
+            assigned_to="gang",
+            position=1,
+        )
+        modifier(
+            "Workshop offers another choice",
+            targets_gang_alone(),
+            ef_adds(later),
+            attach_to=content["asset"],
+        )
+        modifier(
+            "Extra income removes the alternative",
+            targets_gang_alone(),
+            ef_removes(later),
+            attach_to=content["income_pick"],
+        )
+        holding = assign_asset(add_asset(campaign, content["asset"]), gang)
+        assert Assignment.objects.filter(chosen_for_holding=holding).count() == 1
+        assert [choice.slot.pk for choice in computed(gang).choices] == [
+            content["slot"].pk
+        ]
+        assert values(gang) == {"Income": 20, "Reputation": 0}
+
+    def test_ownership_and_automatic_selection_roll_back_together(
+        self, gang, campaign, content
+    ):
+        asset = add_asset(campaign, content["asset"])
+        before = counts()
+        with pytest.raises(RuntimeError, match="cancel acquisition"):
+            with campaign_operation(campaign, actor=campaign.owner) as act:
+                act.assign(
+                    asset,
+                    CampaignMembership.objects.get(
+                        campaign=campaign, gang=gang, left__isnull=True
+                    ),
+                )
+                raise RuntimeError("cancel acquisition")
+        asset.refresh_from_db()
+        assert asset.holder_id is None and asset.ownership_revision == 0
+        assert counts() == before
+        assert values(gang) == {"Income": 0, "Reputation": 0}
+
+
 class TestStandingHoldingChoices:
     """Two copies of one territory ask separate questions and apply each answer once."""
 
     def test_the_pick_is_a_free_gang_assignment_with_an_explicit_holding_origin(
         self, holding, gang, content
     ):
-        assert values(gang) == {"Income": 15, "Reputation": 0}
-        pick = choose_for(holding, content["income_pick"], content["slot"])
+        assert values(gang) == {"Income": 20, "Reputation": 0}
+        pick = question(gang, holding, content["slot"]).picks[0].assignment
+        assert pick.pickable_id == content["income_pick"].pk
         assert pick.gang_id == gang.pk
         assert pick.chosen_for_holding_id == holding.pk
         assert pick.chosen_for_holding_revision == holding.ownership_revision
@@ -231,7 +476,7 @@ class TestStandingHoldingChoices:
             == f"holding:{holding.pk}@{holding.ownership_revision}:{content['slot'].pk}"
         )
         first_pick = choose_for(holding, content["income_pick"], content["slot"])
-        assert not question(gang, second, content["slot"]).picks
+        assert question(gang, second, content["slot"]).chosen_name == "Extra income"
         second_pick = choose_for(second, content["reputation_pick"], content["slot"])
         assert [
             pick.assignment.pk
@@ -385,7 +630,7 @@ class TestStandingHoldingChoices:
 class TestOwnershipLifetime:
     """A new ownership period never inherits an earlier answer or address."""
 
-    def test_transfer_archives_the_old_answer_and_gives_the_recipient_an_open_question(
+    def test_transfer_archives_the_old_pick_and_gives_the_recipient_a_fresh_default(
         self, holding, gang, rival, content
     ):
         pick = choose_for(holding, content["income_pick"], content["slot"])
@@ -396,8 +641,11 @@ class TestOwnershipLifetime:
         pick.refresh_from_db()
         assert pick.archived
         assert values(gang)["Income"] == 0
-        assert values(rival)["Income"] == 15
-        assert not question(rival, current, content["slot"]).picks
+        assert values(rival)["Income"] == 20
+        received = question(rival, current, content["slot"]).picks[0].assignment
+        assert received.pickable_id == content["income_pick"].pk
+        assert received.pk != pick.pk
+        assert received.chosen_for_holding_revision == current.ownership_revision
         assert key_for(rival, current, content["slot"]) != old_key
         with pytest.raises(Http404):
             find_slot(gang, old_key)
@@ -416,8 +664,8 @@ class TestOwnershipLifetime:
         unassign_asset(holding)
         current = assign_asset(holding, gang)
         assert current.ownership_revision == revision + 2
-        assert not question(gang, current, content["slot"]).picks
-        assert values(gang) == {"Income": 15, "Reputation": 0}
+        assert question(gang, current, content["slot"]).chosen_name == "Extra income"
+        assert values(gang) == {"Income": 20, "Reputation": 0}
         pick.refresh_from_db()
         assert pick.archived
         before = counts()
@@ -566,7 +814,7 @@ class TestTheSharedPicker:
             == 404
         )
         assert counts() == before
-        assert not question(gang, current, content["slot"]).picks
+        assert question(gang, current, content["slot"]).chosen_name == "Extra income"
 
     def test_a_dismissal_hides_only_one_holding_and_one_ownership_period(
         self, client, owner, holding, gang, campaign, content
@@ -574,6 +822,7 @@ class TestTheSharedPicker:
         admit_to_founding(owner)
         client.force_login(owner)
         second = assign_asset(add_asset(campaign, content["asset"]), gang)
+        remove(question(gang, holding, content["slot"]).picks[0].assignment)
         old_key = key_for(gang, holding, content["slot"])
 
         def dismiss(key):
@@ -589,6 +838,7 @@ class TestTheSharedPicker:
         ]
         unassign_asset(holding)
         current = assign_asset(holding, gang)
+        remove(question(gang, current, content["slot"]).picks[0].assignment)
         fresh_key = key_for(gang, current, content["slot"])
         sheet = render_gang(gang)
         settle_dismissed(gang, hide_only=(sheet,))
