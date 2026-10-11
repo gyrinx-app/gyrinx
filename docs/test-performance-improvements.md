@@ -6,7 +6,42 @@ Keep the worker count fixed when isolating fixture changes; record it when
 comparing different concurrency settings. A faster focused suite or a warm
 reused database does not establish a faster full suite.
 
-## Latest complete CI shard measurement
+## Latest complete measurement
+
+Head `0852ea53b` passed the full local suite and
+[CI run 38101276228](https://github.com/gyrinx-app/gyrinx/actions/runs/38101276228).
+Both selected 13,269 cases: 13,255 passed, 13 skipped and one expected failure,
+with no failures or setup errors. Both recreated their test databases.
+
+| Measurement | Original `42fdc46f3` | Head `0852ea53b` | Reduction |
+| --- | ---: | ---: | ---: |
+| Full local suite | 2,151.53 seconds, four workers | 464.12 seconds, default twelve workers | 78.43% |
+| Full CI suite | 1,864.56 seconds, four workers | 707.64 seconds, two existing jobs with four workers each | 62.05% |
+| Combined CI test-job time | 3,073 seconds | 2,081 seconds | 32.28% |
+
+The local measurement used the same twelve-CPU macOS machine as the original
+baseline, with approved host access for the existing Git-signing and localhost
+socket tests. Its helper returned zero, recording 465.87 seconds of wall time
+and 1,569.83 seconds of child-process CPU with a clean source digest.
+
+CI's manifests record clean merge revision `2c3e86ce5`, identical complete
+collections and exactly one execution of every case. The coverage digest is
+`b89abb7a2b669afcd0f0be8ce68f4b95e6e319ecf8c7d75f9def380752561bef`.
+The earliest session start to latest finish was 707.64 seconds (11 minutes
+48 seconds), below the original 932.28-second target. Each existing four-CPU
+runner used four workers; shard zero exposed an AMD EPYC 7763 and shard one
+an Intel Xeon Platinum 8573C. No runner size or PostgreSQL server setting
+changed.
+
+The required job took 775 seconds, including its companion wait; the companion
+took 763 seconds and fresh-database 543 seconds. Their sum was 2,081 seconds
+(34 minutes 41 seconds), below the original 3,073 seconds. Both helpers returned
+zero with clean source digests, measuring 505.94 and 710.23 seconds and
+3,059.66 seconds of combined child-process CPU. CI Checks and fresh-database
+migrations also passed. This revision applies the full-suite shard policy to
+all normal CI events, including main and narrower pull requests.
+
+## Previous complete CI shard measurement
 
 Head `90c7ead78` passed all 13,267 cases in
 [CI run 38100163832](https://github.com/gyrinx-app/gyrinx/actions/runs/38100163832):
@@ -28,12 +63,12 @@ The local run selected the same cases but failed 16 Git/socket integration
 checks because the filesystem sandbox blocked Git signing and localhost
 listeners. It took 480.72 seconds, but is not passing performance evidence.
 All 19 cases in the affected modules subsequently passed with approved host
-access. A fresh full local run is required for the final candidate.
+access. The passing full local measurement above supersedes this failed run.
 
 That measured revision used sharding only for exact-root PR changes. The
 subsequent workflow applies it to all normal events, so the reduction persists
-on main and narrower pull requests. This policy change still needs a complete
-final-candidate measurement; the original targets remain unchanged.
+on main and narrower pull requests. The complete measurement above validates
+that policy; the original targets remain unchanged.
 
 ## Previous complete unsharded measurement
 
@@ -54,8 +89,8 @@ child-process CPU 3,347.53 seconds. Its existing four-CPU runner tier exposed
 an AMD EPYC 7763 in westus2. Required full-suite job time was 22 minutes
 11 seconds, fresh-database 9 minutes 34 seconds, and the duplicate-omitting
 job 30 seconds. CI Checks and migrations also passed. No runner size or
-PostgreSQL server setting changed. Earlier successful timings below do not
-replace this latest result.
+PostgreSQL server setting changed. This historical result preceded the
+complete shard measurements above.
 
 The subsequent advancement-table query change and reconciliation with main's
 founding fixture repair are not included in these complete measurements.
@@ -94,7 +129,8 @@ shards against the original 932.28-second CI target. Compare the sum of both
 job durations, including the required job's wait, plus fresh-database against
 the original 3,073 seconds. A passing shard alone proves neither the complete
 suite nor the elapsed-time target. The exact-root implementation supplied
-the complete CI result above; the all-events policy awaits final validation.
+the previous complete CI result; the latest measurement validates the
+all-events policy.
 
 ## Historical complete candidate
 
@@ -193,14 +229,12 @@ policy adds no runners or larger machines.
 Verify the cost separately by comparing the sum of the required, full-suite
 and fresh-database job durations, not just the fastest job.
 
-When a PR changes the root conftest, the existing changed-test policy requires
-the entire suite. CI measures an unfiltered full run in the required `test`
-job for that exact `.` scope, and omits its duplicate execution in `test-full`.
-Both jobs select against the same immutable PR base and verify the checked-out
-revision. Selector errors fail the job. The second job's summary identifies
-the required check as the owner of the full result; its own green status does
-not prove that the suite passed. Other PR scopes, main and merge-group runs
-retain their existing checks. Count the second job's remaining startup cost.
+Both CI test jobs verify the checked-out event revision and collect the entire
+suite regardless of the changed paths. The required `test` job verifies the
+complete union after `test-full` succeeds in the same attempt. Selector errors
+fail the job, and a single green shard does not prove the suite passed. Count
+both jobs' setup and cleanup, the required job's companion wait, and the
+fresh-database job when comparing execution cost.
 
 The normal full run recreates test databases from the current models, using
 `--nomigrations`. Use identical database settings for each measurement.
@@ -450,10 +484,9 @@ history counts after five real transaction-test flushes. It also verified that
 the seeders correct canonical fields while preserving existing extra-stat,
 statline-link and equipment-category overrides and their history behaviour.
 
-The first complete candidate met both time targets and the CI cost limit;
-the latest rerun still misses the CI time target. Reduced test counts and
-isolated timings remain supporting diagnostics rather than substitutes for
-current full measurements.
+Earlier complete unsharded candidates varied enough to miss the CI time
+target on reruns. Reduced test counts and isolated timings remain supporting
+diagnostics rather than substitutes for the complete measurements above.
 
 ### Further catalogue and lifecycle reductions
 
@@ -478,7 +511,7 @@ including the real mid-draft reseed, while sharing its authored catalogue.
 Its paired runs passed in 34.58 and 30.23 seconds; child CPU fell from 41.97
 to 28.50 seconds. Eight ordered cases across these catalogues and a fresh
 foundation also passed. These comparisons do not establish a full-suite
-improvement; the next complete local and CI runs must measure that.
+improvement in isolation; the complete measurements above include them.
 
 Ingest shares its real foundation within each ordinary class. The missing-seed
 and full-clearing cases retain independent fixtures. Post-battle views share
@@ -500,5 +533,5 @@ content, vehicle statlines and the advancement boundary.
 
 The scheduler remains `worksteal`. An explicit catalogue-grouping trial passed
 all 545 cases but supplied no evidence of a speed improvement, so its markers
-were removed. These catalogue reductions still require complete local and CI
-measurements on the resulting commit before the time target can be claimed.
+were removed. The complete local and CI measurements above include these
+catalogue reductions and validate the combined change.
