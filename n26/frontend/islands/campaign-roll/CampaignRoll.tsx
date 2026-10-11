@@ -28,7 +28,8 @@ export type CampaignRollProps = {
         highest: number;
     }[];
     cancelUrl: string;
-    focused?: boolean;
+    /** The control focused before mount: rolled, submit, cancel or table:<value>. */
+    focused?: string;
 };
 
 /** One roll on a campaign table, with the dialog's Cancel and submit. */
@@ -36,11 +37,14 @@ export function CampaignRoll(props: CampaignRollProps) {
     const [table, setTable] = useState(props.table);
     const [rolled, setRolled] = useState(props.rolled.value);
     const rollRef = useRef<HTMLInputElement>(null);
+    const cancelRef = useRef<HTMLAnchorElement>(null);
+    const submitRef = useRef<HTMLButtonElement>(null);
     const only = props.tables.length === 1 ? props.tables[0] : null;
     const selected = props.tables.find((option) => option.value === table);
 
     useLayoutEffect(() => {
-        if (props.focused) rollRef.current?.focus();
+        const refs = { rolled: rollRef, cancel: cancelRef, submit: submitRef };
+        refs[props.focused as keyof typeof refs]?.current?.focus();
     }, [props.focused]);
 
     return (
@@ -76,6 +80,9 @@ export function CampaignRoll(props: CampaignRollProps) {
                             description={option.die}
                             checked={table === option.value}
                             onChange={() => setTable(option.value)}
+                            autoFocus={
+                                props.focused === `table:${option.value}`
+                            }
                         />
                     ))}
                 </RadioCards>
@@ -111,10 +118,14 @@ export function CampaignRoll(props: CampaignRollProps) {
             </Field>
             {/* The dialog closes on a click of a link to its own cancel address. */}
             <FormActions>
-                <ButtonLink href={props.cancelUrl} variant="ghost">
+                <ButtonLink
+                    ref={cancelRef}
+                    href={props.cancelUrl}
+                    variant="ghost"
+                >
                     Cancel
                 </ButtonLink>
-                <Button type="submit" variant="success">
+                <Button ref={submitRef} type="submit" variant="success">
                     {rolled ? "Use my roll" : "Roll"}
                 </Button>
             </FormActions>

@@ -163,4 +163,36 @@ describe("campaign roll", () => {
         });
         host.remove();
     });
+
+    it.each([
+        ['input[value="selection"]', "radio", /Territory Selection Table/],
+        ["a", "link", "Cancel"],
+        ["button", "button", "Roll"],
+    ] as const)(
+        "keeps focus on %s when the island replaces it",
+        async (selector, role, name) => {
+            const host = document.createElement("div");
+            host.innerHTML =
+                '<input type="radio" name="table" value="journal" checked>' +
+                '<input type="radio" name="table" value="selection">' +
+                '<input name="rolled" value="">' +
+                '<a href="/n26/campaigns/1/">Cancel</a>' +
+                '<button type="submit">Roll</button>';
+            document.body.append(host);
+            host.querySelector<HTMLElement>(selector)!.focus();
+            let dispose: () => void;
+            await act(async () => {
+                dispose = mount(host, props);
+            });
+            await waitFor(() =>
+                expect(document.activeElement).toBe(
+                    screen.getByRole(role, { name }),
+                ),
+            );
+            await act(async () => {
+                dispose!();
+            });
+            host.remove();
+        },
+    );
 });

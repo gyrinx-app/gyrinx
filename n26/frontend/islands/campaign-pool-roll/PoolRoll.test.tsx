@@ -164,6 +164,40 @@ describe("campaign pool roll", () => {
         });
         host.remove();
     });
+
+    it("keeps focus on a table radio the island replaces", async () => {
+        const host = document.createElement("div");
+        host.innerHTML =
+            '<input type="radio" name="table" value="territories" checked>' +
+            '<input type="radio" name="table" value="journal">';
+        document.body.append(host);
+        host.querySelector<HTMLInputElement>('[value="journal"]')!.focus();
+        let dispose: () => void;
+        await act(async () => {
+            dispose = mount(host, {
+                ...props,
+                tables: [
+                    ...props.tables,
+                    {
+                        value: "journal",
+                        label: "Goliath Territories",
+                        die: "D6",
+                        lowest: 1,
+                        highest: 6,
+                    },
+                ],
+            });
+        });
+        await waitFor(() =>
+            expect(document.activeElement).toBe(
+                screen.getByRole("radio", { name: /Goliath Territories/ }),
+            ),
+        );
+        await act(async () => {
+            dispose!();
+        });
+        host.remove();
+    });
 });
 
 function previewFetch() {

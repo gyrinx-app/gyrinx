@@ -217,8 +217,9 @@ export function FieldErrors({ id, errors }: { id?: string; errors: string[] }) {
 }
 
 /**
- * A labelled control. `descriptionPlacement="before"` matches a Cotton
- * field's `description` slot; the default matches `description_trailing`.
+ * A labelled control. In the block variant, `descriptionPlacement="before"`
+ * matches a Cotton field's `description` slot; the default matches
+ * `description_trailing`. The toggle variant always draws it after.
  */
 export function Field({
     label,
@@ -645,6 +646,7 @@ export function RadioCard({
     disabled = false,
     checked,
     onChange,
+    autoFocus,
     flair,
     className = "",
     children,
@@ -658,6 +660,7 @@ export function RadioCard({
     disabled?: boolean;
     checked: boolean;
     onChange: () => void;
+    autoFocus?: boolean;
     flair?: ReactNode;
     className?: string;
     children?: ReactNode;
@@ -672,6 +675,7 @@ export function RadioCard({
                 disabled={disabled}
                 checked={checked}
                 onChange={onChange}
+                autoFocus={autoFocus}
                 className={recipe.input}
             />
             <span className={recipe.content}>

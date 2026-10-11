@@ -21,7 +21,7 @@ sentence and the act named Roll.
 {% endcomment %}
 <c-n26.dialog title="{{ question.title }}"
               action="{{ question.action }}"
-              cancel_url="{% url 'n26-campaign' campaign.pk %}"
+              cancel_url="{{ question.roll_fields.cancelUrl }}"
               :footer="False"
               :redrawn="redrawn"
               :htmx="True">
@@ -74,7 +74,7 @@ sentence and the act named Roll.
                         autocomplete="off"
                         value="{{ form.rolled.value|default_if_none:'' }}" />
         </c-ui.field>
-        <c-n26.form-actions cancel_url="{% url 'n26-campaign' campaign.pk %}">
+        <c-n26.form-actions cancel_url="{{ question.roll_fields.cancelUrl }}">
             <c-ui.button type="submit" variant="success">
                 Roll
             </c-ui.button>

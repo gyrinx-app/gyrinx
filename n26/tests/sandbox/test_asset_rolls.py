@@ -910,6 +910,8 @@ class TestThePages:
         props = _roll_props(body)
         assert props["inputId"] == "starting-roll"
         assert props["cancelUrl"] == page
+        # The dialog closes, rather than navigates, on a link to its own cancel address.
+        assert f"cancelUrl: '{page}'" in body
         assert props["rolled"] == {
             "label": "Your own roll",
             "helpText": "Optional. Leave blank and the roll is made for you.",

@@ -550,7 +550,6 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
         chosen = str(form["table"].value() or "")
         if chosen not in {table.table_id for table in tables}:
             chosen = tables[0].table_id
-        question["chosen"] = chosen
         question["choices"] = [(table, table.table_id == chosen) for table in tables]
         island_tables = {
             "table": chosen,
