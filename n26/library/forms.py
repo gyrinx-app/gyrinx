@@ -34,6 +34,7 @@ import inspect
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 from n26.library import artwork
 from n26.library.specs import (
@@ -699,6 +700,7 @@ class GeneratedForm(forms.Form):
                 ]
         return form
 
+    @transaction.atomic
     def apply_to(self, thing):
         """Write this valid form's fields onto an existing row.
 
@@ -726,11 +728,15 @@ class GeneratedForm(forms.Form):
         from n26.library.authoring import revise
 
         columns, sets, verbs = {}, {}, {}
-        for name in self.spec.fields:
-            if name not in self.fields:
+        for name, kind in self.spec.fields.items():
+            written_by = getattr(kind, "written_by", None)
+            if name not in self.fields and not (
+                isinstance(kind, Union)
+                and written_by is not None
+                and name in self.cleaned_data
+            ):
                 continue
             value = self.cleaned_data.get(name)
-            written_by = getattr(self.spec.fields[name], "written_by", None)
             if written_by is not None:
                 # No column to write: the verb that owns the parameter
                 # writes it, after the row's own columns are saved. An
@@ -745,17 +751,8 @@ class GeneratedForm(forms.Form):
                 continue
             else:
                 columns[name] = value
-        # The row's own sense check runs before anything is written, so
-        # two boxes that make no sense together are refused in words on
-        # the form — the database would refuse them too, but the page
-        # can only read that as a name already taken. Only clean(): the
-        # form has checked each field, and uniqueness and constraints
-        # are the database's, whose refusals the pages already put into
-        # words of their own.
         for name, value in columns.items():
             setattr(thing, name, value)
-        thing.clean()
-        revise(thing, **columns)
         owned = {}
         for name, value in sets.items():
             replace = self.spec.fields[name].replaced_by
@@ -766,8 +763,12 @@ class GeneratedForm(forms.Form):
                     f"saying what leaving the set means"
                 )
             owned.setdefault(replace, {})[name] = value or ()
+        # Validate the combined scalar fields and replacement sets. A refusal
+        # rolls back any set writes, so an invalid edit preserves the stored row.
         for replace, values in owned.items():
             replace(thing, **values)
+        thing.clean()
+        revise(thing, **columns)
         for write, value in verbs.items():
             write(thing, value)
         return thing

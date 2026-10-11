@@ -7,11 +7,12 @@ from dataclasses import asdict, dataclass, field
 from uuid import uuid4
 
 from n26.core.campaigns import campaign_operation
-from n26.core.card import build_gang_card, build_modifier_index, carriers
+from n26.core.card import build_gang_cards, build_modifier_index, carriers
 from n26.core.cycles import _may_manage
 from n26.core.effects import asset_origins, compute_gang, counter_readings
 from n26.core.income import asset_assignment_income_sources, holding_income_sources
 from n26.core.models import (
+    CampaignAsset,
     CycleResolution,
     CycleRewardClaim,
     Gang,
@@ -39,6 +40,7 @@ class RewardLine:
     claimed: str = ""
     maximum: int | None = None
     eligible_profiles: tuple = ()
+    eligible_profile_type: str = ""
 
 
 @dataclass
@@ -48,6 +50,7 @@ class GangRewards:
     credits: int | None
     lines: list[RewardLine] = field(default_factory=list)
     receipt_id: str = ""
+    sources: tuple = ()
 
 
 @dataclass
@@ -117,7 +120,7 @@ def _income_lines(gang, computed):
     return lines
 
 
-def _recruitment_entries(gang, computed):
+def _recruitment_entries(gang, computed, cache):
     from n26.core.access import gang_collections
     from n26.core.hire import (
         build_entries,
@@ -130,54 +133,48 @@ def _recruitment_entries(gang, computed):
         access.collection
         for access in gang_collections(gang, card=computed.card, computed=computed)
     ]
+    key = (gang.gang_type_id, tuple(collection.pk for collection in carried))
+    if key in cache:
+        return cache[key]
     sections = gang_scope_sections(
         collection_offers(carried), gang.gang_type, carried, with_cards=False
     )
     entries = [entry for section in sections for entry in section.all_entries()]
     present = {entry.profile.pk for entry in entries}
-    entries.extend(
-        build_entries(
-            [
-                profile
-                for profile in supplementary_profiles()
-                if profile.pk not in present
-            ],
-            with_cards=False,
+    if "supplementary" not in cache:
+        cache["supplementary"] = build_entries(
+            supplementary_profiles(), with_cards=False
         )
+    entries.extend(
+        entry for entry in cache["supplementary"] if entry.profile.pk not in present
     )
+    cache[key] = entries
     return entries
 
 
-def _existing_recruits(gang, profiles):
-    return Miniature.objects.filter(
-        membership__gang=gang,
-        membership__archived=False,
-        membership__profile_id__in=profiles,
-    ).count()
+def _existing_recruits(gang, line):
+    models = Miniature.objects.filter(membership__gang=gang, membership__archived=False)
+    if line.eligible_profiles:
+        models = models.filter(membership__profile_id__in=line.eligible_profiles)
+    if line.eligible_profile_type:
+        models = models.filter(
+            membership__profile__profile_type_id=line.eligible_profile_type
+        )
+    return models.count()
 
 
-def _additional_lines(gang, computed):
+def _additional_lines(gang, computed, existing, entry_cache):
     from n26.core.models import CampaignAsset
     from n26.library.models import OffersCycleRecruitment
 
     origins = asset_origins(computed.card)
     entries = (
-        _recruitment_entries(gang, computed)
+        _recruitment_entries(gang, computed, entry_cache)
         if any(
             isinstance(offer.effect, OffersCycleRecruitment)
             for offer in computed.cycle_rewards
         )
         else []
-    )
-    existing = (
-        Counter(
-            str(profile_id)
-            for profile_id in Miniature.objects.filter(
-                membership__gang=gang, membership__archived=False
-            ).values_list("membership__profile_id", flat=True)
-        )
-        if entries
-        else Counter()
     )
     lines = []
     for offer in computed.cycle_rewards:
@@ -201,14 +198,15 @@ def _additional_lines(gang, computed):
                     or entry.profile.profile_type_id == effect.profile_type_id
                 )
             ]
-            profiles = tuple(
-                sorted(authored or {str(entry.profile.pk) for entry in eligible})
+            profiles = tuple(sorted(authored))
+            profile_type = str(effect.profile_type_id) if effect.profile_type_id else ""
+            matching = sum(
+                count
+                for (profile_id, type_id), count in existing.items()
+                if (not profiles or profile_id in profiles)
+                and (not profile_type or type_id == profile_type)
             )
-            limit = (
-                effect.maximum is not None
-                and sum(existing.get(profile, 0) for profile in profiles)
-                >= effect.maximum
-            )
+            limit = effect.maximum is not None and matching >= effect.maximum
             options = tuple(
                 {
                     "key": entry.key,
@@ -237,6 +235,7 @@ def _additional_lines(gang, computed):
                     blocked=blocked,
                     maximum=effect.maximum,
                     eligible_profiles=profiles,
+                    eligible_profile_type=profile_type,
                 )
             )
         else:
@@ -265,11 +264,43 @@ def preview_cycle(cycle):
         for claim in cycle.claims.select_related("resolution__gang")
     }
     gangs = []
-    memberships = (
+    memberships = list(
         cycle.campaign.memberships.filter(left__isnull=True)
         .select_related("gang__gang_type")
         .order_by("gang__name", "gang_id")
     )
+    pending = [
+        membership.gang
+        for membership in memberships
+        if str(membership.gang_id) not in resolutions
+    ]
+    holdings = {}
+    for holding in CampaignAsset.objects.filter(
+        holder__gang__in=pending, holder__left__isnull=True
+    ).select_related(
+        "holder", "asset__asset_type", "income_override__contributes_to_counter"
+    ):
+        holdings.setdefault(holding.holder.gang_id, []).append(holding)
+    cards = build_gang_cards(pending, holdings, with_members=True)
+    index = build_modifier_index(
+        carriers(
+            *(
+                card
+                for gang_card in cards.values()
+                for card in (gang_card, *gang_card.members.values())
+            )
+        )
+    )
+    existing = {gang.pk: Counter() for gang in pending}
+    for gang_id, profile_id, profile_type_id in Miniature.objects.filter(
+        membership__gang__in=pending, membership__archived=False
+    ).values_list(
+        "membership__gang_id",
+        "membership__profile_id",
+        "membership__profile__profile_type_id",
+    ):
+        existing[gang_id][(str(profile_id), str(profile_type_id))] += 1
+    entry_cache = {}
     for membership in memberships:
         gang = membership.gang
         receipt = resolutions.get(str(gang.pk))
@@ -283,23 +314,44 @@ def preview_cycle(cycle):
                 )
             )
             continue
-        card = build_gang_card(gang, with_statlines=False)
-        index = build_modifier_index(carriers(card, *card.members.values()))
+        card = cards[gang.pk]
         computed = compute_gang(card, index)
-        lines = [*_income_lines(gang, computed), *_additional_lines(gang, computed)]
+        lines = [
+            *_income_lines(gang, computed),
+            *_additional_lines(gang, computed, existing[gang.pk], entry_cache),
+        ]
         lines = [replace(line, claimed=claims.get(line.source, "")) for line in lines]
+        sources = (
+            {f"holding:{holding.pk}" for holding in card.holdings}
+            | {f"assignment:{key}" for key in asset_assignment_income_sources(computed)}
+            | {line.source for line in lines}
+        )
         gangs.append(
             GangRewards(
                 str(gang.pk),
                 gang.name,
                 None if gang.credits_unlimited else gang.credits,
                 lines,
+                sources=tuple(sorted(sources - claims.keys())),
             )
         )
     plan = CyclePlan(str(cycle.pk), cycle.label, gangs)
-    plan.token = hashlib.sha256(
-        json.dumps(plan.props(), sort_keys=True).encode()
-    ).hexdigest()
+    plan.token = json.dumps(
+        {
+            gang.gang_id: hashlib.sha256(
+                json.dumps(
+                    {
+                        "cycle_id": plan.cycle_id,
+                        "label": plan.label,
+                        "gang": asdict(gang),
+                    },
+                    sort_keys=True,
+                ).encode()
+            ).hexdigest()
+            for gang in plan.gangs
+        },
+        sort_keys=True,
+    )
     return plan
 
 
@@ -326,10 +378,10 @@ def _apply_line(op, line, selection):
             else ""
         )
         if not name or len(name) > 200:
-            raise Refusal("Enter a fighter name of 200 characters or fewer.")
+            raise Refusal("Enter a model name of 200 characters or fewer.")
         if (
             line.maximum is not None
-            and _existing_recruits(op.gang, line.eligible_profiles) >= line.maximum
+            and _existing_recruits(op.gang, line) >= line.maximum
         ):
             raise Refusal("This gang already has the maximum number of these fighters.")
         profile = Profile.objects.get(pk=chosen["profile_id"])
@@ -339,7 +391,7 @@ def _apply_line(op, line, selection):
             paid=chosen["payment"],
             list_price=chosen["list_price"],
             discount=chosen["discount"],
-            rating=profile.reference_price(),
+            rating=chosen["list_price"],
             reason=Reason.REWARD,
             note=f"Cycle boon: {line.name}"[:255],
         )
@@ -382,7 +434,14 @@ def apply_cycle(cycle, *, actor, token, selections):
         # Campaign operations use a no-key lock; gang operations keep their existing ordering.
         gangs = list(Gang.objects.select_for_update().filter(pk__in=ids).order_by("pk"))
         plan = preview_cycle(cycle)
-        if plan.token != token:
+        try:
+            reviewed = json.loads(token)
+        except ValueError, TypeError:
+            reviewed = None
+        current = json.loads(plan.token)
+        if not isinstance(reviewed, dict) or any(
+            key not in current or reviewed.get(key) != current[key] for key in ids
+        ):
             raise Refusal(
                 "The rewards changed. Refresh the preview before applying them."
             )
@@ -406,6 +465,7 @@ def apply_cycle(cycle, *, actor, token, selections):
                 raise Refusal("Enter a comment of 255 characters or fewer.")
             batch = uuid4()
             recorded = []
+            credits_before = None if gang.credits_unlimited else gang.credits
             with operation(gang, actor=actor, batch=batch) as op:
                 for line in reward.lines:
                     selection = rows[line.key]
@@ -447,31 +507,24 @@ def apply_cycle(cycle, *, actor, token, selections):
                     LedgerEvent.Kind.CYCLE_RESOLVED,
                     note=(f"{cycle.label}" + (f": {comment}" if comment else ""))[:255],
                 )
-                receipt = CycleResolution.objects.create(
-                    cycle=cycle,
-                    gang=gang,
-                    actor=actor,
-                    comment=comment,
-                    batch=batch,
-                    snapshot={
-                        "label": cycle.label,
-                        "gang": gang.name,
-                        "credits_before": None
-                        if gang.credits_unlimited
-                        else gang.credits,
-                        "lines": recorded,
-                    },
-                )
-                for source in {
-                    line.source for line in reward.lines if not line.claimed
-                }:
-                    CycleRewardClaim.objects.create(
-                        cycle=cycle, resolution=receipt, source=source
-                    )
             gang.refresh_from_db()
-            receipt.snapshot["credits_after"] = (
-                None if gang.credits_unlimited else gang.credits
+            receipt = CycleResolution.objects.create(
+                cycle=cycle,
+                gang=gang,
+                actor=actor,
+                comment=comment,
+                batch=batch,
+                snapshot={
+                    "label": cycle.label,
+                    "gang": gang.name,
+                    "credits_before": credits_before,
+                    "credits_after": None if gang.credits_unlimited else gang.credits,
+                    "lines": recorded,
+                },
             )
-            receipt.save(update_fields=["snapshot", "modified"])
+            for source in reward.sources:
+                CycleRewardClaim.objects.create(
+                    cycle=cycle, resolution=receipt, source=source
+                )
             receipts.append(receipt)
         return receipts

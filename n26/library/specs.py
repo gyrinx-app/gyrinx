@@ -258,6 +258,7 @@ class Union:
     over: dict = dataclass_field(default_factory=dict)
     through: type = None
     filters: dict = dataclass_field(default_factory=dict)
+    written_by: object = None
 
     help = ""
 
@@ -765,7 +766,9 @@ def _build_registry():
             authoring.ef_offers_cycle_recruitment,
             {
                 "profiles": Many(
-                    model=Profile, replaced_by=authoring.set_cycle_recruitment_profiles
+                    model=Profile,
+                    source=(OffersCycleRecruitment, "profiles"),
+                    replaced_by=authoring.set_cycle_recruitment_profiles,
                 ),
                 "profile_type": One(
                     model=ProfileType,
@@ -784,6 +787,7 @@ def _build_registry():
             {
                 "thing": Union(
                     over={"weapon": "library.Weapon", "wargear": "library.Wargear"},
+                    written_by=authoring.set_cycle_equipment,
                 ),
                 "quantity": Int(source=(OffersCycleEquipment, "quantity")),
             },

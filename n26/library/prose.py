@@ -479,6 +479,35 @@ def _says_offers_choice(effect, parts):
     return said, hint
 
 
+@_renders("offers_cycle_recruitment")
+def _says_offers_cycle_recruitment(effect, parts):
+    criterion = (
+        "of the configured profile type"
+        if effect.profile_type_id
+        else "from the configured profiles"
+    )
+    limit = (
+        f" The gang must have fewer than {effect.maximum} models {criterion}."
+        if effect.maximum is not None
+        else ""
+    )
+    return (
+        f"the gang may recruit one eligible fighter with a {effect.discount}¢ discount per campaign cycle.",
+        "The arbitrator chooses an eligible fighter when applying cycle boons. "
+        "The minimum payment is 0¢. The fighter remains in the gang after territory loss."
+        + limit,
+    )
+
+
+@_renders("offers_cycle_equipment")
+def _says_offers_cycle_equipment(effect, parts):
+    return (
+        f"the gang may receive {effect.quantity} × {effect.thing} in its stash per campaign cycle.",
+        "The arbitrator applies this reward through cycle boons. "
+        "The equipment remains in the stash after territory loss.",
+    )
+
+
 @_renders("hides_categories")
 def _says_hides_categories(effect, parts):
     who = parts.who

@@ -2829,7 +2829,7 @@ register_control_operation(
 
 @task
 def seed_territory_cycle_rewards(backfill_id, **said_by_whoever_enqueued_it):
-    """Record the guarded territory boon conversion and current Income picks."""
+    """Attach guarded cycle reward definitions to seeded territory choices."""
     from n26.library.territory_cycle_rewards import seed_all
 
     _run_recorded(

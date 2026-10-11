@@ -1,0 +1,36 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}{{ title }} · {{ campaign.name }}{% endblock %}
+{% block content %}
+    {% url "n26-campaign" campaign.pk as back %}
+    <c-n26.form-page title="{{ title }}"
+                     :form="form"
+                     submit_label="{{ submit_label }}"
+                     cancel_url="{{ back }}">
+        {% csrf_token %}
+        {{ form.previous }}
+        <p class="text-sm text-muted">{{ campaign.name }}{% if not renaming %} · Cycle {{ next_number }}{% endif %}</p>
+        <c-ui.field label="Cycle name"
+                    :form="form"
+                    name="name"
+                    for="cycle-name"
+                    description="Optional. Leave blank to use the cycle number.">
+            <c-ui.input id="cycle-name"
+                        name="name"
+                        maxlength="200"
+                        value="{{ form.name.value|default:'' }}" />
+        </c-ui.field>
+        {% if renaming %}<p class="text-sm text-muted">Renaming keeps the same cycle and its recorded boons.</p>{% endif %}
+        {% if not renaming %}
+            <p class="text-sm text-muted">Starting a cycle does not apply boons or change fighter recovery. Review and apply boons separately.</p>
+            {% if pending %}
+                <c-ui.alert variant="warning" title="Boons still pending">
+                    <p>These gangs have not resolved the current cycle's boons:</p>
+                    <ul class="list-disc pl-5">{% for membership in pending %}<li>{{ membership.gang.name }}</li>{% endfor %}</ul>
+                </c-ui.alert>
+                {% include "n26/includes/confirm_checkbox.html" with checkbox=pending_checkbox %}
+                <p class="text-sm text-muted">Confirm to end this cycle with those boons unapplied. They cannot be applied after the cycle ends.</p>
+                <c-n26.link href="{% url 'n26-cycle-rewards' campaign.pk cycle.pk %}">Review pending boons</c-n26.link>
+            {% endif %}
+        {% endif %}
+    </c-n26.form-page>
+{% endblock %}

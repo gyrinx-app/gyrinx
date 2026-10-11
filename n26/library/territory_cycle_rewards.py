@@ -95,7 +95,6 @@ def seed_all(actor=None):
                 if not profiles:
                     outcome.skipped.append(f"skipped {entry.asset}: no Ganger profiles")
                     continue
-                effect_args = (profiles, discount, maximum)
                 summary = f"At cycle end, recruit one eligible fighter with a {discount}-credit discount, to a minimum price of 0 credits."
             else:
                 thing_name, quantity, house = EQUIPMENT[entry.asset]
@@ -109,7 +108,6 @@ def seed_all(actor=None):
                         f"skipped {entry.asset}: missing or ambiguous {thing_name}"
                     )
                     continue
-                effect_args = (things[0], quantity)
                 summary = f"At cycle end, add {quantity} {thing_name} to the stash."
             house_pick = supertype_pick(house) if house else None
             if house and house_pick is None:
@@ -121,13 +119,11 @@ def seed_all(actor=None):
                 *([has_gang_pickable(house_pick)] if house else [])
             )
             if entry.asset in RECRUITS:
-                profiles, discount, maximum = effect_args
                 effect = ef_offers_cycle_recruitment(
                     profiles=profiles, discount=discount, maximum=maximum
                 )
             else:
-                thing, quantity = effect_args
-                effect = ef_offers_cycle_equipment(thing, quantity=quantity)
+                effect = ef_offers_cycle_equipment(things[0], quantity=quantity)
             modifier(
                 name,
                 scope,

@@ -19,6 +19,14 @@ Assets retain their authored groups and links. This component draws its own card
             </h2>
         </c-slot>
         <dl class="divide-y divide-box-border px-4">
+            {% if campaign.cycle %}<div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-3 py-2.5">
+                <dt class="text-sm text-muted">Cycle</dt>
+                <dd class="space-y-1 text-right text-sm">
+                    <div>{{ campaign.cycle.label }}</div>
+                    {% if campaign.cycle.state %}<div class="text-xs text-muted">{{ campaign.cycle.state }}</div>{% endif %}
+                    {% if campaign.cycle.receipt_href %}<c-n26.link href="{{ campaign.cycle.receipt_href }}" class="text-xs">View receipt</c-n26.link>{% elif campaign.cycle.apply_href %}<c-n26.link href="{{ campaign.cycle.apply_href }}" class="text-xs">Apply boons</c-n26.link>{% elif campaign.cycle.view_href %}<c-n26.link href="{{ campaign.cycle.view_href }}" class="text-xs">View boons</c-n26.link>{% endif %}
+                </dd>
+            </div>{% endif %}
             {% for choice in campaign.other_choices %}
                 {% include "n26/includes/campaign_choice.html" %}
             {% endfor %}

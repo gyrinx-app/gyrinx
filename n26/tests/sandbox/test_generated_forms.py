@@ -570,3 +570,142 @@ class TestALongConditionStillComposes:
         from n26.library.forms import ModifierComposerForm
 
         assert ModifierComposerForm.base_fields["name"].max_length == 200
+
+
+def test_cycle_recruitment_criteria_can_switch_between_type_and_profiles(make_profile):
+    from n26.library.authoring import ef_offers_cycle_recruitment
+    from n26.library.forms import generate_form
+    from n26.library.specs import specs
+
+    profile = make_profile("Cycle helper", price=30)
+    reward = ef_offers_cycle_recruitment(profile_type=profile.profile_type, discount=25)
+    Form = generate_form(specs()["ef_offers_cycle_recruitment"])
+    form = Form.opened_on(
+        reward,
+        data={
+            "profiles": [str(profile.pk)],
+            "profile_type": "",
+            "discount": "25",
+            "maximum": "",
+        },
+        prefix="",
+    )
+    assert form.is_valid(), form.errors
+    form.apply_to(reward)
+    reward.refresh_from_db()
+    assert reward.profile_type_id is None
+    assert list(reward.profiles.all()) == [profile]
+    form = Form.opened_on(
+        reward,
+        data={
+            "profiles": [],
+            "profile_type": str(profile.profile_type_id),
+            "discount": "30",
+            "maximum": "1",
+        },
+        prefix="",
+    )
+    assert form.is_valid(), form.errors
+    form.apply_to(reward)
+    reward.refresh_from_db()
+    assert reward.profile_type_id == profile.profile_type_id
+    assert not reward.profiles.exists()
+    assert (reward.discount, reward.maximum) == (30, 1)
+
+
+@pytest.mark.parametrize("both", [False, True])
+def test_invalid_cycle_recruitment_edit_preserves_its_profiles_and_columns(
+    make_profile, both
+):
+    from django.core.exceptions import ValidationError
+
+    from n26.library.authoring import ef_offers_cycle_recruitment
+    from n26.library.forms import generate_form
+    from n26.library.specs import specs
+
+    profile = make_profile("Cycle helper", price=30)
+    reward = ef_offers_cycle_recruitment(profiles=[profile], discount=25)
+    form = generate_form(specs()["ef_offers_cycle_recruitment"]).opened_on(
+        reward,
+        data={
+            "profiles": [str(profile.pk)] if both else [],
+            "profile_type": str(profile.profile_type_id) if both else "",
+            "discount": "50",
+            "maximum": "",
+        },
+        prefix="",
+    )
+    assert form.is_valid(), form.errors
+    with pytest.raises(ValidationError, match="Select profiles"):
+        form.apply_to(reward)
+    reward.refresh_from_db()
+    assert list(reward.profiles.all()) == [profile]
+    assert reward.discount == 25
+
+
+def test_cycle_recruitment_requires_one_criterion_before_creation(make_profile):
+    from django.core.exceptions import ValidationError
+
+    from n26.library.authoring import ef_offers_cycle_recruitment
+    from n26.library.models import OffersCycleRecruitment
+
+    profile = make_profile("Cycle helper", price=30)
+    before = OffersCycleRecruitment.objects.count()
+    for criteria in ({}, {"profiles": [profile], "profile_type": profile.profile_type}):
+        with pytest.raises(ValidationError, match="but not both"):
+            ef_offers_cycle_recruitment(**criteria)
+    assert OffersCycleRecruitment.objects.count() == before
+
+
+def test_cycle_recruitment_limit_prose_names_the_selected_criterion(make_profile):
+    from n26.library.authoring import (
+        ef_offers_cycle_recruitment,
+        modifier,
+        targets_gang_alone,
+    )
+    from n26.library.prose import prose_for
+
+    profile = make_profile("Cycle helper", price=30)
+    for criteria, expected in (
+        ({"profiles": [profile]}, "from the configured profiles"),
+        ({"profile_type": profile.profile_type}, "of the configured profile type"),
+    ):
+        effect = ef_offers_cycle_recruitment(**criteria, maximum=1)
+        rule = modifier(f"Cycle reward {effect.pk}", targets_gang_alone(), effect)
+        assert expected in prose_for(rule).does[0].hint
+
+
+def test_cycle_equipment_edit_replaces_the_selected_kind_and_quantity():
+    from n26.library.authoring import (
+        create_wargear,
+        create_weapon,
+        ef_offers_cycle_equipment,
+    )
+    from n26.library.forms import generate_form
+    from n26.library.specs import specs
+
+    armour = create_wargear("Cycle armour", price=10)
+    weapon = create_weapon("Cycle weapon", price=20)
+    respirator = create_wargear("Cycle respirator", price=15)
+    reward = ef_offers_cycle_equipment(armour, quantity=2)
+    Form = generate_form(specs()["ef_offers_cycle_equipment"])
+    for kind, equipment, quantity in (
+        ("weapon", weapon, 1),
+        ("wargear", respirator, 3),
+    ):
+        form = Form.opened_on(
+            reward,
+            data={
+                "thing_kind": kind,
+                f"thing_{kind}": str(equipment.pk),
+                "quantity": str(quantity),
+            },
+            prefix="",
+        )
+        assert form.is_valid(), form.errors
+        form.apply_to(reward)
+        reward.refresh_from_db()
+        assert reward.thing == equipment
+        assert reward.quantity == quantity
+        assert reward.weapon_id == (equipment.pk if kind == "weapon" else None)
+        assert reward.wargear_id == (equipment.pk if kind == "wargear" else None)

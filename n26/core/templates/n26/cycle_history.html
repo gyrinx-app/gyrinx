@@ -1,0 +1,28 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}Cycle history · {{ campaign.name }}{% endblock %}
+{% block content %}
+    <div class="max-w-3xl space-y-6">
+        <c-n26.page-header title="Cycle history" lead="{{ campaign.name }}">
+            <c-slot name="actions"><c-ui.button size="sm"
+             href="{% url 'n26-campaign' campaign.pk %}">Back to campaign</c-ui.button></c-slot>
+        </c-n26.page-header>
+        {% for cycle in page %}
+            <c-n26.section title="{{ cycle.label }}" :boxed="True">
+                <p class="text-sm text-muted">Started {{ cycle.started|date:"j M Y" }}{% if cycle.ended %} · Ended {{ cycle.ended|date:"j M Y" }}{% else %} · Current cycle{% endif %}</p>
+                <ul class="divide-y divide-box-border">
+                    {% for gang in cycle.gangs %}
+                        <li class="flex flex-wrap items-center justify-between gap-2 py-3">
+                            <span>{{ gang.name }}</span>
+                            <div class="flex flex-wrap items-center gap-3 text-sm">
+                                <span class="text-muted">{{ gang.state }}</span>
+                                {% if gang.receipt_href %}<c-n26.link href="{{ gang.receipt_href }}">View receipt</c-n26.link>{% elif gang.review_href %}<c-n26.link href="{{ gang.review_href }}">Review boons</c-n26.link>{% elif gang.view_href %}<c-n26.link href="{{ gang.view_href }}">View boons</c-n26.link>{% endif %}
+                            </div>
+                        </li>
+        {% empty %}<li class="py-3 text-sm text-muted">No gangs in this cycle.</li>{% endfor %}
+            </ul>
+            </c-n26.section>
+{% empty %}<p class="text-sm text-muted">No campaign cycles started.</p>{% endfor %}
+{% if page.has_previous %}<c-n26.link href="?page={{ page.previous_page_number }}">Newer cycles</c-n26.link>{% endif %}
+{% if page.has_next %}<c-n26.link href="?page={{ page.next_page_number }}">Older cycles</c-n26.link>{% endif %}
+    </div>
+{% endblock %}

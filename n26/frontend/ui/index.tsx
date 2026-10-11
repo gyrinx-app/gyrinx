@@ -1229,3 +1229,17 @@ export {
     useDismiss,
     type AnchoredPlacementOptions,
 } from "./anchoredPanel";
+
+/** A native checkbox styled by the existing Cotton checkbox card. */
+export function Checkbox({
+    className = "",
+    ...props
+}: ComponentProps<"input">) {
+    return (
+        <input
+            {...props}
+            type="checkbox"
+            className={`${cotton.checkboxCard.checkbox} ${className}`}
+        />
+    );
+}

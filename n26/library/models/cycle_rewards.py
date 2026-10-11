@@ -34,9 +34,10 @@ class OffersCycleRecruitment(models.Model):
         return f"recruitment discount {self.discount}¢ per cycle"
 
     def clean(self):
-        if not self.profile_type_id and (not self.pk or not self.profiles.exists()):
+        has_profiles = bool(self.pk and self.profiles.exists())
+        if has_profiles == bool(self.profile_type_id):
             raise ValidationError(
-                "Select profiles or a profile type for this recruitment."
+                "Select profiles or a profile type for this recruitment, but not both."
             )
 
 

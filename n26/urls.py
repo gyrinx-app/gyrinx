@@ -8,6 +8,7 @@ here assumes where that is.
 from django.urls import include, path
 
 from n26.core import views
+from n26.core.views import cycles as cycle_views
 from n26.library import action_builder_views
 from n26.library import views as authoring_views
 
@@ -37,6 +38,24 @@ urlpatterns = [
     path("campaigns/new/", views.create_campaign, name="n26-create-campaign"),
     # After campaigns/new/, which would otherwise resolve "new" as an id.
     path("campaigns/<str:pk>/", views.campaign, name="n26-campaign"),
+    path(
+        "campaigns/<str:pk>/cycles/edit/", cycle_views.edit_cycle, name="n26-edit-cycle"
+    ),
+    path(
+        "campaigns/<str:pk>/cycles/",
+        cycle_views.cycle_history,
+        name="n26-cycle-history",
+    ),
+    path(
+        "campaigns/<str:pk>/cycles/<str:cycle_pk>/rewards/",
+        cycle_views.cycle_rewards,
+        name="n26-cycle-rewards",
+    ),
+    path(
+        "campaigns/<str:pk>/cycles/receipts/<str:receipt_pk>/",
+        cycle_views.cycle_receipt,
+        name="n26-cycle-receipt",
+    ),
     # The whole log; the campaign's page draws only the newest acts.
     path(
         "campaigns/<str:pk>/rolls/new/",

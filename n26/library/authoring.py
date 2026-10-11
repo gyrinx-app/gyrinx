@@ -3101,8 +3101,10 @@ def ef_offers_cycle_recruitment(
     from n26.library.models import OffersCycleRecruitment
 
     profiles = tuple(profiles)
-    if not profiles and profile_type is None:
-        raise ValidationError("Select profiles or a profile type for this recruitment.")
+    if bool(profiles) == (profile_type is not None):
+        raise ValidationError(
+            "Select profiles or a profile type for this recruitment, but not both."
+        )
     effect = OffersCycleRecruitment.objects.create(
         profile_type=profile_type, discount=discount, maximum=maximum
     )
@@ -3123,6 +3125,21 @@ def ef_offers_cycle_equipment(thing, quantity=1):
     effect.full_clean()
     effect.save()
     return effect
+
+
+@guarded_write
+@transaction.atomic
+def set_cycle_equipment(reward, thing):
+    """Replace the equipment offered by a cycle reward."""
+    from n26.library.models import Wargear, Weapon
+
+    if not isinstance(thing, (Wargear, Weapon)):
+        raise ValidationError("Select a weapon or wargear for this reward.")
+    reward.wargear = thing if isinstance(thing, Wargear) else None
+    reward.weapon = thing if isinstance(thing, Weapon) else None
+    reward.full_clean()
+    reward.save(update_fields=["wargear", "weapon"])
+    return reward
 
 
 @guarded_write

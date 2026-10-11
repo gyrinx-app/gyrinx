@@ -307,11 +307,17 @@ def more_actions(campaign, *, yours):
     """
     actions = [
         Action(
+            "Cycle history",
+            LINK,
+            reverse("n26-cycle-history", args=[campaign.pk]),
+            SECONDARY,
+        ),
+        Action(
             "View log",
             LINK,
             reverse("n26-campaign-log", args=[campaign.pk]),
             SECONDARY,
-        )
+        ),
     ]
     if yours:
         actions += [
@@ -344,8 +350,10 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
     serves the page and the partial update a roll delivers."""
     from django.urls import reverse
 
+    from n26.core.cycle_display import cycle_summary
     from n26.core.owned import with_query
 
+    sheet.cycle = cycle_summary(campaign, actor=viewer, gangs=sheet.gangs)
     here = reverse("n26-campaign", args=[campaign.pk])
     for line in sheet.gangs:
         line.href = reverse("n26-gang", args=[line.gang_id])

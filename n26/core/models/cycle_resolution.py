@@ -1,5 +1,6 @@
 """Immutable receipts and physical-source claims for per-cycle rewards."""
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from n26.core.models.abstract import Base
@@ -23,6 +24,11 @@ class CycleResolution(Base):
                 fields=["cycle", "gang"], name="cycle_resolution_gang_unique"
             )
         ]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("An applied cycle receipt cannot be edited.")
+        return super().save(*args, **kwargs)
 
 
 class CycleRewardClaim(Base):

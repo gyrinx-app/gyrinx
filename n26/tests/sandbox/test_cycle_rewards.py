@@ -254,7 +254,10 @@ def test_invalid_recruitment_rolls_back_income_and_receipt(scenario, make_profil
     assert_reconciled(iron)
 
 
-def test_two_recruitment_rewards_cannot_exceed_the_same_limit(scenario, make_profile):
+@pytest.mark.parametrize("by_type", [False, True])
+def test_two_recruitment_rewards_cannot_exceed_the_same_limit(
+    scenario, make_profile, by_type
+):
     from n26.library.authoring import ef_offers_cycle_recruitment
 
     campaign, cycle, (iron, _rust), holding = scenario
@@ -262,7 +265,15 @@ def test_two_recruitment_rewards_cannot_exceed_the_same_limit(scenario, make_pro
     for _ in range(2):
         add_reward(
             holding,
-            ef_offers_cycle_recruitment(profiles=[profile], discount=30, maximum=1),
+            ef_offers_cycle_recruitment(
+                **(
+                    {"profile_type": profile.profile_type}
+                    if by_type
+                    else {"profiles": [profile]}
+                ),
+                discount=30,
+                maximum=1,
+            ),
         )
     plan = preview_cycle(cycle)
     selections = selected(plan, iron)
@@ -302,6 +313,7 @@ def test_recruitment_charges_the_discounted_price(scenario, make_profile):
 
 
 def test_recruitment_uses_the_carried_collection_price(scenario, make_profile):
+    from n26.core.models import Miniature
     from n26.library.authoring import create_collection, ef_offers_cycle_recruitment
     from n26.tests.sandbox.actions import assign
 
@@ -329,6 +341,9 @@ def test_recruitment_uses_the_carried_collection_price(scenario, make_profile):
         row for row in receipt.snapshot["lines"] if row["kind"] == "recruitment"
     )
     assert recruitment["selected_option"]["payment"] == 20
+    fighter = Miniature.objects.get(pk=recruitment["created"][0])
+    assert fighter.membership.rating == 45
+    assert fighter.membership.ledger_entry.rating_contribution == 45
     assert_reconciled(iron)
 
 
@@ -369,3 +384,141 @@ def test_concurrent_applications_move_credits_only_once(scenario):
     iron.refresh_from_db()
     assert iron.credits == 115
     assert_reconciled(iron)
+
+
+def test_zero_income_territory_cannot_gain_a_reward_after_resolution(
+    scenario, make_profile
+):
+    from n26.core.models import Miniature
+    from n26.library.authoring import ef_offers_cycle_recruitment
+    from n26.library.income import income_modifiers
+
+    campaign, cycle, (iron, rust), holding = scenario
+    effect = income_modifiers(holding.asset)[0].contributes_to_counter
+    effect.amount = 0
+    effect.save()
+    plan = preview_cycle(cycle)
+    assert not next(gang for gang in plan.gangs if gang.gang_id == str(iron.pk)).lines
+    receipt = apply_cycle(
+        cycle, actor=campaign.owner, token=plan.token, selections=selected(plan, iron)
+    )[0]
+    assert receipt.claims.get().source == f"holding:{holding.pk}"
+    add_reward(
+        holding,
+        ef_offers_cycle_recruitment(
+            profiles=[make_profile("Ganger", price=20)], discount=25
+        ),
+    )
+    transfer_asset(holding, rust)
+    plan = preview_cycle(cycle)
+    rewards = next(gang for gang in plan.gangs if gang.gang_id == str(rust.pk))
+    assert rewards.lines[0].claimed == iron.name
+    apply_cycle(
+        cycle, actor=campaign.owner, token=plan.token, selections=selected(plan, rust)
+    )
+    assert not Miniature.objects.filter(membership__gang=rust).exists()
+
+
+def test_profile_type_limit_counts_owned_fighters_no_longer_offered(
+    scenario, make_profile
+):
+    from n26.library.authoring import ef_offers_cycle_recruitment
+    from n26.tests.sandbox.actions import hire
+
+    campaign, cycle, (iron, _rust), holding = scenario
+    previous = make_profile("Former helper", price=30)
+    hire(iron, previous, "Owned helper", paid=0)
+    previous.archived = True
+    previous.save(update_fields=["archived"])
+    available = make_profile("Available helper", price=30)
+    add_reward(
+        holding,
+        ef_offers_cycle_recruitment(
+            profile_type=available.profile_type, discount=30, maximum=1
+        ),
+    )
+    plan = preview_cycle(cycle)
+    line = next(line for line in plan.gangs[0].lines if line.kind == "recruitment")
+    assert any(option["profile_id"] == str(available.pk) for option in line.options)
+    assert all(option["profile_id"] != str(previous.pk) for option in line.options)
+    assert line.blocked == "This gang already has the maximum number of these fighters."
+    assert line.eligible_profile_type == str(available.profile_type_id)
+    with pytest.raises(Refusal, match="maximum"):
+        apply_cycle(
+            cycle,
+            actor=campaign.owner,
+            token=plan.token,
+            selections=selected(plan, iron),
+        )
+    assert not cycle.resolutions.exists()
+    iron.refresh_from_db()
+    assert iron.credits == 100
+    assert_reconciled(iron)
+
+
+def test_unselected_gangs_do_not_invalidate_a_reviewed_reward(scenario):
+    from n26.core.operations import operation
+
+    campaign, cycle, (iron, rust), _holding = scenario
+    plan = preview_cycle(cycle)
+    with operation(rust, actor=rust.owner) as op:
+        op.receive_credits(5, "Unrelated income")
+    apply_cycle(
+        cycle, actor=campaign.owner, token=plan.token, selections=selected(plan, iron)
+    )
+    later = preview_cycle(cycle)
+    with operation(iron, actor=iron.owner) as op:
+        op.receive_credits(3, "Income after resolution")
+    receipt = apply_cycle(
+        cycle, actor=campaign.owner, token=later.token, selections=selected(later, rust)
+    )[0]
+    assert receipt.snapshot["credits_before"] == 105
+    assert receipt.snapshot["credits_after"] == 105
+    assert cycle.resolutions.count() == 2
+    for gang in (iron, rust):
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+
+def test_selected_gang_changes_still_invalidate_the_preview(scenario):
+    from n26.core.operations import operation
+
+    campaign, cycle, (iron, _rust), _holding = scenario
+    plan = preview_cycle(cycle)
+    with operation(iron, actor=iron.owner) as op:
+        op.receive_credits(5, "Changed selected balance")
+    with pytest.raises(Refusal, match="changed"):
+        apply_cycle(
+            cycle,
+            actor=campaign.owner,
+            token=plan.token,
+            selections=selected(plan, iron),
+        )
+    assert not cycle.resolutions.exists()
+    assert not cycle.claims.exists()
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [("comment", "Changed"), ("snapshot", {"lines": []}), ("batch", None)],
+)
+def test_recorded_cycle_receipts_cannot_be_changed(scenario, field, value):
+    from django.core.exceptions import ValidationError
+
+    campaign, cycle, (iron, _rust), _holding = scenario
+    plan = preview_cycle(cycle)
+    receipt = apply_cycle(
+        cycle,
+        actor=campaign.owner,
+        token=plan.token,
+        selections=selected(plan, iron, comment="Frozen"),
+    )[0]
+    assert receipt.snapshot["credits_before"] == 100
+    assert receipt.snapshot["credits_after"] == 115
+    setattr(receipt, field, value)
+    with pytest.raises(ValidationError, match="cannot be edited"):
+        receipt.save()
+    receipt.refresh_from_db()
+    assert receipt.comment == "Frozen"
+    assert receipt.snapshot["credits_after"] == 115
+    assert receipt.batch is not None
