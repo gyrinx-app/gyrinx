@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Field, Input, RadioCard, RadioCards } from "../../ui";
+import { Callout, Field, Input, RadioCard, RadioCards } from "../../ui";
 
 type RollField = {
     label: string;
@@ -90,18 +90,24 @@ export function PoolRoll(props: PoolRollProps) {
                         name="table"
                         value={table}
                     />
-                    <Field
-                        label="Table"
-                        htmlFor="pool-table"
-                        errors={props.tableErrors}
-                    >
-                        <p className="text-base">
+                    <dl className="space-y-1">
+                        <dt className="text-base font-semibold text-ink-900 dark:text-ink-100">
+                            Table
+                        </dt>
+                        <dd className="text-base">
                             {selectedTable?.label}{" "}
                             <span className="text-muted">
                                 · {selectedTable?.die}
                             </span>
-                        </p>
-                    </Field>
+                        </dd>
+                    </dl>
+                    {props.tableErrors.length > 0 && (
+                        <Callout>
+                            {props.tableErrors.map((error, index) => (
+                                <p key={index}>{error}</p>
+                            ))}
+                        </Callout>
+                    )}
                 </>
             ) : (
                 <RadioCards

@@ -51,6 +51,25 @@ function inputs() {
 }
 
 describe("campaign pool roll", () => {
+    it("describes a fixed table without labelling its hidden field and retains errors", () => {
+        const view = render(
+            <PoolRoll
+                {...props}
+                tableErrors={["This table is unavailable."]}
+            />,
+        );
+        expect(screen.getByRole("term").textContent).toBe("Table");
+        expect(screen.getByRole("definition").textContent).toContain(
+            "Territories",
+        );
+        expect(screen.getByRole("definition").textContent).toContain("D66");
+        expect(
+            view.container.querySelector('label[for="pool-table"]'),
+        ).toBeNull();
+        expect(screen.getByRole("note").textContent).toBe(
+            "This table is unavailable.",
+        );
+    });
     it("sets quantity to one as the manual roll is typed and submits both fields", async () => {
         const user = userEvent.setup();
         const view = render(

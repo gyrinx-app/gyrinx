@@ -1604,6 +1604,26 @@ class TestManualPoolPreview:
         assert response.json()["status"] == "invalid"
         assert not rolled_events(campaign)
 
+    def test_a_valid_roll_in_a_live_table_gap_creates_no_assets_or_events(
+        self, client, campaign, territory, arbitrator, campaigns_open
+    ):
+        table = create_campaign_table(campaign, territory, "Holed", dice="d6")
+        add_asset_table_entry(
+            table,
+            create_asset("Sump", territory, pack=campaign.pack),
+            roll_low=1,
+            roll_high=3,
+        )
+        client.force_login(arbitrator)
+        before = (campaign.campaign_assets.count(), campaign.events.count())
+        response = self.preview(client, campaign, table, 5)
+        assert response.status_code == 200
+        assert response.json() == {
+            "status": "invalid",
+            "message": "No result on this table covers a roll of 5.",
+        }
+        assert (campaign.campaign_assets.count(), campaign.events.count()) == before
+
     def test_preview_respects_staged_entry_visibility(
         self, client, campaign, selection_table, arbitrator, campaigns_open
     ):
