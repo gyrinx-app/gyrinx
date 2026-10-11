@@ -15,6 +15,7 @@ The actions slot is not in c-vars, so a view variable named actions will draw he
 Give every panel its own id. The open event matches on it, and the heading id is derived from it.
 Set htmx only on a screen that holds every host the response names.
 Left closed in the host, htmx copies the promoted class onto the next panel and it lands at the top left.
+footer False leaves Cancel and the submit to the slot. Its Cancel must link to cancel_url, or a click navigates instead of closing.
 {% endcomment %}
 
 <c-vars
@@ -30,6 +31,7 @@ Left closed in the host, htmx copies the promoted class onto the next panel and 
     :modal="True"
     :redrawn="False"
     :htmx="False"
+    :footer="True"
     class=""
 />
 
@@ -110,9 +112,11 @@ Left closed in the host, htmx copies the promoted class onto the next panel and 
 
         {{ slot }}
 
-        <c-n26.form-actions submit_label="{{ submit_label }}"
-                            submit_variant="{{ submit_variant }}"
-                            cancel_url="{{ cancel_url }}"
-                            cancel_label="{{ cancel_label }}">{{ actions }}</c-n26.form-actions>
+        {% if footer %}
+            <c-n26.form-actions submit_label="{{ submit_label }}"
+                                submit_variant="{{ submit_variant }}"
+                                cancel_url="{{ cancel_url }}"
+                                cancel_label="{{ cancel_label }}">{{ actions }}</c-n26.form-actions>
+        {% endif %}
     </form>
 </dialog>

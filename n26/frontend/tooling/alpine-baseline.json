@@ -86,7 +86,6 @@
     "n26/core/templates/n26/campaign_roll.html": {"direct": 0, "kit": 3},
     "n26/core/templates/n26/fighter_edit.html": {"direct": 0, "kit": 43},
     "n26/core/templates/n26/includes/assignable_name.html": {"direct": 0, "kit": 18},
-    "n26/core/templates/n26/includes/campaign_roll_dialog.html": {"direct": 5, "kit": 0},
     "n26/core/templates/n26/includes/equip_owned_toggle.html": {"direct": 3, "kit": 0},
     "n26/core/templates/n26/includes/equip_rail.html": {"direct": 0, "kit": 5},
     "n26/core/templates/n26/includes/menu_item.html": {"direct": 0, "kit": 10},

@@ -1,0 +1,123 @@
+import { useLayoutEffect, useRef, useState } from "react";
+import {
+    Button,
+    ButtonLink,
+    Field,
+    FieldErrors,
+    FormActions,
+    Input,
+    RadioCard,
+    RadioCards,
+} from "../../ui";
+
+export type CampaignRollProps = {
+    rolled: {
+        label: string;
+        helpText: string;
+        value: string;
+        errors: string[];
+    };
+    inputId: string;
+    table: string;
+    tableErrors: string[];
+    tables: {
+        value: string;
+        label: string;
+        die: string;
+        lowest: number;
+        highest: number;
+    }[];
+    cancelUrl: string;
+    focused?: boolean;
+};
+
+/** One roll on a campaign table, with the dialog's Cancel and submit. */
+export function CampaignRoll(props: CampaignRollProps) {
+    const [table, setTable] = useState(props.table);
+    const [rolled, setRolled] = useState(props.rolled.value);
+    const rollRef = useRef<HTMLInputElement>(null);
+    const only = props.tables.length === 1 ? props.tables[0] : null;
+    const selected = props.tables.find((option) => option.value === table);
+
+    useLayoutEffect(() => {
+        if (props.focused) rollRef.current?.focus();
+    }, [props.focused]);
+
+    return (
+        <>
+            {only ? (
+                <>
+                    <input type="hidden" name="table" value={only.value} />
+                    <dl className="space-y-1">
+                        <dt className="text-base font-semibold text-ink-900 dark:text-ink-100">
+                            Table
+                        </dt>
+                        <dd className="text-base">
+                            {only.label}{" "}
+                            <span className="text-muted">· {only.die}</span>
+                        </dd>
+                    </dl>
+                    {props.tableErrors.length > 0 && (
+                        <FieldErrors errors={props.tableErrors} />
+                    )}
+                </>
+            ) : (
+                <RadioCards
+                    legend="Table"
+                    errors={props.tableErrors}
+                    min="12rem"
+                >
+                    {props.tables.map((option) => (
+                        <RadioCard
+                            key={option.value}
+                            name="table"
+                            value={option.value}
+                            label={option.label}
+                            description={option.die}
+                            checked={table === option.value}
+                            onChange={() => setTable(option.value)}
+                        />
+                    ))}
+                </RadioCards>
+            )}
+            <Field
+                label={props.rolled.label}
+                htmlFor={props.inputId}
+                errors={props.rolled.errors}
+                descriptionPlacement="before"
+                description={
+                    <div className="text-sm text-muted">
+                        {props.rolled.helpText}{" "}
+                        {selected && (
+                            <span className="block">
+                                A {selected.die} roll is {selected.lowest} to{" "}
+                                {selected.highest}.
+                            </span>
+                        )}
+                    </div>
+                }
+            >
+                <Input
+                    ref={rollRef}
+                    id={props.inputId}
+                    name="rolled"
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={rolled}
+                    onChange={(event) => setRolled(event.target.value)}
+                />
+            </Field>
+            {/* The dialog closes on a click of a link to its own cancel address. */}
+            <FormActions>
+                <ButtonLink href={props.cancelUrl} variant="ghost">
+                    Cancel
+                </ButtonLink>
+                <Button type="submit" variant="success">
+                    {rolled ? "Use my roll" : "Roll"}
+                </Button>
+            </FormActions>
+        </>
+    );
+}

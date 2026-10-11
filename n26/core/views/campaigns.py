@@ -511,6 +511,18 @@ def _starting(sheet, gang_id, asked):
     }
 
 
+def _island_field(bound):
+    """A form field as a roll island's props: its words, its value as
+    text and its errors."""
+    value = bound.value()
+    return {
+        "label": bound.label,
+        "helpText": bound.help_text,
+        "value": "" if value is None else str(value),
+        "errors": list(bound.errors),
+    }
+
+
 def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
     """What the roll dialogs template draws from: the open question, its
     form, and which table its cards show as chosen.
@@ -540,25 +552,10 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
             chosen = tables[0].table_id
         question["chosen"] = chosen
         question["choices"] = [(table, table.table_id == chosen) for table in tables]
-        if rolling:
-            question["pool_fields"] = {
-                name: {
-                    "label": form[name].label,
-                    "helpText": form[name].help_text,
-                    "value": (
-                        "" if form[name].value() is None else str(form[name].value())
-                    ),
-                    "errors": list(form[name].errors),
-                }
-                for name in ("count", "rolled")
-            }
-            question["pool_fields"]["previewUrl"] = reverse(
-                "n26-campaign-preview-pool-roll", args=[campaign.pk]
-            )
-            question["pool_fields"]["assetType"] = question["asset_type_id"]
-            question["pool_fields"]["table"] = chosen
-            question["pool_fields"]["tableErrors"] = list(form["table"].errors)
-            question["pool_fields"]["tables"] = [
+        island_tables = {
+            "table": chosen,
+            "tableErrors": list(form["table"].errors),
+            "tables": [
                 {
                     "value": table.table_id,
                     "label": table.name,
@@ -567,7 +564,25 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
                     "highest": table.highest,
                 }
                 for table in tables
-            ]
+            ],
+        }
+        if rolling:
+            question["pool_fields"] = {
+                "count": _island_field(form["count"]),
+                "rolled": _island_field(form["rolled"]),
+                "previewUrl": reverse(
+                    "n26-campaign-preview-pool-roll", args=[campaign.pk]
+                ),
+                "assetType": question["asset_type_id"],
+                **island_tables,
+            }
+        else:
+            question["roll_fields"] = {
+                "rolled": _island_field(form["rolled"]),
+                "inputId": f"{question['kind']}-roll",
+                "cancelUrl": _campaign_page(campaign),
+                **island_tables,
+            }
 
     return {
         "campaign": campaign,
