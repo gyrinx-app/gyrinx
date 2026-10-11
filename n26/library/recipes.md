@@ -880,3 +880,32 @@ Switching distribution off stops future campaign defaults; gangs already given
 that asset keep their assignments. A granted asset lasts as long as its source
 and the applicable campaign membership. This does not protect a transferable
 territory against loss; that needs a separate campaign rule.
+
+## A territory with a choice of standing benefits
+
+For a test territory, let Workshop offer either +5 Income or +2 Reputation
+while held. These are standing contributions; collecting credits is manual.
+
+1. Create a **slot type** named **Territory benefit**. Add two **pickables**:
+   **Extra income** and **Local reputation**. Give each a short summary of
+   its benefit.
+2. On Extra income, add a **modifier** targeting **The gang carrying it**
+   with **Adds to a counter**: Income, amount 5. On Local reputation, add
+   the same kind of modifier for Reputation, amount 2.
+3. Create a **picklist** containing those two pickables. Create a **slot**
+   using that list and the Territory benefit slot type. Set **Assigned to**
+   to **The gang**, with one pick required and one pick allowed.
+4. On Workshop, add a **modifier** targeting **The gang carrying it**, with
+   **Gives something**: the new slot. Keep any income shared by both options
+   in the territory's Income box; the selected extra income adds to it.
+5. Give Workshop to a gang in a test campaign. Open the territory's page
+   and choose a benefit. Replace it with the other option, then transfer
+   the territory. The old gang loses the selected benefit; the new holder
+   has an unselected choice. Give the gang two Workshops to check that
+   each can select independently.
+
+Releasing the territory or leaving the campaign removes the selected benefit
+and its nested choices. The history keeps the selection. Regaining the same
+territory starts a new choice. Recurring recruitment and equipment rewards
+need a separate recorded action; selecting a standing benefit does not repeat
+them each cycle.

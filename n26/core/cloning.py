@@ -15,6 +15,10 @@ _CLONE_EVENT_NOTE_VERSION = "v1"
 CLONED_RATING_NOTE_PREFIX = "cloned-rating:v1:"
 
 
+class HoldingDependentClone(ValueError):
+    """A model brought by a holding cannot become an independent copy."""
+
+
 @dataclass(frozen=True)
 class ClonePlan:
     """The source assignments that make one independent snapshot."""
@@ -80,6 +84,13 @@ def plan_gang_clone(source):
     """Plan a new gang from the source's current, reachable state."""
     assignments = _gang_assignments(source)
     miniature_by_membership = _miniatures_by_membership(source)
+    assignments = _without_holding_choices(assignments, miniature_by_membership)
+    memberships = {assignment.pk for assignment in assignments}
+    miniature_by_membership = {
+        pk: miniature
+        for pk, miniature in miniature_by_membership.items()
+        if pk in memberships
+    }
     copied_miniatures = {
         miniature.pk: miniature
         for miniature in miniature_by_membership.values()
@@ -132,8 +143,16 @@ def plan_miniature_clone(source):
     """Plan one model and the live models its assignment graph brought."""
     gang = source.gang
     assignments = _gang_assignments(gang)
-    assignment_by_id = {assignment.pk: assignment for assignment in assignments}
     miniature_by_membership = _miniatures_by_membership(gang)
+    assignments = _without_holding_choices(assignments, miniature_by_membership)
+    assignment_by_id = {assignment.pk: assignment for assignment in assignments}
+    if source.membership_id not in assignment_by_id:
+        raise HoldingDependentClone(source.name)
+    miniature_by_membership = {
+        pk: miniature
+        for pk, miniature in miniature_by_membership.items()
+        if pk in assignment_by_id
+    }
     source = miniature_by_membership.get(source.membership_id, source)
     membership_by_miniature = {
         miniature.pk: membership_id
@@ -209,6 +228,44 @@ def _gang_assignments(gang):
         Assignment.with_assignables(queryset)
         .prefetch_related("chosen_options__default_set")
         .order_by("created", "pk")
+    )
+
+
+def _without_holding_choices(assignments, miniature_by_membership):
+    """Keep holding answers and their dependent graph out of snapshots.
+
+    A cloned gang holds no campaign assets, and a copied model's ordinary
+    assignments must not turn a temporary holding benefit into permanent
+    equipment. The scalar revision retains that origin after a holding's
+    deletion has cleared its foreign key.
+    """
+    excluded = {
+        assignment.pk
+        for assignment in assignments
+        if assignment.chosen_for_holding_revision is not None
+    }
+    changed = True
+    while changed:
+        before = len(excluded)
+        excluded_models = {
+            miniature.pk
+            for membership_id, miniature in miniature_by_membership.items()
+            if membership_id in excluded
+        }
+        for assignment in assignments:
+            if assignment.miniature_root_id in excluded_models or any(
+                ancestor in excluded
+                for ancestor in (
+                    assignment.parent_id,
+                    assignment.caused_by_id,
+                    assignment.chosen_for_id,
+                    assignment.materialised_for_id,
+                )
+            ):
+                excluded.add(assignment.pk)
+        changed = len(excluded) != before
+    return tuple(
+        assignment for assignment in assignments if assignment.pk not in excluded
     )
 
 

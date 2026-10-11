@@ -63,9 +63,15 @@ suppressions are then carried through in one pass at the end
 to be gone is put back.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from n26.library.models.modifier import GANG, MODEL, WEAPON_PROFILE
+
+if TYPE_CHECKING:
+    from n26.core.models import CampaignAsset
 
 #: A granted thing five levels deep is a content bug, not a use case.
 MAX_CHAIN_DEPTH = 5
@@ -100,14 +106,21 @@ def kind_of(thing):
 def is_orphan_pick(node):
     """A pickable nobody was offered: a pick with no choice behind it.
 
-    Its slot is what puts it on a card and what gives it its meaning, so
+    Its assignment or holding origin gives the pick its meaning, so
     without one it shows nothing and does nothing — not a line, not a
     modifier, not a fact another rule can match on. An owner may still
     hand one over; it simply waits for a choice to answer.
     """
     from n26.library.models import Pickable
 
-    return isinstance(node.assignable, Pickable) and node.chosen_for_key is None
+    return (
+        isinstance(node.assignable, Pickable)
+        and node.chosen_for_key is None
+        and (
+            node.chosen_for_holding_key is None
+            or node.chosen_for_holding_revision is None
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -127,6 +140,8 @@ class Contribution:
     #: to be addressed on; this is the one it hangs from instead, and
     #: taking that line away takes the whole chain with it.
     root_key: object = None
+    #: A computed chain rooted in a campaign holding has no assignment anchor.
+    holding: CampaignAsset | None = None
 
     @property
     def name(self):
@@ -224,9 +239,8 @@ class ChoiceSlot:
     Either way the row is computed — shown while whatever offers the
     choice is present — and only what was chosen is stored.
 
-    A slot-borne choice may hold several picks and reads them off
-    ``Assignment.chosen_for``, which links to the choice-offering
-    assignment.
+    A slot-borne choice may hold several picks. Its answers name either
+    the choice-offering assignment or a campaign holding's ownership period.
     """
 
     kind_label: str
@@ -246,6 +260,8 @@ class ChoiceSlot:
     min_picks: int = 1
     max_picks: int = 1
     status_revision: int | None = None
+    #: The holding asking this gang choice; mutually exclusive with anchor.
+    holding: CampaignAsset | None = None
 
     @property
     def resolved_with(self):
@@ -407,6 +423,8 @@ class PlannedStep:
     #: holds it, and otherwise the one at the foot of the grants that
     #: brought it here. What a choice it gives is addressed on.
     root_key: object = None
+    #: The original holding, retained through computed carriers such as Hidden.
+    holding: CampaignAsset | None = None
 
     @property
     def scope(self):
@@ -795,11 +813,19 @@ def compute(card, index):
     by_cause = {}
     #: Picks by the choice they settle, read off ``chosen_for``.
     by_choice = {}
+    by_holding_choice = {}
     for node in card.all_nodes():
         if node.caused_by_key is not None:
             by_cause.setdefault(node.caused_by_key, []).append(node)
         if node.chosen_for_key is not None:
             by_choice.setdefault(node.chosen_for_key, []).append(node)
+        if node.chosen_for_holding_key is not None:
+            address = (
+                node.chosen_for_holding_key,
+                node.chosen_for_holding_revision,
+                node.chosen_for_slot_id,
+            )
+            by_holding_choice.setdefault(address, []).append(node)
 
     #: Plan-display order within a round; application order is fixed
     #: separately (adds settle before removes).
@@ -818,7 +844,13 @@ def compute(card, index):
     }
 
     def steps_for(
-        source, discovered, found_in_round, node=None, echoed=False, root_key=None
+        source,
+        discovered,
+        found_in_round,
+        node=None,
+        echoed=False,
+        root_key=None,
+        holding=None,
     ):
         # A carrier the card holds stands on its own line; one a grant
         # brought stands on whatever the granter stood on, so the foot of
@@ -836,11 +868,19 @@ def compute(card, index):
                 node=node,
                 echoed=echoed,
                 root_key=stands_on,
+                holding=holding,
             )
+
+    def frontier_key(thing, holding=None):
+        key = ModifierIndex.key(thing)
+        if holding is None:
+            return key
+        return (key, holding.pk, holding.ownership_revision)
 
     # One run of a carrier's modifiers per NODE, not per distinct thing:
     # owning two Hardpoint conversions costs two Attacks. ``seen`` only
-    # dedups the granted frontier, exactly as before.
+    # dedups the granted frontier. Each holding keeps a separate origin so
+    # two territories granting one Slot still ask two independent questions.
     from_the_gang = _from_the_gang(card, index)
     gang_card = getattr(card, "gang_card", None)
     suppressed = (
@@ -878,8 +918,10 @@ def compute(card, index):
     # said here.
     guest = getattr(card, "host_kind", MODEL) != GANG
     for campaign_asset in getattr(card, "holdings", ()):
-        seen.add(ModifierIndex.key(campaign_asset))
-        pending.extend(steps_for(campaign_asset, False, 0, echoed=guest))
+        seen.add(frontier_key(campaign_asset, campaign_asset))
+        pending.extend(
+            steps_for(campaign_asset, False, 0, echoed=guest, holding=campaign_asset)
+        )
 
     # What the gang holds by grant is dealt on here too. The gang-hosted
     # assignments already ride the card; a thing the gang was *given* has
@@ -894,7 +936,8 @@ def compute(card, index):
     echoed = [
         contribution
         for contribution in from_the_gang
-        if contribution.echoes and ModifierIndex.key(contribution.thing) not in seen
+        if contribution.echoes
+        and frontier_key(contribution.thing, contribution.holding) not in seen
     ]
     # A pick the gang holds is a fact about every member, whichever way it
     # arrived: a written gang pick already rides each card as a broadcast
@@ -909,7 +952,7 @@ def compute(card, index):
         if isinstance(contribution.thing, Pickable)
     )
     for contribution in echoed:
-        seen.add(ModifierIndex.key(contribution.thing))
+        seen.add(frontier_key(contribution.thing, contribution.holding))
         # The gang's guest keeps the line it stands on: the gang wrote
         # that one down, and it rides this card as a broadcast line, so a
         # choice the guest gives has an address here after all.
@@ -920,6 +963,7 @@ def compute(card, index):
                 0,
                 echoed=True,
                 root_key=contribution.root_key,
+                holding=contribution.holding,
             )
         )
 
@@ -1015,17 +1059,14 @@ def compute(card, index):
                         step.node is not None and step.node.broadcast
                     )
                     if not gang_held or any(target.kind == MODEL for target in targets):
-                        # Addressed on the line the giver stands on. That
-                        # is the giver's own where the card holds it, and
-                        # otherwise the written line its chain of grants
-                        # hangs from — so what a grant gives can be asked
-                        # and answered like anything else, and un-writing
-                        # that line takes the answers with it.
+                        # A grant keeps its original assignment anchor or
+                        # holding origin through every computed carrier.
                         given = (
                             effect.thing,
                             lines.get(step.root_key),
                             label,
                             label_kind,
+                            step.holding,
                         )
                         given_slots.items.append(given)
                         log.applied.append(
@@ -1049,6 +1090,7 @@ def compute(card, index):
                                     echoes=isinstance(thing, Asset)
                                     or getattr(scope, "echoes", True),
                                     root_key=step.root_key,
+                                    holding=step.holding,
                                 ),
                                 step.node,
                                 source_key,
@@ -1056,10 +1098,18 @@ def compute(card, index):
                         )
                         step.granted = (*step.granted, str(thing))
                         thing_key = ModifierIndex.key(thing)
-                        if thing_key not in seen:
-                            seen.add(thing_key)
+                        visited_key = frontier_key(thing, step.holding)
+                        if visited_key not in seen:
+                            seen.add(visited_key)
                             pending.extend(
-                                steps_for(thing, True, round_no, root_key=step.root_key)
+                                steps_for(
+                                    thing,
+                                    True,
+                                    round_no,
+                                    root_key=step.root_key,
+                                    holding=step.holding,
+                                    echoed=step.echoed if step.holding else False,
+                                )
                             )
                         if effect.with_pick_id is not None:
                             # The pick a granted slot arrives settled on.
@@ -1080,18 +1130,24 @@ def compute(card, index):
                                         source_kind=kind_of(thing),
                                         echoes=getattr(scope, "echoes", True),
                                         root_key=step.root_key,
+                                        holding=step.holding,
                                     ),
                                     step.node,
                                     thing_key,
                                 )
                             )
                             step.granted = (*step.granted, str(pick))
-                            pick_key = ModifierIndex.key(pick)
-                            if pick_key not in seen:
-                                seen.add(pick_key)
+                            visited_key = frontier_key(pick, step.holding)
+                            if visited_key not in seen:
+                                seen.add(visited_key)
                                 pending.extend(
                                     steps_for(
-                                        pick, True, round_no, root_key=step.root_key
+                                        pick,
+                                        True,
+                                        round_no,
+                                        root_key=step.root_key,
+                                        holding=step.holding,
+                                        echoed=step.echoed if step.holding else False,
                                     )
                                 )
                     elif isinstance(effect, ExcludesCampaignAssets):
@@ -1280,6 +1336,7 @@ def compute(card, index):
             if ModifierIndex.key(given[0]) not in dead
         ],
         by_choice,
+        by_holding_choice,
     )
     _fill_drawn_picks(computed, drawn)
     return computed
@@ -1312,20 +1369,27 @@ def _acquisitions(log, dead):
     Read off the granting edges rather than the computed lines, because a
     grant need not draw one: a hidden carrier shows nothing and does
     everything, which is how a whole bundle of gang rules hangs off a
-    single thing. Keyed by the thing, so what two carriers give is held
-    once and named by the first giver still standing.
+    single thing. Ordinary grants share one library identity. A holding
+    retains its ownership origin so separate territories' computed chains
+    also reach the members independently.
     """
     held = {}
     for placed in log.placed:
         if not _stands(placed, dead):
             continue
-        standing = held.get(placed.thing_key)
+        holding = placed.contribution.holding
+        key = (
+            (placed.thing_key, holding.pk, holding.ownership_revision)
+            if holding is not None
+            else placed.thing_key
+        )
+        standing = held.get(key)
         # First giver still standing names it — except that a giver whose
         # grant echoes beats one keeping it the gang's alone, whatever
         # order the batch happened to sort them in: reaching the members
         # must not turn on a modifier's name.
         if standing is None or (placed.contribution.echoes and not standing.echoes):
-            held[placed.thing_key] = placed.contribution
+            held[key] = placed.contribution
     return list(held.values())
 
 
@@ -1792,7 +1856,7 @@ def _fill_choice_slots(computed, offers, by_cause):
         )
 
 
-def _fill_slot_choices(computed, given, by_choice):
+def _fill_slot_choices(computed, given, by_choice, by_holding_choice):
     """A choice row for every slot the card holds, and what answers it.
 
     A slot asks on the card it is *hosted* on, so a gang's slot is asked
@@ -1811,7 +1875,9 @@ def _fill_slot_choices(computed, given, by_choice):
     assignment of their own — the choice they open is anchored on the
     written line the giver stands on, so un-writing that retracts this
     one too. A slot given by something standing on no written line at
-    all has nowhere to be asked, and is not.
+    all has nowhere to be asked, unless its origin is a campaign holding.
+    A holding's choices belong to the gang and name that ownership period
+    instead of an assignment anchor.
     """
     from n26.library.models import Slot
 
@@ -1822,12 +1888,19 @@ def _fill_slot_choices(computed, given, by_choice):
         if node.broadcast or node.suppressed:
             continue
         asked.append(
-            (node.assignable, node, str(node.assignable), kind_of(node.assignable))
+            (
+                node.assignable,
+                node,
+                str(node.assignable),
+                kind_of(node.assignable),
+                None,
+            )
         )
     asked.extend(
-        (slot, anchor, source, source_kind)
-        for slot, anchor, source, source_kind in given
+        (slot, anchor, source, source_kind, holding)
+        for slot, anchor, source, source_kind, holding in given
         if anchor is not None
+        or (holding is not None and computed.card.host_kind == GANG)
     )
     # Ordered by what the author said, once the given ones are in: where
     # a choice sits on the card is the slot's own business, and one
@@ -1836,14 +1909,22 @@ def _fill_slot_choices(computed, given, by_choice):
     # they arrived in.
     asked.sort(key=lambda part: (part[0].position, part[0].name))
 
-    for slot, anchor, source, source_kind in asked:
+    holding_questions = set()
+    for slot, anchor, source, source_kind, holding in asked:
         if slot.hidden or (slot.follows_status and computed.card.host_kind == GANG):
             continue
-        picks = [
-            node
-            for node in by_choice.get(anchor.key, ())
-            if node.chosen_for_slot_id == slot.pk
-        ]
+        if holding is None:
+            picks = [
+                node
+                for node in by_choice.get(anchor.key, ())
+                if node.chosen_for_slot_id == slot.pk
+            ]
+        else:
+            address = (holding.pk, holding.ownership_revision, slot.pk)
+            if address in holding_questions:
+                continue
+            holding_questions.add(address)
+            picks = by_holding_choice.get(address, ())
         revision = (
             computed.card.current_status_revision if slot.follows_status else None
         )
@@ -1860,9 +1941,10 @@ def _fill_slot_choices(computed, given, by_choice):
             ChoiceSlot(
                 status_revision=revision,
                 kind_label=slot.choice_label,
-                source=source,
-                source_kind=source_kind,
+                source=str(holding) if holding is not None else source,
+                source_kind=kind_of(holding) if holding is not None else source_kind,
                 anchor=anchor,
+                holding=holding,
                 picks=picks,
                 slot=slot,
                 min_picks=slot.min_picks,

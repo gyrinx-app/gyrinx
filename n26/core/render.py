@@ -86,10 +86,12 @@ def _speaks_for_itself(node, asked_here):
     drawing nothing: nobody was offered it, so it says nothing about its
     holder (``effects.is_orphan_pick``).
     """
-    return (
-        isinstance(node.assignable, Pickable)
-        and node.chosen_for_key is not None
-        and node.chosen_for_key not in asked_here
+    return isinstance(node.assignable, Pickable) and (
+        (node.chosen_for_key is not None and node.chosen_for_key not in asked_here)
+        or (
+            node.chosen_for_holding_key is not None
+            and node.chosen_for_holding_key not in asked_here
+        )
     )
 
 
@@ -668,6 +670,7 @@ class ChoiceLine:
     #: rather than read off the request — a card redrawn after an act is
     #: rendered under that act's own address.
     back: str = ""
+    holding_name: str = ""
 
     def __post_init__(self):
         if self.is_full is None:
@@ -2161,6 +2164,10 @@ def slot_key(slot, host):
     the address is not, and an empty key is how a line says there is
     nowhere to send a reader.
     """
+    if slot.holding is not None and slot.identity is not None and host:
+        from n26.core.models.dismissed_offer import holding_slot_key
+
+        return holding_slot_key(slot.holding, slot.identity.pk)
     anchor = getattr(slot.anchor, "assignment", None)
     if not host or anchor is None or slot.identity is None:
         return ""
@@ -2171,6 +2178,7 @@ def _choice_line(slot, host):
     return ChoiceLine(
         kind_label=slot.kind_label,
         chosen=slot.chosen_name,
+        holding_name=str(slot.holding) if slot.holding is not None else "",
         is_full=slot.is_full,
         takes_several=slot.max_picks > 1,
         is_tier_ladder=is_tier_ladder(slot),
@@ -3429,6 +3437,7 @@ def _provenance_within(card, *, nodes_by_key=None, computed=None):
     """
     if nodes_by_key is None:
         nodes_by_key = {node.key: node for node in card.all_nodes()}
+    holdings_by_key = {holding.pk: holding for holding in card.holdings}
     # Offers can resolve answers without an offer ID. Slot choices also include
     # automatic defaults, so their presence is not evidence of a player choice.
     chosen_keys = {
@@ -3440,6 +3449,7 @@ def _provenance_within(card, *, nodes_by_key=None, computed=None):
 
     def provenance_of(node):
         cause = nodes_by_key.get(node.caused_by_key)
+        holding = holdings_by_key.get(node.chosen_for_holding_key)
         source_kind = None
         if cause is not None:
             # The slot type names the result's domain: advancement, injury, etc.
@@ -3451,9 +3461,11 @@ def _provenance_within(card, *, nodes_by_key=None, computed=None):
         return Provenance(
             source=node.granted_by
             if node.granted_by is not None
-            else (cause.name if cause else None),
+            else (cause.name if cause else str(holding) if holding else None),
             source_kind=node.granted_by_kind
             if node.granted_by_kind is not None
+            else kind_of(holding)
+            if holding
             else source_kind,
             reason=node.reason,
             computed=node.computed,
@@ -3461,7 +3473,7 @@ def _provenance_within(card, *, nodes_by_key=None, computed=None):
             and (node.chosen_for_offer_id is not None or node.key in chosen_keys),
         )
 
-    provenance_of.standing_here = nodes_by_key.keys()
+    provenance_of.standing_here = nodes_by_key.keys() | holdings_by_key.keys()
     return provenance_of
 
 
@@ -3780,7 +3792,7 @@ def build_campaign_block(gang_card, *, index, computed):
     block.choices = [
         _choice_line(slot, GANG_SLOT_HOST)
         for slot in computed.choices
-        if getattr(slot.anchor, "key", None) in keys
+        if slot.holding is not None or getattr(slot.anchor, "key", None) in keys
     ]
     return block
 
@@ -4070,7 +4082,10 @@ def render_gang(
     choices = []
     for slot in gang_computed.choices if gang_computed else ():
         line = _choice_line(slot, GANG_SLOT_HOST)
-        if campaign is not None and getattr(slot.anchor, "key", None) in campaign_keys:
+        if campaign is not None and (
+            slot.holding is not None
+            or getattr(slot.anchor, "key", None) in campaign_keys
+        ):
             campaign.choices.append(line)
         else:
             choices.append(line)
@@ -4624,6 +4639,38 @@ class CampaignAssetDetails:
     income: int
     holder: str
     holder_href: str
+
+
+@dataclass
+class HoldingChoices:
+    questions: list = field(default_factory=list)
+    dismissed_choices: list = field(default_factory=list)
+
+
+def holding_choices(computed, holding):
+    """The holding's choices, including choices on its selected picks."""
+    nodes = {node.key: node for node in computed.card.all_nodes()}
+    parents = {child.key: node for node in nodes.values() for child in node.children}
+
+    def belongs(slot):
+        if slot.holding is not None:
+            return slot.holding.pk == holding.pk
+        anchor = slot.anchor
+        seen = set()
+        while anchor is not None and anchor.key not in seen:
+            if anchor.chosen_for_holding_key == holding.pk:
+                return True
+            seen.add(anchor.key)
+            anchor = nodes.get(anchor.caused_by_key) or parents.get(anchor.key)
+        return False
+
+    return HoldingChoices(
+        [
+            _choice_line(slot, GANG_SLOT_HOST)
+            for slot in computed.choices
+            if not slot.is_history_only and belongs(slot)
+        ]
+    )
 
 
 @dataclass(frozen=True)

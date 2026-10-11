@@ -283,6 +283,18 @@ class Assignment(NamesAnAssignable, Base, Archived):
 
     chosen_for_status_revision = models.PositiveIntegerField(null=True, blank=True)
 
+    # A holding's choice belongs to one ownership period. The campaign
+    # retains the asset; the selected pick is an ordinary gang assignment.
+    # Deleting an unclaimed holding keeps the archived pick and its history.
+    chosen_for_holding = models.ForeignKey(
+        "n26.CampaignAsset",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="choice_picks",
+    )
+    chosen_for_holding_revision = models.PositiveIntegerField(null=True, blank=True)
+
     # Which offer this pick settles. One line may offer two choices of a
     # kind, both answered by the same kind of thing, so nothing about the
     # answer says which question it was.
@@ -371,6 +383,18 @@ class Assignment(NamesAnAssignable, Base, Archived):
         verbose_name_plural = "assignments"
         ordering = ["created"]
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(chosen_for_holding__isnull=True)
+                | models.Q(
+                    pickable__isnull=False,
+                    gang__isnull=False,
+                    chosen_for__isnull=True,
+                    chosen_for_offer__isnull=True,
+                    chosen_for_slot__isnull=False,
+                    chosen_for_holding_revision__isnull=False,
+                ),
+                name="assignment_holding_pick_has_origin",
+            ),
             models.CheckConstraint(
                 condition=exactly_one_of(HOST_FIELDS),
                 name="assignment_exactly_one_host",

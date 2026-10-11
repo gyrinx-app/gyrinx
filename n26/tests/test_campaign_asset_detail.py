@@ -16,7 +16,16 @@ from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
     add_asset_type,
     create_asset,
+    create_pickable,
+    create_picklist,
+    create_slot,
+    create_slot_type,
+    ef_adds,
+    ef_contributes_to_counter,
+    modifier,
+    targets_gang_alone,
 )
+from n26.library.income import ensure_income_counter
 from n26.library.models import AssetType
 from n26.tests.sandbox.actions import found_campaign, found_gang
 
@@ -261,6 +270,69 @@ def test_more_battles_and_ownership_changes_do_not_add_queries(client, setup):
     with CaptureQueriesContext(connection) as many:
         response = client.get(path)
     assert len(response.context["battles"]) == 9
+    assert len(many) <= len(few)
+
+
+def test_holding_choices_use_the_same_queries_as_more_choices_are_authored(
+    client, setup
+):
+    _, player, campaign, holding, first, _ = setup
+    client.force_login(player)
+    kind = create_slot_type("Territory benefit")
+    pick = create_pickable("Local reputation", kind)
+    picklist = create_picklist("Territory benefits", kind, members=[pick])
+
+    def add_choice(number):
+        slot = create_slot(
+            f"Territory benefit {number}", kind, picklist, assigned_to="gang"
+        )
+        modifier(
+            f"Territory benefit {number}",
+            targets_gang_alone(),
+            ef_adds(slot),
+            attach_to=holding.asset,
+        )
+
+    path = address(campaign, holding)
+    add_choice(0)
+    assert client.get(path).status_code == 200
+    with CaptureQueriesContext(connection) as few:
+        response = client.get(path)
+    assert len(response.context["choices"]) == 1
+    for number in range(1, 9):
+        add_choice(number)
+        with campaign_operation(campaign, actor=player) as op:
+            op.assign(op.add_asset(holding.asset), first)
+    with CaptureQueriesContext(connection) as many:
+        response = client.get(path)
+    choices = response.context["choices"]
+    assert len(choices) == 9
+    assert all(choice.holding_name == "Ruins by the sump" for choice in choices)
+    assert all("/choose/holding:" in choice.href for choice in choices)
+    assert len(many) <= len(few)
+
+
+def test_unheld_income_modifiers_do_not_add_queries(client, setup):
+    arbitrator, _, campaign, holding, _, _ = setup
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.unassign(holding)
+    path = address(campaign, holding)
+    client.get(path)
+    with CaptureQueriesContext(connection) as few:
+        response = client.get(path)
+    assert response.context["details"].income == 30
+    income = ensure_income_counter()
+    for number in range(8):
+        modifier(
+            f"Extra catalogue income {number}",
+            targets_gang_alone(),
+            ef_contributes_to_counter(income, 1),
+            attach_to=holding.asset,
+        )
+    with CaptureQueriesContext(connection) as many:
+        response = client.get(path)
+    assert response.context["details"].income == 38
+    assert response.context["choices"] == []
     assert len(many) <= len(few)
 
 

@@ -26,6 +26,14 @@ from n26.core.models.abstract import Base
 #: addressed under the model's id. A ULID is never this word, so the two
 #: kinds of host cannot collide in a slot key.
 GANG_SLOT_HOST = "gang"
+HOLDING_SLOT_HOST = "holding"
+
+
+def holding_slot_key(holding, identity_pk):
+    """A holding's choice in one ownership period."""
+    return (
+        f"{HOLDING_SLOT_HOST}:{holding.pk}@{holding.ownership_revision}:{identity_pk}"
+    )
 
 
 def identity_key(identity_pk, status_revision=None):

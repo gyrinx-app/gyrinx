@@ -390,6 +390,7 @@ class CampaignAsset(Base):
         related_name="held",
         help_text="The gang holding this asset. Blank when nobody holds it.",
     )
+    ownership_revision = models.PositiveIntegerField(default=0)
     name = models.CharField(
         max_length=200,
         blank=True,

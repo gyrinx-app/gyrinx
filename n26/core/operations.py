@@ -373,6 +373,8 @@ class Operation:
         chosen_for_slot=None,
         chosen_for_offer=None,
         chosen_for_status_revision=None,
+        chosen_for_holding=None,
+        chosen_for_holding_revision=None,
         materialised_from=None,
         materialised_for=None,
         paid=0,
@@ -432,6 +434,8 @@ class Operation:
             chosen_for_slot=chosen_for_slot,
             chosen_for_offer=chosen_for_offer,
             chosen_for_status_revision=chosen_for_status_revision,
+            chosen_for_holding=chosen_for_holding,
+            chosen_for_holding_revision=chosen_for_holding_revision,
             materialised_from=materialised_from,
             materialised_for=materialised_for,
             removes=removes,
@@ -684,8 +688,12 @@ class Operation:
         for campaign_asset in membership.held.select_related("asset").order_by(
             "created"
         ):
+            self.remove_holding_picks(campaign_asset)
             campaign_asset.holder = None
-            campaign_asset.save(update_fields=["holder", "modified"])
+            campaign_asset.ownership_revision += 1
+            campaign_asset.save(
+                update_fields=["holder", "ownership_revision", "modified"]
+            )
             self.event(campaign_asset, LedgerEvent.Kind.LOST, note=str(campaign_asset))
         for carrier in (membership.type_carrier, membership.additions_carrier):
             if carrier is not None:
@@ -1473,6 +1481,7 @@ class Operation:
         assignments and ledger openings without running stored effects again.
         """
         from n26.core.cloning import (
+            HoldingDependentClone,
             clone_event_note,
             clone_name,
             plan_miniature_clone,
@@ -1495,7 +1504,12 @@ class Operation:
         )
         if source is None:
             raise Refusal("That model can no longer be cloned.")
-        plan = plan_miniature_clone(source)
+        try:
+            plan = plan_miniature_clone(source)
+        except HoldingDependentClone:
+            raise Refusal(
+                f"{source.name} cannot be cloned while it belongs to a holding's choice."
+            ) from None
         source = plan.primary
         if source is None:
             raise ValueError("A model clone plan needs a primary model.")
@@ -2398,10 +2412,40 @@ class Operation:
         a stray assignment beside it. Within the kind nothing is checked — a
         narrowed offer shortens the list a picker draws and is not a rule,
         so an owner may still hand over something off-list.
+
+        A CampaignAsset can anchor a gang-level Slot during its current
+        ownership period. Its pick names the holding rather than an
+        Assignment cause. Callers take campaign_operation before operation.
         """
         from n26.core import select
         from n26.library.models import Slot
         from n26.library.models.modifier import OffersChoice
+
+        if isinstance(anchor, CampaignAsset):
+            if slot is None or offer is not None:
+                raise ValueError("A holding choice needs a Slot.")
+            self._check_holding_choice(anchor, slot)
+            return self._choose_for_slot(anchor, slot, chosen, **kwargs)
+
+        # The object may predate removal of its carrier, including a lost
+        # holding's root pick. Never create a new choice below archived state.
+        try:
+            anchor.refresh_from_db(
+                fields=[
+                    "archived",
+                    "gang_root",
+                    "gang",
+                    "miniature",
+                    "stash",
+                    "parent",
+                    "miniature_root",
+                    "stash_root",
+                ]
+            )
+        except Assignment.DoesNotExist:
+            raise Refusal("That choice is no longer available.") from None
+        if anchor.archived or anchor.gang_root_id != self.gang.pk:
+            raise Refusal("That choice is no longer available.")
 
         if offer is None:
             # A slot's own assignment says which choice it is without being
@@ -2540,7 +2584,12 @@ class Operation:
                     f"that choice takes {slot.slot_type} pickables."
                 ),
             )
-        if not any(key in kwargs for key in ("miniature", "gang", "stash", "parent")):
+        holding = isinstance(anchor, CampaignAsset)
+        if holding:
+            if any(key in kwargs for key in ("miniature", "parent", "stash")):
+                raise ValueError("A holding's pick belongs to its gang.")
+            kwargs["gang"] = self.gang
+        elif not any(key in kwargs for key in ("miniature", "gang", "stash", "parent")):
             if slot.assigned_to == Slot.WillBeAssignedTo.GANG:
                 kwargs |= {"gang": anchor.gang or anchor.gang_root}
             else:
@@ -2557,7 +2606,7 @@ class Operation:
             # the model the pick lands on (or no model, for the gang's
             # own choice). Checked here as well as by the page, so no
             # caller can hand one fighter's roll to another's pick.
-            gang = anchor.gang or anchor.gang_root
+            gang = self.gang if holding else anchor.gang or anchor.gang_root
             host = kwargs.get("miniature")
             if roll.gang_id != gang.pk or roll.miniature_id != (
                 host.pk if host is not None else None
@@ -2565,6 +2614,12 @@ class Operation:
                 raise Refusal(
                     "That roll was made for a different card. "
                     "Roll again for this choice."
+                )
+            if roll.campaign_asset_id != (anchor.pk if holding else None) or (
+                holding and roll.holding_revision != anchor.ownership_revision
+            ):
+                raise Refusal(
+                    "That roll was made for a different holding. Roll again for this choice."
                 )
         if kwargs.get("rating") is None:
             # Rating is what the models are worth, and a gang-hosted
@@ -2586,13 +2641,65 @@ class Operation:
         _clear_dismissal(anchor, slot, kwargs)
         return self.assign(
             chosen,
-            caused_by=kwargs.pop("caused_by", anchor),
-            chosen_for=anchor,
+            caused_by=kwargs.pop("caused_by", None if holding else anchor),
+            chosen_for=None if holding else anchor,
             chosen_for_slot=slot,
+            chosen_for_holding=anchor if holding else None,
+            chosen_for_holding_revision=anchor.ownership_revision if holding else None,
             paid=0,
             reason=Reason.GRANTED,
+            **({"kind": LedgerEvent.Kind.GRANTED} if holding else {}),
             **kwargs,
         )
+
+    def _check_holding_choice(self, holding, slot):
+        """Revalidate a holding while its campaign and gang are locked.
+
+        Callers take campaign_operation before operation, matching every
+        ownership writer. A submitted ownership revision never follows an
+        asset into a new holding period.
+        """
+        from n26.core.card import build_gang_card, build_modifier_index, carriers
+        from n26.core.effects import compute_gang
+
+        current = (
+            CampaignAsset.objects.select_related("holder", "campaign")
+            .filter(pk=holding.pk)
+            .first()
+        )
+        if (
+            current is None
+            or not current.held
+            or current.holder.gang_id != self.gang.pk
+            or current.campaign.archived
+            or current.ownership_revision != holding.ownership_revision
+        ):
+            raise Refusal(
+                "You cannot choose for this holding. Its ownership has changed."
+            )
+        card = build_gang_card(self.gang)
+        computed = compute_gang(card, build_modifier_index(carriers(card)))
+        if not any(
+            choice.holding is not None
+            and choice.holding.pk == current.pk
+            and choice.slot is not None
+            and choice.slot.pk == slot.pk
+            for choice in computed.choices
+        ):
+            raise Refusal("That choice is no longer available for this holding.")
+
+    def remove_holding_picks(self, holding):
+        """Archive one ownership period's picks through ordinary removal."""
+        roots = Assignment.with_assignables(
+            Assignment.objects.filter(
+                gang_root=self.gang,
+                chosen_for_holding=holding,
+                chosen_for_holding_revision=holding.ownership_revision,
+                archived=False,
+            )
+        ).order_by("created", "pk")
+        for pick in roots:
+            self.remove(pick)
 
     def replace_slot_pick(
         self,
@@ -2915,6 +3022,7 @@ class Operation:
         slot,
         *,
         miniature=None,
+        campaign_asset=None,
         rolled=None,
         rng=None,
         note="",
@@ -2942,6 +3050,10 @@ class Operation:
         """
         from n26.library.models import Dice
 
+        if campaign_asset is not None:
+            if miniature is not None:
+                raise ValueError("A holding roll belongs to the gang.")
+            self._check_holding_choice(campaign_asset, slot)
         picklist = slot.picklist
         if not picklist.dice:
             raise ValueError(f"{slot.choice_label} is not rolled for.")
@@ -2965,8 +3077,11 @@ class Operation:
             miniature.refresh_from_db(fields=["status_revision"])
             status_revision = miniature.status_revision
         return self.event(
-            miniature,
+            campaign_asset if campaign_asset is not None else miniature,
             LedgerEvent.Kind.ROLLED,
+            holding_revision=campaign_asset.ownership_revision
+            if campaign_asset
+            else None,
             status_revision=status_revision,
             roll=rolled,
             dice=dice.value,
@@ -3433,6 +3548,14 @@ def _clear_dismissal(anchor, identity, kwargs):
     """
     from n26.core.models import DismissedOffer
     from n26.core.models.dismissed_offer import GANG_SLOT_HOST
+
+    if isinstance(anchor, CampaignAsset):
+        from n26.core.models.dismissed_offer import holding_slot_key
+
+        DismissedOffer.objects.filter(
+            gang=kwargs["gang"], slot_key=holding_slot_key(anchor, identity.pk)
+        ).delete()
+        return
 
     bearer = (
         kwargs.get("miniature")

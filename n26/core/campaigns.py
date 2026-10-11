@@ -1005,7 +1005,8 @@ class CampaignOperation:
                 "Unassign it from them first."
             )
         campaign_asset.holder = membership
-        campaign_asset.save(update_fields=["holder", "modified"])
+        campaign_asset.ownership_revision += 1
+        campaign_asset.save(update_fields=["holder", "ownership_revision", "modified"])
         with operation(membership.gang, actor=self.actor) as op:
             op.gain_asset(campaign_asset)
         return campaign_asset
@@ -1031,9 +1032,13 @@ class CampaignOperation:
             return None
         _still_held_by(campaign_asset, by_holder)
         holder = campaign_asset.holder
-        campaign_asset.holder = None
-        campaign_asset.save(update_fields=["holder", "modified"])
         with operation(holder.gang, actor=self.actor) as op:
+            op.remove_holding_picks(campaign_asset)
+            campaign_asset.holder = None
+            campaign_asset.ownership_revision += 1
+            campaign_asset.save(
+                update_fields=["holder", "ownership_revision", "modified"]
+            )
             op.event(campaign_asset, LedgerEvent.Kind.LOST, note=str(campaign_asset))
         return campaign_asset
 
@@ -1085,8 +1090,6 @@ class CampaignOperation:
             raise Refusal(f"{membership.gang.name} already holds {campaign_asset}.")
         _still_held_by(campaign_asset, by_holder)
         loser = campaign_asset.holder
-        campaign_asset.holder = membership
-        campaign_asset.save(update_fields=["holder", "modified"])
         mark = mark or uuid4()
         undone = (
             {
@@ -1098,7 +1101,15 @@ class CampaignOperation:
             if reverses is not None
             else {}
         )
-        with operation(loser.gang, actor=self.actor, batch=mark) as op:
+        with operation(
+            loser.gang, actor=self.actor, batch=mark, also=(membership.gang,)
+        ) as op:
+            op.remove_holding_picks(campaign_asset)
+            campaign_asset.holder = membership
+            campaign_asset.ownership_revision += 1
+            campaign_asset.save(
+                update_fields=["holder", "ownership_revision", "modified"]
+            )
             op.event(
                 campaign_asset,
                 LedgerEvent.Kind.LOST,

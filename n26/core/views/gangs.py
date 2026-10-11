@@ -481,7 +481,7 @@ def gang_sheet(request, pk):
             # offered. The gang's own counters stay settled facts.
             link_counters(sheet.campaign, back=at, adjust=True)
             for choice in sheet.campaign.choices:
-                if choice.href:
+                if choice.href and not choice.holding_name:
                     choice.href = with_query(choice.href, dialog="campaign")
     # One question at a time: a URL naming two dialogs draws the leaving
     # one, because two open modals is not a state the page can mean.
