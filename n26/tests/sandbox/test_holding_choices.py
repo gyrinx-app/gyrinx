@@ -484,12 +484,16 @@ class TestOwnershipLifetime:
     ):
         pick = choose_for(holding, content["income_pick"], content["slot"])
         before = counts()
-        with pytest.raises(RuntimeError, match="cancel the act"):
+
+        def abort_ownership_change():
             with campaign_operation(
                 holding.campaign, actor=holding.campaign.owner
             ) as act:
                 act.unassign(holding)
                 raise RuntimeError("cancel the act")
+
+        caught = pytest.raises(RuntimeError, abort_ownership_change)
+        assert str(caught.value) == "cancel the act"
         holding.refresh_from_db()
         pick.refresh_from_db()
         assert holding.held and not pick.archived
