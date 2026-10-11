@@ -182,6 +182,7 @@ class LedgerEvent(Base):
         # They record owner changes for the history.
         RENAMED = "renamed", "Renamed"
         NOTED = "noted", "Notes edited"
+        CYCLE_RESOLVED = "cycle_resolved", "Cycle boons resolved"
         LORE_EDITED = "lore_edited", "Lore edited"
         IMAGE_SET = "image_set", "Picture set"
         IMAGE_CLEARED = "image_cleared", "Picture removed"

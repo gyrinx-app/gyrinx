@@ -974,6 +974,8 @@ def _tell(e, row, alive):
                 at,
                 Span(f"{went_as} to the trading post"),
             ), "credits"
+        case Kind.CYCLE_RESOLVED:
+            return (Span(f"resolved cycle boons: {e.note}"),), "campaign"
         case Kind.NOTED:
             # About no model, so about the gang — as a rename is.
             if model is None:
