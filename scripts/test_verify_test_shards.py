@@ -4,6 +4,7 @@ The tiny subprocess projects exercise real serial/xdist hooks without Django,
 database setup, or this repository's pytest configuration.
 """
 
+import argparse
 import json
 import os
 import shutil
@@ -15,6 +16,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yaml
 
 from gyrinx.pytest_suite_shards import ShardState, SuiteShardPlugin, module_shard
 from scripts.verify_test_shards import InvalidManifest, main, verify_manifests
@@ -344,3 +346,134 @@ def test_no_shard_flags_preserve_normal_filtered_execution(shard_project):
     result = _run_project(project, env, "-n", "0", "-k", "pass", "test_0.py", "-q")
     assert result.returncode == 0, result.stdout + result.stderr
     assert "1 passed, 2 deselected" in result.stdout
+
+
+def _workflow_jobs():
+    workflow = Path(__file__).resolve().parents[1] / ".github/workflows/test.yaml"
+    return yaml.safe_load(workflow.read_text())["jobs"]
+
+
+def _named_step(job, name):
+    return next(step for step in job["steps"] if step.get("name") == name)
+
+
+def _trace_workflow_step(step, directory, **overrides):
+    """Execute the actual shell body with recorders instead of app commands."""
+    directory.mkdir(parents=True, exist_ok=True)
+    binaries = directory / "bin"
+    binaries.mkdir(exist_ok=True)
+    activate = directory / ".venv/bin/activate"
+    activate.parent.mkdir(parents=True, exist_ok=True)
+    activate.write_text("")
+    recorder = (
+        f"#!{sys.executable}\n"
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "command = Path(sys.argv[0]).name\n"
+        "with Path(os.environ['COMMAND_TRACE']).open('a') as output:\n"
+        "    output.write(json.dumps({'command': command, 'args': sys.argv[1:]}) + '\\n')\n"
+        "if command == 'git':\n"
+        "    if sys.argv[1:] != ['rev-parse', 'HEAD']: raise SystemExit(3)\n"
+        "    print(os.environ['ACTUAL_GIT_REVISION'])\n"
+    )
+    for name in ("python", "pytest", "git"):
+        executable = binaries / name
+        executable.write_text(recorder)
+        executable.chmod(0o755)
+    trace = directory / "trace.jsonl"
+    trace.unlink(missing_ok=True)
+    env = {
+        **os.environ,
+        "PATH": str(binaries) + os.pathsep + os.environ.get("PATH", ""),
+        "COMMAND_TRACE": str(trace),
+        "GITHUB_SHA": REVISION,
+        "ACTUAL_GIT_REVISION": REVISION,
+        **overrides,
+    }
+    bash = shutil.which("bash")
+    assert bash is not None, "workflow shell regression requires bash"
+    result = subprocess.run(
+        [bash, "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", step["run"]],
+        cwd=directory,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    commands = [json.loads(line) for line in trace.read_text().splitlines()]
+    return result, commands
+
+
+def test_ci_always_executes_both_full_shards_for_every_changed_scope(tmp_path):
+    jobs = _workflow_jobs()
+    # Accept only unfiltered pytest arguments: a partial core/path fallback must
+    # fail even when it invokes the measurement helper rather than plain pytest.
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", action="store_true")
+    parser.add_argument("-n", type=int, required=True)
+    parser.add_argument("-p", required=True)
+    parser.add_argument("--suite-shard-count", type=int, required=True)
+    parser.add_argument("--suite-shard-index", type=int, required=True)
+    parser.add_argument("--suite-shard-manifest", required=True)
+    for index, job_name, run_name, upload_name in (
+        (0, "test", "Run full-suite shard zero", "Upload required shard evidence"),
+        (1, "test-full", "Run full-suite shard one", "Upload companion shard evidence"),
+    ):
+        job = jobs[job_name]
+        step = _named_step(job, run_name)
+        assert step.get("if") is None
+        assert "${{" not in step["run"]
+        assert _named_step(job, upload_name).get("if") == "always()"
+        for scope_index, scope in enumerate(("", ".", "n26/core/test_example.py")):
+            directory = tmp_path / f"shard-{index}-scope-{scope_index}"
+            (directory / "logs").mkdir(parents=True)
+            (directory / "logs/changed-test-paths.txt").write_text(scope + "\n")
+            result, commands = _trace_workflow_step(
+                step, directory, GYRINX_CHANGED_TEST_PATHS=scope
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert len(commands) == 1 and commands[0]["command"] == "python"
+            argv = commands[0]["args"]
+            assert argv[0] == "scripts/measure_test_performance.py"
+            separator = argv.index("--")
+            options = parser.parse_args(argv[separator + 1 :])
+            assert (
+                options.n,
+                options.suite_shard_count,
+                options.suite_shard_index,
+            ) == (4, 2, index)
+            assert options.p == "gyrinx.pytest_suite_shards"
+            assert options.suite_shard_manifest == "logs/full-suite-shard.json"
+    fan_in = _named_step(
+        jobs["test"], "Verify both shards completed the full suite exactly once"
+    )
+    assert fan_in.get("if") in (None, "success()")
+    assert (
+        fan_in["env"]["EXPECTED_HEAD_SHA"]
+        == "${{ github.event.pull_request.head.sha || github.sha }}"
+    )
+
+
+def test_ci_preserves_smoke_skip_and_verifies_actual_checkout_revision(tmp_path):
+    for name, job in _workflow_jobs().items():
+        if name not in ("test", "test-full"):
+            continue
+        # A manual PR run cannot make the required check pass by skipping it.
+        assert (
+            job["if"]
+            == "github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main'"
+        )
+        checkout = next(
+            step
+            for step in job["steps"]
+            if step.get("uses", "").startswith("actions/checkout@")
+        )
+        assert "ref" not in checkout.get("with", {})
+        step = _named_step(job, "Verify the checked-out revision")
+        assert step.get("if") is None
+        for matches, actual in ((True, REVISION), (False, "b" * 40)):
+            result, commands = _trace_workflow_step(
+                step, tmp_path / f"{name}-{matches}", ACTUAL_GIT_REVISION=actual
+            )
+            assert (result.returncode == 0) is matches
+            assert commands == [{"command": "git", "args": ["rev-parse", "HEAD"]}]

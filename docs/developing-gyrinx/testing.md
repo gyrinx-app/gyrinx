@@ -49,10 +49,13 @@ jobs — see [.github/workflows/test.yaml](https://github.com/gyrinx-app/gyrinx/
 
 ### Paging for failures on main
 
-The `page-on-main-failure` job sends an incident.io alert when `test` (core)
+The `page-on-main-failure` job sends an incident.io alert when `test` (required)
 or `test-full` fails on a push to `main`. It waits for both jobs and sends one
 alert listing the failed suites, commit and Actions run link. Pull requests,
 merge queue runs and failures confined to `fresh-database` do not page.
+The payload retains its existing `core` label for the required `test` job and
+`full` label for `test-full`. A companion or full-suite verification failure
+can therefore appear under the required-job label.
 
 Store the HTTP alert source's bearer token in the repository Actions secret
 `INCIDENT_IO_ALERT_TOKEN` (Settings → Secrets and variables → Actions).
@@ -83,14 +86,25 @@ nothing. Manual runs on other branches or tags execute the test and database
 jobs and send no paging test alert. This keeps a manual run on a pull request
 branch from satisfying the required `test` check without running the suite.
 
-### The Core Suite
+### Full-suite CI and focused local checks
 
-Pull requests are gated on the `test` job, which runs the tests marked `core`
-plus every test the pull request touched. The `test-full` job runs everything
-and reports, but does not block a merge.
+Every normal CI run splits the entire suite across the existing `test` and
+`test-full` jobs, using four workers per runner. Each collects everything and
+assigns whole modules deterministically to one shard. Pull requests are gated
+on `test`, which waits for its companion to succeed in the same workflow
+attempt and verifies that their manifests cover every collected case exactly
+once. Core and changed tests are included in that complete collection.
+
+Missing or stale artifacts, mismatched revisions or collections, failed
+workers and incomplete execution fail the required check. Rerun all jobs when
+retrying a shard or verification failure; artifacts from a previous attempt
+cannot satisfy the gate. A new PR push cancels all obsolete jobs together.
+Main and merge-queue runs have separate concurrency groups.
+
+For a faster focused local check, use the core marker:
 
 ```bash
-# Run what the required CI job runs
+# Run the critical subset locally
 .venv/bin/python -m pytest -m core
 ```
 
@@ -111,12 +125,12 @@ that marks another test core. `scripts/check_core_suite_bounds.py` warns when th
 count is within 50 of the cap; raise the bound (or unmark tests) before
 that happens.
 
-The pull request's own tests join the run through
+For a focused local run that also includes the branch's changed tests, use
 `scripts/changed_test_paths.py`: it lists the test files the change added or
 modified, the directory of any changed `conftest.py`, and the trees whose
 conftest imports a changed fixtures module. The root conftest reads that list
 from `GYRINX_CHANGED_TEST_PATHS` and marks those tests `core` too. To see what
-a branch would pull in:
+a branch would pull into that subset:
 
 ```bash
 scripts/changed_test_paths.py origin/main

@@ -6,7 +6,36 @@ Keep the worker count fixed when isolating fixture changes; record it when
 comparing different concurrency settings. A faster focused suite or a warm
 reused database does not establish a faster full suite.
 
-## Latest complete measurement
+## Latest complete CI shard measurement
+
+Head `90c7ead78` passed all 13,267 cases in
+[CI run 38100163832](https://github.com/gyrinx-app/gyrinx/actions/runs/38100163832):
+13,253 passed, 13 skipped and one expected failure. Both shard manifests record
+clean merge revision `0093c14fe`, identical complete collections and exactly
+one execution of every case. The coverage digest is
+`d4dcf8a6d9782c4afcde2f483776e6f78741a708f74b885c34aae5f2c4b501d8`.
+The earliest session start to latest finish was 773.71 seconds (12 minutes
+54 seconds), 58.50% below the original 1,864.56-second baseline and below the
+932.28-second target. Each existing four-CPU runner used four workers.
+
+The required job took 861 seconds, including its companion wait; the companion
+took 834 seconds and fresh-database 612 seconds. Their sum was 2,307 seconds
+(38 minutes 27 seconds), 24.93% below the original 3,073 seconds. Both helpers
+returned zero with clean source digests, measuring 503.12 and 776.75 seconds
+and 3,130.32 seconds of combined child-process CPU. CI Checks also passed.
+
+The local run selected the same cases but failed 16 Git/socket integration
+checks because the filesystem sandbox blocked Git signing and localhost
+listeners. It took 480.72 seconds, but is not passing performance evidence.
+All 19 cases in the affected modules subsequently passed with approved host
+access. A fresh full local run is required for the final candidate.
+
+That measured revision used sharding only for exact-root PR changes. The
+subsequent workflow applies it to all normal events, so the reduction persists
+on main and narrower pull requests. This policy change still needs a complete
+final-candidate measurement; the original targets remain unchanged.
+
+## Previous complete unsharded measurement
 
 Head `ffe0e513c` passes both full suites but still misses the 50% CI target.
 Both runs selected 13,216 cases: 13,202 passed, 13 skipped and one expected
@@ -42,13 +71,14 @@ query-growth guards. The existing condition-fingerprint case also checks
 that an M2M-only profile membership change invalidates a saved roll after
 restoring its independently tested scalar condition.
 
-### Full-suite CI shards awaiting measurement
+### Full-suite CI shard policy
 
-For a pull request whose changed-test scope is exactly the repository root,
-`test` and `test-full` each collect the entire suite and execute disjoint modules
+On every normal CI event, `test` and `test-full` each collect the entire suite
+and execute disjoint modules
 using four workers on their existing runners. A module's SHA256 hash selects
-its shard, so all cases in a module share one shard. Other events and narrower
-pull requests retain the required core-and-changed gate and optional full run.
+its shard, so all cases in a module share one shard. The required full-suite
+gate includes core and changed tests without executing a duplicate subset.
+The core marker remains available for focused local checks.
 
 Each shard uploads a collection and execution manifest, JUnit report and timing
 record under a name containing the workflow run and attempt. The required
@@ -63,8 +93,8 @@ Compare the earliest pytest-session start to the latest finish across both
 shards against the original 932.28-second CI target. Compare the sum of both
 job durations, including the required job's wait, plus fresh-database against
 the original 3,073 seconds. A passing shard alone proves neither the complete
-suite nor the elapsed-time target. This implementation has not yet supplied
-a complete CI measurement.
+suite nor the elapsed-time target. The exact-root implementation supplied
+the complete CI result above; the all-events policy awaits final validation.
 
 ## Historical complete candidate
 
@@ -157,10 +187,9 @@ benchmark that command separately before claiming a change to its elapsed time.
 
 The work-stealing scheduler can move pending tests from a busy worker to an
 idle one when case durations differ. Local runs retain `-n auto`. CI uses
-eight worker processes on the existing runner size for unsharded runs,
-allowing another worker to run while one waits on PostgreSQL. A full-scope
-pull request uses four workers on each of the two existing jobs as described
-above. It adds no runners or larger machines.
+four worker processes on each of the two existing jobs as described above.
+Earlier unsharded candidates used eight workers on one runner. The shard
+policy adds no runners or larger machines.
 Verify the cost separately by comparing the sum of the required, full-suite
 and fresh-database job durations, not just the fastest job.
 
