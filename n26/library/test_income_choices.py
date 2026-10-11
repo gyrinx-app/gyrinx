@@ -82,6 +82,88 @@ def test_an_existing_income_choices_grant_must_remain_the_gangs_alone(
     assert declared_income_choice(asset).slot == slot
 
 
+@pytest.mark.parametrize("carrier_kind", ["asset", "income"])
+def test_a_slot_that_the_asset_or_income_option_removes_cannot_be_declared(
+    income_choice_graph, carrier_kind
+):
+    asset, baseline, income, _, slot, _ = income_choice_graph
+    carrier = asset if carrier_kind == "asset" else income
+    removal = authoring.modifier(
+        "Workshop: removed benefit",
+        authoring.targets_gang_alone(),
+        authoring.ef_removes(slot),
+        attach_to=carrier,
+    )
+    with pytest.raises(ValidationError, match="cannot remove their declared choice"):
+        authoring.set_base_income_modifier(asset, baseline)
+    asset.refresh_from_db()
+    assert asset.base_income_modifier_id is None
+    assert carrier.modifiers.filter(pk=removal.pk).exists()
+
+
+@pytest.mark.parametrize("carrier_kind", ["asset", "income"])
+def test_attached_removals_cannot_cancel_the_declared_choice(
+    income_choice, carrier_kind
+):
+    from n26.library.models import Modifier
+
+    asset, baseline, income, _, slot, _ = income_choice
+    carrier = asset if carrier_kind == "asset" else income
+    before = set(carrier.modifiers.values_list("pk", flat=True))
+    with pytest.raises(ValidationError, match="cannot remove their declared choice"):
+        authoring.modifier(
+            "Workshop: cancelled benefit",
+            authoring.targets_gang_alone(),
+            authoring.ef_removes(slot),
+            attach_to=carrier,
+        )
+    assert set(carrier.modifiers.values_list("pk", flat=True)) == before
+    assert not Modifier.objects.filter(name="Workshop: cancelled benefit").exists()
+    assert declared_income_choice(asset).modifier == baseline
+
+
+@pytest.mark.parametrize("carrier_kind", ["asset", "income"])
+def test_editing_an_attached_removal_by_slot_id_preserves_declared_income(
+    income_choice, carrier_kind
+):
+    asset, baseline, income, _, slot, _ = income_choice
+    carrier = asset if carrier_kind == "asset" else income
+    unrelated = authoring.create_rule("Unrelated benefit")
+    removal = authoring.modifier(
+        "Workshop: removes another benefit",
+        authoring.targets_gang_alone(),
+        authoring.ef_removes(unrelated),
+        attach_to=carrier,
+    )
+    effect = removal.removes_assignable
+    with pytest.raises(ValidationError, match="cannot remove their declared choice"):
+        authoring.revise(effect, rule=None, slot_id=str(slot.pk))
+    effect.refresh_from_db()
+    assert effect.rule_id == unrelated.pk
+    assert effect.slot_id is None
+    assert carrier.modifiers.filter(pk=removal.pk).exists()
+    assert declared_income_choice(asset).modifier == baseline
+
+
+def test_a_declared_asset_can_still_remove_unrelated_benefits(income_choice):
+    asset, baseline, *_ = income_choice
+    unrelated_rule = authoring.create_rule("Unrelated benefit")
+    unrelated_type = authoring.create_slot_type("Unrelated choice")
+    unrelated_list = authoring.create_picklist("Unrelated choices", unrelated_type)
+    unrelated_slot = authoring.create_slot(
+        "Unrelated choice", unrelated_type, unrelated_list, assigned_to="gang"
+    )
+    for target in [unrelated_slot, unrelated_rule]:
+        removal = authoring.modifier(
+            f"Workshop: removes {target.name}",
+            authoring.targets_gang_alone(),
+            authoring.ef_removes(target),
+            attach_to=asset,
+        )
+        assert asset.modifiers.filter(pk=removal.pk).exists()
+    assert declared_income_choice(asset).modifier == baseline
+
+
 def test_setting_zero_preserves_the_option_and_its_modifier(income_choice):
     asset, baseline, income, _, _, _ = income_choice
     authoring.set_income(asset, 42)

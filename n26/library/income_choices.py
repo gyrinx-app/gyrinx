@@ -120,6 +120,11 @@ def validate_income_choice(asset):
         or Modifier.objects.filter(adds_assignable__with_pick=pickable).exists()
     ):
         refuse("The Income option and its choice must belong only to this asset.")
+    if (
+        asset.modifiers.filter(removes_assignable__slot=slot).exists()
+        or pickable.modifiers.filter(removes_assignable__slot=slot).exists()
+    ):
+        refuse("The asset and its Income option cannot remove their declared choice.")
     return IncomeChoice(slot, pickable, modifier)
 
 
@@ -148,6 +153,10 @@ def _affected_assets(rows):
         ),
         "contributestocounter": ("base_income_modifier__contributes_to_counter",),
         "addsassignable": ("modifiers__adds_assignable",),
+        "removesassignable": (
+            "modifiers__removes_assignable",
+            "modifiers__adds_assignable__slot__picklist__members__pickable__modifiers__removes_assignable",
+        ),
         "counter": ("base_income_modifier__contributes_to_counter__counter",),
     }
 

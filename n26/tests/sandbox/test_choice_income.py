@@ -188,6 +188,55 @@ def chosen(holding):
 class TestChoosingTheBaseIncome:
     """A saved override is eligible only for this copy's selected base effect."""
 
+    def test_removing_the_declared_slot_hides_its_question_but_preserves_recorded_income(
+        self,
+        campaign,
+        gang,
+        content,
+    ):
+        held = holding(campaign, gang, content["asset"])
+        recorded_pick = chosen(held)
+        before = computed(gang)
+        assert total(before, content["income"]) == 15
+        assert (
+            len(
+                [
+                    choice
+                    for choice in before.choices
+                    if choice.slot.pk == content["slot"].pk
+                ]
+            )
+            == 1
+        )
+        removal = modifier(
+            "Cancels the declared benefit",
+            targets_gang_alone(),
+            ef_removes(content["slot"]),
+        )
+        # Invalid library content deliberately bypasses the authoring guard
+        # to pin what a removal actually takes away from a recorded answer.
+        content["asset"].modifiers.add(removal)
+        done = computed(gang)
+        assert total(done, content["income"]) == 15
+        assert (
+            len(
+                [
+                    choice
+                    for choice in done.choices
+                    if choice.slot.pk == content["slot"].pk
+                ]
+            )
+            == 0
+        )
+        pick_node = next(
+            node for node in done.card.all_nodes() if node.key == recorded_pick.pk
+        )
+        assert not pick_node.suppressed
+        recorded_pick.refresh_from_db()
+        assert not recorded_pick.archived
+        assert recorded_pick.pickable_id == content["income_pick"].pk
+        assert_reconciled(gang)
+
     @pytest.mark.parametrize(
         "amount,override,answer,expected",
         [
