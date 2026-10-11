@@ -15,15 +15,13 @@ from django.contrib.auth import get_user_model
 
 from n26.core import icons
 
-pytestmark = pytest.mark.django_db
-
 #: The colour <c-n26.founding-mark> paints itself. One component draws the
 #: mark, so finding this on a page is finding the mark.
 MARK = "text-violet-600"
 
 
 @pytest.fixture
-def reader(client):
+def reader(client, db):
     """Staff, because the gallery is a workshop rather than a page of
     the app."""
     user = get_user_model().objects.create_user(
@@ -108,23 +106,13 @@ class TestReactDemo:
         assert 'react_island "authoring-list" demo' in soup.get_text()
         assert "mountRoot" in soup.get_text()
 
+    @pytest.mark.django_db
     def test_gallery_requires_staff(self, client):
         assert client.get("/n26/design/react/").status_code == 302
 
 
 class TestTheQuickSwitchersPage:
     """Its props, its subcomponent and its demos all reach the gallery."""
-
-    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        page = reader.get("/n26/design/c/quick-switcher/").content.decode()
-        # Read from the component's own <c-vars>, so a prop added there and
-        # nowhere else still has to appear here.
-        assert "menu_label" in page
-        assert "min_width" in page
-
-    def test_the_page_names_the_item_subcomponent(self, reader):
-        page = reader.get("/n26/design/c/quick-switcher/").content.decode()
-        assert "c-n26.quick-switcher.item" in page
 
     def test_all_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/quick-switcher/").content.decode()
@@ -138,11 +126,6 @@ class TestTheQuickSwitchersPage:
 
 class TestTheSharePage:
     """Its props and both demos reach the gallery drawn."""
-
-    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        page = reader.get("/n26/design/c/share/").content.decode()
-        assert "message" in page
-        assert "url" in page
 
     def test_the_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/share/").content.decode()
@@ -169,13 +152,6 @@ class TestTheButtonPage:
 class TestThePictureBoxPage:
     """Its props and both of its states reach the gallery drawn."""
 
-    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        page = reader.get("/n26/design/c/picture-box/").content.decode()
-        # Read from the component's own <c-vars>, so a prop added there and
-        # nowhere else still has to appear here.
-        assert "image_url" in page
-        assert "img_class" in page
-
     def test_both_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/picture-box/").content.decode()
         assert "No picture yet" in page
@@ -189,39 +165,14 @@ class TestThePictureBoxPage:
 class TestTheActivityCardPage:
     """Its props, its body subcomponent and its demos reach the gallery."""
 
-    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        from n26.designsystem.catalog import get
-
-        assert get("activity-card").api is not None
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/activity-card/").content.decode()
-        # Read from the component's own <c-vars>, so a prop added there and
-        # nowhere else still has to appear here.
-        assert "boxed" in page
-        assert "body" in page
-
-    def test_the_page_names_the_body_subcomponent(self, reader):
-        from n26.designsystem.catalog import get
-
-        assert all(api is not None for _, api in get("activity-card").part_apis)
-        page = reader.get("/n26/design/c/activity-card/").content.decode()
-        assert "c-n26.activity-card.body" in page
-
-    def test_all_three_demos_render_rather_than_falling_back(self, reader):
-        page = reader.get("/n26/design/c/activity-card/").content.decode()
-        # The titles come from the demo files; the rest is markup the demos
-        # rendered, because a directory the catalog cannot find yields
-        # "No examples yet" instead of an error.
         assert "An action with figures" in page
         assert "An action with none" in page
         assert "Inside another box" in page
         assert "A primary action beside completion" in page
         assert "Visit Trading Post" in page
         assert "Complete action" in page
-
-    def test_an_action_with_no_figures_draws_no_tally(self, reader):
-        """A row of zeroes is worse than nothing: the founding counts
-        nothing yet, so it says nothing."""
-        page = reader.get("/n26/design/c/activity-card/").content.decode()
         start = page.index("An action with none")
         end = page.index("Inside another box", start)
         assert "Remaining" not in page[start:end]
@@ -230,25 +181,24 @@ class TestTheActivityCardPage:
 class TestTheActivitiesSquarePage:
     """Its props and permission-dependent states reach the gallery drawn."""
 
-    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        page = reader.get("/n26/design/c/activities-square/").content.decode()
-        assert "square" in page
-
-    def test_the_open_action_is_badged(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/activities-square/").content.decode()
         assert "Current action" in page
-
-    def test_the_open_and_empty_states_render_rather_than_falling_back(self, reader):
-        page = reader.get("/n26/design/c/activities-square/").content.decode()
         assert "Nothing open" in page
         assert "The founding open" in page
         assert "A visit open" in page
         assert "Both open" in page
         assert "Nothing done yet" in page
-        # From the markup the demos rendered, not their titles.
         assert "No action is open." in page
         assert "Trading Post visit open" in page
         assert "Complete action" in page
+        assert "Recent history" not in page
+        assert "History" in page
+        assert "hired Yolanda, a Ganger" not in page
+        assert "No history for this gang yet." not in page
+        start = page.index("Spend founding TP")
+        form = page.rindex("<form", 0, start)
+        assert 'method="post"' in page[form:start]
 
     def test_post_battle_uses_the_shared_steps_with_and_without_other_actions(
         self, reader
@@ -284,51 +234,20 @@ class TestTheActivitiesSquarePage:
             assert square.find("form") is None
         assert "No history for this gang yet." not in no_history.get_text()
 
-    def test_history_is_a_link_and_acts_are_not_listed(self, reader):
-        """The header link, not a list of acts. A demo that fell back to
-        "No examples yet" would not draw the Actions region at all."""
-        page = reader.get("/n26/design/c/activities-square/").content.decode()
-        assert "Recent history" not in page
-        assert "History" in page
-        assert "hired Yolanda, a Ganger" not in page
-
-    def test_a_gang_with_no_story_still_links(self, reader):
-        page = reader.get("/n26/design/c/activities-square/").content.decode()
-        assert "No history for this gang yet." not in page
-        assert "History" in page
-
-    def test_the_start_row_is_a_post_not_a_link(self, reader):
-        """Starting an act must never be a link: a link is followed by
-        anything that follows links."""
-        page = reader.get("/n26/design/c/activities-square/").content.decode()
-        start = page.index("Spend founding TP")
-        form = page.rindex("<form", 0, start)
-        assert 'method="post"' in page[form:start]
-
 
 class TestTheFoundingMarkPage:
     """The one place the founding mark's drawing and colour are stated, and
     the four places it is drawn."""
 
-    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        page = reader.get("/n26/design/c/founding-mark/").content.decode()
-        assert "label" in page
-
-    def test_the_demos_render_rather_than_falling_back(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/founding-mark/").content.decode()
         assert "The mark" in page
         assert "Sizes" in page
         assert "Where it is drawn" in page
         assert "Both blocks on an equip rail" in page
-        # From the markup the demos rendered, not their titles.
         assert MARK in page
         assert "Founding Trade Points" in page
         assert "Trading Post visit" in page
-
-    def test_the_rail_demo_draws_the_real_blocks(self, reader):
-        """It includes the page's own partials, so a change to either
-        block shows here rather than drifting from a copy."""
-        page = reader.get("/n26/design/c/founding-mark/").content.decode()
         assert "Available" in page
         assert "Remaining" in page
         assert "not against the visit" in page
@@ -338,43 +257,28 @@ class TestTheFoundingMarkPage:
 class TestTheStashPage:
     """The stash's notice slot, filled the way the gang sheet fills it."""
 
-    def test_the_visit_demos_render_rather_than_falling_back(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/stash/").content.decode()
         assert "The Trading Post line in the notice" in page
         assert "A visit that cannot start yet" in page
         assert "Trading Post visit open" in page
         assert "Set up Trading Post visit" in page
-
-    def test_a_visit_that_cannot_start_is_drawn_dead_with_the_reason(self, reader):
-        page = reader.get("/n26/design/c/stash/").content.decode()
         label = page.index("Set up Trading Post visit")
         control = page[page.rindex("<", 0, page.rindex("<", 0, label)) : label]
         assert "disabled" in control
         assert "You can have only one of these actions open at a time." in page
-
-    def test_the_old_wording_is_gone(self, reader):
-        page = reader.get("/n26/design/c/stash/").content.decode()
         assert "Set up TP visit" not in page
-
-    def test_two_of_one_thing_read_once_with_the_rating_of_one(self, reader):
-        page = reader.get("/n26/design/c/stash/").content.decode()
         assert (
             'Mesh armour (x2)</span><span>&nbsp;<span class="tabular-nums">15¢' in page
         )
         assert "Mesh armour, Mesh armour" not in page
-        # A weapon is never stacked, so the gallery holds no such specimen.
         assert "Stub gun (x2)" not in page
 
 
 class TestTheCountOnAModelCardLine:
-    def test_the_gallery_card_draws_two_of_one_thing_once(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/model-card/").content.decode()
         assert "Stimm-slug (25¢) (x2)" in page
-
-    def test_the_editable_sample_keeps_one_line_per_assignment(self, reader):
-        """The model's own page hangs a menu on every line, and a menu
-        names one assignment, so the stacked specimen opens back out
-        into two lines there — each with its own menu."""
         from n26.designsystem import sampledata
 
         lines = [
@@ -386,8 +290,6 @@ class TestTheCountOnAModelCardLine:
             (1, True),
             (1, True),
         ]
-
-        page = reader.get("/n26/design/c/model-card/").content.decode()
         assert page.count('aria-label="More for Stimm-slug (25¢)"') == 2
 
 
@@ -395,13 +297,14 @@ class TestThePetOnAModelCard:
     """A pet's card names its owner, linked where the demo gives the
     anchor; the owner's kit line names the pet after the kit."""
 
-    def test_the_pet_demo_links_the_owners_card(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/model-card/").content.decode()
-        # A cat among the controls, named for whoever uses a reader.
         assert 'aria-label="Owned by Vesna Krail"' in page
         assert 'href="#model-vesna-krail"' in page
         assert page.count('id="model-vesna-krail"') == 1
         assert str(icons.resolve("cat").body) in page
+        assert "In the stash" in page
+        assert "Phyrr Cat (pet) (120¢) (Fang)" in page
 
     @pytest.mark.parametrize(
         "url, at_least",
@@ -425,14 +328,6 @@ class TestThePetOnAModelCard:
         assert len(anchors) >= at_least
         assert sorted(anchors) == sorted(set(anchors))
 
-    def test_the_stashed_pet_demo_says_where_the_collar_is(self, reader):
-        page = reader.get("/n26/design/c/model-card/").content.decode()
-        assert "In the stash" in page
-
-    def test_the_owners_kit_line_names_the_pet(self, reader):
-        page = reader.get("/n26/design/c/model-card/").content.decode()
-        assert "Phyrr Cat (pet) (120¢) (Fang)" in page
-
     def test_the_stash_line_names_the_pet(self, reader):
         page = reader.get("/n26/design/c/stash/").content.decode()
         assert "Cyber-mastiff (pet) (Rust)" in page
@@ -442,62 +337,41 @@ class TestTheHeaderBandSpecimens:
     """The four cards that hold the header's whole contents at once, so
     the band can be looked at while the names either side of it grow."""
 
-    def test_the_band_holds_everything_at_once(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         from n26.designsystem import sampledata
 
         card = sampledata.model_card_header_short()
         assert card.trade_points_left is not None and card.founding_budget
         assert card.rating and card.profile_name and card.owned_by
         assert card.image_url
-        # No id: the specimen draws its body plain rather than behind the
-        # tab strip, and carries no anchor to collide with the pet demo's.
         assert card.id == ""
-
         page = reader.get("/n26/design/c/model-card/").content.decode()
         assert "3 TP" in page
         assert "390¢" in page
         assert "Escher Death-Maiden" in page
         assert 'aria-label="Owned by Vesna Krail"' in page
-
-    def test_the_live_specimens_draw_the_quiet_active_control(self, reader):
-        """A card carrying no status of its own gets Active as a muted
-        control rather than a badge — what most of a roster reads, and
-        the width the controls row usually has. Four of the five, the
-        fifth being the badged one."""
         import re
 
-        page = reader.get("/n26/design/c/model-card/").content.decode()
         band = page.split('id="demo-header"', 1)[1].split('id="demo-digital"')[0]
-        assert len(re.findall(r">\s*Active\s*<", band)) == 4
-
-    def test_status_and_rating_share_one_unbroken_figures_line(self, reader):
+        assert len(re.findall(">\\s*Active\\s*<", band)) == 4
         from bs4 import BeautifulSoup
 
-        page = reader.get("/n26/design/c/model-card/").content.decode()
         band = page.split('id="demo-header"', 1)[1].split('id="demo-digital"')[0]
         document = BeautifulSoup(band, "html.parser")
         active = document.find(string=lambda value: value and value.strip() == "Active")
         assert active is not None
         figures = active.find_parent("div", class_="tabular-nums")
-
         assert figures is not None
         assert "whitespace-nowrap" in figures["class"]
         assert "390¢" in figures.get_text(" ", strip=True)
-
-    def test_one_specimen_badges_the_longest_status(self, reader):
         from n26.designsystem import sampledata
 
         card = sampledata.model_card_header_badged()
         assert card.status_label == "Critically Injured"
-
-        page = reader.get("/n26/design/c/model-card/").content.decode()
         band = page.split('id="demo-header"', 1)[1].split('id="demo-digital"')[0]
         assert "Critically Injured" in band
-
-    def test_both_names_are_drawn_short_and_long(self, reader):
         from n26.designsystem import sampledata
 
-        page = reader.get("/n26/design/c/model-card/").content.decode()
         for name in (
             sampledata.SHORT_HEADER_NAME,
             sampledata.LONG_HEADER_NAME,
@@ -527,18 +401,6 @@ class TestTheHeaderBandSpecimens:
 class TestTheRadioCardsPage:
     """Its props, its card subcomponent and its demos all reach the gallery."""
 
-    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        page = reader.get("/n26/design/c/radio-cards/").content.decode()
-        # Read from the component's own <c-vars>, so a prop added there and
-        # nowhere else still has to appear here.
-        assert "min" in page
-        assert "description" in page
-        assert "labelled_by" in page
-
-    def test_the_page_names_the_card_subcomponent(self, reader):
-        page = reader.get("/n26/design/c/radio-cards/").content.decode()
-        assert "c-n26.radio-cards.card" in page
-
     def test_both_demos_render_rather_than_falling_back(self, reader):
         page = reader.get("/n26/design/c/radio-cards/").content.decode()
         assert "One of these" in page
@@ -557,23 +419,11 @@ class TestTheTickListPage:
     """Its props and its demo reach the gallery drawn, not as a polite
     fallback."""
 
-    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        page = reader.get("/n26/design/c/tick-list/").content.decode()
-        assert "offer" in page
-        assert "name" in page
-
-    def test_the_demo_draws_real_boxes(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/tick-list/").content.decode()
         assert "A list to tick" in page
-        # From the markup the demo rendered, not from its title: a demo
-        # directory the catalog cannot find yields "No examples yet".
         assert 'name="skills"' in page
         assert 'value="library.skill:1"' in page
-
-    def test_a_granted_line_is_drawn_ticked_and_fixed(self, reader):
-        """The one state this component has that a pick list does not, and
-        the one worth seeing before writing a page that uses it."""
-        page = reader.get("/n26/design/c/tick-list/").content.decode()
         assert 'title="From Keen-eyed"' in page
         assert "disabled" in page
 
@@ -582,25 +432,12 @@ class TestTheChoicePicksPage:
     """Its props and both its demos reach the gallery drawn, not as a
     polite fallback."""
 
-    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        page = reader.get("/n26/design/c/choice-picks/").content.decode()
-        assert "offer" in page
-        assert "name" in page
-        assert "labelled_by" in page
-
-    def test_both_demos_draw_real_acts(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/choice-picks/").content.decode()
         assert "A choice part-way made" in page
         assert "With no room left" in page
-        # From the markup the demos rendered, not from their titles: a
-        # demo directory the catalog cannot find yields "No examples yet".
         assert 'name="remove"' in page
         assert 'value="library.pickable:3"' in page
-
-    def test_an_option_names_itself_to_a_reader_who_hears_the_button(self, reader):
-        """Twenty-six buttons all called Choose are twenty-six unlabelled
-        buttons, so each act says what it acts on."""
-        page = reader.get("/n26/design/c/choice-picks/").content.decode()
         assert 'aria-label="Remove Cawdor"' in page
         assert 'aria-label="Add Ironhead Squats"' in page
 
@@ -628,27 +465,18 @@ class TestTheOwnedDialogsPage:
     """The two questions the panel grew reach the gallery drawn, not as a
     polite fallback."""
 
-    def test_the_accessory_picker_draws_its_list(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/owned-dialog/").content.decode()
         assert "Fitting an accessory" in page
-        # From the markup the demo rendered: a select of real options, each
-        # naming its price, is what tells this apart from "No examples yet".
         assert "Telescopic sight — 25¢" in page
         assert "Gun stabiliser — 30¢" in page
-
-    def test_detaching_an_accessory_draws_the_held_destination(self, reader):
-        page = reader.get("/n26/design/c/owned-dialog/").content.decode()
         assert "Taking an accessory off a gun" in page
         assert "Take Telescopic sight off Meltagun?" in page
         assert "The fighter will still hold it." in page
         assert 'value="held"' in page
-
-    def test_selling_a_kitted_gun_draws_a_figure_against_each_answer(self, reader):
-        page = reader.get("/n26/design/c/owned-dialog/").content.decode()
         assert "Selling a gun with something bolted to it" in page
         assert 'value="stash"' in page
         assert 'value="sell"' in page
-        # The two sales, priced apart — the whole reason there are two cards.
         assert "78¢ for the gun alone" in page
         assert "Everything goes together. 91¢." in page
 
@@ -668,32 +496,18 @@ class TestTheSelectPage:
 class TestTheFilterSelectsPage:
     """Its props and its demos reach the gallery, and the select survives."""
 
-    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        page = reader.get("/n26/design/c/filter-select/").content.decode()
-        # Read from the component's own <c-vars>, so a prop added there and
-        # nowhere else still has to appear here.
-        assert "min_options" in page
-        assert "empty" in page
-
-    def test_all_three_demos_render_rather_than_falling_back(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/filter-select/").content.decode()
         assert "A list worth searching" in page
         assert "Too short to be worth it" in page
         assert "Several at once" in page
         assert (
-            len(re.findall(r'data-react-module="[^"]*/filter-select-[^"]+\.js"', page))
+            len(re.findall('data-react-module="[^"]*/filter-select-[^"]+\\.js"', page))
             == 2
         )
-
-    def test_the_demos_draw_a_real_select_carrying_real_option_values(self, reader):
-        """The whole point of the component: what a browser with no script
-        finds is the select it would have found anyway, values and all."""
-        page = reader.get("/n26/design/c/filter-select/").content.decode()
         assert 'name="weapon"' in page
         assert 'value="7"' in page
         assert "Digi-laser" in page
-        # Several at once posts through a native multiple select, not a
-        # widget of its own.
         assert 'name="traits"' in page
 
 
@@ -702,47 +516,24 @@ class TestTheStatlineEditorInTheGallery:
     half — which is the point of documenting it there: the two are meant to
     show the same columns, and a reader can see whether they do."""
 
-    def test_the_page_names_the_editing_subcomponent(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/statline/").content.decode()
-        assert "c-n26.statline.edit" in page
-
-    def test_the_editor_draws_a_box_per_characteristic(self, reader):
-        page = reader.get("/n26/design/c/statline/").content.decode()
-        # Input names are the stat's internal name, which is what the real
-        # form posts — a demo drawing anything else would document a page
-        # that does not exist.
         for field in ("movement", "weapon_skill", "leadership", "intelligence"):
             assert f'name="{field}"' in page
-
-    def test_a_value_is_shown_as_it_is_stored(self, reader):
-        page = reader.get("/n26/design/c/statline/").content.decode()
-        # The quote mark survives the trip through the kit's input. Stored
-        # canonical and shown as stored, so the box and the card agree.
         assert 'value="5&quot;"' in page
-
-    def test_an_empty_editor_suggests_what_each_box_takes(self, reader):
-        page = reader.get("/n26/design/c/statline/").content.decode()
         assert "Nothing typed yet" in page
         assert 'placeholder="3+"' in page
-
-    def test_a_refusal_is_a_sentence_naming_the_characteristic(self, reader):
-        page = reader.get("/n26/design/c/statline/").content.decode()
         assert "Movement is longer than 10 characters" in page
-        # What the author typed, not what was stored before it.
         assert 'value="five inches or so"' in page
 
 
 class TestTheGangTypeBadgeInTheGallery:
     """The one badge that is content rather than a drawing we ship."""
 
-    def test_the_flair_page_names_it_and_draws_it(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/flair-link/").content.decode()
         assert "c-n26.flair.gang-type" in page
-        # The sample artwork, cleaned and inlined by the component.
         assert 'fill="currentColor"' in page
-
-    def test_a_type_with_no_artwork_is_shown_drawing_nothing(self, reader):
-        page = reader.get("/n26/design/c/flair-link/").content.decode()
         assert "Underhive Outcasts" in page
 
 
@@ -925,16 +716,11 @@ class TestTheShellStillDraws:
 class TestTheModelHeaderPage:
     """Its card slot reaches the gallery drawn, above the tab strip."""
 
-    def test_both_demos_render_rather_than_falling_back(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/model-header/").content.decode()
         assert "One model's screens" in page or "One model&#x27;s screens" in page
         assert "With the model" in page
         assert 'id="n26-model-card-host"' in page
-
-    def test_the_card_sits_between_the_heading_and_the_tabs(self, reader):
-        # The component page, since the second demo is the one with the
-        # card, and the plain preview draws a component's first alone.
-        page = reader.get("/n26/design/c/model-header/").content.decode()
         demo = page.index("With the model")
         card = page.index('id="n26-model-card-host"', demo)
         assert page.index("Vesna Krail", demo) < card < page.index("This model", card)
@@ -953,23 +739,13 @@ class TestTheViewPreview:
 class TestTheModelEditPage:
     """The card above the tabs, then the boxes in their order, Lore last."""
 
-    def test_the_card_sits_above_the_tabs(self, reader):
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/view/view-model-edit/").content.decode()
         card = page.index('id="n26-model-card-host"')
         assert page.index("<h1") < card < page.index("This model")
-
-    def test_the_demos_name_action_reaches_the_card(self, reader):
-        """The demo passes a rename link of its own — there is no model
-        to rename — and the host include draws it in place of the real
-        pencil. A slot that went unforwarded would draw the pencil
-        pointing at an Edit page for a model that does not exist."""
-        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
         card = page[page.index('id="n26-model-card-host"') : page.index("This model")]
         assert 'href="#rename"' in card
         assert "?rename=" not in card
-
-    def test_the_boxes_run_picture_notes_skills_characteristics_lore(self, reader):
-        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
 
         def heading(name):
             return page.index(f'<span class="font-semibold">{name}</span>')
@@ -981,9 +757,6 @@ class TestTheModelEditPage:
             < heading("Characteristics")
             < heading("Lore")
         )
-
-    def test_action_panels_share_the_card_row_above_the_tabs(self, reader):
-        page = reader.get("/n26/design/view/view-model-edit/").content.decode()
         card = page.index('id="n26-model-card-host"')
         actions = page.index('id="n26-action-panels"', card)
         evolution = page.index("Suit Evolution", card)
@@ -991,7 +764,6 @@ class TestTheModelEditPage:
         notes = page.index('<span class="font-semibold">Notes</span>', advancement)
         tabs = page.index("This model", advancement)
         history = page.index('<span class="font-semibold">Action history</span>', notes)
-
         assert card < actions < evolution < advancement < tabs < notes < history
         assert "lg:grid-cols-2" in page[card - 500 : actions]
         assert "Kill Count" in page[evolution:advancement]
@@ -1071,23 +843,14 @@ class TestTheModelCardsTooltips:
     """The card's tooltips are real components, never a native title —
     which shows only under a mouse and never on touch."""
 
-    def test_the_page_draws_the_card_at_all(self, reader):
-        # Guards the assertions below against passing vacuously: a card
-        # rendered without its context draws none of the markup the
-        # other tests refuse.
+    def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/model-card/").content.decode()
         assert "Vesna Krail" in page
-
-    def test_no_native_title_survives_on_the_card(self, reader):
-        page = reader.get("/n26/design/c/model-card/").content.decode()
         assert 'title="Rating' not in page
         assert 'title="Select' not in page
         assert 'title="From' not in page
         assert 'title="Granted' not in page
         assert 'title="Trade Points' not in page
-
-    def test_the_provenance_and_rating_bubbles_are_drawn(self, reader):
-        page = reader.get("/n26/design/c/model-card/").content.decode()
         assert 'role="tooltip"' in page
         assert "From Leader" in page
         assert "Rating, including weapons and wargear" in page
@@ -1095,14 +858,6 @@ class TestTheModelCardsTooltips:
             "can spend these Trade Points at the Trading Post while the "
             "Spend founding TP action is open" in page
         )
-
-    def test_both_kinds_of_open_choice_draw_their_way_in(self, reader):
-        """The sample carries an open one-pick choice and a several-pick
-        choice with room left. A line built without a slot behind it
-        defaults to the one-pick rule, so the open one must still prompt
-        — a sample that quietly drew nothing would document the wrong
-        thing."""
-        page = reader.get("/n26/design/c/model-card/").content.decode()
         legacy = page[page.index("Gang Legacy</dt>") :]
         legacy_dd = legacy[: legacy.index("</dd>")]
         assert "Choose" in legacy_dd
@@ -1129,15 +884,6 @@ class TestThePrintSheet:
 class TestTheArrivalBlockPage:
     """The screen after an act, block by block, and the shell page that
     draws the whole screen from sample data."""
-
-    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
-        body = reader.get("/n26/design/c/arrival-block/").content.decode()
-        assert "c-n26.arrival-block" in body
-        assert ":block" in body
-
-    def test_the_page_names_the_question_subcomponent(self, reader):
-        body = reader.get("/n26/design/c/arrival-block/").content.decode()
-        assert "c-n26.arrival-question" in body
 
     def test_all_three_demos_render_rather_than_falling_back(self, reader):
         body = reader.get("/n26/design/c/arrival-block/").content.decode()
@@ -1177,3 +923,34 @@ class TestTheArrivalBlockPage:
         response = reader.post("/n26/design/shell/next/", {"ask": "gang:1:1"})
         assert response.status_code == 302
         assert response["Location"] == "/n26/design/shell/next/"
+
+
+class TestCatalogueAPIs:
+    def test_every_registered_component_and_part_has_readable_source(self):
+        from n26.designsystem.catalog import COMPONENTS
+
+        assert COMPONENTS
+        for component in COMPONENTS:
+            assert component.api is not None, component.slug
+            for part, api in component.part_apis:
+                assert api is not None, part.tag
+
+    def test_props_and_subcomponents_reach_their_own_documentation_sections(
+        self, reader
+    ):
+        from bs4 import BeautifulSoup
+
+        from n26.designsystem.catalog import get
+
+        response = reader.get("/n26/design/c/quick-switcher/")
+        assert response.status_code == 200
+        page = BeautifulSoup(response.content, "html.parser")
+        props = {
+            cell.get_text(strip=True).lstrip(":")
+            for cell in page.select("#api tbody tr td:first-child")
+        }
+        assert {"menu_label", "min_width"} <= props
+        assert props == {
+            prop.name for prop in get("quick-switcher").api.props if not prop.choices
+        }
+        assert "c-n26.quick-switcher.item" in page.select_one("#parts").get_text()

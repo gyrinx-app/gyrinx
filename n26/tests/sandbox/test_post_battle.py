@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.db import connection
+from django.db import connection, transaction
 from django.test.utils import CaptureQueriesContext
 
 from n26.core import history
@@ -26,6 +26,8 @@ from n26.core.post_battle import (
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status, status_colour
 from n26.library.authoring import add_picklist_member
+from n26.library.models import Counter, Pickable, Picklist, Slot, SlotType
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_built_in,
     assign,
@@ -66,8 +68,8 @@ def arbitrator():
     return User.objects.create_user("report-arbitrator")
 
 
-@pytest.fixture
-def content(default_pack, gang_type, fighter_type):
+@library_setup
+def _seed_post_battle_catalogue():
     xp = create_counter("XP")
     kind = create_slot_type("Lasting injury", is_lasting_effect=True)
     wound = create_pickable(
@@ -88,7 +90,38 @@ def content(default_pack, gang_type, fighter_type):
     table = create_picklist(
         "Lasting Injury Table", kind, members=[wound, death, lesson]
     )
-    slot = create_slot("Lasting Injury", kind, table, min_picks=0, max_picks=100)
+    create_slot("Lasting Injury", kind, table, min_picks=0, max_picks=100)
+
+
+@pytest.fixture(scope="class")
+def _prepared_post_battle_catalogue(django_db_setup, django_db_blocker, request):
+    """Share ordinary class content, excluding the independent band catalogue."""
+    if request.cls is TestRollBands:
+        # Its first case authors colliding names with a different effect graph.
+        yield
+        return
+    with django_db_blocker.unblock(), transaction.atomic():
+        _seed_post_battle_catalogue()
+        try:
+            yield
+        finally:
+            transaction.set_rollback(True)
+
+
+@pytest.fixture
+@library_setup
+def content(
+    default_pack, gang_type, fighter_type, _prepared_post_battle_catalogue, request
+):
+    if request.cls is TestRollBands:
+        _seed_post_battle_catalogue()
+    xp = Counter.objects.get(name="XP")
+    kind = SlotType.objects.get(name="Lasting injury")
+    wound = Pickable.objects.get(name="Grievous Wound")
+    death = Pickable.objects.get(name="Memorable Death")
+    lesson = Pickable.objects.get(name="Lesson Learned")
+    table = Picklist.objects.get(name="Lasting Injury Table")
+    slot = Slot.objects.get(name="Lasting Injury")
     modifier(
         "Models carry the injury table",
         targets_every_model(),
@@ -270,14 +303,6 @@ class TestApplication:
         assert LedgerEvent.objects.count() == count
         assert not report.revisions.exists()
 
-    def test_receipt_snapshots_survive_renames(self, report, owner, model, gang):
-        report = save(report, owner, payload_for(model, credits=40))
-        saved = apply(report, owner)
-        with operation(gang, actor=owner) as op:
-            op.rename(model, "New name")
-        saved.refresh_from_db()
-        assert saved.receipt["models"][0]["name"] == "Cinder"
-
     def test_income_and_xp_are_applied_once_and_receipt_is_immutable(
         self, report, owner, model, gang
     ):
@@ -308,12 +333,12 @@ class TestApplication:
             save(report, owner, payload_for(model))
         assert_reconciled(gang)
 
-    def test_first_apply_accepts_typed_xp_and_income_without_a_second_review(
-        self, report, owner, model
-    ):
-        shown = preview_report(report, actor=owner).review
-        report = save(report, owner, payload_for(model, xp=2, credits=30))
-        apply(report, owner, review=shown)
+        with operation(gang, actor=owner) as op:
+            op.rename(model, "New name")
+        receipt.refresh_from_db()
+        assert receipt.receipt["models"][0]["name"] == "Cinder"
+        gang.refresh_from_db()
+        assert_reconciled(gang)
 
     def test_participation_confirmation_is_required(self, report, owner, model):
         payload = payload_for(model)
@@ -374,20 +399,8 @@ class TestApplication:
         report = save(report, owner, payload_for(model, effects=injuries))
         assert "final status" in " ".join(preview_report(report, actor=owner).errors)
         report = save(
-            report, owner, payload_for(model, effects=injuries, status=Status.DEAD)
+            report, owner, payload_for(model, effects=list(reversed(injuries)))
         )
-        apply(report, owner)
-        model.refresh_from_db()
-        assert model.status == Status.DEAD
-
-    def test_conflicting_injuries_name_each_result_and_status(
-        self, report, owner, model, content
-    ):
-        injuries = [
-            effect_for(report, owner, content[name]) for name in ("wound", "death")
-        ]
-        report = save(report, owner, payload_for(model, effects=injuries))
-
         (result,) = preview_report(report, actor=owner).models
 
         message = (
@@ -396,6 +409,12 @@ class TestApplication:
         )
         assert result.status_conflict == message
         assert f"Cinder: {message}" in preview_report(report, actor=owner).errors
+        report = save(
+            report, owner, payload_for(model, effects=injuries, status=Status.DEAD)
+        )
+        apply(report, owner)
+        model.refresh_from_db()
+        assert model.status == Status.DEAD
 
     def test_content_counter_effect_is_in_the_receipt(
         self, report, owner, model, content
@@ -1079,7 +1098,13 @@ class TestRequiredChoicesAndEquipment:
 
 
 class TestWithoutCounterTracking:
-    def test_income_and_status_work_without_xp_tracking(self, report, owner, model):
+    def test_income_and_status_work_without_xp_tracking(
+        self, report, owner, model, gang
+    ):
+        report = save(report, owner, payload_for(model, xp=2))
+        plan = preview_report(report, actor=owner)
+        assert plan.models[0].xp_blocked == "tracking_off"
+        assert "counter history is switched on" in " ".join(plan.errors)
         report = save(
             report, owner, payload_for(model, credits=20, status=Status.RECOVERY)
         )
@@ -1087,12 +1112,11 @@ class TestWithoutCounterTracking:
         assert plan.valid, plan.errors
         assert not plan.models[0].xp_available
         apply(report, owner)
-
-    def test_xp_is_refused_without_counter_tracking(self, report, owner, model):
-        report = save(report, owner, payload_for(model, xp=2))
-        plan = preview_report(report, actor=owner)
-        assert plan.models[0].xp_blocked == "tracking_off"
-        assert "counter history is switched on" in " ".join(plan.errors)
+        model.refresh_from_db()
+        gang.refresh_from_db()
+        assert model.status == Status.RECOVERY
+        assert gang.credits == 1020
+        assert_reconciled(gang)
 
     def test_no_xp_counter_is_created_as_a_fallback(
         self, gang, owner, gang_type, fighter_type
@@ -1142,15 +1166,13 @@ def payload_for_all(models, **by_name):
 class TestXpBlockedReasons:
     """Each reason a model cannot take XP is named, and it blocks only that model."""
 
-    def test_a_model_with_one_xp_counter_can_take_xp(self, report, owner, model):
+    def test_a_blocked_model_is_named_refuses_forged_xp_and_allows_other_results(
+        self, report, owner, gang, model, content, gang_type, fighter_type
+    ):
         result = preview_report(report, actor=owner).models[0]
         assert result.xp_blocked == ""
         assert result.xp_available
         assert result.xp_blocked_message == ""
-
-    def test_a_model_without_an_xp_counter_is_named(
-        self, report, owner, gang, gang_type, fighter_type
-    ):
         visitor = hire(
             gang, create_profile("Civilian", fighter_type, gang_type), "Visitor"
         )
@@ -1164,39 +1186,12 @@ class TestXpBlockedReasons:
         assert result.xp_blocked_message == (
             "Visitor has no XP counter, so XP cannot be recorded here."
         )
-
-    def test_a_model_with_two_xp_counters_is_named(self, report, owner, model):
-        duplicate = Assignment.objects.get(miniature=model, counter__isnull=False)
-        # A second, hand-added XP counter beside the built-in one.
-        duplicate.pk = None
-        duplicate.materialised_from = None
-        duplicate.materialised_for = None
-        duplicate.save()
-        result = preview_report(report, actor=owner).models[0]
-        assert result.xp_blocked == "several_counters"
-        assert result.xp_blocked_message.startswith(
-            "Cinder has more than one XP counter."
-        )
-
-    def test_a_crafted_award_for_a_blocked_model_is_still_refused(
-        self, report, owner, gang, model, gang_type, fighter_type
-    ):
-        visitor = hire(
-            gang, create_profile("Civilian", fighter_type, gang_type), "Visitor"
-        )
         report = save(report, owner, payload_for_all([model, visitor], Visitor=2))
         plan = preview_report(report, actor=owner)
         assert not plan.valid
         assert (
             "Visitor: This model has no XP counter, so XP cannot be recorded here."
             in plan.errors
-        )
-
-    def test_a_blocked_participant_without_xp_does_not_stop_the_report(
-        self, report, owner, gang, model, content, gang_type, fighter_type
-    ):
-        visitor = hire(
-            gang, create_profile("Civilian", fighter_type, gang_type), "Visitor"
         )
         payload = payload_for_all([model, visitor], Cinder=2)
         payload["credits"] = 20
@@ -1217,6 +1212,19 @@ class TestXpBlockedReasons:
             miniature=visitor, counter__isnull=False
         ).exists()
         assert_reconciled(gang)
+
+    def test_a_model_with_two_xp_counters_is_named(self, report, owner, model):
+        duplicate = Assignment.objects.get(miniature=model, counter__isnull=False)
+        # A second, hand-added XP counter beside the built-in one.
+        duplicate.pk = None
+        duplicate.materialised_from = None
+        duplicate.materialised_for = None
+        duplicate.save()
+        result = preview_report(report, actor=owner).models[0]
+        assert result.xp_blocked == "several_counters"
+        assert result.xp_blocked_message.startswith(
+            "Cinder has more than one XP counter."
+        )
 
 
 class TestEquipmentOnlyForTheDead:
@@ -1571,6 +1579,7 @@ def glitches(model):
 
 
 @pytest.fixture
+@library_setup
 def glitch(content, glitches):
     """An injury whose stored effect adds 1 to Glitch count."""
     pick = create_pickable(

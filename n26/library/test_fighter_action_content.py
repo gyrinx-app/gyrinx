@@ -1,4 +1,5 @@
 import pytest
+from django.db import transaction
 
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
@@ -27,6 +28,7 @@ from n26.library.standard_content import (
     FIGHTER_RANKS,
     STANDARD_CONTENT,
 )
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     assign,
     choose,
@@ -39,10 +41,23 @@ from n26.tests.sandbox.actions import (
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(scope="class")
+def _prepared_fighter_action_repairs(django_db_setup, django_db_blocker):
+    """Keep the real clean graph fixed; each repair case rolls its edits back."""
+    with django_db_blocker.unblock(), transaction.atomic():
+        library_setup(STANDARD_CONTENT["fighter-actions"].create)()
+        try:
+            yield
+        finally:
+            transaction.set_rollback(True)
+
+
 def test_fighter_action_content_is_complete_and_idempotent():
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()
+    before = dict(Action.objects.values_list("pk", "modified"))
     content.create()
+    assert dict(Action.objects.values_list("pk", "modified")) == before
     assert content.check() == (42, 42)
     table = Picklist.objects.get(name="Fighter advancement table")
     assert table.dice == "2d6"
@@ -143,51 +158,55 @@ def test_fighter_action_content_is_complete_and_idempotent():
     ] == ["Spyrer Hunting Rig Glitch"]
 
 
-def test_reseeding_does_not_modify_unchanged_actions():
+def test_standard_content_reuses_existing_casing_without_duplication(default_pack):
+    glitch = Counter.objects.create(
+        pack=default_pack, name="Glitch Count", qualifier=""
+    )
     content = STANDARD_CONTENT["fighter-actions"]
     content.create()
-    before = dict(Action.objects.values_list("pk", "modified"))
-
-    content.create()
-
-    assert dict(Action.objects.values_list("pk", "modified")) == before
-
-
-def test_reseeding_repairs_authored_rank_titles():
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    ranks = RankTable.objects.get(name="Standard fighter ranks")
-    ranks.initial_title = ""
-    ranks.save(update_fields=["initial_title"])
-    member = ranks.thresholds.get(threshold=37)
-    member.title = ""
-    member.save(update_fields=["title"])
-    assert content.status() != "complete"
-
-    content.create()
-
-    ranks.refresh_from_db()
-    member.refresh_from_db()
-    assert ranks.initial_title == "Rookie"
-    assert member.title == "Gang Exemplar"
+    assert Counter.objects.get(pack=default_pack, name__iexact="Glitch count") == glitch
     assert content.status() == "complete"
 
-
-def test_lowercase_standard_action_is_reused_without_duplication(default_pack):
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
     action = Action.objects.get(name="Advancement", qualifier="")
-    action.name = "advancement"
-    action.save(update_fields=["name", "modified"])
+    outcome = action.outcomes.get().outcome
+    movement = (
+        Picklist.objects.get(name="Fighter advancement table")
+        .members.get(pickable__name="Movement")
+        .pickable
+    )
+    modifier = movement.modifiers.get()
+    xp = Counter.objects.get(pack=default_pack, name="XP", qualifier="")
+    for existing in (action, outcome, modifier, xp):
+        existing.name = existing.name.lower()
+        existing.save(update_fields=["name", "modified"])
 
     content.create()
 
+    assert (
+        Action.objects.get(pack=default_pack, name__iexact="Advancement", qualifier="")
+        == action
+    )
     assert (
         Action.objects.filter(
             pack=default_pack, name__iexact="Advancement", qualifier=""
         ).count()
         == 1
     )
+    assert (
+        type(outcome)
+        .objects.filter(pack=default_pack, name__iexact="Advancement")
+        .count()
+        == 1
+    )
+    assert action.outcomes.get().outcome == outcome
+    assert movement.modifiers.get() == modifier
+    assert Counter.objects.filter(pack=default_pack, name__iexact="XP").count() == 1
+    assert Counter.objects.get(pack=default_pack, name__iexact="XP") == xp
+    assert (
+        Counter.objects.filter(pack=default_pack, name__iexact="Glitch count").count()
+        == 1
+    )
+    assert Counter.objects.get(pack=default_pack, name__iexact="Glitch count") == glitch
     assert content.status() == "complete"
 
 
@@ -387,36 +406,6 @@ def test_qualified_skills_collection_is_not_used_as_the_standard_collection(
     assert content.status() == "complete"
 
 
-def test_qualified_skill_section_does_not_satisfy_fighter_action_completeness(
-    default_pack,
-):
-    from n26.library.models import Collection, CollectionSection
-
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    custom = Collection.objects.create(
-        pack=default_pack,
-        name="Skills & Powers",
-        qualifier="Custom",
-    )
-    wrong_primary = CollectionSection.objects.create(
-        pack=default_pack,
-        collection=custom,
-        name="Primary",
-    )
-    result = Pickable.objects.get(name="Random Primary skill", qualifier="")
-    offer = result.modifiers.get().effect
-    offer.from_section = wrong_primary
-    offer.save(update_fields=["from_section"])
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    repaired = result.modifiers.get().effect
-    assert repaired.from_section.collection.qualifier == ""
-    assert content.status() == "complete"
-
-
 def test_qualified_skill_does_not_satisfy_standard_skill_completeness(default_pack):
     content = STANDARD_CONTENT["skills"]
     content.create()
@@ -433,52 +422,6 @@ def test_qualified_skill_does_not_satisfy_standard_skill_completeness(default_pa
     custom = Skill.objects.get(pack=default_pack, name="Catfall", qualifier="Custom")
     assert book.position == 1
     assert custom.position == 0
-    assert content.status() == "complete"
-
-
-@pytest.mark.parametrize("result_name", ["Movement", "Random Primary skill"])
-def test_homebrew_modifier_does_not_satisfy_advancement_completeness(
-    default_pack,
-    result_name,
-):
-    from n26.library.models import ContentPack
-
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    result = Pickable.objects.get(name=result_name, qualifier="")
-    modifier = result.modifiers.get()
-    homebrew = ContentPack.objects.create(
-        name=f"Homebrew {result_name}",
-        slug=f"homebrew-{result_name.lower().replace(' ', '-')}",
-    )
-    Modifier.objects.filter(pk=modifier.pk).update(pack=homebrew)
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    assert result.modifiers.filter(pack=default_pack).exists()
-    assert not result.modifiers.filter(pack=homebrew).exists()
-    assert result.modifiers.count() == 1
-    assert content.status() == "complete"
-
-
-def test_lowercase_standard_outcome_is_reused_without_duplication(default_pack):
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    outcome = (
-        Action.objects.get(name="Advancement", qualifier="").outcomes.get().outcome
-    )
-    outcome.name = "advancement"
-    outcome.save(update_fields=["name", "modified"])
-
-    content.create()
-
-    assert (
-        type(outcome)
-        .objects.filter(pack=default_pack, name__iexact="Advancement")
-        .count()
-        == 1
-    )
     assert content.status() == "complete"
 
 
@@ -505,399 +448,6 @@ def test_same_named_picklist_for_another_slot_type_is_left_untouched(default_pac
         ).count()
         == 2
     )
-
-
-def test_reseeding_repairs_the_old_broad_glitch_cleanup():
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    clear = Action.objects.get(name="Suit Maintenance").outcomes.get().outcome
-    removal = clear.apply_changes.changes.get(remove_picks__isnull=False).remove_picks
-    removal.slot_type = SlotType.objects.get(name="Augmentation")
-    removal.save(update_fields=["slot_type", "modified"])
-
-    content.create()
-
-    removal.refresh_from_db()
-    assert removal.slot_type.name == "Spyrer Hunting Rig Glitch"
-    assert clear.apply_changes.changes.filter(remove_picks__isnull=False).count() == 1
-
-
-def test_reseeding_repairs_missing_action_and_result_links():
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    action = Action.objects.get(name="Suit Maintenance", qualifier="")
-    action.outcomes.all().delete()
-    result = (
-        Picklist.objects.get(name="Fighter advancement table")
-        .members.get(pickable__name="Movement")
-        .pickable
-    )
-    result.modifiers.clear()
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    assert content.status() == "complete"
-    assert action.outcomes.get().outcome.name == "Clear glitches"
-    assert isinstance(result.modifiers.get().effect, ChangesStat)
-
-
-def test_reseeding_removes_an_extra_action_price_component():
-    from n26.library.models import ActionPriceComponent
-
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    action = Action.objects.get(name="Suit Maintenance", qualifier="")
-    ActionPriceComponent.objects.create(
-        action=action,
-        resource="credits",
-        payer="gang",
-        amount=1,
-        position=1,
-    )
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    assert list(
-        action.use_price.values_list("resource", "payer", "amount", "position")
-    ) == [("credits", "gang", 100, 0)]
-    assert content.status() == "complete"
-
-
-def test_reseeding_replaces_a_same_named_homebrew_action_outcome():
-    from n26.library.models import ActionOutcome, ContentPack
-
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    action = Action.objects.get(name="Advancement", qualifier="")
-    correct = action.outcomes.get().outcome
-    homebrew = ContentPack.objects.create(name="Homebrew", slug="homebrew-outcome")
-    wrong = authoring.create_outcome(
-        "Advancement",
-        authoring.apply_changes(),
-        pack=homebrew,
-    )
-    action.outcomes.all().delete()
-    ActionOutcome.objects.create(action=action, outcome=wrong)
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    linked = action.outcomes.get().outcome
-    assert linked == correct
-    assert linked.pack != homebrew
-    assert content.status() == "complete"
-
-
-def test_reseeding_repairs_the_evolution_counter_to_the_default_pack(default_pack):
-    from n26.library.models import ContentPack, Counter
-
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    homebrew = ContentPack.objects.create(name="Homebrew", slug="homebrew-kill-counter")
-    wrong = Counter.objects.create(pack=homebrew, name="Kill Count", qualifier="")
-    price = Action.objects.get(name="Suit Evolution", qualifier="").use_price.get()
-    price.counter = wrong
-    price.save(update_fields=["counter", "modified"])
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    price.refresh_from_db()
-    assert price.counter.pack == default_pack
-    assert content.status() == "complete"
-
-
-def test_qualified_pickable_does_not_satisfy_advancement_completeness(default_pack):
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    table = Picklist.objects.get(name="Fighter advancement table")
-    member = table.members.get(pickable__name="Movement")
-    lookalike = Pickable.objects.create(
-        pack=default_pack,
-        name="Movement",
-        qualifier="Custom",
-        slot_type=member.pickable.slot_type,
-        rating_contribution=member.pickable.rating_contribution,
-    )
-    member.pickable = lookalike
-    member.save(update_fields=["pickable", "modified"])
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    member.refresh_from_db()
-    assert member.pickable.qualifier == ""
-    assert Pickable.objects.filter(pk=lookalike.pk).exists()
-    assert content.status() == "complete"
-
-
-def test_reseeding_repairs_the_advancement_rank_counter():
-    from n26.library.models import Counter
-
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    action = Action.objects.get(name="Advancement", qualifier="")
-    action.rank_allowance_rule.counter = Counter.objects.create(name="Wrong counter")
-    action.rank_allowance_rule.save(update_fields=["counter", "modified"])
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    action.refresh_from_db()
-    assert action.rank_allowance_rule.counter.name == "XP"
-    assert content.status() == "complete"
-
-
-def test_reseeding_repairs_the_rank_table_to_default_pack_xp(default_pack):
-    from n26.library.models import ContentPack, Counter
-
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    homebrew = ContentPack.objects.create(name="Homebrew", slug="homebrew-xp")
-    ranks = RankTable.objects.get(name="Standard fighter ranks")
-    ranks.counter = Counter.objects.create(pack=homebrew, name="XP")
-    ranks.save(update_fields=["counter", "modified"])
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    ranks.refresh_from_db()
-    assert ranks.counter.pack == default_pack
-    assert content.status() == "complete"
-
-
-def test_reseeding_replaces_the_wrong_advancement_allowance_kind():
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    action = Action.objects.get(name="Advancement", qualifier="")
-    action.rank_allowance_rule = None
-    action.recruitment_allowance_rule = authoring.recruitment_allowance_rule()
-    action.save(
-        update_fields=[
-            "rank_allowance_rule",
-            "recruitment_allowance_rule",
-            "modified",
-        ]
-    )
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    action.refresh_from_db()
-    assert action.recruitment_allowance_rule_id is None
-    assert action.rank_allowance_rule.counter.name == "XP"
-    assert content.status() == "complete"
-
-
-def test_reseeding_repairs_advancement_modifiers_to_bearer_scope():
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    result = (
-        Picklist.objects.get(name="Fighter advancement table")
-        .members.get(pickable__name="Random Primary skill")
-        .pickable
-    )
-    modifier = result.modifiers.get()
-    modifier.targets_miniature.reach = modifier.targets_miniature.Reach.EVERY_MODEL
-    modifier.targets_miniature.save(update_fields=["reach"])
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    modifier.refresh_from_db()
-    assert modifier.targets_miniature.reach == (modifier.targets_miniature.Reach.BEARER)
-    assert content.status() == "complete"
-
-
-def test_reseeding_does_not_reuse_an_unrelated_same_named_modifier(default_pack):
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    table = Picklist.objects.get(name="Fighter advancement table")
-    movement = table.members.get(pickable__name="Movement").pickable
-    modifier = movement.modifiers.get()
-    unrelated = Pickable.objects.create(
-        pack=default_pack,
-        name="Unrelated result",
-        qualifier="",
-        slot_type=movement.slot_type,
-    )
-    unrelated.modifiers.add(modifier)
-    movement.modifiers.clear()
-
-    content.create()
-
-    assert movement.modifiers.get() != modifier
-    assert unrelated.modifiers.get() == modifier
-    assert content.status() == "complete"
-
-
-def test_lowercase_advancement_modifier_is_reused():
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    movement = (
-        Picklist.objects.get(name="Fighter advancement table")
-        .members.get(pickable__name="Movement")
-        .pickable
-    )
-    modifier = movement.modifiers.get()
-    modifier.name = modifier.name.lower()
-    modifier.save(update_fields=["name", "modified"])
-
-    content.create()
-
-    assert movement.modifiers.get() == modifier
-    assert content.status() == "complete"
-
-
-def test_reseeding_does_not_modify_a_shared_advancement_modifier(default_pack):
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    movement = (
-        Picklist.objects.get(name="Fighter advancement table")
-        .members.get(pickable__name="Movement")
-        .pickable
-    )
-    shared = movement.modifiers.get()
-    unrelated = Pickable.objects.create(
-        pack=default_pack,
-        name="Unrelated result",
-        qualifier="",
-        slot_type=movement.slot_type,
-    )
-    unrelated.modifiers.add(shared)
-    shared.targets_miniature.reach = shared.targets_miniature.Reach.EVERY_MODEL
-    shared.targets_miniature.save(update_fields=["reach"])
-
-    content.create()
-
-    shared.targets_miniature.refresh_from_db()
-    assert shared.targets_miniature.reach == shared.targets_miniature.Reach.EVERY_MODEL
-    assert unrelated.modifiers.get() == shared
-    assert movement.modifiers.get() != shared
-    assert content.status() == "complete"
-
-
-def test_lowercase_xp_counter_is_reused_without_duplication(default_pack):
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    xp = Counter.objects.get(pack=default_pack, name="XP", qualifier="")
-    xp.name = "xp"
-    xp.save(update_fields=["name", "modified"])
-
-    content.create()
-
-    assert Counter.objects.filter(pack=default_pack, name__iexact="XP").count() == 1
-    assert content.status() == "complete"
-
-
-def test_existing_glitch_count_casing_is_reused_and_complete(default_pack):
-    Counter.objects.create(pack=default_pack, name="Glitch Count", qualifier="")
-    content = STANDARD_CONTENT["fighter-actions"]
-
-    content.create()
-
-    assert (
-        Counter.objects.filter(pack=default_pack, name__iexact="Glitch count").count()
-        == 1
-    )
-    assert content.status() == "complete"
-
-
-def test_reseeding_repairs_the_advancement_slot_to_the_bearer():
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    slot = Slot.objects.get(name__iexact="Advancement", qualifier="")
-    slot.assigned_to = Slot.WillBeAssignedTo.GANG
-    slot.save(update_fields=["assigned_to", "modified"])
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    slot.refresh_from_db()
-    assert slot.assigned_to == Slot.WillBeAssignedTo.BEARER
-    assert content.status() == "complete"
-
-
-def test_reseeding_repairs_the_advancement_outcome_operation():
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    action = Action.objects.get(name="Advancement", qualifier="")
-    outcome = action.outcomes.get().outcome
-    wrong = authoring.apply_changes(
-        authoring.remove_picks(SlotType.objects.get(name="Augmentation"))
-    )
-    type(outcome).objects.filter(pk=outcome.pk).update(
-        resolve_advancement=None,
-        apply_changes=wrong,
-    )
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    outcome.refresh_from_db()
-    assert outcome.resolve_advancement.slot == Slot.objects.get(name="Advancement")
-    assert content.status() == "complete"
-
-
-def test_reseeding_repairs_a_skill_offer_for_the_wrong_kind():
-    from django.contrib.contenttypes.models import ContentType
-
-    from n26.library.models import Subtype
-
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    result = (
-        Picklist.objects.get(name="Fighter advancement table")
-        .members.get(pickable__name="Random Primary skill")
-        .pickable
-    )
-    modifier = result.modifiers.get()
-    offer = modifier.effect
-    offer.of_kind = ContentType.objects.get_for_model(Subtype)
-    offer.save(update_fields=["of_kind"])
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    modifier.refresh_from_db()
-    assert isinstance(modifier.effect, OffersChoice)
-    assert modifier.effect.of_kind.model_class() is Skill
-    assert content.status() == "complete"
-
-
-def test_reseeding_files_advancement_skill_choices_in_the_skills_row():
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-    result = (
-        Picklist.objects.get(name="Fighter advancement table")
-        .members.get(pickable__name="Select Primary skill")
-        .pickable
-    )
-    offer = result.modifiers.get().effect
-    offer.label = "Select Primary skill"
-    offer.save(update_fields=["label"])
-
-    assert content.status() == "incomplete"
-    content.create()
-
-    assert result.modifiers.get().effect.label == ""
-    assert content.status() == "complete"
-
-
-def test_clearing_imported_content_preserves_advancement_modifiers():
-    from n26.library.ingest import clear_imported
-
-    content = STANDARD_CONTENT["fighter-actions"]
-    content.create()
-
-    clear_imported()
-
-    assert content.status() == "complete"
-    assert Modifier.objects.filter(
-        library_pickable_set__listed_on__picklist__name=("Fighter advancement table")
-    ).count() == len(FIGHTER_ADVANCEMENTS)
 
 
 def test_clearing_imported_content_does_not_spare_a_same_named_other_table(
@@ -934,6 +484,9 @@ def test_clearing_imported_content_does_not_spare_a_same_named_other_table(
 
     assert not Modifier.objects.filter(pk=lookalike.pk).exists()
     assert content.status() == "complete"
+    assert Modifier.objects.filter(
+        library_pickable_set__listed_on__picklist__name=("Fighter advancement table")
+    ).count() == len(FIGHTER_ADVANCEMENTS)
 
 
 @pytest.mark.parametrize(
@@ -973,3 +526,422 @@ def test_choice_authoring_form_preserves_random_mode_and_select_default():
     selected = specs()["ef_offers_choice"].compile({"model": "skill"})
     assert random.mode == OffersChoice.Mode.RANDOM
     assert selected.mode == OffersChoice.Mode.SELECT
+
+
+@pytest.mark.usefixtures("_prepared_fighter_action_repairs")
+class TestFighterActionRepairs:
+    """Reseeding restores changed standard content without changing lookalikes."""
+
+    def test_reseeding_repairs_authored_rank_titles(self):
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        ranks = RankTable.objects.get(name="Standard fighter ranks")
+        ranks.initial_title = ""
+        ranks.save(update_fields=["initial_title"])
+        member = ranks.thresholds.get(threshold=37)
+        member.title = ""
+        member.save(update_fields=["title"])
+        assert content.status() != "complete"
+
+        content.create()
+
+        ranks.refresh_from_db()
+        member.refresh_from_db()
+        assert ranks.initial_title == "Rookie"
+        assert member.title == "Gang Exemplar"
+        assert content.status() == "complete"
+
+    def test_qualified_skill_section_does_not_satisfy_fighter_action_completeness(
+        self,
+        default_pack,
+    ):
+        from n26.library.models import Collection, CollectionSection
+
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        custom = Collection.objects.create(
+            pack=default_pack,
+            name="Skills & Powers",
+            qualifier="Custom",
+        )
+        wrong_primary = CollectionSection.objects.create(
+            pack=default_pack,
+            collection=custom,
+            name="Primary",
+        )
+        result = Pickable.objects.get(name="Random Primary skill", qualifier="")
+        offer = result.modifiers.get().effect
+        offer.from_section = wrong_primary
+        offer.save(update_fields=["from_section"])
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        repaired = result.modifiers.get().effect
+        assert repaired.from_section.collection.qualifier == ""
+        assert content.status() == "complete"
+
+    @pytest.mark.parametrize("result_name", ["Movement", "Random Primary skill"])
+    def test_homebrew_modifier_does_not_satisfy_advancement_completeness(
+        self,
+        default_pack,
+        result_name,
+    ):
+        from n26.library.models import ContentPack
+
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        result = Pickable.objects.get(name=result_name, qualifier="")
+        modifier = result.modifiers.get()
+        homebrew = ContentPack.objects.create(
+            name=f"Homebrew {result_name}",
+            slug=f"homebrew-{result_name.lower().replace(' ', '-')}",
+        )
+        Modifier.objects.filter(pk=modifier.pk).update(pack=homebrew)
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        assert result.modifiers.filter(pack=default_pack).exists()
+        assert not result.modifiers.filter(pack=homebrew).exists()
+        assert result.modifiers.count() == 1
+        assert content.status() == "complete"
+
+    def test_reseeding_repairs_the_old_broad_glitch_cleanup(self):
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        clear = Action.objects.get(name="Suit Maintenance").outcomes.get().outcome
+        removal = clear.apply_changes.changes.get(
+            remove_picks__isnull=False
+        ).remove_picks
+        removal.slot_type = SlotType.objects.get(name="Augmentation")
+        removal.save(update_fields=["slot_type", "modified"])
+
+        content.create()
+
+        removal.refresh_from_db()
+        assert removal.slot_type.name == "Spyrer Hunting Rig Glitch"
+        assert (
+            clear.apply_changes.changes.filter(remove_picks__isnull=False).count() == 1
+        )
+
+    def test_reseeding_repairs_missing_action_and_result_links(self):
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        action = Action.objects.get(name="Suit Maintenance", qualifier="")
+        action.outcomes.all().delete()
+        result = (
+            Picklist.objects.get(name="Fighter advancement table")
+            .members.get(pickable__name="Movement")
+            .pickable
+        )
+        result.modifiers.clear()
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        assert content.status() == "complete"
+        assert action.outcomes.get().outcome.name == "Clear glitches"
+        assert isinstance(result.modifiers.get().effect, ChangesStat)
+
+    def test_reseeding_removes_an_extra_action_price_component(self):
+        from n26.library.models import ActionPriceComponent
+
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        action = Action.objects.get(name="Suit Maintenance", qualifier="")
+        ActionPriceComponent.objects.create(
+            action=action,
+            resource="credits",
+            payer="gang",
+            amount=1,
+            position=1,
+        )
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        assert list(
+            action.use_price.values_list("resource", "payer", "amount", "position")
+        ) == [("credits", "gang", 100, 0)]
+        assert content.status() == "complete"
+
+    def test_reseeding_replaces_a_same_named_homebrew_action_outcome(self):
+        from n26.library.models import ActionOutcome, ContentPack
+
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        action = Action.objects.get(name="Advancement", qualifier="")
+        correct = action.outcomes.get().outcome
+        homebrew = ContentPack.objects.create(name="Homebrew", slug="homebrew-outcome")
+        wrong = authoring.create_outcome(
+            "Advancement",
+            authoring.apply_changes(),
+            pack=homebrew,
+        )
+        action.outcomes.all().delete()
+        ActionOutcome.objects.create(action=action, outcome=wrong)
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        linked = action.outcomes.get().outcome
+        assert linked == correct
+        assert linked.pack != homebrew
+        assert content.status() == "complete"
+
+    def test_reseeding_repairs_the_evolution_counter_to_the_default_pack(
+        self, default_pack
+    ):
+        from n26.library.models import ContentPack, Counter
+
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        homebrew = ContentPack.objects.create(
+            name="Homebrew", slug="homebrew-kill-counter"
+        )
+        wrong = Counter.objects.create(pack=homebrew, name="Kill Count", qualifier="")
+        price = Action.objects.get(name="Suit Evolution", qualifier="").use_price.get()
+        price.counter = wrong
+        price.save(update_fields=["counter", "modified"])
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        price.refresh_from_db()
+        assert price.counter.pack == default_pack
+        assert content.status() == "complete"
+
+    def test_qualified_pickable_does_not_satisfy_advancement_completeness(
+        self, default_pack
+    ):
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        table = Picklist.objects.get(name="Fighter advancement table")
+        member = table.members.get(pickable__name="Movement")
+        lookalike = Pickable.objects.create(
+            pack=default_pack,
+            name="Movement",
+            qualifier="Custom",
+            slot_type=member.pickable.slot_type,
+            rating_contribution=member.pickable.rating_contribution,
+        )
+        member.pickable = lookalike
+        member.save(update_fields=["pickable", "modified"])
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        member.refresh_from_db()
+        assert member.pickable.qualifier == ""
+        assert Pickable.objects.filter(pk=lookalike.pk).exists()
+        assert content.status() == "complete"
+
+    def test_reseeding_repairs_the_advancement_rank_counter(self):
+        from n26.library.models import Counter
+
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        action = Action.objects.get(name="Advancement", qualifier="")
+        action.rank_allowance_rule.counter = Counter.objects.create(
+            name="Wrong counter"
+        )
+        action.rank_allowance_rule.save(update_fields=["counter", "modified"])
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        action.refresh_from_db()
+        assert action.rank_allowance_rule.counter.name == "XP"
+        assert content.status() == "complete"
+
+    def test_reseeding_repairs_the_rank_table_to_default_pack_xp(self, default_pack):
+        from n26.library.models import ContentPack, Counter
+
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        homebrew = ContentPack.objects.create(name="Homebrew", slug="homebrew-xp")
+        ranks = RankTable.objects.get(name="Standard fighter ranks")
+        ranks.counter = Counter.objects.create(pack=homebrew, name="XP")
+        ranks.save(update_fields=["counter", "modified"])
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        ranks.refresh_from_db()
+        assert ranks.counter.pack == default_pack
+        assert content.status() == "complete"
+
+    def test_reseeding_replaces_the_wrong_advancement_allowance_kind(self):
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        action = Action.objects.get(name="Advancement", qualifier="")
+        action.rank_allowance_rule = None
+        action.recruitment_allowance_rule = authoring.recruitment_allowance_rule()
+        action.save(
+            update_fields=[
+                "rank_allowance_rule",
+                "recruitment_allowance_rule",
+                "modified",
+            ]
+        )
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        action.refresh_from_db()
+        assert action.recruitment_allowance_rule_id is None
+        assert action.rank_allowance_rule.counter.name == "XP"
+        assert content.status() == "complete"
+
+    def test_reseeding_repairs_advancement_modifiers_to_bearer_scope(self):
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        result = (
+            Picklist.objects.get(name="Fighter advancement table")
+            .members.get(pickable__name="Random Primary skill")
+            .pickable
+        )
+        modifier = result.modifiers.get()
+        modifier.targets_miniature.reach = modifier.targets_miniature.Reach.EVERY_MODEL
+        modifier.targets_miniature.save(update_fields=["reach"])
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        modifier.refresh_from_db()
+        assert modifier.targets_miniature.reach == (
+            modifier.targets_miniature.Reach.BEARER
+        )
+        assert content.status() == "complete"
+
+    def test_reseeding_does_not_reuse_an_unrelated_same_named_modifier(
+        self, default_pack
+    ):
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        table = Picklist.objects.get(name="Fighter advancement table")
+        movement = table.members.get(pickable__name="Movement").pickable
+        modifier = movement.modifiers.get()
+        unrelated = Pickable.objects.create(
+            pack=default_pack,
+            name="Unrelated result",
+            qualifier="",
+            slot_type=movement.slot_type,
+        )
+        unrelated.modifiers.add(modifier)
+        movement.modifiers.clear()
+
+        content.create()
+
+        assert movement.modifiers.get() != modifier
+        assert unrelated.modifiers.get() == modifier
+        assert content.status() == "complete"
+
+    def test_reseeding_does_not_modify_a_shared_advancement_modifier(
+        self, default_pack
+    ):
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        movement = (
+            Picklist.objects.get(name="Fighter advancement table")
+            .members.get(pickable__name="Movement")
+            .pickable
+        )
+        shared = movement.modifiers.get()
+        unrelated = Pickable.objects.create(
+            pack=default_pack,
+            name="Unrelated result",
+            qualifier="",
+            slot_type=movement.slot_type,
+        )
+        unrelated.modifiers.add(shared)
+        shared.targets_miniature.reach = shared.targets_miniature.Reach.EVERY_MODEL
+        shared.targets_miniature.save(update_fields=["reach"])
+
+        content.create()
+
+        shared.targets_miniature.refresh_from_db()
+        assert (
+            shared.targets_miniature.reach == shared.targets_miniature.Reach.EVERY_MODEL
+        )
+        assert unrelated.modifiers.get() == shared
+        assert movement.modifiers.get() != shared
+        assert content.status() == "complete"
+
+    def test_reseeding_repairs_the_advancement_slot_to_the_bearer(self):
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        slot = Slot.objects.get(name__iexact="Advancement", qualifier="")
+        slot.assigned_to = Slot.WillBeAssignedTo.GANG
+        slot.save(update_fields=["assigned_to", "modified"])
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        slot.refresh_from_db()
+        assert slot.assigned_to == Slot.WillBeAssignedTo.BEARER
+        assert content.status() == "complete"
+
+    def test_reseeding_repairs_the_advancement_outcome_operation(self):
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        action = Action.objects.get(name="Advancement", qualifier="")
+        outcome = action.outcomes.get().outcome
+        wrong = authoring.apply_changes(
+            authoring.remove_picks(SlotType.objects.get(name="Augmentation"))
+        )
+        type(outcome).objects.filter(pk=outcome.pk).update(
+            resolve_advancement=None,
+            apply_changes=wrong,
+        )
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        outcome.refresh_from_db()
+        assert outcome.resolve_advancement.slot == Slot.objects.get(name="Advancement")
+        assert content.status() == "complete"
+
+    def test_reseeding_repairs_a_skill_offer_for_the_wrong_kind(self):
+        from django.contrib.contenttypes.models import ContentType
+
+        from n26.library.models import Subtype
+
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        result = (
+            Picklist.objects.get(name="Fighter advancement table")
+            .members.get(pickable__name="Random Primary skill")
+            .pickable
+        )
+        modifier = result.modifiers.get()
+        offer = modifier.effect
+        offer.of_kind = ContentType.objects.get_for_model(Subtype)
+        offer.save(update_fields=["of_kind"])
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        modifier.refresh_from_db()
+        assert isinstance(modifier.effect, OffersChoice)
+        assert modifier.effect.of_kind.model_class() is Skill
+        assert content.status() == "complete"
+
+    def test_reseeding_files_advancement_skill_choices_in_the_skills_row(self):
+        content = STANDARD_CONTENT["fighter-actions"]
+        content.create()
+        result = (
+            Picklist.objects.get(name="Fighter advancement table")
+            .members.get(pickable__name="Select Primary skill")
+            .pickable
+        )
+        offer = result.modifiers.get().effect
+        offer.label = "Select Primary skill"
+        offer.save(update_fields=["label"])
+
+        assert content.status() == "incomplete"
+        content.create()
+
+        assert result.modifiers.get().effect.label == ""
+        assert content.status() == "complete"

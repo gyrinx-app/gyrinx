@@ -838,7 +838,18 @@ def picklist_lines(picklist, *, include_staged=False):
     return picklist.available_members(include_staged=include_staged)
 
 
-def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
+def _offer_catalogue(cache, key, read):
+    """Reuse catalogue facts within one caller's read, before offer filtering."""
+    if cache is None:
+        return read()
+    if key not in cache:
+        cache[key] = read()
+    return cache[key]
+
+
+def offered_by(
+    slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False, _catalogues=None
+):
     """What *this* fighter may choose for a choice slot.
 
     A slot narrowed to a tier ("a Skill from a set that is Primary for
@@ -862,6 +873,10 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
     (:class:`Listed`). No sections and no prices — the pickables behind a
     choice and nothing else — and the same rule holds: the list informs,
     and an owner may still hand over something off it.
+
+    ``_catalogues`` is private scratch state for one read of one fighter.
+    Only the unfiltered catalogue and default section are reused; each
+    offer still gets fresh containers narrowed by its own placements.
 
     Whichever branch, a staged thing is not offered unless
     ``include_staged`` says this reader may see it: the one gate on
@@ -898,7 +913,11 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
                 skills = skills.live()
             collection = offer.power_access_collection
             placements = placements_for(computed, collection)
-            view = browse(collection, terms, include_staged=include_staged)
+            view = _offer_catalogue(
+                _catalogues,
+                ("view", collection.pk, terms, include_staged),
+                lambda: browse(collection, terms, include_staged=include_staged),
+            )
             powers = [
                 line.thing
                 for line in view.all_lines()
@@ -911,11 +930,19 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST, *, include_staged=False):
         return found if include_staged else found.live()
 
     collection = section.collection
-    view = browse(collection, terms, include_staged=include_staged)
+    view = _offer_catalogue(
+        _catalogues,
+        ("view", collection.pk, terms, include_staged),
+        lambda: browse(collection, terms, include_staged=include_staged),
+    )
     placed = regrouped_by_placement(
         view,
         placements_for(computed, collection),
-        fallback=collection.default_section(),
+        fallback=_offer_catalogue(
+            _catalogues,
+            ("default-section", collection.pk),
+            collection.default_section,
+        ),
         name=slot.kind_label,
     )
     found = narrow(

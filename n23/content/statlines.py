@@ -7,6 +7,9 @@ admin does not have to import from ``core.views``.
 """
 
 from django import forms
+from django.db import transaction
+from django.utils import timezone
+from simple_history.utils import bulk_create_with_history, bulk_update_with_history
 
 from gyrinx.models import SMART_QUOTES
 from n23.content.models.equipment import AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY
@@ -106,6 +109,7 @@ def normalize_stat_value(raw_value, content_stat):
     return value
 
 
+@transaction.atomic
 def set_fighter_statline(fighter, statline_type, values_by_type_stat=None):
     """Give ``fighter`` a statline of ``statline_type`` holding these values.
 
@@ -124,7 +128,9 @@ def set_fighter_statline(fighter, statline_type, values_by_type_stat=None):
 
     values_by_type_stat = values_by_type_stat or {}
 
-    statline, created = ContentStatline.objects.get_or_create(
+    # Serialize reconciliation for this fighter, including type switches,
+    # so two writers cannot both insert the same missing stat.
+    statline, created = ContentStatline.objects.select_for_update().get_or_create(
         content_fighter=fighter, defaults={"statline_type": statline_type}
     )
     if not created and statline.statline_type_id != statline_type.id:
@@ -137,6 +143,9 @@ def set_fighter_statline(fighter, statline_type, values_by_type_stat=None):
     ).delete()
 
     existing = {stat.statline_type_stat_id: stat for stat in statline.stats.all()}
+    new_stats = []
+    updated_stats = []
+    modified = timezone.now()
     for type_stat in type_stats:
         if type_stat.id in values_by_type_stat:
             value = normalize_stat_value(
@@ -146,10 +155,25 @@ def set_fighter_statline(fighter, statline_type, values_by_type_stat=None):
             continue
         else:
             value = "-"
-        ContentStatlineStat.objects.update_or_create(
-            statline=statline,
-            statline_type_stat=type_stat,
-            defaults={"value": value},
+        if type_stat.id in existing:
+            stat = existing[type_stat.id]
+            stat.value = value
+            stat.modified = modified
+            updated_stats.append(stat)
+        else:
+            new_stats.append(
+                ContentStatlineStat(
+                    statline=statline, statline_type_stat=type_stat, value=value
+                )
+            )
+
+    # Stat values have no save hooks beyond history. Keep those records while
+    # writing the grid in batches rather than opening a savepoint per cell.
+    if new_stats:
+        bulk_create_with_history(new_stats, ContentStatlineStat)
+    if updated_stats:
+        bulk_update_with_history(
+            updated_stats, ContentStatlineStat, ["value", "modified"]
         )
 
     # Point the fighter we were handed at what we just wrote. Django caches the

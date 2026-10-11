@@ -686,7 +686,10 @@ class TestTheActsBehindIt:
             act_page(gang), {"act": "reopen", "activity": str(previous.pk)}, follow=True
         )
 
-        assert gang.open_activity(FOUNDING) is not None
+        gang.refresh_from_db()
+        reopened = gang.open_activity(FOUNDING)
+        assert reopened is not None
+        assert reopened.pk != previous.pk
         lines = [str(m) for m in answer.context["messages"]]
         assert "Reopened the Spend founding TP action." in lines
 

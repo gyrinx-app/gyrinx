@@ -382,85 +382,38 @@ class TestTheSlotTypeIsBuiltOnItsOwnPages:
     pickables, a list offering them in order, and a choice drawing on that
     list — every step a form on a page."""
 
-    def test_the_slot_type_page_holds_all_eight_pickables(
-        self, author, client, slot_type, pickables
+    def test_the_pages_build_the_choice_and_both_profile_defaults(
+        self,
+        author,
+        slot_type,
+        pickables,
+        house_lists,
+        legacies,
+        choice,
+        hunter,
+        squats_hunter,
     ):
         body = author.get(f"/n26/authoring/slot-type/{slot_type.pk}/").content.decode()
 
         for house in HOUSES:
             assert house in body, house
-
-    def test_each_pickable_gives_its_own_equipment_list(self, pickables, house_lists):
         for house, pickable in pickables.items():
             (modifier,) = pickable.modifiers.all()
             assert str(modifier.effect) == f"adds {house_lists[house].name}"
-
-    def test_the_list_offers_them_in_the_order_they_were_added(self, legacies):
         assert [member.label for member in legacies.members.all()] == list(HOUSES)
-
-    def test_the_choice_asks_for_one_of_that_list(self, choice, legacies, slot_type):
         assert (choice.slot_type, choice.picklist) == (slot_type, legacies)
         assert (choice.min_picks, choice.max_picks) == (1, 1)
         assert choice.assigned_to == "bearer"
         assert choice.label == "Gang Legacy"
-
-    def test_the_profile_comes_with_the_choice(self, hunter, choice):
         (built_in,) = hunter.built_in_members
         assert built_in.assignable == choice
         assert built_in.default_pickable is None
-
-    def test_the_other_profile_comes_with_the_choice_already_settled(
-        self, squats_hunter, choice, pickables
-    ):
         (built_in,) = squats_hunter.built_in_members
         assert built_in.assignable == choice
         assert built_in.default_pickable == pickables[DEFAULT_HOUSE]
-
-    def test_the_choices_page_says_what_it_asks_for(self, author, choice):
-        """The about column is where an author checks their work."""
         body = author.get(f"/n26/authoring/slot/{choice.pk}/").content.decode()
 
         assert "Asks for one Gang Legacy, chosen from Gang Legacies." in body
-
-
-class TestHiringIntoAnOpenChoice:
-    """Kaustos, hired plain: the choice is on his card from the moment he
-    is hired, and leaving it open costs nothing."""
-
-    def test_his_card_asks_it_by_its_label(self, client, gang, hunter):
-        hire(client, gang, hunter, "Kaustos")
-
-        (line,) = card_of(gang, "Kaustos").questions
-        assert line.kind_label == "Gang Legacy"
-        assert line.chosen is None
-
-    def test_the_page_draws_the_choice_row_with_somewhere_to_click(
-        self, client, gang, hunter
-    ):
-        hire(client, gang, hunter, "Kaustos")
-
-        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
-
-        assert "Gang Legacy" in body
-        assert picker_url(gang, "Kaustos") in body
-
-    def test_the_card_says_how_short_it_is(self, client, gang, hunter):
-        """The under-min note, in the words the design gives it.
-
-        Read off the built card: no page prints a card's remarks yet, so
-        this is the note existing rather than the note being seen.
-        """
-        hire(client, gang, hunter, "Kaustos")
-
-        assert [note.text for note in card_of(gang, "Kaustos").remarks] == [
-            "Gang Legacy — 0 of 1 chosen"
-        ]
-
-    def test_leaving_it_open_costs_nothing(self, client, gang, hunter):
-        hire(client, gang, hunter, "Kaustos")
-
-        assert purse(gang) == 1000 - HUNTER_PRICE
-        reconciled(gang)
 
 
 class TestChoosingAHouse:
@@ -471,9 +424,22 @@ class TestChoosingAHouse:
     def kaustos(self, client, gang, hunter):
         return hire(client, gang, hunter, "Kaustos")
 
-    def test_the_picker_offers_the_list_in_its_own_order(
-        self, client, gang, kaustos, pickables
+    def test_the_open_choice_settles_and_opens_a_list_to_buy_from(
+        self, client, gang, kaustos, pickables, house_lists
     ):
+        (line,) = card_of(gang, "Kaustos").questions
+        assert line.kind_label == "Gang Legacy"
+        assert line.chosen is None
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+        assert "Gang Legacy" in body
+        assert picker_url(gang, "Kaustos") in body
+        assert [note.text for note in card_of(gang, "Kaustos").remarks] == [
+            "Gang Legacy — 0 of 1 chosen"
+        ]
+        assert purse(gang) == 1000 - HUNTER_PRICE
+        reconciled(gang)
+
         body = client.get(picker_url(gang, "Kaustos")).content.decode()
 
         # By key rather than by name: the order is the fact, and a name
@@ -481,26 +447,18 @@ class TestChoosingAHouse:
         places = [body.index(f"library.pickable:{pickables[h].pk}") for h in HOUSES]
         assert places == sorted(places)
 
-    def test_the_picker_adds_no_lead_the_author_did_not_write(
-        self, client, gang, kaustos
-    ):
-        """The lead under the heading is the slot's authored introduction;
-        with none written, the page makes up no line of its own."""
-        body = client.get(picker_url(gang, "Kaustos")).content.decode()
-
         assert "For Kaustos." not in body
 
-    def test_one_click_settles_it(self, client, gang, kaustos, pickables):
+        item, _, _ = STOCK["Cawdor"]
+        assert "House Cawdor Equipment List" not in equip_page(client, kaustos)
+
+        before = purse(gang)
+
         response = choose(client, gang, "Kaustos", pickables["Cawdor"])
 
         assert response.status_code == 302
         (line,) = card_of(gang, "Kaustos").questions
         assert line.chosen == "Cawdor"
-
-    def test_the_pick_lands_on_the_fighter_and_answers_his_choice(
-        self, client, gang, kaustos, pickables
-    ):
-        choose(client, gang, "Kaustos", pickables["Cawdor"])
 
         pick = Assignment.objects.get(pickable=pickables["Cawdor"], archived=False)
         slot = Assignment.objects.get(slot__isnull=False, miniature_root=kaustos)
@@ -508,41 +466,16 @@ class TestChoosingAHouse:
         assert pick.chosen_for == slot
         assert pick.caused_by == slot
 
-    def test_the_shortfall_note_goes_with_the_choice_being_made(
-        self, client, gang, kaustos, pickables
-    ):
-        choose(client, gang, "Kaustos", pickables["Cawdor"])
-
         assert card_of(gang, "Kaustos").remarks == []
-
-    def test_the_pick_is_free(self, client, gang, kaustos, pickables):
-        before = purse(gang)
-
-        choose(client, gang, "Kaustos", pickables["Cawdor"])
 
         assert purse(gang) == before
         reconciled(gang)
-
-    def test_his_equip_page_gains_the_house_list(
-        self, client, gang, kaustos, pickables, house_lists
-    ):
-        item, _, _ = STOCK["Cawdor"]
-        assert "House Cawdor Equipment List" not in equip_page(client, kaustos)
-
-        choose(client, gang, "Kaustos", pickables["Cawdor"])
 
         body = equip_page(client, kaustos, house_lists["Cawdor"])
         assert "House Cawdor Equipment List" in body
         assert item in body
 
-    def test_buying_from_it_pays_the_price_that_list_asks(
-        self, client, gang, kaustos, pickables, house_lists
-    ):
-        """A list prices its own stock, and the price the list asks is
-        what leaves the bank — not the figure the library prints against
-        the item."""
         item, reference, here = STOCK["Cawdor"]
-        choose(client, gang, "Kaustos", pickables["Cawdor"])
         before = purse(gang)
 
         response = client.post(
@@ -587,24 +520,20 @@ class TestAChoiceThatArrivesMade:
     def grendel(self, client, gang, squats_hunter):
         return hire(client, gang, squats_hunter, "Grendel")
 
-    def test_his_card_reads_as_settled(self, client, gang, grendel):
+    def test_the_default_pick_arrives_answered_and_can_be_swapped(
+        self, client, gang, grendel, pickables, house_lists
+    ):
         (line,) = card_of(gang, "Grendel").questions
 
         assert line.chosen == DEFAULT_HOUSE
         assert card_of(gang, "Grendel").remarks == []
 
-    def test_the_pick_answers_the_choice_that_brought_it(
-        self, client, gang, grendel, pickables
-    ):
         slot = Assignment.objects.get(slot__isnull=False, miniature_root=grendel)
         pick = Assignment.objects.get(pickable=pickables[DEFAULT_HOUSE])
 
         assert (pick.chosen_for, pick.caused_by) == (slot, slot)
         assert pick.miniature == grendel
 
-    def test_what_it_gives_is_on_his_equip_page(
-        self, client, gang, grendel, house_lists
-    ):
         item, _, here = STOCK[DEFAULT_HOUSE]
 
         assert f"House {DEFAULT_HOUSE} Equipment List" in equip_page(client, grendel)
@@ -612,9 +541,6 @@ class TestAChoiceThatArrivesMade:
         assert item in stocked
         assert str(here) in stocked
 
-    def test_rechoosing_swaps_it_and_the_list_follows(
-        self, client, gang, grendel, pickables
-    ):
         choose(client, gang, "Grendel", pickables["Cawdor"])
 
         (line,) = card_of(gang, "Grendel").questions
@@ -624,11 +550,6 @@ class TestAChoiceThatArrivesMade:
             pickable=pickables[DEFAULT_HOUSE], archived=False
         ).exists()
         reconciled(gang)
-
-    def test_the_swap_leaves_one_pick_and_one_choice(
-        self, client, gang, grendel, pickables
-    ):
-        choose(client, gang, "Grendel", pickables["Cawdor"])
 
         assert (
             Assignment.objects.filter(

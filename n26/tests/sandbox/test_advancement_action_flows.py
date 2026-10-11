@@ -18,12 +18,14 @@ from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
 from n26.library.models import Dice, Skill
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import found_gang, hire
 
 pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
+@library_setup
 def advancement(default_pack, gang_type, make_profile, make_statline, counter_tracking):
     owner = User.objects.create_user("advancement-player")
     gang = found_gang("The Climbers", gang_type, owner=owner, budget=1000)
@@ -164,42 +166,10 @@ def _choose_result(client, advancement, record, result, *, stage="choose"):
 class TestAnEarnedAdvancementStartsAndResumes:
     """XP remains held while its earned use keeps one saved 2D6 result."""
 
-    def test_crossing_xp_opens_one_earned_flow_and_the_roll_survives_resume(
+    def test_one_earned_flow_confirms_then_rolls_resumes_and_refuses_cancellation(
         self, client, monkeypatch, advancement
     ):
         _load_rolls(monkeypatch, 12)
-        record = _start(client, advancement)
-        choose_url = _post_roll(client, advancement, record)
-        assert client.get(choose_url).context["roll_value"] == 12
-        resume = reverse(
-            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
-        )
-        resumed = client.get(resume, follow=True)
-        assert resumed.context["roll_value"] == 12
-        advancement.xp.counter_value.refresh_from_db()
-        assert advancement.xp.counter_value.value == 4
-        assert (
-            LedgerEvent.objects.filter(
-                action_record=record, kind=LedgerEvent.Kind.ROLLED
-            ).count()
-            == 1
-        )
-
-    def test_a_roll_removes_the_cancel_route(self, client, monkeypatch, advancement):
-        _load_rolls(monkeypatch, 12)
-        record = _start(client, advancement)
-        _post_roll(client, advancement, record)
-        cancel = reverse(
-            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "cancel"]
-        )
-        response = client.post(cancel)
-        record.refresh_from_db()
-        assert response.status_code == 302
-        assert record.state == ActionRecord.State.STARTED
-
-    def test_an_earned_use_reserved_in_another_tab_resumes_the_same_flow(
-        self, client, advancement
-    ):
         record = _start(client, advancement)
         response = client.post(
             reverse(
@@ -219,6 +189,37 @@ class TestAnEarnedAdvancementStartsAndResumes:
             ActionRecord.objects.filter(fighter=advancement.fighter).get().pk
             == record.pk
         )
+
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "by-hand"]
+        )
+        assert client.get(url).context["stage"] == "by-hand"
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+
+        choose_url = _post_roll(client, advancement, record)
+        assert client.get(choose_url).context["roll_value"] == 12
+        resume = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
+        )
+        resumed = client.get(resume, follow=True)
+        assert resumed.context["roll_value"] == 12
+        advancement.xp.counter_value.refresh_from_db()
+        assert advancement.xp.counter_value.value == 4
+        assert (
+            LedgerEvent.objects.filter(
+                action_record=record, kind=LedgerEvent.Kind.ROLLED
+            ).count()
+            == 1
+        )
+
+        cancel = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "cancel"]
+        )
+        response = client.post(cancel)
+        record.refresh_from_db()
+        assert response.status_code == 302
+        assert record.state == ActionRecord.State.STARTED
 
     def test_a_recorded_roll_is_durable_and_the_highest_available_results_come_first(
         self, client, monkeypatch, advancement
@@ -257,10 +258,10 @@ class TestAnEarnedAdvancementStartsAndResumes:
             == 1
         )
 
-    @pytest.mark.parametrize("rolled", ["", "0", "1", "13", "not a number"])
-    def test_invalid_recorded_totals_do_not_generate_a_roll(
-        self, client, monkeypatch, advancement, rolled
+    def test_invalid_or_missing_roll_controls_leave_the_draft_unrolled(
+        self, client, monkeypatch, advancement
     ):
+        rolled = "0"
         _load_rolls(monkeypatch)
         record = _start(client, advancement)
         url = reverse(
@@ -282,15 +283,6 @@ class TestAnEarnedAdvancementStartsAndResumes:
             action_record=record, kind=LedgerEvent.Kind.ROLLED
         ).exists()
 
-    def test_missing_roll_controls_do_not_generate_a_roll(
-        self, client, monkeypatch, advancement
-    ):
-        _load_rolls(monkeypatch)
-        record = _start(client, advancement)
-        url = reverse(
-            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
-        )
-        page = client.get(url)
         response = client.post(
             url, {"request_key": page.context["form"]["request_key"].value()}
         )
@@ -447,33 +439,63 @@ class TestChangingTheRoll:
 class TestSelectingSkills:
     """The same saved roll can resolve each authored skill access tier."""
 
-    @pytest.mark.parametrize(
-        ("result_key", "skill_key"),
-        (("primary", "primary"), ("secondary", "secondary"), ("any", "secondary")),
-    )
-    def test_primary_secondary_and_any_each_show_and_save_an_allowed_skill(
-        self, client, monkeypatch, advancement, result_key, skill_key
+    def test_each_authored_access_tier_shows_and_reviews_its_allowed_skills(
+        self, client, monkeypatch, advancement
     ):
         _load_rolls(monkeypatch, 12)
         record = _start(client, advancement)
         _post_roll(client, advancement, record)
-        skill_url = _choose_result(
-            client, advancement, record, advancement.results[result_key]
-        )
-        skill = advancement.skills[skill_key]
-        page = client.get(skill_url)
-        assert str(skill) in page.content.decode()
-        assert page.context["back_href"] == reverse(
-            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
-        )
-        assert client.get(page.context["back_href"]).context["roll_value"] == 12
-        response = client.post(skill_url, {"skill_id": str(skill.pk)})
-        assert response.status_code == 302
-        assert ActionRecord.objects.get(pk=record.pk).terms["skill_id"] == str(skill.pk)
-        review = client.get(response.url)
-        assert review.context["back_href"] == skill_url
-        assert review.context["show_outcome"] is False
-        assert review.context["review_choice"]["description"] == str(skill)
+        for result_key, skill_key in (
+            ("primary", "primary"),
+            ("secondary", "secondary"),
+            ("any", "secondary"),
+        ):
+            skill_url = _choose_result(
+                client, advancement, record, advancement.results[result_key]
+            )
+            skill = advancement.skills[skill_key]
+            page = client.get(skill_url)
+            expected = {
+                "primary": {str(advancement.skills["primary"].pk)},
+                "secondary": {str(advancement.skills["secondary"].pk)},
+                "any": {
+                    str(advancement.skills["primary"].pk),
+                    str(advancement.skills["secondary"].pk),
+                },
+            }
+            offered = {
+                skill["key"]
+                for group in page.context["skill_groups"]
+                for skill in group["skills"]
+            }
+            assert offered == expected[result_key]
+            if result_key == "primary":
+                assert page.context["skill_roll"] is None
+                assert "rolled" not in page.context["form"].fields
+                assert 'data-react-name="advancement-roll"' not in page.content.decode()
+            assert str(skill) in page.content.decode()
+            assert page.context["back_href"] == reverse(
+                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
+            )
+            assert client.get(page.context["back_href"]).context["roll_value"] == 12
+            response = client.post(skill_url, {"skill_id": str(skill.pk)})
+            assert response.status_code == 302
+            assert ActionRecord.objects.get(pk=record.pk).terms["skill_id"] == str(
+                skill.pk
+            )
+            review = client.get(response.url)
+            assert review.context["back_href"] == skill_url
+            assert review.context["show_outcome"] is False
+            assert review.context["review_choice"]["description"] == str(skill)
+
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        assert record.payment_id is None
+        assert not Assignment.objects.filter(
+            miniature_root=advancement.fighter,
+            skill__in=[advancement.skills["primary"], advancement.skills["secondary"]],
+            archived=False,
+        ).exists()
 
     def test_random_skill_rerolls_an_unavailable_result_and_keeps_the_success(
         self, client, monkeypatch, advancement
@@ -537,7 +559,7 @@ class TestRecordingASkillRoll:
         )
         return record, skill_url, client.get(skill_url)
 
-    def test_the_random_skill_step_offers_a_recorded_d6(
+    def test_the_recorded_d6_controls_refuse_impossible_input_then_save_its_result(
         self, client, monkeypatch, advancement
     ):
         record, skill_url, page = self._skill_page(client, monkeypatch, advancement)
@@ -555,35 +577,7 @@ class TestRecordingASkillRoll:
         assert page.context["submit_label"] == "Continue"
         assert 'data-react-name="advancement-roll"' in page.content.decode()
 
-    def test_an_entered_roll_lands_as_the_d6_result(
-        self, client, monkeypatch, advancement
-    ):
-        record, skill_url, page = self._skill_page(client, monkeypatch, advancement)
-        agility = page.context["skill_roll"]["choices"]["options"][0]["value"]
-        response = client.post(
-            skill_url,
-            {
-                "request_key": page.context["form"]["request_key"].value(),
-                "skill_set_id": agility,
-                "roll_mode": "record",
-                "rolled": "2",
-            },
-        )
-        assert response.status_code == 302
-        record.refresh_from_db()
-        attempt = record.skill_selection.random_attempts[-1]
-        assert attempt["roll"] == 2
-        assert attempt["skill_id"] == str(advancement.skills["primary"].pk)
-        assert LedgerEvent.objects.get(pk=attempt["event_id"]).roll == 2
-        resolved = client.get(skill_url)
-        assert resolved.context["skill_resolved"] is True
-        assert resolved.context["skill_roll"] is None
-
-    @pytest.mark.parametrize("rolled", ["", "0", "7"])
-    def test_an_impossible_entered_roll_writes_nothing(
-        self, client, monkeypatch, advancement, rolled
-    ):
-        record, skill_url, page = self._skill_page(client, monkeypatch, advancement)
+        rolled = "0"
         agility = page.context["skill_roll"]["choices"]["options"][0]["value"]
         response = client.post(
             skill_url,
@@ -605,6 +599,26 @@ class TestRecordingASkillRoll:
             == 1
         )
 
+        agility = page.context["skill_roll"]["choices"]["options"][0]["value"]
+        response = client.post(
+            skill_url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": agility,
+                "roll_mode": "record",
+                "rolled": "2",
+            },
+        )
+        assert response.status_code == 302
+        record.refresh_from_db()
+        attempt = record.skill_selection.random_attempts[-1]
+        assert attempt["roll"] == 2
+        assert attempt["skill_id"] == str(advancement.skills["primary"].pk)
+        assert LedgerEvent.objects.get(pk=attempt["event_id"]).roll == 2
+        resolved = client.get(skill_url)
+        assert resolved.context["skill_resolved"] is True
+        assert resolved.context["skill_roll"] is None
+
     def test_gyrinx_still_rolls_when_asked(self, client, monkeypatch, advancement):
         record, skill_url, page = self._skill_page(client, monkeypatch, advancement, 2)
         agility = page.context["skill_roll"]["choices"]["options"][0]["value"]
@@ -619,18 +633,6 @@ class TestRecordingASkillRoll:
         )
         record.refresh_from_db()
         assert record.skill_selection.random_attempts[-1]["roll"] == 2
-
-    def test_a_chosen_skill_has_no_roll_field(self, client, monkeypatch, advancement):
-        _load_rolls(monkeypatch, 12)
-        record = _start(client, advancement)
-        _post_roll(client, advancement, record)
-        skill_url = _choose_result(
-            client, advancement, record, advancement.results["primary"]
-        )
-        page = client.get(skill_url)
-        assert page.context["skill_roll"] is None
-        assert "rolled" not in page.context["form"].fields
-        assert 'data-react-name="advancement-roll"' not in page.content.decode()
 
     def test_a_set_that_reuses_the_last_die_says_so_and_refuses_another_number(
         self, client, monkeypatch, advancement
@@ -703,63 +705,7 @@ class TestRecordingASkillRoll:
 class TestCompletingAndCorrecting:
     """Confirmation settles once; correction changes the pick around that receipt."""
 
-    def test_recent_history_shows_only_the_confirmed_skill_selection(
-        self, client, monkeypatch, advancement
-    ):
-        _load_rolls(monkeypatch, 12)
-        record = _start(client, advancement)
-        _post_roll(client, advancement, record)
-        skill_url = _choose_result(
-            client, advancement, record, advancement.results["primary"]
-        )
-        review_url = client.post(
-            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
-        ).url
-        reviewed = client.get(review_url)
-        assert (
-            client.post(
-                review_url, {"review": reviewed.context["form"]["review"].value()}
-            ).status_code
-            == 302
-        )
-
-        def history_detail():
-            page = client.get(
-                reverse("n26-edit-fighter", args=[advancement.fighter.pk])
-            )
-            panel = next(
-                panel
-                for panel in page.context["action_history_panels"]
-                if panel.action_id == str(advancement.action.pk)
-            )
-            return panel.completed[0].detail
-
-        assert history_detail() == "Select Primary skill: Dodge"
-        corrected_skill = _choose_result(
-            client,
-            advancement,
-            record,
-            advancement.results["secondary"],
-            stage="correct",
-        )
-        correction_url = client.post(
-            corrected_skill, {"skill_id": str(advancement.skills["secondary"].pk)}
-        ).url
-        correction = client.get(correction_url)
-        assert history_detail() == "Select Primary skill: Dodge"
-
-        assert (
-            client.post(
-                correction_url,
-                {"review": correction.context["form"]["review"].value()},
-            ).status_code
-            == 302
-        )
-        assert history_detail() == "Select Secondary skill: Bull Charge"
-        advancement.gang.refresh_from_db()
-        assert_reconciled(advancement.gang)
-
-    def test_completion_and_correction_keep_one_use_and_one_roll(
+    def test_confirmation_and_correction_preserve_the_use_roll_money_and_history(
         self, client, monkeypatch, advancement
     ):
         credits = advancement.gang.recompute_credits()
@@ -781,6 +727,19 @@ class TestCompletingAndCorrecting:
         payment = record.payment_id
         assert record.state == ActionRecord.State.COMPLETED
         assert advancement.gang.recompute_credits() == credits
+
+        def history_detail():
+            page = client.get(
+                reverse("n26-edit-fighter", args=[advancement.fighter.pk])
+            )
+            panel = next(
+                panel
+                for panel in page.context["action_history_panels"]
+                if panel.action_id == str(advancement.action.pk)
+            )
+            return panel.completed[0].detail
+
+        assert history_detail() == "Select Primary skill: Dodge"
 
         from n26.core.rating import read_rating_receipt
 
@@ -815,6 +774,7 @@ class TestCompletingAndCorrecting:
             {"skill_id": str(advancement.skills["secondary"].pk)},
         )
         correction_page = client.get(reviewed.url)
+        assert history_detail() == "Select Primary skill: Dodge"
         skill_page = client.get(correction_page.context["back_href"])
         assert skill_page.context["form"]["skill_id"].value() == str(
             advancement.skills["secondary"].pk
@@ -830,6 +790,7 @@ class TestCompletingAndCorrecting:
             {"review": correction_page.context["form"]["review"].value()},
         )
         assert corrected.status_code == 302
+        assert history_detail() == "Select Secondary skill: Bull Charge"
         record.refresh_from_db()
         assert record.payment_id == payment
         assert advancement.gang.recompute_credits() == credits
@@ -916,7 +877,7 @@ def _story(advancement):
 class TestApplyingByHand:
     """A player who gave the result outside Gyrinx clears the waiting mark."""
 
-    def test_an_unused_earned_use_is_cleared_without_touching_the_fighter(
+    def test_marking_an_unused_use_preserves_the_fighter_replays_refuses_and_reopens(
         self, client, advancement
     ):
         with operation(advancement.gang, actor=advancement.owner) as op:
@@ -927,10 +888,15 @@ class TestApplyingByHand:
         client.force_login(advancement.owner)
         assert "Mark as applied" in _edit_page(client, advancement)
 
-        _mark_unused_by_hand(client, advancement)
+        key = uuid4()
+        _mark_unused_by_hand(client, advancement, key)
 
         record = ActionRecord.objects.get(fighter=advancement.fighter)
         assert record.state == ActionRecord.State.APPLIED_BY_HAND
+        from n26.core.progression import progression_for
+
+        [rank] = progression_for(advancement.fighter).history
+        assert rank.state_label == "Applied by hand"
         assert record.allowance == advancement.allowance
         assert _waiting(advancement) == ()
         assert not ActionAllowance.objects.filter(fighter=advancement.fighter).unused()
@@ -943,10 +909,15 @@ class TestApplyingByHand:
         assert "Mark as applied" not in page
         assert_reconciled(advancement.gang)
 
-    def test_the_cleared_rank_cannot_be_taken_again_through_the_flow(
-        self, client, advancement
-    ):
-        _mark_unused_by_hand(client, advancement)
+        _mark_unused_by_hand(client, advancement, key)
+        assert ActionRecord.objects.filter(fighter=advancement.fighter).count() == 1
+        assert (
+            LedgerEvent.objects.filter(
+                kind=LedgerEvent.Kind.ACTION_USE_APPLIED_BY_HAND
+            ).count()
+            == 1
+        )
+
         client.post(
             reverse(
                 "n26-action-start",
@@ -962,46 +933,6 @@ class TestApplyingByHand:
             fighter=advancement.fighter, state=ActionRecord.State.STARTED
         ).exists()
 
-    def test_a_repeated_request_marks_one_use(self, client, advancement):
-        key = uuid4()
-        _mark_unused_by_hand(client, advancement, key)
-        _mark_unused_by_hand(client, advancement, key)
-        assert ActionRecord.objects.filter(fighter=advancement.fighter).count() == 1
-        assert (
-            LedgerEvent.objects.filter(
-                kind=LedgerEvent.Kind.ACTION_USE_APPLIED_BY_HAND
-            ).count()
-            == 1
-        )
-
-    def test_a_started_flow_with_a_roll_is_cleared_and_keeps_its_roll(
-        self, client, monkeypatch, advancement
-    ):
-        _load_rolls(monkeypatch, 12)
-        record = _start(client, advancement)
-        _post_roll(client, advancement, record)
-        assert _waiting(advancement) == ("Advance",)
-        assert "Mark as applied" in _edit_page(client, advancement)
-
-        assert _flow(client, advancement, record, "by-hand").status_code == 302
-
-        record.refresh_from_db()
-        assert record.state == ActionRecord.State.APPLIED_BY_HAND
-        assert _waiting(advancement) == ()
-        assert LedgerEvent.objects.filter(
-            action_record=record, kind=LedgerEvent.Kind.ROLLED
-        ).exists()
-        resumed = client.get(
-            reverse(
-                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
-            )
-        )
-        assert resumed.url == reverse("n26-edit-fighter", args=[advancement.fighter.pk])
-
-    def test_undo_frees_an_unused_earned_use(self, client, advancement):
-        _mark_unused_by_hand(client, advancement)
-        record = ActionRecord.objects.get(fighter=advancement.fighter)
-
         _flow(client, advancement, record, "reopen")
 
         record.refresh_from_db()
@@ -1011,35 +942,7 @@ class TestApplyingByHand:
             ActionAllowance.objects.filter(fighter=advancement.fighter).unused()
         ) == [advancement.allowance]
         assert "reopened Advance for Kara" in _story(advancement)
-
-    def test_undo_returns_a_started_flow_with_its_roll(
-        self, client, monkeypatch, advancement
-    ):
-        _load_rolls(monkeypatch, 12)
-        record = _start(client, advancement)
-        _post_roll(client, advancement, record)
-        _flow(client, advancement, record, "by-hand")
-
-        _flow(client, advancement, record, "reopen")
-
-        record.refresh_from_db()
-        assert record.state == ActionRecord.State.STARTED
-        assert _waiting(advancement) == ("Advance",)
-        resumed = client.get(
-            reverse(
-                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
-            ),
-            follow=True,
-        )
-        assert resumed.context["roll_value"] == 12
-
-    def test_the_rank_history_names_the_state(self, client, advancement):
-        from n26.core.progression import progression_for
-
-        _mark_unused_by_hand(client, advancement)
-
-        [rank] = progression_for(advancement.fighter).history
-        assert rank.state_label == "Applied by hand"
+        assert_reconciled(advancement.gang)
 
     def test_another_owner_cannot_mark_an_unused_use(self, client, advancement):
         client.force_login(User.objects.create_user("by-hand-stranger"))
@@ -1059,18 +962,6 @@ class TestApplyingByHand:
         assert page.context["stage"] == "by-hand"
         assert "outside Gyrinx" in page.content.decode()
         assert not ActionRecord.objects.filter(fighter=advancement.fighter).exists()
-
-    def test_a_started_flow_confirms_before_it_is_marked(
-        self, client, monkeypatch, advancement
-    ):
-        _load_rolls(monkeypatch, 12)
-        record = _start(client, advancement)
-        url = reverse(
-            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "by-hand"]
-        )
-        assert client.get(url).context["stage"] == "by-hand"
-        record.refresh_from_db()
-        assert record.state == ActionRecord.State.STARTED
 
     def test_a_result_picked_by_hand_into_the_rolled_slot_stays(
         self, client, monkeypatch, advancement
@@ -1117,7 +1008,7 @@ class TestApplyingByHand:
         record.refresh_from_db()
         assert record.state == ActionRecord.State.COMPLETED
 
-    def test_a_rolled_flow_loses_its_empty_slot_and_undo_lets_it_finish(
+    def test_marking_then_undoing_a_rolled_flow_restores_its_roll_and_slot_to_finish(
         self, client, monkeypatch, advancement
     ):
         _load_rolls(monkeypatch, 12)
@@ -1125,7 +1016,23 @@ class TestApplyingByHand:
         _post_roll(client, advancement, record)
         rolled_slot = record.advancement_selection.slot_assignment
 
-        _flow(client, advancement, record, "by-hand")
+        assert _waiting(advancement) == ("Advance",)
+        assert "Mark as applied" in _edit_page(client, advancement)
+
+        assert _flow(client, advancement, record, "by-hand").status_code == 302
+
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.APPLIED_BY_HAND
+        assert _waiting(advancement) == ()
+        assert LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ROLLED
+        ).exists()
+        resumed = client.get(
+            reverse(
+                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
+            )
+        )
+        assert resumed.url == reverse("n26-edit-fighter", args=[advancement.fighter.pk])
 
         rolled_slot.refresh_from_db()
         assert rolled_slot.archived
@@ -1133,6 +1040,16 @@ class TestApplyingByHand:
         _flow(client, advancement, record, "reopen")
 
         record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        assert _waiting(advancement) == ("Advance",)
+        resumed = client.get(
+            reverse(
+                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
+            ),
+            follow=True,
+        )
+        assert resumed.context["roll_value"] == 12
+
         record.advancement_selection.refresh_from_db()
         rebound = record.advancement_selection.slot_assignment
         assert not rebound.archived

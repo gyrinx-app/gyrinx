@@ -25,10 +25,16 @@ permissions:
   contents: read
   pull-requests: write
 
-# The suite is split in two. `test` is the required check: the tests marked
-# `core` (fundamental behaviour, the critical flows, safety and performance
-# checks) plus every test the pull request itself touched. `test-full` runs
-# everything and reports, but does not block a merge. fresh-database is the
+# Cancel all obsolete PR shards together. Non-PR runs have separate groups,
+# so newer main pushes cannot cancel earlier required evidence.
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The two existing test jobs run disjoint full-suite shards on every normal
+# event. `test` is the required check: it waits for its companion and verifies
+# that every collected test completed exactly once. This includes core and
+# changed tests without executing a duplicate subset. fresh-database is the
 # only job here that applies the migration graph.
 jobs:
   test:
@@ -36,6 +42,11 @@ jobs:
     # PR branch must execute the required check: skipped jobs satisfy it.
     if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+      actions: read
     services:
       postgres:
         image: postgres:16.4
@@ -55,7 +66,7 @@ jobs:
       DB_HOST: localhost
       DB_PORT: 5432
       DB_CONFIG: '{"user":"postgres","password":"postgres"}'
-      # The core suite must stay small to be worth having as the gate, and
+      # The core suite must stay small for fast focused local checks, and
       # must not silently select nothing if the marker expression breaks.
       # The count is the tests marked core on the branch, so a main suite
       # sitting on the max fails the next pull request that marks another
@@ -67,8 +78,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # scripts/changed_test_paths.py diffs against the base branch.
+          # Use the event revision, including GitHub's PR merge commit.
           fetch-depth: 0
+
+      - name: Verify the checked-out revision
+        shell: bash
+        run: |
+          printf 'head=%s\n' "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - uses: ./.github/actions/python-env
         with:
@@ -93,37 +110,62 @@ jobs:
 
       - uses: ./.github/actions/react-build
 
-      - name: List the tests this pull request touched
-        if: github.event_name == 'pull_request'
-        # `shell: bash` turns on pipefail, so a failing script fails the step
-        # instead of leaving an empty list behind `tee`.
+      - name: Record runner CPU and PostgreSQL compilation capability
         shell: bash
         env:
-          BASE_REF: ${{ github.base_ref }}
+          PG_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
-          source .venv/bin/activate
-          scripts/changed_test_paths.py "origin/$BASE_REF" | tee changed-test-paths.txt
+          lscpu
+          docker exec "$PG_CONTAINER_ID" psql -U postgres -Atc \
+            "SELECT version(), pg_jit_available(), current_setting('jit'), current_setting('jit_above_cost');"
 
-      - name: Run the core suite and the changed tests
-        # Generous because a change to the root conftest runs the whole suite
-        # through this job.
+      - name: Run full-suite shard zero
+        # Both shards collect everything before assigning whole modules.
+        # Four workers per existing runner avoid oversubscribing four CPUs.
         timeout-minutes: 45
-        # pyproject's `-n auto` can resolve to physical cores (half the
-        # runner's vCPUs); `-n logical` uses every vCPU, and the later flag wins.
         run: |
           source .venv/bin/activate
-          export GYRINX_CHANGED_TEST_PATHS="$(cat changed-test-paths.txt 2>/dev/null || true)"
-          pytest -m core --durations=20 -v -n logical
+          python scripts/measure_test_performance.py --label ci-shard-0 -- \
+            -v -n 4 -p gyrinx.pytest_suite_shards \
+            --suite-shard-count 2 --suite-shard-index 0 \
+            --suite-shard-manifest logs/full-suite-shard.json
+
+      - name: Upload required shard evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: suite-${{ github.run_id }}-${{ github.run_attempt }}-shard-0
+          if-no-files-found: error
+          path: |
+            logs/full-suite-shard.json
+            logs/test-performance/ci-shard-0.json
+            logs/test-performance/ci-shard-0.xml
+
+      - name: Verify both shards completed the full suite exactly once
+        if: success()
+        timeout-minutes: 16
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          source .venv/bin/activate
+          python scripts/wait_for_ci_job.py \
+            --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" --job-name test-full \
+            --head-sha "$EXPECTED_HEAD_SHA"
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "suite-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-shard-1" \
+            --dir logs/other-shard
+          python scripts/verify_test_shards.py --revision "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            logs/full-suite-shard.json logs/other-shard/full-suite-shard.json \
+            | tee logs/full-suite-verification.json
+          cat logs/full-suite-verification.json >> "$GITHUB_STEP_SUMMARY"
 
   test-full:
     if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
-    # One group per pull request, so a new push cancels the run in flight.
-    # Every other run gets a group of its own: a group holds at most one
-    # pending run, so sharing one across pushes to main would drop runs.
-    concurrency:
-      group: test-full-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     services:
       postgres:
         image: postgres:16.4
@@ -145,6 +187,15 @@ jobs:
       DB_CONFIG: '{"user":"postgres","password":"postgres"}'
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Use the event revision, including GitHub's PR merge commit.
+          fetch-depth: 0
+
+      - name: Verify the checked-out revision
+        shell: bash
+        run: |
+          printf 'head=%s\n' "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - uses: ./.github/actions/python-env
         with:
@@ -152,13 +203,34 @@ jobs:
 
       - uses: ./.github/actions/react-build
 
-      - name: Run the full suite
-        timeout-minutes: 60
-        # pyproject's `-n auto` can resolve to physical cores (half the
-        # runner's vCPUs); `-n logical` uses every vCPU, and the later flag wins.
+      - name: Record runner CPU and PostgreSQL compilation capability
+        shell: bash
+        env:
+          PG_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          lscpu
+          docker exec "$PG_CONTAINER_ID" psql -U postgres -Atc \
+            "SELECT version(), pg_jit_available(), current_setting('jit'), current_setting('jit_above_cost');"
+
+      - name: Run full-suite shard one
+        timeout-minutes: 45
         run: |
           source .venv/bin/activate
-          pytest --durations=20 -v -n logical
+          python scripts/measure_test_performance.py --label ci-shard-1 -- \
+            -v -n 4 -p gyrinx.pytest_suite_shards \
+            --suite-shard-count 2 --suite-shard-index 1 \
+            --suite-shard-manifest logs/full-suite-shard.json
+
+      - name: Upload companion shard evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: suite-${{ github.run_id }}-${{ github.run_attempt }}-shard-1
+          if-no-files-found: error
+          path: |
+            logs/full-suite-shard.json
+            logs/test-performance/ci-shard-1.json
+            logs/test-performance/ci-shard-1.xml
 
   page-on-main-failure:
     needs: [test, test-full]

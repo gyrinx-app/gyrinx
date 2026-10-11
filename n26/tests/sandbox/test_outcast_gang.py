@@ -35,6 +35,7 @@ from django.contrib.auth.models import User
 from n26.core.browse import offered_by, placements_for
 from n26.core.card import build_card, build_gang_card, build_modifier_index
 from n26.core.effects import compute, compute_gang
+from n26.core.reconcile import assert_reconciled
 from n26.core.render_text import gang_to_text
 from n26.library.authoring import (
     has_subtypes,
@@ -43,6 +44,7 @@ from n26.library.authoring import (
     targets_model,
 )
 from n26.library.models import Affiliation, Skill
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     adds,
     choose,
@@ -78,6 +80,7 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
+@library_setup
 def sets(db):
     made = {
         name.lower(): create_category("Skills", name, position)
@@ -90,6 +93,7 @@ def sets(db):
 
 
 @pytest.fixture
+@library_setup
 def skills_collection(sets):
     library = [
         create_skill(name, category=sets[key])
@@ -114,6 +118,7 @@ def skills_collection(sets):
 
 
 @pytest.fixture
+@library_setup
 def subtypes(db):
     """The generic rank vocabulary — shared across gang lists, which is
     exactly why the Champion and Hive Scum rows cannot hang off it."""
@@ -182,12 +187,14 @@ ARCHETYPES = {
 
 
 @pytest.fixture
+@library_setup
 def archetype_type(default_pack):
     """One slot type for both choices. Nobody takes an archetype twice."""
     return create_slot_type("Archetype", allows_repeats=False)
 
 
 @pytest.fixture
+@library_setup
 def archetypes(sets, skills_collection, subtypes, profiles, archetype_type):
     """One carrier per printed archetype, all three rank rows aboard.
 
@@ -241,6 +248,7 @@ def archetypes(sets, skills_collection, subtypes, profiles, archetype_type):
 
 
 @pytest.fixture
+@library_setup
 def affiliation_lists(affiliations):
     """One small collection per question, so each offer narrows to
     exactly its own list."""
@@ -256,6 +264,7 @@ def affiliation_lists(affiliations):
 
 
 @pytest.fixture
+@library_setup
 def house_lists(db):
     from n26.tests.sandbox.actions import create_weapon
 
@@ -274,6 +283,7 @@ def house_lists(db):
 
 
 @pytest.fixture
+@library_setup
 def mutations(db):
     from n26.tests.sandbox.actions import create_wargear
 
@@ -283,6 +293,7 @@ def mutations(db):
 
 
 @pytest.fixture
+@library_setup
 def affiliations(subtypes, house_lists, mutations):
     """Four affiliations; Clan House chains a second pick whose options
     carry their own payloads (each house token knows its own list)."""
@@ -324,6 +335,7 @@ def affiliations(subtypes, house_lists, mutations):
 
 
 @pytest.fixture
+@library_setup
 def outcasts(subtypes, skills_collection, affiliations, affiliation_lists):
     """The gang type: the affiliation slot, the gang rules, the ratio
     ask. The archetype slot is *not* here — it rides the Leader
@@ -385,6 +397,7 @@ def outcasts(subtypes, skills_collection, affiliations, affiliation_lists):
 
 
 @pytest.fixture
+@library_setup
 def profiles(outcasts, subtypes, person_type):
     """The gang list: four Leader variants sharing the Leader subtype,
     and the Champion and Hive Scum entries the archetype rows name."""
@@ -411,6 +424,7 @@ def profiles(outcasts, subtypes, person_type):
 
 
 @pytest.fixture
+@library_setup
 def archetype_question(archetypes, profiles, archetype_type):
     """The pick list, and the two slots that ask it.
 
@@ -500,23 +514,34 @@ def tiers_for(miniature, skills_collection, sets):
     }
 
 
-class TestFoundingOffersTheChoices:
-    def test_the_gang_asks_for_its_affiliation(self, gang):
-        """The affiliation question is the gang's from founding; the
-        archetype question does not exist until there is a Leader —
-        "when an Outcast Leader is recruited… they must choose"."""
+class TestTheLeadersChoiceLifecycle:
+    def test_the_leaders_choice_radiates_and_leaves_with_the_leader(
+        self,
+        gang,
+        profiles,
+        archetype_question,
+        archetypes,
+        skills_collection,
+        sets,
+        subtypes,
+        outcasts,
+        person_type,
+    ):
+        from n26.tests.sandbox.actions import remove
+
         computed = the_gang_computed(gang)
         assert [slot.kind_label for slot in computed.choices] == ["Affiliation"]
         assert not computed.choices[0].is_resolved
 
-    def test_the_archetype_question_arrives_with_the_leader(self, gang, crew):
+        crew = {
+            "leader": hire_with_option(gang, profiles["leader"], "Sorrow"),
+            "champion": hire_with_option(gang, profiles["champion"], "Grix"),
+            "scum": hire_with_option(gang, profiles["scum"], "Rat"),
+        }
+
         computed = fighter_computed(crew["leader"])
         slot = next(s for s in computed.choices if s.kind_label == "Archetype")
         assert not slot.is_resolved
-
-    def test_each_offer_narrows_to_its_own_list(self, gang, crew):
-        computed = fighter_computed(crew["leader"])
-        slot = next(s for s in computed.choices if s.kind_label == "Archetype")
         offerable = offered_by(slot, computed)
         assert {pickable.name for pickable in offerable} == set(ARCHETYPES)
 
@@ -528,6 +553,86 @@ class TestFoundingOffersTheChoices:
             "Mutant Outcast",
             "Aranthian Outcast",
         }
+
+        for member in crew.values():
+            computed = fighter_computed(member)
+            assert "Cult of Personality" in [c.name for c in computed.rules]
+
+        chosen = pick_archetype(crew, archetypes["Brawler"])
+        assert chosen.gang == gang and chosen.miniature is None
+        assert chosen.caused_by == leader_anchor(crew)
+
+        slot = next(
+            s
+            for s in fighter_computed(crew["leader"]).choices
+            if s.kind_label == "Archetype"
+        )
+        assert slot.is_resolved and slot.chosen_name == "Brawler"
+
+        computed = fighter_computed(crew["leader"])
+        offer = next(
+            slot for slot in computed.choices if slot.kind_label == "Primary skill"
+        )
+        picklist = offered_by(offer, computed)
+        # Brawler Leader Primary = Combat + Savant.
+        assert {line.name for line in picklist.all_lines()} == {
+            "Berserker",
+            "Medicate",
+        }
+
+        from n26.library.models import Skill
+
+        founding = gang_slot(gang, "Outcasts")
+        chosen = choose(
+            founding, Skill.objects.get(name="Berserker"), miniature=crew["leader"]
+        )
+        assert chosen.miniature == crew["leader"]
+
+        leader_slot = next(
+            slot
+            for slot in fighter_computed(crew["leader"]).choices
+            if slot.kind_label == "Primary skill"
+        )
+        assert leader_slot.is_resolved and leader_slot.chosen_name == "Berserker"
+        champion_slot = next(
+            slot
+            for slot in fighter_computed(crew["champion"]).choices
+            if slot.kind_label == "Primary skill"
+        )
+        assert not champion_slot.is_resolved
+
+        outsider_entry = create_profile("Dust Rat", person_type, outcasts, price=15)
+        outsider_entry.built_ins = create_default_set(
+            "Dust Rat built-ins", members=[subtypes["scum"]]
+        )
+        outsider_entry.save()
+        outsider = hire_with_option(gang, outsider_entry, "Skitter")
+
+        assert tiers_for(crew["scum"], skills_collection, sets) != {}
+        assert tiers_for(outsider, skills_collection, sets) == {}
+
+        anchor = crew["champion"].assignments.get(profile__isnull=False)
+        chosen = choose(
+            anchor, archetypes["Gunslinger"], slot=_slot_named("Champion archetype")
+        )
+        assert chosen.miniature == crew["champion"]
+
+        assert tiers_for(crew["champion"], skills_collection, sets) == {
+            "agility": "Primary",
+            "shooting": "Primary",
+            "savant": "Secondary",
+        }
+        # And nobody else moved: the champion's personal pick radiates
+        # nowhere.
+        assert tiers_for(crew["scum"], skills_collection, sets)["combat"] == "Primary"
+
+        assert tiers_for(crew["scum"], skills_collection, sets) != {}
+
+        remove(leader_anchor(crew))
+        assert tiers_for(crew["scum"], skills_collection, sets) == {}
+
+        gang.refresh_from_db()
+        assert_reconciled(gang)
 
 
 def _slot_named(name):
@@ -579,53 +684,41 @@ def pick_archetype(crew, archetype, asked=None):
 
 
 class TestArchetypes:
-    def test_the_leader_chooses_and_the_gang_carries_it(self, gang, crew, archetypes):
-        chosen = pick_archetype(crew, archetypes["Brawler"])
-        assert chosen.gang == gang and chosen.miniature is None
-        assert chosen.caused_by == leader_anchor(crew)
-
-        slot = next(
-            s
-            for s in fighter_computed(crew["leader"]).choices
-            if s.kind_label == "Archetype"
-        )
-        assert slot.is_resolved and slot.chosen_name == "Brawler"
-
-    def test_the_archetype_dies_with_the_leader(
-        self, gang, crew, archetypes, skills_collection, sets
-    ):
-        """ "When an Outcast Leader is recruited they must choose" falls
-        out of the hosting: the chosen row is caused by the Leader's, so
-        removing the Leader retires it, and the scum's sections reset."""
-        from n26.tests.sandbox.actions import remove
-
-        pick_archetype(crew, archetypes["Brawler"])
-        assert tiers_for(crew["scum"], skills_collection, sets) != {}
-
-        remove(leader_anchor(crew))
-        assert tiers_for(crew["scum"], skills_collection, sets) == {}
-
-    @pytest.mark.parametrize("name", list(ARCHETYPES))
     def test_the_tables_land_per_rank(
-        self, gang, crew, archetypes, skills_collection, sets, name
+        self,
+        outcasts,
+        profiles,
+        archetype_question,
+        archetypes,
+        skills_collection,
+        sets,
     ):
-        """Leader and Hive Scum read their rows; the Champion reads
-        *nothing* from the gang's pick — the champion row is bearer-only,
-        and the gang's copy is nobody's bearer."""
-        pick_archetype(crew, archetypes[name])
-
-        want = {
-            rank: {
-                key: tier.capitalize() for key, tier in ARCHETYPES[name][rank].items()
+        owner = User.objects.create_user("tom")
+        for name in ARCHETYPES:
+            gang = found_gang("The Forgotten", outcasts, owner=owner)
+            crew = {
+                "leader": hire_with_option(gang, profiles["leader"], "Sorrow"),
+                "champion": hire_with_option(gang, profiles["champion"], "Grix"),
+                "scum": hire_with_option(gang, profiles["scum"], "Rat"),
             }
-            for rank in ("leader", "scum")
-        }
-        if name == "Wyrd":
-            for rank in want:
-                want[rank]["wyrd powers"] = "Primary"
-        assert tiers_for(crew["leader"], skills_collection, sets) == want["leader"]
-        assert tiers_for(crew["scum"], skills_collection, sets) == want["scum"]
-        assert tiers_for(crew["champion"], skills_collection, sets) == {}
+            pick_archetype(crew, archetypes[name])
+
+            want = {
+                rank: {
+                    key: tier.capitalize()
+                    for key, tier in ARCHETYPES[name][rank].items()
+                }
+                for rank in ("leader", "scum")
+            }
+            if name == "Wyrd":
+                for rank in want:
+                    want[rank]["wyrd powers"] = "Primary"
+            assert tiers_for(crew["leader"], skills_collection, sets) == want["leader"]
+            assert tiers_for(crew["scum"], skills_collection, sets) == want["scum"]
+            assert tiers_for(crew["champion"], skills_collection, sets) == {}
+
+            gang.refresh_from_db()
+            assert_reconciled(gang)
 
     def test_every_leader_variant_reads_the_leader_row(
         self,
@@ -653,116 +746,16 @@ class TestArchetypes:
             "cunning": "Secondary",
         }
 
-    def test_a_shared_rank_subtype_does_not_leak_the_scum_row(
-        self,
-        gang,
-        crew,
-        archetypes,
-        subtypes,
-        outcasts,
-        person_type,
-        skills_collection,
-        sets,
-    ):
-        """The Hive Scum row names the profile outright: an outsider who
-        merely carries the Hive Scum subtype reads nothing from the
-        gang's pick, while the named entry lands its table."""
-        outsider_entry = create_profile("Dust Rat", person_type, outcasts, price=15)
-        outsider_entry.built_ins = create_default_set(
-            "Dust Rat built-ins", members=[subtypes["scum"]]
-        )
-        outsider_entry.save()
-        outsider = hire_with_option(gang, outsider_entry, "Skitter")
-
-        pick_archetype(crew, archetypes["Brawler"])
-        assert tiers_for(crew["scum"], skills_collection, sets) != {}
-        assert tiers_for(outsider, skills_collection, sets) == {}
-
-    def test_a_champion_chooses_their_own(
-        self, gang, crew, archetypes, skills_collection, sets
-    ):
-        """Same five archetypes: the champion row wakes because the fighter
-        *bears* the pick; the leader and scum rows stay asleep because
-        the champion is neither."""
-        pick_archetype(crew, archetypes["Brawler"])
-        anchor = crew["champion"].assignments.get(profile__isnull=False)
-        chosen = choose(
-            anchor, archetypes["Gunslinger"], slot=_slot_named("Champion archetype")
-        )
-        assert chosen.miniature == crew["champion"]
-
-        assert tiers_for(crew["champion"], skills_collection, sets) == {
-            "agility": "Primary",
-            "shooting": "Primary",
-            "savant": "Secondary",
-        }
-        # And nobody else moved: the champion's personal pick radiates
-        # nowhere.
-        assert tiers_for(crew["scum"], skills_collection, sets)["combat"] == "Primary"
-
-    def test_wyrd_grants_the_subtype(self, gang, crew, archetypes):
-        pick_archetype(crew, archetypes["Wyrd"])
-
-        for rank, expected in [("leader", True), ("scum", True), ("champion", False)]:
-            computed = fighter_computed(crew[rank])
-            assert ("Wyrd" in [c.name for c in computed.subtypes]) is expected, rank
-
-    def test_starting_skills_follow_the_archetype(
-        self, gang, crew, archetypes, skills_collection
-    ):
-        """Leaders and Champions select one skill from a Primary set —
-        the Escher-shaped offer, fed by whatever the archetype placed."""
-        pick_archetype(crew, archetypes["Brawler"])
-
-        computed = fighter_computed(crew["leader"])
-        offer = next(
-            slot for slot in computed.choices if slot.kind_label == "Primary skill"
-        )
-        picklist = offered_by(offer, computed)
-        # Brawler Leader Primary = Combat + Savant.
-        assert {line.name for line in picklist.all_lines()} == {
-            "Berserker",
-            "Medicate",
-        }
-
-    def test_a_gang_carried_offer_is_chosen_for_per_fighter(
-        self, gang, crew, archetypes
-    ):
-        """Starting Skills rides the gang type, so the slot appears on
-        every Leader's and Champion's card — but each chosen row names its
-        fighter, and only that fighter's slot resolves."""
-        from n26.library.models import Skill
-
-        pick_archetype(crew, archetypes["Brawler"])
-        founding = gang_slot(gang, "Outcasts")
-        chosen = choose(
-            founding, Skill.objects.get(name="Berserker"), miniature=crew["leader"]
-        )
-        assert chosen.miniature == crew["leader"]
-
-        leader_slot = next(
-            slot
-            for slot in fighter_computed(crew["leader"]).choices
-            if slot.kind_label == "Primary skill"
-        )
-        assert leader_slot.is_resolved and leader_slot.chosen_name == "Berserker"
-        champion_slot = next(
-            slot
-            for slot in fighter_computed(crew["champion"]).choices
-            if slot.kind_label == "Primary skill"
-        )
-        assert not champion_slot.is_resolved
-
-    def test_cult_of_personality_reaches_everyone(self, gang, crew):
-        for member in crew.values():
-            computed = fighter_computed(member)
-            assert "Cult of Personality" in [c.name for c in computed.rules]
-
 
 class TestAffiliationChains:
-    def test_clan_house_opens_the_second_pick(self, gang, affiliations):
-        """The chained-choice proof: what is chosen is an ordinary gang row,
-        so the choice it carries computes into a new slot."""
+    def test_clan_house_opens_the_second_pick_and_its_list_to_the_right_ranks(
+        self, gang, affiliations, profiles, archetype_question
+    ):
+        crew = {
+            "leader": hire_with_option(gang, profiles["leader"], "Sorrow"),
+            "champion": hire_with_option(gang, profiles["champion"], "Grix"),
+            "scum": hire_with_option(gang, profiles["scum"], "Rat"),
+        }
         tokens, house_tokens = affiliations
         computed = the_gang_computed(gang)
         assert computed.choice("Clan house") is None  # not until it's chosen
@@ -777,19 +770,15 @@ class TestAffiliationChains:
             the_gang_computed(gang).choice("Clan house").chosen_name == "House Escher"
         )
 
-    def test_the_house_opens_its_list_to_the_right_ranks(
-        self, gang, crew, affiliations
-    ):
-        tokens, house_tokens = affiliations
-        pick_affiliation(gang, tokens["clan_house"])
-        pick_house(gang, house_tokens["Escher"])
-
         for rank, expected in [("leader", True), ("champion", True), ("scum", False)]:
             computed = fighter_computed(crew[rank])
             held = "House Escher Equipment List" in [
                 c.name for c in computed.collections
             ]
             assert held is expected, rank
+
+        gang.refresh_from_db()
+        assert_reconciled(gang)
 
     def test_mutants_open_the_mutation_list_to_all(self, gang, crew, affiliations):
         tokens, _ = affiliations
@@ -821,6 +810,11 @@ class TestTheSheet:
     ):
         tokens, house_tokens = affiliations
         pick_archetype(crew, archetypes["Wyrd"])
+
+        for rank, expected in [("leader", True), ("scum", True), ("champion", False)]:
+            computed = fighter_computed(crew[rank])
+            assert ("Wyrd" in [c.name for c in computed.subtypes]) is expected, rank
+
         pick_affiliation(gang, tokens["clan_house"])
         pick_house(gang, house_tokens["Goliath"])
         choose(
@@ -839,3 +833,6 @@ class TestTheSheet:
         assert "Clan house: House Goliath" in text
         assert "Archetype: Survivor" in text  # Grix's own, on Grix's card
         assert "need 3 Hive Scum" in text
+
+        gang.refresh_from_db()
+        assert_reconciled(gang)

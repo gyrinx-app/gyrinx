@@ -16,11 +16,13 @@ from django.urls import reverse
 from n26.core.access import collections_for, gang_collections
 from n26.core.card import build_gang_card, build_modifier_index
 from n26.core.effects import compute_gang
+from n26.core.hire import collection_offers, gang_scope_sections
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_gang, roster
 from n26.core.render_text import render_gang_sheet
 from n26.core.views.equip import buyable_lists
 from n26.library.models import Profile
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_built_in,
     add_entry,
@@ -79,6 +81,7 @@ def owner(db):
 
 
 @pytest.fixture
+@library_setup
 def headings(db):
     """The gang list's own headings — Leader, Champion, Ganger — so the
     sections a reader sees are the taxonomy's and not this test's."""
@@ -94,6 +97,7 @@ def escher(db):
 
 
 @pytest.fixture
+@library_setup
 def equipment(db):
     """Three equipment lists: the house's, the archetype's, and the one
     the archetype gives its Death-Maidens alone.
@@ -115,6 +119,7 @@ def equipment(db):
 
 
 @pytest.fixture
+@library_setup
 def profiles(escher, headings, person_type, make_statline, equipment):
     """Every Escher fighter entry, each carrying the house equipment list
     in its built-ins — the way a house list reaches a fighter."""
@@ -130,6 +135,7 @@ def profiles(escher, headings, person_type, make_statline, equipment):
 
 
 @pytest.fixture
+@library_setup
 def house_list(profiles):
     """The gang list the house comes with: a collection of its fighter
     entries whose default section is "Gang List", which is what files its
@@ -142,6 +148,7 @@ def house_list(profiles):
 
 
 @pytest.fixture
+@library_setup
 def chem_list(profiles):
     """The Chem Cults list, which prices its Death-Maiden its own way."""
     collection = create_collection("Chem Cults Gang List")
@@ -156,6 +163,7 @@ def chem_list(profiles):
 
 
 @pytest.fixture
+@library_setup
 def house(escher, house_list, equipment):
     """What founding an Escher gang brings: its list of fighters and its
     equipment list, both built into the gang type."""
@@ -170,6 +178,7 @@ def house(escher, house_list, equipment):
 
 
 @pytest.fixture
+@library_setup
 def archetype_slot(db):
     """The question a house asks: which archetype, or none. Optional, at
     most one, and answered by the gang rather than by any one fighter."""
@@ -189,6 +198,7 @@ def archetype_slot(db):
 
 
 @pytest.fixture
+@library_setup
 def chem_cults(house, archetype_slot, chem_list, house_list, equipment, profiles):
     """The Chem Cults archetype, written out in full.
 
@@ -266,31 +276,37 @@ def screen(client, gang, owner):
     return client.get(hire_url(gang))
 
 
-def offered(response):
+def hire_list_for(gang):
+    """Prepare the same gang-scope entries the hire view gives its template."""
+    carried = [access.collection for access in gang_collections(gang)]
+    return gang_scope_sections(
+        collection_offers(carried), gang.gang_type, carried, with_cards=False
+    )
+
+
+def offered(hire_list):
     """Every fighter the screen offers, by the heading it is filed under."""
     return {
         (section.name, category.name): [entry.name for entry in category.entries]
-        for section in response.context["hire_list"]
+        for section in hire_list
         for category in section.categories
     }
 
 
-def offered_names(response):
+def offered_names(hire_list):
     return sorted(
-        entry.name
-        for section in response.context["hire_list"]
-        for entry in section.all_entries()
+        entry.name for section in hire_list for entry in section.all_entries()
     )
 
 
-def sections_of(response):
-    return [section.name for section in response.context["hire_list"]]
+def sections_of(hire_list):
+    return [section.name for section in hire_list]
 
 
-def row(response, name):
+def row(hire_list, name):
     return next(
         entry
-        for section in response.context["hire_list"]
+        for section in hire_list
         for entry in section.all_entries()
         if entry.name == name
     )
@@ -332,47 +348,32 @@ class TestTheListAGangCarries:
     """A gang hires from the list it carries, and the screen draws that
     list as its own — not as a section named after a collection."""
 
-    def test_the_house_list_arrives_with_the_gang_type(self, client, owner, gang):
-        response = screen(client, gang, owner)
-        assert offered_names(response) == sorted(HOUSE_LIST)
-
-    def test_its_fighters_sit_under_the_headings_the_taxonomy_gives(
-        self, client, owner, gang
+    def test_the_house_list_keeps_its_headings_even_when_it_offers_nobody(
+        self, client, owner, gang, house_list, profiles
     ):
         response = screen(client, gang, owner)
-        assert offered(response) == {
+        assert offered_names(response.context["hire_list"]) == sorted(HOUSE_LIST)
+        assert offered(response.context["hire_list"]) == {
             ("Gang List", "Leader"): ["Queen"],
             ("Gang List", "Champion"): ["Death-Maiden", "Matriarch"],
             ("Gang List", "Ganger"): ["Gang Sister"],
         }
-        # The collection is not a heading anywhere on the screen: it is
-        # the list, so naming it would be naming the page.
-        assert "Escher Gang List" not in sections_of(response)
+        assert "Escher Gang List" not in sections_of(response.context["hire_list"])
         assert "Escher Gang List" not in response.content.decode()
+        # Chem Wytch is authored under Escher, but is not on its house list.
+        assert "Chem Wytch" not in offered_names(response.context["hire_list"])
 
-    def test_a_fighter_the_list_leaves_off_is_not_offered(self, client, owner, gang):
-        """Chem Wytch is an Escher profile and perfectly hireable. She is
-        simply not on this gang's list, which is what a list is for — and
-        is why an archetype's own fighters need no gang type of their own
-        to hide behind."""
-        response = screen(client, gang, owner)
-        assert "Chem Wytch" not in offered_names(response)
+        sheet = render_gang(gang)
+        names = [line.name for line in sheet.rows]
+        assert "Escher Gang List" not in names
+        assert "Escher Equipment List" in names
+        assert "Gang List" not in render_gang_sheet(sheet)
 
-    def test_a_list_that_offers_nothing_is_still_the_list(
-        self, client, owner, gang, house_list, profiles
-    ):
-        """Carrying an empty list means an empty list.
-
-        Archive every entry — or stage them while the next book is
-        written — and the list offers nobody. Falling back to the gang
-        type's profiles there would hand the gang the very fighters its
-        list exists to leave out, at prices the list never set.
-        """
+        # An empty carried list must not fall back to all the house's profiles.
         for entry in house_list.entries.all():
             entry.archive()
-
         response = screen(client, gang, owner)
-        assert offered_names(response) == []
+        assert offered_names(response.context["hire_list"]) == []
         assert "Chem Wytch" not in response.content.decode()
 
     def test_a_gang_type_with_no_list_of_its_own_offers_its_profiles(
@@ -383,41 +384,13 @@ class TestTheListAGangCarries:
         hires from its gang type's fighter entries."""
         plain = found_gang("The Unwritten", escher, owner=owner, budget=1000)
         response = screen(client, plain, owner)
-        assert offered_names(response) == sorted(name for name, _, _ in ESCHER)
+        assert offered_names(response.context["hire_list"]) == sorted(
+            name for name, _, _ in ESCHER
+        )
 
 
 class TestAnArchetypeSwapsTheList:
     """Picking an archetype puts its list where the house's was."""
-
-    def test_the_archetypes_list_replaces_the_houses(
-        self, client, owner, gang, chem_cults
-    ):
-        take_the_archetype(gang, chem_cults)
-        response = screen(client, gang, owner)
-        assert offered_names(response) == sorted(CHEM_LIST)
-
-    def test_the_screen_reads_the_same_way_it_did(
-        self, client, owner, gang, chem_cults
-    ):
-        """The fighters change and the page does not: the same headings,
-        no section named after either collection."""
-        take_the_archetype(gang, chem_cults)
-        response = screen(client, gang, owner)
-        assert offered(response) == {
-            ("Gang List", "Champion"): ["Death-Maiden"],
-            # Cheapest first within a heading, as everywhere on this
-            # screen: a Gang Sister is 55 and a Chem Wytch 60.
-            ("Gang List", "Ganger"): ["Gang Sister", "Chem Wytch"],
-        }
-        assert "Chem Cults Gang List" not in sections_of(response)
-
-    def test_the_list_prices_its_own_rows(self, client, owner, gang, chem_cults):
-        """A Chem Cult's Death-Maiden costs what the Chem Cults list says,
-        not what the fighter is written at."""
-        take_the_archetype(gang, chem_cults)
-        response = screen(client, gang, owner)
-        assert row(response, "Death-Maiden").base_price == CHEM_MAIDEN_PRICE
-        assert f"{CHEM_MAIDEN_PRICE}¢" in response.content.decode()
 
     def test_a_fighter_only_the_archetype_offers_can_be_hired(
         self, client, owner, gang, chem_cults
@@ -425,7 +398,7 @@ class TestAnArchetypeSwapsTheList:
         take_the_archetype(gang, chem_cults)
         client.force_login(owner)
         response = screen(client, gang, owner)
-        key = row(response, "Chem Wytch").key
+        key = row(response.context["hire_list"], "Chem Wytch").key
 
         client.post(hire_url(gang), {"profile": key, "name": "Sela"})
 
@@ -442,7 +415,20 @@ class TestAnArchetypeSwapsTheList:
     ):
         take_the_archetype(gang, chem_cults)
         response = screen(client, gang, owner)
-        key = row(response, "Death-Maiden").key
+        assert offered_names(response.context["hire_list"]) == sorted(CHEM_LIST)
+        assert offered(response.context["hire_list"]) == {
+            ("Gang List", "Champion"): ["Death-Maiden"],
+            # Cheapest first: a Gang Sister is 55 and a Chem Wytch 60.
+            ("Gang List", "Ganger"): ["Gang Sister", "Chem Wytch"],
+        }
+        assert "Chem Cults Gang List" not in sections_of(response.context["hire_list"])
+        assert (
+            row(response.context["hire_list"], "Death-Maiden").base_price
+            == CHEM_MAIDEN_PRICE
+        )
+        assert f"{CHEM_MAIDEN_PRICE}¢" in response.content.decode()
+
+        key = row(response.context["hire_list"], "Death-Maiden").key
 
         response = client.post(hire_url(gang), {"profile": key, "name": "Ilyanna"})
 
@@ -459,7 +445,7 @@ class TestAnArchetypeSwapsTheList:
         """The archetype is written and unpicked, so the gang hires and
         buys as any gang of its house does."""
         response = screen(client, gang, owner)
-        assert offered_names(response) == sorted(HOUSE_LIST)
+        assert offered_names(response.context["hire_list"]) == sorted(HOUSE_LIST)
 
         queen = hire(gang, profiles["Queen"], "Yara", paid=145)
         assert lists_for(queen) == ["Escher Equipment List"]
@@ -482,36 +468,36 @@ class TestTwoListsAtOnce:
         assign(chem_list, gang=gang)
 
         response = screen(client, gang, owner)
-        assert sections_of(response) == [
+        assert sections_of(response.context["hire_list"]) == [
             "Escher Gang List",
             "Chem Cults Gang List",
         ]
-        assert row(response, "Chem Wytch").base_price == 60
+        assert row(response.context["hire_list"], "Chem Wytch").base_price == 60
 
     @pytest.mark.parametrize("entry_state", ["archived", "staged"])
     def test_an_empty_second_list_still_uses_collection_headings(
-        self, client, owner, gang, chem_list, entry_state
+        self, gang, chem_list, entry_state
     ):
         assign(chem_list, gang=gang)
         chem_list.entries.update(**{entry_state: True})
 
-        response = screen(client, gang, owner)
+        hire_list = hire_list_for(gang)
 
-        assert sections_of(response) == ["Escher Gang List"]
-        assert offered_names(response) == sorted(HOUSE_LIST)
+        assert sections_of(hire_list) == ["Escher Gang List"]
+        assert offered_names(hire_list) == sorted(HOUSE_LIST)
 
     @pytest.mark.parametrize("collection_state", ["archived", "staged"])
     def test_a_hidden_second_collection_does_not_change_the_live_list(
-        self, client, owner, gang, chem_list, collection_state
+        self, gang, chem_list, collection_state
     ):
         assign(chem_list, gang=gang)
         setattr(chem_list, collection_state, True)
         chem_list.save(update_fields=[collection_state])
 
-        response = screen(client, gang, owner)
+        hire_list = hire_list_for(gang)
 
-        assert sections_of(response) == ["Gang List"]
-        assert offered_names(response) == sorted(HOUSE_LIST)
+        assert sections_of(hire_list) == ["Gang List"]
+        assert offered_names(hire_list) == sorted(HOUSE_LIST)
 
 
 class TestWhatElseAGangIsOffered:
@@ -519,7 +505,7 @@ class TestWhatElseAGangIsOffered:
     addition to whatever list the gang has, drawn as a block of its own."""
 
     def test_a_roster_with_no_section_is_a_block_named_after_itself(
-        self, client, owner, gang, profiles
+        self, gang, profiles
     ):
         """A roster authored with no sections at all, which is how every
         corruption's roster is written."""
@@ -527,14 +513,14 @@ class TestWhatElseAGangIsOffered:
         add_entry(extra, profiles["Chem Wytch"], price_override=200)
         assign(extra, gang=gang)
 
-        response = screen(client, gang, owner)
-        assert sections_of(response)[-1] == "Genestealer Cult Corrupted"
-        assert row(response, "Chem Wytch").base_price == 200
+        hire_list = hire_list_for(gang)
+        assert sections_of(hire_list)[-1] == "Genestealer Cult Corrupted"
+        assert row(hire_list, "Chem Wytch").base_price == 200
         # And the gang's own list is untouched beneath it.
-        assert offered(response)[("Gang List", "Leader")] == ["Queen"]
+        assert offered(hire_list)[("Gang List", "Leader")] == ["Queen"]
 
     def test_a_roster_naming_its_own_section_is_a_block_of_that_name(
-        self, client, owner, gang, profiles
+        self, gang, profiles
     ):
         """An author may give the block a name other than the
         collection's: the default section is what the screen reads."""
@@ -543,9 +529,9 @@ class TestWhatElseAGangIsOffered:
         add_entry(extra, profiles["Chem Wytch"], price_override=200)
         assign(extra, gang=gang)
 
-        response = screen(client, gang, owner)
-        assert sections_of(response)[-1] == "Genestealer Cult Corrupted"
-        assert "Fighter Additions" not in sections_of(response)
+        hire_list = hire_list_for(gang)
+        assert sections_of(hire_list)[-1] == "Genestealer Cult Corrupted"
+        assert "Fighter Additions" not in sections_of(hire_list)
 
 
 class TestTheEquipmentListsFollow:
@@ -559,31 +545,21 @@ class TestTheEquipmentListsFollow:
         take_the_archetype(gang, chem_cults)
         return gang, maiden, sister
 
-    def test_an_ordinary_fighter_buys_from_the_archetypes_list(self, hired):
-        _, _, sister = hired
+    def test_the_archetype_changes_each_equipment_list_and_keeps_the_books_balanced(
+        self, hired
+    ):
+        gang, maiden, sister = hired
         assert lists_for(sister) == ["Chem Cults Equipment List"]
-
-    def test_a_fighter_the_archetype_names_buys_from_her_own(self, hired):
-        _, maiden, _ = hired
         assert lists_for(maiden) == ["Chem Cults Death-Maiden Equipment List"]
-
-    def test_the_gang_itself_buys_from_the_archetypes_list(self, hired):
-        """The stash buys from the archetype's list too, which takes its
-        own pair of rows — a swap written for the fighters alone leaves
-        the gang still buying from the house list it no longer has."""
-        gang, _, _ = hired
         assert [
             str(collection)
             for collection in buyable_lists(
                 access.collection for access in gang_collections(gang)
             )
         ] == ["Chem Cults Equipment List"]
-        # And what it hires from has moved with it.
         assert "Chem Cults Gang List" in gang_lists_for(gang)
         assert "Escher Gang List" not in gang_lists_for(gang)
-
-    def test_the_books_still_balance(self, hired):
-        gang, _, _ = hired
+        gang.refresh_from_db()
         assert_reconciled(gang)
 
 
@@ -614,7 +590,7 @@ class TestWhatTheScreenCosts:
         with CaptureQueriesContext(connection) as long:
             response = client.get(hire_url(gang))
 
-        assert len(offered_names(response)) == len(HOUSE_LIST) + 6
+        assert len(offered_names(response.context["hire_list"])) == len(HOUSE_LIST) + 6
         assert len(long) == len(short)
 
 
@@ -642,7 +618,9 @@ class TestAListNobodyMaySeeIsNotTheList:
     ):
         gang = self.rehearsal(escher, profiles, owner)
         response = screen(client, gang, owner)
-        assert offered_names(response) == sorted(name for name, _, _ in ESCHER)
+        assert offered_names(response.context["hire_list"]) == sorted(
+            name for name, _, _ in ESCHER
+        )
 
     def test_a_staff_reader_is_offered_from_the_staged_list(
         self, client, escher, profiles, equipment
@@ -650,14 +628,16 @@ class TestAListNobodyMaySeeIsNotTheList:
         staff = User.objects.create_user("author", is_staff=True)
         gang = self.rehearsal(escher, profiles, staff)
         response = screen(client, gang, staff)
-        assert offered_names(response) == sorted(HOUSE_LIST)
+        assert offered_names(response.context["hire_list"]) == sorted(HOUSE_LIST)
 
     def test_an_archived_list_is_not_the_list_either(
         self, client, owner, gang, house_list
     ):
         house_list.archive()
         response = screen(client, gang, owner)
-        assert offered_names(response) == sorted(name for name, _, _ in ESCHER)
+        assert offered_names(response.context["hire_list"]) == sorted(
+            name for name, _, _ in ESCHER
+        )
 
 
 class TestWhatCountsAsTheGangListsName:
@@ -665,9 +645,7 @@ class TestWhatCountsAsTheGangListsName:
     kept unique — without regard to case — and only on a collection that
     holds fighters."""
 
-    def test_the_name_is_read_however_it_is_cased(
-        self, client, owner, escher, profiles
-    ):
+    def test_the_name_is_read_however_it_is_cased(self, owner, escher, profiles):
         collection = create_collection("Escher Gang List")
         section_of(collection, "gang list", 0, is_default=True)
         for name in HOUSE_LIST:
@@ -675,12 +653,12 @@ class TestWhatCountsAsTheGangListsName:
         add_built_in(escher, collection)
         gang = found_gang("The Lower Case", escher, owner=owner, budget=1000)
 
-        response = screen(client, gang, owner)
-        assert offered_names(response) == sorted(HOUSE_LIST)
-        assert sections_of(response) == ["Gang List"]
+        hire_list = hire_list_for(gang)
+        assert offered_names(hire_list) == sorted(HOUSE_LIST)
+        assert sections_of(hire_list) == ["Gang List"]
 
     def test_a_list_of_gear_by_that_name_is_nobodys_gang_list(
-        self, client, owner, escher, profiles
+        self, owner, escher, profiles
     ):
         """A gear list given the section name by mistake must not switch
         the gang type's fighters off and leave an empty tab."""
@@ -690,8 +668,8 @@ class TestWhatCountsAsTheGangListsName:
         add_built_in(escher, gear)
         gang = found_gang("The Unlucky", escher, owner=owner, budget=1000)
 
-        response = screen(client, gang, owner)
-        assert offered_names(response) == sorted(name for name, _, _ in ESCHER)
+        hire_list = hire_list_for(gang)
+        assert offered_names(hire_list) == sorted(name for name, _, _ in ESCHER)
 
 
 class TestSectionsThatShareAName:
@@ -699,7 +677,7 @@ class TestSectionsThatShareAName:
     unreachable, so they become one section."""
 
     def test_a_block_named_after_a_taxonomy_section_joins_it(
-        self, client, owner, gang, house_list, escher, person_type, make_statline
+        self, gang, house_list, escher, person_type, make_statline
     ):
         """The house list reaches two taxonomy sections, and a carried
         collection names the second as its own block. The block and the
@@ -720,24 +698,20 @@ class TestSectionsThatShareAName:
         add_entry(extra, hired_gun, price_override=200)
         assign(extra, gang=gang)
 
-        response = screen(client, gang, owner)
-        names = sections_of(response)
+        hire_list = hire_list_for(gang)
+        names = sections_of(hire_list)
         assert names == ["Gang List", "Hangers-on"], names
-        merged = next(
-            section
-            for section in response.context["hire_list"]
-            if section.name == "Hangers-on"
-        )
+        merged = next(section for section in hire_list if section.name == "Hangers-on")
         headings = [category.name for category in merged.categories]
         assert len(headings) == len(set(headings)), headings
         # One heading, both the list's fighter and the collection's.
         assert sorted(
             entry.name
-            for section in response.context["hire_list"]
+            for section in hire_list
             if section.name == "Hangers-on"
             for entry in section.all_entries()
         ) == ["Hired gun", "Shivver"]
-        assert row(response, "Hired gun").base_price == 200
+        assert row(hire_list, "Hired gun").base_price == 200
 
 
 class TestTheGangSheetDrawsNoLineForTheList:
@@ -747,24 +721,23 @@ class TestTheGangSheetDrawsNoLineForTheList:
     either way. Its equipment list, which is somewhere to buy from, keeps
     its line."""
 
-    def test_a_carried_list_is_not_a_row_on_the_sheet(self, gang):
-        names = [line.name for line in render_gang(gang).rows]
-        assert "Escher Gang List" not in names
-        assert "Escher Equipment List" in names
-
-    def test_nor_is_the_list_an_archetype_gives(self, gang, chem_cults):
+    def test_an_archetypes_list_draws_no_sheet_row_even_after_withdrawal(
+        self, gang, chem_cults, chem_list
+    ):
         take_the_archetype(gang, chem_cults)
-        names = [line.name for line in render_gang(gang).rows]
+        sheet = render_gang(gang)
+        names = [line.name for line in sheet.rows]
         assert "Chem Cults Gang List" not in names
         assert "Escher Gang List" not in names
 
-    def test_the_text_sheet_says_nothing_of_it_either(self, gang):
-        text = render_gang_sheet(render_gang(gang))
-        assert "Gang List" not in text
+        chem_list.archive()
+        sheet = render_gang(gang)
+        assert "Chem Cults Gang List" not in [line.name for line in sheet.rows]
+        assert "Chem Cults Gang List" not in render_gang_sheet(sheet)
 
     @pytest.mark.parametrize("with_effects", [True, False])
     def test_an_archived_list_stays_hidden_when_hiring_falls_back(
-        self, client, owner, gang, house_list, with_effects
+        self, gang, house_list, with_effects
     ):
         house_list.archive()
 
@@ -773,18 +746,9 @@ class TestTheGangSheetDrawsNoLineForTheList:
         assert "Escher Gang List" not in render_gang_sheet(sheet)
         if with_effects:
             assert "Escher Equipment List" in [line.name for line in sheet.rows]
-        assert offered_names(screen(client, gang, owner)) == sorted(
+        assert offered_names(hire_list_for(gang)) == sorted(
             name for name, _, _ in ESCHER
         )
-
-    def test_an_archived_granted_list_stays_hidden(self, gang, chem_cults, chem_list):
-        take_the_archetype(gang, chem_cults)
-        chem_list.archive()
-
-        sheet = render_gang(gang)
-
-        assert "Chem Cults Gang List" not in [line.name for line in sheet.rows]
-        assert "Chem Cults Gang List" not in render_gang_sheet(sheet)
 
     def test_a_list_with_an_archived_default_section_stays_hidden(
         self, gang, house_list
@@ -799,7 +763,7 @@ class TestASweepThatWasWithdrawn:
     gathers nobody, and staged, it gathers nobody for a player."""
 
     def test_an_archived_sweep_offers_none_of_its_fighters(
-        self, client, owner, gang, profiles, headings
+        self, gang, profiles, headings
     ):
         swept = create_collection(
             "Corrupted beasts", contains=[(Profile, headings["Ganger"])]
@@ -807,9 +771,9 @@ class TestASweepThatWasWithdrawn:
         section_of(swept, "Corrupted beasts", 0, is_default=True)
         assign(swept, gang=gang)
 
-        response = screen(client, gang, owner)
-        assert "Corrupted beasts" in sections_of(response)
+        hire_list = hire_list_for(gang)
+        assert "Corrupted beasts" in sections_of(hire_list)
 
         swept.selectors.get().archive()
-        response = screen(client, gang, owner)
-        assert "Corrupted beasts" not in sections_of(response)
+        hire_list = hire_list_for(gang)
+        assert "Corrupted beasts" not in sections_of(hire_list)

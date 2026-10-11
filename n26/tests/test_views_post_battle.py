@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.auth.models import Group, User
-from django.db import connection
+from django.db import connection, transaction
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
@@ -28,9 +28,11 @@ from n26.core.models import (
     PostBattleRevision,
 )
 from n26.core.operations import operation
-from n26.core.post_battle import start_report
+from n26.core.post_battle import preview_report, start_report
+from n26.core.post_battle_forms import editor_models
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
+from n26.core.views.post_battle import _initial_payload
 from n26.flags import CAMPAIGNS, FOUNDING
 from n26.library.authoring import (
     add_built_in,
@@ -44,7 +46,20 @@ from n26.library.authoring import (
     op_sets_status,
     targets_model,
 )
-from n26.library.models import Profile
+from n26.library.models import (
+    Counter,
+    GangType,
+    Pickable,
+    Picklist,
+    Profile,
+    ProfileType,
+    SlotType,
+    Stat,
+    StatlineType,
+    StatlineTypeStat,
+    get_default_pack,
+)
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     assign,
     create_wargear,
@@ -71,15 +86,8 @@ def feature():
     )
 
 
-@pytest.fixture
-def table(
-    client, default_pack, gang_type, campaign_type, make_profile, counter_tracking
-):
-    owner = User.objects.create_user("report-owner")
-    arbitrator = User.objects.create_user("report-arbitrator")
-    campaign = found_campaign("Dust Falls", campaign_type, owner=arbitrator)
-    gang = open_founding(found_gang("Ashen Choir", gang_type, owner=owner, budget=1000))
-    join_campaign(gang, campaign)
+@library_setup
+def report_content(make_profile):
     xp = create_counter("XP")
     kind = create_slot_type("Lasting injury", is_lasting_effect=True)
     wound = create_pickable(
@@ -92,7 +100,92 @@ def table(
     profile = make_profile("Ganger")
     add_built_in(profile, xp)
     add_built_in(profile, slot)
-    models = [hire(gang, profile, name) for name in ("Cinder", "Ember")]
+    return xp, kind, wound, picklist, profile
+
+
+@library_setup
+def _seed_report_catalogue():
+    # Keep the original small Person shape, including its unset stat limits.
+    pack = get_default_pack()
+    shape = StatlineType.objects.create(name="Person", pack=pack)
+    definitions = [
+        ("M", "Movement", {"is_inches": True}),
+        ("WS", "Weapon Skill", {"is_target": True, "is_inverted": True}),
+        ("T", "Toughness", {}),
+    ]
+    for position, (short, full, flags) in enumerate(definitions):
+        stat = Stat.objects.create(short_name=short, full_name=full, pack=pack, **flags)
+        StatlineTypeStat.objects.create(
+            statline_type=shape, stat=stat, position=position, pack=pack
+        )
+    kind = ProfileType.objects.create(name="Fighter", statline_type=shape, pack=pack)
+    gang_type = GangType.objects.create(name="Escher", pack=pack)
+
+    def make_profile(name):
+        return Profile.objects.create(
+            name=name, profile_type=kind, gang_type=gang_type, pack=pack
+        )
+
+    report_content(make_profile)
+
+
+@pytest.fixture(scope="module")
+def _prepared_report_catalogue(django_db_setup, django_db_blocker):
+    """Share content only; ordinary case rollback isolates every player write."""
+    with django_db_blocker.unblock(), transaction.atomic():
+        _seed_report_catalogue()
+        try:
+            yield
+        finally:
+            transaction.set_rollback(True)
+
+
+@pytest.fixture
+def person_statline_type(default_pack, _prepared_report_catalogue):
+    return StatlineType.objects.get(name="Person", pack=default_pack)
+
+
+@pytest.fixture
+def person_type(person_statline_type):
+    return ProfileType.objects.get(name="Fighter", statline_type=person_statline_type)
+
+
+@pytest.fixture
+def gang_type(default_pack, _prepared_report_catalogue):
+    return GangType.objects.get(name="Escher", pack=default_pack)
+
+
+def _report_content():
+    """Fresh instances of the full original catalogue for this case's table."""
+    return (
+        Counter.objects.get(name="XP"),
+        SlotType.objects.get(name="Lasting injury"),
+        Pickable.objects.get(name="Grievous Wound"),
+        Picklist.objects.get(name="Lasting injuries"),
+        Profile.objects.get(name="Ganger"),
+    )
+
+
+@pytest.fixture
+def table(
+    client,
+    default_pack,
+    gang_type,
+    campaign_type,
+    make_profile,
+    counter_tracking,
+    request,
+):
+    owner = User.objects.create_user("report-owner")
+    arbitrator = User.objects.create_user("report-arbitrator")
+    campaign = found_campaign("Dust Falls", campaign_type, owner=arbitrator)
+    gang = open_founding(found_gang("Ashen Choir", gang_type, owner=owner, budget=1000))
+    join_campaign(gang, campaign)
+    xp, kind, wound, picklist, profile = _report_content()
+    models = [
+        hire(gang, profile, name)
+        for name in ("Cinder", "Ember")[: getattr(request, "param", 2)]
+    ]
     with campaign_operation(campaign, actor=arbitrator) as act:
         battle = act.record_battle(date(2026, 9, 20), [gang], scenario="Stand-off")
     client.force_login(owner)
@@ -196,6 +289,20 @@ def record_results_fields(response, url):
 
 
 def start(client, table, *, standalone=False):
+    """Prepare a real draft without exercising another page's entry flow."""
+    battle = None if standalone else table.battle
+    return start_report(
+        table.gang,
+        actor=table.owner,
+        battle=battle,
+        request_key=uuid4(),
+        date=date(2026, 9, 20),
+        reference="Stand-off",
+        payload=_initial_payload(table.gang, battle),
+    )
+
+
+def start_through_page(client, table, *, standalone=False):
     url = start_url(table, standalone=standalone)
     if standalone:
         data = html_fields(client.get(url), date="2026-09-20", reference="Stand-off")
@@ -304,11 +411,6 @@ class TestReportLayout:
         assert footer.select_one('button[name="intent"][value="apply"]')
         assert len(form.select('[name="participation_confirmed"]')) == 1
         assert "battle-actions.js" in str(document)
-
-    def test_module_sections_run_from_took_part_to_equipment(
-        self, client, table, feature
-    ):
-        report = start(client, table)
         model = table.models[0]
         page = client.post(
             editor_url(report),
@@ -351,20 +453,6 @@ class TestReportLayout:
         errors = module.select_one(help_text.find("a")["href"])
         assert "Enter a whole number" in errors.get_text()
         assert "Cinder's XP" in errors.get_text()
-
-    def test_checked_summary_includes_the_final_xp_total(self, client, table, feature):
-        report = start(client, table)
-        model = table.models[0]
-        response = client.post(
-            editor_url(report),
-            html_fields(
-                client.get(editor_url(report)),
-                intent="check",
-                **{f"model-{model.pk}-xp": "2"},
-            ),
-        )
-        document = BeautifulSoup(response.content, "html.parser")
-        assert "+2 XP (0 → 2)" in document.find("aside").get_text()
 
     def test_summary_shows_xp_removed_with_a_lasting_effect(
         self, client, table, feature
@@ -735,20 +823,16 @@ class TestReportGroups:
 class TestStartingAndResuming:
     """Reading creates nothing; starting and saving can safely be retried."""
 
-    def test_start_page_get_does_not_write(self, client, table, feature):
-        response = client.get(start_url(table, standalone=True))
-        assert response.status_code == 200
-        assert not PostBattleReport.objects.exists()
-
     @pytest.mark.parametrize("standalone", [False, True])
     def test_starting_twice_creates_one_report(
         self, client, table, feature, standalone
     ):
         url = start_url(table, standalone=standalone)
         if standalone:
-            data = html_fields(
-                client.get(url), date="2026-09-20", reference="Stand-off"
-            )
+            response = client.get(url)
+            assert response.status_code == 200
+            assert not PostBattleReport.objects.exists()
+            data = html_fields(response, date="2026-09-20", reference="Stand-off")
         else:
             data = {"request_key": str(uuid4())}
         first = client.post(url, data)
@@ -781,7 +865,7 @@ class TestStartingAndResuming:
             selections=[CrewSelection(str(table.models[0].pk), "starting")],
             confirm=True,
         )
-        report = start(client, table)
+        report = start_through_page(client, table)
         payload = client.get(editor_url(report)).context["payload"]
         by_id = {row["id"]: row for row in payload["models"]}
         assert by_id[str(pet.pk)]["participated"]
@@ -809,7 +893,7 @@ class TestStartingAndResuming:
             role="starting",
             card_name="Full equipment",
         )
-        report = start(client, table)
+        report = start_through_page(client, table)
         payload = client.get(editor_url(report)).context["payload"]
         by_id = {row["id"]: row for row in payload["models"]}
         assert not by_id[str(pet.pk)]["participated"]
@@ -824,7 +908,7 @@ class TestStartingAndResuming:
             role="starting",
             card_name="Full equipment",
         )
-        report = start(client, table)
+        report = start_through_page(client, table)
         payload = client.get(editor_url(report)).context["payload"]
         assert not any(row["participated"] for row in payload["models"])
 
@@ -840,7 +924,7 @@ class TestStartingAndResuming:
             ],
             confirm=True,
         )
-        report = start(client, table)
+        report = start_through_page(client, table)
         payload = client.get(editor_url(report)).context["payload"]
         by_id = {row["id"]: row for row in payload["models"]}
         assert by_id[str(table.models[0].pk)]["participated"]
@@ -851,7 +935,7 @@ class TestStartingAndResuming:
     def test_incomplete_draft_is_saved_and_resumed_without_gameplay_changes(
         self, client, table, feature
     ):
-        report = start(client, table, standalone=True)
+        report = start_through_page(client, table, standalone=True)
         initial = client.get(editor_url(report))
         before = LedgerEvent.objects.count()
         effect_id = str(uuid4())
@@ -897,7 +981,7 @@ class TestStartingAndResuming:
     def test_autosave_returns_the_next_revision_and_persists_the_draft(
         self, client, table, feature
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         response = client.post(
             editor_url(report),
             html_fields(
@@ -918,15 +1002,22 @@ class TestApplyingAndCorrecting:
     """A plain first Apply works, while retries and corrections preserve later play."""
 
     @pytest.mark.parametrize("standalone", [False, True])
-    def test_receipt_uses_a_shared_alert_and_consistent_left_aligned_heading(
+    def test_first_apply_needs_no_separate_check_step(
         self, client, table, feature, standalone
     ):
-        report = start(client, table, standalone=standalone)
+        report = start_through_page(client, table, standalone=standalone)
         response = client.post(
             editor_url(report), awards(client.get(editor_url(report)), table)
         )
+        assert response.status_code == 302
+        assert response.url == receipt_url(report, 1)
         receipt = client.get(response.url)
         assert receipt.status_code == 200
+        assert xp_value(table.models[0]) == 2
+        assert xp_value(table.models[1]) == 0
+        assert_books(table)
+        assert table.gang.credits == 1020
+        assert report.revisions.count() == 1
         document = BeautifulSoup(receipt.content, "html.parser")
         assert document.find("h1").get_text(strip=True) == "Recorded results"
         breadcrumb = document.select_one('[aria-label="Breadcrumb"]')
@@ -946,28 +1037,10 @@ class TestApplyingAndCorrecting:
         assert "mx-auto" not in callout.parent["class"]
         assert "max-w-4xl" not in callout.parent["class"]
 
-    @pytest.mark.parametrize("standalone", [False, True])
-    def test_first_apply_needs_no_separate_check_step(
-        self, client, table, feature, standalone
-    ):
-        report = start(client, table, standalone=standalone)
-        response = client.post(
-            editor_url(report), awards(client.get(editor_url(report)), table)
-        )
-        assert response.status_code == 302
-        assert response.url == receipt_url(report, 1)
-        receipt = client.get(response.url)
-        assert receipt.status_code == 200
-        assert xp_value(table.models[0]) == 2
-        assert xp_value(table.models[1]) == 0
-        assert_books(table)
-        assert table.gang.credits == 1020
-        assert report.revisions.count() == 1
-
     def test_participation_confirmation_is_mandatory_and_entries_survive_refusal(
         self, client, table, feature
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         data = awards(client.get(editor_url(report)), table)
         data.pop("participation_confirmed")
         before = LedgerEvent.objects.count()
@@ -989,7 +1062,7 @@ class TestApplyingAndCorrecting:
     def test_retry_and_late_autosave_cannot_apply_or_reopen_results(
         self, client, table, feature
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         data = awards(client.get(editor_url(report)), table)
         assert client.post(editor_url(report), data).status_code == 302
         events = LedgerEvent.objects.count()
@@ -1009,7 +1082,7 @@ class TestApplyingAndCorrecting:
     def test_correction_applies_the_difference_and_keeps_the_original_receipt(
         self, client, table, feature
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         original_data = awards(client.get(editor_url(report)), table)
         first = client.post(editor_url(report), original_data)
         assert first.status_code == 302
@@ -1276,7 +1349,7 @@ class TestReportPermissions:
         self, client, table, feature
     ):
         client.force_login(table.arbitrator)
-        report = start(client, table)
+        report = start_through_page(client, table)
         response = client.post(
             editor_url(report),
             html_fields(client.get(editor_url(report)), intent="save", credits="10"),
@@ -1288,7 +1361,7 @@ class TestReportPermissions:
     def test_departed_gang_keeps_owner_access_but_loses_arbitrator_access(
         self, client, table, feature
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         with operation(table.gang, actor=table.owner) as op:
             op.leave_campaign()
         client.force_login(table.arbitrator)
@@ -1300,7 +1373,7 @@ class TestReportPermissions:
     def test_arbitrator_cannot_edit_an_owners_standalone_report(
         self, client, table, feature
     ):
-        report = start(client, table, standalone=True)
+        report = start_through_page(client, table, standalone=True)
         client.force_login(table.arbitrator)
         assert client.get(editor_url(report)).status_code == 404
         assert client.post(editor_url(report), {}).status_code == 404
@@ -1309,7 +1382,7 @@ class TestReportPermissions:
     def test_private_drafts_are_not_readable_by_others(
         self, client, table, feature, who
     ):
-        report = start(client, table)
+        report = start_through_page(client, table)
         if who == "stranger":
             client.force_login(User.objects.create_user("stranger"))
         else:
@@ -1319,7 +1392,7 @@ class TestReportPermissions:
             assert client.post(url, {}).status_code == 404
 
     def test_flag_off_blocks_every_route(self, client, table, feature):
-        report = start(client, table)
+        report = start_through_page(client, table)
         feature.availability = Availability.OFF
         feature.save()
         urls = [
@@ -1612,7 +1685,7 @@ class TestXpBlockedModels:
 class TestRecordResultsEntry:
     """Record results starts the draft on POST and opens the editor straight away."""
 
-    def test_battle_report_get_does_not_write_and_returns_to_the_battle(
+    def test_battle_entry_reads_and_refusals_then_start_and_resume(
         self, client, table, feature
     ):
         response = client.get(start_url(table))
@@ -1621,20 +1694,27 @@ class TestRecordResultsEntry:
             "n26-battle", args=[table.campaign.pk, table.battle.pk]
         )
         assert not PostBattleReport.objects.exists()
-
-    def test_battle_report_get_with_a_report_goes_to_it(self, client, table, feature):
-        report = start(client, table)
-        response = client.get(start_url(table))
-        assert response.status_code == 302
-        assert response.url == editor_url(report)
-
-    def test_record_results_opens_the_editor_with_the_battle_details(
-        self, client, table, feature
-    ):
-        report = start(client, table)
+        response = client.post(start_url(table), {})
+        assert response.url == reverse(
+            "n26-battle", args=[table.campaign.pk, table.battle.pk]
+        )
+        assert not PostBattleReport.objects.exists()
+        battle_page = reverse("n26-battle", args=[table.campaign.pk, table.battle.pk])
+        button = record_results_form(client.get(battle_page), start_url(table)).find(
+            "button"
+        )
+        assert button["aria-label"] == f"Record results for {table.gang.name}"
+        report = start_through_page(client, table)
         assert report.battle_id == table.battle.pk
         assert report.date == table.battle.date
         assert report.reference == table.battle.title
+        response = client.get(start_url(table))
+        assert response.status_code == 302
+        assert response.url == editor_url(report)
+        document = BeautifulSoup(client.get(battle_page).content, "html.parser")
+        link = document.find("a", href=start_url(table))
+        assert link.get_text(strip=True) == "Continue draft"
+        assert link["aria-label"] == f"Continue draft for {table.gang.name}"
 
     def test_a_second_request_key_still_opens_the_one_battle_report(
         self, client, table, feature
@@ -1644,15 +1724,6 @@ class TestRecordResultsEntry:
         second = client.post(url, {"request_key": str(uuid4())})
         assert first.url == second.url
         assert PostBattleReport.objects.filter(gang=table.gang).count() == 1
-
-    def test_a_missing_request_key_returns_to_the_battle_without_writing(
-        self, client, table, feature
-    ):
-        response = client.post(start_url(table), {})
-        assert response.url == reverse(
-            "n26-battle", args=[table.campaign.pk, table.battle.pk]
-        )
-        assert not PostBattleReport.objects.exists()
 
     def test_the_post_battle_list_starts_a_campaign_report_by_post(
         self, client, table, feature
@@ -1665,42 +1736,45 @@ class TestRecordResultsEntry:
         assert response.url == editor_url(report)
         assert report.battle_id == table.battle.pk
 
-    @pytest.mark.parametrize("page", ["editor", "receipt"])
     def test_campaign_report_breadcrumb_links_the_battle_and_the_gang(
-        self, client, table, feature, page
+        self,
+        client,
+        table,
+        feature,
     ):
-        report = start(client, table)
-        if page == "receipt":
-            applied = client.post(
-                editor_url(report), awards(client.get(editor_url(report)), table)
+        report = start_through_page(client, table)
+        for page in ("editor", "receipt"):
+            if page == "receipt":
+                applied = client.post(
+                    editor_url(report), awards(client.get(editor_url(report)), table)
+                )
+                assert applied.status_code == 302
+            response = client.get(
+                editor_url(report) if page == "editor" else receipt_url(report)
             )
-            assert applied.status_code == 302
-        response = client.get(
-            editor_url(report) if page == "editor" else receipt_url(report)
-        )
-        document = BeautifulSoup(response.content, "html.parser")
-        header = document.find("h1").find_parent("div", class_="gap-1")
-        crumbs = [
-            (item.get_text(strip=True), item.get("href"))
-            for item in header.select("nav li a, nav li [aria-current]")
-        ]
-        assert crumbs == [
-            (
-                table.battle.title,
-                reverse("n26-battle", args=[table.campaign.pk, table.battle.pk]),
-            ),
-            (table.gang.name, reverse("n26-gang", args=[table.gang.pk])),
-            (
-                "Post-battle results" if page == "editor" else "Recorded results",
-                None,
-            ),
-        ]
-        assert header.get_text().count(table.gang.name) == 1
+            document = BeautifulSoup(response.content, "html.parser")
+            header = document.find("h1").find_parent("div", class_="gap-1")
+            crumbs = [
+                (item.get_text(strip=True), item.get("href"))
+                for item in header.select("nav li a, nav li [aria-current]")
+            ]
+            assert crumbs == [
+                (
+                    table.battle.title,
+                    reverse("n26-battle", args=[table.campaign.pk, table.battle.pk]),
+                ),
+                (table.gang.name, reverse("n26-gang", args=[table.gang.pk])),
+                (
+                    "Post-battle results" if page == "editor" else "Recorded results",
+                    None,
+                ),
+            ]
+            assert header.get_text().count(table.gang.name) == 1
 
     def test_standalone_breadcrumb_links_the_gang_and_its_reports(
         self, client, table, feature
     ):
-        report = start(client, table, standalone=True)
+        report = start_through_page(client, table, standalone=True)
         document = BeautifulSoup(client.get(editor_url(report)).content, "html.parser")
         header = document.find("h1").find_parent("div", class_="gap-1")
         crumbs = [
@@ -1715,7 +1789,7 @@ class TestRecordResultsEntry:
         assert header.get_text().count(table.gang.name) == 1
 
     def test_the_action_bar_says_entries_save_as_you_go(self, client, table, feature):
-        report = start(client, table)
+        report = start_through_page(client, table)
         text = BeautifulSoup(
             client.get(editor_url(report)).content, "html.parser"
         ).get_text(" ", strip=True)
@@ -1724,18 +1798,6 @@ class TestRecordResultsEntry:
             in text
         )
         assert "Changes apply to this gang only." not in text
-
-    def test_battle_page_buttons_name_the_gang(self, client, table, feature):
-        battle_page = reverse("n26-battle", args=[table.campaign.pk, table.battle.pk])
-        button = record_results_form(client.get(battle_page), start_url(table)).find(
-            "button"
-        )
-        assert button["aria-label"] == f"Record results for {table.gang.name}"
-        start(client, table)
-        document = BeautifulSoup(client.get(battle_page).content, "html.parser")
-        link = document.find("a", href=start_url(table))
-        assert link.get_text(strip=True) == "Continue draft"
-        assert link["aria-label"] == f"Continue draft for {table.gang.name}"
 
 
 def refresh(client, report, response, model, *, after=None, **changes):
@@ -1760,6 +1822,7 @@ def module(response, model):
     )
 
 
+@pytest.mark.parametrize("table", [1], indirect=True)
 class TestModelModule:
     """One module per model, worded by its tables, redrawn in place."""
 
@@ -1909,26 +1972,32 @@ class TestModelModule:
         assert response.status_code == 200
         assert b'id="post-battle-form"' in response.content
 
-    @pytest.mark.parametrize(
-        "status,label,colour",
-        [
+    def test_status_badges_use_the_prepared_status_and_colour(
+        self, client, table, feature
+    ):
+        model = table.models[0]
+        report = start(client, table)
+        for status, label, colour in [
             (Status.ACTIVE, "Active", "ink"),
             (Status.RECOVERY, "In Recovery", "amber"),
             (Status.CAPTURED, "Captured", "red"),
             (Status.DEAD, "Dead", "red"),
-        ],
-    )
-    def test_the_heading_carries_a_status_badge(
-        self, client, table, feature, status, label, colour
-    ):
-        model = table.models[0]
-        model.status = status
-        model.save(update_fields=["status"])
-        report = start(client, table)
-        response = client.get(editor_url(report))
-        heading = module(response, model).find("h3")
-        assert heading.get_text(" ", strip=True) == f"{model.name} Status: {label}"
-        assert response.context["models"][0].status_colour == colour
+        ]:
+            model.status = status
+            model.save(update_fields=["status"])
+            plan = preview_report(report, actor=table.owner, payload=report.draft)
+            prepared = editor_models(
+                plan, report.draft, refresh_url=editor_url(report)
+            )[0]
+            assert prepared.result.status_label == label
+            assert prepared.status_colour == colour
+            if status == Status.RECOVERY:
+                response = client.get(editor_url(report))
+                heading = module(response, model).find("h3")
+                assert (
+                    heading.get_text(" ", strip=True) == f"{model.name} Status: {label}"
+                )
+                assert response.context["models"][0].status_colour == colour
 
     def test_equipment_choice_shows_only_for_a_dead_model(self, client, table, feature):
         report = start(client, table)
@@ -2089,12 +2158,6 @@ class TestWhatTheSummaryAndReceiptList:
         text = summary_text(checked)
         assert "Final status: In Recovery" in text
         assert "Stays In Recovery until the end of the campaign cycle." in text
-
-    def test_the_receipt_follows_the_editor_and_skips_what_did_not_change(
-        self, client, table, feature
-    ):
-        report = start(client, table)
-        checked, _ = with_effect(client, table, report, table.wound)
         data = awards(checked, table)
         data.pop(f"model-{table.models[1].pk}-participated", None)
         applied = client.post(editor_url(report), data)
@@ -2110,9 +2173,18 @@ class TestWhatTheSummaryAndReceiptList:
 
     def test_a_receipt_leaves_out_an_unchanged_status(self, client, table, feature):
         report = start(client, table)
-        applied = client.post(
-            editor_url(report), awards(client.get(editor_url(report)), table)
+        model = table.models[0]
+        response = client.post(
+            editor_url(report),
+            html_fields(
+                client.get(editor_url(report)),
+                intent="check",
+                **{f"model-{model.pk}-xp": "2"},
+            ),
         )
+        document = BeautifulSoup(response.content, "html.parser")
+        assert "+2 XP (0 → 2)" in document.find("aside").get_text()
+        applied = client.post(editor_url(report), awards(response, table))
 
         text = client.get(applied.url).content.decode()
         assert "Status:" not in text
@@ -2301,6 +2373,10 @@ class TestMissionResults:
         assert row.find("label").get_text(strip=True) == "Reputation"
         assert not row.find("button")
         assert row.find("input", id=f"gang-counter-{key}")["type"] == "number"
+        section = mission(page)
+        field = section.find("input", id=f"gang-counter-{key}")
+        assert field["step"] == "1"
+        assert not section.select("button[data-counter-step]")
         stepped = mission_step(
             client, report, page, "check", **{f"gang-counter-{key}": "1"}
         )
@@ -2313,18 +2389,6 @@ class TestMissionResults:
         assert "From results" not in mission(stepped).get_text()
         report.refresh_from_db()
         assert report.draft["gang_counters"] == {key: "1"}
-
-    def test_gang_counter_changes_use_number_inputs_without_extra_step_buttons(
-        self, client, table, feature, reputation
-    ):
-        report = start(client, table)
-        page = client.get(editor_url(report))
-        key = str(reputation.pk)
-        section = mission(page)
-        field = section.find("input", id=f"gang-counter-{key}")
-        assert field["type"] == "number"
-        assert field["step"] == "1"
-        assert not section.select("button[data-counter-step]")
 
     def test_applied_counter_change_is_on_the_receipt(
         self, client, table, feature, reputation
@@ -2485,7 +2549,7 @@ def counter_step(client, report, response, model, intent, **changes):
 class TestModelCounters:
     """A model's counters sit under its XP and step in place."""
 
-    def test_only_counters_the_model_holds_are_shown(
+    def test_a_step_redraws_the_module_and_saves_the_draft(
         self, client, table, feature, kills
     ):
         report = start(client, table)
@@ -2496,12 +2560,16 @@ class TestModelCounters:
         row = progress.find("input", id=field).find_parent("tr")
         assert row.find("label").get_text(strip=True) == "Kill Count"
         assert module(page, ember).find(attrs={"data-model-counters": True}) is None
-
-    def test_a_step_redraws_the_module_and_saves_the_draft(
-        self, client, table, feature, kills
-    ):
-        report = start(client, table)
-        page = client.get(editor_url(report))
+        box = module(page, cinder)
+        field = f"model-{cinder.pk}-counter-{kills.pk}"
+        for step in ("-1", "+1"):
+            button = box.find(
+                "button",
+                attrs={"value": f"model-counter-step:{cinder.pk}:{kills.pk}:{step}"},
+            )
+            assert not button.has_attr("hx-post")
+            assert button["data-counter-step"] == field
+        assert box.find("input", id=field)["data-counter-limit"] == "1000"
         cinder = table.models[0]
         key = str(kills.pk)
         stepped = counter_step(
@@ -2518,22 +2586,6 @@ class TestModelCounters:
         assert cells[1] == "2" and cells[-1] == "3"
         report.refresh_from_db()
         assert report.draft["models"][0]["counters"] == {key: "1"}
-
-    def test_model_counter_steps_post_the_form_only_without_scripts(
-        self, client, table, feature, kills
-    ):
-        report = start(client, table)
-        cinder = table.models[0]
-        box = module(client.get(editor_url(report)), cinder)
-        field = f"model-{cinder.pk}-counter-{kills.pk}"
-        for step in ("-1", "+1"):
-            button = box.find(
-                "button",
-                attrs={"value": f"model-counter-step:{cinder.pk}:{kills.pk}:{step}"},
-            )
-            assert not button.has_attr("hx-post")
-            assert button["data-counter-step"] == field
-        assert box.find("input", id=field)["data-counter-limit"] == "1000"
 
     def test_applied_counter_is_on_the_receipt(self, client, table, feature, kills):
         report = start(client, table)

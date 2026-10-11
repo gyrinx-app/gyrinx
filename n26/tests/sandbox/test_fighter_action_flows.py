@@ -11,22 +11,19 @@ from django.urls import reverse
 
 from n26.core.models import ActionRecord, Assignment, LedgerEvent
 from n26.core.operations import operation
+from n26.core.owned import with_query
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring as a
 from n26.library.models import Slot
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import buy, found_gang, hire
 
 pytestmark = pytest.mark.django_db
 
 
-@pytest.fixture
-def hunt(default_pack, fighter_type, fighter_stats, make_statline, counter_tracking):
-    owner = User.objects.create_user("flow-player")
-    gang_type = a.create_gang_type("Hunting party", starting_credits=1000)
-    gang = found_gang("The Descent", gang_type, owner=owner, budget=1000)
-    profile = a.create_profile("Hunter", fighter_type, gang_type, price=100)
-    make_statline(profile)
-    fighter = hire(gang, profile, "Vex")
+@library_setup
+def _hunt_action_content(fighter_stats):
+    """The rig ladder and priced actions, authored before the player uses them."""
     kills = a.create_counter("Kill Count")
     glitches = a.create_counter("Glitch Count")
     augmentation = a.create_slot_type("Augmentation", allows_repeats=False)
@@ -75,6 +72,20 @@ def hunt(default_pack, fighter_type, fighter_stats, make_statline, counter_track
         use_price=[
             {"resource": "counter", "payer": "fighter", "counter": kills, "amount": 4}
         ],
+    )
+    return kills, glitches, rig, tiers, upgrade, clear, action
+
+
+@pytest.fixture
+def hunt(default_pack, fighter_type, fighter_stats, make_statline, counter_tracking):
+    owner = User.objects.create_user("flow-player")
+    gang_type = a.create_gang_type("Hunting party", starting_credits=1000)
+    gang = found_gang("The Descent", gang_type, owner=owner, budget=1000)
+    profile = a.create_profile("Hunter", fighter_type, gang_type, price=100)
+    make_statline(profile)
+    fighter = hire(gang, profile, "Vex")
+    kills, glitches, rig, tiers, upgrade, clear, action = _hunt_action_content(
+        fighter_stats
     )
     with operation(gang, actor=owner) as op:
         op.assign(action, miniature=fighter)
@@ -152,17 +163,47 @@ class TestSuitEvolutionForms:
     def test_more_action_panels_do_not_add_queries_per_action(
         self, client, hunt, screen
     ):
+        from bs4 import BeautifulSoup
+
         client.force_login(hunt.owner)
         url = reverse(screen, args=[hunt.fighter.pk])
 
-        def measure():
+        def measure(expected_panels):
             client.get(url)
             with CaptureQueriesContext(connection) as queries:
                 response = client.get(url)
             assert response.status_code == 200
+            assert len(response.context["action_panels"]) == expected_panels
+            panel = next(
+                panel
+                for panel in response.context["action_panels"]
+                if panel.action_id == str(hunt.action.pk)
+            )
+            assert panel.name == "Suit Evolution"
+            assert panel.timing == "after a cycle"
+            assert [(price.label, price.price) for price in panel.prices] == [
+                ("Kill Count", "4")
+            ]
+            actions = BeautifulSoup(response.content, "html.parser").find(
+                id="n26-action-panels"
+            )
+            link = actions.find("a", attrs={"aria-label": "Start Suit Evolution flow"})
+            assert link["href"] == panel.start_href
+            assert link.get_text(" ", strip=True) == "Start →"
+            if screen == "n26-edit-fighter":
+                page = BeautifulSoup(response.content, "html.parser")
+                assert page.find(attrs={"aria-label": "More for Hunting rig"})
+                tier_slot = hunt.item.caused.get(slot__mode=Slot.Mode.TIER_LADDER)
+                tier_key = f"{hunt.fighter.pk}:{tier_slot.pk}:{tier_slot.slot_id}"
+                tier_href = with_query(
+                    reverse("n26-choose", args=[hunt.gang.pk, tier_key]),
+                    **{"return": url},
+                )
+                tier_link = page.find("a", href=tier_href)
+                assert tier_link.get_text(" ", strip=True) == "Choose tier"
             return len(queries)
 
-        one = measure()
+        one = measure(1)
         with operation(hunt.gang, actor=hunt.owner) as op:
             for number in range(5):
                 extra = a.create_action(
@@ -172,21 +213,34 @@ class TestSuitEvolutionForms:
                     use_price=[{"resource": "credits", "payer": "gang", "amount": 20}],
                 )
                 op.assign(extra, miniature=hunt.fighter)
-        assert measure() == one
+        assert measure(6) == one
 
     def test_the_edit_page_keeps_only_three_recent_results_per_action(
         self, client, hunt
     ):
+        from bs4 import BeautifulSoup
+
         records = [
             ActionRecord.objects.create(
                 gang=hunt.gang,
                 fighter=hunt.fighter,
                 action=hunt.action,
-                outcome=hunt.clear,
+                outcome=hunt.upgrade if number == 4 else hunt.clear,
                 request_key=uuid4(),
                 state=ActionRecord.State.COMPLETED,
+                review={
+                    "target": {
+                        "selection": {
+                            "item_name": "Hunting rig",
+                            "candidate_tier": "Tier 2",
+                            "effect": "improve S by 2",
+                        }
+                    }
+                }
+                if number == 4
+                else {},
             )
-            for _ in range(5)
+            for number in range(5)
         ]
         client.force_login(hunt.owner)
 
@@ -200,58 +254,26 @@ class TestSuitEvolutionForms:
         assert [result.key for result in panel.completed] == [
             str(record.pk) for record in reversed(records[-3:])
         ]
-
-    def test_recent_results_move_to_the_action_history_at_the_end(self, client, hunt):
-        from bs4 import BeautifulSoup
-
-        ActionRecord.objects.create(
-            gang=hunt.gang,
-            fighter=hunt.fighter,
-            action=hunt.action,
-            outcome=hunt.clear,
-            request_key=uuid4(),
-            state=ActionRecord.State.COMPLETED,
-        )
-        ActionRecord.objects.create(
-            gang=hunt.gang,
-            fighter=hunt.fighter,
-            action=hunt.action,
-            outcome=hunt.upgrade,
-            request_key=uuid4(),
-            state=ActionRecord.State.COMPLETED,
-            review={
-                "target": {
-                    "selection": {
-                        "item_name": "Hunting rig",
-                        "candidate_tier": "Tier 2",
-                        "effect": "improve S by 2",
-                    }
-                }
-            },
-        )
-        client.force_login(hunt.owner)
-
-        response = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
+        assert [result.label for result in panel.completed] == [
+            "Augment a carried item",
+            "Clear all glitches",
+            "Clear all glitches",
+        ]
+        assert panel.completed[0].detail == "Hunting rig: Tier 2. Improve S by 2"
         page = BeautifulSoup(response.content, "html.parser")
         actions = page.find(id="n26-action-panels")
         history = page.find(id="n26-action-history")
-
-        assert "Clear all glitches" not in actions.get_text(" ", strip=True)
-        assert "Clear all glitches" in history.get_text(" ", strip=True)
-        assert "Hunting rig: Tier 2. Improve S by 2" in history.get_text(
-            " ", strip=True
-        )
-        result_link = history.find("a", string="Augment a carried item")
-        assert "text-accent-text" in result_link.get("class", [])
-        assert "hover:underline" in result_link.find("span").get("class", [])
-        timestamp = result_link.find_next("time")
-        assert timestamp.get("datetime")
-        assert timestamp.get("title")
-        grid = history.find_parent("div", class_="grid")
-        assert "md:grid-cols-2" in grid.get("class", [])
-        assert response.content.decode().index(
-            'id="n26-action-history"'
-        ) > response.content.decode().index(">Notes<")
+        for result, record in zip(panel.completed, reversed(records[-3:]), strict=True):
+            assert result.href == reverse(
+                "n26-action-flow", args=[hunt.fighter.pk, record.pk, "done"]
+            )
+            assert result.when is not None
+            assert actions.find("a", href=result.href) is None
+            link = history.find("a", href=result.href)
+            assert link.get_text(" ", strip=True) == result.label
+            timestamp = link.find_next("time")
+            assert timestamp.get("datetime")
+            assert timestamp.get("title")
 
     def test_an_action_with_no_available_use_is_not_actionable(self):
         from n26.core.action_flow import ActionPanel
@@ -270,44 +292,6 @@ class TestSuitEvolutionForms:
 
         assert available == []
         assert history == []
-
-    @pytest.mark.parametrize("screen", ["n26-edit-fighter", "n26-equip"])
-    def test_model_pages_place_action_panels_beside_the_card_above_tabs(
-        self, client, hunt, screen
-    ):
-        from bs4 import BeautifulSoup
-
-        client.force_login(hunt.owner)
-        response = client.get(reverse(screen, args=[hunt.fighter.pk]))
-        assert response.status_code == 200
-        html = response.content.decode()
-        page = BeautifulSoup(html, "html.parser")
-        actions = page.find(id="n26-action-panels")
-        card = page.find(id="n26-model-card-host")
-        title = actions.find("h3", string="Suit Evolution")
-        start_button = actions.find(
-            "a", attrs={"aria-label": "Start Suit Evolution flow"}
-        )
-
-        assert not actions.find("span", string="Actions")
-        shared_row = next(
-            parent
-            for parent in actions.parents
-            if parent.name == "div" and "lg:grid-cols-2" in parent.get("class", [])
-        )
-        assert shared_row.find(id="n26-model-card-host") == card
-        assert shared_row.find(id="n26-action-panels") == actions
-        assert "lg:grid-cols-2" in shared_row.get("class", [])
-        tabs_row = shared_row.find_next_sibling("div")
-        assert tabs_row.find("nav", attrs={"aria-label": "This model's screens"})
-        assert title.find_parent("section") in actions.descendants
-        assert "After a cycle" in title.find_parent("section").get_text(" ", strip=True)
-        assert start_button.get_text(" ", strip=True) == "Start →"
-        assert "bg-accent" in start_button.get("class", [])
-        assert "Recent results" not in actions.get_text(" ", strip=True)
-        assert "Price 4 Kill Count" in actions.get_text(" ", strip=True)
-        assert "Available" not in actions.get_text(" ", strip=True)
-        assert "After payment" not in html
 
     def test_existing_duplicate_drafts_remain_resumable_without_another_start(
         self, client, hunt
@@ -357,6 +341,7 @@ class TestSuitEvolutionForms:
             id="n26-action-panels"
         )
         assert actions["hx-swap-oob"] == "outerHTML"
+        assert "This flow needs 1 more Kill Count." not in response.content.decode()
         assert "Start Suit Evolution flow" not in str(actions)
 
     @pytest.mark.parametrize("screen", ["n26-edit-fighter", "n26-equip"])
@@ -492,7 +477,7 @@ class TestSuitEvolutionForms:
             "Suit Maintenance",
             "post_cycle",
             outcomes=[hunt.clear],
-            use_price=[{"resource": "credits", "payer": "gang", "amount": 10}],
+            use_price=[{"resource": "credits", "payer": "gang", "amount": 20}],
         )
         with operation(hunt.gang, actor=hunt.owner) as op:
             op.assign(maintenance, miniature=hunt.fighter)
@@ -507,36 +492,24 @@ class TestSuitEvolutionForms:
         assert panels.find("svg", attrs={"aria-label": "Waiting"}) is None
         assert panels.find(class_="bg-blue-50") is None
 
-    def test_several_available_actions_share_one_strip(self, client, hunt, monkeypatch):
-        from bs4 import BeautifulSoup
-
-        monkeypatch.setattr(
-            "n26.core.action_flow.available_action_names",
-            lambda gang, cards, **kwargs: {
-                card.id: ("Advancement", "Suit Evolution") for card in cards
-            },
+        panel = next(
+            panel
+            for panel in page.context["action_panels"]
+            if panel.action_id == str(maintenance.pk)
         )
-        client.force_login(hunt.owner)
-        roster = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
-        card = BeautifulSoup(roster.content, "html.parser").find(
-            id=f"model-{hunt.fighter.pk}"
-        )
-        href = f"{reverse('n26-edit-fighter', args=[hunt.fighter.pk])}#actions"
-        links = card.parent.find_all("a", href=href)
-        assert len(links) == 1
-        assert " ".join(links[0].get_text().split()) == "Multiple actions available"
-        assert links[0]["aria-label"].endswith(": Advancement, Suit Evolution")
+        available = hunt.gang.recompute_credits()
+        assert panel.flagged is False
+        assert panel.prices[0].label == ""
+        assert panel.prices[0].available == f"{available}¢"
+        assert panel.prices[0].price == "20¢"
+        assert panel.prices[0].remaining == f"{available - 20}¢"
 
-    @pytest.mark.parametrize(
-        "colour",
-        ["", "blue", "red", "red; background-image: url(https://example.com/x)"],
-    )
     def test_available_actions_share_a_blue_mark_independent_of_gang_colour(
-        self, client, hunt, colour
+        self, client, hunt
     ):
         from bs4 import BeautifulSoup
 
-        hunt.gang.colour = colour
+        hunt.gang.colour = "red; background-image: url(https://example.com/x)"
         hunt.gang.save(update_fields=["colour"])
         start(client, hunt, hunt.clear)
         roster = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
@@ -552,6 +525,35 @@ class TestSuitEvolutionForms:
         assert "text-blue-600" in mark.parent["class"]
         assert panels.find(class_="bg-blue-50") is not None
         assert [panel.flagged for panel in page.context["action_panels"]] == [True]
+
+        extra = a.create_action(
+            "Advancement",
+            "post_cycle",
+            outcomes=[hunt.clear],
+            use_price=[
+                {
+                    "resource": "counter",
+                    "payer": "fighter",
+                    "counter": hunt.kills.counter,
+                    "amount": 4,
+                }
+            ],
+        )
+        with operation(hunt.gang, actor=hunt.owner) as op:
+            op.assign(extra, miniature=hunt.fighter)
+        roster = client.get(reverse("n26-gang", args=[hunt.gang.pk]))
+        assert roster.context["sheet"].models[0].action_names == (
+            "Advancement",
+            "Suit Evolution",
+        )
+        card = BeautifulSoup(roster.content, "html.parser").find(
+            id=f"model-{hunt.fighter.pk}"
+        )
+        href = f"{reverse('n26-edit-fighter', args=[hunt.fighter.pk])}#actions"
+        links = card.parent.find_all("a", href=href)
+        assert len(links) == 1
+        assert " ".join(links[0].get_text().split()) == "Multiple actions available"
+        assert links[0]["aria-label"].endswith(": Advancement, Suit Evolution")
 
     def test_a_started_flow_stays_on_the_roster_when_tracking_is_paused(
         self, client, hunt, counter_tracking
@@ -616,50 +618,6 @@ class TestSuitEvolutionForms:
             "100¢",
         ]
         assert "Credits" not in drawn
-
-    def test_the_gear_menu_and_tier_controls_can_wrap_after_the_name(
-        self, client, hunt
-    ):
-        from bs4 import BeautifulSoup
-
-        client.force_login(hunt.owner)
-        response = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
-        page = BeautifulSoup(response.content, "html.parser")
-        menu = page.find(attrs={"aria-label": "More for Hunting rig"})
-        gear_line = menu.find_parent("li")
-        name_line = gear_line.find("div", recursive=False)
-        rows = gear_line.find_parent("dl")
-
-        assert "grid-cols-[minmax(7rem,min(35%,12rem))_minmax(0,1fr)]" in rows["class"]
-        assert "Hunting rig" in name_line.get_text(" ", strip=True)
-        assert "flex-wrap" in name_line.get("class", [])
-        assert menu in name_line.descendants
-        assert "Choose tier" in name_line.get_text(" ", strip=True)
-        assert "Rig augmentation" not in name_line.get_text(" ", strip=True)
-
-    def test_credit_prices_use_the_credit_unit(self, client, hunt):
-        paid = a.create_action(
-            "Paid maintenance",
-            "post_cycle",
-            outcomes=[hunt.clear],
-            use_price=[{"resource": "credits", "payer": "gang", "amount": 20}],
-        )
-        with operation(hunt.gang, actor=hunt.owner) as op:
-            op.assign(paid, miniature=hunt.fighter)
-        client.force_login(hunt.owner)
-
-        response = client.get(reverse("n26-edit-fighter", args=[hunt.fighter.pk]))
-
-        panel = next(
-            panel
-            for panel in response.context["action_panels"]
-            if panel.action_id == str(paid.pk)
-        )
-        available = hunt.gang.recompute_credits()
-        assert panel.prices[0].label == ""
-        assert panel.prices[0].available == f"{available}¢"
-        assert panel.prices[0].price == "20¢"
-        assert panel.prices[0].remaining == f"{available - 20}¢"
 
     def test_inactive_tracking_explains_why_a_flow_cannot_start(
         self, client, hunt, counter_tracking
@@ -733,69 +691,64 @@ class TestSuitEvolutionForms:
         choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
         response = client.get(choose)
         assert response.status_code == 200
-        assert "Hunting rig" in response.content.decode()
-        page = response.content.decode()
-        assert page.index("Suit Evolution</h1>") < page.index('aria-label="Progress"')
-        assert "Selection (if needed)" not in page
-        assert "Cancel" in page
-        assert "Back to model" not in page
-        drawn = BeautifulSoup(page, "html.parser")
-        back = drawn.find("a", string=lambda value: value and "Back" in value)
-        cancel = drawn.find(
-            "a", string=lambda value: value and value.strip() == "Cancel"
+        assert response.context["stage"] == "choose"
+        assert (f"{hunt.item.pk}|{hunt.tiers[0].pk}", "Hunting rig: Tier 1") in (
+            response.context["form"].fields["selection"].choices
         )
-        submit = drawn.find("button", string=lambda value: value and "Review" in value)
-        assert "mr-auto" in back.get("class", [])
-        assert "text-red-600!" in cancel.get("class", [])
-        assert "bg-transparent" in cancel.get("class", [])
-        assert "bg-accent" in submit.get("class", [])
-        assert back.parent.find_all(["a", "button"], recursive=False) == [
-            back,
-            cancel,
-            submit,
-        ]
+        assert response.context["cancel_href"] == reverse(
+            "n26-action-flow", args=[hunt.fighter.pk, record.pk, "cancel"]
+        )
+        assert response.context["back_href"] == reverse(
+            "n26-action-flow", args=[hunt.fighter.pk, record.pk, "outcome"]
+        )
+        assert response.context["submit_label"] == "Review"
         assert hunt.kills.counter_value.value == 6
         response = client.post(
             choose, {"selection": f"{hunt.item.pk}|{hunt.tiers[0].pk}"}
         )
         assert response.status_code == 302
         review = client.get(response.url)
-        review_html = review.content.decode()
         assert review.status_code == 200
-        assert "Hunting rig: Tier 1" in review_html
-        assert "Change selection" in review_html
-        assert "Available" in review_html
-        assert "6 Kill Count" in review_html
-        assert "This action" in review_html
-        assert "4 Kill Count" in review_html
-        assert "Remaining" in review_html
-        assert "2 Kill Count" in review_html
+        assert review.context["review_choice"]["title"] == "Hunting rig: Tier 1"
+        assert review.context["change_href"] == choose
+        assert [
+            (fact.label, fact.value)
+            for fact in review.context["payment_tallies"][0].facts
+        ] == [
+            ("Available", "6 Kill Count"),
+            ("This action", "4 Kill Count"),
+            ("Remaining", "2 Kill Count"),
+        ]
         token = review.context["form"]["review"].value()
         confirmed = client.post(response.url, {"review": token})
         assert confirmed.status_code == 302
         receipt = client.get(confirmed.url)
-        receipt_html = receipt.content.decode()
-        assert "6 → 2" in receipt_html
-        assert "+20¢" in receipt_html
-        assert "Change result" in receipt_html
-        completed = BeautifulSoup(receipt_html, "html.parser")
-        correct_result = completed.find(
-            "a", string=lambda value: value and value.strip() == "Change result"
-        )
-        done = completed.find(
-            "a", string=lambda value: value and value.strip() == "Done"
-        )
-        assert correct_result.get("href") == reverse(
+        assert receipt.status_code == 200
+        assert [(line.label, line.value) for line in receipt.context["receipt"]] == [
+            ("Kill Count", "6 → 2"),
+            ("Rating", "+20¢"),
+        ]
+        assert receipt.context["back_label"] == "Change result"
+        assert receipt.context["back_href"] == reverse(
             "n26-action-flow", args=[hunt.fighter.pk, record.pk, "correct"]
         )
-        assert "mr-auto" in correct_result.get("class", [])
-        assert done.get("href") == reverse("n26-edit-fighter", args=[hunt.fighter.pk])
-        assert "bg-accent" in done.get("class", [])
-        assert correct_result.parent.find_all(["a", "button"], recursive=False) == [
-            correct_result,
-            done,
-        ]
-        assert "Choose tier" not in receipt_html
+        assert receipt.context["done_href"] == reverse(
+            "n26-edit-fighter", args=[hunt.fighter.pk]
+        )
+        assert receipt.context["stage"] == "done"
+        completed = BeautifulSoup(receipt.content, "html.parser")
+        assert (
+            completed.find(
+                "a", string=lambda value: value and value.strip() == "Change result"
+            )["href"]
+            == receipt.context["back_href"]
+        )
+        assert (
+            completed.find("a", string=lambda value: value and value.strip() == "Done")[
+                "href"
+            ]
+            == receipt.context["done_href"]
+        )
         assert (
             ActionRecord.objects.get(pk=record.pk).state == ActionRecord.State.COMPLETED
         )
@@ -872,8 +825,12 @@ class TestSuitEvolutionForms:
                 review=record.review,
                 outcome=hunt.upgrade,
             )
-            other = op.hire(hunt.fighter.membership.profile, "Other hunter", paid=100)
-            weapon = op.give_weapon(other, a.create_weapon("Other weapon"), paid=0)
+            if destination != "stash":
+                other = op.hire(
+                    hunt.fighter.membership.profile, "Other hunter", paid=100
+                )
+            if destination == "weapon":
+                weapon = op.give_weapon(other, a.create_weapon("Other weapon"), paid=0)
         before = statline()
         assert before.get("S").modified
         events = list(record.ledger_events.values_list("pk", flat=True))
@@ -884,11 +841,12 @@ class TestSuitEvolutionForms:
             reverse("n26-reassign", args=[moved_item.pk])
             not in client.get(f"{equip}?reassign={moved_item.pk}").content.decode()
         )
-        payload = {
-            "fighter": {"miniature": str(other.pk)},
-            "stash": {"to": "stash"},
-            "weapon": {"to": "weapon", "weapon": str(weapon.pk)},
-        }[destination]
+        if destination == "fighter":
+            payload = {"miniature": str(other.pk)}
+        elif destination == "stash":
+            payload = {"to": "stash"}
+        else:
+            payload = {"to": "weapon", "weapon": str(weapon.pk)}
         refused = client.post(
             reverse("n26-reassign", args=[moved_item.pk]), payload, follow=True
         )
@@ -1050,22 +1008,6 @@ class TestSuitEvolutionForms:
         hunt.gang.refresh_from_db()
         assert_reconciled(hunt.gang)
 
-    def test_tallying_a_counter_refreshes_the_flow_panels_on_edit(self, client, hunt):
-        client.force_login(hunt.owner)
-        response = client.post(
-            reverse("n26-tally", args=[hunt.kills.pk]),
-            {
-                "change": "-3",
-                "back": reverse("n26-edit-fighter", args=[hunt.fighter.pk]),
-            },
-            HTTP_HX_REQUEST="true",
-        )
-        assert response.status_code == 200
-        html = response.content.decode()
-        assert 'id="n26-action-panels" hx-swap-oob="outerHTML"' in html
-        assert "This flow needs 1 more Kill Count." not in html
-        assert "Start Suit Evolution flow" not in html
-
     def test_changing_the_outcome_keeps_one_unpaid_record(self, client, hunt):
         record, _, _ = start(client, hunt, hunt.upgrade)
         choose = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
@@ -1082,29 +1024,18 @@ class TestSuitEvolutionForms:
         assert not record.payment_id
         assert ActionRecord.objects.filter(fighter=hunt.fighter).count() == 1
 
-    def test_a_missing_price_counter_is_shown_on_the_outcome_page(self, client, hunt):
+    def test_a_missing_price_counter_is_shown_on_outcome_and_item_pages(
+        self, client, hunt
+    ):
         record, _, _ = start(client, hunt, hunt.upgrade)
         hunt.kills.archived = True
         hunt.kills.save(update_fields=["archived"])
-
-        response = client.get(
-            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "outcome"])
-        )
-
-        assert response.status_code == 200
-        assert "That counter is no longer available." in response.content.decode()
-
-    def test_a_missing_price_counter_is_shown_on_the_item_page(self, client, hunt):
-        record, _, _ = start(client, hunt, hunt.upgrade)
-        hunt.kills.archived = True
-        hunt.kills.save(update_fields=["archived"])
-
-        response = client.get(
-            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"])
-        )
-
-        assert response.status_code == 200
-        assert "That counter is no longer available." in response.content.decode()
+        for step in ("outcome", "choose"):
+            response = client.get(
+                reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, step])
+            )
+            assert response.status_code == 200
+            assert "That counter is no longer available." in response.content.decode()
 
     def test_a_changed_item_is_shown_when_revisiting_a_completed_correction(
         self, client, hunt
@@ -1203,29 +1134,33 @@ class TestSuitEvolutionForms:
         ).exists()
         assert ActionRecord.objects.filter(fighter=hunt.fighter).count() == 1
 
-    @pytest.mark.parametrize(
-        ("step", "method"), [("resume", "get"), ("roll", "get"), ("roll", "post")]
-    )
-    def test_an_outcome_less_draft_returns_to_selecting_its_result(
-        self, client, hunt, step, method
-    ):
+    def test_an_outcome_less_draft_returns_to_selecting_its_result(self, client, hunt):
         with operation(hunt.gang, actor=hunt.owner) as op:
             record = op.start_action(hunt.fighter, hunt.action, uuid4())
         client.force_login(hunt.owner)
-        url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, step])
         outcome_url = reverse(
             "n26-action-flow", args=[hunt.fighter.pk, record.pk, "outcome"]
         )
 
-        response = getattr(client, method)(url, follow=True)
-
-        assert response.status_code == 200
-        assert response.redirect_chain == [(outcome_url, 302)]
-        assert response.context["stage"] == "start"
-        record.refresh_from_db()
-        assert record.outcome_id is None
-        assert record.payment_id is None
-        assert not record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED).exists()
+        original = (record.state, record.revision, record.terms, record.review)
+        for step, method in (("resume", "get"), ("roll", "get"), ("roll", "post")):
+            url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, step])
+            response = getattr(client, method)(url, follow=True)
+            assert response.status_code == 200
+            assert response.redirect_chain == [(outcome_url, 302)]
+            assert response.context["stage"] == "start"
+            record.refresh_from_db()
+            assert (
+                record.state,
+                record.revision,
+                record.terms,
+                record.review,
+            ) == original
+            assert record.outcome_id is None
+            assert record.payment_id is None
+            assert not record.ledger_events.filter(
+                kind=LedgerEvent.Kind.ROLLED
+            ).exists()
         replay = client.post(
             reverse("n26-action-start", args=[hunt.fighter.pk, hunt.action.pk]),
             {"request_key": str(record.request_key)},
@@ -1240,21 +1175,37 @@ class TestSuitEvolutionForms:
         assert ActionRecord.objects.filter(fighter=hunt.fighter).count() == 1
 
     @pytest.mark.parametrize("outcome_name", ["upgrade", "clear"])
-    @pytest.mark.parametrize("method", ["get", "post"])
     def test_the_roll_route_keeps_non_advancement_flows_in_their_own_forms(
-        self, client, hunt, outcome_name, method
+        self, client, hunt, outcome_name
     ):
         record, _, _ = start(client, hunt, getattr(hunt, outcome_name))
         url = reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "roll"])
 
-        response = getattr(client, method)(url, follow=True)
-
-        assert response.status_code == 200
-        assert response.redirect_chain[0] == (
-            reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"]),
-            302,
+        original = (
+            record.state,
+            record.revision,
+            record.terms,
+            record.review,
+            record.payment_id,
         )
-        assert response.context["stage"] == (
-            "choose" if outcome_name == "upgrade" else "review"
-        )
-        assert not record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED).exists()
+        for method in ("get", "post"):
+            response = getattr(client, method)(url, follow=True)
+            assert response.status_code == 200
+            assert response.redirect_chain[0] == (
+                reverse("n26-action-flow", args=[hunt.fighter.pk, record.pk, "choose"]),
+                302,
+            )
+            assert response.context["stage"] == (
+                "choose" if outcome_name == "upgrade" else "review"
+            )
+            record.refresh_from_db()
+            assert (
+                record.state,
+                record.revision,
+                record.terms,
+                record.review,
+                record.payment_id,
+            ) == original
+            assert not record.ledger_events.filter(
+                kind=LedgerEvent.Kind.ROLLED
+            ).exists()

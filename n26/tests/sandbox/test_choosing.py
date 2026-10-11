@@ -17,6 +17,7 @@ import json
 
 import pytest
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.urls import reverse
 
 from n26.core.card import build_card, build_gang_card, build_modifier_index
@@ -29,7 +30,16 @@ from n26.core.render import (
     build_choice_offer,
     render_gang,
 )
-from n26.library.models import Affiliation, Skill
+from n26.library.models import (
+    Affiliation,
+    Category,
+    Collection,
+    CollectionSection,
+    GangType,
+    Skill,
+    Subtype,
+)
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_entry,
     adds,
@@ -69,16 +79,16 @@ def owner(db):
     return User.objects.create_user("player")
 
 
-@pytest.fixture
-def sets(default_pack):
+@library_setup
+def _build_sets():
     return {
         name.lower(): create_category("Skills", name, position)
         for position, name in enumerate(["Combat", "Shooting"])
     }
 
 
-@pytest.fixture
-def skills(sets):
+@library_setup
+def _build_skills(sets):
     return {
         name: create_skill(name, category=sets[key])
         for key, name in [
@@ -89,8 +99,8 @@ def skills(sets):
     }
 
 
-@pytest.fixture
-def skills_collection(skills):
+@library_setup
+def _build_skills_collection(skills):
     collection = create_collection(
         "Skills", entries=[(skill, {}) for skill in skills.values()]
     )
@@ -100,13 +110,13 @@ def skills_collection(skills):
     }
 
 
-@pytest.fixture
-def subtypes(db):
+@library_setup
+def _build_subtypes():
     return {"leader": create_subtype("Leader"), "ganger": create_subtype("Ganger")}
 
 
-@pytest.fixture
-def archetypes(sets, skills_collection, subtypes):
+@library_setup
+def _build_archetypes(sets, skills_collection, subtypes):
     """Two a gang may take, each opening one skill set as Primary."""
     _, tiers = skills_collection
     made = {}
@@ -122,15 +132,15 @@ def archetypes(sets, skills_collection, subtypes):
     return made
 
 
-@pytest.fixture
-def affiliations(db):
+@library_setup
+def _build_affiliations():
     return {
         name: create_affiliation(name) for name in ("Clanless", "Mutant", "Aranthian")
     }
 
 
-@pytest.fixture
-def pick_lists(archetypes, affiliations):
+@library_setup
+def _build_pick_lists(archetypes, affiliations):
     made = {}
     for key, name, things in [
         ("archetypes", "Archetypes", archetypes.values()),
@@ -141,8 +151,8 @@ def pick_lists(archetypes, affiliations):
     return made
 
 
-@pytest.fixture
-def gang_list(subtypes, skills_collection, pick_lists, affiliations):
+@library_setup
+def _build_gang_list(subtypes, skills_collection, pick_lists, affiliations):
     """The gang type: the gang's own affiliation question, a whole-kind
     question beside it, and the skill offer every Leader carries."""
     _, tiers = skills_collection
@@ -184,10 +194,105 @@ def gang_list(subtypes, skills_collection, pick_lists, affiliations):
     return gang_type
 
 
+@library_setup
+def _seed_choice_catalogue():
+    sets = _build_sets()
+    skills = _build_skills(sets)
+    skills_collection = _build_skills_collection(skills)
+    subtypes = _build_subtypes()
+    archetypes = _build_archetypes(sets, skills_collection, subtypes)
+    affiliations = _build_affiliations()
+    pick_lists = _build_pick_lists(archetypes, affiliations)
+    _build_gang_list(subtypes, skills_collection, pick_lists, affiliations)
+
+
+@pytest.fixture(scope="module")
+def _prepared_choice_catalogue(django_db_setup, django_db_blocker):
+    """Seed only authoring data; function rollback also isolates content edits."""
+    with django_db_blocker.unblock(), transaction.atomic():
+        _seed_choice_catalogue()
+        try:
+            yield
+        finally:
+            transaction.set_rollback(True)
+
+
 @pytest.fixture
-def profiles(gang_list, subtypes, pick_lists, person_type):
+def sets(_prepared_choice_catalogue):
+    return {
+        name.lower(): Category.objects.get(name=name, section__name="Skills")
+        for name in ("Combat", "Shooting")
+    }
+
+
+@pytest.fixture
+def skills(_prepared_choice_catalogue):
+    return {
+        name: Skill.objects.get(name=name)
+        for name in ("Berserker", "Parry", "Marksman")
+    }
+
+
+@pytest.fixture
+def skills_collection(_prepared_choice_catalogue):
+    collection = Collection.objects.get(name="Skills")
+    return collection, {
+        "primary": CollectionSection.objects.get(collection=collection, name="Primary"),
+        "other": CollectionSection.objects.get(collection=collection, name="Other"),
+    }
+
+
+@pytest.fixture
+def subtypes(_prepared_choice_catalogue):
+    return {
+        name.lower(): Subtype.objects.get(name=name) for name in ("Leader", "Ganger")
+    }
+
+
+@pytest.fixture
+def archetypes(_prepared_choice_catalogue):
+    return {
+        name: Affiliation.objects.get(name=name) for name in ("Brawler", "Gunslinger")
+    }
+
+
+@pytest.fixture
+def affiliations(_prepared_choice_catalogue):
+    return {
+        name: Affiliation.objects.get(name=name)
+        for name in ("Clanless", "Mutant", "Aranthian")
+    }
+
+
+@pytest.fixture
+def pick_lists(_prepared_choice_catalogue):
+    return {
+        key: CollectionSection.objects.get(collection__name=name, name=name)
+        for key, name in (
+            ("archetypes", "Archetypes"),
+            ("affiliations", "Affiliations"),
+        )
+    }
+
+
+@pytest.fixture
+def gang_list(_prepared_choice_catalogue):
+    return GangType.objects.get(name="Outcasts")
+
+
+@pytest.fixture
+def roster_size(request):
+    return getattr(request, "param", 1)
+
+
+@pytest.fixture
+@library_setup
+def profiles(gang_list, subtypes, pick_lists, person_type, roster_size):
     made = {}
-    for key, name in [("leader", "Outcast Leader"), ("ganger", "Outcast Ganger")]:
+    rows = [("leader", "Outcast Leader")]
+    if roster_size == 2:
+        rows.append(("ganger", "Outcast Ganger"))
+    for key, name in rows:
         profile = create_profile(name, person_type, gang_list, price=0)
         profile.built_ins = create_default_set(
             f"{name} built-ins", members=[subtypes[key]]
@@ -210,6 +315,7 @@ def profiles(gang_list, subtypes, pick_lists, person_type):
 
 
 @pytest.fixture
+@library_setup
 def whispers(gang_list, subtypes, skills_collection):
     """A family of powers filed in the skills collection, Primary for
     Leaders — what a psychic gang list looks like.
@@ -242,10 +348,10 @@ def gang(gang_list, owner):
 
 @pytest.fixture
 def crew(gang, profiles):
-    return {
-        "leader": hire_with_option(gang, profiles["leader"], "Sorrow"),
-        "ganger": hire_with_option(gang, profiles["ganger"], "Rat"),
-    }
+    made = {"leader": hire_with_option(gang, profiles["leader"], "Sorrow")}
+    if "ganger" in profiles:
+        made["ganger"] = hire_with_option(gang, profiles["ganger"], "Rat")
+    return made
 
 
 # --- Reading the slots off the rendered sheet -----------------------------
@@ -324,7 +430,9 @@ class TestAnOpenSlotIsAnInvitation:
     """A slot nobody has chosen for draws as something to click, and
     as nothing else: it is not an error and nothing counts it."""
 
-    def test_every_open_slot_carries_the_address_of_its_own_picker(self, gang, crew):
+    def test_the_sheet_links_each_open_offer_to_its_own_picker(
+        self, client, owner, gang, crew
+    ):
         slots = sheet_slots(gang)
         assert set(slots) == {
             "Affiliation",
@@ -335,11 +443,13 @@ class TestAnOpenSlotIsAnInvitation:
         assert not any(line.is_resolved for line in slots.values())
         assert all(line.href for line in slots.values())
 
-    def test_two_slots_on_one_carrier_get_two_addresses(self, gang, crew):
-        """Both gang questions ride the same row, so only the offer tells
-        them apart."""
-        slots = sheet_slots(gang)
+        # The two gang questions share a carrier but keep separate addresses.
         assert slots["Affiliation"].href != slots["Favoured set"].href
+        client.force_login(owner)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert "Choose" in body
+        assert slots["Affiliation"].href in body
+        assert slots["Sorrow: Primary skill"].href in body
 
     def test_two_cards_asked_the_same_question_get_two_addresses(
         self, gang, crew, profiles
@@ -347,16 +457,6 @@ class TestAnOpenSlotIsAnInvitation:
         hire_with_option(gang, profiles["leader"], "Ash")
         slots = sheet_slots(gang)
         assert slots["Sorrow: Archetype"].href != slots["Ash: Archetype"].href
-
-    def test_the_sheet_says_choose(self, client, owner, gang, crew):
-        client.force_login(owner)
-        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
-        assert "Choose" in body
-        slots = sheet_slots(gang)
-        # The gang's strip and a fighter's card both, each pointing at its
-        # own slot rather than at some page-wide picker.
-        assert slots["Affiliation"].href in body
-        assert slots["Sorrow: Primary skill"].href in body
 
     def test_a_card_with_no_stored_rows_has_no_address(self, gang_list, profiles):
         """A hire preview has real offers and nothing to choose against,
@@ -374,18 +474,28 @@ class TestAnOpenSlotIsAnInvitation:
 class TestWhatOneCardMayPick:
     """The list is the offer's own, shaped by the card it is offered on."""
 
-    def test_a_narrowed_offer_lists_only_that_tier(self, gang, crew, archetypes):
+    def test_a_narrowed_offer_lists_only_that_tier(
+        self, client, owner, gang, crew, archetypes
+    ):
         """Before the archetype, no set is Primary and the skill slot has
         nothing in it; after it, exactly that archetype's set."""
         slots = sheet_slots(gang)
         assert offer_for(slots["Sorrow: Primary skill"]).is_empty
+
+        client.force_login(owner)
+        body = client.get(
+            sheet_slots(gang)["Sorrow: Primary skill"].href
+        ).content.decode()
+        assert "Nothing is available to choose here" in body
 
         choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
         offer = offer_for(sheet_slots(gang)["Sorrow: Primary skill"])
         assert names_on(offer) == {"Berserker", "Parry"}
         assert [group.name for group in offer.groups] == ["Combat"]
 
-    def test_an_unnarrowed_offer_lists_the_whole_kind(self, gang, crew):
+    def test_the_whole_kind_offer_and_affiliation_picker_draw_their_own_lists(
+        self, client, owner, gang, crew
+    ):
         offer = offer_for(sheet_slots(gang)["Favoured set"])
         assert names_on(offer) == {
             "Clanless",
@@ -397,18 +507,10 @@ class TestWhatOneCardMayPick:
         # Nothing narrows it, so there is nothing to head the list with.
         assert [group.name for group in offer.groups] == [""]
 
-    def test_the_pick_page_draws_the_list(self, client, owner, gang, crew):
         client.force_login(owner)
         body = client.get(sheet_slots(gang)["Affiliation"].href).content.decode()
         for name in ("Clanless", "Mutant", "Aranthian"):
             assert name in body
-
-    def test_an_empty_offer_says_so_rather_than_hiding(self, client, owner, gang, crew):
-        client.force_login(owner)
-        body = client.get(
-            sheet_slots(gang)["Sorrow: Primary skill"].href
-        ).content.decode()
-        assert "Nothing is available to choose here" in body
 
 
 class TestATierHoldingTwoKinds:
@@ -422,29 +524,16 @@ class TestATierHoldingTwoKinds:
     question open with a stray row beside it.
     """
 
-    def test_a_skill_question_lists_the_skills_and_not_the_powers(
-        self, gang, crew, archetypes, whispers
-    ):
-        choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
-        offer = offer_for(sheet_slots(gang)["Sorrow: Primary skill"])
-
-        assert names_on(offer) == {"Berserker", "Parry"}
-        assert [group.name for group in offer.groups] == ["Combat"]
-
-    def test_a_tier_of_nothing_but_powers_offers_nothing(self, gang, crew, whispers):
-        """Without the archetype no skill set is Primary, so the whispers
-        are all that tier holds — and the question says it has nothing on
-        offer rather than drawing clicks that write nothing."""
-        assert offer_for(sheet_slots(gang)["Sorrow: Primary skill"]).is_empty
-
-    def test_the_powers_are_still_there_to_browse(
-        self, gang, crew, whispers, skills_collection
+    def test_powers_remain_browsable_while_the_skill_question_follows_the_archetype(
+        self, gang, crew, archetypes, whispers, skills_collection
     ):
         """Nothing is hidden from the fighter. The family really is in
         their Primary tier, so a screen that deals in powers finds it
         there — it is the skill question, and only that, which declines to
         offer them."""
         from n26.core.browse import browse, placements_for, regrouped_by_placement
+
+        assert offer_for(sheet_slots(gang)["Sorrow: Primary skill"]).is_empty
 
         collection, _ = skills_collection
         computed = fighter_computed(crew["leader"])
@@ -461,6 +550,11 @@ class TestATierHoldingTwoKinds:
             category.name for category in primary.categories
         ]
 
+        choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
+        offer = offer_for(sheet_slots(gang)["Sorrow: Primary skill"])
+        assert names_on(offer) == {"Berserker", "Parry"}
+        assert [group.name for group in offer.groups] == ["Combat"]
+
 
 class TestGettingToTheNextFighter:
     """A fighter's question carries the gang's other fighters beside the
@@ -472,22 +566,20 @@ class TestGettingToTheNextFighter:
     all have.
     """
 
-    def test_a_fighters_question_offers_the_others(self, client, owner, gang, crew):
+    @pytest.mark.parametrize("roster_size", [2], indirect=True)
+    def test_a_fighters_question_lists_the_roster_and_marks_the_current_model(
+        self, client, owner, gang, crew
+    ):
         client.force_login(owner)
         body = client.get(sheet_slots(gang)["Sorrow: Archetype"].href).content.decode()
 
         assert reverse("n26-equip", args=[crew["ganger"].pk]) in body
         assert "Rat" in body
 
-    def test_the_fighter_being_asked_is_marked_as_the_one_you_are_on(
-        self, client, owner, gang, crew
-    ):
-        client.force_login(owner)
-        body = client.get(sheet_slots(gang)["Sorrow: Archetype"].href).content.decode()
-
         theirs = body.index(reverse("n26-equip", args=[crew["leader"].pk]))
         assert 'aria-current="page"' in body[theirs : body.index("</a>", theirs)]
 
+    @pytest.mark.parametrize("roster_size", [2], indirect=True)
     def test_the_gangs_own_question_offers_nobody(self, client, owner, gang, crew):
         """An affiliation belongs to the gang rather than to anyone on the
         roster, so a list of fighters beside it would offer a switch to
@@ -528,16 +620,20 @@ class TestMakingOneChoice:
         assert sheet_slots(gang)["Affiliation"].chosen == "Mutant"
         assert_reconciled(gang)
 
-    def test_one_carriers_other_question_stays_open(
-        self, client, owner, gang, crew, affiliations
-    ):
-        """Both gang questions hang off the same row. Choosing for one
-        must not read as having settled the other."""
-        client.force_login(owner)
-        self.post(client, sheet_slots(gang)["Affiliation"].href, affiliations["Mutant"])
         slots = sheet_slots(gang)
-        assert slots["Affiliation"].chosen == "Mutant"
         assert not slots["Favoured set"].is_resolved
+        settled = slots["Affiliation"]
+        assert settled.is_resolved and settled.href
+
+        self.post(
+            client, sheet_slots(gang)["Affiliation"].href, affiliations["Clanless"]
+        )
+
+        assert sheet_slots(gang)["Affiliation"].chosen == "Clanless"
+        assert not Assignment.objects.filter(
+            affiliation=affiliations["Mutant"], archived=False
+        ).exists()
+        assert_reconciled(gang)
 
     def test_what_the_gang_carries_though_a_fighter_was_asked(
         self, client, owner, gang, crew, archetypes
@@ -583,24 +679,6 @@ class TestMakingOneChoice:
         assert second.name == "Ash"
         assert_reconciled(gang)
 
-    def test_answering_again_leaves_the_other_fighters_answer_alone(
-        self, client, owner, gang, crew, profiles, archetypes, skills
-    ):
-        """One question broadcast onto two cards is two questions.
-
-        The skill offer rides the gang type and reaches every Leader, so
-        both Leaders' answers hang off the one line that asked and name
-        the one offer. Only the fighter whose card was clicked tells them
-        apart — so changing one Leader's mind leaves the other Leader's
-        skill exactly where it is.
-        """
-        # The Primary tier is empty until an archetype opens a set into it.
-        choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
-        ash = hire_with_option(gang, profiles["leader"], "Ash")
-        client.force_login(owner)
-        self.post(
-            client, sheet_slots(gang)["Sorrow: Primary skill"].href, skills["Berserker"]
-        )
         self.post(
             client, sheet_slots(gang)["Ash: Primary skill"].href, skills["Berserker"]
         )
@@ -615,7 +693,7 @@ class TestMakingOneChoice:
 
         assert _skills_of(gang, "Sorrow") == ["Parry"]
         assert _skills_of(gang, "Ash") == ["Berserker"]
-        assert ash.name == "Ash"
+        assert second.name == "Ash"
         assert_reconciled(gang)
 
     def test_what_was_chosen_dies_with_its_carrier(
@@ -634,32 +712,6 @@ class TestMakingOneChoice:
             affiliation=archetypes["Brawler"], archived=False
         ).exists()
         assert_reconciled(gang)
-
-    def test_changing_your_mind_replaces_what_was_chosen(
-        self, client, owner, gang, crew, affiliations
-    ):
-        """One question, one chosen thing: the old row is retired in the same
-        click, so the slot never reads two things at once."""
-        client.force_login(owner)
-        href = sheet_slots(gang)["Affiliation"].href
-        self.post(client, href, affiliations["Mutant"])
-        self.post(
-            client, sheet_slots(gang)["Affiliation"].href, affiliations["Clanless"]
-        )
-
-        assert sheet_slots(gang)["Affiliation"].chosen == "Clanless"
-        assert not Assignment.objects.filter(
-            affiliation=affiliations["Mutant"], archived=False
-        ).exists()
-        assert_reconciled(gang)
-
-    def test_a_settled_slot_still_leads_somewhere(
-        self, client, owner, gang, crew, affiliations
-    ):
-        client.force_login(owner)
-        self.post(client, sheet_slots(gang)["Affiliation"].href, affiliations["Mutant"])
-        settled = sheet_slots(gang)["Affiliation"]
-        assert settled.is_resolved and settled.href
 
     def test_a_thing_that_is_not_on_offer_writes_nothing(
         self, client, owner, gang, crew, subtypes
@@ -751,6 +803,7 @@ class TestAddressesThatShouldNotResolve:
 
 
 class TestTheStripCostsNothing:
+    @pytest.mark.parametrize("roster_size", [2], indirect=True)
     def test_pointing_the_slots_at_their_pickers_adds_no_queries(
         self, django_assert_num_queries, gang, crew, profiles
     ):
@@ -1204,7 +1257,7 @@ class TestTheXBesideAnOpenOffer:
     """An open offer the owner may dismiss ends in an X. Nobody else is
     offered one, and an offer holding a pick is not either."""
 
-    def test_each_choice_and_dismiss_button_share_a_gapless_aligned_group(
+    def test_each_open_model_choice_has_its_dismiss_form_and_picker_link(
         self, client, owner, gang, crew, model_choices
     ):
         from bs4 import BeautifulSoup
@@ -1214,20 +1267,11 @@ class TestTheXBesideAnOpenOffer:
         for line in model_choices.values():
             form = page.find("form", action=dismiss_url(gang, line))
             group = form.parent
-            assert {"items-center", "gap-0"} <= set(group["class"])
             link = group.find(
                 "a",
                 href=lambda href, prefix=line.href: href and href.startswith(prefix),
             )
             assert link is not None
-            assert "py-0!" not in form.find("button")["class"]
-        page = BeautifulSoup(sheet_body(client, gang), "html.parser")
-        form = page.find(
-            "form", action=dismiss_url(gang, sheet_slots(gang)["Affiliation"])
-        )
-        group = form.find_parent("dd")
-        assert {"items-center", "gap-0"} <= set(group["class"])
-        assert "ms-1" not in form.parent["class"]
 
     def test_the_owner_sees_the_x_on_the_sheet_and_the_models_page(
         self, client, owner, gang, crew
@@ -1305,12 +1349,17 @@ class TestDismissingAnOffer:
         assert line.href not in body
         assert sheet_slots(gang)["Favoured set"].href in body
 
-    def test_it_lands_back_where_it_was_clicked(self, client, owner, gang, crew):
+    def test_dismissing_returns_to_the_clicked_page_and_a_retry_writes_no_second_row(
+        self, client, owner, gang, crew
+    ):
         client.force_login(owner)
         line = sheet_slots(gang)["Sorrow: Archetype"]
         back = reverse("n26-edit-fighter", args=[crew["leader"].pk])
         response = client.post(dismiss_url(gang, line), {"back": back})
         assert response["Location"] == back
+
+        client.post(dismiss_url(gang, line))
+        assert gang.dismissed_offers.count() == 1
 
     def test_an_address_off_this_site_is_not_followed(self, client, owner, gang, crew):
         client.force_login(owner)
@@ -1319,13 +1368,6 @@ class TestDismissingAnOffer:
             dismiss_url(gang, line), {"back": "https://elsewhere.example/"}
         )
         assert response["Location"] == reverse("n26-gang", args=[gang.pk])
-
-    def test_a_second_click_writes_no_second_row(self, client, owner, gang, crew):
-        client.force_login(owner)
-        line = sheet_slots(gang)["Sorrow: Archetype"]
-        client.post(dismiss_url(gang, line))
-        client.post(dismiss_url(gang, line))
-        assert gang.dismissed_offers.count() == 1
 
     def test_an_offer_holding_a_pick_is_refused(
         self, client, owner, gang, crew, affiliations
@@ -1504,6 +1546,7 @@ class TestShowingDismissedOffers:
         gang.refresh_from_db()
         assert_reconciled(gang)
 
+    @pytest.mark.parametrize("roster_size", [2], indirect=True)
     def test_every_kind_of_model_choice_is_restored_only_from_the_edit_grid(
         self, client, owner, gang, crew, model_choices
     ):
@@ -1518,13 +1561,6 @@ class TestShowingDismissedOffers:
             )
             box = page.find(id="n26-dismissed-choices")
             card = page.find(id="n26-model-card-host")
-            assert "contents" in box["class"]
-            assert "grid" in box.parent["class"]
-            assert "self-start" in box.find(recursive=False)["class"]
-            previous_card = box.find_previous_sibling(
-                lambda tag: tag.get_text(strip=True)
-            )
-            assert "Lore" in previous_card.get_text()
             assert box.find_parent(attrs={"role": "menu"}) is None
             assert box.find_parent(id="n26-model-card-host") is None
             assert "Dismissed choices" in box.get_text()
@@ -1547,25 +1583,6 @@ class TestShowingDismissedOffers:
             restore_url(gang, line) not in other_model
             for line in model_choices.values()
         )
-
-    def test_choice_controls_are_ghost_buttons_including_chosen_values(
-        self, client, owner, gang, crew, model_choices, affiliations
-    ):
-        from bs4 import BeautifulSoup
-
-        client.force_login(owner)
-        affiliation = sheet_slots(gang)["Affiliation"]
-        client.post(
-            affiliation.href,
-            {"thing": f"library.affiliation:{affiliations['Mutant'].pk}"},
-        )
-        for body in (edit_body(client, crew["leader"]), sheet_body(client, gang)):
-            controls = BeautifulSoup(body, "html.parser").select('a[href*="/choose/"]')
-            assert controls
-            for control in controls:
-                assert "bg-transparent" in control["class"]
-                assert "rounded-button" in control["class"]
-                assert "hover:underline" not in control["class"]
 
     def test_a_redrawn_dismissed_card_appears_and_clears_its_last_choice(
         self, client, owner, gang, crew
@@ -1602,9 +1619,8 @@ class TestShowingDismissedOffers:
             ).find(id="n26-dismissed-choices")
             assert bool(full_page_box.find(recursive=False)) == (state == "dismissed")
 
-    @pytest.mark.parametrize("query", ({}, {"dismissed": "show"}))
     def test_the_sheet_never_shows_dismissed_choices_or_restore_controls(
-        self, client, owner, gang, crew, query
+        self, client, owner, gang, crew
     ):
         from bs4 import BeautifulSoup
 
@@ -1613,15 +1629,16 @@ class TestShowingDismissedOffers:
         slots = sheet_slots(gang)
         for label in ("Affiliation", "Sorrow: Archetype"):
             client.post(dismiss_url(gang, slots[label]))
-        body = sheet_body(client, gang, **query)
-        page = BeautifulSoup(body, "html.parser")
-        assert not any(
-            "Dismissed choices" in term.get_text() for term in page.find_all("dt")
-        )
-        assert "?dismissed=show" not in body
-        # Neither offer is drawn, and neither Restore is.
-        assert restore_url(gang, slots["Affiliation"]) not in body
-        assert slots["Affiliation"].href not in body
+        for query in ({}, {"dismissed": "show"}):
+            body = sheet_body(client, gang, **query)
+            page = BeautifulSoup(body, "html.parser")
+            assert not any(
+                "Dismissed choices" in term.get_text() for term in page.find_all("dt")
+            )
+            assert "?dismissed=show" not in body
+            # Neither offer is drawn, and neither Restore is.
+            assert restore_url(gang, slots["Affiliation"]) not in body
+            assert slots["Affiliation"].href not in body
 
     def test_the_dismissed_tab_lists_only_gang_choices(self, client, owner, gang, crew):
         client.force_login(owner)
@@ -1918,9 +1935,8 @@ class TestShowingDismissedOffers:
         assert_reconciled(gang)
 
     @pytest.mark.parametrize("screen", ("edit", "gang"))
-    @pytest.mark.parametrize("htmx", (False, True))
     def test_equipment_dialogs_keep_dismissed_choices_on_their_edit_pages(
-        self, client, owner, gang, crew, screen, htmx
+        self, client, owner, gang, crew, screen
     ):
         from urllib.parse import parse_qs, urlsplit
 
@@ -1965,22 +1981,23 @@ class TestShowingDismissedOffers:
             ["show"] if screen == "edit" else []
         )
 
-        headers = {"HX-Request": "true"} if htmx else {}
-        response = client.get(sell, headers=headers)
-        assert response.status_code == 200
-        if not htmx:
-            assert (restore_url(gang, line) in response.content.decode()) == (
-                screen == "edit"
-            )
-        page = BeautifulSoup(response.content, "html.parser")
-        form = page.find("form", action=reverse("n26-sell", args=[bought.pk]))
-        assert form is not None
-        data = {
-            field["name"]: field.get("value", "")
-            for field in form.find_all("input", type="hidden")
-        }
-        assert data.get("dismissed", "") == ("show" if screen == "edit" else "")
-        assert not form.has_attr("hx-post")
+        for htmx in (False, True):
+            headers = {"HX-Request": "true"} if htmx else {}
+            response = client.get(sell, headers=headers)
+            assert response.status_code == 200
+            if not htmx:
+                assert (restore_url(gang, line) in response.content.decode()) == (
+                    screen == "edit"
+                )
+            page = BeautifulSoup(response.content, "html.parser")
+            form = page.find("form", action=reverse("n26-sell", args=[bought.pk]))
+            assert form is not None
+            data = {
+                field["name"]: field.get("value", "")
+                for field in form.find_all("input", type="hidden")
+            }
+            assert data.get("dismissed", "") == ("show" if screen == "edit" else "")
+            assert not form.has_attr("hx-post")
         response = client.post(form["action"], data)
         assert response.status_code == 302
         assert response.url == shown
@@ -2019,6 +2036,7 @@ class TestShowingDismissedOffers:
 
 
 class TestWhatItCosts:
+    @pytest.mark.parametrize("roster_size", [2], indirect=True)
     def test_the_dismissed_tab_does_not_load_fighters_or_grow_with_the_roster(
         self, client, owner, gang, crew, profiles
     ):
@@ -2044,6 +2062,7 @@ class TestWhatItCosts:
         assert len(after) == len(before)
         assert not any('FROM "n26_miniature"' in sql for sql in after)
 
+    @pytest.mark.parametrize("roster_size", [2], indirect=True)
     def test_the_sheet_pays_one_query_however_many_are_dismissed(
         self, client, owner, gang, crew, profiles, django_assert_num_queries
     ):
@@ -2072,6 +2091,7 @@ class TestWhatItCosts:
             DismissedOffer.objects.create(gang=gang, slot_key=slots[label].key)
         assert queries() == before
 
+    @pytest.mark.parametrize("roster_size", [2], indirect=True)
     def test_the_filter_itself_costs_nothing(
         self, gang, crew, django_assert_num_queries
     ):

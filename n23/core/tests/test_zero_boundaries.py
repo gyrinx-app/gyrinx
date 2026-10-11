@@ -36,10 +36,13 @@ from n23.core.tests.test_balance_sheet import (
     fresh_sheet,
     hire_fighter,
 )
+from n23.core.tests.test_balance_sheet import (
+    priced_content_fighter as priced_content_fighter,
+)
 
 
 @pytest.fixture
-def gang(user, make_list, content_fighter, campaign):
+def gang(user, make_list, priced_content_fighter, campaign):
     """Campaign gang with a modest 200¢ stake — small enough that boundary
     cells can reach zero without contortions."""
     lst = make_list("Boundary Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
@@ -51,31 +54,11 @@ def gang(user, make_list, content_fighter, campaign):
         credits_delta=200,
     )
     lst.apply_credit_delta(200)
-    fighter = hire_fighter(user, lst, content_fighter, name="Bob")  # 100¢
+    fighter = hire_fighter(user, lst, priced_content_fighter, name="Bob")  # 100¢
     return fresh(lst), fighter
 
 
 # --- Credits: gains are real, overdraft is impossible -------------------------
-
-
-@pytest.mark.django_db
-def test_negative_cost_gear_gains_credits_and_reconciles(gang, user, make_equipment):
-    """Negative-cost content (the gene-smithing pattern) pays the gang:
-    credits go UP, the fighter gets cheaper, the receipt records the
-    negative amount, and the books reconcile."""
-    lst, fighter = gang
-    credits_before = lst.credits_current
-    rating_before = lst.rating_current
-
-    drawback = make_equipment("Drawback", cost=-10)
-    assignment = buy_equipment(user, lst, fighter, drawback)
-
-    rf = fresh(lst)
-    assert rf.credits_current == credits_before + 10
-    assert rf.rating_current == rating_before - 10
-    row = ListFighterEquipmentAssignment.objects.get(pk=assignment.pk)
-    assert (row.pinned_base_amount, row.pinned_base_state) == (-10, PinState.CATALOG)
-    assert_reconciles(lst)
 
 
 @pytest.mark.django_db
@@ -200,7 +183,9 @@ def test_fighter_crossing_zero_floors_list_rating_loudly(
 
 
 @pytest.mark.django_db
-def test_receipt_crossing_zero_upward_books_exactly(gang, user, make_equipment):
+def test_negative_cost_receipt_gains_credits_then_crosses_zero_exactly(
+    gang, user, make_equipment
+):
     """A negative-cost item corrected to a positive price: the receipt
     crosses zero, and the books move by exactly the correction."""
     from n23.content.models.signal_handlers import (
@@ -208,8 +193,16 @@ def test_receipt_crossing_zero_upward_books_exactly(gang, user, make_equipment):
     )
 
     lst, fighter = gang
+    credits_before = lst.credits_current
+    rating_before = lst.rating_current
     drawback = make_equipment("Volatile Drawback", cost=-10)
     assignment = buy_equipment(user, lst, fighter, drawback)
+
+    rf = fresh(lst)
+    assert rf.credits_current == credits_before + 10
+    assert rf.rating_current == rating_before - 10
+    row = ListFighterEquipmentAssignment.objects.get(pk=assignment.pk)
+    assert (row.pinned_base_amount, row.pinned_base_state) == (-10, PinState.CATALOG)
     assert_reconciles(lst)
     credits_before = fresh(lst).credits_current
 

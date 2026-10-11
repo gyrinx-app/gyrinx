@@ -171,7 +171,7 @@ def test_pubsub_handler_executes_registered_task(client, bypass_oidc):
     assert response.content == b"OK"
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db
 def test_pubsub_handler_defers_a_scoped_task_while_writes_are_paused(
     client, bypass_oidc
 ):

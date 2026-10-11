@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
 from django.core.cache import cache, caches
+from django.db import transaction
 from django.db.models.signals import post_migrate
 
 from gyrinx.pytest_database import session_creates_test_database
@@ -214,10 +215,19 @@ CANONICAL_CONTENT_STATS = {
 }
 
 
+@transaction.atomic
 def _seed_content_stats(**kwargs):
     """Create or correct every canonical ContentStat row."""
     from n23.content.models.statline import ContentStat
 
+    # This callback runs serially on one worker's dedicated test database.
+    # Keep normal saves and history, with references local to this invocation.
+    existing = {
+        stat.field_name: stat
+        for stat in ContentStat.objects.select_for_update().filter(
+            field_name__in=CANONICAL_CONTENT_STATS
+        )
+    }
     for field_name, (
         short_name,
         full_name,
@@ -226,17 +236,22 @@ def _seed_content_stats(**kwargs):
         is_modifier,
         is_target,
     ) in CANONICAL_CONTENT_STATS.items():
-        ContentStat.objects.update_or_create(
-            field_name=field_name,
-            defaults={
-                "short_name": short_name,
-                "full_name": full_name,
-                "is_inverted": is_inverted,
-                "is_inches": is_inches,
-                "is_modifier": is_modifier,
-                "is_target": is_target,
-            },
-        )
+        defaults = {
+            "short_name": short_name,
+            "full_name": full_name,
+            "is_inverted": is_inverted,
+            "is_inches": is_inches,
+            "is_modifier": is_modifier,
+            "is_target": is_target,
+        }
+        stat = existing.get(field_name)
+        if stat is None:
+            ContentStat.objects.create(field_name=field_name, **defaults)
+        else:
+            for name, value in defaults.items():
+                setattr(stat, name, value)
+            # update_or_create also includes both Base timestamp fields.
+            stat.save(update_fields={*defaults, "created", "modified"})
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -347,6 +362,7 @@ _EXTRA_VEHICLE_STATS = {
 }
 
 
+@transaction.atomic
 def _seed_fighter_statline_type(**kwargs):
     """Create the statline types real environments are guaranteed to have."""
     from n23.content.models.statline import (
@@ -355,34 +371,66 @@ def _seed_fighter_statline_type(**kwargs):
         ContentStatlineTypeStat,
     )
 
-    for field_name, (short_name, full_name) in _EXTRA_VEHICLE_STATS.items():
-        ContentStat.objects.get_or_create(
-            field_name=field_name,
-            defaults={"short_name": short_name, "full_name": full_name},
+    existing_extra = set(
+        ContentStat.objects.filter(field_name__in=_EXTRA_VEHICLE_STATS).values_list(
+            "field_name", flat=True
         )
+    )
+    for field_name, (short_name, full_name) in _EXTRA_VEHICLE_STATS.items():
+        if field_name not in existing_extra:
+            ContentStat.objects.create(
+                field_name=field_name, short_name=short_name, full_name=full_name
+            )
 
+    # field_name is unique; these references belong only to this restoration.
+    stats = {
+        stat.field_name: stat
+        for stat in ContentStat.objects.filter(
+            field_name__in={
+                field_name
+                for spec in CANONICAL_STATLINE_TYPES.values()
+                for field_name in spec["stats"]
+            }
+        )
+    }
+
+    types = {
+        statline_type.name: statline_type
+        for statline_type in ContentStatlineType.objects.filter(
+            name__in=CANONICAL_STATLINE_TYPES
+        )
+    }
+    existing_links = set(
+        ContentStatlineTypeStat.objects.filter(
+            statline_type_id__in=[statline_type.pk for statline_type in types.values()],
+            stat_id__in=[stat.pk for stat in stats.values()],
+        ).values_list("statline_type_id", "stat_id")
+    )
     for type_name, spec in CANONICAL_STATLINE_TYPES.items():
-        statline_type, _ = ContentStatlineType.objects.get_or_create(name=type_name)
+        statline_type = types.get(type_name)
+        if statline_type is None:
+            statline_type = ContentStatlineType.objects.create(name=type_name)
         if set(statline_type.default_for_categories or []) != set(spec["categories"]):
             statline_type.default_for_categories = spec["categories"]
             statline_type.save(update_fields=["default_for_categories"])
 
         for position, field_name in enumerate(spec["stats"], start=1):
-            stat = ContentStat.objects.filter(field_name=field_name).first()
+            stat = stats.get(field_name)
             if stat is None:
                 continue
             _, highlighted, first_of_group = CANONICAL_FIGHTER_STATLINE.get(
                 field_name, (position, False, False)
             )
-            ContentStatlineTypeStat.objects.get_or_create(
-                statline_type=statline_type,
-                stat=stat,
-                defaults={
-                    "position": position,
-                    "is_highlighted": highlighted,
-                    "is_first_of_group": first_of_group,
-                },
-            )
+            pair = (statline_type.pk, stat.pk)
+            if pair not in existing_links:
+                ContentStatlineTypeStat.objects.create(
+                    statline_type=statline_type,
+                    stat=stat,
+                    position=position,
+                    is_highlighted=highlighted,
+                    is_first_of_group=first_of_group,
+                )
+                existing_links.add(pair)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -438,51 +486,73 @@ def content_books(django_db_setup, django_db_blocker):
         return ContentBook.objects.all()
 
 
+@transaction.atomic
+def _seed_content_equipment_categories(**kwargs):
+    """Restore the standard category definitions after transactional flushes."""
+    categories = [
+        # Weapons & Ammo
+        ("Basic Weapons", "Weapons & Ammo"),
+        ("Close Combat Weapons", "Weapons & Ammo"),
+        ("Pistols", "Weapons & Ammo"),
+        ("Special Weapons", "Weapons & Ammo"),
+        ("Heavy Weapons", "Weapons & Ammo"),
+        ("Grenades", "Weapons & Ammo"),
+        ("Ammo", "Weapons & Ammo"),
+        ("Power Pack Weapons", "Weapons & Ammo"),
+        # Gear
+        ("Armor", "Gear"),
+        ("Personal Equipment", "Gear"),
+        ("Gang Equipment", "Gear"),
+        ("Status Items", "Gear"),
+        ("Bionics", "Gear"),
+        ("Body Upgrades", "Gear"),
+        ("Booby Traps", "Gear"),
+        ("Chem-alchemy Elixirs", "Gear"),
+        ("Chems", "Gear"),
+        ("Cyberteknika", "Gear"),
+        ("Equipment", "Gear"),
+        ("Field Armour", "Gear"),
+        ("Gang Terrain", "Gear"),
+        ("Gene-smithing", "Gear"),
+        ("Relics", "Gear"),
+        # Vehicle & Mount
+        ("Drive Upgrades", "Vehicle & Mount"),
+        ("Engine Upgrades", "Vehicle & Mount"),
+        ("Hardpoint Upgrades", "Vehicle & Mount"),
+        ("Mounts", "Vehicle & Mount"),
+        ("Vehicle Wargear", "Vehicle & Mount"),
+        ("Vehicles", "Vehicle & Mount"),
+        # Other
+        ("Options", "Other"),
+    ]
+    existing_names = set(
+        ContentEquipmentCategory.objects.filter(
+            name__in=[name for name, _ in categories]
+        ).values_list("name", flat=True)
+    )
+    for name, group in categories:
+        if name not in existing_names:
+            ContentEquipmentCategory.objects.create(name=name, group=group)
+            existing_names.add(name)
+
+
 @pytest.fixture(scope="session")
-def content_equipment_categories(django_db_setup, django_db_blocker):
-    """Create ContentEquipmentCategory objects needed for tests."""
+def content_equipment_category_definitions(django_db_setup, django_db_blocker):
+    """Seed once, then restore categories when a transaction test flushes them."""
     with django_db_blocker.unblock():
-        categories = [
-            # Weapons & Ammo
-            ("Basic Weapons", "Weapons & Ammo"),
-            ("Close Combat Weapons", "Weapons & Ammo"),
-            ("Pistols", "Weapons & Ammo"),
-            ("Special Weapons", "Weapons & Ammo"),
-            ("Heavy Weapons", "Weapons & Ammo"),
-            ("Grenades", "Weapons & Ammo"),
-            ("Ammo", "Weapons & Ammo"),
-            ("Power Pack Weapons", "Weapons & Ammo"),
-            # Gear
-            ("Armor", "Gear"),
-            ("Personal Equipment", "Gear"),
-            ("Gang Equipment", "Gear"),
-            ("Status Items", "Gear"),
-            ("Bionics", "Gear"),
-            ("Body Upgrades", "Gear"),
-            ("Booby Traps", "Gear"),
-            ("Chem-alchemy Elixirs", "Gear"),
-            ("Chems", "Gear"),
-            ("Cyberteknika", "Gear"),
-            ("Equipment", "Gear"),
-            ("Field Armour", "Gear"),
-            ("Gang Terrain", "Gear"),
-            ("Gene-smithing", "Gear"),
-            ("Relics", "Gear"),
-            # Vehicle & Mount
-            ("Drive Upgrades", "Vehicle & Mount"),
-            ("Engine Upgrades", "Vehicle & Mount"),
-            ("Hardpoint Upgrades", "Vehicle & Mount"),
-            ("Mounts", "Vehicle & Mount"),
-            ("Vehicle Wargear", "Vehicle & Mount"),
-            ("Vehicles", "Vehicle & Mount"),
-            # Other
-            ("Options", "Other"),
-        ]
-        for name, group in categories:
-            ContentEquipmentCategory.objects.get_or_create(
-                name=name, defaults={"group": group}
-            )
-        return ContentEquipmentCategory.objects.all()
+        _seed_content_equipment_categories()
+
+    post_migrate.connect(
+        _seed_content_equipment_categories,
+        sender=apps.get_app_config("content"),
+        dispatch_uid="tests.seed_content_equipment_categories",
+    )
+
+
+@pytest.fixture
+def content_equipment_categories(db, content_equipment_category_definitions):
+    """Return a fresh category query for this test's database state."""
+    return ContentEquipmentCategory.objects.all()
 
 
 @pytest.fixture(scope="session")
