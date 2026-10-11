@@ -8,13 +8,34 @@
         {% elif field.name == "login" %}
             {% login_name_props field as name_props %}
             {% react_island "account-login-name" name_props %}
+        {% elif field.widget_type == "checkbox" %}
+            <div>
+                <div class="flex items-start gap-2">
+                    <span class="flex h-6 shrink-0 items-center">{{ field|n26_widget }}</span>
+                    <label for="{{ field.id_for_label }}"
+                           class="font-semibold text-ink-900 dark:text-ink-100">{{ field.label }}</label>
+                </div>
+                {# Indented by the box and gap so the text lines up with the label. #}
+                {% if field.help_text or field.errors %}
+                    <div class="pl-6">
+                        {% if field.help_text %}<c-ui.description id="{{ field.auto_id }}_helptext"
+                  class="[&_a]:text-accent-text [&_a]:underline [&_a]:underline-offset-2">{{ field.help_text|stringformat:"s"|safe_rich_text }}</c-ui.description>{% endif %}
+                        {% if field.errors %}
+                            <div id="{{ field.auto_id }}_error" role="alert">
+                                <c-ui.error :form="attrs.form" name="{{ field.name }}" />
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
         {% else %}
             <c-ui.field label="{{ field.label }}"
                         for="{{ field.id_for_label }}"
                         :form="attrs.form"
                         name="{{ field.name }}">
                 {{ field|n26_widget }}
-                {% if field.help_text %}<c-ui.description id="{{ field.auto_id }}_helptext">{{ field.help_text|stringformat:"s"|safe_rich_text }}</c-ui.description>{% endif %}
+                {% if field.help_text %}<c-ui.description id="{{ field.auto_id }}_helptext"
+                  class="[&_a]:text-accent-text [&_a]:underline [&_a]:underline-offset-2">{{ field.help_text|stringformat:"s"|safe_rich_text }}</c-ui.description>{% endif %}
                 {% if field.errors %}
                     <div id="{{ field.auto_id }}_error" role="alert">
                         <c-ui.error :form="attrs.form" name="{{ field.name }}" />

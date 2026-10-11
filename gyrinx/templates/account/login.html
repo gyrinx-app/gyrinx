@@ -9,9 +9,12 @@
         {% trans "Sign in" %}
     {% endelement %}
     {% if not SOCIALACCOUNT_ONLY %}
-        <p>
-            {% blocktranslate %}Create an account by <a href="{{ signup_url }}">signing up</a>.{% endblocktranslate %}
-        </p>
+        {% element p %}
+            {# Keeps the full stop against the link; a reflow puts a space before it. #}
+            {# djlint:off #}
+            Create an account by <c-n26.link href="{{ signup_url }}" underline="always">signing up</c-n26.link>.
+            {# djlint:on #}
+        {% endelement %}
         {% url 'account_login' as login_url %}
         {% element form form=form method="post" action=login_url tags="entrance,login" %}
             {% slot body %}
