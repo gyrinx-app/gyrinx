@@ -2360,7 +2360,7 @@ def row_printing(body, words):
 
 
 # The bar's quick switcher is an island on every page; the page's own is any other.
-PAGE_ISLAND = "[data-react-module]:not([data-react-name='quick-switcher']):not([data-react-name='theme-choice'])"
+PAGE_ISLAND = "[data-react-module]:not([data-react-name='quick-switcher']):not([data-react-name='account-menu'])"
 
 
 def form_switches(body):

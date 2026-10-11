@@ -9,9 +9,12 @@ unread fills the badge and the trigger's accessible name together.
 heading must be a slot. A Django block inside a Cotton attribute never runs.
 Pass :unread so it arrives a number. Written without the colon, the string 0 is true and draws a badge for an empty inbox.
 aria-label replaces the trigger's inner text. A badge inside is announced to nobody.
+account is the account-menu island's props, from {% account_menu %}. Without it there is no menu.
+user_label is the name the button shows until the island mounts; the island draws the same button.
 The drawer's root is display:contents, so the burger sits in this row. The panel teleports to the body and leaves this header's dark subtree.
 {% endcomment %}
 
+{% load react %}
 <c-vars
     title=""
     href="/"
@@ -23,7 +26,7 @@ The drawer's root is display:contents, so the burger sits in this row. The panel
     logo=""
     heading=""
     gangs=""
-    menu=""
+    :account="None"
     unread=""
     actions=""
     brand_actions=""
@@ -58,10 +61,10 @@ The drawer's root is display:contents, so the burger sits in this row. The panel
         <div class="ml-auto flex shrink-0 items-center gap-2">
             {{ actions }}
 
-            {% if user_label %}
-                <c-ui.dropdown align="end">
-                    <c-slot name="trigger">
-
+            {% if account %}
+                {% react_host "account-menu" account %}
+                    <span class="relative inline-block">
+                        {# AccountMenu.tsx draws the same button; change both. #}
                         <button type="button"
                                 aria-label="{{ menu_label }}{% if unread %} — {{ unread }} unread notifications{% endif %}"
                                 title="{{ menu_label }}"
@@ -77,9 +80,8 @@ The drawer's root is display:contents, so the burger sits in this row. The panel
 
                             <c-n26.count-badge :count="unread" class="absolute -top-0.5 -right-0.5" />
                         </button>
-                    </c-slot>
-                    {% if menu %}{{ menu }}{% endif %}
-                </c-ui.dropdown>
+                    </span>
+                {% endreact_host %}
             {% endif %}
 
             <span aria-hidden="true" class="h-6 w-px shrink-0 bg-ink-200 dark:bg-ink-700"></span>

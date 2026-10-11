@@ -5,6 +5,7 @@
 <c-n26.site.nav title="Gyrinx"
                 href="#"
                 user_label="tom"
+                :account="sample_account_menu_unread"
                 :unread="sample_unread"
                 class="rounded-box border border-box-border">
     <c-slot name="logo">
@@ -20,17 +21,4 @@
     <c-ui.navbar.item href="#">
         Gangs
     </c-ui.navbar.item>
-    <c-slot name="menu">
-        <c-ui.dropdown.item href="#">
-            Your account
-        </c-ui.dropdown.item>
-        <c-ui.dropdown.item href="#">
-            Notifications
-            <c-n26.count-badge :count="sample_unread" label="unread notifications" />
-        </c-ui.dropdown.item>
-        <c-ui.dropdown.separator />
-        <c-ui.dropdown.item href="#" variant="danger">
-            Sign out
-        </c-ui.dropdown.item>
-    </c-slot>
 </c-n26.site.nav>

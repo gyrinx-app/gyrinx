@@ -616,11 +616,52 @@ def nav_noscript(body):
 
 
 def account_menu(body):
-    """The panel behind the reader's own name. The last role="menu"
-    region in the bar: the switcher's panel is one too, and the account
-    sits at the far end, after it."""
-    bar = nav_bar(body)
-    return bar[bar.rindex('role="menu"') :]
+    """The menu behind the reader's own name, as the props the
+    account-menu island draws it from when it is opened."""
+    soup = BeautifulSoup(body, "html.parser")
+    host = soup.select_one('[data-react-name="account-menu"]')
+    return json.loads(soup.find(id=host["data-react-props"]).string)
+
+
+def menu_rows(menu):
+    """The menu's rows as (kind, words), in the order they are drawn. A
+    group is its heading, then its own rows."""
+    rows = []
+
+    def walk(entries):
+        for entry in entries:
+            kind = entry["type"]
+            if kind == "person":
+                rows.append(("person", menu["person"]["name"]))
+            elif kind == "group":
+                rows.append(("group", entry["label"]))
+                walk(entry["items"])
+            elif kind in ("separator", "theme"):
+                rows.append((kind, ""))
+            else:
+                rows.append((kind, entry["label"]))
+
+    walk(menu["items"])
+    return rows
+
+
+def menu_words(menu):
+    return [words for _, words in menu_rows(menu) if words]
+
+
+def menu_entry(menu, kind, label=None):
+    """The first entry of a kind, and with a label if one is given."""
+
+    def walk(entries):
+        for entry in entries:
+            if entry["type"] == kind and label in (None, entry.get("label")):
+                return entry
+            found = walk(entry.get("items", []))
+            if found:
+                return found
+        return None
+
+    return walk(menu["items"])
 
 
 def account_button(body):
@@ -736,7 +777,7 @@ class TestTheNavigation:
         the bar holds a row of space the page's own name wants on every
         screen. Behind the name it is still one click away."""
         body = client.get("/n26/").content.decode()
-        assert 'data-react-name="theme-choice"' in account_menu(body)
+        assert ("theme", "") in menu_rows(account_menu(body))
         assert 'aria-label="Toggle dark mode"' not in nav_bar(body)
 
     def test_the_scheme_is_one_control_of_three_and_not_three_rows(
@@ -749,25 +790,14 @@ class TestTheNavigation:
         from three, so each part announces itself as a radio in a group
         rather than as another door out of the menu."""
         menu = account_menu(client.get("/n26/").content.decode())
-        choices = BeautifulSoup(menu, "html.parser").find_all(
-            attrs={"role": "menuitemradio"}
-        )
-        assert len(choices) == 3
-        assert 'role="group"' in menu
-        assert 'aria-label="Theme"' in menu
+        group = menu_entry(menu, "group", "Theme")
+        (theme,) = group["items"]
+        assert theme["type"] == "theme"
         # Each state still sets it: a control that renders and no longer
-        # switches looks right in every screenshot and works for nobody. The
-        # island's own tests click each one and check the group; here every
-        # scheme reaches it.
-        soup = BeautifulSoup(menu, "html.parser")
-        host = soup.select_one('[data-react-name="theme-choice"]')
-        props = json.loads(soup.find(id=host["data-react-props"]).string)
-        assert [scheme for scheme, _, _ in props["choices"]] == [
-            "light",
-            "dark",
-            "system",
-        ]
-        assert [choice["data-scheme"] for choice in choices] == [
+        # switches looks right in every screenshot and works for nobody.
+        # ThemeChoice's own tests click each one and check that it is a
+        # group of radios; here every scheme reaches it.
+        assert [scheme for scheme, _, _ in theme["choices"]] == [
             "light",
             "dark",
             "system",
@@ -777,11 +807,9 @@ class TestTheNavigation:
         """The sun, the moon and a screen. One icon for the group could
         only picture whichever scheme is current, and which one is
         current is what the control is there to show."""
-        from n26.core import icons
-
         menu = account_menu(client.get("/n26/").content.decode())
-        for name in ("sun", "moon", "monitor"):
-            assert str(icons.resolve(name).body) in menu
+        theme = menu_entry(menu, "theme")
+        assert [icon for _, _, icon in theme["choices"]] == ["sun", "moon", "monitor"]
 
     def test_the_drawer_holds_the_places_the_app_has(
         self, tester, client, default_pack
@@ -930,20 +958,23 @@ class TestTheNavigation:
     def test_the_account_menu_is_you_the_doors_and_the_way_out(
         self, staff, client, default_pack
     ):
-        menu = account_menu(client.get("/n26/").content.decode())
-        positions = in_order(
-            menu,
-            "boss",
-            "Your account",
-            "Staff only",
-            "Admin",
-            "Content Library",
-            "Sign out",
-        )
+        rows = menu_rows(account_menu(client.get("/n26/").content.decode()))
+        words = [words for _, words in rows]
+        positions = [
+            words.index(w)
+            for w in (
+                "boss",
+                "Your account",
+                "Staff only",
+                "Admin",
+                "Content Library",
+                "Sign out",
+            )
+        ]
         assert positions == sorted(positions)
         # Two rules: one under the name at the top, one over the way out.
         # The staff doors have a heading instead.
-        assert menu.count('role="separator"') == 2
+        assert [kind for kind, _ in rows].count("separator") == 2
 
     def test_the_menu_says_who_you_are_signed_in_as(self, staff, client, default_pack):
         """The bar's own button drops the name on a phone, where the width
@@ -951,13 +982,12 @@ class TestTheNavigation:
         there is nowhere on a narrow screen that answers which account you
         are using. The badge is the account's own, from the platform's
         registry, so this edition never guesses what someone's mark means."""
-        menu = account_menu(client.get("/n26/").content.decode())
-        name = menu.index("boss")
-        assert name < menu.index("Your account")
+        rows = menu_rows(account_menu(client.get("/n26/").content.decode()))
         # A line rather than an item: the door to the account page is
         # directly below it, and a name that led to the same place would be
         # two doors to one room.
-        assert 'href="/n26/accounts/' not in menu[:name]
+        assert rows[0] == ("person", "boss")
+        assert rows.index(("link", "Your account")) > 0
 
     def test_your_account_goes_to_the_page_that_is_actually_there(
         self, staff, client, default_pack
@@ -968,7 +998,9 @@ class TestTheNavigation:
         from django.urls import reverse
 
         menu = account_menu(client.get("/n26/").content.decode())
-        assert f'href="{reverse("core:account_home")}"' in menu
+        assert menu_entry(menu, "link", "Your account")["href"] == reverse(
+            "core:account_home"
+        )
         assert client.get(reverse("core:account_home")).status_code == 200
 
     def test_the_staff_doors_say_they_are_staff_only(self, staff, client, default_pack):
@@ -976,9 +1008,8 @@ class TestTheNavigation:
         a glance which of their menu the person beside them does not
         have. The kit uppercases it, so the label is written as prose."""
         menu = account_menu(client.get("/n26/").content.decode())
-        assert "Staff only" in menu
-        positions = in_order(menu, "Staff only", "Admin")
-        assert positions == sorted(positions)
+        staff = menu_entry(menu, "group", "Staff only")
+        assert [entry["label"] for entry in staff["items"]][:1] == ["Admin"]
 
     def test_nobody_else_is_shown_a_door_they_cannot_open(
         self, tester, client, default_pack
@@ -986,13 +1017,14 @@ class TestTheNavigation:
         """A reader who is not staff is refused by both pages anyway, so
         an item they can only bounce off is noise — and the heading over
         those two goes with them, rather than labelling nothing."""
-        menu = account_menu(client.get("/n26/").content.decode())
-        assert "Admin" not in menu
-        assert "Content Library" not in menu
-        assert "Staff only" not in menu
+        rows = menu_rows(account_menu(client.get("/n26/").content.decode()))
+        words = [words for _, words in rows]
+        assert "Admin" not in words
+        assert "Content Library" not in words
+        assert "Staff only" not in words
         # The name's rule and the way out's, and no third one left behind by
         # the section they do not have.
-        assert menu.count('role="separator"') == 2
+        assert [kind for kind, _ in rows].count("separator") == 2
 
     def test_the_drawer_is_the_same_list_wherever_you_are(
         self, staff, client, default_pack
@@ -1113,6 +1145,33 @@ class TestTheNavigation:
         assert "Foundations" in links_in(nav_drawer(body))
 
 
+class TestTheAccountMenuAcrossShells:
+    """One island draws the account menu wherever the bar appears; each
+    page's shell decides what is in it."""
+
+    def test_the_account_pages_keep_their_shorter_menu(self, client, default_pack):
+        """The platform's own pages carry no name line and no staff
+        group: Admin is a row of its own and Sign out follows it."""
+        from django.urls import reverse
+
+        client.force_login(User.objects.create_user("boss", is_staff=True))
+        body = client.get(reverse("core:account_home")).content.decode()
+        rows = menu_rows(account_menu(body))
+        assert rows == [
+            ("link", "Your account"),
+            ("link", "Notifications"),
+            ("group", "Theme"),
+            ("theme", ""),
+            ("link", "Admin"),
+            ("link", "Sign out"),
+        ]
+
+    def test_a_visitor_has_no_menu_to_open(self, client, default_pack):
+        body = client.get("/n26/").content.decode()
+        assert 'data-react-name="account-menu"' not in body
+        assert "Open account menu" not in body
+
+
 class TestTheInbox:
     """One inbox serves both editions — a battle in the classic app and a
     gang here write to the same place — so the entry is the site's page
@@ -1136,9 +1195,9 @@ class TestTheInbox:
 
     def test_the_menu_holds_the_way_to_it(self, tester, client, default_pack):
         menu = account_menu(client.get("/n26/").content.decode())
-        assert 'href="/notifications/"' in menu
-        positions = in_order(menu, "Your account", "Notifications")
-        assert positions == sorted(positions)
+        assert menu_entry(menu, "link", "Notifications")["href"] == "/notifications/"
+        words = menu_words(menu)
+        assert words.index("Your account") < words.index("Notifications")
 
     def test_the_page_it_leads_to_is_actually_there(self, tester, client, default_pack):
         assert client.get("/notifications/").status_code == 200
@@ -1152,15 +1211,21 @@ class TestTheInbox:
         self.unread(tester, 2)
         body = client.get("/n26/").content.decode()
         menu, button = account_menu(body), account_button(body)
-        assert "Notifications 2" in reads_as(menu)
-        assert count_badge(menu) == count_badge(button) == "2"
+        # The island draws both pills with one CountBadge, from these.
+        assert menu_entry(menu, "link", "Notifications")["count"] == 2
+        assert menu["unread"] == 2
+        assert count_badge(button) == "2"
 
     def test_the_entry_says_what_the_number_means(self, tester, client, default_pack):
         """Unlike the button's, this pill is in a line that is read out as it
         stands — a bare "2" after the word is not an answer."""
         self.unread(tester, 2)
-        menu = account_menu(client.get("/n26/").content.decode())
-        assert "2 unread notifications" in reads_as(menu)
+        entry = menu_entry(
+            account_menu(client.get("/n26/").content.decode()),
+            "link",
+            "Notifications",
+        )
+        assert (entry["count"], entry["countLabel"]) == (2, "unread notifications")
 
     def test_the_button_wears_the_count_on_its_corner(
         self, tester, client, default_pack
@@ -1180,9 +1245,10 @@ class TestTheInbox:
         stays: the inbox is still where a reader goes to look."""
         body = client.get("/n26/").content.decode()
         assert reads_as(account_button(body)) == "tester"
-        assert "unread notifications" not in body
-        assert "Notifications" in reads_as(account_menu(body))
-        assert count_badge(account_menu(body)) is None
+        assert "unread notifications" not in account_button(body)
+        menu = account_menu(body)
+        assert menu["unread"] == 0
+        assert menu_entry(menu, "link", "Notifications")["count"] == 0
 
     def test_a_crowded_inbox_stops_counting(self, tester, client, default_pack):
         """Three digits would push the pill across the burger beside it."""
@@ -1190,10 +1256,10 @@ class TestTheInbox:
         body = client.get("/n26/").content.decode()
         button = account_button(body)
         assert reads_as(button) == "tester 99+"
-        assert count_badge(account_menu(body)) == "99+"
         # Read aloud, both still say the real number — they have the room.
+        # CountBadge caps the face at 99+ in the menu as well.
         assert 'aria-label="Open account menu — 120 unread notifications"' in button
-        assert "120 unread notifications" in reads_as(account_menu(body))
+        assert menu_entry(account_menu(body), "link", "Notifications")["count"] == 120
 
     def test_only_your_own_is_counted(self, tester, client, default_pack):
         self.unread(User.objects.create_user("rival"), 5)

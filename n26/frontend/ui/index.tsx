@@ -904,8 +904,9 @@ function SvgArt({ node }: { node: SvgNode }): ReactNode {
 }
 
 /**
- * A person's name in the surrounding colour, linked to their profile, with
- * their badge after it, as `<c-n26.user-link tone="current">` draws it.
+ * A person's name in the surrounding colour, with their badge after it, as
+ * `<c-n26.user-link tone="current">` draws it. Without an href the name is
+ * plain text, as on a button that already does something else.
  */
 export function UserLink({
     name,
@@ -913,24 +914,60 @@ export function UserLink({
     badge,
 }: {
     name: string;
-    href: string;
+    href?: string;
     badge?: BadgeMark | null;
 }) {
     const recipe = cotton.userLink;
+    const mark = badge && (
+        <span
+            className={recipe.flair}
+            role="img"
+            aria-label={badge.label}
+            title={badge.label}
+        >
+            <SvgArt node={badge.svg} />
+        </span>
+    );
+    if (!href)
+        return (
+            <span className={recipe.plain}>
+                {name}
+                {mark}
+            </span>
+        );
     return (
         <a href={href} className={recipe.link}>
             <span className={recipe.text}>{name}</span>
-            {badge && (
-                <span
-                    className={recipe.flair}
-                    role="img"
-                    aria-label={badge.label}
-                    title={badge.label}
-                >
-                    <SvgArt node={badge.svg} />
+            {mark}
+        </a>
+    );
+}
+
+/**
+ * A red count pill, as `<c-n26.count-badge>` draws it: nothing at zero, the
+ * face capped at `max`, and the real count spoken with `label`.
+ */
+export function CountBadge({
+    count,
+    max = 99,
+    label,
+    className = "",
+}: {
+    count: number;
+    max?: number;
+    label?: string;
+    className?: string;
+}) {
+    if (!count) return null;
+    return (
+        <span className={`${cotton.countBadge.root} ${className}`}>
+            <span aria-hidden="true">{count > max ? `${max}+` : count}</span>
+            {label && (
+                <span className={cotton.countBadge.spoken}>
+                    {count} {label}
                 </span>
             )}
-        </a>
+        </span>
     );
 }
 
@@ -1141,6 +1178,14 @@ export {
 } from "./ActionMenu";
 export { FilterMenu, type FilterOption } from "./FilterMenu";
 export { RangeMenu } from "./RangeMenu";
+export {
+    MenuButton,
+    MenuGroup,
+    MenuLink,
+    MenuSeparator,
+    MenuSubmit,
+} from "./Menu";
+export { ThemeChoice, type ThemeChoiceProps } from "./ThemeChoice";
 export {
     QuickSwitcher,
     type QuickSwitcherProps,

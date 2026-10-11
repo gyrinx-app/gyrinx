@@ -143,9 +143,17 @@ class TestWhatItDoes:
         gang = make_gang("The Ashen Choir")
         page = reverse("n26-gang", args=[gang.pk])
 
-        body = client.get(page).content.decode()
+        import json
 
-        assert f'name="next" value="{page}"' in body
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(client.get(page).content, "html.parser")
+        host = soup.select_one('[data-react-name="account-menu"]')
+        menu = json.loads(soup.find(id=host["data-react-props"]).string)
+        (staff,) = [e for e in menu["items"] if e.get("label") == "Staff only"]
+        (form,) = [e for e in staff["items"] if e["type"] == "form"]
+        assert form["action"] == start_url(player)
+        assert ["next", page] in form["fields"]
 
     def test_it_starts_the_overlay_and_comes_back_to_the_page(
         self, client, overseer, player, make_gang

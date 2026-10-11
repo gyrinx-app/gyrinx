@@ -117,6 +117,14 @@ does not move, and its `:scriptless` option adds a `<noscript>` list of the
 links. `c-ui.dropdown` stays for menus with button or `hx-get` items, groups,
 shortcuts or other composite content.
 
+`MenuButton` is the same menu button pattern over mixed rows: `MenuLink`,
+`MenuSubmit` (a posting row), `MenuSeparator`, `MenuGroup` and radio rows such
+as `ThemeChoice`. The arrow keys move over every row with a menu-item role. The
+account menu is built this way: `{% account_menu %}` gives the bar's
+`<c-n26.site.nav :account=…>` an ordered list of entries, and the account-menu
+island draws them. A shell that wants a different menu builds different entries;
+the platform's account pages pass `compact=True`.
+
 `UserLink` draws a person's name with their badge, as `<c-n26.user-link
 tone="current">` does. A badge's artwork is SVG markup, which an island cannot
 take, so `n26.core.people.person_link` asks the platform which badge a person

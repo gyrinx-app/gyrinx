@@ -862,11 +862,40 @@ def user_link_recipe():
     )
     if flair.get("role") != "img":
         raise ValueError("Flair-link no longer names its flair as an image")
+    # Without an href the name is plain text in a span, as a trigger needs.
+    plain, _ = attributes(
+        '<c-n26.flair-link text="Name" tone="current" underline="none" label="Badge">'
+        '<svg viewBox="0 0 1 1"></svg></c-n26.flair-link>',
+        "span",
+        "span",
+    )
     return {
         "link": class_name(link),
         "text": class_name(text),
         "flair": class_name(flair),
+        "plain": class_name(plain),
     }
+
+
+def dropdown_group_recipe():
+    """A labelled section of a dropdown: its wrapper and its heading."""
+    root, label = classes(
+        '<c-ui.dropdown.group label="Theme">Item</c-ui.dropdown.group>', "div", "div"
+    )
+    return {"root": root, "label": label}
+
+
+def count_badge_recipe():
+    """The red count pill, with its visible face and its spoken words."""
+    root, face, spoken = attributes(
+        '<c-n26.count-badge :count="120" label="unread notifications" />',
+        "span",
+        "span",
+        "span",
+    )
+    if face.get("aria-hidden") != "true" or "sr-only" not in class_name(spoken):
+        raise ValueError("Count badge no longer hides its face and speaks its count")
+    return {"root": class_name(root), "spoken": class_name(spoken)}
 
 
 def _svg_props(attrs):
@@ -1066,6 +1095,8 @@ def recipes():
         ),
         "filterMenu": filter_menu_recipe(),
         "actionMenu": action_menu_recipe(),
+        "dropdownGroup": dropdown_group_recipe(),
+        "countBadge": count_badge_recipe(),
         "quickSwitcher": quick_switcher_recipe(),
         "pickList": pick_list_recipe(),
         "tickList": tick_list_recipe(),

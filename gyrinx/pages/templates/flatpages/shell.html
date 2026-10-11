@@ -3,6 +3,7 @@ Platform flatpage document shell. Shared routes use request.edition for navigati
 The n26 application shell owns its gang queries and maintenance state separately.
 {% endcomment %}
 {% load static %}
+{% load account_menu %}
 {% load banner %}
 <!DOCTYPE html>
 <html lang="en-gb">
@@ -91,10 +92,12 @@ The n26 application shell owns its gang queries and maintenance state separately
                                      message="{{ banner.text }}"
                                      id="site-banner-{{ banner.id }}" />
         {% endif %}
+        {% account_menu as account_menu_ %}
         <c-n26.site.nav title="Gyrinx"
                         href="/"
                         sticky="1"
                         :unread="unread_notification_count"
+                        :account="account_menu_"
                         class="dark">
             <c-slot name="logo">
                 <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
@@ -106,7 +109,7 @@ The n26 application shell owns its gang queries and maintenance state separately
             {% if presentation.is_help %}<c-slot name="heading">Help</c-slot>{% endif %}
             {% if user.is_authenticated %}
                 <c-slot name="user_label">
-                    <c-n26.user-link :user="user" tone="current" underline="none" />
+                    <c-n26.user-link :user="user" :linked="False" tone="current" underline="none" />
                 </c-slot>
             {% endif %}
             <c-ui.navbar.item href="/">
@@ -116,56 +119,6 @@ The n26 application shell owns its gang queries and maintenance state separately
             <c-ui.navbar.item href="/help/" :current="presentation.is_help">
                 Help
             </c-ui.navbar.item>
-            {% if user.is_authenticated %}
-                <c-slot name="menu">
-                    {% url 'admin:index' as admin_url_ %}
-                    {% url 'account_logout' as logout_url_ %}
-                    <div class="flex items-center gap-2 px-4 pt-2 pb-1 text-sm font-medium text-ink-900 dark:text-ink-100">
-                        <c-n26.user-link :user="user" tone="current" underline="none" />
-                    </div>
-                    <c-ui.dropdown.separator />
-                    <c-ui.dropdown.item href="{% url 'core:account_home' %}">
-                        Your account
-                    </c-ui.dropdown.item>
-                    <c-ui.dropdown.item href="{% url 'core:notifications' %}">
-                        Notifications
-                        <c-n26.count-badge :count="unread_notification_count" label="unread notifications" />
-                    </c-ui.dropdown.item>
-                    <c-ui.dropdown.group label="Theme">
-                        <c-n26.site.nav.theme storage_key="theme" />
-                    </c-ui.dropdown.group>
-                    {% if user.is_staff %}
-                        <c-ui.dropdown.group label="Staff only">
-                            {% if admin_url_ %}
-                                <c-ui.dropdown.item href="{{ admin_url_ }}">
-                                    Admin
-                                </c-ui.dropdown.item>
-                            {% endif %}
-                            <c-ui.dropdown.item href="{% url 'authoring-index' %}">
-                                Content library
-                            </c-ui.dropdown.item>
-                            {% if impersonate_target %}
-                                <form method="post"
-                                      action="{% url 'core:impersonate-start' impersonate_target.pk %}"
-                                      role="none"
-                                      x-on:click="$el.requestSubmit ? $el.requestSubmit() : $el.submit()">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                                    <c-ui.dropdown.item variant="danger">
-                                        Impersonate {{ impersonate_target.username }}
-                                    </c-ui.dropdown.item>
-                                </form>
-                            {% endif %}
-                        </c-ui.dropdown.group>
-                    {% endif %}
-                    {% if logout_url_ %}
-                        <c-ui.dropdown.separator />
-                        <c-ui.dropdown.item href="{{ logout_url_ }}" variant="danger">
-                            Sign out
-                        </c-ui.dropdown.item>
-                    {% endif %}
-                </c-slot>
-            {% endif %}
             <c-slot name="actions">
                 <c-n26.share url="{{ flatpage.url }}" class="flatpage-share" />
                 {% include "flatpages/includes/edition_toggle.html" %}

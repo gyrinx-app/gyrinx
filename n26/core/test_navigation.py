@@ -507,10 +507,12 @@ class TestTheColourScheme:
 
         client.force_login(tester)
         soup = BeautifulSoup(client.get(reverse("n26-gangs")).content, "html.parser")
-        host = soup.select_one('[data-react-name="theme-choice"]')
-        props = json.loads(soup.find(id=host["data-react-props"]).string)
-        # The island's own tests click each scheme; here all three reach it.
-        assert [scheme for scheme, _, _ in props["choices"]] == [
+        host = soup.select_one('[data-react-name="account-menu"]')
+        menu = json.loads(soup.find(id=host["data-react-props"]).string)
+        (group,) = [e for e in menu["items"] if e.get("label") == "Theme"]
+        (theme,) = group["items"]
+        # ThemeChoice's own tests click each scheme; here all three reach it.
+        assert [scheme for scheme, _, _ in theme["choices"]] == [
             "light",
             "dark",
             "system",

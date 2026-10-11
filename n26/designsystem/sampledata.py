@@ -759,6 +759,8 @@ def nav_context():
         # An inbox with something in it. A number rather than a string,
         # because the bar tests it for truth and "0" is true.
         "sample_unread": 3,
+        "sample_account_menu": _sample_account_menu(),
+        "sample_account_menu_unread": _sample_account_menu(unread=3, theme=False),
         "sample_fighter_switcher": Switcher(
             heading="Fighters",
             menu_label="Switch to another model",
@@ -828,6 +830,44 @@ def roster_summary():
         count=sum(group.count for group in groups),
         rating=sum(line.rating for line in models),
     )
+
+
+def _sample_account_menu(*, unread=0, theme=True):
+    """An account menu's props for the site-nav demos: what
+    n26.core.templatetags.account_menu builds for a signed-in reader."""
+    from n26.core.templatetags.theme_choice import theme_choice_props
+
+    items = [
+        {"type": "person"},
+        {"type": "separator"},
+        {"type": "link", "label": "Your account", "href": "#"},
+        {
+            "type": "link",
+            "label": "Notifications",
+            "href": "#",
+            "count": unread,
+            "countLabel": "unread notifications",
+        },
+    ]
+    if theme:
+        items.append(
+            {
+                "type": "group",
+                "label": "Theme",
+                "items": [{"type": "theme", **theme_choice_props("n26-theme")}],
+            }
+        )
+    items += [
+        {"type": "separator"},
+        {"type": "link", "label": "Sign out", "href": "#", "tone": "danger"},
+    ]
+    return {
+        "label": "Open account menu",
+        "unread": unread,
+        "person": {"name": "tom", "href": "#", "badge": None},
+        "badges": {},
+        "items": items,
+    }
 
 
 def context():
