@@ -970,8 +970,9 @@ conflicts and selects Income for current owners.
    previous gang loses its selected boon.
 
 The Income box still edits the catalogue figure. Setting it to 0 keeps the
-Income option, so a custom Income value can still apply when selected. A
-recorded selection remains effective if the choice is later dismissed.
+Income option, so a custom Income value can still apply when selected. Removing
+the recorded Income selection stops its contribution. Rerunning the maintenance
+operation preserves a dismissed unresolved choice instead of selecting Income.
 
 Resolve the alternative's recruitment discount or equipment reward manually at
 cycle end. Its summary states the eligibility and amount. Selecting an option
