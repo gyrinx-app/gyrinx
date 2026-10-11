@@ -201,28 +201,28 @@ class TestTheProfilePage:
     """A person's profile is headed by their name, so the name there
     carries the same mark it carries everywhere else."""
 
-    def test_the_heading_and_trail_mark_the_person(
-        self, supporter, tester, client, default_pack
+    @pytest.mark.parametrize("tab", ["n23", "n26"])
+    def test_the_profile_header_marks_the_person_with_the_picker_artwork(
+        self, supporter, tester, client, default_pack, tab
     ):
         tester("reader")
-        body = client.get(
-            reverse("n26-user-profile", args=[supporter.username])
-        ).content.decode()
+        profile = reverse("user-profile", args=[supporter.username])
+        body = client.get(profile, {"tab": tab}).content.decode()
         heading = body[body.index("<h1") : body.index("</h1>")]
         assert "patron" in heading
-        assert badge_svg(GUILDER).strip() in heading
-        assert "[--n26-icon-size:1em]" in heading
         below_the_bar = body.split("</header>")[-1]
-        # The trail and the heading; neither links back to this page.
-        assert below_the_bar.count(badge_svg(GUILDER).strip()) == 2
-        profile = reverse("n26-user-profile", args=[supporter.username])
+        assert below_the_bar.count(f'src="{GUILDER.image_url()}"') == 1
+        assert f'title="{GUILDER.description}"' in below_the_bar
         assert f'href="{profile}"' not in below_the_bar
 
+    @pytest.mark.parametrize("tab", ["n23", "n26"])
     def test_someone_entitled_to_nothing_is_headed_by_name_alone(
-        self, tester, client, default_pack
+        self, tester, client, default_pack, tab
     ):
         tester("nobody")
-        body = client.get(reverse("n26-user-profile", args=["nobody"])).content.decode()
+        body = client.get(
+            reverse("user-profile", args=["nobody"]), {"tab": tab}
+        ).content.decode()
         heading = body[body.index("<h1") : body.index("</h1>")]
         assert "nobody" in heading
         assert FLAIR_WRAPPER not in body.split("</header>")[-1]
