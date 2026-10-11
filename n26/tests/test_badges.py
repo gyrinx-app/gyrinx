@@ -481,6 +481,45 @@ class TestTheNamesOnACampaign:
         # The arbitrator in the trail alone.
         assert below_the_bar.count(badge_svg(GUILDER).strip()) == 1
 
+    def test_the_add_gang_island_names_each_owner_and_draws_each_badge_once(
+        self, table, player, client
+    ):
+        """The island's rows name each owner as the platform says to, and
+        the badge's drawing arrives once however many rows carry it."""
+        import json
+
+        from bs4 import BeautifulSoup
+
+        def picker(response):
+            soup = BeautifulSoup(response.content, "html.parser")
+            host = soup.select_one("[data-react-name='campaign-gang-picker']")
+            return json.loads(soup.find(id=host["data-react-props"]).string)
+
+        player(table, "vex")
+        person = player(table, "kesh")
+        address = reverse("n26-campaign-add-gang", args=[table.pk])
+
+        props = picker(client.get(address))
+        owners = {
+            gang["ownerLink"]["name"]: gang["ownerLink"] for gang in props["gangs"]
+        }
+        assert owners == {
+            name: {
+                "name": name,
+                "href": reverse("n26-user-profile", args=[name]),
+                "badge": "guilder",
+            }
+            for name in ("vex", "kesh")
+        }
+        assert list(props["badges"]) == ["guilder"]
+        assert props["badges"]["guilder"]["label"] == GUILDER.description
+        assert props["badges"]["guilder"]["svg"]["tag"] == "svg"
+
+        client.force_login(person)
+        props = picker(client.get(address))
+        assert [gang["ownerLink"] for gang in props["gangs"]] == [None]
+        assert props["badges"] == {}
+
     def test_the_add_gang_screen_reads_the_badges_once_for_everybody(
         self, table, player, client
     ):
@@ -820,3 +859,60 @@ class TestNoPageDecidesForItself:
             '<c-n26.user-link :user="…" />, which asks the platform\'s registry '
             f"which badge that person actually holds: {offenders}"
         )
+
+
+class TestTheBadgeAsData:
+    """An island cannot take markup, so a badge crosses as an element tree,
+    limited to the platform's SVG allowlist and named as React names it."""
+
+    def test_the_staff_mark_crosses_with_its_drawing(self):
+        from n26.badges import badge_mark
+
+        mark = badge_mark(STAFF_BADGE)
+        assert mark["label"] == STAFF_BADGE.description
+        svg = mark["svg"]
+        assert svg["tag"] == "svg"
+        assert svg["props"]["viewBox"] == "0 0 24 24"
+        assert svg["props"]["shapeRendering"] == "crispEdges"
+        # The wrapper names the badge; the island hides the drawing itself.
+        assert "aria-hidden" not in svg["props"]
+        rects = [child for child in svg["children"] if child["tag"] == "rect"]
+        assert rects
+        assert set(rects[0]["props"]) <= {"x", "y", "width", "height", "fill"}
+
+    def test_anything_that_could_run_or_fetch_is_left_behind(self):
+        from n26.badges import svg_tree
+
+        tree = svg_tree(
+            '<svg viewBox="0 0 1 1" onload="x()"><script>alert(1)</script>'
+            "<foreignObject><div>hi</div></foreignObject>"
+            '<a href="javascript:x()"><path d="M0 0"/></a>'
+            '<use href="https://example.com/x.svg#a"/><use href="#a"/>'
+            '<path d="M1 1" onclick="y()" style="fill:red"/>'
+            '<linearGradient id="g" gradientUnits="userSpaceOnUse">'
+            '<stop offset="0" stop-color="red"/></linearGradient>'
+            "<title>Mark</title></svg>"
+        )
+        assert tree["props"] == {"viewBox": "0 0 1 1"}
+        children = tree["children"]
+        assert [child["tag"] for child in children] == [
+            "use",
+            "use",
+            "path",
+            "linearGradient",
+            "title",
+        ]
+        assert children[0]["props"] == {}
+        assert children[1]["props"] == {"href": "#a"}
+        assert children[2]["props"] == {"d": "M1 1"}
+        assert children[3]["props"] == {"id": "g", "gradientUnits": "userSpaceOnUse"}
+        assert children[3]["children"][0]["props"] == {
+            "offset": "0",
+            "stopColor": "red",
+        }
+        assert children[4]["children"] == ["Mark"]
+
+    def test_markup_with_no_svg_gives_nothing(self):
+        from n26.badges import svg_tree
+
+        assert svg_tree("<div>not a drawing</div>") is None

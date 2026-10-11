@@ -1137,6 +1137,7 @@ def add_gang(request, pk):
     from n26.core.campaigns import campaign_operation, over_budget
     from n26.core.forms import BringGangForm
     from n26.core.operations import Refusal
+    from n26.core.people import person_link
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     arbitrating = found.owner_id == getattr(request.user, "id", None)
@@ -1216,6 +1217,33 @@ def add_gang(request, pk):
     # Only where there is somebody to tell apart: a list of one person's
     # gangs is not narrowed by asking which person.
     players = sorted({row["owner"] for row in gangs})
+    badges = {}
+    picker = {
+        "gangs": [
+            {
+                "pk": row["pk"],
+                "name": row["name"],
+                "href": row["href"],
+                "unlimited": row["unlimited"],
+                "budgetHref": row["budget_href"],
+                "owner": row["owner"],
+                "ownerLink": person_link(row["owned_by"], badges)
+                if arbitrating
+                else None,
+                "wealth": row["wealth"],
+                "search": row["search"],
+                "playing": row["playing"],
+            }
+            for row in gangs
+        ],
+        # Each badge's artwork once, however many rows its holder has.
+        "badges": badges,
+        "playerOptions": [{"value": name, "label": name} for name in players]
+        if len(players) > 1
+        else [],
+        # The ends of the wealth filter, which are also its off positions.
+        "wealthCeiling": max((row["wealth"] for row in gangs), default=0),
+    }
     return render(
         request,
         "n26/add_gang_to_campaign.html",
@@ -1224,11 +1252,7 @@ def add_gang(request, pk):
             "campaign": found,
             "arbitrating": arbitrating,
             "gangs": gangs,
-            "player_options": [{"value": name, "label": name} for name in players]
-            if len(players) > 1
-            else [],
-            # The ends of the wealth filter, which are also its off positions.
-            "wealth_ceiling": max((row["wealth"] for row in gangs), default=0),
+            "picker": picker,
             "nothing_to_offer": not gangs,
         },
     )

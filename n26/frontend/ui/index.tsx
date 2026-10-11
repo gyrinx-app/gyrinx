@@ -453,6 +453,33 @@ export function Switch({
     );
 }
 
+/** A switch with words beside it that toggle it too, as `<c-n26.toggle>`. */
+export function Toggle({
+    label,
+    checked,
+    onCheckedChange,
+    name = "",
+}: {
+    label: string;
+    checked: boolean;
+    onCheckedChange: (checked: boolean) => void;
+    name?: string;
+}) {
+    return (
+        <label className={cotton.toggle}>
+            <Switch
+                embedded
+                name={name}
+                label=""
+                size="sm"
+                checked={checked}
+                onCheckedChange={onCheckedChange}
+            />
+            <span>{label}</span>
+        </label>
+    );
+}
+
 export function CheckboxCard({
     checked,
     onCheckedChange,
@@ -745,11 +772,16 @@ export function Table({
 export function Link({
     children,
     className = "",
+    tone = "accent",
     ...props
-}: ComponentProps<"a">) {
+}: ComponentProps<"a"> & {
+    /** accent is `<c-n26.link>`'s default; current takes the text colour. */
+    tone?: "accent" | "current";
+}) {
+    const recipe = tone === "current" ? cotton.linkCurrent : cotton.link;
     return (
-        <a {...props} className={`${cotton.link[0]} ${className}`}>
-            <span className={cotton.link[1]}>{children}</span>
+        <a {...props} className={`${recipe[0]} ${className}`}>
+            <span className={recipe[1]}>{children}</span>
         </a>
     );
 }
@@ -757,11 +789,14 @@ export function Link({
 export function Badge({
     children,
     className = "",
+    color = "amber",
 }: {
     children: ReactNode;
     className?: string;
+    color?: "amber" | "ink";
 }) {
-    return <span className={`${cotton.badge} ${className}`}>{children}</span>;
+    const recipe = color === "ink" ? cotton.badgeInk : cotton.badge;
+    return <span className={`${recipe} ${className}`}>{children}</span>;
 }
 
 export function StagedBadge() {
@@ -772,12 +807,22 @@ export function ActionBar({
     children,
     trailing,
     className = "",
+    surface = true,
+    spaced = true,
     ...props
 }: ComponentProps<"div"> & {
     trailing?: ReactNode;
+    /** The tinted band behind the controls; false for a bare row. */
+    surface?: boolean;
+    /** False when the parent already spaces its children. */
+    spaced?: boolean;
 }) {
+    const bar = surface ? cotton.actionBar[0] : cotton.actionBarPlain;
     return (
-        <div {...props} className={`${cotton.actionBar[0]} mb-3 ${className}`}>
+        <div
+            {...props}
+            className={`${bar} ${spaced ? "mb-3" : ""} ${className}`}
+        >
             {children}
             {trailing && <div className={cotton.actionBar[1]}>{trailing}</div>}
         </div>
@@ -808,6 +853,103 @@ export function Icon({
                 createElement(tag, { ...attrs, key }),
             )}
         </svg>
+    );
+}
+
+/** An SVG element from `n26/badges.py`: allowlisted tags and attributes. */
+export type SvgNode = {
+    tag: string;
+    props: Record<string, string>;
+    children?: (SvgNode | string)[];
+};
+
+/** A badge beside a name: its accessible name and its artwork. */
+export type BadgeMark = { label: string; svg: SvgNode };
+
+// The platform's SVG allowlist, checked again here so data never becomes markup.
+const SVG_TAGS = new Set([
+    "svg",
+    "g",
+    "path",
+    "circle",
+    "ellipse",
+    "rect",
+    "line",
+    "polyline",
+    "polygon",
+    "defs",
+    "use",
+    "symbol",
+    "title",
+    "desc",
+    "linearGradient",
+    "radialGradient",
+    "stop",
+    "clipPath",
+    "mask",
+]);
+
+function svgProps(props: Record<string, string>) {
+    return Object.fromEntries(
+        Object.entries(props).filter(
+            ([name, value]) =>
+                !/^on/i.test(name) &&
+                name !== "style" &&
+                name !== "dangerouslySetInnerHTML" &&
+                (name !== "href" || value.startsWith("#")),
+        ),
+    );
+}
+
+function SvgArt({ node }: { node: SvgNode }): ReactNode {
+    if (!SVG_TAGS.has(node.tag)) return null;
+    const props: Record<string, string> = svgProps(node.props);
+    // The wrapper names the badge, so the drawing itself stays silent.
+    if (node.tag === "svg") {
+        props["aria-hidden"] = "true";
+        props.focusable = "false";
+    }
+    return createElement(
+        node.tag,
+        props,
+        ...(node.children ?? []).map((child, key) =>
+            typeof child === "string" ? (
+                child
+            ) : (
+                <SvgArt key={key} node={child} />
+            ),
+        ),
+    );
+}
+
+/**
+ * A person's name in the surrounding colour, linked to their profile, with
+ * their badge after it, as `<c-n26.user-link tone="current">` draws it.
+ */
+export function UserLink({
+    name,
+    href,
+    badge,
+}: {
+    name: string;
+    href: string;
+    badge?: BadgeMark | null;
+}) {
+    const recipe = cotton.userLink;
+    return (
+        <a href={href} className={recipe.link}>
+            <span className={recipe.text}>{name}</span>
+            {badge && (
+                <span
+                    className={recipe.flair}
+                    role="img"
+                    aria-label={badge.label}
+                    title={badge.label}
+                >
+                    <SvgArt node={badge.svg} />
+                </span>
+            )}
+        </a>
     );
 }
 
@@ -1017,6 +1159,7 @@ export {
     type ActionMenuProps,
 } from "./ActionMenu";
 export { FilterMenu, type FilterOption } from "./FilterMenu";
+export { RangeMenu } from "./RangeMenu";
 export {
     QuickSwitcher,
     type QuickSwitcherProps,
