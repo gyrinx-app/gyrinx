@@ -238,6 +238,19 @@ class Asset(Content, Assignable):
         ),
     )
 
+    base_income_modifier = models.ForeignKey(
+        "library.Modifier",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="income_assets",
+        help_text=(
+            "The Income contribution carried by this asset's Income option. "
+            "Its amount is the catalogue income. A holding's income override "
+            "applies only while that option is selected."
+        ),
+    )
+
     asset_type = models.ForeignKey(
         AssetType,
         on_delete=models.PROTECT,
@@ -267,6 +280,13 @@ class Asset(Content, Assignable):
     def campaign_type(self):
         """The campaign type whose asset type this belongs to."""
         return self.asset_type.campaign_type
+
+    def clean(self):
+        super().clean()
+        if self.base_income_modifier_id:
+            from n26.library.income_choices import validate_income_choice
+
+            validate_income_choice(self)
 
     @property
     def is_possession(self):

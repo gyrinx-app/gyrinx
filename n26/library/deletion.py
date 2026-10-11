@@ -49,6 +49,7 @@ has changed since it was read. Nothing here writes outside ``apply``.
 
 from collections import Counter
 from dataclasses import dataclass, replace
+from functools import wraps
 
 from django.db import transaction
 
@@ -1042,6 +1043,29 @@ def _column(row):
     raise ValueError(f"a {row._meta.verbose_name} is never assigned")
 
 
+def _refuse_data_errors(function):
+    """Convert model refusals after the deletion transaction has rolled back."""
+
+    @wraps(function)
+    def refusing(*args, **kwargs):
+        from django.core.exceptions import ValidationError
+        from django.db.models import ProtectedError
+
+        try:
+            return function(*args, **kwargs)
+        except ValidationError as refused:
+            raise Refused(
+                "nothing was deleted: " + "; ".join(refused.messages)
+            ) from refused
+        except ProtectedError as refused:
+            raise Refused(
+                "nothing was deleted: the content is still in use"
+            ) from refused
+
+    return refusing
+
+
+@_refuse_data_errors
 def apply(plan, actor=None):
     """Delete exactly what the plan names, or refuse.
 

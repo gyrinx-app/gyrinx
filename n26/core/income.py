@@ -47,11 +47,26 @@ def _income_contributions(contributions):
     ]
 
 
-def _holding_source(holding, contributions, *, counter=None):
+def is_base_income_contribution(asset, contribution, *, direct):
+    """The declared baseline, or an ordinary baseline carried directly."""
+    from n26.library.income import income_modifiers
+
+    modifier_id = getattr(contribution.modifier, "pk", None)
+    declared = getattr(asset, "base_income_modifier_id", None)
+    if declared is not None and modifier_id == declared:
+        return True
+    return contribution.carrier_key == direct and modifier_id in {
+        modifier.pk for modifier in income_modifiers(asset)
+    }
+
+
+def _asset_source(
+    asset, name, contributions, *, direct, override_id=None, counter=None
+):
     from n26.core.effects import ModifierIndex
     from n26.library.income import income_modifiers
 
-    base_modifiers = income_modifiers(holding.asset)
+    base_modifiers = income_modifiers(asset)
     if counter is not None:
         base_modifiers = [
             modifier
@@ -59,19 +74,20 @@ def _holding_source(holding, contributions, *, counter=None):
             if ModifierIndex.key(modifier.contributes_to_counter.counter)
             == ModifierIndex.key(counter)
         ]
-    base_ids = {modifier.pk for modifier in base_modifiers}
-    direct = ModifierIndex.key(holding)
     base = []
     overrides = []
     boons = []
     for contribution in contributions:
         modifier_id = getattr(contribution.modifier, "pk", None)
-        if contribution.carrier_key == direct and modifier_id in base_ids:
-            base.append(contribution)
+        if is_base_income_contribution(asset, contribution, direct=direct):
+            if contribution.applied_override is not None:
+                overrides.append(contribution)
+            else:
+                base.append(contribution)
         elif (
             contribution.carrier_key == direct
-            and holding.income_override_id
-            and modifier_id == holding.income_override_id
+            and override_id
+            and modifier_id == override_id
         ):
             overrides.append(contribution)
         else:
@@ -82,7 +98,7 @@ def _holding_source(holding, contributions, *, counter=None):
             )
             boons.append(IncomePart("Boon", contribution.amount, detail=detail))
     parts = []
-    if holding.income_override_id:
+    if overrides:
         parts.append(
             IncomePart(
                 "Base income",
@@ -93,20 +109,55 @@ def _holding_source(holding, contributions, *, counter=None):
                 replaced=True,
             )
         )
-    elif base:
-        parts.append(IncomePart("Base income", sum(item.amount for item in base)))
-    if overrides:
         parts.append(
             IncomePart("Income override", sum(item.amount for item in overrides))
         )
+    elif base:
+        parts.append(IncomePart("Base income", sum(item.amount for item in base)))
     parts.extend(sorted(boons, key=lambda part: (part.detail.casefold(), part.amount)))
     if not parts:
         parts.append(IncomePart("Base income", 0))
     return IncomeSource(
-        name=str(holding),
+        name=name,
         value=sum(contribution.amount for contribution in contributions),
         parts=tuple(parts),
     )
+
+
+def _holding_source(holding, contributions, *, counter=None):
+    from n26.core.effects import ModifierIndex
+
+    return _asset_source(
+        holding.asset,
+        str(holding),
+        contributions,
+        direct=ModifierIndex.key(holding),
+        override_id=holding.income_override_id,
+        counter=counter,
+    )
+
+
+def asset_assignment_income_sources(computed):
+    """Each owned asset occurrence, including its selected and derived effects."""
+    from n26.core.effects import (
+        ModifierIndex,
+        counter_contributions_by_asset_assignment,
+    )
+    from n26.library.models import Asset
+
+    grouped = counter_contributions_by_asset_assignment(computed)
+    return {
+        node.key: _asset_source(
+            node.assignable,
+            node.name,
+            _income_contributions(grouped.get(node.key, ())),
+            direct=ModifierIndex.key(node.assignable),
+        )
+        for node in computed.card.all_nodes()
+        if isinstance(node.assignable, Asset)
+        and not node.suppressed
+        and not node.broadcast
+    }
 
 
 def holding_income_sources(computed):
@@ -127,7 +178,11 @@ def holding_income_sources(computed):
 
 def income_sources(computed, contributions, *, counter):
     """Named sources for one exact counter reading, including possessions."""
-    from n26.core.effects import ModifierIndex, counter_contributions_by_holding
+    from n26.core.effects import (
+        ModifierIndex,
+        counter_contributions_by_asset_assignment,
+        counter_contributions_by_holding,
+    )
     from n26.library.income import is_income_contribution
     from n26.library.models import Asset
 
@@ -148,6 +203,28 @@ def income_sources(computed, contributions, *, counter):
         if held:
             sources.append(
                 (str(address), _holding_source(holding, held, counter=counter))
+            )
+    by_assignment = counter_contributions_by_asset_assignment(computed)
+    for node in computed.card.all_nodes():
+        if not isinstance(node.assignable, Asset) or node.suppressed or node.broadcast:
+            continue
+        owned = [
+            selected.pop(id(contribution))
+            for contribution in by_assignment.get(node.key, ())
+            if id(contribution) in selected
+        ]
+        if owned:
+            sources.append(
+                (
+                    str(node.key),
+                    _asset_source(
+                        node.assignable,
+                        node.name,
+                        owned,
+                        direct=ModifierIndex.key(node.assignable),
+                        counter=counter,
+                    ),
+                )
             )
     other = {}
     for contribution in selected.values():

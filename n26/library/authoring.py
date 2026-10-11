@@ -31,6 +31,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Max
 
+from n26.library.income_choices import preserves_income_choices
 from n26.library.models import (
     GangType,
     Profile,
@@ -224,6 +225,8 @@ def create_asset(
         library_author_help=library_author_help,
         **kwargs,
     )
+    if asset.base_income_modifier_id:
+        asset.full_clean()
     if income:
         set_income(asset, income)
     if giver is not None:
@@ -387,6 +390,7 @@ def remove_asset_table_entry(entry):
 
 
 @guarded_write
+@preserves_income_choices
 def set_income(asset, amount):
     """What the asset brings its holder each cycle, written as a modifier:
     the gang carrying the asset has ``amount`` added to its Income
@@ -395,9 +399,11 @@ def set_income(asset, amount):
     The modifier is the asset's own, in the asset's pack, named after it.
     Setting the figure again changes that modifier's amount in place, so
     a campaign already holding the asset reads the new figure on its
-    next read; setting it to 0 takes the modifier away, and an asset
-    with no income carries nothing. Several contributions an author
-    attached by hand are folded into the first. Returns the modifier, or
+    next read. Setting a directly carried contribution to 0 removes it.
+    A declared Income option keeps its modifier at 0, so the option and
+    each holding's override retain their identity. For direct Income, several
+    contributions attached by hand are folded into the first. Independent
+    additions to a declared choice stay separate. Returns the modifier, or
     None when the asset brings nothing.
     """
     from n26.library.income import (
@@ -408,6 +414,14 @@ def set_income(asset, amount):
     from n26.library.models import Modifier
 
     amount = max(int(amount or 0), 0)
+    if asset.base_income_modifier_id:
+        from n26.library.income_choices import validate_income_choice
+
+        choice = validate_income_choice(asset)
+        effect = choice.modifier.contributes_to_counter
+        effect.amount = amount
+        effect.save(update_fields=["amount"])
+        return choice.modifier
     standing = income_modifiers(asset)
     if amount == 0:
         for row in standing:
@@ -429,6 +443,26 @@ def set_income(asset, amount):
         attach_to=asset,
         pack_id=asset.pack_id,
     )
+
+
+@guarded_write
+def set_base_income_modifier(asset, modifier):
+    """Identify the contribution carried by this asset's Income option.
+
+    The option and its visible single-pick gang choice must already be
+    attached. The ordinary Income editor then changes this contribution,
+    including a real zero, without detaching the option.
+    """
+    from n26.library.income_choices import validate_income_choice
+
+    if modifier is None and asset.base_income_modifier_id:
+        raise ValidationError(
+            "An asset with selectable income must keep its base income modifier."
+        )
+    asset.base_income_modifier = modifier
+    validate_income_choice(asset)
+    asset.save(update_fields=["base_income_modifier", "modified"])
+    return asset
 
 
 @guarded_write
@@ -582,6 +616,7 @@ def set_statline(owner, pack=None, **values):
 
 
 @guarded_write
+@preserves_income_choices
 def revise(row, **fields):
     """Write the named columns of a row that already exists, and save.
 
@@ -605,12 +640,12 @@ def revise(row, **fields):
                 f"set_ verb that owns it and says what leaving means"
             )
         setattr(row, name, value)
-    from n26.library.models import PicklistMember
+    from n26.library.models import Asset, PicklistMember
     from n26.library.models.assignable import D6Rollable
 
     if isinstance(row, D6Rollable):
         return _save_rollable(row)
-    if isinstance(row, PicklistMember):
+    if isinstance(row, (Asset, PicklistMember)):
         row.full_clean()
     row.save()
     return row
@@ -1365,6 +1400,7 @@ def create_picklist(name, slot_type, members=(), dice="", roll_selects="", **kwa
 
 
 @guarded_write
+@preserves_income_choices
 def add_picklist_member(
     picklist,
     pickable,
@@ -1421,6 +1457,7 @@ def add_picklist_member(
 
 
 @guarded_write
+@preserves_income_choices
 def remove_picklist_member(member):
     """Stop offering one pickable on one list.
 
@@ -1432,6 +1469,7 @@ def remove_picklist_member(member):
 
 
 @guarded_write
+@preserves_income_choices
 def create_slot(
     name,
     slot_type,
@@ -1860,6 +1898,7 @@ def _free_set_name(carrier, phrase="built-ins", **shared):
 
 
 @guarded_write
+@preserves_income_choices
 def add_built_in(
     carrier,
     thing,
@@ -1930,6 +1969,7 @@ def _refuse_a_bare_pickable(thing):
 # together, whatever transaction the caller does or does not hold.
 @guarded_write
 @transaction.atomic
+@preserves_income_choices
 def add_default_member(
     default_set,
     thing,
@@ -2302,6 +2342,7 @@ def create_collection(
 # delete leaves the memberships standing.
 @guarded_write
 @transaction.atomic
+@preserves_income_choices
 def delete_content(row):
     """Take an authored row out of the library for good.
 
@@ -2974,6 +3015,7 @@ def _parts(scope, effect):
 
 
 @guarded_write
+@preserves_income_choices
 def modifier(name, scope, effect, attach_to=None, **kwargs):
     """One scope plus one effect; optionally hung on an assignable."""
     from n26.library.models import Modifier
@@ -3019,6 +3061,7 @@ def recompose_modifier(row, name, scope, effect):
 
 
 @guarded_write
+@preserves_income_choices
 def delete_modifier(row):
     """Remove a modifier, and the rows it is made of, from everywhere.
 
@@ -3034,6 +3077,7 @@ def delete_modifier(row):
 
 
 @guarded_write
+@preserves_income_choices
 def attach_modifiers_to(assignable, modifiers):
     """Hang already-built (reusable) modifiers on a further carrier."""
     assignable.modifiers.add(*modifiers)
@@ -3041,6 +3085,7 @@ def attach_modifiers_to(assignable, modifiers):
 
 
 @guarded_write
+@preserves_income_choices
 def detach_modifier(assignable, modifier):
     """Take a modifier off one carrier. The modifier itself survives —
     it may hang on other carriers, or wait as a reusable."""

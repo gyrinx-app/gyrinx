@@ -44,7 +44,7 @@ export function IncomeTooltip({
                 </span>
             }
         >
-            <div className="space-y-3 text-sm">
+            <div className="space-y-3 text-left text-sm">
                 <div
                     role="region"
                     aria-label="Income breakdown details"

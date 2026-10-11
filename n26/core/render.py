@@ -27,9 +27,11 @@ from n26.core.effects import (
 )
 from n26.core.income import (
     IncomeSource,
+    asset_assignment_income_sources,
     holding_income_sources,
     income_explanation,
     income_sources,
+    is_base_income_contribution,
     unclaimed_income_source,
 )
 from n26.core.models.dismissed_offer import GANG_SLOT_HOST as _GANG_SLOT_HOST
@@ -677,6 +679,8 @@ class ChoiceLine:
     #: rendered under that act's own address.
     back: str = ""
     holding_name: str = ""
+    asset_name: str = ""
+    asset_key: str = ""
 
     def __post_init__(self):
         if self.is_full is None:
@@ -1467,9 +1471,9 @@ class CampaignAssetLine:
     all, it is that kind's own name ("Special rule"): the same fact,
     taken from the model rather than from an asset type.
 
-    ``income`` is what the asset contributes to the gang's Income counter,
-    read off the asset's modifiers; the gang's credits do not move for
-    it. ``provenance`` names the carrier that brought a
+    ``income`` is the asset's effective contribution to the gang's Income
+    counter, including its current selections; the gang's credits do not
+    move for it. ``provenance`` names the carrier that brought a
     possession, and is empty on a holding — a holding's source is the
     campaign, and the block is already drawn under the campaign's name.
     ``campaign_asset_id`` names the campaign's asset, set on a holding
@@ -1522,6 +1526,141 @@ def group_campaign_assets(lines, *, types=()):
     ]
 
 
+@dataclass(frozen=True)
+class AssetBoonEffect:
+    name: str
+    value: int
+    is_income: bool = False
+
+    @property
+    def text(self):
+        return f"{self.value:+d}" + ("¢" if self.is_income else "")
+
+
+@dataclass(frozen=True)
+class AssetBoonLine:
+    """One current asset's choices and effective standing counter benefits."""
+
+    key: str
+    name: str
+    effects: tuple[AssetBoonEffect, ...] = ()
+    choices: tuple[ChoiceLine, ...] = ()
+
+
+def _asset_origin_key(origin):
+    from n26.core.models import CampaignAsset
+
+    if isinstance(origin, CampaignAsset):
+        return f"holding:{origin.pk}@{origin.ownership_revision}"
+    return f"assignment:{origin.key}"
+
+
+def _asset_choice_line(slot, origins):
+    line = _choice_line(slot, GANG_SLOT_HOST)
+    origin = slot.holding or origins.get(getattr(slot.anchor, "key", None))
+    if origin is not None:
+        line.asset_key = _asset_origin_key(origin)
+        line.asset_name = origin.name if hasattr(origin, "assignable") else str(origin)
+    return line
+
+
+def _orphan_asset_choices(computed, origins):
+    """Retain current selected facts when their authored offer is hidden."""
+    represented = {pick.key for slot in computed.choices for pick in slot.picks}
+    grouped = {}
+    for node in computed.card.all_nodes():
+        origin = origins.get(node.key)
+        if (
+            origin is None
+            or node.key in represented
+            or node.suppressed
+            or node.broadcast
+            or not isinstance(node.assignable, Pickable)
+            or node.assignable.record_only
+            or node.chosen_for_slot_id is None
+        ):
+            continue
+        key = (_asset_origin_key(origin), node.chosen_for_key, node.chosen_for_slot_id)
+        grouped.setdefault(key, (origin, []))[1].append(node)
+    return [
+        ChoiceLine(
+            kind_label=nodes[0].assignable.slot_type.name,
+            chosen=stacked_names(node.name for node in nodes),
+            is_full=True,
+            asset_key=key[0],
+            asset_name=origin.name if hasattr(origin, "assignable") else str(origin),
+        )
+        for key, (origin, nodes) in grouped.items()
+    ]
+
+
+def asset_boon_lines(computed):
+    """Current assets' extra numeric effects, without catalogue baseline Income."""
+    from n26.core.effects import (
+        counter_contributions_by_asset_assignment,
+        counter_contributions_by_holding,
+    )
+    from n26.library.income import is_income_counter
+    from n26.library.models import Asset
+
+    owned = counter_contributions_by_asset_assignment(computed)
+    held = counter_contributions_by_holding(computed)
+    rows = {}
+    origins = [
+        node
+        for node in computed.card.all_nodes()
+        if isinstance(node.assignable, Asset)
+        and not node.suppressed
+        and not node.broadcast
+    ]
+    origins.extend(computed.card.holdings)
+    for origin in origins:
+        node = hasattr(origin, "assignable")
+        asset = origin.assignable if node else origin.asset
+        contributions = (
+            owned.get(origin.key, ())
+            if node
+            else held.get((origin.pk, origin.ownership_revision), ())
+        )
+        direct = ModifierIndex.key(asset if node else origin)
+        values = {}
+        counters = {}
+        for contribution in contributions:
+            if is_income_counter(contribution.counter) and (
+                is_base_income_contribution(asset, contribution, direct=direct)
+                or (
+                    not node
+                    and contribution.carrier_key == direct
+                    and getattr(contribution.modifier, "pk", None)
+                    == origin.income_override_id
+                )
+            ):
+                continue
+            key = ModifierIndex.key(contribution.counter)
+            counters[key] = contribution.counter
+            values[key] = values.get(key, 0) + contribution.amount
+        key = _asset_origin_key(origin)
+        rows[key] = AssetBoonLine(
+            key=key,
+            name=origin.name if node else str(origin),
+            effects=tuple(
+                AssetBoonEffect(
+                    str(counters[counter]), value, is_income_counter(counters[counter])
+                )
+                for counter, value in sorted(
+                    values.items(),
+                    key=lambda item: (str(counters[item[0]]).casefold(), str(item[0])),
+                )
+            ),
+        )
+    return rows
+
+
+def holding_boons(computed, holding, choices=()):
+    row = asset_boon_lines(computed).get(_asset_origin_key(holding))
+    return replace(row, choices=tuple(choices)) if row is not None else None
+
+
 @dataclass
 class CampaignBlock:
     """What the gang has because it is in a campaign, under the campaign's
@@ -1552,6 +1691,7 @@ class CampaignBlock:
     counters: list[CounterLine] = field(default_factory=list)
     holdings: list[CampaignAssetLine] = field(default_factory=list)
     choices: list[ChoiceLine] = field(default_factory=list)
+    boon_assets: list[AssetBoonLine] = field(default_factory=list)
     #: Where the campaign's name and its holdings lead — the campaign
     #: page, and its assets section — filled in by whoever knows both the
     #: URL space and who may open them, as a counter's own href is. Empty
@@ -1578,7 +1718,25 @@ class CampaignBlock:
 
     @property
     def other_choices(self):
-        return [choice for choice in self.choices if not choice.holding_name]
+        return [
+            choice
+            for choice in self.choices
+            if not choice.holding_name and not choice.asset_key
+        ]
+
+    @property
+    def boons(self):
+        return [
+            replace(
+                asset,
+                choices=tuple(
+                    choice for choice in self.choices if choice.asset_key == asset.key
+                ),
+            )
+            for asset in self.boon_assets
+            if asset.effects
+            or any(choice.asset_key == asset.key for choice in self.choices)
+        ]
 
 
 @dataclass
@@ -3719,9 +3877,7 @@ def _possession_lines(possessions, types, provenance_of, income_for):
                 type_plural=asset_type.plural if asset_type else "",
                 asset_type_id=str(asset_type.pk) if asset_type else "",
                 name=node.name,
-                income=income_for(node.assignable, node.assignable)
-                if asset_type
-                else 0,
+                income=income_for(node.assignable, node) if asset_type else 0,
                 provenance=provenance_of(node),
             )
         )
@@ -3744,20 +3900,31 @@ def holding_income(computed):
 
 
 def _income_reader(index, computed=None):
-    """Read a held asset's computed Income or an unheld asset's base Income."""
+    """Read an owned or held asset's effective Income, or its catalogue baseline."""
     from n26.core.models import CampaignAsset
     from n26.library.income import income_of
 
     incomes = holding_income(computed) if computed is not None else {}
+    owned = asset_assignment_income_sources(computed) if computed is not None else {}
 
     def income_for(asset, carrier):
+        if computed is not None and getattr(carrier, "key", None) in owned:
+            return owned[carrier.key].value
         if computed is not None and isinstance(carrier, CampaignAsset):
             return incomes.get((carrier.pk, carrier.ownership_revision), 0)
         if index is None:
             if getattr(carrier, "income_override_id", None):
                 return carrier.income_override.contributes_to_counter.amount
             return income_of(asset)
-        return income_of(asset, [modifier for modifier, _ in index.for_thing(carrier)])
+        return income_of(
+            asset,
+            [
+                modifier
+                for modifier, _ in index.for_thing(
+                    getattr(carrier, "assignable", carrier)
+                )
+            ],
+        )
 
     return income_for
 
@@ -3770,7 +3937,7 @@ def _campaign_block(gang_card, membership, keys, readings, index=None, computed=
     the kind's name. The holdings take the same shape, so the block reads
     as one run of "what this gang has from the campaign" whether the
     gang owns the thing or only holds it. Holding Income includes its
-    standing computed contributions; possessed assets use the modifier index.
+    standing computed contributions, as does each possessed asset occurrence.
     """
     from n26.library.models import Asset, AssetType
 
@@ -3783,9 +3950,17 @@ def _campaign_block(gang_card, membership, keys, readings, index=None, computed=
         [node.assignable for node in possessions if isinstance(node.assignable, Asset)]
     )
     income_for = _income_reader(index, computed)
+    boons = asset_boon_lines(computed) if computed is not None else {}
+    boon_keys = {
+        _asset_origin_key(node)
+        for node in possessions
+        if isinstance(node.assignable, Asset)
+    }
+    boon_keys.update(_asset_origin_key(holding) for holding in gang_card.holdings)
     return CampaignBlock(
         name=membership.campaign.name,
         campaign_id=str(membership.campaign_id),
+        boon_assets=[row for key, row in boons.items() if key in boon_keys],
         asset_types=[
             (str(asset_type.pk), asset_type.plural)
             for asset_type in sorted(
@@ -3840,11 +4015,21 @@ def build_campaign_block(gang_card, *, index, computed):
         index=index,
         computed=computed,
     )
+    from n26.core.effects import asset_origins
+
+    origins = asset_origins(computed.card)
     block.choices = [
-        _choice_line(slot, GANG_SLOT_HOST)
+        _asset_choice_line(slot, origins)
         for slot in computed.choices
-        if slot.holding is not None or getattr(slot.anchor, "key", None) in keys
+        if not slot.is_history_only
+        and (slot.holding is not None or getattr(slot.anchor, "key", None) in keys)
     ]
+    boon_keys = {row.key for row in block.boon_assets}
+    block.choices.extend(
+        line
+        for line in _orphan_asset_choices(computed, origins)
+        if line.asset_key in boon_keys
+    )
     return block
 
 
@@ -4135,9 +4320,14 @@ def render_gang(
     # Questions follow the same carrier ownership as campaign possessions
     # and counters. Names may be shared with the gang's own questions or
     # a previous campaign's retained answers.
+    from n26.core.effects import asset_origins
+
+    origins = asset_origins(gang_card)
     choices = []
     for slot in gang_computed.choices if gang_computed else ():
-        line = _choice_line(slot, GANG_SLOT_HOST)
+        if slot.is_history_only:
+            continue
+        line = _asset_choice_line(slot, origins)
         if campaign is not None and (
             slot.holding is not None
             or getattr(slot.anchor, "key", None) in campaign_keys
@@ -4145,6 +4335,13 @@ def render_gang(
             campaign.choices.append(line)
         else:
             choices.append(line)
+    if campaign is not None and gang_computed is not None:
+        boon_keys = {row.key for row in campaign.boon_assets}
+        campaign.choices.extend(
+            line
+            for line in _orphan_asset_choices(gang_computed, origins)
+            if line.asset_key in boon_keys
+        )
     # What each model still has of the Trade Points its books give it to
     # spend as it joins. Off the fold that has just been worked out, plus
     # one sum of what the whole roster has spent — never a query a
@@ -4323,7 +4520,9 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     # column says.
     campaign_assets = list(
         campaign.campaign_assets.select_related(
-            "asset__asset_type", "income_override__contributes_to_counter"
+            "asset__asset_type",
+            "asset__base_income_modifier__contributes_to_counter__counter",
+            "income_override__contributes_to_counter",
         ).prefetch_related(
             Prefetch(
                 "asset__modifiers", queryset=reading_sentences(Modifier.objects.all())
@@ -4744,11 +4943,19 @@ def holding_choices(computed, holding):
             anchor = nodes.get(anchor.caused_by_key) or parents.get(anchor.key)
         return False
 
+    from n26.core.effects import asset_origins
+
+    origins = asset_origins(computed.card)
     return HoldingChoices(
         [
-            _choice_line(slot, GANG_SLOT_HOST)
+            _asset_choice_line(slot, origins)
             for slot in computed.choices
             if not slot.is_history_only and belongs(slot)
+        ]
+        + [
+            line
+            for line in _orphan_asset_choices(computed, origins)
+            if line.asset_key == _asset_origin_key(holding)
         ]
     )
 
