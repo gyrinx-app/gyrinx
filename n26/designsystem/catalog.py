@@ -985,8 +985,9 @@ GROUPS: list[Group] = [
                     "before Alpine boots. It sets the dark class on <html>, stores "
                     "the choice, follows the OS in system mode and syncs across "
                     'tabs. variant="headless" hands the scope to the call site so '
-                    "it can draw its own control, which is what "
-                    "c-n26.site.nav.theme does."
+                    "it can draw its own control. The account menu's control, "
+                    "c-n26.site.nav.theme, is the theme-choice island instead; it "
+                    "shares storage_key with the head script."
                 ),
                 parts=(
                     Part(

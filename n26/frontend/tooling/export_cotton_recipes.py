@@ -1104,6 +1104,9 @@ def recipes():
                 "circle-question-mark",
                 "triangle-alert",
                 "external-link",
+                "sun",
+                "moon",
+                "monitor",
             )
         },
     }

@@ -255,7 +255,7 @@ class TestTheAuthoringPage:
         body = client.get("/n26/authoring/gang-type/new/").content.decode()
         soup = BeautifulSoup(body, "html.parser")
         host = soup.select_one(
-            "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
+            "[data-react-module]:not([data-react-name='quick-switcher']):not([data-react-name='theme-choice'])"
         )
         file_input = json.loads(soup.find(id=host["data-react-props"]).string)
 

@@ -186,7 +186,7 @@ class TestTheListing:
         body = client.get("/n26/authoring/weapon/").content.decode()
         soup = BeautifulSoup(body, "html.parser")
         host = soup.select_one(
-            "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
+            "[data-react-module]:not([data-react-name='quick-switcher']):not([data-react-name='theme-choice'])"
         )
         rows = json.loads(soup.find(id=host["data-react-props"]).string)["rows"]
         staged = [row for row in rows if row["staged"]]

@@ -501,11 +501,20 @@ class TestTheColourScheme:
     def test_every_scheme_is_reachable_from_the_account_menu(
         self, client, tester, make_gang
     ):
+        import json
+
+        from bs4 import BeautifulSoup
+
         client.force_login(tester)
-        body = client.get(reverse("n26-gangs")).content.decode()
-        assert "set('light')" in body
-        assert "set('dark')" in body
-        assert "set('system')" in body
+        soup = BeautifulSoup(client.get(reverse("n26-gangs")).content, "html.parser")
+        host = soup.select_one('[data-react-name="theme-choice"]')
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+        # The island's own tests click each scheme; here all three reach it.
+        assert [scheme for scheme, _, _ in props["choices"]] == [
+            "light",
+            "dark",
+            "system",
+        ]
 
     def test_the_bar_no_longer_carries_a_toggle_for_a_signed_in_reader(
         self, client, tester
