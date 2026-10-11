@@ -17,6 +17,7 @@ The load-bearing ideas:
   one of the doors and its count riding the button that opens them.
 """
 
+import json
 import re
 
 import pytest
@@ -735,7 +736,7 @@ class TestTheNavigation:
         the bar holds a row of space the page's own name wants on every
         screen. Behind the name it is still one click away."""
         body = client.get("/n26/").content.decode()
-        assert "set('system')" in account_menu(body)
+        assert 'data-react-name="theme-choice"' in account_menu(body)
         assert 'aria-label="Toggle dark mode"' not in nav_bar(body)
 
     def test_the_scheme_is_one_control_of_three_and_not_three_rows(
@@ -755,9 +756,21 @@ class TestTheNavigation:
         assert 'role="group"' in menu
         assert 'aria-label="Theme"' in menu
         # Each state still sets it: a control that renders and no longer
-        # switches looks right in every screenshot and works for nobody.
-        for scheme in ("light", "dark", "system"):
-            assert f"set('{scheme}')" in menu
+        # switches looks right in every screenshot and works for nobody. The
+        # island's own tests click each one; here every scheme reaches it.
+        soup = BeautifulSoup(menu, "html.parser")
+        host = soup.select_one('[data-react-name="theme-choice"]')
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+        assert [scheme for scheme, _, _ in props["choices"]] == [
+            "light",
+            "dark",
+            "system",
+        ]
+        assert [choice["data-scheme"] for choice in choices] == [
+            "light",
+            "dark",
+            "system",
+        ]
 
     def test_each_scheme_carries_its_own_drawing(self, tester, client, default_pack):
         """The sun, the moon and a screen. One icon for the group could
