@@ -1,19 +1,21 @@
 {% comment %}
-<c-n26.choice-slots> — Detail-list lines for a model's choice slots, with dismiss or restore on each.
+<c-n26.choice-slots> — Detail-list lines for choice slots, with dismiss or restore on each.
 
 choices is an iterable of ChoiceLine. A single line is not enough. This always loops.
 An unresolved line with no href draws a dash and no control. That is print and other readers.
 Dismissed lines say Dismissed and offer Restore. Open lines with href offer Choose.
 Must sit inside a detail-list. This emits rows and no container, and class lands on every row.
 A settled slot with an href is still a control. Clicking it is how that choice is changed.
+size is xs for compact facts or lg for body-sized labels and values. variant sets the choice button.
 {% endcomment %}
 
-<c-vars :choices="None" choose_label="Choose" class="" />
+<c-vars :choices="None" choose_label="Choose" size="xs" variant="ghost" class="" />
 
 {% for choice in choices %}
     {% if choice.dismissed %}
         <c-n26.detail-list.row label="{{ choice.kind_label }}"
                                :editable="False"
+                               size="{{ size }}"
                                class="{{ class }}"
                                value="Dismissed">
             <c-slot name="trailing"><c-n26.choice-dismiss :choice="choice" /></c-slot>
@@ -21,7 +23,8 @@ A settled slot with an href is still a control. Clicking it is how that choice i
     {% elif choice.href %}
         <c-n26.detail-list.row label="{{ choice.kind_label }}"
                                href="{{ choice.href }}"
-                               variant="ghost"
+                               variant="{{ variant }}"
+                               size="{{ size }}"
                                class="{{ class }}"
                                value="{% if choice.is_resolved %}{{ choice.chosen }}{% elif choice.follows_status %}Resolve →{% else %}{{ choose_label }}{% endif %}">
             <c-slot name="trailing"><c-n26.choice-dismiss :choice="choice" /></c-slot>
@@ -29,6 +32,7 @@ A settled slot with an href is still a control. Clicking it is how that choice i
     {% else %}
         <c-n26.detail-list.row label="{{ choice.kind_label }}"
                                :editable="False"
+                               size="{{ size }}"
                                class="{{ class }}"
                                value="{% if choice.is_resolved %}{{ choice.chosen }}{% else %}—{% endif %}" />
     {% endif %}

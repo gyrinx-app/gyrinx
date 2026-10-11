@@ -19,23 +19,8 @@ Assets retain their authored groups and links. This card owns its container.
             </h2>
         </c-slot>
         <dl class="divide-y divide-box-border px-4">
-            {% for choice in campaign.choices %}
-                <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 py-2.5">
-                    <dt class="min-w-0 break-words text-sm text-muted">{{ choice.kind_label }}</dt>
-                    <dd class="flex min-w-0 items-center justify-end gap-2 text-sm">
-                        <span class="min-w-0 break-words text-right">{% if choice.is_resolved %}{{ choice.chosen }}{% else %}—{% endif %}</span>
-                        {% if choice.dismiss_href %}
-                            <form method="post" action="{{ choice.dismiss_href }}" class="inline shrink-0">
-                                {% csrf_token %}
-                                <input type="hidden" name="back" value="{{ choice.back }}">
-                                <c-ui.button type="submit" size="xs" variant="ghost" aria-label="Hide {{ choice.kind_label }}"><c-n26.icon name="x" class="size-3.5" /></c-ui.button>
-                            </form>
-                        {% endif %}
-                        {% if choice.href %}
-                            <c-ui.button size="xs" variant="text" href="{{ choice.href }}" hx-get="{{ choice.href }}" hx-swap="none" aria-label="Edit {{ choice.kind_label }}" class="shrink-0 py-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>
-                        {% endif %}
-                    </dd>
-                </div>
+            {% for choice in campaign.other_choices %}
+                {% include "n26/includes/campaign_choice.html" %}
             {% endfor %}
             {% for counter in campaign.counters %}
                 <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 py-2.5">
@@ -58,6 +43,16 @@ Assets retain their authored groups and links. This card owns its container.
                 </div>
             {% endfor %}
         </dl>
+        {% if campaign.holding_choices %}
+            <section class="border-t border-box-border px-4 pb-2.5 pt-4" aria-labelledby="n26-campaign-boons-heading">
+                <h3 id="n26-campaign-boons-heading" class="text-sm font-semibold">Boons</h3>
+                <dl class="mt-1 divide-y divide-box-border">
+                    {% for choice in campaign.holding_choices %}
+                        {% include "n26/includes/campaign_choice.html" %}
+                    {% endfor %}
+                </dl>
+            </section>
+        {% endif %}
     </c-ui.card>
 </div>
 {% endif %}

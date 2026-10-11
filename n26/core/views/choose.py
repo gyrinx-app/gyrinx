@@ -20,8 +20,13 @@ own card; ``carrier`` is the assignment offering the choice; ``offer`` is
 which of its offers. Status follow-ups append the model’s status revision.
 Everything the page needs is in the URL, so it is a
 link, it survives a reload, and it works with scripting off.
+
+A campaign holding uses ``holding:<holding>@<ownership revision>:<Slot>``.
+The same picker settles it for the holding gang, with the campaign locked
+before that gang so a choice cannot follow an ownership change.
 """
 
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, replace
 
 from django.contrib import messages
@@ -43,6 +48,38 @@ from n26.library.staged import sees_staged
 #: link and a reload draws it again.
 SHOW_DISMISSED = "dismissed"
 SHOWING = "show"
+
+
+@contextmanager
+def choice_operation(gang, keys, *, actor=None):
+    """Take holding campaigns before the gang, then rederive choices inside.
+
+    Ordinary assignment choices need only the gang lock. Holding addresses
+    name a campaign whose ownership writers use campaign-before-gang order.
+    """
+    from n26.core.campaigns import campaign_operation
+    from n26.core.models import CampaignAsset
+    from n26.core.models.dismissed_offer import HOLDING_SLOT_HOST
+    from n26.core.operations import operation
+
+    campaigns = {}
+    for key in keys:
+        where, _, rest = key.partition(":")
+        if where != HOLDING_SLOT_HOST:
+            continue
+        holding_pk = rest.partition(":")[0].partition("@")[0]
+        try:
+            holding = get_object_or_404(
+                CampaignAsset.objects.select_related("campaign"), pk=holding_pk
+            )
+        except ValidationError:
+            raise Http404("No such holding") from None
+        campaigns[holding.campaign_id] = holding.campaign
+    with ExitStack() as locks:
+        for campaign_pk in sorted(campaigns, key=str):
+            locks.enter_context(campaign_operation(campaigns[campaign_pk], actor=actor))
+        with operation(gang, actor=actor) as op:
+            yield op
 
 
 def showing_dismissed(url):
@@ -172,6 +209,7 @@ def find_slot(gang, key):
     )
     from n26.core.effects import compute, compute_gang
     from n26.core.models import Miniature
+    from n26.core.models.dismissed_offer import HOLDING_SLOT_HOST, holding_slot_key
     from n26.core.render import GANG_SLOT_HOST
 
     where, _, rest = key.partition(":")
@@ -180,7 +218,7 @@ def find_slot(gang, key):
         raise Http404("No such choice")
 
     miniature = None
-    if where == GANG_SLOT_HOST:
+    if where in (GANG_SLOT_HOST, HOLDING_SLOT_HOST):
         card = build_gang_card(gang)
     else:
         try:
@@ -199,6 +237,10 @@ def find_slot(gang, key):
     computed = compute_gang(card, index) if miniature is None else compute(card, index)
 
     for slot in computed.choices:
+        if slot.holding is not None:
+            if holding_slot_key(slot.holding, slot.identity.pk) == key:
+                return _Found(slot=slot, computed=computed, anchor=slot.holding)
+            continue
         anchor = getattr(slot.anchor, "assignment", None)
         if anchor is None or slot.identity is None:
             continue
@@ -262,6 +304,7 @@ def find_slots(gang, keys):
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute, compute_gang
     from n26.core.models import Miniature
+    from n26.core.models.dismissed_offer import HOLDING_SLOT_HOST, holding_slot_key
     from n26.core.render import GANG_SLOT_HOST
 
     wanted = {}
@@ -270,7 +313,7 @@ def find_slots(gang, keys):
         anchor_pk, _, offer_pk = rest.partition(":")
         if not (where and anchor_pk and offer_pk):
             continue
-        if where != GANG_SLOT_HOST:
+        if where not in (GANG_SLOT_HOST, HOLDING_SLOT_HOST):
             try:
                 # The carrier as the cards spell it. A ULID has a UUID
                 # spelling too, and the query below takes either; what
@@ -292,9 +335,14 @@ def find_slots(gang, keys):
     cards = gang_card.members
     index = build_modifier_index(carriers(gang_card, *cards.values()))
     computed = {}
-    if GANG_SLOT_HOST in wanted:
-        computed[GANG_SLOT_HOST] = (compute_gang(gang_card, index), None)
-    named = [where for where in wanted if where != GANG_SLOT_HOST]
+    if GANG_SLOT_HOST in wanted or HOLDING_SLOT_HOST in wanted:
+        done = compute_gang(gang_card, index)
+        for where in (GANG_SLOT_HOST, HOLDING_SLOT_HOST):
+            if where in wanted:
+                computed[where] = (done, None)
+    named = [
+        where for where in wanted if where not in (GANG_SLOT_HOST, HOLDING_SLOT_HOST)
+    ]
     if named:
         miniatures = Miniature.objects.filter(
             pk__in=named, membership__gang=gang, membership__archived=False
@@ -308,6 +356,17 @@ def find_slots(gang, keys):
     found = {}
     for where, (done, miniature) in computed.items():
         for slot in done.choices:
+            if slot.holding is not None:
+                if where == HOLDING_SLOT_HOST:
+                    _, anchor_key, identity = holding_slot_key(
+                        slot.holding, slot.identity.pk
+                    ).split(":")
+                    key = wanted[where].get((anchor_key, identity))
+                    if key is not None:
+                        found[key] = _Found(
+                            slot=slot, computed=done, anchor=slot.holding
+                        )
+                continue
             anchor = getattr(slot.anchor, "assignment", None)
             if anchor is None or slot.identity is None:
                 continue
@@ -381,6 +440,10 @@ def _roll_at(key, gang, found, select_related=()):
             kind=LedgerEvent.Kind.ROLLED,
             slot=found.slot.slot,
             miniature=found.miniature,
+            campaign_asset=found.slot.holding,
+            holding_revision=found.slot.holding.ownership_revision
+            if found.slot.holding
+            else None,
             **(
                 {"status_revision": found.slot.status_revision}
                 if found.slot.slot.follows_status
@@ -466,7 +529,11 @@ def _host(found):
     fighter, and an offer that says the gang holds what is chosen still
     does.
     """
-    if found.miniature is not None and found.slot.anchor.broadcast:
+    if (
+        found.miniature is not None
+        and found.slot.anchor is not None
+        and found.slot.anchor.broadcast
+    ):
         return {"miniature": found.miniature}
     return {}
 
@@ -478,6 +545,8 @@ def _campaign_label_or_404(gang, found):
     if membership is None or found.miniature is not None:
         raise Http404("No such campaign label")
     carriers = {membership.type_carrier_id, membership.additions_carrier_id}
+    if found.slot.holding is not None:
+        raise Http404("No such campaign label")
     anchor = found.anchor
     seen = set()
     while anchor is not None and anchor.pk not in seen:
@@ -535,7 +604,7 @@ def choose(request, pk, slot):
     roll visible to whoever reads the history.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import Refusal, operation
+    from n26.core.operations import Refusal
     from n26.core.render import build_choice_offer
 
     gang = _own_gang_or_404(request, pk)
@@ -579,7 +648,7 @@ def choose(request, pk, slot):
                 messages.error(request, "Enter the number you rolled.")
                 return redirect(here)
         try:
-            with operation(gang, actor=request.user) as op:
+            with choice_operation(gang, [slot], actor=request.user) as op:
                 fresh = find_slot(gang, slot)
                 if fresh.slot.is_full:
                     # Filled while this page stood open: a roll now would
@@ -590,7 +659,10 @@ def choose(request, pk, slot):
                         "Take one back before rolling."
                     )
                 event = op.roll(
-                    fresh.slot.slot, miniature=fresh.miniature, rolled=rolled
+                    fresh.slot.slot,
+                    miniature=fresh.miniature,
+                    campaign_asset=fresh.slot.holding,
+                    rolled=rolled,
                 )
         except Refusal as refusal:
             messages.error(request, str(refusal))
@@ -714,18 +786,14 @@ def dismiss_offer(request, pk, slot):
     Lands back where the control was clicked, given as ``back`` and
     honoured only for this site's own addresses; the gang otherwise.
     """
-    from django.db import transaction
 
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import DismissedOffer
-    from n26.core.operations import _hold
-    from n26.write_pause import write_guard
 
     gang = _own_gang_or_404(request, pk)
     label = find_slot(gang, slot).slot.kind_label
     fallback = reverse("n26-gang", args=[gang.pk])
-    with transaction.atomic(), write_guard():
-        _hold(gang)
+    with choice_operation(gang, [slot], actor=request.user):
         found = find_slot(gang, slot)
         if found.slot.is_resolved:
             # Counted, because a choice worked at a pick at a time may
@@ -944,7 +1012,7 @@ def settle_pick(
     also uses for a page of answers at once: what is refused and what is
     recorded cannot come to differ between the two screens.
     """
-    from n26.core.operations import Refusal, operation
+    from n26.core.operations import Refusal
 
     # The pick screen draws one question, so its controls are named
     # plainly. A page drawing several names each control after its own
@@ -957,7 +1025,7 @@ def settle_pick(
     wanted = dropped or wanted
     status_before = found.miniature.status if found.miniature else None
     try:
-        with operation(gang, actor=request.user) as op:
+        with choice_operation(gang, [slot_key], actor=request.user) as op:
             picked = _write_pick(
                 op, request, gang, slot_key, found, offer, wanted, dropped=dropped
             )
@@ -1001,13 +1069,15 @@ def settle_picks(request, gang, answers, *, here, land):
     makes, so a choice settled here and one settled there cannot come to
     differ.
     """
-    from n26.core.operations import Refusal, operation
+    from n26.core.operations import Refusal
 
     if not answers:
         return redirect(land(None))
     written = []
     try:
-        with operation(gang, actor=request.user) as op:
+        with choice_operation(
+            gang, [key for key, *_ in answers], actor=request.user
+        ) as op:
             for slot_key, found, offer, wanted in answers:
                 picked = _write_pick(op, request, gang, slot_key, found, offer, wanted)
                 written.append((offer, picked))

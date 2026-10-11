@@ -1,6 +1,7 @@
 """Clickable holding details retain the campaign gate and action permissions."""
 
 from datetime import date
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from bs4 import BeautifulSoup
@@ -16,7 +17,16 @@ from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
     add_asset_type,
     create_asset,
+    create_pickable,
+    create_picklist,
+    create_slot,
+    create_slot_type,
+    ef_adds,
+    ef_contributes_to_counter,
+    modifier,
+    targets_gang_alone,
 )
+from n26.library.income import ensure_income_counter
 from n26.library.models import AssetType
 from n26.tests.sandbox.actions import found_campaign, found_gang
 
@@ -264,6 +274,72 @@ def test_more_battles_and_ownership_changes_do_not_add_queries(client, setup):
     assert len(many) <= len(few)
 
 
+def test_holding_choices_use_the_same_queries_as_more_choices_are_authored(
+    client, setup
+):
+    _, player, campaign, holding, first, _ = setup
+    client.force_login(player)
+    kind = create_slot_type("Territory benefit")
+    pick = create_pickable("Local reputation", kind)
+    picklist = create_picklist("Territory benefits", kind, members=[pick])
+
+    def add_choice(number):
+        slot = create_slot(
+            f"Territory benefit {number}", kind, picklist, assigned_to="gang"
+        )
+        modifier(
+            f"Territory benefit {number}",
+            targets_gang_alone(),
+            ef_adds(slot),
+            attach_to=holding.asset,
+        )
+
+    path = address(campaign, holding)
+    add_choice(0)
+    # Both samples contain stored picks, so only their number grows.
+    with campaign_operation(campaign, actor=player) as op:
+        op.assign(op.add_asset(holding.asset), first)
+    assert client.get(path).status_code == 200
+    with CaptureQueriesContext(connection) as few:
+        response = client.get(path)
+    assert len(response.context["choices"]) == 1
+    for number in range(1, 9):
+        add_choice(number)
+        with campaign_operation(campaign, actor=player) as op:
+            op.assign(op.add_asset(holding.asset), first)
+    with CaptureQueriesContext(connection) as many:
+        response = client.get(path)
+    choices = response.context["choices"]
+    assert len(choices) == 9
+    assert all(choice.holding_name == "Ruins by the sump" for choice in choices)
+    assert all("/choose/holding:" in choice.href for choice in choices)
+    assert len(many) <= len(few)
+
+
+def test_unheld_income_modifiers_do_not_add_queries(client, setup):
+    arbitrator, _, campaign, holding, _, _ = setup
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.unassign(holding)
+    path = address(campaign, holding)
+    client.get(path)
+    with CaptureQueriesContext(connection) as few:
+        response = client.get(path)
+    assert response.context["details"].income == 30
+    income = ensure_income_counter()
+    for number in range(8):
+        modifier(
+            f"Extra catalogue income {number}",
+            targets_gang_alone(),
+            ef_contributes_to_counter(income, 1),
+            attach_to=holding.asset,
+        )
+    with CaptureQueriesContext(connection) as many:
+        response = client.get(path)
+    assert response.context["details"].income == 38
+    assert response.context["choices"] == []
+    assert len(many) <= len(few)
+
+
 def test_ownership_history_pages_complete_transfers_instead_of_individual_ledger_records(
     client, setup
 ):
@@ -329,6 +405,22 @@ def test_transferring_from_a_holding_detail_keeps_the_page_and_updates_its_actio
 
 def test_the_holding_detail_opens_assignment_and_unassignment_dialogs(client, setup):
     _, _, campaign, holding, _, second = setup
+    kind = create_slot_type("Workshop boon")
+    pick = create_pickable(
+        "Extra income",
+        kind,
+        effects=[
+            (
+                targets_gang_alone(),
+                ef_contributes_to_counter(ensure_income_counter(), 5),
+            )
+        ],
+    )
+    picklist = create_picklist("Workshop boons", kind, members=[pick])
+    slot = create_slot("Workshop boon", kind, picklist, assigned_to="gang")
+    modifier(
+        "Workshop boon", targets_gang_alone(), ef_adds(slot), attach_to=holding.asset
+    )
     soup = BeautifulSoup(client.get(address(campaign, holding)).content, "html.parser")
     assert soup.find(id="n26-asset-dialog-host")
     for action in soup.select("a[hx-get]"):
@@ -339,6 +431,7 @@ def test_the_holding_detail_opens_assignment_and_unassignment_dialogs(client, se
     )
     response = client.post(url, HTTP_HX_REQUEST="true")
     assert response.context["details"].holder == ""
+    assert response.context["details"].income == 30
     url = (
         reverse("n26-campaign-asset-assign", args=[campaign.pk, holding.pk])
         + "?from=detail"
@@ -347,4 +440,49 @@ def test_the_holding_detail_opens_assignment_and_unassignment_dialogs(client, se
     assert response.context["back"] == address(campaign, holding)
     response = client.post(url, {"membership": second.pk}, HTTP_HX_REQUEST="true")
     assert response.context["details"].holder == second.gang.name
+    assert response.context["details"].income == 35
     assert response["HX-Replace-Url"] == address(campaign, holding)
+
+    choice = response.context["choices"][0]
+    assert choice.chosen == "Extra income"
+    assert choice.back == address(campaign, holding)
+    assert parse_qs(urlsplit(choice.href).query)["return"] == [
+        address(campaign, holding)
+    ]
+    soup = BeautifulSoup(response.content, "html.parser")
+    assert soup.find("a", href=choice.href).get_text(strip=True) == "Extra income"
+
+
+def test_gang_groups_each_holding_choice_under_boons_after_other_assets(client, setup):
+    _, player, campaign, holding, first, _ = setup
+    kind = create_slot_type("Workshop boon")
+    pick = create_pickable("Local reputation", kind)
+    picklist = create_picklist("Workshop boons", kind, members=[pick])
+    for label in ("Workshop boon", "Workshop equipment"):
+        slot = create_slot(label, kind, picklist, assigned_to="gang")
+        modifier(label, targets_gang_alone(), ef_adds(slot), attach_to=holding.asset)
+    client.force_login(player)
+    page = client.get(reverse("n26-gang", args=[first.gang.pk]))
+    assert page.status_code == 200
+    soup = BeautifulSoup(page.content, "html.parser")
+    card = soup.find(id="n26-campaign-state")
+    heading = card.find("h3", string="Boons")
+    section = heading.find_parent("section")
+    lines = section.find("dl").find_all("div", recursive=False)
+    assert len(lines) == 2
+    assert all("Ruins by the sump" in line.dt.get_text() for line in lines)
+    assert {line.dt.span.get_text(strip=True) for line in lines} == {
+        "Workshop boon",
+        "Workshop equipment",
+    }
+    assert card.get_text().index("Territories") < card.get_text().index("Boons")
+    assert all("/choose/holding:" in line.dd.find("a")["href"] for line in lines)
+
+    client.force_login(User.objects.create_user("boon-reader"))
+    soup = BeautifulSoup(
+        client.get(reverse("n26-gang", args=[first.gang.pk])).content,
+        "html.parser",
+    )
+    readonly = soup.find(id="n26-campaign-boons-heading").find_parent("section")
+    assert readonly.find("a") is None
+    assert readonly.find("form") is None

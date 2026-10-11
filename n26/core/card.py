@@ -64,6 +64,10 @@ class Node:
     #: slot type — and then this is what tells the answers apart.
     chosen_for_slot_id: object = None
     chosen_for_status_revision: int | None = None
+    #: A holding-origin choice names the holding and its ownership period,
+    #: rather than an assignment that the gang does not own.
+    chosen_for_holding_key: object = None
+    chosen_for_holding_revision: int | None = None
     #: The same, for the other way a choice is asked: the offer this pick
     #: settles. Unset on a pick written before the question could be
     #: named, and then what it answers is read from the offers' own
@@ -178,6 +182,8 @@ def node_for(assignment):
         chosen_for_key=assignment.chosen_for_id,
         chosen_for_slot_id=assignment.chosen_for_slot_id,
         chosen_for_status_revision=assignment.chosen_for_status_revision,
+        chosen_for_holding_key=assignment.chosen_for_holding_id,
+        chosen_for_holding_revision=assignment.chosen_for_holding_revision,
         chosen_for_offer_id=assignment.chosen_for_offer_id,
         reason=entry.reason if entry else None,
         is_weapon_profile=assignment.weapon_profile_id is not None,
@@ -700,6 +706,39 @@ def held_assets(gang):
     )
 
 
+def _without_inactive_holding_choices(rows, holdings):
+    """Keep choices from current ownership periods and their ordinary trees.
+
+    A lost or deleted holding cannot leave an active answer behind, even if
+    its archival write has not reached this fetch. The preloaded holdings
+    supply the whole lifetime check; reading a choice never follows its FK.
+    """
+    held = {(holding.pk, holding.ownership_revision) for holding in holdings}
+    dropped = {
+        row.pk
+        for row in rows
+        if (
+            row.chosen_for_holding_id is not None
+            or row.chosen_for_holding_revision is not None
+        )
+        and (row.chosen_for_holding_id, row.chosen_for_holding_revision) not in held
+    }
+    if not dropped:
+        return rows
+    changed = True
+    while changed:
+        changed = False
+        for row in rows:
+            if row.pk not in dropped and (
+                row.parent_id in dropped
+                or row.caused_by_id in dropped
+                or row.chosen_for_id in dropped
+            ):
+                dropped.add(row.pk)
+                changed = True
+    return [row for row in rows if row.pk not in dropped]
+
+
 def assemble(
     miniature,
     rows,
@@ -717,6 +756,13 @@ def assemble(
     beneath them — are left off the card. Non-equipment (the profile,
     subtypes, skills, injuries) always rides.
     """
+    holdings = list(gang_card.holdings) if gang_card is not None else []
+    active = {
+        row.pk
+        for row in _without_inactive_holding_choices([*rows, *broadcast], holdings)
+    }
+    rows = [row for row in rows if row.pk in active]
+    broadcast = [row for row in broadcast if row.pk in active]
     # The owner's removals part company with the lines here, before any
     # node exists to mistake for a held thing. A print selection cannot
     # resurrect them: they are read off the full fetch, not the kept one.
@@ -767,7 +813,7 @@ def assemble(
         gang_card=gang_card,
         stat_overrides=stat_overrides or {},
         removals=removals,
-        holdings=list(gang_card.holdings) if gang_card is not None else [],
+        holdings=holdings,
     )
     # Only what the model owns. The gang-hosted assignments ride the card
     # so their modifiers reach it; they are not part of what it is worth.
@@ -807,6 +853,7 @@ def build_card(
     gang = membership.gang if membership else None
     own = _flat_rows(miniature_root=miniature)
     shared = gang_rows(gang)
+    holdings = held_assets(gang)
     hydrate_rows(
         [*own, *shared], with_statlines=with_statlines, with_options=with_options
     )
@@ -820,9 +867,9 @@ def build_card(
             if gang is None
             else GangCard(
                 gang=gang,
-                roots=_forest(shared),
+                roots=_forest(shared, holdings),
                 shared_rows=shared,
-                holdings=held_assets(gang),
+                holdings=holdings,
             )
         ),
         stat_overrides=(
@@ -843,8 +890,9 @@ def build_cards_for_gang(gang, with_statlines=True):
     return build_gang_card(gang, with_statlines=with_statlines).members
 
 
-def _forest(rows):
+def _forest(rows, holdings=()):
     """Trees from a flat list of assignments, parents resolved in memory."""
+    rows = _without_inactive_holding_choices(rows, holdings)
     nodes = {row.pk: node_for(row) for row in rows}
     roots = []
     for row in rows:
@@ -879,6 +927,13 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
     # — a second pass would repeat every narrow query for a handful.
     stash_rows = _flat_rows(gang_root=gang, stash_root__isnull=False)
     hydrate_rows([*rows, *stash_rows], with_statlines=with_statlines)
+    holdings = held_assets(gang)
+    active = {
+        row.pk
+        for row in _without_inactive_holding_choices([*rows, *stash_rows], holdings)
+    }
+    rows = [row for row in rows if row.pk in active]
+    stash_rows = [row for row in stash_rows if row.pk in active]
     for row in rows:
         if row.miniature_root_id is None:
             shared.append(row)
@@ -886,11 +941,11 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
             grouped.setdefault(row.miniature_root_id, []).append(row)
     card = GangCard(
         gang=gang,
-        roots=_forest(shared),
-        stash_roots=_forest(stash_rows),
+        roots=_forest(shared, holdings),
+        stash_roots=_forest(stash_rows, holdings),
         member_rows=grouped,
         shared_rows=shared,
-        holdings=held_assets(gang),
+        holdings=holdings,
         # One query for the whole roster's settings, dealt out below —
         # asking model by model is how a gang's budget starts growing
         # with the number of models in it.
@@ -951,7 +1006,7 @@ def build_gang_cards(gangs, holdings):
     return {
         pk: GangCard(
             gang=gang,
-            roots=_forest(theirs[pk]),
+            roots=_forest(theirs[pk], holdings.get(pk, ())),
             shared_rows=theirs[pk],
             holdings=list(holdings.get(pk, ())),
         )

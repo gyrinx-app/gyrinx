@@ -2,7 +2,6 @@
 
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Prefetch, prefetch_related_objects
 from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_GET
@@ -13,14 +12,13 @@ from n26.core.render import (
     CampaignAssetAction,
     CampaignAssetBattle,
     CampaignAssetDetails,
+    holding_income,
 )
 from n26.core.views.campaigns import _campaign_asset_or_404, _holding_owner
 from n26.core.views.gangs import _pages
 from n26.core.views.permissions import _any_campaign_or_404
 from n26.flags import CAMPAIGNS, requires_flag
 from n26.library.income import income_of
-from n26.library.models import Modifier
-from n26.library.references import reading_sentences
 
 
 @requires_flag(CAMPAIGNS)
@@ -35,7 +33,9 @@ def asset_detail(request, pk, asset_pk):
 def _asset_detail_update(request, pk, asset_pk):
     from n26.core.views.htmx import with_toasts
 
-    context = _asset_context(request, pk, asset_pk)
+    context = _asset_context(
+        request, pk, asset_pk, back=reverse("n26-campaign-asset", args=[pk, asset_pk])
+    )
     context["redrawn"] = True
     response = with_toasts(
         request, render(request, "n26/includes/campaign_asset_update.html", context)
@@ -44,13 +44,9 @@ def _asset_detail_update(request, pk, asset_pk):
     return response
 
 
-def _asset_context(request, pk, asset_pk):
+def _asset_context(request, pk, asset_pk, *, back=None):
     campaign = _any_campaign_or_404(request, pk)
     holding = _campaign_asset_or_404(campaign, asset_pk)
-    prefetch_related_objects(
-        [holding.asset],
-        Prefetch("modifiers", queryset=reading_sentences(Modifier.objects.all())),
-    )
     held = holding.held
     arbitrating = campaign.owner_id == request.user.pk
     may_release = held and (arbitrating or _holding_owner(holding, request.user))
@@ -106,6 +102,42 @@ def _asset_context(request, pk, asset_pk):
         )
     history = list(reversed(asset_ownership_history(holding)))
     page = Paginator(history, 50).get_page(request.GET.get("page"))
+    choices = []
+    income_modifiers = None
+    if held:
+        from n26.core.card import build_gang_card, build_modifier_index, carriers
+        from n26.core.effects import compute_gang
+        from n26.core.models import DismissedOffer
+        from n26.core.render import hide_dismissed_choices, holding_choices
+        from n26.core.views.choose import link_slots
+
+        gang = holding.holder.gang
+        card = build_gang_card(gang)
+        index = build_modifier_index(carriers(card))
+        computed = compute_gang(card, index)
+        income = holding_income(computed).get(
+            (holding.pk, holding.ownership_revision), 0
+        )
+        offered = holding_choices(computed, holding)
+        owning = _holding_owner(holding, request.user)
+        hide_dismissed_choices(
+            DismissedOffer.keys_for(gang), offered.questions, reveal=owning
+        )
+        if owning:
+            link_slots(gang, offered, back=back or request.get_full_path())
+        choices = offered.questions
+    elif not holding.income_override_id:
+        income_modifiers = list(
+            holding.asset.modifiers.select_related(
+                "contributes_to_counter__counter", "targets_gang"
+            ).prefetch_related("targets_gang__has_gang_pickable__pickables")
+        )
+    if not held:
+        income = (
+            holding.income_override.contributes_to_counter.amount
+            if holding.income_override_id
+            else income_of(holding.asset, income_modifiers)
+        )
     return {
         "campaign": campaign,
         "details": CampaignAssetDetails(
@@ -113,15 +145,14 @@ def _asset_context(request, pk, asset_pk):
             library_name=holding.asset.name if holding.name else "",
             kind=holding.asset.asset_type.label_singular,
             created=holding.created,
-            income=holding.income_override.contributes_to_counter.amount
-            if holding.income_override_id
-            else income_of(holding.asset),
+            income=income,
             holder=holding.holder.gang.name if held else "",
             holder_href=reverse("n26-gang", args=[holding.holder.gang_id])
             if held
             else "",
         ),
         "actions": actions,
+        "choices": choices,
         "battles": battles,
         "history": page.object_list,
         "pages": _pages(request, page) if page.paginator.num_pages > 1 else None,

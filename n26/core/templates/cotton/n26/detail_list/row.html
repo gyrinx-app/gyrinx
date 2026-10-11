@@ -12,6 +12,8 @@ Declare dialog header and footer on this listing, not nested inside dialog. Cott
 The kit button does not wrap. whitespace-normal on the value beats that class.
 min-w-0 on this listing and the dd lets a long value shrink. Without both, the sheet grows past the viewport.
 Trailing is extra markup beside the value.
+size is xs for a compact fact or lg for body-sized text and a larger control.
+The lg label wraps so a long choice name fits a phone screen.
 {% endcomment %}
 
 <c-vars
@@ -20,6 +22,8 @@ Trailing is extra markup beside the value.
     :editable="True"
     href=""
     variant="default"
+    size="xs"
+    :text_sizes="{'xs': 'text-xs', 'lg': 'text-base'}"
     trailing=""
     dialog=""
     dialog_header=""
@@ -27,26 +31,26 @@ Trailing is extra markup beside the value.
     class=""
 />
 
-<div class="flex min-w-0 max-w-full items-baseline gap-1.5 {{ class }}">
-    <dt class="shrink-0 whitespace-nowrap text-xs text-muted">{{ label }}</dt>
-    <dd class="flex min-w-0 items-center gap-0 text-xs">
+<div class="flex min-w-0 max-w-full items-baseline {% if size == 'lg' %}flex-wrap gap-x-3 gap-y-2{% else %}gap-1.5{% endif %} {{ class }}">
+    <dt class="{% if size == 'lg' %}min-w-0 break-words{% else %}shrink-0 whitespace-nowrap{% endif %} {{ text_sizes|get_item:size }} text-muted">{{ label }}</dt>
+    <dd class="flex min-w-0 items-center gap-0 {{ text_sizes|get_item:size }}">
         {# Pass a boolean. The string False still draws a button. #}
         {% if not editable %}
 
             {# Padded to the button's own inset so a settled fact sits level with values that can be changed. #}
-            <span class="inline-block max-w-full px-2 py-1 text-ink-900 dark:text-ink-100">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</span>
+            <span class="inline-block max-w-full {% if size == 'lg' %}px-4 py-2.5{% else %}px-2 py-1{% endif %} text-ink-900 dark:text-ink-100">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</span>
         {% elif dialog %}
 
             <c-ui.dialog size="sm">
                 <c-slot name="trigger">
-                    <c-ui.button size="xs" variant="{{ variant }}" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
+                    <c-ui.button size="{{ size }}" variant="{{ variant }}" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
                 </c-slot>
                 {% if dialog_header %}<c-slot name="header">{{ dialog_header }}</c-slot>{% endif %}
                 {{ dialog }}
                 {% if dialog_footer %}<c-slot name="footer">{{ dialog_footer }}</c-slot>{% endif %}
             </c-ui.dialog>
         {% else %}
-            <c-ui.button size="xs" variant="{{ variant }}" href="{{ href }}" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
+            <c-ui.button size="{{ size }}" variant="{{ variant }}" href="{{ href }}" class="max-w-full whitespace-normal! text-left">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
         {% endif %}
         {% if trailing.strip %}<div class="flex shrink-0 items-center">{{ trailing }}</div>{% endif %}
     </dd>

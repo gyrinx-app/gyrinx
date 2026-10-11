@@ -86,10 +86,12 @@ def _speaks_for_itself(node, asked_here):
     drawing nothing: nobody was offered it, so it says nothing about its
     holder (``effects.is_orphan_pick``).
     """
-    return (
-        isinstance(node.assignable, Pickable)
-        and node.chosen_for_key is not None
-        and node.chosen_for_key not in asked_here
+    return isinstance(node.assignable, Pickable) and (
+        (node.chosen_for_key is not None and node.chosen_for_key not in asked_here)
+        or (
+            node.chosen_for_holding_key is not None
+            and node.chosen_for_holding_key not in asked_here
+        )
     )
 
 
@@ -668,6 +670,7 @@ class ChoiceLine:
     #: rather than read off the request — a card redrawn after an act is
     #: rendered under that act's own address.
     back: str = ""
+    holding_name: str = ""
 
     def __post_init__(self):
         if self.is_full is None:
@@ -1563,6 +1566,14 @@ class CampaignBlock:
     def other_lines(self):
         return [line for line in self.lines if not line.type_plural]
 
+    @property
+    def holding_choices(self):
+        return [choice for choice in self.choices if choice.holding_name]
+
+    @property
+    def other_choices(self):
+        return [choice for choice in self.choices if not choice.holding_name]
+
 
 @dataclass
 class GangSheet:
@@ -2161,6 +2172,10 @@ def slot_key(slot, host):
     the address is not, and an empty key is how a line says there is
     nowhere to send a reader.
     """
+    if slot.holding is not None and slot.identity is not None and host:
+        from n26.core.models.dismissed_offer import holding_slot_key
+
+        return holding_slot_key(slot.holding, slot.identity.pk)
     anchor = getattr(slot.anchor, "assignment", None)
     if not host or anchor is None or slot.identity is None:
         return ""
@@ -2171,6 +2186,7 @@ def _choice_line(slot, host):
     return ChoiceLine(
         kind_label=slot.kind_label,
         chosen=slot.chosen_name,
+        holding_name=str(slot.holding) if slot.holding is not None else "",
         is_full=slot.is_full,
         takes_several=slot.max_picks > 1,
         is_tier_ladder=is_tier_ladder(slot),
@@ -3429,6 +3445,7 @@ def _provenance_within(card, *, nodes_by_key=None, computed=None):
     """
     if nodes_by_key is None:
         nodes_by_key = {node.key: node for node in card.all_nodes()}
+    holdings_by_key = {holding.pk: holding for holding in card.holdings}
     # Offers can resolve answers without an offer ID. Slot choices also include
     # automatic defaults, so their presence is not evidence of a player choice.
     chosen_keys = {
@@ -3440,6 +3457,7 @@ def _provenance_within(card, *, nodes_by_key=None, computed=None):
 
     def provenance_of(node):
         cause = nodes_by_key.get(node.caused_by_key)
+        holding = holdings_by_key.get(node.chosen_for_holding_key)
         source_kind = None
         if cause is not None:
             # The slot type names the result's domain: advancement, injury, etc.
@@ -3451,9 +3469,11 @@ def _provenance_within(card, *, nodes_by_key=None, computed=None):
         return Provenance(
             source=node.granted_by
             if node.granted_by is not None
-            else (cause.name if cause else None),
+            else (cause.name if cause else str(holding) if holding else None),
             source_kind=node.granted_by_kind
             if node.granted_by_kind is not None
+            else kind_of(holding)
+            if holding
             else source_kind,
             reason=node.reason,
             computed=node.computed,
@@ -3461,7 +3481,7 @@ def _provenance_within(card, *, nodes_by_key=None, computed=None):
             and (node.chosen_for_offer_id is not None or node.key in chosen_keys),
         )
 
-    provenance_of.standing_here = nodes_by_key.keys()
+    provenance_of.standing_here = nodes_by_key.keys() | holdings_by_key.keys()
     return provenance_of
 
 
@@ -3688,14 +3708,31 @@ def _possession_lines(possessions, types, provenance_of, income_for):
     return lines
 
 
-def _income_reader(index):
-    """``income_for(asset, carrier)``: what an asset brings, read off the
-    modifiers the card was computed against where there is an index —
-    a holding's are filed under the campaign asset that carries them —
-    and off the asset itself otherwise, which is a query per asset."""
+def holding_income(computed):
+    """Each holding's actual contribution to Income, including its chosen boons."""
+    from n26.core.effects import counter_contributions_by_holding
+    from n26.library.income import is_income_counter
+
+    return {
+        address: sum(
+            contribution.amount
+            for contribution in contributions
+            if is_income_counter(contribution.counter)
+        )
+        for address, contributions in counter_contributions_by_holding(computed).items()
+    }
+
+
+def _income_reader(index, computed=None):
+    """Read a held asset's computed Income or an unheld asset's base Income."""
+    from n26.core.models import CampaignAsset
     from n26.library.income import income_of
 
+    incomes = holding_income(computed) if computed is not None else {}
+
     def income_for(asset, carrier):
+        if computed is not None and isinstance(carrier, CampaignAsset):
+            return incomes.get((carrier.pk, carrier.ownership_revision), 0)
         if index is None:
             if getattr(carrier, "income_override_id", None):
                 return carrier.income_override.contributes_to_counter.amount
@@ -3705,16 +3742,15 @@ def _income_reader(index):
     return income_for
 
 
-def _campaign_block(gang_card, membership, keys, readings, index=None):
+def _campaign_block(gang_card, membership, keys, readings, index=None, computed=None):
     """What the campaign gave, credited to its carriers.
 
     Each possession draws a row labelled with what sort of thing it is,
     which for an asset is its type's own word and for anything else is
     the kind's name. The holdings take the same shape, so the block reads
     as one run of "what this gang has from the campaign" whether the
-    gang owns the thing or only holds it. ``index`` is the modifier index
-    the card was computed against, which already holds what each asset's
-    income is read off.
+    gang owns the thing or only holds it. Holding Income includes its
+    standing computed contributions; possessed assets use the modifier index.
     """
     from n26.library.models import Asset, AssetType
 
@@ -3724,7 +3760,7 @@ def _campaign_block(gang_card, membership, keys, readings, index=None):
     types = _asset_types(
         [node.assignable for node in possessions if isinstance(node.assignable, Asset)]
     )
-    income_for = _income_reader(index)
+    income_for = _income_reader(index, computed)
     return CampaignBlock(
         name=membership.campaign.name,
         campaign_id=str(membership.campaign_id),
@@ -3775,12 +3811,17 @@ def build_campaign_block(gang_card, *, index, computed):
         return None
     keys = _campaign_keys(gang_card, membership)
     block = _campaign_block(
-        gang_card, membership, keys, list(computed.counters), index=index
+        gang_card,
+        membership,
+        keys,
+        list(computed.counters),
+        index=index,
+        computed=computed,
     )
     block.choices = [
         _choice_line(slot, GANG_SLOT_HOST)
         for slot in computed.choices
-        if getattr(slot.anchor, "key", None) in keys
+        if slot.holding is not None or getattr(slot.anchor, "key", None) in keys
     ]
     return block
 
@@ -4062,7 +4103,12 @@ def render_gang(
         gang_computed.counters if gang_computed else counter_readings(gang_card)
     )
     campaign = _campaign_block(
-        gang_card, membership, campaign_keys, readings, index=index
+        gang_card,
+        membership,
+        campaign_keys,
+        readings,
+        index=index,
+        computed=gang_computed,
     )
     # Questions follow the same carrier ownership as campaign possessions
     # and counters. Names may be shared with the gang's own questions or
@@ -4070,7 +4116,10 @@ def render_gang(
     choices = []
     for slot in gang_computed.choices if gang_computed else ():
         line = _choice_line(slot, GANG_SLOT_HOST)
-        if campaign is not None and getattr(slot.anchor, "key", None) in campaign_keys:
+        if campaign is not None and (
+            slot.holding is not None
+            or getattr(slot.anchor, "key", None) in campaign_keys
+        ):
             campaign.choices.append(line)
         else:
             choices.append(line)
@@ -4271,6 +4320,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
 
     parts = {}
     picks = {}
+    incomes = {}
     held_tables = {}
     # Tables given through a member the arbitrator has since closed stay
     # on the gangs and are not offered: one query for every card at once.
@@ -4281,6 +4331,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     for membership in memberships:
         card = cards[membership.gang_id]
         computed = compute(card, index)
+        incomes.update(holding_income(computed))
         readings = counter_readings(card, computed)
         keys = _campaign_keys(card, membership)
         parts[membership.pk] = _campaign_parts(card, membership, keys, readings)
@@ -4406,7 +4457,11 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
                 campaign_asset_id=str(campaign_asset.pk),
                 name=str(campaign_asset),
                 asset_name=str(campaign_asset.asset) if campaign_asset.name else "",
-                income=_income_reader(None)(campaign_asset.asset, campaign_asset),
+                income=incomes.get(
+                    (campaign_asset.pk, campaign_asset.ownership_revision), 0
+                )
+                if holder
+                else _income_reader(None)(campaign_asset.asset, campaign_asset),
                 held=holder is not None,
                 holder=holder.gang.name if holder else "",
                 holder_gang_id=str(holder.gang_id) if holder else "",
@@ -4624,6 +4679,38 @@ class CampaignAssetDetails:
     income: int
     holder: str
     holder_href: str
+
+
+@dataclass
+class HoldingChoices:
+    questions: list = field(default_factory=list)
+    dismissed_choices: list = field(default_factory=list)
+
+
+def holding_choices(computed, holding):
+    """The holding's choices, including choices on its selected picks."""
+    nodes = {node.key: node for node in computed.card.all_nodes()}
+    parents = {child.key: node for node in nodes.values() for child in node.children}
+
+    def belongs(slot):
+        if slot.holding is not None:
+            return slot.holding.pk == holding.pk
+        anchor = slot.anchor
+        seen = set()
+        while anchor is not None and anchor.key not in seen:
+            if anchor.chosen_for_holding_key == holding.pk:
+                return True
+            seen.add(anchor.key)
+            anchor = nodes.get(anchor.caused_by_key) or parents.get(anchor.key)
+        return False
+
+    return HoldingChoices(
+        [
+            _choice_line(slot, GANG_SLOT_HOST)
+            for slot in computed.choices
+            if not slot.is_history_only and belongs(slot)
+        ]
+    )
 
 
 @dataclass(frozen=True)

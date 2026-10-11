@@ -312,6 +312,8 @@ class LedgerEvent(Base):
     )
     #: Snapshot of the gained holding's type, kept if its campaign asset is deleted.
     received_asset_type = ULIDField(null=True, blank=True, editable=False, default=None)
+    # A holding roll is usable only in the ownership period that made it.
+    holding_revision = models.PositiveIntegerField(null=True, blank=True)
     #: Set on every event at write. The history's anchor: derivable from
     #: the assignment's roots or the model's membership, but a reader of
     #: "everything done to this gang, in order" should not need a join

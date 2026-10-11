@@ -129,6 +129,11 @@ Assignable so that an inherent asset can be built into its campaign type and arr
 
 A transferable asset is never assigned: the campaign's own record of the asset says who holds it, and the gang's history says when it gained or lost it. Gaining an asset records ownership; it does not hire a fighter.
 
+A transferable asset can give its holder a gang-level slot. Each held copy has
+its own selection, shown on the territory page and the gang sheet. The selected
+pickable and its nested choices last until the gang releases or transfers that
+asset, or leaves the campaign. Regaining the same asset starts a new choice.
+
 ### Asset table
 
 *A table of one transferable asset type's assets — the Territory Selection Table — that a gang holds.*
