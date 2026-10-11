@@ -1,6 +1,6 @@
 """N23 records visible on a shared public account page."""
 
-from django.db.models import Count, Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef, Q
 from django.urls import reverse
 
 from gyrinx.accounts.public_profiles import (
@@ -31,9 +31,10 @@ def sections(person, request):
         gangs = gangs.filter(public=True)
         if viewer.is_authenticated:
             gangs = gangs.annotate(
-                viewer_participates=Exists(
+                viewer_has_campaign_access=Exists(
                     Campaign.objects.filter(
-                        pk=OuterRef("campaign_id"), lists__owner=viewer
+                        Q(lists__owner=viewer) | Q(admins=viewer),
+                        pk=OuterRef("campaign_id"),
                     )
                 )
             )
@@ -46,7 +47,7 @@ def sections(person, request):
             and (
                 own
                 or campaign.public
-                or getattr(gang, "viewer_participates", False)
+                or getattr(gang, "viewer_has_campaign_access", False)
                 or viewer.is_authenticated
                 and campaign.owner_id == viewer.pk
             )

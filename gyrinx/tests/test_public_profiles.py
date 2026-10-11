@@ -153,8 +153,9 @@ def test_n23_visibility_covers_gangs_campaigns_packs_and_archives(
         assert name not in html
 
 
-def test_a_public_gang_does_not_disclose_its_private_campaign(
-    client, user, make_list, make_campaign, make_user
+@pytest.mark.parametrize("reader_role", ["participant", "admin"])
+def test_a_public_gang_does_not_disclose_its_private_campaign_to_unrelated_readers(
+    client, user, make_list, make_campaign, make_user, reader_role
 ):
     campaign = make_campaign("Private league", public=False)
     gang = make_list(
@@ -167,11 +168,13 @@ def test_a_public_gang_does_not_disclose_its_private_campaign(
     assert gang.name in public
     assert campaign.name not in public
     assert reverse("core:campaign", args=[campaign.pk]) not in public
-    participant = make_user("participant", "password")
-    client.force_login(participant)
+    reader = make_user(reader_role, "password")
+    client.force_login(reader)
     assert campaign.name not in client.get(url).content.decode()
-    playing = make_list("Participant gang", owner=participant)
-    campaign.lists.add(playing)
+    if reader_role == "participant":
+        campaign.lists.add(make_list("Participant gang", owner=reader))
+    else:
+        campaign.admins.add(reader)
     visible = client.get(url).content.decode()
     assert campaign.name in visible
     assert reverse("core:campaign", args=[campaign.pk]) in visible
@@ -231,12 +234,12 @@ def test_old_username_addresses_preserve_explicit_tabs(client, user, tab):
         assert client.get(response.url).status_code == 200
 
 
-@pytest.mark.parametrize("viewer", ["owner", "participant"])
+@pytest.mark.parametrize("viewer", ["owner", "participant", "admin"])
 def test_n23_repeated_records_do_not_add_queries(
     client, user, make_list, make_campaign, make_user, viewer
 ):
     Pack = apps.get_model("core", "CustomContentPack")
-    reader = user if viewer == "owner" else make_user("participant", "password")
+    reader = user if viewer == "owner" else make_user(viewer, "password")
     client.force_login(reader)
     url = reverse("user-profile", args=[user.username]) + "?tab=n23"
 
@@ -247,14 +250,17 @@ def test_n23_repeated_records_do_not_add_queries(
         return len(queries)
 
     def add(number):
-        campaign = make_campaign(f"League {number}")
+        campaign = make_campaign(f"League {number}", public=False)
         make_list(f"Building gang {number}")
         make_list(
             f"Playing gang {number}",
             status=apps.get_model("core", "List").CAMPAIGN_MODE,
             campaign=campaign,
         )
-        campaign.lists.add(make_list(f"Reader gang {number}", owner=reader))
+        if viewer == "admin":
+            campaign.admins.add(reader)
+        else:
+            campaign.lists.add(make_list(f"Reader gang {number}", owner=reader))
         Pack.objects.create(name=f"Pack {number}", owner=user, listed=True)
 
     add(0)
