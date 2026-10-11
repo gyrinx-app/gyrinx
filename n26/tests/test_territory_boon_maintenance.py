@@ -114,6 +114,97 @@ def test_a_running_update_is_reused_instead_of_enqueuing_another(
     assert Backfill.objects.count() == 1
 
 
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_submissions_share_one_committed_run_and_exact_preview(
+    superuser, content, address, task_queue, monkeypatch
+):
+    import importlib
+    import threading
+
+    from django.db import close_old_connections, connection
+    from django.test import Client
+
+    from gyrinx.tasks.local_backend import DatabaseBackend
+
+    library = importlib.import_module("n26.library.territory_boons")
+    admission = importlib.import_module("gyrinx.site.write_pause")
+    planned = preview()
+    before = (Asset.objects.count(), Modifier.objects.count())
+    original_preview = library.preview
+    original_advisory = admission._advisory
+    original_enqueue = DatabaseBackend.enqueue
+    first_preview_started = threading.Event()
+    second_admission_started = threading.Event()
+    responses = []
+    errors = []
+    enqueued = []
+    backend_pids = []
+
+    def preview_after_second_submission_starts():
+        if threading.current_thread() is first:
+            first_preview_started.set()
+            assert second_admission_started.wait(10)
+        return original_preview()
+
+    def observed_advisory(function, scope):
+        if (
+            threading.current_thread() is second
+            and scope == "n26"
+            and function == "pg_advisory_xact_lock"
+        ):
+            second_admission_started.set()
+        return original_advisory(function, scope)
+
+    def enqueue_after_commit(backend, task, args, kwargs):
+        if task.func is seed_territory_boons.func:
+            assert not connection.in_atomic_block
+            enqueued.append(kwargs["backfill_id"])
+        return original_enqueue(backend, task, args, kwargs)
+
+    def post():
+        close_old_connections()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_backend_pid()")
+                backend_pids.append(cursor.fetchone()[0])
+            request_client = Client()
+            request_client.force_login(User.objects.get(pk=superuser.pk))
+            responses.append(request_client.post(address))
+        except Exception as exc:
+            errors.append(exc)
+        finally:
+            close_old_connections()
+
+    first = threading.Thread(target=post)
+    second = threading.Thread(target=post)
+    monkeypatch.setattr(library, "preview", preview_after_second_submission_starts)
+    monkeypatch.setattr(admission, "_advisory", observed_advisory)
+    monkeypatch.setattr(DatabaseBackend, "enqueue", enqueue_after_commit)
+    try:
+        first.start()
+        assert first_preview_started.wait(10)
+        second.start()
+    finally:
+        first.join(15)
+        if second.ident is not None:
+            second.join(15)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    assert len(set(backend_pids)) == 2
+    assert len(responses) == 2
+    assert all(response.status_code == 302 for response in responses)
+    record = Backfill.objects.get(operation=Operation.SEED_TERRITORY_BOONS)
+    assert record.status == Backfill.Status.RUNNING
+    assert record.summary == {"preview": planned, "attempts": 0}
+    assert responses[0]["Location"] == responses[1]["Location"]
+    assert str(record.pk) in responses[0]["Location"]
+    assert enqueued == [str(record.pk)]
+    assert task_queue.pending() == 1
+    assert (Asset.objects.count(), Modifier.objects.count()) == before
+
+
 def test_a_paused_delivery_does_not_change_content_or_consume_an_attempt(
     content, task_queue
 ):

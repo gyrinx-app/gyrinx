@@ -20,7 +20,7 @@ preview, nothing_to_do, problem, apply_url, recent.
 {% endblock extrahead %}
 {% block content %}
     <p>
-        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to maintenance</a>
     </p>
     <h1>{{ title }}</h1>
     <p>
@@ -46,7 +46,7 @@ preview, nothing_to_do, problem, apply_url, recent.
         <p>Resolve this problem before applying territory content changes.</p>
     {% elif nothing_to_do %}
         <h2>Nothing to change</h2>
-        <p>Territory content is up to date. Any skipped content is listed below.</p>
+        <p>No content will be added. Any skipped content is listed below.</p>
         <ul class="mt-plan">
             {% for line in preview|slice:"1:" %}<li>{{ line }}</li>{% endfor %}
         </ul>

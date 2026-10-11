@@ -2650,30 +2650,37 @@ def seed_territory_boons(backfill_id, **said_by_whoever_enqueued_it):
 def seed_territory_boons_view(request):
     """Preview the content pass, then enqueue one recorded library transaction."""
     from n26.library.territory_boons import NOTHING_TO_DO, preview
+    from n26.write_pause import SCOPE, exclusive_write_scope
 
     operation = Operation.SEED_TERRITORY_BOONS
     address = reverse(f"admin:maintenance_{operation.value}")
     if request.method == "POST":
-        running = running_guard(operation)
-        if running is not None:
-            messages.warning(request, "That content update is already running.")
-            return HttpResponseRedirect(
-                reverse("admin:maintenance_backfill_detail", args=[running.id])
+        with exclusive_write_scope(SCOPE):
+            running = running_guard(operation)
+            if running is not None:
+                messages.warning(request, "That content update is already running.")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_backfill_detail", args=[running.id])
+                )
+            try:
+                lines = preview()
+            except (
+                ObjectDoesNotExist,
+                MultipleObjectsReturned,
+                ValidationError,
+            ) as broke:
+                messages.error(request, f"The content update cannot run: {broke}")
+                return HttpResponseRedirect(address)
+            if lines[0] == NOTHING_TO_DO:
+                messages.info(request, NOTHING_TO_DO)
+                return HttpResponseRedirect(address)
+            backfill = Backfill.objects.create(
+                operation=operation,
+                triggered_by=request.user,
+                status=Backfill.Status.RUNNING,
+                summary={"preview": lines, "attempts": 0},
             )
-        try:
-            lines = preview()
-        except (ObjectDoesNotExist, MultipleObjectsReturned, ValidationError) as broke:
-            messages.error(request, f"The content update cannot run: {broke}")
-            return HttpResponseRedirect(address)
-        if lines[0] == NOTHING_TO_DO:
-            messages.info(request, NOTHING_TO_DO)
-            return HttpResponseRedirect(address)
-        backfill = Backfill.objects.create(
-            operation=operation,
-            triggered_by=request.user,
-            status=Backfill.Status.RUNNING,
-            summary={"preview": lines, "attempts": 0},
-        )
+        # Task delivery must see the committed run and released admission.
         seed_territory_boons.enqueue(backfill_id=str(backfill.id))
         messages.success(request, "The territory content update is running.")
         return HttpResponseRedirect(
