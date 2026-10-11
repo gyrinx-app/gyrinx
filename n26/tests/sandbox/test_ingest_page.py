@@ -100,7 +100,7 @@ class TestHoldingTheSheets:
         body = client.get(sheet_url("profiles")).content.decode()
         soup = BeautifulSoup(body, "html.parser")
         host = soup.select_one(
-            "[data-react-module]:not([data-react-module*='/quick-switcher-'])"
+            "[data-react-module]:not([data-react-name='quick-switcher']):not([data-react-name='theme-choice'])"
         )
         props = json.loads(soup.find(id=host["data-react-props"]).string)
 
