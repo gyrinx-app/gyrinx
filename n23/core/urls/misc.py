@@ -24,7 +24,7 @@ patterns = [
     ),
     path("dice/", n23.core.views.dice, name="dice"),
     # Users
-    path("user/@<str:slug_or_id>", user_profile_compat, name="user"),
+    path("user/@<str:slug_or_id>/", user_profile_compat, name="user"),
     path("user/<slug_or_id>", n23.core.views.user),
     # Impersonation (superuser only). Platform views, routed here so the URLs
     # and their `core:` names stay where they were.

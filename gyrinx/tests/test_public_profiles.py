@@ -180,14 +180,28 @@ def test_a_public_gang_does_not_disclose_its_private_campaign(
 
 
 @pytest.mark.parametrize(
-    "username", ["12345", "Upper.Player+tag@example.com", "Joueur-é"]
+    "username", ["12345", "Upper.Player+tag@example.com", "Joueur-é", "@player"]
 )
 def test_canonical_links_retain_the_complete_username(client, make_user, username):
     person = make_user(username, "password")
     canonical = reverse("user-profile", args=[username])
-    assert unquote(canonical) == f"/user/@{username}"
+    assert unquote(canonical) == f"/user/@{username}/"
     assert reverse("core:user", args=[username]) == canonical
     assert client.get(canonical).context["person"] == person
+
+
+def test_legacy_leading_at_usernames_do_not_collide_with_canonical_profiles(
+    client, make_user
+):
+    plain = make_user("player", "password")
+    prefixed = make_user("@player", "password")
+    response = client.get("/user/@player")
+    assert response.status_code == 302
+    assert response.url == reverse("user-profile", args=[prefixed.username])
+    assert client.get(response.url).context["person"] == prefixed
+    canonical = reverse("user-profile", args=[plain.username])
+    assert canonical == "/user/@player/"
+    assert client.get(canonical).context["person"] == plain
 
 
 def test_legacy_n23_ids_do_not_target_an_account_with_that_numeric_username(

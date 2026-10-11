@@ -62,7 +62,8 @@ urlpatterns = (
     debug_toolbar_urls()
     + [
         path("robots.txt", views.robots_txt, name="robots_txt"),
-        path("user/@<str:username>", user_profile, name="user-profile"),
+        # The slash distinguishes this from legacy usernames beginning with "@".
+        path("user/@<str:username>/", user_profile, name="user-profile"),
         path(
             "accounts/settings/",
             account_views.SettingsView.as_view(),

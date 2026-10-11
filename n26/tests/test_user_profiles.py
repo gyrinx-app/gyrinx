@@ -377,7 +377,7 @@ def test_more_gangs_and_campaigns_do_not_add_queries(
 
 
 @pytest.mark.parametrize(
-    "username", ["Upper.Player+tag@example.com", "12345", "Joueur-é"]
+    "username", ["Upper.Player+tag@example.com", "12345", "Joueur-é", "@player"]
 )
 def test_profile_and_invitation_urls_use_the_whole_username(
     client, people, campaign_type, username
@@ -386,7 +386,7 @@ def test_profile_and_invitation_urls_use_the_whole_username(
     player = User.objects.create_user(username)
     found_campaign("Available league", campaign_type, owner=arbitrator)
     profile = reverse("user-profile", args=[username])
-    assert unquote(profile) == f"/user/@{username}"
+    assert unquote(profile) == f"/user/@{username}/"
     assert client.get(profile).context["person"] == player
     assert client.get(profile.lower()).context["person"] == player
     invitation = reverse("n26-invite-user", args=[username])
