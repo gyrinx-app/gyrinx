@@ -400,9 +400,12 @@ def _roll_table(configured):
         .prefetch_related(
             Prefetch(
                 "pickable__modifiers",
-                queryset=Modifier.objects.select_related(
-                    *SCOPE_FIELDS, *EFFECT_FIELDS, "offers_choice__of_kind"
-                ).prefetch_related(*condition_paths),
+                queryset=Modifier.objects.prefetch_related(
+                    *SCOPE_FIELDS,
+                    *EFFECT_FIELDS,
+                    "offers_choice__of_kind",
+                    *condition_paths,
+                ),
             )
         )
     )

@@ -6,6 +6,66 @@ Keep the worker count fixed when isolating fixture changes; record it when
 comparing different concurrency settings. A faster focused suite or a warm
 reused database does not establish a faster full suite.
 
+## Latest complete measurement
+
+Head `ffe0e513c` passes both full suites but still misses the 50% CI target.
+Both runs selected 13,216 cases: 13,202 passed, 13 skipped and one expected
+failure, with no failures or setup errors. Each recreated its test databases.
+
+| Measurement | Original `42fdc46f3` | Head `ffe0e513c` | Reduction |
+| --- | ---: | ---: | ---: |
+| Full local suite | 2,151.53 seconds, four workers | 535.48 seconds, default twelve workers | 75.11% |
+| Full CI suite | 1,864.56 seconds, four workers | 1,235.99 seconds, eight workers | 33.71% |
+| Combined CI test-job time | 51 minutes 13 seconds | 32 minutes 15 seconds | 37.03% |
+
+The clean local helper recorded 537.26 seconds of wall time and 1,590.21 seconds
+of child-process CPU. [CI run 38097804821](https://github.com/gyrinx-app/gyrinx/actions/runs/38097804821)
+measured clean merge revision `456fdfb28`: helper wall time 1,238.60 seconds and
+child-process CPU 3,347.53 seconds. Its existing four-CPU runner tier exposed
+an AMD EPYC 7763 in westus2. Required full-suite job time was 22 minutes
+11 seconds, fresh-database 9 minutes 34 seconds, and the duplicate-omitting
+job 30 seconds. CI Checks and migrations also passed. No runner size or
+PostgreSQL server setting changed. Earlier successful timings below do not
+replace this latest result.
+
+The subsequent advancement-table query change and reconciliation with main's
+founding fixture repair are not included in these complete measurements.
+The query change fetches modifier scopes and effects through narrow prefetch
+queries, retaining every fingerprint field and condition. Four paired HTTP
+cases passed: call time fell from 17.31 to 16.31 seconds, total SQL time from
+11.62 to 10.72 seconds, and profiled wall time from 26.39 to 25.70 seconds.
+There were 132 more queries across the run; application CPU was approximately
+unchanged (15.28 versus 15.39 seconds). These focused results do not establish
+a full-suite reduction. All 187 advancement, power, progression and founding
+activity cases passed, including stale requests, history, accounting and
+query-growth guards. The existing condition-fingerprint case also checks
+that an M2M-only profile membership change invalidates a saved roll after
+restoring its independently tested scalar condition.
+
+### Full-suite CI shards awaiting measurement
+
+For a pull request whose changed-test scope is exactly the repository root,
+`test` and `test-full` each collect the entire suite and execute disjoint modules
+using four workers on their existing runners. A module's SHA256 hash selects
+its shard, so all cases in a module share one shard. Other events and narrower
+pull requests retain the required core-and-changed gate and optional full run.
+
+Each shard uploads a collection and execution manifest, JUnit report and timing
+record under a name containing the workflow run and attempt. The required
+`test` job waits for `test-full` to succeed in that exact attempt, downloads its
+artifact, and verifies the same merge revision, identical full collections,
+deterministic disjoint selections, complete report phases and exactly one
+completion per selected case. Failure, cancellation, missing evidence, worker
+failure or mismatched collections fail the required check. Rerun all jobs
+if an attempt omits the companion; earlier-attempt artifacts cannot satisfy it.
+
+Compare the earliest pytest-session start to the latest finish across both
+shards against the original 932.28-second CI target. Compare the sum of both
+job durations, including the required job's wait, plus fresh-database against
+the original 3,073 seconds. A passing shard alone proves neither the complete
+suite nor the elapsed-time target. This implementation has not yet supplied
+a complete CI measurement.
+
 ## Historical complete candidate
 
 Candidate `c0f543979` passed both full-suite time targets on the same local
@@ -69,7 +129,7 @@ Corrected head `55ca6ac55` passed all 13,313 selected cases locally and in
 13,299 passed, 13 skipped and one expected failure. The local default
 twelve-worker run took 547.16 seconds, 74.57% below the original baseline.
 CI's unfiltered eight-worker run took 1,164.56 seconds, only 37.54% below its
-baseline, so the current source still misses the 50% CI target. Combined CI
+baseline, so that revision still missed the 50% CI target. Combined CI
 test-job time was 27 minutes 20 seconds, 46.63% below baseline. Its runner
 exposed four CPUs on an AMD EPYC 9V74 in westcentralus; the original runner's
 CPU model was not recorded. Further reductions need a full measurement before
@@ -97,8 +157,10 @@ benchmark that command separately before claiming a change to its elapsed time.
 
 The work-stealing scheduler can move pending tests from a busy worker to an
 idle one when case durations differ. Local runs retain `-n auto`. CI uses
-eight worker processes on the existing runner size, allowing another worker
-to run while one waits on PostgreSQL. It adds no runners or larger machines.
+eight worker processes on the existing runner size for unsharded runs,
+allowing another worker to run while one waits on PostgreSQL. A full-scope
+pull request uses four workers on each of the two existing jobs as described
+above. It adds no runners or larger machines.
 Verify the cost separately by comparing the sum of the required, full-suite
 and fresh-database job durations, not just the fastest job.
 

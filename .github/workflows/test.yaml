@@ -29,14 +29,20 @@ permissions:
 # `core` (fundamental behaviour, the critical flows, safety and performance
 # checks) plus every test the pull request itself touched. `test-full` runs
 # everything and reports, but does not block a merge. On PRs whose exact
-# changed scope is ".", the required check owns that full run. fresh-database
-# is the only job here that applies the migration graph.
+# changed scope is ".", these two existing jobs run disjoint full-suite shards.
+# The required check waits for the companion and verifies their complete union.
+# fresh-database is the only job here that applies the migration graph.
 jobs:
   test:
     # Only main can skip suites for a paging smoke test. A manual run on a
     # PR branch must execute the required check: skipped jobs satisfy it.
     if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+      actions: read
     services:
       postgres:
         image: postgres:16.4
@@ -117,26 +123,63 @@ jobs:
 
       - uses: ./.github/actions/react-build
 
-      - name: Record PostgreSQL compilation capability
+      - name: Record runner CPU and PostgreSQL compilation capability
         shell: bash
         env:
           PG_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
+          lscpu
           docker exec "$PG_CONTAINER_ID" psql -U postgres -Atc \
             "SELECT version(), pg_jit_available(), current_setting('jit'), current_setting('jit_above_cost');"
 
       - name: Run the core suite and the changed tests
-        # An exact root scope already requires every test. Measure that full
-        # run directly rather than relying on the dynamic core marker.
-        timeout-minutes: ${{ steps.scope.outputs.full == 'true' && 60 || 45 }}
+        # Both shards collect everything before assigning whole modules.
+        # Four workers per existing runner avoid oversubscribing four CPUs.
+        timeout-minutes: 45
         run: |
           source .venv/bin/activate
           if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
-            python scripts/measure_test_performance.py --label ci-required-full -- -v -n 8
+            python scripts/measure_test_performance.py --label ci-shard-0 -- \
+              -v -n 4 -p gyrinx.pytest_suite_shards \
+              --suite-shard-count 2 --suite-shard-index 0 \
+              --suite-shard-manifest logs/full-suite-shard.json
           else
             export GYRINX_CHANGED_TEST_PATHS="$(cat logs/changed-test-paths.txt)"
             pytest -m core --durations=20 -v -n 8
           fi
+
+      - name: Upload required shard evidence
+        if: always() && steps.scope.outputs.full == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: suite-${{ github.run_id }}-${{ github.run_attempt }}-shard-0
+          if-no-files-found: error
+          path: |
+            logs/full-suite-shard.json
+            logs/test-performance/ci-shard-0.json
+            logs/test-performance/ci-shard-0.xml
+
+      - name: Verify both shards completed the full suite exactly once
+        if: success() && steps.scope.outputs.full == 'true'
+        timeout-minutes: 16
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          source .venv/bin/activate
+          python scripts/wait_for_ci_job.py \
+            --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" --job-name test-full \
+            --head-sha "$PR_HEAD_SHA"
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "suite-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-shard-1" \
+            --dir logs/other-shard
+          python scripts/verify_test_shards.py --revision "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            logs/full-suite-shard.json logs/other-shard/full-suite-shard.json \
+            | tee logs/full-suite-verification.json
+          cat logs/full-suite-verification.json >> "$GITHUB_STEP_SUMMARY"
 
   test-full:
     if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main'
@@ -195,37 +238,44 @@ jobs:
           echo "full=$full" >> "$GITHUB_OUTPUT"
           printf 'required_full=%s\n' "$full"
 
-      - name: Report the full suite's required check
-        if: steps.scope.outputs.full == 'true'
-        shell: bash
-        run: |
-          echo "Full suite runs in required test check. This job omits the duplicate execution; its success does not report the suite's result." >> "$GITHUB_STEP_SUMMARY"
-          echo "[Required test check and full-suite result]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" >> "$GITHUB_STEP_SUMMARY"
-
       - uses: ./.github/actions/python-env
-        if: steps.scope.outputs.full != 'true'
         with:
           postgres-container: ${{ job.services.postgres.id }}
 
       - uses: ./.github/actions/react-build
-        if: steps.scope.outputs.full != 'true'
 
-      - name: Record PostgreSQL compilation capability
-        if: steps.scope.outputs.full != 'true'
+      - name: Record runner CPU and PostgreSQL compilation capability
         shell: bash
         env:
           PG_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
+          lscpu
           docker exec "$PG_CONTAINER_ID" psql -U postgres -Atc \
             "SELECT version(), pg_jit_available(), current_setting('jit'), current_setting('jit_above_cost');"
 
       - name: Run the full suite
-        if: steps.scope.outputs.full != 'true'
-        timeout-minutes: 60
-        # Match the required check's concurrency on the same runner size.
+        timeout-minutes: ${{ steps.scope.outputs.full == 'true' && 45 || 60 }}
         run: |
           source .venv/bin/activate
-          python scripts/measure_test_performance.py --label ci-full -- -v -n 8
+          if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
+            python scripts/measure_test_performance.py --label ci-shard-1 -- \
+              -v -n 4 -p gyrinx.pytest_suite_shards \
+              --suite-shard-count 2 --suite-shard-index 1 \
+              --suite-shard-manifest logs/full-suite-shard.json
+          else
+            python scripts/measure_test_performance.py --label ci-full -- -v -n 8
+          fi
+
+      - name: Upload companion shard evidence
+        if: always() && steps.scope.outputs.full == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: suite-${{ github.run_id }}-${{ github.run_attempt }}-shard-1
+          if-no-files-found: error
+          path: |
+            logs/full-suite-shard.json
+            logs/test-performance/ci-shard-1.json
+            logs/test-performance/ci-shard-1.xml
 
   page-on-main-failure:
     needs: [test, test-full]

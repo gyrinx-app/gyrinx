@@ -32,6 +32,7 @@ from n26.library.models import (
     CollectionSection,
     Counter,
     CounterAtLeast,
+    IsProfile,
     Pickable,
     PicklistMember,
     ProfileType,
@@ -1092,11 +1093,20 @@ def test_advancement_roll_fingerprints_modifier_condition_rows(fighter):
         counter=Counter.objects.create(name="Reputation"),
         at_least=1,
     )
+    profile_condition = IsProfile.objects.create(scope=condition.scope)
     with operation(fighter.gang) as op:
         record = op.start_action(fighter, action, uuid4(), allowance)
         op.record_action_roll(record, configured, uuid4(), rolled=7)
     condition.at_least = 2
     condition.save(update_fields=["at_least"])
+
+    with pytest.raises(Refusal, match="table changed"):
+        advancement_options(record, configured)
+
+    condition.at_least = 1
+    condition.save(update_fields=["at_least"])
+    assert advancement_options(record, configured)
+    profile_condition.profiles.add(fighter.membership.profile)
 
     with pytest.raises(Refusal, match="table changed"):
         advancement_options(record, configured)
