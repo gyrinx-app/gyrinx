@@ -21,6 +21,7 @@ from n26.core.models.campaign import (
 from n26.core.models.campaign_roll import CampaignRoll
 from n26.core.models.counter_tracking import CounterTracking
 from n26.core.models.crew import BattleCrew, CrewMember
+from n26.core.models.cycle import CampaignCycle
 from n26.core.models.dismissed_offer import DismissedOffer
 from n26.core.models.gang import Gang
 from n26.core.models.ledger import LedgerEntry, LedgerEvent, Reason
@@ -50,6 +51,7 @@ __all__ = [
     "Battle",
     "BattleCrew",
     "Campaign",
+    "CampaignCycle",
     "CampaignAsset",
     "CampaignEvent",
     "CampaignRoll",
