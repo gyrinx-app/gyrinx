@@ -55,15 +55,8 @@
             {% react_island "campaign-roll-source" roll_source %}
         </c-n26.form-section>
         <c-n26.form-section title="Related to"
-                            description="Optionally link this roll to a gang or battle in this campaign.">
-            <c-ui.field label="Gang" :form="form" name="gang" error="x" for="roll-gang">
-                <c-ui.select.native id="roll-gang" name="gang" placeholder="">
-                    {% for value, label in form.fields.gang.choices %}
-                        <option value="{{ value }}"
-                                {% if value|stringformat:'s' == form.gang.value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </c-ui.select.native>
-            </c-ui.field>
+                            description="Optionally link this roll to a gang, model or battle in this campaign.">
+            {% react_island "campaign-roll-attribution" roll_attribution %}
             <c-ui.field label="Battle" :form="form" name="battle" error="x" for="roll-battle">
                 <c-ui.select.native id="roll-battle" name="battle" placeholder="">
                     {% for value, label in form.fields.battle.choices %}

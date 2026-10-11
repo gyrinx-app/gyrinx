@@ -903,7 +903,9 @@ class TestThePages:
         props = json.loads(document.find(id=island["data-react-props"]).string)
         assert props["count"]["value"] == "1"
         assert props["rolled"]["value"] == ""
-        assert props["ranges"] == ["A D66 roll is 11 to 66."]
+        assert props["tables"][0]["die"] == "D66"
+        assert props["tables"][0]["lowest"] == 11
+        assert props["tables"][0]["highest"] == 66
         assert "A D66 roll is 11 to 66." in body
         assert "Add to pool" in body
         assert "at the table" not in body
@@ -1567,3 +1569,96 @@ class TestPoolReads:
         assert response.status_code == 200
         assert "This field is required." in response.content.decode()
         assert not campaign.campaign_assets.exists()
+
+
+class TestManualPoolPreview:
+    def preview(self, client, campaign, selected_table, rolled, **changes):
+        return client.get(
+            reverse("n26-campaign-preview-pool-roll", args=[campaign.pk]),
+            {
+                "type": selected_table.asset_type_id,
+                "table": selected_table.pk,
+                "rolled": rolled,
+                **changes,
+            },
+        )
+
+    def test_preview_matches_the_saved_result_without_creating_assets_or_events(
+        self, client, campaign, selection_table, arbitrator, campaigns_open
+    ):
+        client.force_login(arbitrator)
+        response = self.preview(client, campaign, selection_table, 34)
+        assert response.status_code == 200
+        assert response.json() == {"status": "valid", "message": "Corpse Farm"}
+        assert not CampaignAsset.objects.filter(campaign=campaign).exists()
+        assert not rolled_events(campaign)
+        result = roll_asset(campaign, selection_table, rolled=34)
+        assert response.json()["message"] == str(result.campaign_asset.asset)
+
+    @pytest.mark.parametrize("value", ["17", "20", "0", "67", "2.5", "e", ""])
+    def test_preview_rejects_numbers_the_die_cannot_make(
+        self, client, campaign, selection_table, arbitrator, campaigns_open, value
+    ):
+        client.force_login(arbitrator)
+        response = self.preview(client, campaign, selection_table, value)
+        assert response.json()["status"] == "invalid"
+        assert not rolled_events(campaign)
+
+    def test_a_valid_roll_in_a_live_table_gap_creates_no_assets_or_events(
+        self, client, campaign, territory, arbitrator, campaigns_open
+    ):
+        table = create_campaign_table(campaign, territory, "Holed", dice="d6")
+        add_asset_table_entry(
+            table,
+            create_asset("Sump", territory, pack=campaign.pack),
+            roll_low=1,
+            roll_high=3,
+        )
+        client.force_login(arbitrator)
+        before = (campaign.campaign_assets.count(), campaign.events.count())
+        response = self.preview(client, campaign, table, 5)
+        assert response.status_code == 200
+        assert response.json() == {
+            "status": "invalid",
+            "message": "No result on this table covers a roll of 5.",
+        }
+        assert (campaign.campaign_assets.count(), campaign.events.count()) == before
+
+    def test_preview_respects_staged_entry_visibility(
+        self, client, campaign, selection_table, arbitrator, campaigns_open
+    ):
+        from n26.library.models import Asset
+
+        asset = Asset.objects.get(name="Corpse Farm")
+        asset.staged = True
+        asset.save(update_fields=["staged"])
+        client.force_login(arbitrator)
+        assert (
+            self.preview(client, campaign, selection_table, 34).json()["status"]
+            == "invalid"
+        )
+        arbitrator.is_staff = True
+        arbitrator.save(update_fields=["is_staff"])
+        assert (
+            self.preview(client, campaign, selection_table, 34).json()["message"]
+            == "Corpse Farm"
+        )
+
+    def test_preview_requires_the_arbitrator_and_a_table_held_by_the_campaign(
+        self, client, campaign, selection_table, arbitrator, campaigns_open, territory
+    ):
+        client.force_login(User.objects.create_user("outsider-preview"))
+        assert self.preview(client, campaign, selection_table, 34).status_code == 404
+        client.force_login(arbitrator)
+        other = create_asset_table(
+            "Other", territory, dice="d6", given_by=create_campaign_type("Elsewhere")
+        )
+        assert self.preview(client, campaign, other, 1).status_code == 404
+        assert (
+            self.preview(
+                client, campaign, selection_table, 34, table="bad-id"
+            ).status_code
+            == 404
+        )
+        url = reverse("n26-campaign-preview-pool-roll", args=[campaign.pk])
+        assert client.post(url, {}).status_code == 405

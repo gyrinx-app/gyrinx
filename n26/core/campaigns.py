@@ -368,6 +368,7 @@ class CampaignOperation:
         modifier_application="total",
         rolled=None,
         gang=None,
+        miniature=None,
         battle=None,
         rng=None,
     ):
@@ -378,7 +379,7 @@ class CampaignOperation:
         """
         from uuid import UUID
 
-        from n26.core.models import Battle, CampaignMembership, CampaignRoll
+        from n26.core.models import Battle, CampaignMembership, CampaignRoll, Miniature
         from n26.core.operations import Refusal
         from n26.library.models import Dice
 
@@ -421,6 +422,18 @@ class CampaignOperation:
             ).exists()
         ):
             raise Refusal("Select a gang currently in this campaign.")
+        if miniature is not None:
+            if gang is None:
+                raise Refusal("Select a related gang before selecting a model.")
+            miniature = (
+                Miniature.objects.select_for_update()
+                .filter(
+                    pk=miniature.pk, membership__gang=gang, membership__archived=False
+                )
+                .first()
+            )
+            if miniature is None:
+                raise Refusal("Select a model currently in the related gang.")
         if (
             battle is not None
             and not Battle.objects.filter(pk=battle.pk, campaign=self.campaign).exists()
@@ -448,6 +461,7 @@ class CampaignOperation:
             results=results,
             modifier_application=modifier_application,
             gang=gang,
+            miniature=miniature,
             battle=battle,
         )
         self.event(CampaignEvent.Kind.DICE_ROLLED, roll=roll, battle=battle)
@@ -877,15 +891,7 @@ class CampaignOperation:
             )
 
     def _roll_entries(self, table):
-        from n26.library.staged import sees_staged
-
-        # The roll is where an asset is newly chosen for the campaign, so a
-        # reader who may not see staged content cannot land on a staged
-        # entry: for them the band is a gap, and the refusal says so.
-        entries = table.entries.select_related("asset__asset_type")
-        if not sees_staged(self.actor):
-            entries = entries.live().filter(asset__staged=False)
-        return list(entries)
+        return roll_table_entries(table, self.actor)
 
     def _roll_asset(self, table, entries, *, membership=None, rolled=None, rng=None):
         from n26.core.operations import ROLL_ENTERED, Refusal
@@ -1644,6 +1650,16 @@ def _on_a_held_table(campaign, asset):
     return AssetTableEntry.objects.filter(
         table__in=tables_in_play(campaign, include_staged=True), asset=asset
     ).exists()
+
+
+def roll_table_entries(table, actor):
+    """The entries a new campaign roll may land on, including preview reads."""
+    from n26.library.staged import sees_staged
+
+    entries = table.entries.select_related("asset__asset_type")
+    if not sees_staged(actor):
+        entries = entries.live().filter(asset__staged=False)
+    return list(entries)
 
 
 def tables_in_play(campaign, *, include_staged=False):

@@ -41,6 +41,13 @@ class CampaignRoll(Base):
     gang = models.ForeignKey(
         "n26.Gang", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
+    miniature = models.ForeignKey(
+        "n26.Miniature",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     battle = models.ForeignKey(
         "n26.Battle", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )

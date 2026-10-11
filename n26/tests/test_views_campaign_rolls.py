@@ -16,8 +16,9 @@ from n26.core.history import campaign_history
 from n26.core.models import Battle, CampaignEvent, CampaignRoll, LedgerEvent
 from n26.core.operations import Refusal
 from n26.flags import CAMPAIGNS
+from n26.library.authoring import create_profile
 from n26.library.models import Dice
-from n26.tests.sandbox.actions import found_campaign, found_gang
+from n26.tests.sandbox.actions import found_campaign, found_gang, hire, join_campaign
 
 pytestmark = pytest.mark.django_db
 
@@ -650,3 +651,112 @@ class TestMultipleDice:
         assert len(after) <= len(before)
         assert len(page.context["dice_groups"]) == 20
         assert page.content.decode().count('aria-label="A die showing 6"') == 40
+
+
+class TestModelAttribution:
+    @pytest.fixture
+    def related(self, campaign, gang_type, person_type, default_pack):
+        gang = found_gang("Ashen Choir", gang_type, owner=campaign.owner)
+        other = found_gang("Wild Cats", gang_type, owner=campaign.owner)
+        join_campaign(gang, campaign)
+        join_campaign(other, campaign)
+        profile = create_profile("Ganger", person_type, gang_type)
+        return gang, hire(gang, profile, "Skabb"), other, hire(other, profile, "Mags")
+
+    def test_model_attribution_is_saved_on_the_result_and_log_and_retries(
+        self, client, campaign, related
+    ):
+        gang, model, _, _ = related
+        data = payload(gang=gang.pk, miniature=model.pk)
+        first = client.post(record_url(campaign), data)
+        second = client.post(record_url(campaign), data)
+        assert first.url == second.url
+        roll = CampaignRoll.objects.get()
+        assert roll.miniature == model
+        assert "Model: Skabb" in client.get(first.url).content.decode()
+        assert (
+            "model: Skabb"
+            in client.get(
+                reverse("n26-campaign-log", args=[campaign.pk])
+            ).content.decode()
+        )
+        assert campaign.events.filter(kind=CampaignEvent.Kind.DICE_ROLLED).count() == 1
+        response = client.get(record_url(campaign))
+        assert {
+            row["label"] for row in response.context["roll_attribution"]["models"]
+        } == {"Skabb", "Mags"}
+
+    @pytest.mark.parametrize(
+        "kind", ["other-gang", "no-gang", "removed", "foreign", "invalid"]
+    )
+    def test_invalid_model_attribution_cannot_be_saved(
+        self, client, campaign, related, kind, gang_type, person_type
+    ):
+        gang, model, other, foreign_model = related
+        fields = {"gang": gang.pk, "miniature": model.pk}
+        if kind == "other-gang":
+            fields["miniature"] = foreign_model.pk
+        elif kind == "no-gang":
+            fields["gang"] = ""
+        elif kind == "removed":
+            from n26.core.operations import operation
+
+            with operation(gang, actor=gang.owner) as op:
+                op.remove(model.membership)
+        elif kind == "foreign":
+            outsider = found_gang("Elsewhere", gang_type, owner=campaign.owner)
+            fields["miniature"] = hire(
+                outsider, create_profile("Other", person_type, gang_type), "Outsider"
+            ).pk
+        else:
+            fields["miniature"] = "bad-id"
+        response = client.post(record_url(campaign), payload(**fields))
+        assert response.status_code == 200
+        assert response.context["form"].errors.get("miniature")
+        assert not CampaignRoll.objects.exists()
+
+    def test_operation_rechecks_the_model_after_the_form_was_validated(
+        self, campaign, related
+    ):
+        from n26.core.forms import CampaignRollForm
+        from n26.core.operations import operation
+
+        gang, model, _, _ = related
+        form = CampaignRollForm(
+            payload(gang=gang.pk, miniature=model.pk), campaign=campaign
+        )
+        assert form.is_valid(), form.errors
+        with operation(gang, actor=gang.owner) as op:
+            op.remove(model.membership)
+        with pytest.raises(Refusal, match="currently in the related gang"):
+            with campaign_operation(campaign, actor=campaign.owner) as act:
+                act.record_roll(**form.cleaned_data)
+        assert not CampaignRoll.objects.exists()
+
+    def test_model_attribution_adds_no_queries_as_the_log_grows(
+        self, client, campaign, related
+    ):
+        gang, model, _, _ = related
+
+        def add():
+            with campaign_operation(campaign, actor=campaign.owner) as act:
+                act.record_roll(
+                    request_key=uuid4(),
+                    reason="Trade",
+                    dice="d6",
+                    source="generated",
+                    gang=gang,
+                    miniature=model,
+                )
+
+        url = reverse("n26-campaign-log", args=[campaign.pk])
+        add()
+        client.get(url)
+        with CaptureQueriesContext(connection) as before:
+            client.get(url)
+        for _ in range(6):
+            add()
+        with CaptureQueriesContext(connection) as after:
+            response = client.get(url)
+        assert "model: Skabb" in response.content.decode()
+        assert len(after) <= len(before)

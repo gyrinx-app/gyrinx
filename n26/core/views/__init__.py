@@ -22,7 +22,11 @@ from n26.core.views.assignment_sets import (
 )
 from n26.core.views.battles import battle, edit_battle
 from n26.core.views.campaign_assets import asset_detail
-from n26.core.views.campaign_rolls import campaign_roll, record_campaign_roll
+from n26.core.views.campaign_rolls import (
+    campaign_roll,
+    preview_pool_roll,
+    record_campaign_roll,
+)
 from n26.core.views.campaigns import (
     add_asset,
     add_asset_type,
@@ -139,6 +143,7 @@ __all__ = [
     "campaign_log",
     "campaign_roll",
     "record_campaign_roll",
+    "preview_pool_roll",
     "campaigns",
     "changelog",
     "changelog_entry",
