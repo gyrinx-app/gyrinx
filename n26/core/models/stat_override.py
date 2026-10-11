@@ -2,7 +2,7 @@
 
 A model's characteristics come from the profile it was hired from, then
 rules adjust them. Sometimes neither matches the table: a campaign awards
-an advance the library does not have, a group agrees a house change, or a
+an advance the library does not have, a group agrees a house rule, or a
 profile was entered differently from the book. An owner can then set a
 characteristic directly.
 

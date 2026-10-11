@@ -152,6 +152,6 @@ rule depends on whether hand-authored content lives in the set: traits,
 a list's lines and a fighter's skill grid are replaced; built-in kit and
 restrictions are only added to, with a note saying what was kept. The
 one exception inside a built-ins set is the fighter's equipment list. It
-grants access rather than kit, and a set holds at most one, so naming a
-list replaces whichever list the set held (`REPLACED_BUILT_INS`). A
+grants access rather than kit, and ingest assumes a fighter buys from one
+list, so naming a list replaces whichever list the set held (`REPLACED_BUILT_INS`). A
 blank cell still replaces nothing.

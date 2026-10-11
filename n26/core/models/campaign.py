@@ -533,9 +533,10 @@ class CampaignParticipant(Base):
     per person per campaign, so re-inviting someone who declined reuses the
     same participant.
 
-    The arbitrator owns the campaign and is not a participant. Being a
-    participant makes someone a member of the campaign and nothing more;
-    the campaign's views decide what they may do.
+    The arbitrator owns the campaign and is not a participant. An accepted
+    participant is a member of the campaign and nothing more; invited and
+    declined participants are not members. The campaign's views decide
+    what a member may do.
     """
 
     class State(models.TextChoices):

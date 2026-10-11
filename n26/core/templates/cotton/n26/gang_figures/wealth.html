@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.gang-figures.wealth> — The wealth strip as a live region a purchase can replace.
 
-id="n26-gang-wealth" is the out-of-band swap target after a purchase. Changing it leaves the strip stale.
+id="n26-gang-wealth" is the out-of-band swap target after any equip-screen action. Changing it leaves the strip stale.
 Do not pass id or class. They are not declared, so they land in attrs first.
 The browser then drops the swap hook and the border.
 This wrapper is only the money figures. The roster count sits beside it and must not share this id.

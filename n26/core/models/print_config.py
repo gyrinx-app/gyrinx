@@ -9,7 +9,7 @@ rating and does not go through ``n26.operations``.
 Selections are literal: a config prints exactly what was ticked, and
 nothing acquired later joins it. A model hired after a config was saved
 is not on it until someone reopens the config and ticks the model. This
-is deliberate, so a saved config never changes as the gang changes.
+is deliberate: a saved config does not grow when the gang does.
 
 Each gang has at most one unnamed config: the scratch config, rewritten
 by every ad-hoc print so unsaved prints do not accumulate. Naming it saves

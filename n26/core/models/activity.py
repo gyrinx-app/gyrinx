@@ -6,7 +6,8 @@ Purchases made while one is open count against it, and pages need to show
 whether it is open. An ``Activity`` covers one of these from its opening
 event to its closing event.
 
-The model stores only the boundaries. ``opened`` and ``closed`` point at two
+Apart from its kind, target and Trade Points, the model stores only the
+boundaries. ``opened`` and ``closed`` point at two
 ledger events, and what the activity did is the ledger between them. Those
 events name the gang or the model performing the action, not an assignment,
 so they take no part in the fold that reproduces each ledger entry

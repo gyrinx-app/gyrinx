@@ -153,8 +153,9 @@ class Gang(Base, Owned, Archived, Rated):
 
         This is cached and ``trade_points_spent`` is not: spending changes
         as a page acts, but which activities are open changes only when one
-        opens or closes. Opening or closing an activity clears this cache,
-        so the page then reads current state.
+        opens or closes. Every operation clears this cache when it starts
+        and when it settles, as do opening and closing an activity, so a
+        page reads current state afterwards.
         """
         if self._open_activities is None:
             from django.db.models import Q, Subquery
