@@ -65,6 +65,64 @@ def test_account_screens_use_n26_styles(client, user, url):
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
+    "url, target, words",
+    [
+        ("account_login", "account_signup", "signing up"),
+        ("account_signup", "account_login", "Sign in"),
+    ],
+)
+def test_entrance_intro_draws_the_other_page_as_an_underlined_link(
+    client, url, target, words
+):
+    html = client.get(reverse(url)).content.decode()
+    intro = re.search(r'<p class="text-muted">(.*?)</p>', html, re.S).group(1)
+    link = re.search(rf'<a href="{reverse(target)}"([^>]*)>(.*?)</a>', intro, re.S)
+    assert link
+    attrs, content = link.groups()
+    assert "text-accent-text" in attrs
+    assert re.fullmatch(
+        rf'<span class="underline underline-offset-2">{words}</span>', content
+    )
+    # The full stop sits against the link, with no space before it.
+    assert f"{link.group(0)}." in intro
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "url, name, words",
+    [
+        ("account_login", "password", "Forgot your password?"),
+        ("account_signup", "tos_agreement", "Terms of Use"),
+    ],
+)
+def test_entrance_help_text_links_are_underlined(client, url, name, words):
+    html = client.get(reverse(url)).content.decode()
+    help_text = re.search(
+        rf'<div id="id_{name}_helptext" class="([^"]*)">(.*?)</div>', html, re.S
+    )
+    assert help_text
+    classes, content = help_text.groups()
+    assert "[&amp;_a]:text-accent-text" in classes
+    assert "[&amp;_a]:underline" in classes
+    assert re.search(rf"<a [^>]*>{re.escape(words)}</a>", content)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "url, name", [("account_login", "remember"), ("account_signup", "tos_agreement")]
+)
+def test_entrance_checkbox_sits_beside_its_label(client, url, name):
+    html = client.get(reverse(url)).content.decode()
+    assert re.search(
+        r'<div class="flex items-start gap-2">\s*<span[^>]*>'
+        rf'<input type="checkbox" name="{name}"[^>]*></span>\s*'
+        rf'<label for="id_{name}"',
+        html,
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
     "url, destination",
     [
         ("account_change_password", "account-security"),
