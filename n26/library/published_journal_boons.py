@@ -17,7 +17,7 @@ from n26.library.journal_content import JOURNALS, _is_seeded_boon
 from n26.library.territory_table import TERRITORY
 from n26.write_pause import SCOPE, exclusive_write_scope, write_guard
 
-NOTHING_TO_DO = "Nothing to do: no published journal boon placeholders remain."
+NOTHING_TO_DO = "Nothing to do: no published journal boon placeholders can be removed."
 
 
 def _is_published_placeholder(rule):
