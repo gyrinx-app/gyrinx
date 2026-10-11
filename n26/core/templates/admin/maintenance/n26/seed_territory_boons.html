@@ -1,0 +1,88 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+The territory content console page: what the run would create, remove or
+skip, an apply button, and the recent runs. The preview is the run
+and rolled back, so it is exactly what a run would do.
+Context from seed_territory_boons_view (n26/maintenance.py): title,
+preview, nothing_to_do, problem, apply_url, recent.
+{% endcomment %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-plan { font-family: monospace; line-height: 1.6; }
+    .mt-form { margin-top: 2rem; }
+    .mt-table { width: 100%; margin-top: 1rem; }
+    .mt-problems { color: var(--error-fg, #ba2121); }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        Add baseline Income for Settlement, the 18 core territories and the 12
+        journal territories. Generatorium and Gambling Den add 1 Reputation.
+        Goliath gangs holding Amneo-vats gain 10 more Income. Escher gangs
+        holding Shivver Den gain 1 Reputation. Authored conflicts are preserved
+        and listed below.
+    </p>
+    <p>
+        New content is staged. Effects attached to existing assets apply to
+        their current holders immediately, including when the new modifier is
+        staged. Review the preview before applying it.
+    </p>
+    <p>
+        Collect credits and resolve recruitment, equipment rewards and
+        battlefield effects manually. This update adds standing readings;
+        it moves no credits and gives no recruitment discounts or stash rewards.
+    </p>
+    {% if problem %}
+        <h2 class="mt-problems">The preview cannot run</h2>
+        <p class="mt-problems">{{ problem }}</p>
+        <p>Resolve this problem before applying territory content changes.</p>
+    {% elif nothing_to_do %}
+        <h2>Nothing to change</h2>
+        <p>Territory content is up to date. Any skipped content is listed below.</p>
+        <ul class="mt-plan">
+            {% for line in preview|slice:"1:" %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+    {% else %}
+        <h2>What it would do</h2>
+        <ul class="mt-plan">
+            {% for line in preview %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+        <form method="post"
+              class="mt-form"
+              onsubmit="return confirm('Apply the listed territory content changes to the library and its current holders?')">
+            {% csrf_token %}
+            <button type="submit" class="button default">Apply territory content changes</button>
+        </form>
+    {% endif %}
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.triggered_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock content %}
