@@ -1,0 +1,19 @@
+{% if backfill.summary.report %}
+    <h2>What it did</h2>
+    <ul>
+        {% for line in backfill.summary.report %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+    {% if backfill.summary.seconds is not None %}
+        <p>Took {{ backfill.summary.seconds }} second{{ backfill.summary.seconds|pluralize }}.</p>
+    {% endif %}
+{% elif backfill.summary.preview %}
+    <h2>Planned removals and skips</h2>
+    <p>The cleanup commits its changes together. A failed or interrupted run commits no changes.</p>
+    <ul>
+        {% for line in backfill.summary.preview %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% endif %}
+{% if backfill.summary.warning %}<p>{{ backfill.summary.warning }}</p>{% endif %}
+{% if backfill.summary.attempts %}
+    <p>Started {{ backfill.summary.attempts }} time{{ backfill.summary.attempts|pluralize }}.</p>
+{% endif %}
