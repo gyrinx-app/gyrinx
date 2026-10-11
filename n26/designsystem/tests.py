@@ -111,6 +111,59 @@ class TestReactDemo:
         assert client.get("/n26/design/react/").status_code == 302
 
 
+class TestTheSidebar:
+    """The gallery-nav island filters every component the catalog lists, and
+    its fallback draws the same links until it mounts."""
+
+    def _nav(self, reader, address):
+        import json
+
+        soup = BeautifulSoup(reader.get(address).content, "html.parser")
+        host = soup.select_one("[data-react-name='gallery-nav']")
+        return host, json.loads(soup.find(id=host["data-react-props"]).string)
+
+    def test_every_component_is_listed_with_its_filter_term(self, reader):
+        from n26.designsystem import catalog
+
+        _, props = self._nav(reader, "/n26/design/")
+        listed = [c["slug"] for g in props["groups"] for c in g["components"]]
+        assert listed == [c.slug for c in catalog.COMPONENTS]
+        assert [g["name"] for g in props["groups"]] == [g.name for g in catalog.GROUPS]
+        button = next(
+            c for g in props["groups"] for c in g["components"] if c["slug"] == "button"
+        )
+        assert button["term"] == "button c-ui.button actions"
+        assert button["href"] == "/n26/design/c/button/"
+        assert props["shell"]["href"] == "/n26/design/shell/"
+
+    def test_the_page_or_component_being_read_is_current(self, reader):
+        host, props = self._nav(reader, "/n26/design/tokens/")
+        assert [p["label"] for p in props["pages"] if p["current"]] == ["Tokens"]
+        assert not any(g["current"] for g in props["groups"])
+        assert not any(c["current"] for g in props["groups"] for c in g["components"])
+        (marked,) = host.select("[aria-current='page']")
+        assert marked["href"] == "/n26/design/tokens/"
+
+        host, props = self._nav(reader, "/n26/design/c/button/")
+        assert not any(p["current"] for p in props["pages"])
+        assert [g["name"] for g in props["groups"] if g["current"]] == ["Actions"]
+        current = [
+            c["slug"] for g in props["groups"] for c in g["components"] if c["current"]
+        ]
+        assert current == ["button"]
+        # The fallback marks the same link before the island mounts.
+        (marked,) = host.select("[aria-current='page']")
+        assert marked["href"] == "/n26/design/c/button/"
+
+    def test_the_fallback_has_the_links_and_no_alpine(self, reader):
+        host, props = self._nav(reader, "/n26/design/")
+        hrefs = {a["href"] for a in host.select("a")}
+        assert {p["href"] for p in props["pages"]} <= hrefs
+        assert {c["href"] for g in props["groups"] for c in g["components"]} <= hrefs
+        assert host.select_one("#component-filter") is not None
+        assert not host.select("[x-data], [x-model], [x-show], [x-text], [x-cloak]")
+
+
 class TestTheQuickSwitchersPage:
     """Its props, its subcomponent and its demos all reach the gallery."""
 

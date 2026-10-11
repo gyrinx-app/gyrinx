@@ -811,6 +811,26 @@ export function Icon({
     );
 }
 
+/** The design gallery's mark for a component that renders through React. */
+export function ReactMark() {
+    const mark = cotton.reactMark;
+    return (
+        <svg
+            viewBox={mark.viewBox}
+            className={mark.className}
+            role="img"
+            aria-label={mark.label}
+        >
+            <circle {...mark.dot} />
+            <g {...mark.group}>
+                {mark.orbits.map((orbit, key) => (
+                    <ellipse key={key} {...orbit} />
+                ))}
+            </g>
+        </svg>
+    );
+}
+
 export function SearchBar({
     value,
     onChange,

@@ -1,4 +1,4 @@
-{% load static %}
+{% load static designsystem react %}
 <!DOCTYPE html>
 <html lang="en-gb">
     <head>
@@ -41,7 +41,7 @@
         </a>
         <div class="mx-auto flex max-w-[1600px]">
             {# djlint:off H037 — Alpine @event.window modifiers, not duplicate attributes #}
-            <aside x-data="sidebar({{ all_search_terms }})"
+            <aside x-data="{ open: false }"
                    @toggle-sidebar.window="open = !open"
                    @keydown.escape.window="open = false"
                    class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-box-border bg-surface transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
@@ -53,66 +53,61 @@
                     </a>
                     <c-ui.mode-toggle storage_key="n26-theme" default="system" size="sm" />
                 </div>
-                <div class="border-b border-box-border px-4 py-3">
-                    <label for="component-filter" class="sr-only">Filter components</label>
-                    <input id="component-filter"
-                           x-model="query"
-                           type="search"
-                           placeholder="Filter components…"
-                           autocomplete="off"
-                           class="w-full rounded-control border border-box-border bg-input-bg px-3 py-1.5 text-sm placeholder:text-muted focus-ring">
-                </div>
-                <nav class="flex-1 overflow-y-auto px-3 py-4 text-sm">
-                    {# nav-current is defined in app.css: a neutral tint and ink text, the accent being a fill token with no guaranteed contrast against the page. #}
-                    {% with current="nav-current" %}
-                        {% with here=request.resolver_match.url_name %}
-                            <ul class="mb-5 space-y-0.5" x-show="!query">
-                                <li><a href="{% url 'designsystem:index' %}"
-   class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if here == 'index' %}{{ current }}{% endif %}">Overview</a></li>
-                                <li><a href="{% url 'designsystem:theming' %}"
-   class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if here == 'theming' %}{{ current }}{% endif %}">Theming</a></li>
-                                <li><a href="{% url 'designsystem:tokens' %}"
-   class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if here == 'tokens' %}{{ current }}{% endif %}">Tokens</a></li>
-                                <li><a href="{% url 'designsystem:react' %}"
-   class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if here == 'react' %}{{ current }}{% endif %}">React islands</a></li>
-                                <li><a href="{% url 'designsystem:print_lab' %}"
-   class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if here == 'print_lab' %}{{ current }}{% endif %}">Print lab</a></li>
-                                {% comment %}
-                    The only link here that leaves the gallery, which is what the
-                    arrow says. The shell extends the app's own base rather than
-                    this one, so there is no `here` to match and a current-state
-                    conditional on this row could never run.
-                                {% endcomment %}
+                {% comment %}
+                The gallery-nav island draws the filter and the links. This
+                markup, from the same props, shows until it mounts and without a
+                script, when the filter does nothing. GalleryNav.tsx repeats its
+                classes; change both.
+                {% endcomment %}
+                {% gallery_nav as gallery_nav_ %}
+                {% react_host "gallery-nav" gallery_nav_ class="flex min-h-0 flex-1 flex-col" %}
+                    <div class="border-b border-box-border px-4 py-3">
+                        <label for="component-filter" class="sr-only">Filter components</label>
+                        <input id="component-filter"
+                               type="search"
+                               placeholder="Filter components…"
+                               autocomplete="off"
+                               class="w-full rounded-control border border-box-border bg-input-bg px-3 py-1.5 text-sm placeholder:text-muted focus-ring">
+                    </div>
+                    <nav class="flex-1 overflow-y-auto px-3 py-4 text-sm">
+                        {# nav-current is defined in app.css: a neutral tint and ink text, the accent being a fill token with no guaranteed contrast against the page. #}
+                        <ul class="mb-5 space-y-0.5">
+                            {% for page in gallery_nav_.pages %}
                                 <li>
-                                    <a href="{% url 'designsystem:shell_home' %}"
-                                       class="flex items-center gap-1.5 rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10">
-                                        App shell
-                                        <c-n26.icon name="external-link" class="size-3.5 text-muted" stroke_width="2" />
-                                    </a>
+                                    <a href="{{ page.href }}"
+                                       {% if page.current %}aria-current="page"{% endif %}
+                                       class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if page.current %}nav-current{% endif %}">{{ page.label }}</a>
                                 </li>
-                            </ul>
-                        {% endwith %}
-                        {% for group in groups %}
-                            <div class="mb-5" x-show="groupMatches({{ group.search_terms }})">
+                            {% endfor %}
+                            <li>
+                                <a href="{{ gallery_nav_.shell.href }}"
+                                   class="flex items-center gap-1.5 rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10">
+                                    {{ gallery_nav_.shell.label }}
+                                    <c-n26.icon name="external-link" class="size-3.5 text-muted" stroke_width="2" />
+                                </a>
+                            </li>
+                        </ul>
+                        {% for group in gallery_nav_.groups %}
+                            <div class="mb-5">
                                 {# The heading links to the group's section on the overview, so a category is somewhere to go rather than a label. #}
-                                <a href="{% url 'designsystem:index' %}#{{ group.anchor }}"
-                                   class="flex items-center gap-1.5 rounded-control px-3 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wider hover:text-ink-900 dark:hover:text-ink-100 {% if component.group == group.name %}text-ink-900 dark:text-ink-100{% else %}text-muted{% endif %}">
+                                <a href="{{ group.href }}"
+                                   class="flex items-center gap-1.5 rounded-control px-3 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wider hover:text-ink-900 dark:hover:text-ink-100 {% if group.current %}text-ink-900 dark:text-ink-100{% else %}text-muted{% endif %}">
                                     {{ group.name }}
                                 </a>
                                 <ul class="space-y-0.5">
                                     {% for c in group.components %}
-                                        <li x-show="matches('{{ c.search_term }}')">
-                                            <a href="{% url 'designsystem:component' c.slug %}"
-                                               {% if component.slug == c.slug %}aria-current="page" data-current{% endif %}
-                                               class="flex items-center justify-between gap-2 rounded-control px-3 py-1.5 hover:bg-ink-500/10 {% if component.slug == c.slug %}{{ current }}{% endif %}">
+                                        <li>
+                                            <a href="{{ c.href }}"
+                                               {% if c.current %}aria-current="page" data-current{% endif %}
+                                               class="flex items-center justify-between gap-2 rounded-control px-3 py-1.5 hover:bg-ink-500/10 {% if c.current %}nav-current{% endif %}">
                                                 <span class="flex min-w-0 items-center gap-1.5">
                                                     <span class="truncate">{{ c.slug }}</span>
-                                                    {% if c.uses_react %}
+                                                    {% if c.usesReact %}
                                                         {% include "designsystem/_react_mark.html" with size="size-3" %}
                                                     {% endif %}
                                                 </span>
                                                 {% if c.parts %}
-                                                    <span class="text-[10px] text-muted">+{{ c.parts|length }}</span>
+                                                    <span class="text-[10px] text-muted">+{{ c.parts }}</span>
                                                 {% endif %}
                                             </a>
                                         </li>
@@ -120,13 +115,8 @@
                                 </ul>
                             </div>
                         {% endfor %}
-                        <p x-show="query && !anyMatches()"
-                           x-cloak
-                           class="px-3 py-2 text-sm text-muted">
-                            Nothing matches “<span x-text="query"></span>”.
-                        </p>
-                    {% endwith %}
-                </nav>
+                    </nav>
+                {% endreact_host %}
                 <div class="border-t border-box-border px-5 py-3 text-xs text-muted">{{ component_count }} components</div>
             </aside>
             {# djlint:on #}
@@ -156,35 +146,6 @@
         <c-ui.toast.container position="bottom-left" />
         {# The kit's own theming devtool, on every page — theme while you browse. #}
         <c-ui.theme-builder-widget position="bottom-right" storage_key="n26-theme-builder" />
-        <script>
-document.addEventListener('alpine:init', () => {
-    Alpine.data('sidebar', (allTerms) => ({
-        query: '',
-        open: false,
-        allTerms,
-
-        init() {
-            // On a deep link the current component can be far down the list, so
-            // bring it into view — within the nav only, never by scrolling the page.
-            const current = this.$el.querySelector('[data-current]');
-            if (current) current.scrollIntoView({ block: 'nearest' });
-        },
-
-        matches(term) {
-            if (!this.query) return true;
-            return term.includes(this.query.trim().toLowerCase());
-        },
-
-        groupMatches(terms) {
-            return !this.query || terms.some((term) => this.matches(term));
-        },
-
-        anyMatches() {
-            return this.allTerms.some((term) => this.matches(term));
-        },
-    }));
-});
-        </script>
         {% comment %}
         The app shell loads this so a focused number field does not take the
         wheel. The gallery loads it too, or its number inputs demonstrate the
