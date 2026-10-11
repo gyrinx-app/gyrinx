@@ -124,6 +124,9 @@ export function PoolRoll(props: PoolRollProps) {
                             description={option.die}
                             checked={table === option.value}
                             onChange={() => setTable(option.value)}
+                            autoFocus={
+                                props.focusedField === `table:${option.value}`
+                            }
                         />
                     ))}
                 </RadioCards>

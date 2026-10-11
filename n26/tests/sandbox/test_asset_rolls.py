@@ -82,6 +82,13 @@ def sentences(acts):
     return ["".join(span.text for span in act.spans) for act in acts]
 
 
+def _roll_props(body):
+    """The props the starting dialog's campaign-roll island mounts with."""
+    document = BeautifulSoup(body, "html.parser")
+    host = document.select_one('[data-react-name="campaign-roll"]')
+    return json.loads(document.find(id=host["data-react-props"]).string)
+
+
 @pytest.fixture
 def arbitrator(db):
     return User.objects.create_user("arbitrator")
@@ -888,6 +895,59 @@ class TestThePages:
         assert "A D66 roll is 11 to 66." in kings
         assert "The rolled territory will be assigned to Slag Kings." in kings
 
+    def test_the_starting_dialog_draws_its_roll_and_buttons_in_one_island(
+        self, client, campaign, territory, journal, slag_kings, wild_cats, arbitrator
+    ):
+        """The island owns the table, the own-roll field and the panel's
+        Cancel and submit, since the submit's name follows what is typed.
+        The dialog draws no second footer around it."""
+        client.force_login(arbitrator)
+        page = reverse("n26-campaign", args=[campaign.pk])
+        body = client.get(
+            f"{page}?starting={slag_kings.pk}&type={territory.pk}",
+            HTTP_HX_REQUEST="true",
+        ).content.decode()
+        props = _roll_props(body)
+        assert props["inputId"] == "starting-roll"
+        assert props["cancelUrl"] == page
+        # The dialog closes, rather than navigates, on a link to its own cancel address.
+        assert f"cancelUrl: '{page}'" in body
+        assert props["rolled"] == {
+            "label": "Your own roll",
+            "helpText": "Optional. Leave blank and the roll is made for you.",
+            "value": "",
+            "errors": [],
+        }
+        assert props["tableErrors"] == []
+        assert {(t["die"], t["lowest"], t["highest"]) for t in props["tables"]} == {
+            ("D6", 1, 6),
+            ("D66", 11, 66),
+        }
+        assert props["table"] == props["tables"][0]["value"]
+
+        # The kit button writes the caller's type before its own type="button";
+        # a browser keeps the first of a repeated attribute.
+        document = BeautifulSoup(body, "html.parser", on_duplicate_attribute="ignore")
+        dialog = document.find("dialog")
+        host = dialog.select_one('[data-react-name="campaign-roll"]')
+        # Before the island mounts, and without a script, the act is Roll.
+        assert [b.get_text(strip=True) for b in dialog.select("[type=submit]")] == [
+            "Roll"
+        ]
+        cancels = [
+            a for a in dialog.find_all("a") if a.get_text(strip=True) == "Cancel"
+        ]
+        assert [a["href"] for a in cancels] == [page]
+        assert host in cancels[0].parents
+        assert not host.select("[x-data], [x-model], [x-show], [x-text]")
+
+        cats = client.get(
+            f"{page}?starting={wild_cats.pk}&type={territory.pk}",
+            HTTP_HX_REQUEST="true",
+        ).content.decode()
+        (only,) = _roll_props(cats)["tables"]
+        assert only["value"] == _roll_props(cats)["table"]
+
     def test_the_own_roll_field_is_a_number_input_for_the_players_roll(
         self, client, campaign, territory, selection_table, arbitrator
     ):
@@ -1165,7 +1225,8 @@ class TestThePages:
         assert len(radios) == 2
         assert [("checked" in radio) for radio in radios] == [True, False]
         first = re.search(r'value="([^"]+)"', radios[0]).group(1)
-        assert f"x-data=\"{{ table: '{first}', rolled: '' }}\"" in body
+        props = _roll_props(body)
+        assert props["table"] == first and props["rolled"]["value"] == ""
 
         response = client.post(
             reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]),
@@ -1179,10 +1240,12 @@ class TestThePages:
         assert re.search(
             rf'value="{journal.pk}"[^>]*\s+checked', radios[0]
         ) or re.search(rf'value="{journal.pk}"[^>]*\s+checked', radios[1])
-        assert f"x-data=\"{{ table: '{journal.pk}', rolled: '9' }}\"" in body
+        props = _roll_props(body)
+        assert props["table"] == str(journal.pk)
+        assert props["rolled"]["value"] == "9"
 
         # A table that is not offered falls back to the first card, and what
-        # was typed is escaped for the script that reads it back.
+        # was typed reaches the island as text.
         response = client.post(
             reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]),
             {"type": str(territory.pk), "table": "nonsense", "rolled": "1'+x"},
@@ -1191,7 +1254,8 @@ class TestThePages:
         body = response.content.decode()
         radios = re.findall(r'<input type="radio"[^>]*>', body)
         assert [("checked" in radio) for radio in radios] == [True, False]
-        assert f"x-data=\"{{ table: '{first}', rolled: '1\\u0027+x' }}\"" in body
+        props = _roll_props(body)
+        assert props["table"] == first and props["rolled"]["value"] == "1'+x"
 
     def test_the_gang_owner_cannot_roll_or_open_and_a_stranger_finds_nothing(
         self, client, page_campaign, page_catalogue, page_member, owner

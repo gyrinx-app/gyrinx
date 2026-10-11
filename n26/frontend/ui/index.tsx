@@ -203,18 +203,38 @@ function useFieldControl(id?: string, describedBy?: string) {
     };
 }
 
+/** Errors in the danger colour, as `<c-ui.error>` draws them. */
+export function FieldErrors({ id, errors }: { id?: string; errors: string[] }) {
+    return (
+        <div id={id}>
+            {errors.map((error, index) => (
+                <div key={index} className={cotton.field.error}>
+                    {error}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/**
+ * A labelled control. In the block variant, `descriptionPlacement="before"`
+ * matches a Cotton field's `description` slot; the default matches
+ * `description_trailing`. The toggle variant always draws it after.
+ */
 export function Field({
     label,
     htmlFor,
     errors = [],
     description,
+    descriptionPlacement = "after",
     variant = "block",
     children,
 }: {
     label: string;
     htmlFor: string;
     errors?: string[];
-    description?: string;
+    description?: ReactNode;
+    descriptionPlacement?: "before" | "after";
     variant?: "block" | "toggle";
     children: ReactNode;
 }) {
@@ -233,13 +253,7 @@ export function Field({
         </div>
     );
     const errorControl = errorId && (
-        <div id={errorId}>
-            {errors.map((error, index) => (
-                <div key={index} className={recipe.error}>
-                    {error}
-                </div>
-            ))}
-        </div>
+        <FieldErrors id={errorId} errors={errors} />
     );
 
     return (
@@ -253,10 +267,13 @@ export function Field({
                 ) : (
                     <>
                         {labelControl}
+                        {descriptionPlacement === "before" &&
+                            descriptionControl}
                         {children}
                     </>
                 )}
-                {descriptionControl}
+                {(variant === "toggle" || descriptionPlacement === "after") &&
+                    descriptionControl}
                 {errorControl}
             </div>
         </FieldContext>
@@ -614,15 +631,7 @@ export function RadioCards({
             <div className={recipe.grid} style={style}>
                 {children}
             </div>
-            {errorId && (
-                <div id={errorId}>
-                    {errors.map((error, index) => (
-                        <div key={index} className={cotton.field.error}>
-                            {error}
-                        </div>
-                    ))}
-                </div>
-            )}
+            {errorId && <FieldErrors id={errorId} errors={errors} />}
         </fieldset>
     );
 }
@@ -637,6 +646,7 @@ export function RadioCard({
     disabled = false,
     checked,
     onChange,
+    autoFocus,
     flair,
     className = "",
     children,
@@ -650,6 +660,7 @@ export function RadioCard({
     disabled?: boolean;
     checked: boolean;
     onChange: () => void;
+    autoFocus?: boolean;
     flair?: ReactNode;
     className?: string;
     children?: ReactNode;
@@ -664,6 +675,7 @@ export function RadioCard({
                 disabled={disabled}
                 checked={checked}
                 onChange={onChange}
+                autoFocus={autoFocus}
                 className={recipe.input}
             />
             <span className={recipe.content}>
