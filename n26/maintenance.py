@@ -227,7 +227,7 @@ class Operation(models.TextChoices):
     )
     SEED_JOURNAL_CONTENT = (
         "n26_seed_journal_content",
-        "n26: update journal territories and Gang supertypes",
+        "n26: update journal territories and gang supertypes",
     )
     DELETE_TEST_CONTENT = (
         "n26_delete_test_content",
@@ -2484,7 +2484,7 @@ register_operation(
         name=Operation.SEED_JOURNAL_CONTENT.label,
         added=date(2026, 9, 7),
         description=(
-            "Create the Gang supertype: a hidden gang-level slot with six "
+            "Create the gang supertype: a hidden gang-level slot with six "
             "marker pickables, Goliath to Cawdor. It is built into each Clan "
             "House gang type with that House picked, and Clan House Outcast "
             "gangs are given it by their Clan House pickable. Create the two "

@@ -828,6 +828,38 @@ class TestTheSeededControlledBoonsAreReset:
         )
         assert seed_all()[0] == NOTHING_TO_DO
 
+    @pytest.mark.parametrize("state", ["live", "archived", "archive_timestamp"])
+    @library_setup
+    def test_rules_with_changed_publication_or_archive_state_are_kept(
+        self, legacy_boons, state
+    ):
+        from django.utils import timezone
+
+        from n26.library.authoring import revise
+
+        boon, rule = legacy_boons["Slug House"]
+        if state == "live":
+            revise(rule, staged=False)
+        else:
+            revise(
+                rule,
+                archived=state == "archived",
+                archived_at=timezone.now(),
+            )
+        skipped = (
+            f"skipped rule {rule} and its modifier: its content "
+            "differs from the journal seed"
+        )
+        assert skipped in preview()
+        assert Rule.objects.filter(pk=rule.pk).exists()
+        assert Modifier.objects.filter(pk=boon.pk).exists()
+
+        assert skipped in seed_all()
+
+        assert Rule.objects.filter(pk=rule.pk).exists()
+        assert Modifier.objects.filter(pk=boon.pk).exists()
+        assert seed_all() == [NOTHING_TO_DO, skipped]
+
     def test_directly_assigned_rules_are_kept_and_reported(
         self, legacy_boons, gang_types, owner
     ):

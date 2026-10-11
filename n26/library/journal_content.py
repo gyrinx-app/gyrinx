@@ -187,7 +187,10 @@ def _is_seeded_boon(modifier, asset, pick, rule, income):
 
 def _is_seeded_rule(rule):
     return not (
-        rule.modifiers.exists()
+        not rule.staged
+        or rule.archived
+        or rule.archived_at is not None
+        or rule.modifiers.exists()
         or rule.built_ins_id is not None
         or rule.library_author_help
         or rule.price != 0
