@@ -25,6 +25,13 @@ from n26.core.effects import (
     limit_notes,
     stacked_names,
 )
+from n26.core.income import (
+    IncomeSource,
+    holding_income_sources,
+    income_explanation,
+    income_sources,
+    unclaimed_income_source,
+)
 from n26.core.models.dismissed_offer import GANG_SLOT_HOST as _GANG_SLOT_HOST
 from n26.core.models.dismissed_offer import slot_key as _address
 from n26.core.models.ledger import Reason
@@ -303,6 +310,7 @@ class CounterLine:
     #: counter assigned directly, which is what a model's own reads as.
     provenance: Provenance = field(default_factory=Provenance)
     is_income: bool = False
+    income_sources: list[IncomeSource] = field(default_factory=list)
 
     @property
     def contributed(self):
@@ -310,11 +318,9 @@ class CounterLine:
 
     @property
     def income_explanation(self):
-        return {
-            "value": self.value,
-            "contributed": self.contributed,
-            "adjustment": self.tallied,
-        }
+        return income_explanation(
+            self.value, sources=self.income_sources, adjustment=self.tallied
+        )
 
 
 @dataclass
@@ -1844,6 +1850,7 @@ class CampaignAssetEntry:
     name: str
     asset_name: str = ""
     income: int = 0
+    income_source: IncomeSource | None = None
     held: bool = False
     holder: str = ""
     holder_gang_id: str = ""
@@ -1863,6 +1870,14 @@ class CampaignAssetEntry:
     remove_href: str = ""
     #: Read-only details of this exact campaign holding.
     href: str = ""
+
+    @property
+    def income_explanation(self):
+        return income_explanation(
+            self.income,
+            sources=(self.income_source,) if self.income_source is not None else (),
+            asset=True,
+        )
 
 
 @dataclass
@@ -3622,7 +3637,7 @@ def _asset_types(assets):
     }
 
 
-def _campaign_parts(gang_card, membership, keys, readings):
+def _campaign_parts(gang_card, membership, keys, readings, *, computed=None):
     """What the campaign gave, sorted into possessions and counters.
 
     ``readings`` are every counter reading on the gang's card; the ones
@@ -3651,6 +3666,11 @@ def _campaign_parts(gang_card, membership, keys, readings):
                     value=reading.value,
                     tallied=_counter_value(node),
                     is_income=is_income_counter(node.assignable),
+                    income_sources=income_sources(
+                        computed, reading.contributions, counter=reading.thing
+                    )
+                    if computed is not None and is_income_counter(node.assignable)
+                    else [],
                     assignment_id=(
                         str(node.assignment.pk) if node.assignment is not None else ""
                     ),
@@ -3756,7 +3776,9 @@ def _campaign_block(gang_card, membership, keys, readings, index=None, computed=
 
     if membership is None:
         return None
-    possessions, counters = _campaign_parts(gang_card, membership, keys, readings)
+    possessions, counters = _campaign_parts(
+        gang_card, membership, keys, readings, computed=computed
+    )
     types = _asset_types(
         [node.assignable for node in possessions if isinstance(node.assignable, Asset)]
     )
@@ -4321,6 +4343,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     parts = {}
     picks = {}
     incomes = {}
+    income_breakdowns = {}
     held_tables = {}
     # Tables given through a member the arbitrator has since closed stay
     # on the gangs and are not offered: one query for every card at once.
@@ -4332,9 +4355,12 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         card = cards[membership.gang_id]
         computed = compute(card, index)
         incomes.update(holding_income(computed))
+        income_breakdowns.update(holding_income_sources(computed))
         readings = counter_readings(card, computed)
         keys = _campaign_keys(card, membership)
-        parts[membership.pk] = _campaign_parts(card, membership, keys, readings)
+        parts[membership.pk] = _campaign_parts(
+            card, membership, keys, readings, computed=computed
+        )
         # The rolled tables the gang holds, stored and granted alike, off
         # the card already computed: which tables its starting roll may
         # be made on.
@@ -4462,6 +4488,11 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
                 )
                 if holder
                 else _income_reader(None)(campaign_asset.asset, campaign_asset),
+                income_source=income_breakdowns.get(
+                    (campaign_asset.pk, campaign_asset.ownership_revision)
+                )
+                if holder
+                else unclaimed_income_source(campaign_asset),
                 held=holder is not None,
                 holder=holder.gang.name if holder else "",
                 holder_gang_id=str(holder.gang_id) if holder else "",
@@ -4679,6 +4710,15 @@ class CampaignAssetDetails:
     income: int
     holder: str
     holder_href: str
+    income_source: IncomeSource | None = None
+
+    @property
+    def income_explanation(self):
+        return income_explanation(
+            self.income,
+            sources=(self.income_source,) if self.income_source is not None else (),
+            asset=True,
+        )
 
 
 @dataclass

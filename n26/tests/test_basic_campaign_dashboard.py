@@ -107,7 +107,25 @@ def test_reader_sees_income_breakdown_but_cannot_adjust_or_add(client, dashboard
     soup = BeautifulSoup(page.content, "html.parser")
     help_host = soup.select_one('[data-react-name="income-tooltip"]')
     explanation = json.loads(soup.find(id=help_host["data-react-props"]).string)
-    assert explanation == {"value": 20, "contributed": 20, "adjustment": 0}
+    assert explanation == {
+        "value": 20,
+        "contributed": 20,
+        "adjustment": 0,
+        "sources": [
+            {
+                "name": "Old Ruins",
+                "value": 20,
+                "parts": [
+                    {
+                        "label": "Base income",
+                        "amount": 20,
+                        "detail": "",
+                        "replaced": False,
+                    }
+                ],
+            }
+        ],
+    }
     assert "Adjustment 0¢" not in page.content.decode()
     assignment = gang.assignments.get(counter__name="Income")
     assert (

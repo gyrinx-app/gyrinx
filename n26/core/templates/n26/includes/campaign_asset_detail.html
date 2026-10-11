@@ -1,3 +1,4 @@
+{% load react %}
 <div id="n26-campaign-asset-detail"
      {% if redrawn %}hx-swap-oob="true"{% endif %}
      class="max-w-3xl space-y-8">
@@ -40,7 +41,9 @@
             <div>
                 <dt class="text-sm text-muted">Income</dt>
                 <dd class="mt-1 font-semibold tabular-nums">
-                    {{ details.income }}¢
+                    {% react_host "income-tooltip" details.income_explanation %}
+                        <span class="tabular-nums">{{ details.income }}¢</span>
+                    {% endreact_host %}
                 </dd>
             </div>
         </dl>
