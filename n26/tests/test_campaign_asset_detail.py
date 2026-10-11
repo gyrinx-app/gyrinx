@@ -478,8 +478,16 @@ def test_gang_groups_each_holding_choice_under_boons_after_other_assets(client, 
         "Workshop boon",
         "Workshop equipment",
     }
+    controls = [line.dd.find("a") for line in lines]
+    assert {control["aria-label"] for control in controls} == {
+        "Edit Workshop boon for Ruins by the sump",
+        "Edit Workshop equipment for Ruins by the sump",
+    }
+    assert all("text-xs" in control.get("class", []) for control in controls)
+    assert all("text-base" not in control.get("class", []) for control in controls)
+    assert len({control["href"] for control in controls}) == 2
     assert card.get_text().index("Territories") < card.get_text().index("Boons")
-    assert all("/choose/holding:" in line.dd.find("a")["href"] for line in lines)
+    assert all("/choose/holding:" in control["href"] for control in controls)
 
     client.force_login(User.objects.create_user("boon-reader"))
     soup = BeautifulSoup(

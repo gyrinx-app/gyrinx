@@ -51,7 +51,7 @@
     </c-n26.form-section>
     {% if boons %}
         <c-n26.form-section title="Boons">
-            {% include "n26/includes/asset_boons.html" %}
+            {% include "n26/includes/asset_boons.html" with prominent_choices=True %}
         </c-n26.form-section>
     {% endif %}
     <c-n26.form-section title="Battles staked in">

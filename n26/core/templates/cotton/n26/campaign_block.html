@@ -46,7 +46,7 @@ Assets retain their authored groups and links. This card owns its container.
         {% if campaign.boons %}
             <section class="border-t border-box-border px-4 pb-2.5 pt-4" aria-labelledby="n26-campaign-boons-heading">
                 <h3 id="n26-campaign-boons-heading" class="text-sm font-semibold">Boons</h3>
-                {% include "n26/includes/asset_boons.html" with boons=campaign.boons %}
+                {% include "n26/includes/asset_boons.html" with boons=campaign.boons prominent_choices=False %}
             </section>
         {% endif %}
     </c-ui.card>
