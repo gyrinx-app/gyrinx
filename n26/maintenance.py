@@ -260,7 +260,7 @@ class Operation(models.TextChoices):
     )
     PREVIEW_ACTION_ALLOWANCES = (
         "n26_preview_action_allowances",
-        "n26: preview existing fighter action allowances",
+        "n26: preview existing model action allowances",
     )
     RESET_SPYRER_BUILT_INS = (
         "n26_reset_spyrer_built_ins",
@@ -1885,7 +1885,7 @@ def preview_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
     run_per_gang(
         backfill_id,
         operation=Operation.PREVIEW_ACTION_ALLOWANCES,
-        what="Existing fighter allowance preview",
+        what="Existing model allowance preview",
         find=candidates,
         apply_one=inspect_one,
         again=lambda: preview_action_allowances.enqueue(backfill_id=backfill_id),
@@ -1898,7 +1898,7 @@ register_operation(
         operation=Operation.PREVIEW_ACTION_ALLOWANCES.value,
         name=Operation.PREVIEW_ACTION_ALLOWANCES.label,
         added=date(2026, 10, 11),
-        description="Inspect existing fighter allowances without changing player data.",
+        description="Inspect existing model allowances without changing player data.",
         detail_template="admin/maintenance/n26/_action_allowance_preview_detail.html",
     )
 )

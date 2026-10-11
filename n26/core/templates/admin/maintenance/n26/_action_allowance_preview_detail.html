@@ -1,5 +1,5 @@
 <h2>Preview progress</h2>
-<p>This scan does not change fighter allowances.</p>
+<p>This scan does not change model allowances.</p>
 <p>{{ backfill.summary.done|default:0 }} of {{ backfill.summary.total|default:"—" }} gangs checked.</p>
 {% if backfill.status == "running" %}<p><a href="">Refresh progress</a></p>{% endif %}
 <p><a href="{% url 'admin:maintenance_n26_initialise_action_allowances' %}">Review allowance initialisation</a></p>

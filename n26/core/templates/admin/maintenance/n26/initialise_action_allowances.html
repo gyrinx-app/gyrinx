@@ -30,7 +30,7 @@
         </ul>
     {% else %}
         <h2>Prepare a preview</h2>
-        <p>The preview checks fighters in the background without changing allowances.</p>
+        <p>The preview checks models in the background without changing allowances.</p>
         {% if preview %}
             <p>
                 Latest preview: <a href="{% url 'admin:maintenance_backfill_detail' preview.id %}">{{ preview.get_status_display }}</a>.
