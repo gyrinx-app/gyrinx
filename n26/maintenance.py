@@ -43,6 +43,7 @@ with no view. It leaves the menu, and the record of the run still reads
 as a name rather than a bare slug.
 """
 
+import json
 import logging
 import traceback
 from contextlib import contextmanager
@@ -257,6 +258,10 @@ class Operation(models.TextChoices):
         "n26_initialise_action_allowances",
         "n26: existing fighters receive earned action allowances",
     )
+    PREVIEW_ACTION_ALLOWANCES = (
+        "n26_preview_action_allowances",
+        "n26: preview existing model action allowances",
+    )
     RESET_SPYRER_BUILT_INS = (
         "n26_reset_spyrer_built_ins",
         "n26: reset the mistaken Spyre Hunters built-ins",
@@ -290,6 +295,7 @@ LOCK_KEYS = {
     Operation.ORDER_COLLECTIONS: 826_020_625,
     Operation.ACTIVATE_COUNTER_HISTORY: 826_020_627,
     Operation.INITIALISE_ACTION_ALLOWANCES: 826_020_626,
+    Operation.PREVIEW_ACTION_ALLOWANCES: 826_020_630,
     Operation.RESET_SPYRER_BUILT_INS: 826_020_628,
 }
 
@@ -1839,10 +1845,70 @@ register_operation(
 )
 
 
+def _allowance_preview_plan(record):
+    """Read only a fully successful scan, never a partial work-list."""
+    from n26.core.action_initialisation import InitialisationPlan
+
+    if record is None or record.status != Backfill.Status.DONE:
+        raise PlanRefused("Prepare and review a completed allowance preview first.")
+    gangs, missing, problems = [], [], []
+    for line in (
+        record.summary.get("report", []) if record.summary.get("gang_ids") else []
+    ):
+        result = json.loads(line)
+        gangs.extend((pk,) for pk in result["gangs"])
+        missing.extend(result["missing_baselines"])
+        problems.extend(result["problems"])
+    return InitialisationPlan(tuple(gangs), tuple(missing), tuple(problems))
+
+
+@task
+def preview_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
+    """Inspect effective fighter access off the HTTP request, gang by gang."""
+    from n26.core.action_initialisation import candidates, find
+    from n26.core.models import Gang
+
+    def inspect_one(gang_id):
+        gang = Gang.objects.filter(pk=gang_id, archived=False).first()
+        plan = find(gang) if gang is not None else None
+        return json.dumps(
+            {
+                "gangs": [str(pk) for pk, *_ in plan.gangs] if plan else [],
+                "missing_baselines": plan.missing_baselines if plan else [],
+                "problems": plan.problems if plan else [],
+            }
+        )
+
+    def retry_after_lock_holder():
+        raise RuntimeError("Action allowance preview is already running.")
+
+    run_per_gang(
+        backfill_id,
+        operation=Operation.PREVIEW_ACTION_ALLOWANCES,
+        what="Existing model allowance preview",
+        find=candidates,
+        apply_one=inspect_one,
+        again=lambda: preview_action_allowances.enqueue(backfill_id=backfill_id),
+        stand_down=retry_after_lock_holder,
+    )
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.PREVIEW_ACTION_ALLOWANCES.value,
+        name=Operation.PREVIEW_ACTION_ALLOWANCES.label,
+        added=date(2026, 10, 11),
+        description="Inspect existing model allowances without changing player data.",
+        detail_template="admin/maintenance/n26/_action_allowance_preview_detail.html",
+    )
+)
+
+
 @task
 def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
     """Give existing fighters the rank allowances earned since recruitment."""
-    from n26.core.action_initialisation import apply_one, find
+    from n26.core.action_initialisation import INACTIVE_REASON, apply_one
+    from n26.core.counter_tracking import is_active
 
     operation = Operation.INITIALISE_ACTION_ALLOWANCES
 
@@ -1867,7 +1933,18 @@ def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
                 error="Existing fighter allowances were already initialised.",
             )
             return None
-        return find()
+        if not is_active():
+            raise PlanRefused(INACTIVE_REASON)
+        record = Backfill.objects.get(pk=backfill_id)
+        preview_id = record.summary.get("preview_id")
+        preview = (
+            Backfill.objects.filter(
+                pk=preview_id, operation=Operation.PREVIEW_ACTION_ALLOWANCES
+            ).first()
+            if preview_id
+            else None
+        )
+        return _allowance_preview_plan(preview)
 
     run_per_gang(
         backfill_id,
@@ -1882,7 +1959,8 @@ def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
 
 def initialise_action_allowances_view(request):
     """Preview the legacy fighter plan, or enqueue its recorded run."""
-    from n26.core.action_initialisation import find
+    from n26.core.action_initialisation import INACTIVE_REASON
+    from n26.core.counter_tracking import is_active
 
     operation = Operation.INITIALISE_ACTION_ALLOWANCES
     address = reverse(f"admin:maintenance_{operation.value}")
@@ -1894,7 +1972,17 @@ def initialise_action_allowances_view(request):
         return HttpResponseRedirect(
             reverse("admin:maintenance_backfill_detail", args=[completed.id])
         )
-    plan = None if completed is not None else find()
+    active = is_active()
+    preview = (
+        Backfill.objects.filter(operation=Operation.PREVIEW_ACTION_ALLOWANCES).first()
+        if completed is None
+        else None
+    )
+    plan = (
+        _allowance_preview_plan(preview)
+        if preview is not None and preview.status == Backfill.Status.DONE
+        else None
+    )
     if request.method == "POST":
         running = running_guard(operation)
         if running is not None:
@@ -1902,6 +1990,27 @@ def initialise_action_allowances_view(request):
             return HttpResponseRedirect(
                 reverse("admin:maintenance_backfill_detail", args=[running.id])
             )
+        if not active:
+            messages.error(request, INACTIVE_REASON)
+            return HttpResponseRedirect(address)
+        if request.POST.get("action") == "preview":
+            running = running_guard(Operation.PREVIEW_ACTION_ALLOWANCES)
+            if running is None:
+                running = Backfill.objects.create(
+                    operation=Operation.PREVIEW_ACTION_ALLOWANCES,
+                    triggered_by=request.user,
+                    status=Backfill.Status.RUNNING,
+                    summary={"attempts": 0},
+                )
+                preview_action_allowances.enqueue(backfill_id=str(running.id))
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        if plan is None or request.POST.get("preview_id") != str(preview.pk):
+            messages.error(
+                request, "Prepare and review a completed allowance preview first."
+            )
+            return HttpResponseRedirect(address)
         if plan.problems:
             if len(plan.problems) == 1:
                 messages.error(request, plan.problems[0])
@@ -1920,7 +2029,11 @@ def initialise_action_allowances_view(request):
             operation=operation,
             triggered_by=request.user,
             status=Backfill.Status.RUNNING,
-            summary={"preview": plan.preview(), "attempts": 0},
+            summary={
+                "preview": plan.preview(),
+                "preview_id": str(preview.pk),
+                "attempts": 0,
+            },
         )
         initialise_action_allowances.enqueue(backfill_id=str(backfill.id))
         messages.success(request, "The initialisation is running.")
@@ -1931,6 +2044,8 @@ def initialise_action_allowances_view(request):
         request,
         operation.label,
         plan=plan,
+        preview=preview,
+        inactive_reason=INACTIVE_REASON if not active else "",
         completed=completed,
         apply_url=address,
         recent=Backfill.objects.filter(operation=operation)[:10],
@@ -2991,6 +3106,7 @@ task_routes = [
     N26TaskRoute(clear_item_restrictions, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(order_collections, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(initialise_action_allowances, ack_deadline=600),
+    N26TaskRoute(preview_action_allowances, ack_deadline=600),
 ]
 
 

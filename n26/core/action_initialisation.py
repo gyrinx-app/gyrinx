@@ -5,7 +5,12 @@ from itertools import groupby
 
 from n26.core.access import actions_for, rank_table_for
 from n26.core.allowances import grant_rank_allowances
-from n26.core.card import build_card, build_modifier_index, carriers
+from n26.core.card import (
+    build_card,
+    build_cards_for_gang,
+    build_modifier_index,
+    carriers,
+)
 from n26.core.counter_tracking import is_active
 from n26.core.effects import compute
 from n26.core.models import Assignment, Gang, LedgerEvent
@@ -83,11 +88,19 @@ def _fighter_contexts(gang=None):
         _candidate_assignments(gang).order_by("miniature_root_id", "created", "pk")
     )
     baselines = _baselines(assignments)
+    cards = (
+        build_cards_for_gang(gang, with_statlines=False)
+        if gang and assignments
+        else None
+    )
+    index = build_modifier_index(carriers(*cards.values())) if cards else None
     for _, grouped in groupby(assignments, key=lambda row: row.miniature_root_id):
         rows = list(grouped)
         fighter = rows[0].miniature_root
-        card = build_card(fighter)
-        computed = compute(card, build_modifier_index(carriers(card)))
+        card = cards[fighter.pk] if cards is not None else build_card(fighter)
+        computed = compute(
+            card, index if index is not None else build_modifier_index(carriers(card))
+        )
         yield (
             fighter,
             rows,
@@ -98,7 +111,20 @@ def _fighter_contexts(gang=None):
         )
 
 
-def find():
+def candidates():
+    """Freeze a cheap work-list; effective access is checked in each gang."""
+    if not is_active():
+        return InitialisationPlan((), (), (INACTIVE_REASON,))
+    ids = (
+        _candidate_assignments()
+        .order_by()
+        .values_list("gang_root_id", flat=True)
+        .distinct()
+    )
+    return InitialisationPlan(tuple((pk,) for pk in ids if pk is not None), (), ())
+
+
+def find(gang=None):
     """Build a dry-run plan without writing player history."""
     if not is_active():
         return InitialisationPlan(
@@ -116,7 +142,7 @@ def find():
         accesses,
         card,
         computed,
-    ) in _fighter_contexts():
+    ) in _fighter_contexts(gang):
         for assignment in assignments:
             matching = [
                 access.action
@@ -184,9 +210,10 @@ def apply_one(gang_id):
                         table_access = rank_table_for(
                             fighter, assignment.counter, card=card, computed=computed
                         )
-                    except Refusal, ValueError:
-                        skipped += 1
-                        continue
+                    except (Refusal, ValueError) as error:
+                        # A failed gang keeps the one-off run retryable. Any
+                        # grants earlier in this operation roll back with it.
+                        raise Refusal(str(error)) from error
                     if table_access is None:
                         continue
                     baseline = baselines[assignment.pk]
