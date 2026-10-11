@@ -282,7 +282,10 @@ export function MenuSeparator() {
     );
 }
 
-/** A section of a menu under a heading, as `<c-ui.dropdown.group>` draws it. */
+/**
+ * A section of a menu under a heading, as `<c-ui.dropdown.group>` draws it.
+ * The heading names the group, so a screen reader says it on entering.
+ */
 export function MenuGroup({
     label,
     children,
@@ -290,9 +293,16 @@ export function MenuGroup({
     label: string;
     children: ReactNode;
 }) {
+    const labelId = useId();
     return (
-        <div className={cotton.dropdownGroup.root}>
-            <div className={cotton.dropdownGroup.label}>{label}</div>
+        <div
+            role="group"
+            aria-labelledby={labelId}
+            className={cotton.dropdownGroup.root}
+        >
+            <div id={labelId} className={cotton.dropdownGroup.label}>
+                {label}
+            </div>
             {children}
         </div>
     );

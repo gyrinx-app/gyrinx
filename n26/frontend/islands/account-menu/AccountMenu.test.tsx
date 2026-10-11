@@ -222,6 +222,24 @@ describe("account menu", () => {
         );
     });
 
+    it("names each headed section by its heading", async () => {
+        const user = userEvent.setup();
+        render(<AccountMenu {...props} />);
+        await user.click(trigger());
+        const staff = screen.getByRole("group", { name: "Staff only" });
+        expect(
+            within(staff).getByRole("menuitem", { name: "Admin" }),
+        ).toBeTruthy();
+        expect(
+            within(staff).getByRole("menuitem", { name: "Impersonate vex" }),
+        ).toBeTruthy();
+        expect(
+            within(
+                screen.getAllByRole("group", { name: "Theme" })[0],
+            ).getByRole("menuitemradio", { name: "Dark" }),
+        ).toBeTruthy();
+    });
+
     it("closes when a link row is used", async () => {
         const user = userEvent.setup();
         render(<AccountMenu {...props} />);
