@@ -179,6 +179,10 @@ class CounterContribution:
     amount: int
     source: str
     source_kind: str = ""
+    #: The assignment at the root of the contributing grant chain.
+    root_key: object = None
+    #: Direct holding grants have no assignment at their root.
+    holding: CampaignAsset | None = None
 
 
 @dataclass
@@ -1214,6 +1218,8 @@ def compute(card, index):
                             amount=effect.amount,
                             source=label,
                             source_kind=label_kind,
+                            root_key=step.root_key,
+                            holding=step.holding,
                         )
                         computed.counter_contributions.append(contributed)
                         log.applied.append(
@@ -1316,6 +1322,7 @@ def compute(card, index):
 
     computed.echoed = echoed
     dead = _retract(computed, log)
+    _settle_counter_origins(computed, log, dead)
     computed.acquired = _acquisitions(log, dead)
     # A guest this card's own removals cancelled is not held here either.
     computed.echoed = [
@@ -1393,6 +1400,69 @@ def _acquisitions(log, dead):
     return list(held.values())
 
 
+def _settle_counter_origins(computed, log, dead):
+    """A shared carrier's counters follow its surviving grant chain.
+
+    Grant and choice anchors remain the addresses used during computation.
+    Counter provenance is settled separately after cancellations are known.
+    """
+    if not computed.counter_contributions:
+        return
+    nodes = {
+        node.key: node
+        for node in computed.card.all_nodes()
+        if not node.computed and not node.suppressed
+    }
+    stored = {}
+    for node in nodes.values():
+        stored.setdefault(ModifierIndex.key(node.assignable), []).append(node)
+    edges = {}
+    for placed in log.placed:
+        if _stands(placed, dead) and placed.contribution.holding is None:
+            edges.setdefault(placed.thing_key, []).append(placed)
+
+    def root_for(source_key, preferred, visiting=frozenset()):
+        if source_key in dead or source_key in visiting:
+            return None
+        sources = stored.get(source_key, ())
+        # A modifier on a stored assignment belongs to that occurrence,
+        # even when a grant also supplies the same library thing.
+        if any(node.key == preferred for node in sources):
+            return preferred
+        if sources:
+            return sources[0].key
+        for placed in edges.get(source_key, ()):
+            root = root_for(
+                placed.source_key,
+                placed.contribution.root_key,
+                visiting | {source_key},
+            )
+            if root is not None:
+                return root
+        # A gang guest arrived from outside this card's granting edges.
+        for contribution in computed.echoed:
+            if (
+                contribution.holding is None
+                and ModifierIndex.key(contribution.thing) == source_key
+                and contribution.root_key in nodes
+            ):
+                return contribution.root_key
+        return None
+
+    standing = {id(contribution) for contribution in computed.counter_contributions}
+    for applied in log.applied:
+        if (
+            applied.field != "counter_contributions"
+            or id(applied.payload) not in standing
+        ):
+            continue
+        contribution = applied.payload
+        # Direct holdings have independent frontiers and retain their own
+        # ownership origin rather than joining ordinary shared grants.
+        if contribution.holding is None:
+            contribution.root_key = root_for(applied.source_key, contribution.root_key)
+
+
 def _placed_category(effect, node, by_cause):
     """The category a placement puts somewhere: its own, or — chosen
     mode — the category of whatever was chosen for its carrier's choice.
@@ -1451,6 +1521,7 @@ class ComputedGang:
     #: roll on beyond the ones it was given at joining. Drawn nowhere.
     tables: list = field(default_factory=list)
     counters: list = field(default_factory=list)
+    counter_contributions: list[CounterContribution] = field(default_factory=list)
     #: Empty today — placements land on models — but present so anything
     #: reading placements (``n26.core.browse.offered_by`` shaping a gang-level
     #: pick list) treats both computed kinds alike.
@@ -1522,6 +1593,62 @@ def counter_totals(computed):
     return totals
 
 
+def counter_contributions_by_holding(computed):
+    """Standing contributions grouped by their holding and ownership revision.
+
+    Picks and their descendants retain assignment anchors. Resolve their
+    holding through the loaded choice, cause and host links without changing
+    the addresses used to choose nested options.
+    """
+    nodes = {node.key: node for node in computed.card.all_nodes()}
+    parents = {
+        child.key: node.key for node in nodes.values() for child in node.children
+    }
+    active = {
+        (holding.pk, holding.ownership_revision)
+        for holding in getattr(computed.card, "holdings", ())
+    }
+    origins = {}
+
+    def origin(key, visiting=frozenset()):
+        if key in origins:
+            return origins[key]
+        if key is None or key in visiting or key not in nodes:
+            return None
+        node = nodes[key]
+        if node.chosen_for_holding_key is not None:
+            address = (node.chosen_for_holding_key, node.chosen_for_holding_revision)
+            result = address if address in active else None
+        else:
+            result = next(
+                (
+                    found
+                    for link in (
+                        node.chosen_for_key,
+                        node.caused_by_key,
+                        parents.get(key),
+                    )
+                    if (found := origin(link, visiting | {key})) is not None
+                ),
+                None,
+            )
+        origins[key] = result
+        return result
+
+    grouped = {}
+    for contribution in computed.counter_contributions:
+        if contribution.holding is not None:
+            address = (
+                contribution.holding.pk,
+                contribution.holding.ownership_revision,
+            )
+        else:
+            address = origin(contribution.root_key)
+        if address in active:
+            grouped.setdefault(address, []).append(contribution)
+    return grouped
+
+
 def compute_gang(gang_card, index):
     """Work out the gang's own card. Query-free, like ``compute``."""
     computed = compute(gang_card, index)
@@ -1538,6 +1665,7 @@ def compute_gang(gang_card, index):
         picks=computed.picks,
         tables=computed.tables,
         counters=counter_readings(gang_card, computed),
+        counter_contributions=computed.counter_contributions,
         placements=computed.placements,
         effects=computed.stored_effects,
         notes=[

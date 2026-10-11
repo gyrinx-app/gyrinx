@@ -12,6 +12,13 @@ nested choices use the same pipeline as any other selected Pickable.
 Holding modifiers are still computed from the CampaignAsset once, without
 copying the territory into an Assignment.
 
+Territory details, the campaign asset table and the gang campaign block read
+each holding's Income from its surviving computed counter contributions.
+This includes selected boons and their descendants, excludes unrelated gang
+Income, and follows the current ownership revision. An Income override
+replaces the territory's baseline; a chosen boon still adds to it. Unclaimed
+territories show catalogue Income or their campaign override.
+
 ## Identity and lifetime
 
 A root pick names `chosen_for_holding`, `chosen_for_holding_revision` and

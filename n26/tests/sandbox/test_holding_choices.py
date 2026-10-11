@@ -11,12 +11,13 @@ import pytest
 from django.contrib.auth.models import User
 from django.db import connection
 from django.http import Http404
+from django.test import RequestFactory
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from n26.core.campaigns import campaign_operation
 from n26.core.card import build_gang_card, build_modifier_index, carriers
-from n26.core.effects import compute, compute_gang
+from n26.core.effects import compute, compute_gang, counter_contributions_by_holding
 from n26.core.history import build
 from n26.core.models import (
     Assignment,
@@ -28,7 +29,15 @@ from n26.core.models import (
 )
 from n26.core.operations import Refusal, clone_gang, operation
 from n26.core.reconcile import assert_reconciled
-from n26.core.render import GANG_SLOT_HOST, choice_lines, render_gang, slot_key
+from n26.core.render import (
+    GANG_SLOT_HOST,
+    choice_lines,
+    holding_income,
+    render_campaign,
+    render_gang,
+    slot_key,
+)
+from n26.core.views.campaign_assets import _asset_context
 from n26.core.views.choose import find_slot, settle_dismissed
 from n26.library.authoring import (
     add_asset_type,
@@ -42,12 +51,14 @@ from n26.library.authoring import (
     create_pickable,
     create_picklist,
     create_profile,
+    create_rule,
     create_slot,
     create_slot_type,
     create_wargear,
     ef_adds,
     ef_contributes_to_counter,
     ef_removes,
+    has_gang_pickable,
     modifier,
     op_adds_model,
     op_changes_counter,
@@ -56,6 +67,7 @@ from n26.library.authoring import (
     targets_gang,
     targets_gang_alone,
 )
+from n26.library.income import income_of
 from n26.library.journal_content import seed_journal_content
 from n26.library.models import Asset, CampaignType
 from n26.tests.fixtures import admit_to_founding, library_setup
@@ -985,6 +997,376 @@ class TestHoldingRolls:
             choose_for(current, content["income_pick"], slot, roll=first_roll)
         assert counts() == before
         assert LedgerEvent.objects.filter(pk=first_roll.pk).exists()
+
+
+class TestHoldingIncome:
+    """Each territory shows the Income it currently gives, including its boons."""
+
+    def test_same_and_different_territories_keep_their_own_income_without_gang_income(
+        self, holding, gang, campaign, content
+    ):
+        second = assign_asset(
+            add_asset(campaign, content["asset"], name="East Workshop"), gang
+        )
+        other_asset = create_asset(
+            "Trading post", content["asset"].asset_type, income=9
+        )
+        modifier(
+            "Trading post offers workshop boons",
+            targets_gang_alone(),
+            ef_adds(content["slot"]),
+            attach_to=other_asset,
+        )
+        third = assign_asset(add_asset(campaign, other_asset), gang)
+        unrelated = create_hidden(
+            "Independent gang income",
+            effects=[
+                (targets_gang_alone(), ef_contributes_to_counter(content["income"], 11))
+            ],
+        )
+        assign(unrelated, gang=gang)
+        first_address = (holding.pk, holding.ownership_revision)
+        second_address = (second.pk, second.ownership_revision)
+        third_address = (third.pk, third.ownership_revision)
+        assert holding_income(computed(gang)) == {
+            first_address: 20,
+            second_address: 20,
+            third_address: 14,
+        }
+        assert values(gang)["Income"] == 65
+
+        choose_for(second, content["reputation_pick"], content["slot"])
+        done = computed(gang)
+        assert holding_income(done) == {
+            first_address: 20,
+            second_address: 15,
+            third_address: 14,
+        }
+        assert values(gang) == {"Income": 60, "Reputation": 2}
+        assert (
+            sum(
+                contribution.amount
+                for contribution in counter_contributions_by_holding(done)[
+                    second_address
+                ]
+                if contribution.counter.pk == content["reputation"].pk
+            )
+            == 2
+        )
+        assert income_of(content["asset"]) == 15
+        assert income_of(other_asset) == 9
+        assert_reconciled(gang)
+
+    def test_choice_replacement_updates_territory_campaign_and_gang_displays_together(
+        self, holding, gang, campaign, content, owner
+    ):
+        second = assign_asset(
+            add_asset(campaign, content["asset"], name="East Workshop"), gang
+        )
+        request = RequestFactory().get(
+            reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
+        )
+        request.user = owner
+
+        def displayed_income():
+            gang_sheet = render_gang(gang)
+            campaign_sheet = render_campaign(campaign, viewer=owner)
+            return (
+                {
+                    line.campaign_asset_id: line.income
+                    for line in gang_sheet.campaign.holdings
+                },
+                {
+                    entry.campaign_asset_id: entry.income
+                    for table in campaign_sheet.assets
+                    for entry in table.entries
+                },
+                _asset_context(request, campaign.pk, holding.pk)["details"].income,
+            )
+
+        for pick, income in (
+            (None, 20),
+            (content["reputation_pick"], 15),
+            (content["income_pick"], 20),
+        ):
+            if pick is not None:
+                choose_for(holding, pick, content["slot"])
+            before = counts()
+            expected = {str(holding.pk): income, str(second.pk): 20}
+            assert displayed_income() == (expected, expected, income)
+            assert counts() == before
+        assert income_of(content["asset"]) == 15
+        assert_reconciled(gang)
+
+    def test_nested_picks_granted_rules_and_stored_children_belong_to_the_originating_territory(
+        self, holding, gang, campaign, content
+    ):
+        kind = create_slot_type("Workshop income follow-up")
+        rule = create_rule("Workshop trade agreement")
+        modifier(
+            "Trade agreement brings income",
+            targets_gang_alone(),
+            ef_contributes_to_counter(content["income"], 4),
+            attach_to=rule,
+        )
+        nested_pick = create_pickable(
+            "Workshop trade",
+            kind,
+            effects=[
+                (targets_gang_alone(), ef_contributes_to_counter(content["income"], 3)),
+                (targets_gang_alone(), ef_adds(rule)),
+            ],
+        )
+        table = create_picklist("Workshop trades", kind, members=[nested_pick])
+        slot = create_slot("Workshop trade", kind, table, assigned_to="gang")
+        modifier(
+            "Extra income offers a trade",
+            targets_gang_alone(),
+            ef_adds(slot),
+            attach_to=content["income_pick"],
+        )
+        hosted_item = create_wargear("Workshop trade token")
+        modifier(
+            "Trade token brings income",
+            targets_gang_alone(),
+            ef_contributes_to_counter(content["income"], 2),
+            attach_to=hosted_item,
+        )
+        caused_item = create_hidden(
+            "Workshop trade delivery",
+            effects=[
+                (targets_gang_alone(), ef_contributes_to_counter(content["income"], 6))
+            ],
+        )
+        unrelated = create_hidden(
+            "Independent income",
+            effects=[
+                (targets_gang_alone(), ef_contributes_to_counter(content["income"], 11))
+            ],
+        )
+        root = question(gang, holding, content["slot"]).picks[0].assignment
+        with operation(gang, actor=gang.owner) as op:
+            nested = op.choose(root, nested_pick, slot=slot)
+            hosted = op.assign(hosted_item, parent=nested)
+            caused = op.assign(caused_item, gang=gang, caused_by=nested)
+            op.assign(unrelated, gang=gang)
+        second = assign_asset(add_asset(campaign, content["asset"]), gang)
+        assert holding_income(computed(gang)) == {
+            (holding.pk, holding.ownership_revision): 35,
+            (second.pk, second.ownership_revision): 20,
+        }
+        assert values(gang)["Income"] == 66
+
+        choose_for(holding, content["reputation_pick"], content["slot"])
+        assert holding_income(computed(gang)) == {
+            (holding.pk, holding.ownership_revision): 15,
+            (second.pk, second.ownership_revision): 20,
+        }
+        assert values(gang)["Income"] == 46
+        for assignment in (nested, hosted, caused):
+            assignment.refresh_from_db()
+            assert assignment.archived
+        assert_reconciled(gang)
+
+    def test_retracted_granted_income_is_absent_until_its_blocker_leaves(
+        self, holding, gang, content
+    ):
+        rule = create_rule("Workshop trade income")
+        modifier(
+            "Workshop trade brings income",
+            targets_gang_alone(),
+            ef_contributes_to_counter(content["income"], 7),
+            attach_to=rule,
+        )
+        modifier(
+            "Extra income grants workshop trade",
+            targets_gang_alone(),
+            ef_adds(rule),
+            attach_to=content["income_pick"],
+        )
+        blocker = assign(
+            create_hidden(
+                "Trade is closed",
+                effects=[(targets_gang_alone(), ef_removes(rule))],
+            ),
+            gang=gang,
+        )
+        address = (holding.pk, holding.ownership_revision)
+        assert holding_income(computed(gang)) == {address: 20}
+        assert values(gang)["Income"] == 20
+        remove(blocker)
+        assert holding_income(computed(gang)) == {address: 27}
+        assert values(gang)["Income"] == 27
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("carrier_mode", ["stored", "computed_chain"])
+    def test_a_shared_income_grant_belongs_to_the_pick_that_survives_suppression(
+        self, gang, campaign, content, carrier_mode
+    ):
+        shared = create_hidden(
+            "Shared trade income",
+            effects=[
+                (targets_gang_alone(), ef_contributes_to_counter(content["income"], 5))
+            ],
+        )
+        holdings = []
+        carriers = []
+        roots = []
+        for name, income in (("First depot", 10), ("Second depot", 20)):
+            carrier = create_hidden(
+                f"{name} trade carrier",
+                effects=[(targets_gang_alone(), ef_adds(shared))],
+            )
+            effects = []
+            if carrier_mode == "computed_chain":
+                effects = [(targets_gang_alone(), ef_adds(carrier))]
+            pick = create_pickable(
+                f"{name} trade",
+                content["kind"],
+                effects=effects,
+            )
+            table = create_picklist(f"{name} boons", content["kind"], members=[pick])
+            slot = create_slot(
+                f"{name} boon", content["kind"], table, assigned_to="gang"
+            )
+            asset = create_asset(name, content["asset"].asset_type, income=income)
+            modifier(
+                f"{name} offers a boon",
+                targets_gang_alone(),
+                ef_adds(slot),
+                attach_to=asset,
+            )
+            holding = assign_asset(add_asset(campaign, asset), gang)
+            holdings.append(holding)
+            root = question(gang, holding, slot).picks[0].assignment
+            roots.append(root)
+            if carrier_mode == "stored":
+                assign(carrier, gang=gang, caused_by=root)
+            carriers.append(carrier)
+        assert values(gang)["Income"] == 35
+        assert holding_income(computed(gang)) == {
+            (holdings[0].pk, holdings[0].ownership_revision): 15,
+            (holdings[1].pk, holdings[1].ownership_revision): 20,
+        }
+        assign(
+            create_hidden(
+                "First depot trade is closed",
+                effects=[(targets_gang_alone(), ef_removes(carriers[0]))],
+            ),
+            gang=gang,
+        )
+        before = counts()
+        done = computed(gang)
+        assert holding_income(done) == {
+            (holdings[0].pk, holdings[0].ownership_revision): 10,
+            (holdings[1].pk, holdings[1].ownership_revision): 25,
+        }
+        assert {reading.name: reading.value for reading in done.counters}[
+            "Income"
+        ] == 35
+        assert {node.key for node in done.card.all_nodes()} >= {
+            root.pk for root in roots
+        }
+        assert not any(
+            node.suppressed for node in done.card.all_nodes() if node.key == roots[0].pk
+        )
+        assert counts() == before
+        assert_reconciled(gang)
+
+    def test_conditional_income_is_read_from_the_effects_of_the_current_choice(
+        self, holding, gang, content
+    ):
+        modifier(
+            "A locally known workshop brings income",
+            targets_gang_alone(has_gang_pickable(content["reputation_pick"])),
+            ef_contributes_to_counter(content["income"], 7),
+            attach_to=content["asset"],
+        )
+        address = (holding.pk, holding.ownership_revision)
+        assert holding_income(computed(gang)) == {address: 20}
+        choose_for(holding, content["reputation_pick"], content["slot"])
+        assert holding_income(computed(gang)) == {address: 22}
+        assert values(gang)["Income"] == 22
+        choose_for(holding, content["income_pick"], content["slot"])
+        assert holding_income(computed(gang)) == {address: 20}
+        assert income_of(content["asset"]) == 15
+
+    def test_an_income_override_replaces_only_the_baseline_and_keeps_the_selected_boon(
+        self, holding, gang, campaign, content
+    ):
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.add_assets([content["asset"]], income=42, request_key=uuid4())
+        override = CampaignAsset.objects.exclude(pk=holding.pk).get(campaign=campaign)
+        override = assign_asset(override, gang)
+        address = (override.pk, override.ownership_revision)
+        assert holding_income(computed(gang)) == {
+            (holding.pk, holding.ownership_revision): 20,
+            address: 47,
+        }
+        assert values(gang)["Income"] == 67
+        choose_for(override, content["reputation_pick"], content["slot"])
+        assert holding_income(computed(gang)) == {
+            (holding.pk, holding.ownership_revision): 20,
+            address: 42,
+        }
+        assert values(gang)["Income"] == 62
+        assert income_of(content["asset"]) == 15
+        assert_reconciled(gang)
+
+    def test_income_follows_the_current_owner_and_reacquisition_has_a_fresh_origin(
+        self, holding, gang, rival, campaign, content
+    ):
+        old_address = (holding.pk, holding.ownership_revision)
+        choose_for(holding, content["reputation_pick"], content["slot"])
+        assert holding_income(computed(gang)) == {old_address: 15}
+        transferred = transfer_asset(holding, rival)
+        transferred_address = (transferred.pk, transferred.ownership_revision)
+        assert holding_income(computed(gang)) == {}
+        assert holding_income(computed(rival)) == {transferred_address: 20}
+        unassign_asset(transferred)
+        assert holding_income(computed(rival)) == {}
+        unclaimed = next(
+            entry
+            for table in render_campaign(campaign).assets
+            for entry in table.entries
+            if entry.campaign_asset_id == str(holding.pk)
+        )
+        assert not unclaimed.held and unclaimed.income == 15
+
+        current = assign_asset(transferred, gang)
+        current_address = (current.pk, current.ownership_revision)
+        assert current_address not in (old_address, transferred_address)
+        assert holding_income(computed(gang)) == {current_address: 20}
+        assert holding_income(computed(rival)) == {}
+        assert_reconciled(gang)
+        assert_reconciled(rival)
+
+    def test_both_computed_shapes_resolve_holding_income_without_queries_or_writes(
+        self, holding, gang, campaign, content
+    ):
+        second = assign_asset(add_asset(campaign, content["asset"]), gang)
+        choose_for(second, content["reputation_pick"], content["slot"])
+        card = build_gang_card(gang)
+        index = build_modifier_index(carriers(card))
+        before = counts()
+        with CaptureQueriesContext(connection) as queries:
+            card_done = compute(card, index)
+            card_income = holding_income(card_done)
+            card_contributions = counter_contributions_by_holding(card_done)
+            gang_done = compute_gang(card, index)
+            gang_income = holding_income(gang_done)
+            gang_contributions = counter_contributions_by_holding(gang_done)
+        assert len(queries) == 0
+        assert counts() == before
+        assert (
+            card_income
+            == gang_income
+            == {
+                (holding.pk, holding.ownership_revision): 20,
+                (second.pk, second.ownership_revision): 15,
+            }
+        )
+        assert card_contributions == gang_contributions
 
 
 class TestReadingHoldingChoices:

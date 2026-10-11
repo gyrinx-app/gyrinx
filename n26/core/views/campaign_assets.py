@@ -12,6 +12,7 @@ from n26.core.render import (
     CampaignAssetAction,
     CampaignAssetBattle,
     CampaignAssetDetails,
+    holding_income,
 )
 from n26.core.views.campaigns import _campaign_asset_or_404, _holding_owner
 from n26.core.views.gangs import _pages
@@ -114,7 +115,9 @@ def _asset_context(request, pk, asset_pk, *, back=None):
         card = build_gang_card(gang)
         index = build_modifier_index(carriers(card))
         computed = compute_gang(card, index)
-        income_modifiers = [modifier for modifier, _ in index.for_thing(holding)]
+        income = holding_income(computed).get(
+            (holding.pk, holding.ownership_revision), 0
+        )
         offered = holding_choices(computed, holding)
         owning = _holding_owner(holding, request.user)
         hide_dismissed_choices(
@@ -129,6 +132,12 @@ def _asset_context(request, pk, asset_pk, *, back=None):
                 "contributes_to_counter__counter", "targets_gang"
             ).prefetch_related("targets_gang__has_gang_pickable__pickables")
         )
+    if not held:
+        income = (
+            holding.income_override.contributes_to_counter.amount
+            if holding.income_override_id
+            else income_of(holding.asset, income_modifiers)
+        )
     return {
         "campaign": campaign,
         "details": CampaignAssetDetails(
@@ -136,9 +145,7 @@ def _asset_context(request, pk, asset_pk, *, back=None):
             library_name=holding.asset.name if holding.name else "",
             kind=holding.asset.asset_type.label_singular,
             created=holding.created,
-            income=holding.income_override.contributes_to_counter.amount
-            if holding.income_override_id
-            else income_of(holding.asset, income_modifiers),
+            income=income,
             holder=holding.holder.gang.name if held else "",
             holder_href=reverse("n26-gang", args=[holding.holder.gang_id])
             if held

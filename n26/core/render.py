@@ -3708,14 +3708,31 @@ def _possession_lines(possessions, types, provenance_of, income_for):
     return lines
 
 
-def _income_reader(index):
-    """``income_for(asset, carrier)``: what an asset brings, read off the
-    modifiers the card was computed against where there is an index —
-    a holding's are filed under the campaign asset that carries them —
-    and off the asset itself otherwise, which is a query per asset."""
+def holding_income(computed):
+    """Each holding's actual contribution to Income, including its chosen boons."""
+    from n26.core.effects import counter_contributions_by_holding
+    from n26.library.income import is_income_counter
+
+    return {
+        address: sum(
+            contribution.amount
+            for contribution in contributions
+            if is_income_counter(contribution.counter)
+        )
+        for address, contributions in counter_contributions_by_holding(computed).items()
+    }
+
+
+def _income_reader(index, computed=None):
+    """Read a held asset's computed Income or an unheld asset's base Income."""
+    from n26.core.models import CampaignAsset
     from n26.library.income import income_of
 
+    incomes = holding_income(computed) if computed is not None else {}
+
     def income_for(asset, carrier):
+        if computed is not None and isinstance(carrier, CampaignAsset):
+            return incomes.get((carrier.pk, carrier.ownership_revision), 0)
         if index is None:
             if getattr(carrier, "income_override_id", None):
                 return carrier.income_override.contributes_to_counter.amount
@@ -3725,16 +3742,15 @@ def _income_reader(index):
     return income_for
 
 
-def _campaign_block(gang_card, membership, keys, readings, index=None):
+def _campaign_block(gang_card, membership, keys, readings, index=None, computed=None):
     """What the campaign gave, credited to its carriers.
 
     Each possession draws a row labelled with what sort of thing it is,
     which for an asset is its type's own word and for anything else is
     the kind's name. The holdings take the same shape, so the block reads
     as one run of "what this gang has from the campaign" whether the
-    gang owns the thing or only holds it. ``index`` is the modifier index
-    the card was computed against, which already holds what each asset's
-    income is read off.
+    gang owns the thing or only holds it. Holding Income includes its
+    standing computed contributions; possessed assets use the modifier index.
     """
     from n26.library.models import Asset, AssetType
 
@@ -3744,7 +3760,7 @@ def _campaign_block(gang_card, membership, keys, readings, index=None):
     types = _asset_types(
         [node.assignable for node in possessions if isinstance(node.assignable, Asset)]
     )
-    income_for = _income_reader(index)
+    income_for = _income_reader(index, computed)
     return CampaignBlock(
         name=membership.campaign.name,
         campaign_id=str(membership.campaign_id),
@@ -3795,7 +3811,12 @@ def build_campaign_block(gang_card, *, index, computed):
         return None
     keys = _campaign_keys(gang_card, membership)
     block = _campaign_block(
-        gang_card, membership, keys, list(computed.counters), index=index
+        gang_card,
+        membership,
+        keys,
+        list(computed.counters),
+        index=index,
+        computed=computed,
     )
     block.choices = [
         _choice_line(slot, GANG_SLOT_HOST)
@@ -4082,7 +4103,12 @@ def render_gang(
         gang_computed.counters if gang_computed else counter_readings(gang_card)
     )
     campaign = _campaign_block(
-        gang_card, membership, campaign_keys, readings, index=index
+        gang_card,
+        membership,
+        campaign_keys,
+        readings,
+        index=index,
+        computed=gang_computed,
     )
     # Questions follow the same carrier ownership as campaign possessions
     # and counters. Names may be shared with the gang's own questions or
@@ -4294,6 +4320,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
 
     parts = {}
     picks = {}
+    incomes = {}
     held_tables = {}
     # Tables given through a member the arbitrator has since closed stay
     # on the gangs and are not offered: one query for every card at once.
@@ -4304,6 +4331,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     for membership in memberships:
         card = cards[membership.gang_id]
         computed = compute(card, index)
+        incomes.update(holding_income(computed))
         readings = counter_readings(card, computed)
         keys = _campaign_keys(card, membership)
         parts[membership.pk] = _campaign_parts(card, membership, keys, readings)
@@ -4429,7 +4457,11 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
                 campaign_asset_id=str(campaign_asset.pk),
                 name=str(campaign_asset),
                 asset_name=str(campaign_asset.asset) if campaign_asset.name else "",
-                income=_income_reader(None)(campaign_asset.asset, campaign_asset),
+                income=incomes.get(
+                    (campaign_asset.pk, campaign_asset.ownership_revision), 0
+                )
+                if holder
+                else _income_reader(None)(campaign_asset.asset, campaign_asset),
                 held=holder is not None,
                 holder=holder.gang.name if holder else "",
                 holder_gang_id=str(holder.gang_id) if holder else "",

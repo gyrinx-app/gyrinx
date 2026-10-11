@@ -406,7 +406,16 @@ def test_transferring_from_a_holding_detail_keeps_the_page_and_updates_its_actio
 def test_the_holding_detail_opens_assignment_and_unassignment_dialogs(client, setup):
     _, _, campaign, holding, _, second = setup
     kind = create_slot_type("Workshop boon")
-    pick = create_pickable("Local reputation", kind)
+    pick = create_pickable(
+        "Extra income",
+        kind,
+        effects=[
+            (
+                targets_gang_alone(),
+                ef_contributes_to_counter(ensure_income_counter(), 5),
+            )
+        ],
+    )
     picklist = create_picklist("Workshop boons", kind, members=[pick])
     slot = create_slot("Workshop boon", kind, picklist, assigned_to="gang")
     modifier(
@@ -422,6 +431,7 @@ def test_the_holding_detail_opens_assignment_and_unassignment_dialogs(client, se
     )
     response = client.post(url, HTTP_HX_REQUEST="true")
     assert response.context["details"].holder == ""
+    assert response.context["details"].income == 30
     url = (
         reverse("n26-campaign-asset-assign", args=[campaign.pk, holding.pk])
         + "?from=detail"
@@ -430,16 +440,17 @@ def test_the_holding_detail_opens_assignment_and_unassignment_dialogs(client, se
     assert response.context["back"] == address(campaign, holding)
     response = client.post(url, {"membership": second.pk}, HTTP_HX_REQUEST="true")
     assert response.context["details"].holder == second.gang.name
+    assert response.context["details"].income == 35
     assert response["HX-Replace-Url"] == address(campaign, holding)
 
     choice = response.context["choices"][0]
-    assert choice.chosen == "Local reputation"
+    assert choice.chosen == "Extra income"
     assert choice.back == address(campaign, holding)
     assert parse_qs(urlsplit(choice.href).query)["return"] == [
         address(campaign, holding)
     ]
     soup = BeautifulSoup(response.content, "html.parser")
-    assert soup.find("a", href=choice.href).get_text(strip=True) == "Local reputation"
+    assert soup.find("a", href=choice.href).get_text(strip=True) == "Extra income"
 
 
 def test_gang_groups_each_holding_choice_under_boons_after_other_assets(client, setup):
