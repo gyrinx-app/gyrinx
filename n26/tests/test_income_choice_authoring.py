@@ -226,3 +226,127 @@ def test_an_invalid_slot_edit_reports_a_form_error_and_keeps_the_choice_visible(
     slot.refresh_from_db()
     assert not slot.hidden
     assert validate_income_choice(asset).slot == slot
+
+
+def declared_graph_rows(content):
+    asset, baseline, income, alternative, slot, grant = content
+    return (
+        asset,
+        baseline,
+        income,
+        alternative,
+        slot,
+        grant,
+        slot.slot_type,
+        slot.picklist,
+        *slot.picklist.members.all(),
+        baseline.effect.counter,
+        baseline.scope,
+        baseline.effect,
+        grant.scope,
+        grant.effect,
+    )
+
+
+def stored_addresses(rows):
+    return tuple((type(row), row.pk) for row in rows)
+
+
+def assert_still_present(addresses):
+    for model, pk in addresses:
+        assert model.objects.filter(pk=pk).exists(), (
+            f"{model.__name__} {pk} disappeared"
+        )
+
+
+@pytest.mark.parametrize("deleted", ["baseline", "grant"])
+def test_deleting_a_declared_modifier_reports_a_refusal_and_rolls_back_all_parts(
+    client, author, declared_asset, deleted
+):
+    asset, baseline, _, _, _, grant = declared_asset
+    modifier = baseline if deleted == "baseline" else grant
+    addresses = stored_addresses(declared_graph_rows(declared_asset))
+    before = graph_counts()
+    address = reverse("authoring-modifier-delete", args=[modifier.pk])
+    response = client.post(address)
+    assert response.status_code == 302
+    assert response["Location"] == address
+    expected = "still in use" if deleted == "baseline" else "exactly one boon choice"
+    assert expected in " ".join(
+        str(message) for message in get_messages(response.wsgi_request)
+    )
+    assert_still_present(addresses)
+    assert graph_counts() == before
+    assert income_of(asset) == 15
+    validate_income_choice(asset)
+
+
+def test_removing_the_income_listing_reports_a_refusal_and_preserves_the_graph(
+    client, author, declared_asset
+):
+    asset, _, income, _, slot, _ = declared_asset
+    member = slot.picklist.members.get(pickable=income)
+    addresses = stored_addresses(declared_graph_rows(declared_asset))
+    before = graph_counts()
+    address = reverse("authoring-picklist-member-remove", args=[member.pk])
+    response = client.post(address)
+    assert response.status_code == 302
+    assert response["Location"] == address
+    assert "belong only to this asset" in " ".join(
+        str(message) for message in get_messages(response.wsgi_request)
+    )
+    assert_still_present(addresses)
+    assert graph_counts() == before
+    assert validate_income_choice(asset).pickable == income
+
+
+def test_deleting_only_the_staged_income_listing_rolls_back_earlier_roots(
+    client, author, declared_asset
+):
+    asset, _, income, _, slot, _ = declared_asset
+    member = slot.picklist.members.get(pickable=income)
+    authoring.stage(member)
+    unrelated = authoring.create_asset(
+        "Disposable territory", asset.asset_type, staged=True
+    )
+    addresses = stored_addresses((*declared_graph_rows(declared_asset), unrelated))
+    before = graph_counts()
+    address = reverse("authoring-staged-delete")
+    response = client.post(address)
+    assert response.status_code == 302
+    assert response["Location"] == address
+    assert "belong only to this asset" in " ".join(
+        str(message) for message in get_messages(response.wsgi_request)
+    )
+    assert_still_present(addresses)
+    assert graph_counts() == before
+    assert validate_income_choice(asset).pickable == income
+
+
+def test_a_complete_staged_declared_graph_refuses_without_losing_any_parts(
+    client, author, declared_asset
+):
+    from n26.library.deletion import plan_deletion
+    from n26.library.models import Content
+
+    asset, baseline, _, _, _, grant = declared_asset
+    rows = declared_graph_rows(declared_asset)
+    staged = [row for row in rows if isinstance(row, Content)]
+    authoring.stage_all(staged)
+    plan = plan_deletion(staged)
+    assert plan.ok, plan.refusals
+    assert str(baseline.pk) in plan.modifier_ids
+    assert str(grant.pk) in plan.modifier_ids
+    addresses = stored_addresses(rows)
+    before = graph_counts()
+    address = reverse("authoring-staged-delete")
+    response = client.post(address)
+    assert response.status_code == 302
+    assert response["Location"] == address
+    assert "still in use" in " ".join(
+        str(message) for message in get_messages(response.wsgi_request)
+    )
+    assert_still_present(addresses)
+    assert graph_counts() == before
+    assert income_of(asset) == 15
+    validate_income_choice(asset)

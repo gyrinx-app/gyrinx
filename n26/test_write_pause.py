@@ -310,6 +310,7 @@ def test_every_ordinary_n26_maintenance_page_declares_its_write_scope():
         "n26_activate_counter_history",
         "n26_seed_journal_content",
         "n26_seed_territory_boons",
+        "n26_seed_territory_boon_choices",
         "n26_remove_published_journal_boons",
     }
     assert {

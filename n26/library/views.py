@@ -4760,13 +4760,28 @@ def modifier_delete(request, pk):
     author reading a list has no way of knowing how many that is. So
     the page names them.
     """
+    from django.db.models import ProtectedError
+
     from n26.library import authoring
+    from n26.library.references import named
 
     modifier = _modifier_or_404(pk)
     if request.method == "POST":
         said = modifier.name
-        with transaction.atomic():
-            authoring.delete_modifier(modifier)
+        try:
+            with transaction.atomic():
+                authoring.delete_modifier(modifier)
+        except ValidationError as refused:
+            messages.error(request, " ".join(refused.messages))
+            return redirect("authoring-modifier-delete", pk=pk)
+        except ProtectedError as refused:
+            held_by = ", ".join(
+                named(row) for row in list(refused.protected_objects)[:3]
+            )
+            messages.error(
+                request, f"{said} is still in use by {held_by} and cannot be deleted."
+            )
+            return redirect("authoring-modifier-delete", pk=pk)
         messages.success(request, f"Deleted {said}.")
         return redirect("authoring-modifiers")
 
@@ -5049,8 +5064,12 @@ def picklist_member_remove(request, pk):
 
     if request.method == "POST":
         said = member.label
-        with transaction.atomic():
-            authoring.remove_picklist_member(member)
+        try:
+            with transaction.atomic():
+                authoring.remove_picklist_member(member)
+        except ValidationError as refused:
+            messages.error(request, " ".join(refused.messages))
+            return redirect("authoring-picklist-member-remove", pk=pk)
         messages.success(request, f"{picklist} no longer offers {said}.")
         return redirect(back)
 

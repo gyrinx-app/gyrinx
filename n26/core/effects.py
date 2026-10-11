@@ -1426,6 +1426,14 @@ def _settle_counter_origins(computed, log, dead):
     """
     if not computed.counter_contributions:
         return
+    from n26.library.models import Asset
+
+    granted_assets = {}
+    for node in computed.card.all_nodes():
+        if node.computed and not node.suppressed and isinstance(node.assignable, Asset):
+            granted_assets.setdefault(ModifierIndex.key(node.assignable), []).append(
+                node
+            )
     nodes = {
         node.key: node
         for node in computed.card.all_nodes()
@@ -1449,6 +1457,15 @@ def _settle_counter_origins(computed, log, dead):
             return preferred
         if sources:
             return sources[0].key
+        # A granted possession draws its own campaign row. Its counters,
+        # including those from nested grants, belong to that surviving
+        # occurrence rather than to the rule that supplied it.
+        assets = granted_assets.get(source_key, ())
+        if assets:
+            return next(
+                (node.key for node in assets if node.caused_by_key == preferred),
+                assets[0].key,
+            )
         for placed in edges.get(source_key, ()):
             root = root_for(
                 placed.source_key,
@@ -1647,10 +1664,12 @@ class _AssetOrigins:
         if key is None or key in visiting or key not in self.nodes:
             return None
         node = self.nodes[key]
-        if node.suppressed or node.computed:
+        if node.suppressed:
             return None
         if isinstance(node.assignable, Asset):
             result = node
+        elif node.computed:
+            return None
         elif node.chosen_for_holding_key is not None:
             address = (node.chosen_for_holding_key, node.chosen_for_holding_revision)
             result = self.holdings.get(address)
@@ -1681,8 +1700,9 @@ class _AssetOrigins:
 def asset_origins(card):
     """Each loaded line's owning Asset Node or current CampaignAsset.
 
-    An ordinary asset keeps its assignment identity. A holding keeps its
-    ownership revision, so another copy's selection cannot stand in for it.
+    An ordinary asset keeps its assignment identity; a granted possession
+    keeps its computed occurrence. A holding keeps its ownership revision,
+    so another copy's selection cannot stand in for it.
     Nothing follows an assignment FK or changes a choice's address.
     """
     origins = _AssetOrigins(card)
@@ -1735,7 +1755,7 @@ def counter_contributions_by_holding(computed):
 
 
 def counter_contributions_by_asset_assignment(computed):
-    """Standing contributions grouped by their owning Asset assignment key."""
+    """Standing contributions grouped by their displayed Asset occurrence key."""
     from n26.core.card import Node
 
     origins = _AssetOrigins(computed.card)

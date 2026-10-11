@@ -25,7 +25,7 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def content(default_pack):
+def content():
     seed_core_campaign(apps)
     seed_gang_supertypes()
     seed_baselines()

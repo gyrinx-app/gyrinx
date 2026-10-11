@@ -21,9 +21,10 @@ from n26.core.effects import (
     counter_contributions_by_asset_assignment,
     counter_contributions_by_holding,
 )
-from n26.core.income import holding_income_sources
+from n26.core.income import asset_assignment_income_sources, holding_income_sources
 from n26.core.models import Assignment, CampaignAsset
 from n26.core.reconcile import assert_reconciled
+from n26.core.render import render_gang
 from n26.library.authoring import (
     add_asset_type,
     add_built_in,
@@ -483,6 +484,90 @@ class TestIncomeOwnershipAndAncestry:
         assert origins[extra_answer.pk].key == first.pk
         assert origins[second.pk].key == second.pk
         assert total(done, content["income"]) == 20
+        assert_reconciled(gang)
+
+    def test_a_granted_possessions_display_keeps_its_actual_income_and_nested_boons(
+        self, gang, content
+    ):
+        possession_type = add_asset_type(
+            content["campaign_type"], "Settlement", AssetType.Ownership.POSSESSION
+        )
+        camp = create_asset(
+            "Replacement camp", possession_type, income=25, given_to_every_gang=False
+        )
+        extra = create_hidden(
+            "Camp extra yield",
+            effects=[
+                (targets_gang_alone(), ef_contributes_to_counter(content["income"], 5))
+            ],
+        )
+        modifier(
+            "Camp gives extra yield",
+            targets_gang_alone(),
+            ef_adds(extra),
+            attach_to=camp,
+        )
+        givers = []
+        for name in ["Original camp supplier", "Backup camp supplier"]:
+            giver = create_rule(name)
+            modifier(
+                f"{name} gives the camp",
+                targets_gang_alone(),
+                ef_adds(camp),
+                attach_to=giver,
+            )
+            givers.append(assign(giver, gang=gang))
+
+        card, index = loaded(gang)
+        with CaptureQueriesContext(connection) as queries:
+            done = compute_gang(card, index)
+            camp_nodes = [node for node in card.all_nodes() if node.assignable == camp]
+            grouped = counter_contributions_by_asset_assignment(done)
+            sources = asset_assignment_income_sources(done)
+            origins = asset_origins(card)
+        assert len(queries) == 0
+        assert all(node.computed for node in camp_nodes)
+        assert len(grouped) == 1
+        (camp_key,) = grouped
+        assert sorted(record.amount for record in grouped[camp_key]) == [5, 25]
+        assert origins[camp_key].key == camp_key
+        assert sources[camp_key].value == 30
+        assert all(record.applied_override is None for record in grouped[camp_key])
+        assert total(done, content["income"]) == 30
+        sheet = render_gang(gang)
+        (line,) = sheet.campaign.lines
+        assert (line.name, line.income, line.provenance.computed) == (
+            camp.name,
+            30,
+            True,
+        )
+        reading = next(row for row in sheet.campaign.counters if row.name == "Income")
+        assert [(source.name, source.value) for source in reading.income_sources] == [
+            (camp.name, 30)
+        ]
+
+        cancellation = create_rule("Cancel camp extra yield")
+        modifier(
+            "Remove camp extra yield",
+            targets_gang_alone(),
+            ef_removes(extra),
+            attach_to=cancellation,
+        )
+        assign(cancellation, gang=gang)
+        remove(givers[0])
+        done = computed(gang)
+        (records,) = counter_contributions_by_asset_assignment(done).values()
+        assert [record.amount for record in records] == [25]
+        (line,) = render_gang(gang).campaign.lines
+        assert line.income == 25
+        assert line.provenance.source == "Backup camp supplier"
+        assert total(done, content["income"]) == 25
+
+        remove(givers[1])
+        done = computed(gang)
+        assert counter_contributions_by_asset_assignment(done) == {}
+        assert render_gang(gang).campaign.lines == []
+        assert total(done, content["income"]) == 0
         assert_reconciled(gang)
 
     def test_a_previous_ownership_revision_cannot_unlock_an_override(
