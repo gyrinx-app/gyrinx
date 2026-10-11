@@ -59,6 +59,14 @@ def badge_for(profile_user):
 
 
 @register.simple_tag
+def badge_image_url(badge):
+    """Use the badge picker's image representation without inheriting icon CSS."""
+    if badge is None:
+        return ""
+    return badge.image_url()
+
+
+@register.simple_tag
 def badge_svg(badge):
     """A badge's artwork, inline and unwrapped.
 

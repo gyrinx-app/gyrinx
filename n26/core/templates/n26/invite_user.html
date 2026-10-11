@@ -6,11 +6,11 @@
                      lead="Select a campaign and send an invitation."
                      :form="form"
                      submit_label="{% if options %}Invite{% endif %}"
-                     cancel_url="{% url 'n26-user-profile' person.username %}">
+                     cancel_url="{% url 'user-profile' person.username %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">Home</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'n26-user-profile' person.username %}">{{ person.username }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'user-profile' person.username %}">{{ person.username }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
                     Invite
                 </c-ui.breadcrumbs.item>

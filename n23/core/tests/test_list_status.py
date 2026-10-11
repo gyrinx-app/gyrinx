@@ -134,8 +134,13 @@ def test_list_visibility_in_views(client):
     # Check user profile
     response = client.get(reverse("core:user", args=[user.username]))
     assert response.status_code == 200
-    assert normal_list in response.context["public_lists"]
-    assert campaign_list not in response.context["public_lists"]
+    sections = {section.title: section for section in response.context["sections"]}
+    building_links = {entry.href for entry in sections["Public gangs"].entries}
+    assert reverse("core:list", args=[normal_list.pk]) in building_links
+    assert reverse("core:list", args=[campaign_list.pk]) not in building_links
+    assert reverse("core:list", args=[campaign_list.pk]) in {
+        entry.href for entry in sections["Campaign gangs"].entries
+    }
 
     # Check index page for logged in user
     client.login(username="testuser", password="password")

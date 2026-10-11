@@ -26,6 +26,7 @@ __all__ = [
     "FOUNDING",
     "STAGED_CONTENT",
     "enabled",
+    "enabled_for_request",
     "requires_flag",
     "switched_on",
 ]
@@ -49,3 +50,13 @@ FOUNDING = "founding"
 STAGED_CONTENT = "staged-content"
 
 register_flags(CAMPAIGNS, BUILT_IN_PROPAGATION, FOUNDING, STAGED_CONTENT)
+
+
+def enabled_for_request(slug, request):
+    """Share a reader's feature answer across a page and its navigation."""
+    asked = getattr(request, "_n26_open_features", None)
+    if asked is None:
+        asked = request._n26_open_features = {}
+    if slug not in asked:
+        asked[slug] = enabled(slug, getattr(request, "user", None))
+    return asked[slug]

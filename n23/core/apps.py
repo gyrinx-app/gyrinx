@@ -25,4 +25,5 @@ class CoreConfig(AppConfig):
 
         import n23.core.checks  # noqa: F401
         import n23.core.events  # noqa: F401  — claims this edition's event nouns
+        import n23.core.public_profiles  # noqa: F401 — registers public account records
         import n23.core.signals  # noqa: F401

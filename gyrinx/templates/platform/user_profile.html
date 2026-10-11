@@ -1,0 +1,102 @@
+{% extends "platform/layouts/base.html" %}
+{% load badge_tags humanize navigation %}
+{% block head_title %}{{ person.username }}{% endblock %}
+{% block site_heading %}Profile{% endblock %}
+{% block site_nav_items %}
+    {% include "n26/_nav.html" %}
+{% endblock %}
+{% block site_nav_gangs %}
+    {% drawer_gangs as drawer_gangs_ %}
+    {% for gang in drawer_gangs_ %}
+        <c-n26.site.nav.gang href="{% url 'n26-gang' gang.pk %}"
+                             name="{{ gang.name }}"
+                             type="{{ gang.gang_type }}"
+                             :type_icon="gang.gang_type.artwork"
+                             colour="{{ gang.colour }}" />
+    {% endfor %}
+{% endblock %}
+{% block content %}
+    <div class="max-w-3xl space-y-8">
+        <c-n26.page-header>
+            <c-slot name="title">
+                <span class="break-all">{{ person.username }}</span>
+            </c-slot>
+            <c-slot name="trailing">
+                {% badge_for person as badge %}
+                {% badge_image_url badge as badge_image %}
+                {% if badge_image %}
+                    <c-n26.flair-link text=""
+                                      label="{{ badge.description }}"
+                                      tone="current"
+                                      class="text-2xl sm:text-3xl">
+                        <img src="{{ badge_image }}" alt="" class="size-6 sm:size-8">
+                    </c-n26.flair-link>
+                {% endif %}
+            </c-slot>
+            <c-slot name="lead">
+                Joined {{ person.date_joined|naturaltime }}
+                {% if person.is_staff %}<c-ui.badge color="green" class="ml-2">Staff</c-ui.badge>{% endif %}
+            </c-slot>
+            <c-slot name="actions">
+                {% for action in profile_actions %}
+                    <c-ui.button variant="primary" href="{{ action.href }}">
+                        {{ action.label }}
+                    </c-ui.button>
+                {% endfor %}
+                {% if may_impersonate %}
+                    <form method="post" action="{% url 'core:impersonate-start' person.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <c-ui.button type="submit" variant="danger">
+                            Impersonate this user
+                        </c-ui.button>
+                    </form>
+                {% endif %}
+            </c-slot>
+        </c-n26.page-header>
+        <c-n26.tab-links :tabs="tabs" label="Gang edition" />
+        {% for section in sections %}
+            <c-n26.section title="{{ section.title }}" count="{{ section.entries|length }}">
+                {% if section.add_href %}
+                    <c-slot name="actions">
+                        <c-ui.button variant="primary" href="{{ section.add_href }}">
+                            New
+                        </c-ui.button>
+                    </c-slot>
+                {% endif %}
+                {% if section.entries %}
+                    <ul class="divide-y divide-box-border border-y border-box-border">
+                        {% for entry in section.entries %}
+                            <li class="flex flex-wrap items-start justify-between gap-2 py-3">
+                                <div class="min-w-0">
+                                    <c-n26.link href="{{ entry.href }}" class="font-semibold break-words">
+                                        {{ entry.name }}
+                                    </c-n26.link>
+                                    {% if entry.detail %}<p class="text-sm text-muted">{{ entry.detail }}</p>{% endif %}
+                                    {% if entry.state %}
+                                        <p class="text-sm text-muted">
+                                            {% if entry.detail_href %}<c-n26.link href="{{ entry.detail_href }}">{{ entry.state }}</c-n26.link>{% else %}{{ entry.state }}{% endif %}
+                                        </p>
+                                    {% endif %}
+                                </div>
+                                <div class="flex shrink-0 items-center gap-3 text-sm text-muted">
+                                    {% if entry.stars is not None %}
+                                        <span class="inline-flex items-center gap-1" title="Stars">
+                                            <c-n26.icon name="star" class="size-4" />
+                                            {{ entry.stars }} <span class="sr-only">star{{ entry.stars|pluralize }}</span>
+                                        </span>
+                                    {% endif %}
+                                    {% if entry.amount %}<c-ui.badge>{{ entry.amount }}</c-ui.badge>{% endif %}
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-sm text-muted">{{ section.empty }}</p>
+                {% endif %}
+            </c-n26.section>
+        {% empty %}
+            <p class="text-sm text-muted">No gangs, campaigns or content packs to show.</p>
+        {% endfor %}
+    </div>
+{% endblock %}
