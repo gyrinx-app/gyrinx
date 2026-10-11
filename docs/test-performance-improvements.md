@@ -6,9 +6,10 @@ Keep the worker count fixed when isolating fixture changes; record it when
 comparing different concurrency settings. A faster focused suite or a warm
 reused database does not establish a faster full suite.
 
-## Validated result
+## Historical complete candidate
 
-Candidate `c0f543979` passed both full-suite time targets on unchanged hardware.
+Candidate `c0f543979` passed both full-suite time targets on the same local
+machine and unchanged CI runner size.
 Each run recreated its test databases; neither used `--reuse-db`.
 
 | Measurement | Original `42fdc46f3` | Candidate | Reduction |
@@ -28,7 +29,7 @@ wall time and 1,661.76 seconds of child-process CPU time with a clean source dig
 [CI run 38092004429](https://github.com/gyrinx-app/gyrinx/actions/runs/38092004429)
 measured clean merge revision `3f0f9ce09`: 13,282 passed, 13 skipped and one
 expected failure among 13,296 selected cases. Its extra 24 cases came from main.
-The same four-CPU runner used eight workers. The helper recorded 800.80 seconds
+The same four-CPU runner tier used eight workers. The helper recorded 800.80 seconds
 of wall time and 2,169.61 seconds of child-process CPU time, with no failures or
 setup errors. Both pytest and helper elapsed times are below the 932.28-second
 CI target; the local result is below its 1,075.765-second target.
@@ -43,6 +44,36 @@ CI's PostgreSQL 16.4 had LLVM compilation available, with server `jit=on` and
 `jit_above_cost=100000`. The real backend guard verified `jit=off` on disposable
 test connections. Local PostgreSQL lacked LLVM support. The combined change
 meets the targets; these measurements do not isolate each optimisation's share.
+
+### Rerun after main changed
+
+[CI run 38093156112](https://github.com/gyrinx-app/gyrinx/actions/runs/38093156112)
+tested documentation head `31a950392` merged with newer main `8e9357d68`.
+It selected 13,313 cases and finished with 13,298 passed, 13 skipped, one
+expected failure and one failing founding-reopen assertion in 1,188.54 seconds.
+The test's empty roster no longer met main's corrected reopening eligibility.
+The compatibility fixture now hires an original member with a real founding
+allowance before completing and reopening the action.
+
+This rerun did not confirm the 50% CI target. Combined test-job time was
+30 minutes 38 seconds, still below the original 51 minutes 13 seconds.
+The helper measured 1,191.22 seconds of wall time and 3,212.49 seconds of
+child-process CPU time. Matched, unchanged N23 cases also took about 48% longer;
+the 17 added cases accounted for only about 43 summed worker-seconds.
+Both runners exposed four CPUs and the same software image, but ran in
+different regions. Their CPU model and frequency were not recorded, so runner
+variability is a plausible explanation rather than an established cause.
+
+Corrected head `55ca6ac55` passed all 13,313 selected cases locally and in
+[CI run 38094767000](https://github.com/gyrinx-app/gyrinx/actions/runs/38094767000):
+13,299 passed, 13 skipped and one expected failure. The local default
+twelve-worker run took 547.16 seconds, 74.57% below the original baseline.
+CI's unfiltered eight-worker run took 1,164.56 seconds, only 37.54% below its
+baseline, so the current source still misses the 50% CI target. Combined CI
+test-job time was 27 minutes 20 seconds, 46.63% below baseline. Its runner
+exposed four CPUs on an AMD EPYC 9V74 in westcentralus; the original runner's
+CPU model was not recorded. Further reductions need a full measurement before
+the review handoff.
 
 ## Recording a run
 
@@ -328,6 +359,55 @@ history counts after five real transaction-test flushes. It also verified that
 the seeders correct canonical fields while preserving existing extra-stat,
 statline-link and equipment-category overrides and their history behaviour.
 
-The complete candidate results above establish the requested full-suite
-improvement and CI cost limit. Reduced test counts and isolated timings remain
-supporting diagnostics rather than substitutes for those full measurements.
+The first complete candidate met both time targets and the CI cost limit;
+the latest rerun still misses the CI time target. Reduced test counts and
+isolated timings remain supporting diagnostics rather than substitutes for
+current full measurements.
+
+### Further catalogue and lifecycle reductions
+
+The ingest and progression pass combines assertions at the same lifecycle
+stage, removing fifteen cases and nine duplicate initial imports. All 127
+remaining cases passed in 69.68 seconds. A subsequent ordered run passed
+twenty-seven promotion, empty-foundation and real seed cases, verifying that
+the prepared promotion catalogue does not leak into later tests.
+
+Choice, slot and rolling scenarios consolidate 250 cases into 168 while
+preserving their domain assertions, permissions, accounting and query-growth
+checks. Cosmetic CSS-class assertions are removed. The choice and rolling
+catalogues are authored once per active module scope, with fresh ORM lookups
+and player fixtures for every case. Function rollback restores any content
+edits; module rollback removes the catalogue. These scopes contain ordinary
+rollback tests, not threaded or transaction-flush scenarios.
+
+Paired fresh-database four-worker runs passed: 250 original cases in 50.52
+seconds, and 168 revised cases in 39.98 seconds. Child-process CPU time fell
+from 75.98 to 51.73 seconds. Advancement runtime keeps all 39 test bodies,
+including the real mid-draft reseed, while sharing its authored catalogue.
+Its paired runs passed in 34.58 and 30.23 seconds; child CPU fell from 41.97
+to 28.50 seconds. Eight ordered cases across these catalogues and a fresh
+foundation also passed. These comparisons do not establish a full-suite
+improvement; the next complete local and CI runs must measure that.
+
+Ingest shares its real foundation within each ordinary class. The missing-seed
+and full-clearing cases retain independent fixtures. Post-battle views share
+their original three-characteristic catalogue; sandbox report classes share
+only their XP and injury table. The independent roll-band catalogue stays
+outside that shared scope. Paired four-worker runs passed all 284 unchanged
+cases in 61.14 and 57.04 seconds, with child CPU falling from 100.46 to 89.40
+seconds. All 48 status-choice cases also passed after registering the shared
+fixture dependency used by their imported report fixture.
+
+Founding budgets share the original seven-entry catalogue within ordinary
+classes. Fighter-action repair cases share a clean standard graph, while
+empty-ground, conflicting-content and dependency cases retain independent
+setup. All 126 cases and their test bodies remain. Paired four-worker runs
+passed in 38.53 and 34.59 seconds; child CPU fell from 55.90 to 46.83 seconds.
+A single-worker ordered run passed twelve cases across repaired catalogues,
+empty foundations, import mutations and clearing, independent roll-band
+content, vehicle statlines and the advancement boundary.
+
+The scheduler remains `worksteal`. An explicit catalogue-grouping trial passed
+all 545 cases but supplied no evidence of a speed improvement, so its markers
+were removed. These catalogue reductions still require complete local and CI
+measurements on the resulting commit before the time target can be claimed.

@@ -406,7 +406,7 @@ class TestFoundationSetup:
         assert record.state == ActionRecord.State.COMPLETED
 
     def test_the_imported_initiate_name_receives_both_exceptions(
-        self, progression_content, make_profile
+        self, default_pack, make_profile
     ):
         cults = a.create_gang_type("Corpse Grinder Cults")
         initiate = make_profile(
@@ -826,7 +826,11 @@ class TestPromotions:
         assert promotion_for(record, progression.outcome.operation) == promotion
         assert client.get(url).context["stage"] == "advancement"
 
-    def test_a_stored_subtype_qualifies_for_promotion(self, client, progression):
+    def test_a_stored_subtype_qualifies_only_when_the_model_receives_the_gate(
+        self, progression
+    ):
+        from n26.core.promotions import promotion_for
+
         progression.profile.modifiers.remove(
             progression.profile.modifiers.get(name="Prospect rank")
         )
@@ -834,11 +838,6 @@ class TestPromotions:
             op.assign(
                 Subtype.objects.get(name="Prospect"), miniature=progression.fighter
             )
-        record, url = _start(client, progression, _earned(progression, 13))
-        assert client.get(url).context["stage"] == "advancement"
-
-    def test_a_gang_only_marker_does_not_satisfy_a_model_gate(self, progression):
-        from n26.core.promotions import promotion_for
 
         gate = AdvancementPromotion.objects.get(threshold=13).requires_hidden
         progression.profile.modifiers.remove(

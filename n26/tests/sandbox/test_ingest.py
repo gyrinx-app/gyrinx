@@ -23,6 +23,7 @@ two different weapons both called "Power fist".
 import json
 
 import pytest
+from django.db import transaction
 
 from n26.library.ingest import ItemId, perform, plan_ingest, read_csv
 from n26.library.models import (
@@ -35,6 +36,7 @@ from n26.library.models import (
     Trait,
     Wargear,
     Weapon,
+    get_default_pack,
 )
 from n26.library.models.collection import Collection, CollectionEntry
 from n26.library.standard_content import STANDARD_CONTENT
@@ -150,11 +152,11 @@ def entry_key(collection_key, item_key):
     return f"CollectionEntry:{collection_key.split(':', 1)[1]}:{item_key}"
 
 
-@pytest.fixture
 @library_setup
-def foundation(default_pack):
+def _seed_ingest_foundation():
     """The real foundations the sheets resolve against: statline shapes,
     types, subtypes, skills, XP, gang names and the two swept collections."""
+    get_default_pack()
     for key in (
         "model-characteristics",
         "weapon-characteristics",
@@ -166,6 +168,26 @@ def foundation(default_pack):
         "trading-post",
     ):
         STANDARD_CONTENT[key].create()
+
+
+@pytest.fixture(scope="class")
+def _prepared_ingest_foundation(django_db_setup, django_db_blocker):
+    """Share content within a class; each case rolls back its imported rows.
+
+    Class scope keeps missing-seed and clearing scenarios on their own ground.
+    Cases using this foundation need ordinary same-connection rollback isolation.
+    """
+    with django_db_blocker.unblock(), transaction.atomic():
+        _seed_ingest_foundation()
+        try:
+            yield
+        finally:
+            transaction.set_rollback(True)
+
+
+@pytest.fixture
+def foundation(default_pack, _prepared_ingest_foundation):
+    """Resolve each fresh plan against the class's unchanged real catalogue."""
 
 
 @pytest.fixture
@@ -211,7 +233,7 @@ class TestStandardContentIsTheGround:
         assert Weapon.objects.count() == 0  # and the transaction held
 
 
-# --- Stage 1: file → plan ----------------------------------------------------
+# --- Stages 1 and 2: file → plan → preview -----------------------------------
 
 
 class TestPlanning:
@@ -221,7 +243,7 @@ class TestPlanning:
         assert rows[0]["Name"] == "Autogun"
         assert rows[0]["SR"] == '8"'
 
-    def test_the_catalogue_plan_preserves_identity_prices_and_profiles(self, plan):
+    def test_the_plan_and_preview_preserve_the_catalogue_fighters_and_lists(self, plan):
         autogun = plan.get(AUTOGUN)
         assert autogun.action == "create"
         assert autogun.fields["price"] == 20
@@ -308,7 +330,6 @@ class TestPlanning:
         # Melee appears on four sheet rows; the plan holds one trait.
         assert sum(1 for p in plan.planned if p.key == "Trait:melee:") == 1
 
-    def test_fighter_plans_preserve_their_home_built_ins_and_skill_grid(self, plan):
         queen = plan.get("Profile:gang queen")
         assert queen.fields["price"] == 120  # Rating IS the price (§5a)
         assert queen.fields["stats"]["M"] == '6"'
@@ -353,39 +374,6 @@ class TestPlanning:
         }
         assert plan.get("Modifier:Profile:gang queen:cunning:secondary")
 
-    def test_a_heading_typed_in_another_case_is_the_same_column(
-        self, foundation, sheets
-    ):
-        """Headings are typed by hand. A column that differs by a
-        capital or a stray space must still be read: matching exactly
-        makes it absent, and everything behind it goes missing while the
-        upload still reports success.
-        """
-        retyped = PROFILES_CSV.replace("Section,Category,", "section, CATEGORY ,", 1)
-        planned = plan_ingest(**{**sheets, "profiles": read_csv(retyped)})
-
-        queen = planned.get("Profile:gang queen")
-        assert queen.fields["category"] == "Category:gang list:leaders"
-
-    def test_a_heading_the_sheet_invents_reads_after_the_known_ones(
-        self, foundation, sheets
-    ):
-        """Sections sort by position and then by name, so a heading
-        sharing the gang list's 0 would tie and break alphabetically —
-        interleaving an unexpected section with the gang's own fighters
-        rather than landing after them."""
-        invented = read_csv(
-            """
-Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
-Escher,Alliances,Hangers-On,Rogue Doc,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,Ganger,,50,,,,Combat,
-"""
-        )
-        planned = plan_ingest(pack=None, **{**sheets, "profiles": invented})
-        home = planned.get(planned.get("Profile:rogue doc").fields["category"])
-        assert home.fields["section"] == "Alliances"
-        assert home.fields["section_position"] == 2
-
-    def test_list_plans_preserve_entries_prices_and_restrictions(self, plan):
         assert plan.get(CAWDOR_LIST).name == "Cawdor Equipment List"
 
         entry = plan.get(entry_key(CAWDOR_LIST, FRAG_LANCE))
@@ -417,12 +405,6 @@ Escher,Alliances,Hangers-On,Rogue Doc,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,Gang
         # Ferocious jaws is on no list: a free built-in, and it stays 0.
         assert plan.get(JAWS).fields["price"] == 0
 
-
-# --- Stage 2: plan → preview ---------------------------------------------------
-
-
-class TestPreview:
-    def test_the_preview_counts_samples_and_serialises_the_planned_rows(self, plan):
         preview = plan.preview()
         assert preview["ok"] is True
         assert preview["counts"]["Weapon"] == 6  # two named "Power fist"; one a grenade
@@ -475,6 +457,38 @@ class TestPreview:
         # real restriction rather than a note — see TestProblems.)
         assert any("not a restriction on use" in n["message"] for n in notes)
         assert preview["ok"] is True
+
+    def test_a_heading_typed_in_another_case_is_the_same_column(
+        self, foundation, sheets
+    ):
+        """Headings are typed by hand. A column that differs by a
+        capital or a stray space must still be read: matching exactly
+        makes it absent, and everything behind it goes missing while the
+        upload still reports success.
+        """
+        retyped = PROFILES_CSV.replace("Section,Category,", "section, CATEGORY ,", 1)
+        planned = plan_ingest(**{**sheets, "profiles": read_csv(retyped)})
+
+        queen = planned.get("Profile:gang queen")
+        assert queen.fields["category"] == "Category:gang list:leaders"
+
+    def test_a_heading_the_sheet_invents_reads_after_the_known_ones(
+        self, foundation, sheets
+    ):
+        """Sections sort by position and then by name, so a heading
+        sharing the gang list's 0 would tie and break alphabetically —
+        interleaving an unexpected section with the gang's own fighters
+        rather than landing after them."""
+        invented = read_csv(
+            """
+Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
+Escher,Alliances,Hangers-On,Rogue Doc,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,Ganger,,50,,,,Combat,
+"""
+        )
+        planned = plan_ingest(pack=None, **{**sheets, "profiles": invented})
+        home = planned.get(planned.get("Profile:rogue doc").fields["category"])
+        assert home.fields["section"] == "Alliances"
+        assert home.fields["section_position"] == 2
 
 
 # --- Problems: what the plan refuses ------------------------------------------
@@ -689,7 +703,15 @@ Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),St
 
 
 class TestPerform:
-    def test_the_import_matches_its_preview_and_preserves_list_restrictions(self, plan):
+    def test_the_import_matches_the_preview_catalogue_fighters_and_standard_skills(
+        self, plan
+    ):
+        before = set(
+            Category.objects.filter(section__name="Skills").values_list(
+                "name", flat=True
+            )
+        )
+
         preview = plan.preview()
         result = perform(plan)
         planned_creates = {}
@@ -733,8 +755,6 @@ class TestPerform:
         assert [p.name for p in listed.usable_by_profiles.all()] == ["Way-Brethren"]
         assert lance.usable_by_words() == ""
 
-    def test_catalogue_rows_arrive_with_their_profiles_prices_and_headings(self, plan):
-        perform(plan)
         autogun = Weapon.objects.get(name="Autogun")
         assert autogun.price == 20
         own, warp = autogun.profiles.order_by("position")
@@ -815,8 +835,6 @@ class TestPerform:
         # The qualifier is for authors; a card prints the name alone.
         assert {str(w) for w in fists} == {"Power fist"}
 
-    def test_fighters_arrive_with_their_home_statline_and_free_built_ins(self, plan):
-        perform(plan)
         queen = Profile.objects.get(name="Gang Queen")
         assert queen.price == 120
         assert queen.stats()["movement"] == '6"'
@@ -848,6 +866,12 @@ class TestPerform:
         jaws = croc.built_ins.members.get(weapon__isnull=False).assignable
         assert jaws.price == 0  # never priced from a list (§5a)
 
+        after = Category.objects.filter(section__name="Skills")
+
+        assert {"Agility", "Combat"} <= before  # already there, not invented here
+        assert set(after.values_list("name", flat=True)) == before
+        assert after.filter(name="Agility").count() == 1
+
     def test_a_restriction_stays_on_the_list_that_prints_it(self, foundation, sheets):
         """The same item on two lists, one of them bracketed: the other
         list offers it plainly, and uploading again writes the bracket
@@ -873,22 +897,6 @@ class TestPerform:
         assert goliath.usable_by_words() == ""
         assert autogun.usable_by_words() == ""
 
-    def test_skill_sets_resolve_to_the_standard_ones(self, plan):
-        """The sheet names Agility and Combat, and standard content
-        already has them, so an upload joins those sets rather than
-        founding a second Agility beside the first."""
-        before = set(
-            Category.objects.filter(section__name="Skills").values_list(
-                "name", flat=True
-            )
-        )
-        perform(plan)
-        after = Category.objects.filter(section__name="Skills")
-
-        assert {"Agility", "Combat"} <= before  # already there, not invented here
-        assert set(after.values_list("name", flat=True)) == before
-        assert after.filter(name="Agility").count() == 1
-
     def test_the_whole_upload_is_one_transaction(self, foundation, sheets, monkeypatch):
         import n26.library.ingest as ingest_module
 
@@ -910,15 +918,14 @@ class TestPerform:
 
 
 class TestIdempotency:
-    def test_a_second_upload_changes_nothing_and_creates_nothing(
+    def test_a_second_upload_preserves_identities_changes_nothing_and_reads_no_entries(
         self, foundation, sheets
     ):
-        """Two claims, and the second is the one that used to be
-        implicit: every row is found, *and* none of them is found to
-        differ. Said in one part, "nothing happens" could be a plan
-        that quietly stopped noticing differences."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
         first = plan_ingest(pack=None, **sheets)
-        perform(first)
+        made = perform(first)
         weapons, traits, profiles = (
             Weapon.objects.count(),
             Trait.objects.count(),
@@ -929,37 +936,29 @@ class TestIdempotency:
         assert again.ok
         assert {p.action for p in again.planned} <= {"unchanged", "resolved"}
         assert not [p for p in again.planned if p.action == "update"]
-        result = perform(again)
-        assert result.created == {}
-        assert result.updated == {}
-        assert Weapon.objects.count() == weapons
-        assert Trait.objects.count() == traits
-        assert Profile.objects.count() == profiles
+        matched = {
+            row.key: row.existing for row in again.planned if row.existing is not None
+        }
+        assert matched, "nothing matched at all — the second plan found no rows"
+        for key, row in made.created.items():
+            assert matched.get(key) == str(row.pk), key
 
-    def test_a_second_upload_reads_no_entry_it_leaves_unchanged(
-        self, foundation, sheets
-    ):
-        """An unchanged listing line has nothing waiting to be told
-        where it landed: a restriction looks its entry up when it is
-        written, so performing an upload of lists that gained none
-        reads no entry at all — the lists are the long sheets, and a
-        query per line is what made a re-upload slow. Planning is
-        measured separately, below: it looks every line up by design."""
-        from django.db import connection
-        from django.test.utils import CaptureQueriesContext
-
-        perform(plan_ingest(pack=None, **sheets))
-        again = plan_ingest(pack=None, **sheets)
         unchanged = [
             p for p in again.planned if p.kind == "CollectionEntry" and p.existing
         ]
         assert len(unchanged) > 1
 
         with CaptureQueriesContext(connection) as captured:
-            perform(again)
+            result = perform(again)
 
         table = CollectionEntry._meta.db_table
         assert [q["sql"] for q in captured if table in q["sql"]] == []
+
+        assert result.created == {}
+        assert result.updated == {}
+        assert Weapon.objects.count() == weapons
+        assert Trait.objects.count() == traits
+        assert Profile.objects.count() == profiles
 
     def test_replanning_reads_the_entries_lists_in_one_batch(self, foundation, sheets):
         """Planning looks every line up, one query each, by design. What
@@ -997,30 +996,6 @@ Equipment List,Escher,Wargear,Grenades,Frag grenades,,30,,
         large = list_reads(more)
 
         assert large == small
-
-    def test_replanning_finds_back_exactly_the_rows_the_import_made(
-        self, foundation, sheets
-    ):
-        """Planning and performing must agree, row for row, on what
-        counts as the same thing. They ask one function, and this is
-        what that buys: every row the first import created is the row
-        the second plan matches — not a row of the same name, that one.
-
-        The fixture holds two weapons printing "Power fist", which is
-        precisely the case a looser match answers wrongly and quietly:
-        the difference would be measured against one and written onto
-        the other.
-        """
-        first = plan_ingest(pack=None, **sheets)
-        made = perform(first)
-
-        again = plan_ingest(pack=None, **sheets)
-        matched = {
-            row.key: row.existing for row in again.planned if row.existing is not None
-        }
-        assert matched, "nothing matched at all — the second plan found no rows"
-        for key, row in made.created.items():
-            assert matched.get(key) == str(row.pk), key
 
     def test_a_heading_already_spelled_differently_is_reused(
         self, foundation, sheets, default_pack
@@ -1098,19 +1073,6 @@ class TestSpottingWhatChanged:
         perform(plan_ingest(pack=None, **sheets))
         return sheets
 
-    def test_a_corrected_price_is_a_change_to_the_weapon(self, imported):
-        plan = plan_ingest(
-            **{
-                **imported,
-                "equipment": edited(
-                    EQUIPMENT_CSV, ",Autogun,,20,0,", ",Autogun,,25,0,"
-                ),
-            }
-        )
-        autogun = plan.get(AUTOGUN)
-        assert autogun.action == "update"
-        assert autogun.changes == {"price": {"from": 20, "to": 25}}
-
     def test_a_weapon_moved_to_another_category_is_a_change_of_home(self, imported):
         plan = plan_ingest(
             **{
@@ -1130,24 +1092,6 @@ class TestSpottingWhatChanged:
             "from": "Wargear: Personal equipment",
             "to": "Wargear: Pets",
         }
-
-    def test_a_fighter_given_a_home_is_rehomed_and_the_category_is_not_orphaned(
-        self, foundation, sheets
-    ):
-        """The case the whole thing was for. A fighter imported with no
-        Category, then a Category added to the sheet: the category row
-        arrives, and before this the fighter that should point at it
-        was skipped — so the pack gained a heading nothing was filed
-        under.
-        """
-        homeless = read_csv(PROFILES_CSV.replace(",Leaders,Gang Queen", ",,Gang Queen"))
-        perform(plan_ingest(**{**sheets, "profiles": homeless}))
-        assert Profile.objects.get(name="Gang Queen").category is None
-
-        plan = plan_ingest(**sheets)
-        queen = plan.get("Profile:gang queen")
-        assert queen.action == "update"
-        assert queen.changes["category"] == {"from": None, "to": "Gang List: Leaders"}
 
 
 class TestThePreviewShowsTheDifference:
@@ -1192,6 +1136,8 @@ class TestThePreviewShowsTheDifference:
                 ),
             }
         )
+        autogun = plan.get(AUTOGUN)
+        assert autogun.action == "update"
         assert plan.get(AUTOGUN).changes == {"price": {"from": 20, "to": 25}}
         assert plan.get(entry_key(ESCHER_LIST, AUTOGUN)).changes == {
             "price_override": {"from": None, "to": 20}
@@ -1227,19 +1173,6 @@ class TestApplyingWhatChanged:
     def imported(self, foundation, sheets):
         perform(plan_ingest(pack=None, **sheets))
         return sheets
-
-    def test_a_corrected_price_lands(self, imported):
-        plan = plan_ingest(
-            **{
-                **imported,
-                "equipment": edited(
-                    EQUIPMENT_CSV, ",Frag grenades,,30,2,", ",Frag grenades,,35,2,"
-                ),
-            }
-        )
-        result = perform(plan)
-        assert set(result.updated) == {FRAG_GRENADES}
-        assert Weapon.objects.get(name="Frag grenades").price == 35
 
     def test_a_rewritten_profile_lands_traits_and_stats(self, imported):
         plan = plan_ingest(
@@ -1420,7 +1353,14 @@ class TestApplyingWhatChanged:
         homeless = read_csv(PROFILES_CSV.replace(",Leaders,Gang Queen", ",,Gang Queen"))
         perform(plan_ingest(**{**sheets, "profiles": homeless}))
 
-        perform(plan_ingest(**sheets))
+        assert Profile.objects.get(name="Gang Queen").category is None
+
+        plan = plan_ingest(**sheets)
+        queen = plan.get("Profile:gang queen")
+        assert queen.action == "update"
+        assert queen.changes["category"] == {"from": None, "to": "Gang List: Leaders"}
+
+        perform(plan)
 
         queen = Profile.objects.get(name="Gang Queen")
         assert queen.category.name == "Leaders"
@@ -1429,24 +1369,9 @@ class TestApplyingWhatChanged:
         assert leaders.count() == 1
         assert leaders.get().profiles.exists()
 
-    def test_a_second_import_of_the_corrected_sheet_does_nothing(self, imported):
-        """The stronger idempotency claim: a *changed* sheet applied
-        twice changes things once."""
-        corrected = {
-            **imported,
-            "equipment": edited(
-                EQUIPMENT_CSV, ",Frag grenades,,30,2,", ",Frag grenades,,35,2,"
-            ),
-        }
-        perform(plan_ingest(**corrected))
-
-        again = plan_ingest(**corrected)
-        assert {p.action for p in again.planned} <= {"unchanged", "resolved"}
-        result = perform(again)
-        assert result.created == {} and result.updated == {}
-        assert Weapon.objects.get(name="Frag grenades").price == 35
-
-    def test_the_named_fields_are_the_only_ones_that_move(self, imported):
+    def test_a_price_correction_changes_only_named_fields_and_replays_unchanged(
+        self, imported
+    ):
         """A price correction is a price correction. Anything an author
         typed into a column the sheets do not carry is still there
         afterwards — the sheets are authoritative about what they know
@@ -1469,7 +1394,9 @@ class TestApplyingWhatChanged:
             }
         )
         assert set(plan.get(FRAG_GRENADES).changes) == {"price"}
-        perform(plan)
+        result = perform(plan)
+        assert set(result.updated) == {FRAG_GRENADES}
+        assert Weapon.objects.get(name="Frag grenades").price == 35
 
         grenades.refresh_from_db()
         assert grenades.price == 35
@@ -1479,6 +1406,18 @@ class TestApplyingWhatChanged:
             "trade_point_price": grenades.trade_point_price,
             "category": grenades.category_id,
         } == before
+
+        corrected = {
+            **imported,
+            "equipment": edited(
+                EQUIPMENT_CSV, ",Frag grenades,,30,2,", ",Frag grenades,,35,2,"
+            ),
+        }
+        again = plan_ingest(**corrected)
+        assert {p.action for p in again.planned} <= {"unchanged", "resolved"}
+        result = perform(again)
+        assert result.created == {} and result.updated == {}
+        assert Weapon.objects.get(name="Frag grenades").price == 35
 
     def test_a_row_that_vanished_between_preview_and_import_stops_everything(
         self, imported
@@ -1638,7 +1577,9 @@ class TestNothingIsLostQuietly:
     partition is planned and never compared.
     """
 
-    def test_there_is_something_to_check(self, plan):
+    def test_the_plan_has_real_kinds_all_performable_and_every_field_classified(
+        self, plan
+    ):
         assert {p.kind for p in plan.planned} >= {
             "Weapon",
             "WeaponProfile",
@@ -1647,12 +1588,24 @@ class TestNothingIsLostQuietly:
             "Modifier",
         }
 
-    def test_every_plannable_kind_has_a_place_in_the_performing_order(self, plan):
         from n26.library.ingest import PERFORM_ORDER
 
         assert {p.kind for p in plan.planned} <= set(PERFORM_ORDER)
 
-    def test_every_plannable_kind_says_what_the_sheets_know_about_it(self, plan):
+        from n26.library.ingest import SHEET_FIELDS
+
+        unclassified = set()
+        for row in plan.planned:
+            known = SHEET_FIELDS[row.kind].all()
+            unclassified |= {
+                f"{row.kind}.{name}" for name in row.fields if name not in known
+            }
+        assert not unclassified, (
+            f"{sorted(unclassified)} — put each in exactly one of the kind's "
+            f"identity / updatable / ignored lists in SHEET_FIELDS"
+        )
+
+    def test_every_plannable_kind_says_what_the_sheets_know_about_it(self):
         from n26.library.ingest import PERFORM_ORDER, SHEET_FIELDS
 
         assert set(PERFORM_ORDER) == set(SHEET_FIELDS)
@@ -1665,23 +1618,6 @@ class TestNothingIsLostQuietly:
             "a kind a re-upload never rewrites must carry the reason in "
             "NEVER_UPDATED, so 'there is nothing to change' cannot be "
             "confused with an oversight"
-        )
-
-    def test_the_partition_covers_every_field_a_plan_carries(self, plan):
-        """The one silence this design could introduce: a new planned
-        field that no list mentions is planned, written on creation, and
-        then never noticed again on any re-upload."""
-        from n26.library.ingest import SHEET_FIELDS
-
-        unclassified = set()
-        for row in plan.planned:
-            known = SHEET_FIELDS[row.kind].all()
-            unclassified |= {
-                f"{row.kind}.{name}" for name in row.fields if name not in known
-            }
-        assert not unclassified, (
-            f"{sorted(unclassified)} — put each in exactly one of the kind's "
-            f"identity / updatable / ignored lists in SHEET_FIELDS"
         )
 
     def test_no_field_is_in_two_lists_at_once(self):

@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.db import connection
+from django.db import connection, transaction
 from django.test.utils import CaptureQueriesContext
 
 from n26.core import history
@@ -26,6 +26,7 @@ from n26.core.post_battle import (
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status, status_colour
 from n26.library.authoring import add_picklist_member
+from n26.library.models import Counter, Pickable, Picklist, Slot, SlotType
 from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_built_in,
@@ -67,9 +68,8 @@ def arbitrator():
     return User.objects.create_user("report-arbitrator")
 
 
-@pytest.fixture
 @library_setup
-def content(default_pack, gang_type, fighter_type):
+def _seed_post_battle_catalogue():
     xp = create_counter("XP")
     kind = create_slot_type("Lasting injury", is_lasting_effect=True)
     wound = create_pickable(
@@ -90,7 +90,38 @@ def content(default_pack, gang_type, fighter_type):
     table = create_picklist(
         "Lasting Injury Table", kind, members=[wound, death, lesson]
     )
-    slot = create_slot("Lasting Injury", kind, table, min_picks=0, max_picks=100)
+    create_slot("Lasting Injury", kind, table, min_picks=0, max_picks=100)
+
+
+@pytest.fixture(scope="class")
+def _prepared_post_battle_catalogue(django_db_setup, django_db_blocker, request):
+    """Share ordinary class content, excluding the independent band catalogue."""
+    if request.cls is TestRollBands:
+        # Its first case authors colliding names with a different effect graph.
+        yield
+        return
+    with django_db_blocker.unblock(), transaction.atomic():
+        _seed_post_battle_catalogue()
+        try:
+            yield
+        finally:
+            transaction.set_rollback(True)
+
+
+@pytest.fixture
+@library_setup
+def content(
+    default_pack, gang_type, fighter_type, _prepared_post_battle_catalogue, request
+):
+    if request.cls is TestRollBands:
+        _seed_post_battle_catalogue()
+    xp = Counter.objects.get(name="XP")
+    kind = SlotType.objects.get(name="Lasting injury")
+    wound = Pickable.objects.get(name="Grievous Wound")
+    death = Pickable.objects.get(name="Memorable Death")
+    lesson = Pickable.objects.get(name="Lesson Learned")
+    table = Picklist.objects.get(name="Lasting Injury Table")
+    slot = Slot.objects.get(name="Lasting Injury")
     modifier(
         "Models carry the injury table",
         targets_every_model(),

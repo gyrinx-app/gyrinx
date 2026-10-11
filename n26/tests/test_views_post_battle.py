@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.auth.models import Group, User
-from django.db import connection
+from django.db import connection, transaction
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
@@ -46,7 +46,19 @@ from n26.library.authoring import (
     op_sets_status,
     targets_model,
 )
-from n26.library.models import Profile
+from n26.library.models import (
+    Counter,
+    GangType,
+    Pickable,
+    Picklist,
+    Profile,
+    ProfileType,
+    SlotType,
+    Stat,
+    StatlineType,
+    StatlineTypeStat,
+    get_default_pack,
+)
 from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     assign,
@@ -91,6 +103,69 @@ def report_content(make_profile):
     return xp, kind, wound, picklist, profile
 
 
+@library_setup
+def _seed_report_catalogue():
+    # Keep the original small Person shape, including its unset stat limits.
+    pack = get_default_pack()
+    shape = StatlineType.objects.create(name="Person", pack=pack)
+    definitions = [
+        ("M", "Movement", {"is_inches": True}),
+        ("WS", "Weapon Skill", {"is_target": True, "is_inverted": True}),
+        ("T", "Toughness", {}),
+    ]
+    for position, (short, full, flags) in enumerate(definitions):
+        stat = Stat.objects.create(short_name=short, full_name=full, pack=pack, **flags)
+        StatlineTypeStat.objects.create(
+            statline_type=shape, stat=stat, position=position, pack=pack
+        )
+    kind = ProfileType.objects.create(name="Fighter", statline_type=shape, pack=pack)
+    gang_type = GangType.objects.create(name="Escher", pack=pack)
+
+    def make_profile(name):
+        return Profile.objects.create(
+            name=name, profile_type=kind, gang_type=gang_type, pack=pack
+        )
+
+    report_content(make_profile)
+
+
+@pytest.fixture(scope="module")
+def _prepared_report_catalogue(django_db_setup, django_db_blocker):
+    """Share content only; ordinary case rollback isolates every player write."""
+    with django_db_blocker.unblock(), transaction.atomic():
+        _seed_report_catalogue()
+        try:
+            yield
+        finally:
+            transaction.set_rollback(True)
+
+
+@pytest.fixture
+def person_statline_type(default_pack, _prepared_report_catalogue):
+    return StatlineType.objects.get(name="Person", pack=default_pack)
+
+
+@pytest.fixture
+def person_type(person_statline_type):
+    return ProfileType.objects.get(name="Fighter", statline_type=person_statline_type)
+
+
+@pytest.fixture
+def gang_type(default_pack, _prepared_report_catalogue):
+    return GangType.objects.get(name="Escher", pack=default_pack)
+
+
+def _report_content():
+    """Fresh instances of the full original catalogue for this case's table."""
+    return (
+        Counter.objects.get(name="XP"),
+        SlotType.objects.get(name="Lasting injury"),
+        Pickable.objects.get(name="Grievous Wound"),
+        Picklist.objects.get(name="Lasting injuries"),
+        Profile.objects.get(name="Ganger"),
+    )
+
+
 @pytest.fixture
 def table(
     client,
@@ -106,7 +181,7 @@ def table(
     campaign = found_campaign("Dust Falls", campaign_type, owner=arbitrator)
     gang = open_founding(found_gang("Ashen Choir", gang_type, owner=owner, budget=1000))
     join_campaign(gang, campaign)
-    xp, kind, wound, picklist, profile = report_content(make_profile)
+    xp, kind, wound, picklist, profile = _report_content()
     models = [
         hire(gang, profile, name)
         for name in ("Cinder", "Ember")[: getattr(request, "param", 2)]

@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 import pytest
-from django.db import connection
+from django.db import connection, transaction
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
@@ -34,6 +34,7 @@ from n26.library.models import (
     CounterAtLeast,
     Pickable,
     PicklistMember,
+    ProfileType,
     Skill,
     Slot,
     Stat,
@@ -51,8 +52,44 @@ from n26.tests.sandbox.actions import (
 pytestmark = [
     pytest.mark.django_db,
     pytest.mark.core,
-    pytest.mark.usefixtures("counter_tracking"),
+    pytest.mark.usefixtures("counter_tracking", "_prepared_advancement_catalogue"),
 ]
+
+
+@pytest.fixture(scope="module")
+def _prepared_advancement_catalogue(django_db_setup, django_db_blocker):
+    """Real content for ordinary rollback cases, with no shared player state.
+
+    Transactional, sequence-reset and live-server cases cannot use this outer
+    transaction and must remain outside this module's shared catalogue.
+    """
+    with django_db_blocker.unblock(), transaction.atomic():
+        _seed_fighter_actions()
+        try:
+            yield
+        finally:
+            transaction.set_rollback(True)
+
+
+@pytest.fixture
+def make_stat(default_pack):
+    """The fresh Person shape reuses the real catalogue's three matching stats."""
+
+    def make(short_name, full_name, **kwargs):
+        if "pack" not in kwargs and "pack_id" not in kwargs:
+            kwargs["pack_id"] = default_pack.pk
+        return Stat.objects.get(short_name=short_name, full_name=full_name, **kwargs)
+
+    return make
+
+
+@pytest.fixture
+def person_type(person_statline_type):
+    """Each fighter keeps the original three-stat shape on the real Fighter type."""
+    kind = ProfileType.objects.get(name="Fighter", pack_id=person_statline_type.pack_id)
+    kind.statline_type = person_statline_type
+    kind.save(update_fields=["statline_type", "modified"])
+    return kind
 
 
 @pytest.fixture
@@ -70,7 +107,6 @@ def _seed_fighter_actions():
 
 
 def _advancement(fighter):
-    _seed_fighter_actions()
     action = Action.objects.get(name="Advancement")
     outcome = (
         action.outcomes.select_related("outcome__resolve_advancement").get().outcome

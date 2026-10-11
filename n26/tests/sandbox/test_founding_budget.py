@@ -21,6 +21,7 @@ Four claims, and each has a test below:
 
 import pytest
 from django.contrib.auth.models import User
+from django.db import transaction
 
 from n26.core.browse import browse
 from n26.core.card import build_card, build_modifier_index
@@ -28,6 +29,17 @@ from n26.core.effects import compute
 from n26.core.founding import budget_for, budget_granted
 from n26.core.models import Activity
 from n26.core.reconcile import assert_reconciled
+from n26.library.models import (
+    GangType,
+    Profile,
+    ProfileType,
+    Stat,
+    Statline,
+    StatlineType,
+    StatlineTypeStat,
+    Subtype,
+    get_default_pack,
+)
 from n26.tests.fixtures import admit_to_founding, library_setup
 from n26.tests.sandbox.actions import (
     add_entry,
@@ -102,9 +114,8 @@ GANG_LISTS = {
 ALLIES = [("Bone Scrivener", "Champion")]
 
 
-@pytest.fixture
 @library_setup
-def ranks(default_pack):
+def _build_ranks():
     from n26.library.models import Subtype
 
     return {
@@ -113,9 +124,8 @@ def ranks(default_pack):
     }
 
 
-@pytest.fixture
 @library_setup
-def library(ranks, make_profile, make_statline):
+def _build_budget_library(ranks, make_profile, make_statline):
     """Two gang lists and one allied entry, then the seed.
 
     The seed reads the library, so the entries are authored first: a
@@ -148,6 +158,86 @@ def library(ranks, make_profile, make_statline):
 
     STANDARD_CONTENT["founding-budgets"].create()
     return entries
+
+
+@library_setup
+def _seed_budget_catalogue():
+    pack = get_default_pack()
+    ranks = _build_ranks()
+    shape = StatlineType.objects.create(name="Person", pack=pack)
+    definitions = [
+        ("M", "Movement", {"is_inches": True}),
+        ("WS", "Weapon Skill", {"is_target": True, "is_inverted": True}),
+        ("T", "Toughness", {}),
+    ]
+    for position, (short, full, flags) in enumerate(definitions):
+        stat = Stat.objects.create(short_name=short, full_name=full, pack=pack, **flags)
+        StatlineTypeStat.objects.create(
+            statline_type=shape, stat=stat, position=position, pack=pack
+        )
+    person = ProfileType.objects.create(name="Fighter", statline_type=shape, pack=pack)
+    escher = GangType.objects.create(name="Escher", pack=pack)
+
+    def make_profile(name, **kwargs):
+        kwargs.setdefault("profile_type", person)
+        kwargs.setdefault("gang_type", escher)
+        if "pack" not in kwargs and "pack_id" not in kwargs:
+            kwargs["pack_id"] = pack.pk
+        return Profile.objects.create(name=name, **kwargs)
+
+    def make_statline(profile):
+        # Entry statlines contain no values.
+        return Statline.objects.create(profile=profile, pack=pack)
+
+    _build_budget_library(ranks, make_profile, make_statline)
+
+
+@pytest.fixture(scope="class")
+def _prepared_budget_catalogue(django_db_setup, django_db_blocker):
+    """Share the authored lists; ordinary rollback isolates each case's edits.
+
+    The catalogue is for same-connection cases, not transactional or threaded ones.
+    """
+    with django_db_blocker.unblock(), transaction.atomic():
+        _seed_budget_catalogue()
+        try:
+            yield
+        finally:
+            transaction.set_rollback(True)
+
+
+@pytest.fixture
+def person_statline_type(default_pack, _prepared_budget_catalogue):
+    return StatlineType.objects.get(name="Person", pack=default_pack)
+
+
+@pytest.fixture
+def person_type(person_statline_type):
+    return ProfileType.objects.get(name="Fighter", statline_type=person_statline_type)
+
+
+@pytest.fixture
+def gang_type(default_pack, _prepared_budget_catalogue):
+    return GangType.objects.get(name="Escher", pack=default_pack)
+
+
+@pytest.fixture
+def ranks(default_pack, _prepared_budget_catalogue):
+    return {
+        name: Subtype.objects.get(name=name, pack=default_pack)
+        for name in ("Leader", "Champion", "Specialist", "Ganger")
+    }
+
+
+@pytest.fixture
+def library(default_pack, _prepared_budget_catalogue):
+    return {
+        (gang_name, name): Profile.objects.get(
+            name=f"{gang_name} {name}", gang_type__name=gang_name, pack=default_pack
+        )
+        for gang_name, rows in [*GANG_LISTS.items(), ("Allies", ALLIES)]
+        for name, _ in rows
+    }
 
 
 @pytest.fixture

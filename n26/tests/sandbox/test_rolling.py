@@ -19,6 +19,7 @@ import re
 
 import pytest
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.urls import reverse
 
 from n26.core import history
@@ -28,10 +29,12 @@ from n26.core.models import Assignment, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_choice_offer, lift_landing, option_key
-from n26.library.models import Dice, Picklist, Slot
+from n26.library.models import Dice, GangType, Picklist, Slot
 from n26.library.standard_content import STANDARD_CONTENT
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_picklist_member,
+    create_gang_type,
     create_pickable,
     create_picklist,
     create_profile,
@@ -53,10 +56,32 @@ def owner(db):
     return User.objects.create_user("roller")
 
 
-@pytest.fixture
-def injuries(default_pack):
-    """The shipped injury table: a D66 band table with a standing choice."""
+@library_setup
+def _seed_injury_catalogue():
+    # The table seed attaches Escape to existing standard gang types.
+    create_gang_type("Escher")
     STANDARD_CONTENT["lasting-effect-tables"].create()
+
+
+@pytest.fixture(scope="module")
+def _prepared_injury_catalogue(django_db_setup, django_db_blocker):
+    """Keep the shipped content fixed; each test rolls back its player writes."""
+    with django_db_blocker.unblock(), transaction.atomic():
+        _seed_injury_catalogue()
+        try:
+            yield
+        finally:
+            transaction.set_rollback(True)
+
+
+@pytest.fixture
+def gang_type(default_pack, _prepared_injury_catalogue):
+    return GangType.objects.get(name="Escher", pack=default_pack)
+
+
+@pytest.fixture
+def injuries(default_pack, _prepared_injury_catalogue):
+    """Fresh model instances from the unchanged full shipped injury catalogue."""
     return {
         "table": Picklist.objects.get(name="Lasting Injury Table"),
         "slot": Slot.objects.get(name="Lasting Injury"),
@@ -207,10 +232,8 @@ class TestARollGoesOnTheRecord:
         assert not Assignment.objects.filter(roll=event).exists()
         assert_reconciled(gang)
 
-    def test_a_manual_roll_is_entered_and_says_so(self, gang, krago):
-        event = roll_for(krago, "Lasting Injuries", rolled=24)
-        assert event.roll == 24
-        assert event.note == "Manual roll."
+        act = act_saying(gang, "rolled")
+        assert act.note == ""
 
     def test_a_number_the_die_cannot_make_is_refused_in_words(self, gang, krago):
         with pytest.raises(Refusal, match="You cannot roll 37 on a D66"):
@@ -242,28 +265,16 @@ class TestThePickNamesItsRoll:
         assert [p.assignable.name for p in slot.picks] == ["Out Cold"]
         assert_reconciled(gang)
 
-    def test_a_roll_is_applied_once(self, gang, krago, injuries):
-        event = roll_for(krago, "Lasting Injuries", rolled=24)
-        out_cold = result_named(injuries["table"], "Out Cold")
-        pick(krago, "Lasting Injuries", out_cold, roll=event)
-
         with pytest.raises(Refusal, match="roll of 24 has already been applied"):
             pick(krago, "Lasting Injuries", out_cold, roll=event)
         assert Assignment.objects.filter(roll=event).count() == 1
 
-    def test_a_pick_taken_back_frees_its_roll(self, gang, krago, injuries):
-        """Removing what was picked is how a mistake is undone, and the
-        roll it came from is still the roll that was made."""
         from n26.tests.sandbox.actions import remove
 
-        event = roll_for(krago, "Lasting Injuries", rolled=24)
-        out_cold = result_named(injuries["table"], "Out Cold")
-        first = pick(krago, "Lasting Injuries", out_cold, roll=event)
-        remove(first)
-
+        remove(made)
         second = pick(krago, "Lasting Injuries", out_cold, roll=event)
         assert second.roll == event
-        assert first.roll == event
+        assert made.roll == event
         assert_reconciled(gang)
 
     def test_a_roll_is_refused_on_a_choice_that_is_not_a_slots(self, gang, krago):
@@ -315,16 +326,15 @@ class TestThePickNamesItsRoll:
             pick(krago, "Lasting Injuries", out_cold, roll=theirs)
         assert not Assignment.objects.filter(roll=theirs).exists()
 
-    def test_a_pick_made_without_rolling_names_no_roll(self, gang, krago, injuries):
-        made = pick(
-            krago, "Lasting Injuries", result_named(injuries["table"], "Out Cold")
-        )
-        assert made.roll is None
-
 
 class TestTheHistoryTellsTheRoll:
     def test_a_roll_and_its_pick_read_as_one_act(self, gang, krago, injuries):
         event = roll_for(krago, "Lasting Injuries", rolled=24)
+        assert event.roll == 24
+        assert event.note == "Manual roll."
+        act = act_saying(gang, "rolled 24")
+        assert act.category == "model"
+        assert act.miniature_name == "Krago"
         pick(
             krago,
             "Lasting Injuries",
@@ -400,17 +410,6 @@ class TestTheHistoryTellsTheRoll:
         ]
         assert told == ["Krago gained Out Cold, rolled 24"]
 
-    def test_a_generated_roll_carries_no_note(self, gang, krago):
-        roll_for(krago, "Lasting Injuries", rng=random.Random(5))
-        act = act_saying(gang, "rolled")
-        assert act.note == ""
-
-    def test_the_roll_is_a_fact_about_the_model(self, gang, krago):
-        roll_for(krago, "Lasting Injuries", rolled=24)
-        act = act_saying(gang, "rolled 24")
-        assert act.category == "model"
-        assert act.miniature_name == "Krago"
-
     def test_the_gangs_own_roll_is_a_fact_about_the_gang(self, gang, injuries):
         with operation(gang, actor=gang.owner) as op:
             op.roll(injuries["slot"], rolled=24)
@@ -423,12 +422,13 @@ class TestAStandingGrantNamesTheFighter:
     """A pick that stands as its own act is the fighter gaining the
     effect, not the person who recorded it."""
 
-    def test_the_fighter_gained_the_effect(self, gang, krago, injuries):
-        pick(
+    def test_the_fighter_gained_the_effect(self, client, owner, gang, krago, injuries):
+        made = pick(
             krago,
             "Lasting Injuries",
             result_named(injuries["table"], "Out Cold"),
         )
+        assert made.roll is None
         act = next(
             a
             for a in history.build(gang, viewer=gang.owner)
@@ -437,14 +437,8 @@ class TestAStandingGrantNamesTheFighter:
         assert act.actor == ""
         assert "".join(s.text for s in act.spans) == "Krago gained Out Cold"
 
-    def test_a_short_history_says_the_same(self, gang, krago, injuries):
         from n26.core.activities import history_lines
 
-        pick(
-            krago,
-            "Lasting Injuries",
-            result_named(injuries["table"], "Out Cold"),
-        )
         line = next(
             row
             for row in history_lines(gang, viewer=gang.owner)
@@ -453,14 +447,6 @@ class TestAStandingGrantNamesTheFighter:
         assert line.actor == ""
         assert line.told == "Krago gained Out Cold"
 
-    def test_the_history_page_does_not_say_you_gained(
-        self, client, owner, gang, krago, injuries
-    ):
-        pick(
-            krago,
-            "Lasting Injuries",
-            result_named(injuries["table"], "Out Cold"),
-        )
         client.force_login(owner)
         page = client.get(reverse("n26-gang-history", args=[gang.pk])).content.decode()
         assert "gained Out Cold" in page
@@ -476,22 +462,6 @@ class TestThePickScreen:
         slot = choice_of(krago, "Lasting Injuries")
         key = f"{krago.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"
         return reverse("n26-choose", args=[gang.pk, key])
-
-    def test_a_roll_table_offers_to_roll(self, client, owner, address):
-        client.force_login(owner)
-        page = client.get(address).content.decode()
-        assert "Roll a D66" in page
-        # Enter in the field must reach the Enter act, not Roll: the first
-        # submit button in the form decides, so an unseen one comes first.
-        assert page.index('value="enter"') < page.index('value="roll"')
-        assert 'min="' not in page.split("Your own roll")[0][-600:]
-        assert "The roll you made yourself" in page
-        assert "or add a result by hand" in page
-        assert 'name="rolled"' in page
-        # The range is a hint in the field, never a browser constraint —
-        # one bounded field would stop every other button on the form.
-        assert "(11–66)" in page
-        assert 'min="11"' not in page
 
     def test_a_choice_with_no_dice_offers_no_roll(
         self, client, owner, gang, gang_type, fighter_type, default_pack
@@ -520,6 +490,20 @@ class TestThePickScreen:
         self, client, owner, gang, address
     ):
         client.force_login(owner)
+        page = client.get(address).content.decode()
+        assert "Roll a D66" in page
+        # Enter in the field must reach the Enter act, not Roll: the first
+        # submit button in the form decides, so an unseen one comes first.
+        assert page.index('value="enter"') < page.index('value="roll"')
+        assert 'min="' not in page.split("Your own roll")[0][-600:]
+        assert "The roll you made yourself" in page
+        assert "or add a result by hand" in page
+        assert 'name="rolled"' in page
+        # The range is a hint in the field, never a browser constraint —
+        # one bounded field would stop every other button on the form.
+        assert "(11–66)" in page
+        assert 'min="11"' not in page
+
         reply = client.post(address, {"act": "roll"})
 
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
@@ -528,11 +512,21 @@ class TestThePickScreen:
         assert event.roll in Dice.rolls(Dice.D66)
         assert event.actor == owner
 
+        client.post(address, {"act": "roll"})
+        assert LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).count() == 2
+        assert len([s for s in sentences(gang) if "rolled" in s]) == 2
+
     def test_the_page_at_a_roll_lifts_where_it_landed(
         self, client, owner, gang, krago, address, injuries
     ):
         client.force_login(owner)
+        reply = client.post(address, {"act": "enter", "rolled": "37"}, follow=True)
+        assert "You cannot roll 37 on a D66." in reply.content.decode()
+        assert not LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).exists()
+        reply = client.post(address, {"act": "enter", "rolled": ""}, follow=True)
+        assert "Enter the number you rolled." in reply.content.decode()
         client.post(address, {"act": "enter", "rolled": "24"})
+
         event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
 
         page = client.get(f"{address}?roll={event.pk}").content.decode()
@@ -550,6 +544,31 @@ class TestThePickScreen:
         assert "Roll again" in page
         # The plain Roll controls give way to the result.
         assert "Roll a D66" not in page
+
+        out_cold = result_named(injuries["table"], "Out Cold")
+
+        client.post(address, {"thing": option_key(out_cold), "roll": str(event.pk)})
+
+        made = Assignment.objects.get(roll=event)
+        assert made.assignable == out_cold
+        assert made.miniature == krago
+        assert_reconciled(gang)
+
+        page = client.get(f"{address}?roll={event.pk}").content.decode()
+        assert "Already applied: Out Cold." in page
+        assert f'name="roll" value="{event.pk}"' not in page
+        # The Roll controls come back, since this roll is done with — and
+        # the panel offers nothing of its own, so there is one Roll.
+        assert "Roll a D66" in page
+        assert page.count('value="roll"') == 1
+
+        reply = client.post(
+            address,
+            {"thing": option_key(out_cold), "roll": str(event.pk)},
+            follow=True,
+        )
+        assert "already been applied" in reply.content.decode()
+        assert Assignment.objects.filter(roll=event).count() == 1
 
     def test_a_threshold_roll_lifts_every_result_it_opened(
         self, client, owner, gang, gang_type, fighter_type, default_pack
@@ -592,34 +611,6 @@ class TestThePickScreen:
         )
         assert 'aria-label="Add Wounds"' in page
 
-    def test_entering_a_roll_the_die_cannot_make_is_refused(
-        self, client, owner, gang, address
-    ):
-        client.force_login(owner)
-        reply = client.post(address, {"act": "enter", "rolled": "37"}, follow=True)
-        assert "You cannot roll 37 on a D66." in reply.content.decode()
-        assert not LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).exists()
-
-    def test_entering_nothing_asks_for_the_number(self, client, owner, gang, address):
-        client.force_login(owner)
-        reply = client.post(address, {"act": "enter", "rolled": ""}, follow=True)
-        assert "Enter the number you rolled." in reply.content.decode()
-
-    def test_a_pick_posted_from_the_roll_names_it(
-        self, client, owner, gang, krago, address, injuries
-    ):
-        client.force_login(owner)
-        client.post(address, {"act": "enter", "rolled": "24"})
-        event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
-        out_cold = result_named(injuries["table"], "Out Cold")
-
-        client.post(address, {"thing": option_key(out_cold), "roll": str(event.pk)})
-
-        made = Assignment.objects.get(roll=event)
-        assert made.assignable == out_cold
-        assert made.miniature == krago
-        assert_reconciled(gang)
-
     def test_a_full_choice_offers_no_roll(
         self, client, owner, gang, gang_type, fighter_type, default_pack
     ):
@@ -648,30 +639,6 @@ class TestThePickScreen:
         pick(juve, "Scars", scar)
         assert "Roll a D6" not in client.get(address).content.decode()
 
-    def test_rolling_for_a_choice_filled_meanwhile_is_refused(
-        self, client, owner, gang, gang_type, fighter_type, default_pack
-    ):
-        kind = create_slot_type("Scar")
-        table = create_picklist("Scar Table", kind, dice="d6", roll_selects="band")
-        scar = create_pickable("Scar", kind)
-        add_picklist_member(table, scar, roll_low=1, roll_high=6)
-        one = create_slot("Scars", kind, table, max_picks=1)
-        modifier(
-            "Fighters scar",
-            targets_every_model(is_profile_type(fighter_type)),
-            ef_adds(one),
-            carried_by=gang_type,
-        )
-        profile = create_profile("Juve", fighter_type, gang_type, price=20)
-        juve = hire(gang, profile, "Nix", paid=20)
-        slot = choice_of(juve, "Scars")
-        address = reverse(
-            "n26-choose",
-            args=[gang.pk, f"{juve.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"],
-        )
-        client.force_login(owner)
-        # The page was drawn with room; the pick lands before the Roll click.
-        pick(juve, "Scars", scar)
         reply = client.post(address, {"act": "roll"}, follow=True)
         assert "Take one back before rolling." in reply.content.decode()
         assert not LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).exists()
@@ -709,31 +676,6 @@ class TestThePickScreen:
         assert "Landed on" in page
         assert 'aria-label="Add Blessed"' not in page
         assert page.count('name="thing"') >= 2  # the radios, not a button
-
-    def test_a_spent_roll_is_shown_as_spent_and_not_offered_again(
-        self, client, owner, gang, krago, address, injuries
-    ):
-        client.force_login(owner)
-        client.post(address, {"act": "enter", "rolled": "24"})
-        event = LedgerEvent.objects.get(kind=LedgerEvent.Kind.ROLLED)
-        out_cold = result_named(injuries["table"], "Out Cold")
-        client.post(address, {"thing": option_key(out_cold), "roll": str(event.pk)})
-
-        page = client.get(f"{address}?roll={event.pk}").content.decode()
-        assert "Already applied: Out Cold." in page
-        assert f'name="roll" value="{event.pk}"' not in page
-        # The Roll controls come back, since this roll is done with — and
-        # the panel offers nothing of its own, so there is one Roll.
-        assert "Roll a D66" in page
-        assert page.count('value="roll"') == 1
-
-        reply = client.post(
-            address,
-            {"thing": option_key(out_cold), "roll": str(event.pk)},
-            follow=True,
-        )
-        assert "already been applied" in reply.content.decode()
-        assert Assignment.objects.filter(roll=event).count() == 1
 
     def test_a_roll_made_for_another_gang_is_no_such_roll(
         self, client, owner, gang, gang_type, fighter_type, address, injuries
@@ -781,15 +723,6 @@ class TestThePickScreen:
         client.force_login(owner)
         assert client.get(f"{address}?roll=junk").status_code == 404
 
-    def test_rolling_again_leaves_the_first_roll_on_the_record(
-        self, client, owner, gang, address
-    ):
-        client.force_login(owner)
-        client.post(address, {"act": "roll"})
-        client.post(address, {"act": "roll"})
-        assert LedgerEvent.objects.filter(kind=LedgerEvent.Kind.ROLLED).count() == 2
-        assert len([s for s in sentences(gang) if "rolled" in s]) == 2
-
 
 class TestLiftingTheLanding:
     def test_the_landed_rows_come_first_under_their_own_heading(self, gang, krago):
@@ -809,9 +742,6 @@ class TestLiftingTheLanding:
         assert [option.name for option in lifted.groups[0].options] == ["Out Cold"]
         assert lifted.takes_several == offer.takes_several
 
-    def test_a_threshold_says_so_in_its_headings(self, gang, krago):
-        slot = choice_of(krago, "Lasting Injuries")
-        offer = build_choice_offer(slot, computed_for(krago))
         first = offer.groups[0].options[0].key
         lifted = lift_landing(offer, {first}, threshold=True)
         assert [group.name for group in lifted.groups] == [
@@ -819,7 +749,4 @@ class TestLiftingTheLanding:
             "Above the roll",
         ]
 
-    def test_nothing_landed_leaves_the_offer_as_it_was(self, gang, krago):
-        slot = choice_of(krago, "Lasting Injuries")
-        offer = build_choice_offer(slot, computed_for(krago))
         assert lift_landing(offer, set()) is offer

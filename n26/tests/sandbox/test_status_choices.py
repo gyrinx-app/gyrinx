@@ -39,6 +39,7 @@ from n26.tests.fixtures import admit_to_founding, library_setup
 from n26.tests.sandbox import test_post_battle as report_tests
 from n26.tests.sandbox.actions import hire
 
+_prepared_post_battle_catalogue = report_tests._prepared_post_battle_catalogue
 owner = report_tests.owner
 content = report_tests.content
 gang = report_tests.gang
