@@ -8,7 +8,6 @@ documented on the wrapper that forwards to them.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field, replace
 
 from django.utils.text import slugify
@@ -82,16 +81,6 @@ class Group:
     @property
     def anchor(self) -> str:
         return slugify(self.name)
-
-    @property
-    def search_terms(self) -> str:
-        """Its components' search terms as a JSON array.
-
-        The sidebar hides a whole group when the filter excludes every component
-        in it. Handing the group its members' terms keeps that one predicate over
-        data, rather than the group inspecting the DOM.
-        """
-        return json.dumps([component.search_term for component in self.components])
 
 
 ALPINE = "Alpine.js"

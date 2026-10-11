@@ -758,6 +758,35 @@ def tick_list_recipe():
     }
 
 
+def _svg_props(attrs):
+    """SVG attributes under React's names: stroke-width becomes strokeWidth."""
+    return {re.sub(r"-([a-z])", lambda m: m[1].upper(), k): v for k, v in attrs.items()}
+
+
+def react_mark_recipe():
+    """Extract the gallery's React mark: a dot and three orbits in one group."""
+    svg, dot, group, *orbits = attributes(
+        '{% include "designsystem/_react_mark.html" with size="size-3" %}',
+        "svg",
+        "circle",
+        "g",
+        "ellipse",
+        "ellipse",
+        "ellipse",
+    )
+    if svg.get("role") != "img" or not svg.get("aria-label"):
+        raise ValueError("React mark is no longer a labelled image")
+    return {
+        # HTMLParser lowercases attribute names; React needs viewBox.
+        "viewBox": svg["viewbox"],
+        "className": class_name(svg),
+        "label": svg["aria-label"],
+        "dot": _svg_props(dot),
+        "group": _svg_props(group),
+        "orbits": [_svg_props(orbit) for orbit in orbits],
+    }
+
+
 def button_link_by_size():
     """Link-button classes for every cotton size, including the text variants.
 
@@ -920,6 +949,7 @@ def recipes():
         "quickSwitcher": quick_switcher_recipe(),
         "pickList": pick_list_recipe(),
         "tickList": tick_list_recipe(),
+        "reactMark": react_mark_recipe(),
         "popover": {
             "panel": classes(
                 '<c-ui.popover panel_label="Help">Body</c-ui.popover>',
@@ -947,6 +977,7 @@ def recipes():
                 "loader-circle",
                 "circle-question-mark",
                 "triangle-alert",
+                "external-link",
             )
         },
     }

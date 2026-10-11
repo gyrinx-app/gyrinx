@@ -35,9 +35,6 @@ def _base_context():
         "groups": catalog.GROUPS,
         "component_count": len(catalog.COMPONENTS),
         "kit_version": introspect.kit_version(),
-        # Every component's searchable text, so the sidebar filter can tell
-        # "no results" from "this group has no results".
-        "all_search_terms": json.dumps([c.search_term for c in catalog.COMPONENTS]),
     }
 
 
