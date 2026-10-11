@@ -27,8 +27,8 @@ class Campaign(Base, Owned, Archived):
 
     The owner is the arbitrator, who sets the campaign up, decides who is in
     it, and rules on what the rulebook leaves to the players. Owning a
-    campaign is not owning the gangs in it: each stays its player's, and a
-    campaign never writes to one.
+    campaign does not make the arbitrator the owner of the gangs in it:
+    each gang stays its player's.
 
     Not ``Rated``: a campaign holds no assignments, so it has no rating to
     sum.
@@ -332,10 +332,12 @@ class CampaignAsset(Base):
 
     Only assets of a Holding asset type are recorded here. A **holding**
     belongs to the campaign; a gang only holds it, and ``holder`` says
-    which. Nothing is assigned to the gang, no ledger entry is written and
-    the gang's rating never counts it. Assigning, unassigning and handing
-    over change one column under the campaign's lock, with a journal-only
-    event on each gang involved (design/campaign-assets.md).
+    which. The holding itself is not assigned to the gang, and the gang's
+    rating never counts it. Assigning, unassigning and handing over change
+    ``holder`` under the campaign's lock and write an event on each gang
+    involved (design/campaign-assets.md). Gaining a holding can also fill
+    its required slots with default picks
+    (``Operation._default_holding_picks``), which are ordinary assignments.
 
     ``holder`` is a membership, not a gang, so an asset cannot point at a
     gang that has left the campaign. ``name`` optionally renames the asset
