@@ -2792,8 +2792,7 @@ def campaign_sheet():
         campaign_id="dust-falls",
         campaign_type="Territory campaign",
         campaign_type_description=(
-            "Gangs fight over territories, each bringing income and a boon to "
-            "the gang holding it."
+            "Gangs fight over territories, each bringing income to the gang holding it."
         ),
         arbitrator=OWNER,
         budget=1250,
@@ -2946,10 +2945,6 @@ def campaign_sheet():
                         campaign_asset_id="old-ruins",
                         name="Old Ruins",
                         income=30,
-                        boons=[
-                            "Adds 1 to the gang's Reputation.",
-                            "The gang gets the Salvage rule.",
-                        ],
                         held=True,
                         holder="The Ashen Choir",
                         holder_gang_id="the-ashen-choir",
@@ -2963,10 +2958,6 @@ def campaign_sheet():
                         name="Old Ruins by the sump",
                         asset_name="Old Ruins",
                         income=30,
-                        boons=[
-                            "Adds 1 to the gang's Reputation.",
-                            "The gang gets the Salvage rule.",
-                        ],
                         held=True,
                         holder="The Ashen Choir",
                         holder_gang_id="the-ashen-choir",
@@ -2988,7 +2979,6 @@ def campaign_sheet():
                         campaign_asset_id="collapsed-dome",
                         name="Collapsed Dome",
                         income=10,
-                        boons=["Adds 1 to the gang's Meat."],
                         assign_href="#",
                         remove_href="#",
                     ),

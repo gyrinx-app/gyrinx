@@ -307,7 +307,7 @@ class TestTheCampaignPage:
         assert column(sheet, "The Ashen Choir", INCOME) == 30
         assert column(sheet, "The Rust Kings", INCOME) == 0
 
-    def test_the_assets_table_prints_income_and_lists_the_other_boons(
+    def test_the_assets_table_prints_income_alongside_other_modifiers(
         self, campaign, territory, gangs
     ):
         ruins = create_asset("Old Ruins", territory, income=30)
@@ -322,9 +322,6 @@ class TestTheCampaignPage:
         (territories,) = render_campaign(campaign).assets
         (entry,) = territories.entries
         assert entry.income == 30
-        assert len(entry.boons) == 1
-        assert "Salvage" in entry.boons[0]
-        assert not any(INCOME in boon for boon in entry.boons)
 
     def test_the_arbitrator_creates_an_asset_with_income(self, campaign, territory):
         made = create_campaign_asset(campaign, territory, "Sump Hole", income=15)

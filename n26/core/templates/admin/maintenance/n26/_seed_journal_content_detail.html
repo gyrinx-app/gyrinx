@@ -1,8 +1,7 @@
 {% comment %}
     The summary of one journal content seed run, on the Backfill detail
-    page: what it set out to create, and — once it has finished — what it
-    created. The seed is one transaction, so a run still working has
-    created nothing yet, and a run that fails leaves nothing behind.
+    page: what it set out to change, and — once it has finished — what it
+    changed. The update is one transaction, so a failed run commits no changes.
 {% endcomment %}
 {% if backfill.summary.report %}
     <h2>What it did</h2>
@@ -15,9 +14,9 @@
 {% elif backfill.summary.preview %}
     <h2>What it is doing</h2>
     <p>
-        These are the rows it set out to create. The seed is one transaction,
-        so a run still working has created nothing yet, and a run that fails or
-        is interrupted leaves nothing behind.
+        These are the planned creations and removals. The update is one transaction,
+        so changes are committed together when it finishes. A failed or interrupted
+        run commits no changes.
     </p>
     <ul>
         {% for line in backfill.summary.preview %}<li>{{ line }}</li>{% endfor %}

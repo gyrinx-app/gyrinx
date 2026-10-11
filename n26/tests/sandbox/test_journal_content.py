@@ -3,11 +3,10 @@ Journals' territories, created once, as a maintenance operation.
 
 The rules (design/house-and-territory-tables.md): a Goliath gang may roll
 its starting Territory on the House of Chains table, an Escher gang on
-the House of Blades table, and each of those Territories carries a House
-Controlled boon that applies only while a gang of that House holds it —
-a Clan House Outcast gang of that House included. The fact all of that
-reads is a hidden Gang supertype pick on the gang; the content that
-writes it, and the journals' territories, tables and boons, is one seed
+the House of Blades table. Every Territory provides its baseline Income.
+A hidden Gang supertype pick gives each House its table, including
+Clan House Outcasts. The content that writes it, and the journals'
+territories and tables, is one seed
 (``n26/library/gang_supertypes.py``, ``n26/library/journal_content.py``)
 run from the maintenance console on the tasks framework.
 
@@ -16,8 +15,10 @@ a rerun creates nothing and says so; a gang type or Outcast pick that is
 not there is skipped and said; a Goliath gang founded after the seed has
 the pick, one founded before catches up by propagation, a Clan House
 Goliath Outcast gang has it once House Goliath is picked, and an Escher
-gang and a Clanless Outcast never do; a journal territory's income and
-boons reach the holder the condition names; the House table reaches a
+gang and a Clanless Outcast never do; baseline territory income reaches
+either House; the maintenance run removes known seeded Controlled
+modifiers and unused rules while preserving authored content and player
+history; the House table reaches a
 gang through its pick and its starting-roll dialog offers it, while a
 reader who may not see staged content is not offered a staged table;
 both D6 tables cover every roll once; the House tables are never built
@@ -42,6 +43,7 @@ from n26.core.operations import Refusal
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
 from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
+from n26.library.authoring import modifier
 from n26.library.core_campaign import CAMPAIGN_TYPE, seed_core_campaign
 from n26.library.gang_supertypes import (
     HOUSES,
@@ -52,11 +54,10 @@ from n26.library.gang_supertypes import (
     seed_gang_supertypes,
     supertype_pick,
 )
-from n26.library.income import INCOME, income_of
+from n26.library.income import INCOME, ensure_income_counter, income_of
 from n26.library.journal_content import (
     JOURNALS,
     NOTHING_TO_DO,
-    controlled_rule_name,
     preview,
     seed_all,
 )
@@ -80,20 +81,26 @@ from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_asset,
     add_built_in,
+    assign,
     assign_asset,
     choose,
     create_gang_type,
     create_pickable,
     create_picklist,
     create_profile,
+    create_rule,
     create_slot,
     create_slot_type,
+    ef_adds,
+    ef_contributes_to_counter,
     found_campaign,
     found_gang,
+    has_gang_pickable,
     hire,
     join_campaign,
     open_table,
     roll_asset,
+    targets_gang_alone,
 )
 
 pytestmark = pytest.mark.django_db
@@ -184,6 +191,37 @@ def seeded(core, gang_types, clan_house):
     for gang_type in gang_types.values():
         gang_type.refresh_from_db()
     return lines
+
+
+@pytest.fixture
+@library_setup
+def legacy_boons(seeded, default_pack):
+    """The exact additional content written by the journal seed: eleven
+    placeholder rules and Amneo-vats' conditional extra Income."""
+    made = {}
+    for house, _table, territories in JOURNALS:
+        for entry in territories:
+            asset = Asset.objects.get(name=entry.name, pack=default_pack)
+            if entry.name == "Amneo-vats":
+                rule = None
+                effect = ef_contributes_to_counter(ensure_income_counter(), 10)
+            else:
+                rule = create_rule(
+                    f"{house} Controlled",
+                    annotation=entry.name,
+                    pack=default_pack,
+                    staged=True,
+                )
+                effect = ef_adds(rule)
+            boon = modifier(
+                f"{entry.name}: {house} Controlled",
+                targets_gang_alone(has_gang_pickable(supertype_pick(house))),
+                effect,
+                attach_to=asset,
+                pack=default_pack,
+            )
+            made[entry.name] = (boon, rule)
+    return made
 
 
 def gang_facts(gang):
@@ -277,25 +315,8 @@ class TestTheSeedCreatesEverythingOnce:
                 assert asset.staged
                 assert income_of(asset) == entry.income
 
-        for house, _table, territories in JOURNALS:
-            pick = supertype_pick(house)
-            for entry in territories:
-                asset = Asset.objects.get(name=entry.name)
-                (boon,) = [
-                    m for m in asset.modifiers.all() if m.targets_gang.is_conditional
-                ]
-                (condition,) = boon.targets_gang.has_gang_pickable.all()
-                assert list(condition.pickables.all()) == [pick]
-                assert boon.targets_gang.echoes is False
-                if entry.more_income:
-                    assert boon.contributes_to_counter.amount == entry.more_income
-                    assert boon.contributes_to_counter.counter.name == INCOME
-                else:
-                    rule = boon.adds_assignable.rule
-                    assert rule.name == controlled_rule_name(house)
-                    assert rule.annotation == entry.name
-                    assert rule.staged
-        assert Rule.objects.filter(name__endswith="Controlled").count() == 11
+        assert not Rule.objects.filter(name__endswith="Controlled").exists()
+        assert not Modifier.objects.filter(name__endswith="Controlled").exists()
 
         for _house, table_name, territories in JOURNALS:
             table = AssetTable.objects.get(name=table_name)
@@ -325,7 +346,6 @@ class TestTheSeedCreatesEverythingOnce:
         assert f"built the {SLOT} slot into Goliath, picked Goliath" in seeded
         assert f"House Goliath now gives the {SLOT} slot, picked Goliath" in seeded
         assert "created the Slug House Territory with income 20, staged" in seeded
-        assert "Amneo-vats: 10 more income for gangs that have picked Goliath" in seeded
         assert f"Goliath gangs now hold the {GOLIATH_TABLE} table" in seeded
         assert not any(line.startswith("skipped") for line in seeded)
 
@@ -559,13 +579,11 @@ class TestNothingIsToldAboutTheSupertype:
             assert not any("comes with" in line for line in lines)
 
 
-# --- The boons on a held territory ------------------------------------------
+# --- Journal territories in play -------------------------------------------
 
 
 class TestAJournalTerritoryInPlay:
-    """Amneo-vats brings 15 to any holder and 10 more to a Goliath one;
-    Slug House gives a Goliath holder the Goliath Controlled rule and an
-    Escher holder nothing; the campaign page says who each boon is for."""
+    """Journal territories provide baseline Income to any holder."""
 
     @pytest.fixture(autouse=True)
     def flag(self, campaigns_open):
@@ -586,32 +604,25 @@ class TestAJournalTerritoryInPlay:
             made[house] = gang
         return made
 
-    def test_the_campaign_boons_name_their_scope_and_income_reaches_the_holder(
-        self, campaign, gangs
-    ):
+    def test_baseline_income_reaches_holders_of_either_house(self, campaign, gangs):
         for name in ("Amneo-vats", "Slug House"):
             add_asset(campaign, Asset.objects.get(name=name))
 
         (territories,) = render_campaign(campaign, viewer=campaign.owner).assets
         by_name = {entry.name: entry for entry in territories.entries}
 
-        # Each boon in the Income column's register: the gangs it applies
-        # to, then what it does. The rule by its plain name — the row
-        # already says Slug House — and never a word about picking.
         vats = by_name["Amneo-vats"]
         assert vats.income == 15
-        assert vats.boons == ["Goliath gangs: +10 Income."]
 
         slug = by_name["Slug House"]
         assert slug.income == 20
-        assert slug.boons == ["Goliath gangs: Goliath Controlled."]
         assert INCOME == "Income"
 
         vats = Asset.objects.get(name="Amneo-vats")
         held = campaign.campaign_assets.get(asset=vats)
 
         assign_asset(held, gangs["Goliath"])
-        assert income_reading(gangs["Goliath"]) == 25
+        assert income_reading(gangs["Goliath"]) == 15
         assert income_reading(gangs["Escher"]) == 0
 
         held = add_asset(campaign, vats)
@@ -621,44 +632,245 @@ class TestAJournalTerritoryInPlay:
             gang.refresh_from_db()
             assert_reconciled(gang)
 
-    def test_slug_house_gives_goliath_the_rule_and_escher_nothing(
+    def test_slug_house_provides_income_without_a_placeholder_rule(
         self, campaign, gangs
     ):
         slug_house = Asset.objects.get(name="Slug House")
-        rule = Rule.objects.get(
-            name=controlled_rule_name("Goliath"), annotation="Slug House"
-        )
         for gang in gangs.values():
             assign_asset(add_asset(campaign, slug_house), gang)
 
-        assert rule in gang_rules(gangs["Goliath"])
-        assert rule not in gang_rules(gangs["Escher"])
+        assert not gang_rules(gangs["Goliath"])
+        assert not gang_rules(gangs["Escher"])
         assert income_reading(gangs["Goliath"]) == 20
         assert income_reading(gangs["Escher"]) == 20
 
-    def test_a_boon_aimed_at_the_models_keeps_its_whole_sentence(self, default_pack):
-        from n26.core.render import boon_said
-        from n26.library.authoring import (
-            add_asset_type,
-            create_asset,
-            create_campaign_type,
-            create_rule,
-            targets_every_model,
+
+class TestTheSeededControlledBoonsAreReset:
+    """Reset exact seeded content, retaining baseline income, holdings,
+    House tables, authored content and any directly assigned rules."""
+
+    @library_setup
+    def test_old_seeded_campaign_copy_is_reset_and_authored_copy_is_kept(
+        self, seeded, core
+    ):
+        from n26.library.core_campaign import DESCRIPTION, LIBRARY_AUTHOR_HELP
+
+        former_description = (
+            "The core rulebook's campaign: gangs fight for control of Territory. "
+            "Every gang keeps a Settlement it cannot lose and starts with one "
+            "Territory drawn from the campaign's table. Each Territory a gang "
+            "holds gives it a Boon, such as income, Reputation or equipment. The "
+            "campaign has three phases: Occupation, Downtime and Takeover. It ends "
+            "with Triumphs awarded for the most Territories, the highest Reputation, "
+            "the most battles fought, the most enemies taken out of action and the "
+            "highest Wealth."
         )
-        from n26.tests.sandbox.actions import adds, modifier
+        former_help = (
+            "The campaign type from the core rulebook. Settlement is a possession: "
+            "every gang has its own. Territory is a holding: one gang "
+            "holds it at a time. Add each Territory as an asset under that asset "
+            "type, with its income in the Income box and its Boons as modifiers. "
+            "Reputation at 0, Income at 0 and the Settlement are built in, so every "
+            "gang that joins starts with all three."
+        )
+        core.description = former_description
+        core.library_author_help = former_help
+        core.save(update_fields=["description", "library_author_help"])
 
-        campaign_type = create_campaign_type("Territory campaign")
-        territory = add_asset_type(campaign_type, "Territory", "pooled")
-        vats = create_asset("Amneo-vats", territory, staged=True)
-        catfall = create_rule("Catfall")
-        every = modifier(
-            "Amneo-vats: Catfall", targets_every_model(), adds(catfall), carried_by=vats
+        lines = seed_all()
+
+        core.refresh_from_db()
+        assert core.description == DESCRIPTION
+        assert core.library_author_help == LIBRARY_AUTHOR_HELP
+        assert lines == [
+            f"updated {core.name} description",
+            f"updated {core.name} library_author_help",
+        ]
+        core.description = "Our campaign's own description."
+        core.library_author_help = "Our campaign's own authoring help."
+        core.save(update_fields=["description", "library_author_help"])
+        assert seed_all() == [NOTHING_TO_DO]
+        core.refresh_from_db()
+        assert core.description == "Our campaign's own description."
+        assert core.library_author_help == "Our campaign's own authoring help."
+
+    def test_the_preview_lists_each_removal_and_changes_nothing(self, legacy_boons):
+        before = {model: model.objects.count() for model in (Asset, Rule, Modifier)}
+        parts = [
+            (type(boon.scope), boon.scope.pk, type(boon.effect), boon.effect.pk)
+            for boon, _rule in legacy_boons.values()
+        ]
+
+        lines = preview()
+
+        assert (
+            len([line for line in lines if line.startswith("removed modifier")]) == 12
+        )
+        assert len([line for line in lines if line.startswith("removed rule")]) == 11
+        assert before == {model: model.objects.count() for model in before}
+        assert all(
+            scope.objects.filter(pk=scope_id).exists()
+            and effect.objects.filter(pk=effect_id).exists()
+            for scope, scope_id, effect, effect_id in parts
+        )
+        assert seed_all() == lines
+        assert not Rule.objects.filter(name__endswith="Controlled").exists()
+        assert not Modifier.objects.filter(name__endswith="Controlled").exists()
+        assert all(
+            not scope.objects.filter(pk=scope_id).exists()
+            and not effect.objects.filter(pk=effect_id).exists()
+            for scope, scope_id, effect, effect_id in parts
+        )
+        assert seed_all() == [NOTHING_TO_DO]
+
+    def test_reset_preserves_holdings_history_income_and_house_table_access(
+        self, legacy_boons, core, gang_types, owner, arbitrator, campaigns_open
+    ):
+        from uuid import uuid4
+
+        from n26.core.campaigns import campaign_operation
+
+        gang = found_gang("Irontooth", gang_types["Goliath"], owner=owner)
+        campaign = found_campaign("Dust Falls", core, owner=arbitrator)
+        join_campaign(gang, campaign)
+        vats = Asset.objects.get(name="Amneo-vats")
+        held = add_asset(campaign, vats)
+        assign_asset(held, gang)
+        slug = Asset.objects.get(name="Slug House")
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.add_assets([slug], income=7, request_key=uuid4())
+        overridden = campaign.campaign_assets.get(asset=slug)
+        assign_asset(overridden, gang)
+        override = overridden.income_override
+        table = AssetTable.objects.get(name=GOLIATH_TABLE)
+        holdings = list(CampaignAsset.objects.filter(campaign=campaign).values())
+        recorded = campaign_history(campaign)
+        assert income_reading(gang) == 32
+        assert legacy_boons["Slug House"][1] in gang_rules(gang)
+
+        seed_all()
+
+        assert income_of(vats) == 15
+        assert income_reading(gang) == 22
+        assert Modifier.objects.filter(pk=override.pk).exists()
+        assert not gang_rules(gang)
+        assert (
+            list(CampaignAsset.objects.filter(campaign=campaign).values()) == holdings
+        )
+        assert campaign_history(campaign) == recorded
+        assert table in tables_held_by(gang, campaign, include_staged=True)
+        assert_reconciled(gang)
+
+    def test_authored_and_other_pack_content_is_retained(
+        self, legacy_boons, default_pack, other_pack
+    ):
+        from n26.library.authoring import attach_modifiers_to, create_asset, revise
+
+        slug = Asset.objects.get(name="Slug House", pack=default_pack)
+        authored_rule = create_rule("Authored territory rule")
+        authored = modifier(
+            "Slug House: authored benefit",
+            targets_gang_alone(),
+            ef_adds(authored_rule),
+            attach_to=slug,
+        )
+        other_asset = create_asset("Slug House", slug.asset_type, pack=other_pack)
+        other_rule = create_rule(
+            "Goliath Controlled", annotation="Slug House", pack=other_pack
+        )
+        other = modifier(
+            "Slug House: Goliath Controlled",
+            targets_gang_alone(has_gang_pickable(supertype_pick("Goliath"))),
+            ef_adds(other_rule),
+            attach_to=other_asset,
+            pack=other_pack,
+        )
+        shared, shared_rule = legacy_boons["Fight Arena"]
+        attach_modifiers_to(slug, [shared])
+        changed, changed_rule = legacy_boons["Feasting Hall"]
+        revise(changed_rule, library_author_help="Authored recruitment setup.")
+        custom_income, _rule = legacy_boons["Amneo-vats"]
+        revise(custom_income.contributes_to_counter, amount=11)
+        custom_scope, custom_scope_rule = legacy_boons["Chem Arena"]
+        revise(custom_scope.targets_gang, echoes=True)
+        staged, staged_rule = legacy_boons["Flesh-makers Theatre"]
+        revise(staged, staged=True)
+        reused_boon, reused_rule = legacy_boons["Badzone Smelter"]
+        reused = modifier(
+            "Authored territory rule grant",
+            targets_gang_alone(),
+            ef_adds(reused_rule),
+            attach_to=slug,
         )
 
-        said = boon_said(every)
+        lines = seed_all()
 
-        assert "Catfall" in said
-        assert said != "Catfall."
+        assert authored in slug.modifiers.all()
+        assert Modifier.objects.filter(pk=other.pk).exists()
+        assert Rule.objects.filter(pk=other_rule.pk).exists()
+        assert Modifier.objects.filter(pk=shared.pk).exists()
+        assert Rule.objects.filter(pk=shared_rule.pk).exists()
+        assert Modifier.objects.filter(pk=changed.pk).exists()
+        assert Rule.objects.filter(pk=changed_rule.pk).exists()
+        assert Modifier.objects.filter(pk=custom_income.pk).exists()
+        assert Modifier.objects.filter(pk=custom_scope.pk).exists()
+        assert Rule.objects.filter(pk=custom_scope_rule.pk).exists()
+        assert Modifier.objects.filter(pk=staged.pk).exists()
+        assert Rule.objects.filter(pk=staged_rule.pk).exists()
+        assert not Modifier.objects.filter(pk=reused_boon.pk).exists()
+        assert Modifier.objects.filter(pk=reused.pk).exists()
+        assert Rule.objects.filter(pk=reused_rule.pk).exists()
+        assert any(
+            "Fight Arena" in line and line.startswith("skipped") for line in lines
+        )
+        assert any(
+            "Feasting Hall" in line and line.startswith("skipped") for line in lines
+        )
+        assert seed_all()[0] == NOTHING_TO_DO
+
+    def test_directly_assigned_rules_are_kept_and_reported(
+        self, legacy_boons, gang_types, owner
+    ):
+        gang = found_gang("Irontooth", gang_types["Goliath"], owner=owner)
+        boon, rule = legacy_boons["Slug House"]
+        assignment = assign(rule, gang=gang)
+        before = history.build(gang)
+
+        lines = seed_all()
+
+        assignment.refresh_from_db()
+        assert assignment.rule == rule
+        assert not assignment.archived
+        assert Rule.objects.filter(pk=rule.pk).exists()
+        assert not Modifier.objects.filter(pk=boon.pk).exists()
+        assert history.build(gang) == before
+        skipped = (
+            f"skipped rule {rule}: it is still referenced by content or player history"
+        )
+        assert skipped in lines
+        assert seed_all() == [NOTHING_TO_DO, skipped]
+
+    def test_an_interrupted_reset_rolls_back_all_removals(
+        self, legacy_boons, monkeypatch
+    ):
+        from n26.library import authoring
+
+        remove = authoring.delete_modifier
+        removed = []
+
+        def interrupt_after_one(boon):
+            if removed:
+                raise RuntimeError("Interrupted reset")
+            removed.append(boon.pk)
+            remove(boon)
+
+        monkeypatch.setattr(authoring, "delete_modifier", interrupt_after_one)
+
+        with pytest.raises(RuntimeError, match="Interrupted reset"):
+            seed_all()
+
+        assert Modifier.objects.filter(name__endswith="Controlled").count() == 12
+        assert Rule.objects.filter(name__endswith="Controlled").count() == 11
 
 
 # --- The House table and the starting roll ---------------------------------
@@ -806,7 +1018,7 @@ class TestTheMaintenanceOperation:
 
         assert f"created the {SLOT_TYPE} slot type" in page
         assert f"created the {GOLIATH_TABLE} table, staged" in page
-        assert "Create the missing rows" in page
+        assert "Apply journal content changes" in page
         assert not Backfill.objects.exists()
         assert not SlotType.objects.filter(name=SLOT_TYPE).exists()
 
@@ -860,7 +1072,7 @@ class TestTheMaintenanceOperation:
         assert NOTHING_TO_DO in response.content.decode()
         assert not Backfill.objects.exists()
         page = client.get(address).content.decode()
-        assert "Nothing to create" in page
+        assert "Nothing to change" in page
 
     def test_a_redelivered_message_creates_nothing_more(
         self, core, gang_types, clan_house, task_queue
@@ -881,7 +1093,31 @@ class TestTheMaintenanceOperation:
         assert record.summary["attempts"] == 1
         assert SlotType.objects.filter(name=SLOT_TYPE).count() == 1
         assert AssetTable.objects.filter(name=GOLIATH_TABLE).count() == 1
-        assert Modifier.objects.filter(name__endswith="Goliath Controlled").count() == 6
+        assert not Modifier.objects.filter(name__endswith="Controlled").exists()
+
+    def test_the_console_previews_and_records_a_reset_once(
+        self, client, superuser, legacy_boons, address, task_queue
+    ):
+        client.force_login(superuser)
+        page = client.get(address).content.decode()
+        assert "removed modifier Amneo-vats: Goliath Controlled" in page
+        assert Modifier.objects.filter(name__endswith="Controlled").count() == 12
+        assert not Backfill.objects.exists()
+
+        with task_queue.capture():
+            response = client.post(address)
+        record = Backfill.objects.get(operation=Operation.SEED_JOURNAL_CONTENT)
+        assert response.status_code == 302
+        assert record.status == Backfill.Status.RUNNING
+        task_queue.deliver_all()
+        task_queue.redeliver_last()
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.DONE
+        assert record.summary["attempts"] == 1
+        assert record.summary["preview"] == record.summary["report"]
+        assert not Modifier.objects.filter(name__endswith="Controlled").exists()
+        assert not Rule.objects.filter(name__endswith="Controlled").exists()
 
     def test_only_a_superuser_reaches_it(self, client, staff_arbitrator, address):
         client.force_login(staff_arbitrator)

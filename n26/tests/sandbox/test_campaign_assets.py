@@ -7,8 +7,8 @@ never owns it — no assignment, no ledger entry, nothing on its rating — and
 assigning or unassigning is the holder changing under the campaign's line
 plus a journal-only GAINED or LOST event on the gang. While held, the
 campaign's asset is a carrier on the gang's card: its library asset's
-modifiers run, credited to it, so a Reputation boon raises the reading and
-a rule appears among the gang's rules for as long as the gang holds it.
+modifiers run, credited to it, so a Reputation contribution raises the reading
+and a rule appears among the gang's rules for as long as the gang holds it.
 See design/campaign-assets.md.
 """
 
@@ -69,9 +69,7 @@ def core(default_pack):
 
 @pytest.fixture
 def old_ruins(core):
-    """A Territory under the core type's Territory asset type, with the two boons
-    a territory can carry: Reputation while held, and a named rule for
-    the gang."""
+    """A territory with Reputation and a named rule that apply while it is held."""
     territory = core.asset_types.get(label_singular="Territory")
     asset = create_asset("Old Ruins", territory, income=30)
     reputation = Counter.objects.get(name="Reputation")
@@ -409,7 +407,7 @@ class TestTheAssetsOnTheCampaignPage:
         assert reverse("n26-campaign", args=[campaign.pk]) in body
         assert reverse("n26-campaign", args=[campaign.pk]) + "#assets" in body
 
-    def test_a_rolled_holding_keeps_its_income_and_boons(
+    def test_a_rolled_holding_keeps_its_income(
         self, client, campaign, old_ruins, arbitrator
     ):
         from n26.core.campaigns import campaign_operation
@@ -424,12 +422,10 @@ class TestTheAssetsOnTheCampaignPage:
         (entry,) = render_campaign(campaign).assets[0].entries
         assert entry.campaign_asset_id == str(roll.campaign_asset.pk)
         assert entry.income == 30
-        assert any("Reputation" in boon for boon in entry.boons)
-        assert any("Salvage" in boon for boon in entry.boons)
         client.force_login(arbitrator)
         html = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
         assert "30¢" in html
-        assert "Salvage" in html
+        assert "Boons" not in html
 
     def test_the_page_lists_held_and_unclaimed_by_asset_type(
         self, client, campaign_assets, gang, campaign, arbitrator
@@ -733,132 +729,100 @@ class TestTheAssetsOnTheCampaignPage:
 
 
 @pytest.fixture
-def recruiting_asset(old_ruins, person_type, gang_type):
-    from n26.tests.sandbox.actions import create_profile, op_adds_model
+def asset_with_assignment_effect(old_ruins, person_type, gang_type):
+    from n26.library.authoring import create_profile, op_adds_model
 
-    recruit = create_profile("Sump recruit", person_type, gang_type, price=50)
+    profile = create_profile("Additional fighter", person_type, gang_type, price=50)
     modifier(
-        "Old Ruins recruits a fighter",
+        "Old Ruins: adds a model",
         targets_gang(),
-        op_adds_model(recruit),
+        op_adds_model(profile),
         attach_to=old_ruins,
     )
-    return old_ruins, recruit
+    return old_ruins, profile
 
 
-class TestRecruitBoons:
-    def test_the_campaign_boon_explains_that_the_recruit_stays(
-        self, campaign, recruiting_asset
-    ):
-        from n26.core.render import boon_said
+class TestHoldingArrival:
+    """Holding changes write history. Stored effects run only on assignment."""
 
-        asset, profile = recruiting_asset
-        recruitment = asset.modifiers.get(name="Old Ruins recruits a fighter")
-        said = boon_said(recruitment)
-        assert profile.name in said
-        assert "stay with the gang when this asset is lost" in said
-        assert "leaves again" not in said
-
-    def test_grant_recruits_once_and_loss_keeps_the_model(
-        self, campaign, gang, recruiting_asset
+    def test_gaining_a_holding_records_history_without_hiring_a_model(
+        self, campaign, gang, asset_with_assignment_effect
     ):
         from n26.core.models import Miniature
 
-        asset, profile = recruiting_asset
+        asset, profile = asset_with_assignment_effect
         token = add_asset(campaign, asset)
+        assignment_ids = set(gang.assignments.values_list("pk", flat=True))
         assign_asset(token, gang)
-        recruit = Miniature.objects.get(
-            membership__gang=gang, membership__profile=profile
-        )
-        assert recruit.membership.caused_by_id is None
-        assert recruit.membership.ledger_entry.paid == 0
-        from n26.core import history
+        assign_asset(token, gang)
 
-        acts = history.build(gang)
-        granted = next(
-            act
-            for act in acts
-            if profile.name in "".join(span.text for span in act.spans)
+        assert not Miniature.objects.filter(
+            membership__gang=gang, membership__profile=profile
+        ).exists()
+        assert set(gang.assignments.values_list("pk", flat=True)) == assignment_ids
+        event = LedgerEvent.objects.get(gang=gang, campaign_asset=token)
+        assert event.kind == LedgerEvent.Kind.GAINED
+        assert event.received_asset_type == asset.asset_type_id
+        assert event.assignment_id is None
+        assert event.miniature_id is None
+        assert (event.credits_delta, event.rating_delta, event.trade_points_delta) == (
+            0,
+            0,
+            0,
         )
-        assert "Old Ruins" in granted.note
-        assign_asset(token, gang)
-        assert (
-            Miniature.objects.filter(
-                membership__gang=gang, membership__profile=profile
-            ).count()
-            == 1
-        )
-        unassign_asset(token)
-        recruit.refresh_from_db()
-        assert not recruit.membership.archived
-        gang.refresh_from_db()
+        assert sentences(build(gang))[-1] == "gained the territory Old Ruins"
         assert_reconciled(gang)
 
-    def test_transfer_recruits_for_the_receiver_and_keeps_the_first_recruit(
-        self, campaign, gang, rival, recruiting_asset
+    def test_transferring_a_holding_records_both_histories_without_hiring(
+        self, campaign, gang, rival, asset_with_assignment_effect
     ):
-        from n26.core.campaigns import campaign_operation
         from n26.core.models import Miniature
+        from n26.tests.sandbox.actions import transfer_asset
 
-        asset, profile = recruiting_asset
+        asset, profile = asset_with_assignment_effect
         token = add_asset(campaign, asset)
         assign_asset(token, gang)
-        with campaign_operation(campaign, actor=campaign.owner) as op:
-            op.transfer(token, campaign.memberships.get(gang=rival, left__isnull=True))
-        recruits = Miniature.objects.filter(
-            membership__profile=profile, membership__archived=False
-        )
-        assert set(recruits.values_list("membership__gang_id", flat=True)) == {
-            gang.pk,
-            rival.pk,
-        }
-        for member in (gang, rival):
-            member.refresh_from_db()
-            assert_reconciled(member)
+        transfer_asset(token, rival)
 
-    def test_leaving_keeps_the_recruit_but_returns_the_territory(
-        self, campaign, gang, recruiting_asset
-    ):
-        from n26.core.campaigns import campaign_operation
-        from n26.core.models import Miniature
-
-        asset, profile = recruiting_asset
-        token = add_asset(campaign, asset)
-        assign_asset(token, gang)
-        with campaign_operation(campaign, actor=campaign.owner) as op:
-            op.remove_gang(campaign.memberships.get(gang=gang, left__isnull=True))
-        recruit = Miniature.objects.get(
-            membership__gang=gang, membership__profile=profile
-        )
-        assert not recruit.membership.archived
         token.refresh_from_db()
-        assert token.holder_id is None
-        gang.refresh_from_db()
+        assert token.holder.gang_id == rival.pk
+        assert not Miniature.objects.filter(membership__profile=profile).exists()
+        lost = LedgerEvent.objects.get(
+            gang=gang, campaign_asset=token, kind=LedgerEvent.Kind.LOST
+        )
+        gained = LedgerEvent.objects.get(
+            gang=rival, campaign_asset=token, kind=LedgerEvent.Kind.GAINED
+        )
+        assert gained.received_asset_type == asset.asset_type_id
+        assert gained.batch == lost.batch
+        for event in (lost, gained):
+            assert event.assignment_id is None
+            assert event.miniature_id is None
+            assert (event.credits_delta, event.rating_delta) == (0, 0)
+        assert sentences(build(gang))[-1] == "lost the territory Old Ruins"
+        assert sentences(build(rival))[-1] == "gained the territory Old Ruins"
         assert_reconciled(gang)
+        assert_reconciled(rival)
 
-    def test_grant_uses_the_existing_stored_effect_depth_limit(
-        self, campaign, gang, recruiting_asset
+    def test_gaining_and_transferring_fill_each_gangs_starting_allocation(
+        self, campaign, gang, rival, asset_with_assignment_effect
     ):
-        from n26.core.models import Miniature
-        from n26.core.operations import Operation
-        from n26.tests.sandbox.actions import op_adds_model
+        from n26.core.campaigns import starting_asset_types_received
+        from n26.tests.sandbox.actions import transfer_asset
 
-        asset, profile = recruiting_asset
-        modifier(
-            "Recruit brings another recruit",
-            targets_gang(),
-            op_adds_model(profile),
-            attach_to=profile,
-        )
-        assign_asset(add_asset(campaign, asset), gang)
-        assert (
-            Miniature.objects.filter(
-                membership__gang=gang, membership__profile=profile
-            ).count()
-            == Operation.MAX_STORED_EFFECT_DEPTH
-        )
-        gang.refresh_from_db()
-        assert_reconciled(gang)
+        asset, _ = asset_with_assignment_effect
+        memberships = list(campaign.memberships.filter(left__isnull=True))
+        assert starting_asset_types_received(campaign, memberships) == {
+            membership.pk: set() for membership in memberships
+        }
+
+        token = assign_asset(add_asset(campaign, asset), gang)
+        transfer_asset(token, rival)
+        unassign_asset(token)
+
+        assert starting_asset_types_received(campaign, memberships) == {
+            membership.pk: {asset.asset_type_id} for membership in memberships
+        }
 
 
 class TestCampaignSuppression:

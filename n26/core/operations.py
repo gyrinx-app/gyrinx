@@ -481,7 +481,7 @@ class Operation:
             self._run_stored_effects(assignment, assignable)
         return assignment
 
-    def _run_stored_effects(self, assignment, assignable, *, trigger="assign"):
+    def _run_stored_effects(self, assignment, assignable):
         """Execute anything this assignable writes rather than computes.
 
         Each effect owns its own ``perform``, the way each scope owns its
@@ -495,23 +495,15 @@ class Operation:
             for modifier in modifiers.all():
                 effect = modifier.effect
                 if effect is not None and getattr(effect, "is_stored", False):
-                    # A holding has no assignment to cascade from. Effects
-                    # opt into its grant trigger with their own lifetime rule.
-                    perform = (
-                        getattr(effect, "perform_grant", None)
-                        if trigger == "grant"
-                        else effect.perform
-                    )
-                    if perform is not None:
-                        perform(self, assignment)
+                    effect.perform(self, assignment)
         finally:
             self._effect_depth -= 1
 
     def gain_asset(self, holding, **deltas):
-        """Record a campaign holding's arrival and run its grant boons.
+        """Record a campaign holding's arrival in the gang's history.
 
         The campaign operation has already set the holder under its lock.
-        A repeated assignment to the same holder never reaches this trigger.
+        Assigning it to the same holder again does not record another arrival.
         """
         if self.gang is None or holding.holder.gang_id != self.gang.pk:
             raise ValueError("The holding must have arrived at this operation's gang.")
@@ -522,7 +514,6 @@ class Operation:
             received_asset_type=holding.asset.asset_type_id,
             **deltas,
         )
-        self._run_stored_effects(holding, holding.asset, trigger="grant")
 
     def event(self, about, kind, **deltas):
         """Append to the log. Nothing already written is ever altered.

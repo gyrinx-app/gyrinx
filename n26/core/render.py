@@ -1822,25 +1822,17 @@ class AssetTypeColumn:
 @dataclass
 class CampaignAssetEntry:
     """One of the campaign's assets, as the assets table draws it: what it
-    is called, what it does, and who holds it.
+    is called, its income, and who holds it.
 
     ``name`` is the name the arbitrator gave the asset in this campaign,
     else the library asset's own; ``asset_name`` is the library asset's
     only where the two differ, so a renamed asset still says what it is.
-    ``boons`` are what holding the asset does beyond its income figure,
-    one line per modifier, each in the register of the Income column:
-    "Goliath gangs: +10 Income." for a contribution only some gangs get,
-    "Goliath gangs: Goliath Controlled." for a rule only some gangs get,
-    "Goliath Controlled." for one every holder gets. The unconditional
-    Income contribution is the ``income`` column's and is never repeated
-    here (``boon_said``).
     """
 
     campaign_asset_id: str
     name: str
     asset_name: str = ""
     income: int = 0
-    boons: list[str] = field(default_factory=list)
     held: bool = False
     holder: str = ""
     holder_gang_id: str = ""
@@ -4232,7 +4224,6 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
     from n26.core.effects import compute, counter_readings
     from n26.core.models import CampaignMembership
-    from n26.library.income import boons_of
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.references import reading_sentences
     from n26.library.staged import sees_staged
@@ -4424,9 +4415,6 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
                 name=str(campaign_asset),
                 asset_name=str(campaign_asset.asset) if campaign_asset.name else "",
                 income=_income_reader(None)(campaign_asset.asset, campaign_asset),
-                boons=[
-                    boon_said(modifier) for modifier in boons_of(campaign_asset.asset)
-                ],
                 held=holder is not None,
                 holder=holder.gang.name if holder else "",
                 holder_gang_id=str(holder.gang_id) if holder else "",
@@ -4464,47 +4452,6 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
 #: How many territories the rules generate for each gang
 #: when a campaign is set up.
 TERRITORIES_PER_GANG = 3
-
-
-def boon_said(modifier):
-    """One of an asset's boons as the campaign page's Boons column says
-    it: the gangs it applies to, then what it does, in the register of
-    the Income column beside it.
-
-    "+10 Income." for a counter contribution, "Goliath Controlled." for
-    a rule or other thing the holder gains — by its plain name, since the
-    row already names the territory the rule is annotated with. A boon
-    only some gangs get leads with the scope's own words: "Goliath gangs:
-    +10 Income.". An effect this column has no short form for falls back
-    to the authoring page's whole sentence.
-    """
-    from n26.library.models.modifier import AddsAssignable, ContributesToCounter
-    from n26.library.prose import GANG as GANG_CARRIAGE
-    from n26.library.prose import sentence_for
-
-    # The short form reads as "the holding gang gets this", so it is only
-    # right for a boon scoped to the gang. One aimed at the gang's models
-    # says who in its whole sentence, and loses that if shortened.
-    scope = modifier.targets_gang
-    if scope is None:
-        return sentence_for(modifier, carriage=GANG_CARRIAGE).text
-    effect = modifier.effect
-    if isinstance(effect, ContributesToCounter):
-        said = f"+{effect.amount} {effect.counter.name}."
-    elif isinstance(effect, AddsAssignable) and effect.thing is not None:
-        thing = effect.thing
-        said = f"{getattr(thing, 'name', None) or thing}."
-    elif isinstance(effect, OpAddsMiniature):
-        said = (
-            f"Gain {effect.profile.name} for free. "
-            "Recruited models stay with the gang when this asset is lost."
-        )
-    else:
-        return sentence_for(modifier, carriage=GANG_CARRIAGE).text
-    if scope.is_conditional:
-        who = ", ".join(str(row) for row in scope._narrowing_rows())
-        return f"{who[0].upper()}{who[1:]}: {said}"
-    return said
 
 
 def _held_table(table):
@@ -4683,7 +4630,6 @@ class CampaignAssetDetails:
     kind: str
     created: datetime
     income: int
-    boons: list[str]
     holder: str
     holder_href: str
 

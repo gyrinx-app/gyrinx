@@ -243,7 +243,7 @@ class TestTheGangsTable:
 
 class TestTheAssetsTables:
     """One table per Holding asset type, each asset with its name, income,
-    boons in words, and holder."""
+    and holder."""
 
     def test_holdings_get_a_table_and_possessions_do_not(
         self, campaign, gangs, old_ruins, protection
@@ -270,8 +270,6 @@ class TestTheAssetsTables:
         assert held.held and held.holder == "The Ashen Choir"
         assert held.holder_gang_id == str(gangs[1].pk)
         assert held.holder_yours
-        assert any("Reputation" in boon for boon in held.boons)
-        assert any("Salvage" in boon for boon in held.boons)
 
         unclaimed = by_name["Old Ruins"]
         assert unclaimed.campaign_asset_id == str(plain.pk)

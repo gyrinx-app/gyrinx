@@ -1,7 +1,7 @@
 {% extends "admin/base_site.html" %}
 {% comment %}
-The journal content seed's console page: what the seed would create or
-skip, an apply button, and the recent runs. The preview is the seed run
+The journal content console page: what the run would create, remove or
+skip, an apply button, and the recent runs. The preview is the run
 and rolled back, so it is exactly what a run would do.
 Context from seed_journal_content_view (n26/maintenance.py): title,
 preview, nothing_to_do, problem, apply_url, recent.
@@ -24,22 +24,24 @@ preview, nothing_to_do, problem, apply_url, recent.
     </p>
     <h1>{{ title }}</h1>
     <p>
-        This creates library rows only. For the Gang supertype: a slot type,
+        This updates library content. For the Gang supertype, it creates a slot type,
         six pickables, a picklist and a hidden slot, plus a built-in member on
         each Clan House gang type and a modifier on each Outcast Clan House
-        pickable. For the two journals: twelve Territories, their boons and
-        their two tables. Rows already there are left as they are. The journal
-        rows are staged, so players do not see them until an author puts them
+        pickable. For the two journals, it creates twelve territories with
+        baseline income and their two tables. It also removes the known seeded
+        House Controlled modifiers and unused placeholder rules. Modified or reused
+        content and rules referenced by player history are kept and listed below.
+        Newly created journal content is staged, so players do not see it until an author puts it
         live. Gangs already founded get their supertype pick from the
         propagation pass this files.
     </p>
     {% if problem %}
         <h2 class="mt-problems">The preview cannot run</h2>
         <p class="mt-problems">{{ problem }}</p>
-        <p>Nothing can be created while this stands.</p>
+        <p>Resolve this problem before applying journal content changes.</p>
     {% elif nothing_to_do %}
-        <h2>Nothing to create</h2>
-        <p>Every row this seed creates is already there.</p>
+        <h2>Nothing to change</h2>
+        <p>Journal content is up to date. Any skipped content is listed below.</p>
         <ul class="mt-plan">
             {% for line in preview|slice:"1:" %}<li>{{ line }}</li>{% endfor %}
         </ul>
@@ -50,9 +52,9 @@ preview, nothing_to_do, problem, apply_url, recent.
         </ul>
         <form method="post"
               class="mt-form"
-              onsubmit="return confirm('Create the Gang supertype and the journal territories? Rows already there are left as they are.')">
+              onsubmit="return confirm('Apply the listed journal content changes, including removal of seeded House Controlled modifiers and unused rules?')">
             {% csrf_token %}
-            <button type="submit" class="button default">Create the missing rows</button>
+            <button type="submit" class="button default">Apply journal content changes</button>
         </form>
     {% endif %}
     {% if recent %}
