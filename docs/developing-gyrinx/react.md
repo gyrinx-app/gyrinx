@@ -117,6 +117,13 @@ does not move, and its `:scriptless` option adds a `<noscript>` list of the
 links. `c-ui.dropdown` stays for menus with button or `hx-get` items, groups,
 shortcuts or other composite content.
 
+`UserLink` draws a person's name with their badge, as `<c-n26.user-link
+tone="current">` does. A badge's artwork is SVG markup, which an island cannot
+take, so `n26.core.people.person_link` asks the platform which badge a person
+shows and `n26/badges.py` turns its artwork into an element tree limited to the
+platform's SVG allowlist. Props carry each badge once, keyed, however many rows
+name its holder, and the browser checks the same allowlist again before drawing.
+
 Both renderers use `designsystem/app.css`, the same typography, spacing, colours,
 dark-mode class and CSS tokens. Tailwind scans the React source and generated
 recipes. No new theme provider or CSS reset is introduced. The loader currently
@@ -378,15 +385,16 @@ A ready-to-use job prompt:
 > player interaction or shared control whose Alpine owner is that template. It
 > must already have a server contract (a native form, a link, or an existing
 > endpoint) and be drawable with a supported primitive (`Button`, `Input`,
-> `Switch`, `SearchBar`, `FilterMenu`, `CheckboxCard`, `PickBox`, `PickLegend`,
-> `Dialog`, `Badge`, or an exported Cotton recipe). Prefer a template that owns
+> `Switch`, `Toggle`, `SearchBar`, `FilterMenu`, `RangeMenu`, `CheckboxCard`,
+> `PickBox`, `PickLegend`, `Dialog`, `Badge`, `UserLink`, or an exported Cotton
+> recipe). Prefer a template that owns
 > its `x-data`, such as `cotton/n26/share.html` or `n26/trade_points.html`, over
 > one that publishes values into a parent scope. Leave these until a smaller
 > owner is gone: `c-ui.mode-toggle`, `c-ui.drawer`, `c-ui.dropdown`,
-> `c-ui.popover`, `c-ui.tabs`, `c-n26.collection-picker`, `c-n26.range-menu`, and
+> `c-ui.popover`, `c-ui.tabs`, `c-n26.collection-picker`, and
 > any fragment swapped by htmx. A React primitive that does not submit `name`
-> and `value` does not replace a posting checkbox. Do not add a mode-toggle,
-> dropdown, or range menu in order to unlock a larger page. Explain the
+> and `value` does not replace a posting checkbox. Do not add a mode-toggle or
+> dropdown in order to unlock a larger page. Explain the
 > boundary, migrate it without changing its behaviour, remove the superseded
 > Alpine code and lower the baseline. Run Python and React tests, typechecking
 > and the production build; check the real UI at phone and desktop widths in

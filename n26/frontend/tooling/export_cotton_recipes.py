@@ -758,6 +758,117 @@ def tick_list_recipe():
     }
 
 
+def svg_tags():
+    from n26.badges import SVG_TAGS
+
+    return SVG_TAGS
+
+
+def svg_props():
+    from n26.badges import SVG_PROPS
+
+    return SVG_PROPS
+
+
+def range_menu_recipe():
+    """Extract the two-thumb range menu: its trigger, panel, slider and ends.
+
+    The kit dropdown and the slider's Alpine supply its behaviour, so React
+    owns those; the element sequence still comes from the real component.
+    """
+    source = (
+        '<c-n26.range-menu label="Range" model_min="lo" model_max="hi" '
+        'min="0" max="100" at_max_label="Any" />'
+    )
+    rendered = Template(CottonCompiler().process(source)).render(Context())
+    elements = Elements(rendered).elements
+    expected = (
+        "div",
+        "div",
+        "div",
+        "button",
+        "span",
+        "span",
+        "span",
+        "span",
+        "span",
+        "span",
+        "svg",
+        "path",
+        "div",
+        "div",
+        "div",
+        "span",
+        "span",
+        "span",
+        "span",
+        "div",
+        "div",
+        "div",
+        "input",
+        "input",
+        "div",
+        "span",
+        "span",
+    )
+    if tuple(tag for tag, _ in elements) != expected:
+        raise ValueError(f"Cotton range-menu structure changed: {elements}")
+
+    def at(index):
+        return " ".join(elements[index][1].get("class", "").split())
+
+    return {
+        "root": at(0),
+        "anchor": at(1),
+        "trigger": at(3),
+        "triggerContent": at(4),
+        "value": at(5),
+        "panel": at(12),
+        "body": at(13),
+        "heading": at(14),
+        "headingLabel": at(15),
+        "headingValue": at(16),
+        "slider": at(19),
+        "track": at(20),
+        "fill": at(21),
+        "minimumLabel": elements[22][1]["aria-label"],
+        "maximumLabel": elements[23][1]["aria-label"],
+        "ends": at(24),
+    }
+
+
+def toggle_recipe():
+    """The label <c-n26.toggle> wraps round its switch and words.
+
+    The switch inside is an island, and this export runs before Vite has
+    written the manifest that names its module, so a stand-in module is used.
+    """
+    from unittest import mock
+
+    with mock.patch(
+        "n26.core.templatetags.react._entry", return_value=("/island.js", "")
+    ):
+        return classes('<c-n26.toggle label="Hide" />', "label", "span", "span")[0]
+
+
+def user_link_recipe():
+    """A person's name in the surrounding colour, with their badge's wrapper."""
+    link, text, flair = attributes(
+        '<c-n26.flair-link text="Name" href="/u/" tone="current" label="Badge">'
+        '<svg viewBox="0 0 1 1"></svg></c-n26.flair-link>',
+        "a",
+        "span",
+        "span",
+    )
+    if flair.get("role") != "img":
+        raise ValueError("Flair-link no longer names its flair as an image")
+    return {
+        "link": class_name(link),
+        "text": class_name(text),
+        "flair": class_name(flair),
+    }
+
+
 def _svg_props(attrs):
     """SVG attributes under React's names: stroke-width becomes strokeWidth."""
     return {re.sub(r"-([a-z])", lambda m: m[1].upper(), k): v for k, v in attrs.items()}
@@ -924,6 +1035,9 @@ def recipes():
         "card": classes('<c-ui.card padding="sm" />', "div")[0],
         "table": classes("<c-ui.table />", "div", "table"),
         "link": classes('<c-n26.link href="/">Name</c-n26.link>', "a", "span"),
+        "linkCurrent": classes(
+            '<c-n26.link href="/" tone="current">Name</c-n26.link>', "a", "span"
+        ),
         "explanationTrigger": classes(
             '<c-n26.link href="/" tone="current" underline="dashed">Rating</c-n26.link>',
             "a",
@@ -932,11 +1046,17 @@ def recipes():
         "badge": classes(
             '<c-ui.badge color="amber" size="sm">Staged</c-ui.badge>', "span"
         )[0],
+        "badgeInk": classes(
+            '<c-ui.badge color="ink" size="sm">In a campaign</c-ui.badge>', "span"
+        )[0],
         "actionBar": classes(
             '<c-n26.action-bar :surface="True"><c-slot name="trailing">Action</c-slot></c-n26.action-bar>',
             "div",
             "div",
         ),
+        "actionBarPlain": classes(
+            "<c-n26.action-bar>Control</c-n26.action-bar>", "div"
+        )[0],
         "search": dict(
             zip(
                 ("root", "group", "icon", "label", "input", "clear"),
@@ -950,6 +1070,12 @@ def recipes():
         "pickList": pick_list_recipe(),
         "tickList": tick_list_recipe(),
         "reactMark": react_mark_recipe(),
+        # The platform's SVG tag allowlist, which UserLink checks again.
+        "svgTags": svg_tags(),
+        "svgProps": svg_props(),
+        "rangeMenu": range_menu_recipe(),
+        "userLink": user_link_recipe(),
+        "toggle": toggle_recipe(),
         "popover": {
             "panel": classes(
                 '<c-ui.popover panel_label="Help">Body</c-ui.popover>',

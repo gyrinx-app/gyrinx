@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
+{% load navigation react %}
 {% comment %}
 Putting a gang into a campaign, picked from the ones at its table.
 
@@ -62,104 +62,18 @@ a reader who cannot find one is told where it went.
             </c-ui.alert>
         {% else %}
             {% comment %}
-            One scope over the whole list: rows register what can be asked of
-            them and redraw themselves, and the count is written once per
-            change by an effect rather than read from a getter — Alpine caches
-            no getter, so one walked per row goes quadratic as the list grows.
+            The campaign-gang-picker island draws the filters and narrows the
+            rows. Until it mounts, and without a script, this is every row,
+            and each row's Add submits the form either way.
             {% endcomment %}
-            {% comment %}
-            The filter menu keeps its own selection and cannot reach in here,
-            so it reports by name and this listens under the same one.
-            {% endcomment %}
-            <div x-data="{
-                     rows: [],
-                     query: '',
-                     people: null,
-                     minWealth: 0,
-                     maxWealth: {{ wealth_ceiling }},
-                     hidePlaying: true,
-                     shown: 0,
-                     register(facets) { this.rows.push(facets) },
-                     matches(facets) {
-                         if (this.hidePlaying &amp;&amp; facets.playing) return false;
-                         if (this.people !== null &amp;&amp; !this.people.includes(facets.owner)) return false;
-                         if (facets.wealth &lt; this.minWealth) return false;
-                         if (facets.wealth &gt; this.maxWealth) return false;
-                         const q = this.query.trim().toLowerCase();
-                         return !q || facets.search.includes(q);
-                     },
-                 }"
-                 x-effect="shown = rows.filter(f =&gt; matches(f)).length"
-                 @filter-apply.window="if ($event.detail.name === 'player') people = $event.detail.values"
-                 class="flex flex-col gap-3">
-                {% comment %}
-                The search on its own line and the filters in a bar below it,
-                as the equipment catalogue lays out the same pair. A row of
-                filters is a row of actions, which is what action-bar is.
-                {% endcomment %}
-                <c-n26.search-bar :live="True"
-                                  :nested="True"
-                                  model="query"
-                                  placeholder="Search gangs"
-                                  class="n26-gang-filters" />
-                <c-n26.action-bar class="n26-gang-filters">
-                    {% if player_options %}
-                        <c-n26.filter-menu label="Player" name="player" :options="player_options" />
-                    {% endif %}
-                    {% if wealth_ceiling %}
-                        <c-n26.range-menu label="Wealth"
-                                          model_min="minWealth"
-                                          model_max="maxWealth"
-                                          min="0"
-                                          max="{{ wealth_ceiling }}"
-                                          step="50"
-                                          suffix="¢"
-                                          at_max_label="Any" />
-                    {% endif %}
-                    {# change fires for a click on the switch or its words, with the box already set. #}
-                    <c-n26.toggle label="Hide gangs already in a campaign"
-                                  :checked="True"
-                                  @change="hidePlaying = $event.target.checked" />
-                </c-n26.action-bar>
-                {% comment %}
-                The written figure is every gang, which is what a reader with
-                no script is looking at; Alpine writes the narrowed count over
-                it as soon as it runs.
-                {% endcomment %}
+            {% react_host "campaign-gang-picker" picker class="flex flex-col gap-3" %}
                 <p class="text-sm text-muted">
-                    <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100"
-                          x-text="shown">{{ gangs|length }}</span>
+                    <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100">{{ gangs|length }}</span>
                     of {{ gangs|length }} gang{{ gangs|length|pluralize }}
                 </p>
-                {% comment %}
-                Every row is cloaked so the list does not flash unfiltered
-                before Alpine narrows it, and [x-cloak] hides for good where
-                no script arrives to take it off. Without script there is no
-                narrowing to wait for, so the rows are shown and the controls
-                above them — which do nothing on their own — are not.
-                {% endcomment %}
-                <noscript>
-                    <style>
-                        .n26-gang-picker > li[x-cloak] {
-                            display: flex !important;
-                        }
-                        .n26-gang-filters {
-                            display: none !important;
-                        }
-                    </style>
-                </noscript>
-                <ul class="n26-gang-picker flex flex-col">
+                <ul class="flex flex-col">
                     {% for gang in gangs %}
-                        <li x-data="{ facets: {
-                                    owner: {{ gang.owner|json_dumps }},
-                                    wealth: {{ gang.wealth }},
-                                    playing: {{ gang.playing|yesno:'true,false' }},
-                                    search: {{ gang.search|json_dumps }},
-                                } }"
-                            x-init="register(facets)"
-                            x-show="matches(facets)"
-                            x-cloak
-                            class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                        <li class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
                             <div class="min-w-0 flex-1">
                                 <c-n26.link href="{{ gang.href }}" tone="current" class="text-base font-semibold">
                                     {{ gang.name }}
@@ -211,10 +125,7 @@ a reader who cannot find one is told where it went.
                         </li>
                     {% endfor %}
                 </ul>
-                <p x-show="shown === 0"
-                   x-cloak
-                   class="py-6 text-center text-sm text-muted">No gangs match that.</p>
-            </div>
+            {% endreact_host %}
         {% endif %}
     </c-n26.form-page>
 {% endblock content %}

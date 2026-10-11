@@ -80,7 +80,6 @@
     "n26/core/templates/cotton/ui/tabs/index.html": {"direct": 43, "kit": 0},
     "n26/core/templates/cotton/ui/tabs/tab.html": {"direct": 5, "kit": 0},
     "n26/core/templates/n26/_changelog_sidebar.html": {"direct": 0, "kit": 5},
-    "n26/core/templates/n26/add_gang_to_campaign.html": {"direct": 11, "kit": 0},
     "n26/core/templates/n26/add_label.html": {"direct": 0, "kit": 3},
     "n26/core/templates/n26/add_player.html": {"direct": 0, "kit": 3},
     "n26/core/templates/n26/campaign_roll.html": {"direct": 0, "kit": 3},
