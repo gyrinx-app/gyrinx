@@ -1,6 +1,7 @@
 """Power families placed as skill sets use the same advancement flow."""
 
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from django.contrib.contenttypes.models import ContentType
@@ -490,3 +491,293 @@ def test_an_unnumbered_family_reports_the_missing_d6_result_without_granting_a_p
     assert record.skill_selection.random_attempts[-1]["unavailable_reason"] == (
         "No skill or power has D6 result 3 in Psyrender Wyrd Powers."
     )
+
+
+@pytest.fixture
+@library_setup
+def short_family(wyrd):
+    a.revise(wyrd.powers["owned"], position=0)
+    a.revise(wyrd.powers["primary"], position=0)
+    return {
+        number: a.create_power(
+            f"Short family result {number}", category=wyrd.family, position=number
+        )
+        for number in range(1, 4)
+    }
+
+
+def _random_power_flow(client, monkeypatch, wyrd, *rolls):
+    data = wyrd.advancement
+    _load_rolls(monkeypatch, 12, *rolls)
+    record = _start(client, data)
+    _post_roll(client, data, record)
+    url = _choose_result(client, data, record, data.results["random"])
+    return record, url
+
+
+class TestShortPowerFamilies:
+    """Short power tables keep D6 draws and skip empty faces automatically."""
+
+    @pytest.mark.parametrize(
+        "wyrd",
+        [("Haunt", "Psyrender Wyrd Powers"), ("Haunt", "Bonecrusher Wyrd Powers")],
+        indirect=True,
+    )
+    @pytest.mark.parametrize("landed", [1, 3])
+    def test_one_request_rolls_past_empty_faces_and_keeps_every_die_when_resumed(
+        self, client, monkeypatch, wyrd, short_family, landed
+    ):
+        data = wyrd.advancement
+        record, url = _random_power_flow(client, monkeypatch, wyrd, 6, 4, landed)
+        page = client.get(url)
+        payload = {
+            "request_key": page.context["form"]["request_key"].value(),
+            "skill_set_id": str(wyrd.family.pk),
+        }
+        assert client.post(url, payload).status_code == 302
+        record.refresh_from_db()
+        attempts = record.skill_selection.random_attempts
+        assert [attempt["roll"] for attempt in attempts] == [6, 4, landed]
+        assert [attempt["is_available"] for attempt in attempts] == [False, False, True]
+        assert record.skill_selection.selected_power == short_family[landed]
+        assert list(
+            LedgerEvent.objects.filter(pk__in=[row["event_id"] for row in attempts])
+            .order_by("created", "id")
+            .values_list("dice", "roll")
+        ) == [("d6", 6), ("d6", 4), ("d6", landed)]
+        with operation(data.gang, actor=data.owner) as op:
+            replayed = op.record_skill_roll(
+                record,
+                data.outcome.resolve_advancement,
+                payload["request_key"],
+                pickable_id=data.results["random"].pk,
+                skill_set_id=wyrd.family.pk,
+            )
+        assert replayed == attempts[-1]
+        assert client.post(url, payload).status_code == 302
+        resumed = client.get(
+            reverse("n26-action-flow", args=[data.fighter.pk, record.pk, "resume"]),
+            follow=True,
+        )
+        assert short_family[landed].name in resumed.content.decode()
+        assert "No skill or power has D6 result 6" in resumed.content.decode()
+        _confirm(client, client.post(url, {"continue": "1"}))
+        record.refresh_from_db()
+        assert record.skill_selection.skill_assignment.power == short_family[landed]
+        assert len(record.skill_selection.random_attempts) == 3
+        assert (
+            LedgerEvent.objects.filter(
+                action_record=record, kind=LedgerEvent.Kind.ROLLED
+            ).count()
+            == 4
+        )
+        data.gang.refresh_from_db()
+        assert_reconciled(data.gang)
+
+    def test_a_manual_empty_roll_is_saved_until_the_player_rolls_again(
+        self, client, monkeypatch, wyrd, short_family
+    ):
+        record, url = _random_power_flow(client, monkeypatch, wyrd, 5, 2)
+        payload = {
+            "request_key": str(uuid4()),
+            "skill_set_id": str(wyrd.family.pk),
+            "rolled": "6",
+            "roll_mode": "record",
+        }
+        assert client.post(url, payload).status_code == 302
+        record.refresh_from_db()
+        assert record.skill_selection.selected_power is None
+        assert [row["roll"] for row in record.skill_selection.random_attempts] == [6]
+        assert "No skill or power has D6 result 6" in client.get(url).content.decode()
+        payload.pop("rolled")
+        payload.update(request_key=str(uuid4()), roll_mode="roll")
+        assert client.post(url, payload).status_code == 302
+        record.refresh_from_db()
+        assert record.skill_selection.selected_power == short_family[2]
+        assert [row["roll"] for row in record.skill_selection.random_attempts] == [
+            6,
+            5,
+            2,
+        ]
+
+    def test_switching_to_a_short_family_carries_the_saved_die_before_a_new_roll(
+        self, client, monkeypatch, wyrd, short_family
+    ):
+        data = wyrd.advancement
+        record, url = _random_power_flow(client, monkeypatch, wyrd, 4, 3)
+        payload = {
+            "request_key": str(uuid4()),
+            "skill_set_id": str(data.skills["primary"].category_id),
+            "rolled": "6",
+            "roll_mode": "record",
+        }
+        assert client.post(url, payload).status_code == 302
+        record.refresh_from_db()
+        first = record.skill_selection.random_attempts[-1]
+        payload = {
+            "request_key": str(uuid4()),
+            "skill_set_id": str(wyrd.family.pk),
+        }
+        assert client.post(url, payload).status_code == 302
+        record.refresh_from_db()
+        carried = record.skill_selection.random_attempts[-1]
+        assert carried["roll"] == 6
+        assert carried["event_id"] == first["event_id"]
+        assert record.skill_selection.selected_power is None
+        payload["request_key"] = str(uuid4())
+        assert client.post(url, payload).status_code == 302
+        record.refresh_from_db()
+        assert record.skill_selection.selected_power == short_family[3]
+        assert [row["roll"] for row in record.skill_selection.random_attempts] == [
+            6,
+            6,
+            4,
+            3,
+        ]
+
+    def test_a_gap_inside_the_numbered_family_stays_visible_as_missing_content(
+        self, client, monkeypatch, wyrd, short_family
+    ):
+        a.revise(short_family[2], position=0)
+        record, url = _random_power_flow(client, monkeypatch, wyrd, 2)
+        assert (
+            client.post(
+                url,
+                {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)},
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        assert record.skill_selection.selected_power is None
+        attempts = record.skill_selection.random_attempts
+        assert len(attempts) == 1
+        assert attempts[0]["unavailable_reason"] == (
+            f"No skill or power has D6 result 2 in {wyrd.family.name}."
+        )
+
+    def test_an_owned_power_keeps_its_number_and_requires_the_normal_next_roll(
+        self, client, monkeypatch, wyrd, short_family
+    ):
+        data = wyrd.advancement
+        with operation(data.gang, actor=data.owner) as op:
+            op.assign(short_family[1], miniature=data.fighter)
+        record, url = _random_power_flow(client, monkeypatch, wyrd, 6, 1, 3)
+        payload = {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)}
+        assert client.post(url, payload).status_code == 302
+        record.refresh_from_db()
+        assert record.skill_selection.selected_power is None
+        assert [row["roll"] for row in record.skill_selection.random_attempts] == [6, 1]
+        payload["request_key"] = str(uuid4())
+        assert client.post(url, payload).status_code == 302
+        record.refresh_from_db()
+        assert record.skill_selection.selected_power == short_family[3]
+
+    def test_a_constant_empty_dice_source_saves_a_bounded_batch_then_can_continue(
+        self, client, monkeypatch, wyrd, short_family
+    ):
+        record, url = _random_power_flow(client, monkeypatch, wyrd, *([6] * 100), 2)
+        payload = {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)}
+        assert client.post(url, payload).status_code == 302
+        record.refresh_from_db()
+        assert record.skill_selection.selected_power is None
+        assert len(record.skill_selection.random_attempts) == 100
+        assert client.post(url, payload).status_code == 302
+        record.refresh_from_db()
+        assert len(record.skill_selection.random_attempts) == 100
+        payload["request_key"] = str(uuid4())
+        assert client.post(url, payload).status_code == 302
+        record.refresh_from_db()
+        assert record.skill_selection.selected_power == short_family[2]
+
+    @pytest.mark.parametrize("size", [1, 5])
+    def test_other_short_families_use_their_full_numbered_table(
+        self, client, monkeypatch, wyrd, short_family, size
+    ):
+        for number, power in short_family.items():
+            if number > size:
+                a.revise(power, position=0)
+        for number in range(4, size + 1):
+            short_family[number] = a.create_power(
+                f"Extra numbered power {number}", category=wyrd.family, position=number
+            )
+        record, url = _random_power_flow(client, monkeypatch, wyrd, 6, size)
+        assert (
+            client.post(
+                url,
+                {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)},
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        assert record.skill_selection.selected_power == short_family[size]
+        assert [row["roll"] for row in record.skill_selection.random_attempts] == [
+            6,
+            size,
+        ]
+
+    def test_archived_and_staged_powers_do_not_extend_a_short_live_table(
+        self, client, monkeypatch, wyrd, short_family
+    ):
+        a.create_power(
+            "Archived result", category=wyrd.family, position=5, archived=True
+        )
+        a.create_power("Staged result", category=wyrd.family, position=6, staged=True)
+        record, url = _random_power_flow(client, monkeypatch, wyrd, 6, 2)
+        assert (
+            client.post(
+                url,
+                {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)},
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        assert record.skill_selection.selected_power == short_family[2]
+        assert [row["roll"] for row in record.skill_selection.random_attempts] == [6, 2]
+
+    def test_a_category_containing_skills_keeps_the_normal_single_d6_draw(
+        self, client, monkeypatch, wyrd, short_family
+    ):
+        a.create_skill("Mixed result", category=wyrd.family, position=4)
+        record, url = _random_power_flow(client, monkeypatch, wyrd, 6)
+        assert (
+            client.post(
+                url,
+                {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)},
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        assert record.skill_selection.selected_power is None
+        assert [row["roll"] for row in record.skill_selection.random_attempts] == [6]
+
+    def test_more_unrollable_powers_do_not_add_queries_to_an_automatic_reroll(
+        self, client, monkeypatch, wyrd, short_family
+    ):
+        data = wyrd.advancement
+        with operation(data.gang, actor=data.owner) as op:
+            op.assign(short_family[1], miniature=data.fighter)
+        record, url = _random_power_flow(client, monkeypatch, wyrd, 6, 1, 6, 1, 6, 1)
+
+        def post_roll():
+            return client.post(
+                url,
+                {"request_key": str(uuid4()), "skill_set_id": str(wyrd.family.pk)},
+            )
+
+        assert post_roll().status_code == 302
+        with CaptureQueriesContext(connection) as small:
+            assert post_roll().status_code == 302
+        for number in range(12):
+            a.create_power(f"Unrollable extra {number}", category=wyrd.family)
+        with CaptureQueriesContext(connection) as large:
+            assert post_roll().status_code == 302
+        assert len(large) == len(small)
+        record.refresh_from_db()
+        assert [row["roll"] for row in record.skill_selection.random_attempts] == [
+            6,
+            1,
+            6,
+            1,
+            6,
+            1,
+        ]

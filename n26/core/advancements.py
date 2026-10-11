@@ -869,6 +869,32 @@ def carried_skill_rolls(record, configured, pickable_id, groups):
     return carried
 
 
+def _skill_roll_table(offer, category):
+    results = {}
+    for kind in offer.offered_kinds:
+        for thing in (
+            kind.objects.unarchived().live().filter(category=category, position__gt=0)
+        ):
+            if thing.position in results:
+                raise ValueError(
+                    f"{category} has more than one result at D6 position {thing.position}."
+                )
+            results[thing.position] = thing
+    return results
+
+
+def _short_power_table(results):
+    from n26.library.models import Power
+
+    # A short family must cover 1 through its last numbered power. Gaps
+    # within that sequence may be missing content, rather than empty faces.
+    return (
+        0 < len(results) < 6
+        and set(results) == set(range(1, len(results) + 1))
+        and all(isinstance(thing, Power) for thing in results.values())
+    )
+
+
 def record_skill_roll(
     op,
     record,
@@ -900,7 +926,7 @@ def record_skill_roll(
             "access": _skill_access(record, configured, pickable_id),
         },
     )
-    for attempt in selection.random_attempts:
+    for attempt in reversed(selection.random_attempts):
         if attempt["request_key"] == str(request_key):
             if attempt.get("pickable_id") != str(pickable_id) or attempt.get(
                 "skill_set_id"
@@ -936,67 +962,63 @@ def record_skill_roll(
     from n26.library.models import Dice
 
     carried = _carried_attempt(selection, pickable_id, category, access)
-    if carried is not None:
-        if rolled is not None and rolled != carried["roll"]:
-            raise Refusal(
-                f"You cannot record a different roll for {category.name}. "
-                f"Your D6 roll of {carried['roll']} carries over to it."
+    if carried is not None and rolled is not None and rolled != carried["roll"]:
+        raise Refusal(
+            f"You cannot record a different roll for {category.name}. "
+            f"Your D6 roll of {carried['roll']} carries over to it."
+        )
+    if rolled is not None and rolled not in Dice.rolls(Dice.D6):
+        raise Refusal(f"You cannot roll {rolled} on a {Dice.D6.label}.")
+    results = _skill_roll_table(offer, category)
+    reroll_empty = carried is None and rolled is None and _short_power_table(results)
+    attempts = []
+    # Bound a single request even if its dice source keeps returning empty
+    # faces. Every draw remains saved, so another request can continue.
+    for _ in range(100 if reroll_empty else 1):
+        if carried is not None:
+            event_id, result = carried["event_id"], carried["roll"]
+        else:
+            event = op.event(
+                record.fighter,
+                LedgerEvent.Kind.ROLLED,
+                roll=rolled if rolled is not None else Dice.roll(Dice.D6, rng),
+                dice=Dice.D6.value,
+                note=str(category),
+                action_record=record,
             )
-        event_id, result = carried["event_id"], carried["roll"]
-    else:
-        if rolled is None:
-            rolled = Dice.roll(Dice.D6, rng)
-        elif rolled not in Dice.rolls(Dice.D6):
-            raise Refusal(f"You cannot roll {rolled} on a {Dice.D6.label}.")
-        event = op.event(
-            record.fighter,
-            LedgerEvent.Kind.ROLLED,
-            roll=rolled,
-            dice=Dice.D6.value,
-            note=str(category),
-            action_record=record,
+            event_id, result = str(event.pk), event.roll
+        rolled_skill = results.get(result)
+        available = next(
+            (
+                row
+                for row in options[category]
+                if row.pk == getattr(rolled_skill, "pk", None)
+            ),
+            None,
         )
-        event_id, result = str(event.pk), event.roll
-    rolled = [
-        thing
-        for kind in offer.offered_kinds
-        for thing in kind.objects.unarchived()
-        .live()
-        .filter(category=category, position=result)
-    ]
-    if len(rolled) > 1:
-        raise ValueError(
-            f"{category} has more than one result at D6 position {result}."
-        )
-    rolled_skill = rolled[0] if rolled else None
-    available = next(
-        (
-            row
-            for row in options[category]
-            if row.pk == getattr(rolled_skill, "pk", None)
-        ),
-        None,
-    )
-    attempt = {
-        "request_key": str(request_key),
-        "pickable_id": str(pickable_id),
-        "event_id": event_id,
-        "access": access,
-        "skill_set_id": str(category.pk),
-        "roll": result,
-        "skill_id": str(rolled_skill.pk) if rolled_skill else None,
-        "skill_kind": rolled_skill._meta.model_name if rolled_skill else None,
-        "result_name": str(rolled_skill) if rolled_skill else None,
-        "is_available": available is not None,
-        "unavailable_reason": (
-            None
-            if available is not None
-            else f"No {_choice_noun(offer)} has D6 result {result} in {category.name}."
-            if rolled_skill is None
-            else f"No available {_choice_noun(offer)} was rolled."
-        ),
-    }
-    selection.random_attempts = [*selection.random_attempts, attempt]
+        attempt = {
+            "request_key": str(request_key),
+            "pickable_id": str(pickable_id),
+            "event_id": event_id,
+            "access": access,
+            "skill_set_id": str(category.pk),
+            "roll": result,
+            "skill_id": str(rolled_skill.pk) if rolled_skill else None,
+            "skill_kind": rolled_skill._meta.model_name if rolled_skill else None,
+            "result_name": str(rolled_skill) if rolled_skill else None,
+            "is_available": available is not None,
+            "unavailable_reason": (
+                None
+                if available is not None
+                else f"No {_choice_noun(offer)} has D6 result {result} in {category.name}."
+                if rolled_skill is None
+                else f"No available {_choice_noun(offer)} was rolled."
+            ),
+        }
+        attempts.append(attempt)
+        if not reroll_empty or rolled_skill is not None:
+            break
+    selection.random_attempts = [*selection.random_attempts, *attempts]
     selection.access = access
     selection.skill_set, selection.selected = category, available
     selection.save()
