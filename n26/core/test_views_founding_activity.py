@@ -659,10 +659,27 @@ class TestTheActsBehindIt:
         assert any("Not enough credits" in line for line in lines)
 
     def test_reopening_one_explicitly_opens_it_for_correction(
-        self, client, gang, tester
+        self, client, gang, tester, make_profile, make_statline
     ):
+        from n26.library.authoring import (
+            create_counter,
+            ef_contributes_to_counter,
+            modifier,
+            targets_model,
+        )
+        from n26.library.standard_content import FOUNDING_BUDGET_COUNTER
+
+        profile = make_profile("Hunter", price=0)
+        make_statline(profile)
+        modifier(
+            "Personal Trade Points",
+            targets_model(),
+            ef_contributes_to_counter(create_counter(FOUNDING_BUDGET_COUNTER), 3),
+            attach_to=profile,
+        )
         previous = gang.open_activity(FOUNDING)
         with operation(gang, actor=tester) as op:
+            op.hire(profile, "Vex")
             op.close_activity(previous)
 
         answer = client.post(
