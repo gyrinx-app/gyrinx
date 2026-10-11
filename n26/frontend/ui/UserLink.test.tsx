@@ -49,6 +49,15 @@ describe("UserLink", () => {
                     { tag: "foreignObject", props: {} },
                     { tag: "use", props: { href: "https://example.com/a" } },
                     { tag: "use", props: { href: "#a" } },
+                    { tag: "use", props: { href: " #b" } },
+                    {
+                        tag: "rect",
+                        props: {
+                            xlinkHref: "https://example.com/a",
+                            fill: "url(https://example.com/p)",
+                            clipPath: "url(#c)",
+                        },
+                    },
                 ],
             },
         };
@@ -64,7 +73,12 @@ describe("UserLink", () => {
         expect([...uses].map((use) => use.getAttribute("href"))).toEqual([
             null,
             "#a",
+            " #b",
         ]);
+        const rect = container.querySelector("rect")!;
+        expect(rect.getAttribute("fill")).toBeNull();
+        expect(rect.getAttribute("xlink:href")).toBeNull();
+        expect(rect.getAttribute("clip-path")).toBe("url(#c)");
     });
 });
 

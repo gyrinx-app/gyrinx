@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { RangeMenu } from "./RangeMenu";
 
 function Harness({ initial = [0, 500] as [number, number] }) {
@@ -75,6 +75,23 @@ describe("RangeMenu", () => {
         await user.keyboard("{Escape}");
         expect(screen.queryByRole("group", { name: "Wealth" })).toBeNull();
         expect(document.activeElement).toBe(trigger());
+    });
+
+    it("swallows Enter on a thumb so the surrounding form is not sent", async () => {
+        const user = userEvent.setup();
+        const submitted = vi.fn((event: Event) => event.preventDefault());
+        render(
+            <form onSubmit={(event) => submitted(event.nativeEvent)}>
+                <button type="submit">Add</button>
+                <Harness />
+            </form>,
+        );
+        await user.click(trigger());
+        minimum().focus();
+        await user.keyboard("{Enter}");
+        maximum().focus();
+        await user.keyboard("{Enter}");
+        expect(submitted).not.toHaveBeenCalled();
     });
 
     it("closes when the reader moves elsewhere", async () => {

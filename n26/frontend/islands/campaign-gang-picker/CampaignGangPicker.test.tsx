@@ -160,6 +160,27 @@ describe("campaign gang picker", () => {
         ).toBe("/n26/gangs/d/edit/#starting-credits");
     });
 
+    it("rounds the wealth range up to a step so the richest gang can return", async () => {
+        const user = userEvent.setup();
+        render(
+            <CampaignGangPicker
+                {...props}
+                gangs={[gang("a", "Slag Kings", "vex", 55)]}
+                wealthCeiling={55}
+            />,
+        );
+        await user.click(screen.getByRole("button", { name: /Wealth/ }));
+        const maximum = screen.getByRole("slider", { name: "Maximum" });
+        expect(maximum.getAttribute("max")).toBe("100");
+        fireEvent.change(maximum, { target: { value: "50" } });
+        expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+        fireEvent.change(maximum, { target: { value: "100" } });
+        expect(rows()).toEqual(["Slag Kings"]);
+        expect(
+            screen.getByRole("button", { name: /Wealth/ }).textContent,
+        ).toContain("Any");
+    });
+
     it("draws no owner, player filter or wealth range where none applies", () => {
         render(
             <CampaignGangPicker

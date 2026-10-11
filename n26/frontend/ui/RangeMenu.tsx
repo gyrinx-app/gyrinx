@@ -1,4 +1,10 @@
-import { createElement, useId, useRef, useState } from "react";
+import {
+    createElement,
+    useId,
+    useRef,
+    useState,
+    type KeyboardEvent,
+} from "react";
 import cotton from "../generated/cotton.json";
 import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
 
@@ -21,6 +27,11 @@ function ChevronDown() {
     );
 }
 
+// Enter in a range input submits the surrounding form with its first button.
+function swallowEnter(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") event.preventDefault();
+}
+
 /**
  * A menu that narrows a minimum and maximum, as the two-thumb
  * `<c-n26.range-menu>` draws it. Each drag applies at once: there is no OK.
@@ -38,11 +49,12 @@ export function RangeMenu({
 }: {
     label: string;
     min: number;
+    /** Must sit on a step: a native range reaches only min + n × step. */
     max: number;
     step?: number;
     prefix?: string;
     suffix?: string;
-    /** Names the whole range, on the trigger and the high end, when nothing is narrowed. */
+    /** Names the high end, and the trigger when nothing is narrowed. */
     atMaxLabel?: string;
     value: [number, number];
     onChange: (value: [number, number]) => void;
@@ -123,6 +135,7 @@ export function RangeMenu({
                                     max={max}
                                     step={step}
                                     value={low}
+                                    onKeyDown={swallowEnter}
                                     onChange={(event) =>
                                         onChange([
                                             Math.min(
@@ -140,6 +153,7 @@ export function RangeMenu({
                                     max={max}
                                     step={step}
                                     value={high}
+                                    onKeyDown={swallowEnter}
                                     onChange={(event) =>
                                         onChange([
                                             low,

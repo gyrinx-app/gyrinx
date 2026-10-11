@@ -912,6 +912,34 @@ class TestTheBadgeAsData:
         }
         assert children[4]["children"] == ["Mark"]
 
+    def test_a_paint_or_clip_from_outside_the_drawing_is_dropped(self):
+        from n26.badges import svg_tree
+
+        tree = svg_tree(
+            '<svg><rect fill="url(https://example.com/p.svg#x)" '
+            'clip-path="url(#c)" stroke="URL( https://example.com/s )"/></svg>'
+        )
+        assert tree["children"][0]["props"] == {"clipPath": "url(#c)"}
+
+    def test_the_browser_checks_the_same_attribute_names(self):
+        from n26.badges import SVG_PROPS
+
+        assert {"viewBox", "strokeWidth", "className", "href"} <= set(SVG_PROPS)
+        assert not [name for name in SVG_PROPS if name.lower().startswith("on")]
+        assert "style" not in SVG_PROPS
+
+    def test_a_same_document_reference_is_kept_trimmed(self):
+        from n26.badges import svg_tree
+
+        tree = svg_tree('<svg><use href=" #mark"/></svg>')
+        assert tree["children"][0]["props"] == {"href": "#mark"}
+
+    def test_the_browser_checks_the_platforms_own_tag_list(self):
+        from gyrinx.svg import SVG_ALLOWED_TAGS
+        from n26.badges import SVG_TAGS
+
+        assert set(SVG_TAGS) == SVG_ALLOWED_TAGS
+
     def test_markup_with_no_svg_gives_nothing(self):
         from n26.badges import svg_tree
 

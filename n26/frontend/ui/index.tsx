@@ -867,36 +867,17 @@ export type SvgNode = {
 export type BadgeMark = { label: string; svg: SvgNode };
 
 // The platform's SVG allowlist, checked again here so data never becomes markup.
-const SVG_TAGS = new Set([
-    "svg",
-    "g",
-    "path",
-    "circle",
-    "ellipse",
-    "rect",
-    "line",
-    "polyline",
-    "polygon",
-    "defs",
-    "use",
-    "symbol",
-    "title",
-    "desc",
-    "linearGradient",
-    "radialGradient",
-    "stop",
-    "clipPath",
-    "mask",
-]);
+const SVG_TAGS = new Set(cotton.svgTags);
+const SVG_PROPS = new Set(cotton.svgProps);
 
 function svgProps(props: Record<string, string>) {
     return Object.fromEntries(
         Object.entries(props).filter(
             ([name, value]) =>
-                !/^on/i.test(name) &&
-                name !== "style" &&
-                name !== "dangerouslySetInnerHTML" &&
-                (name !== "href" || value.startsWith("#")),
+                SVG_PROPS.has(name) &&
+                (name !== "href" || value.trim().startsWith("#")) &&
+                (!value.toLowerCase().includes("url(") ||
+                    value.trim().toLowerCase().startsWith("url(#")),
         ),
     );
 }

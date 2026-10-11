@@ -62,12 +62,9 @@ a reader who cannot find one is told where it went.
             </c-ui.alert>
         {% else %}
             {% comment %}
-            The campaign-gang-picker island draws the search, the filters, the
-            count and the rows, and narrows the rows as the filters change.
-            Gangs already in a campaign start hidden rather than left out, so
-            a reader who cannot find one is told where it went. This markup is
-            every row, unfiltered, until it mounts and without a script; each
-            row's Add submits the form either way.
+            The campaign-gang-picker island draws the filters and narrows the
+            rows. Until it mounts, and without a script, this is every row,
+            and each row's Add submits the form either way.
             {% endcomment %}
             {% react_host "campaign-gang-picker" picker class="flex flex-col gap-3" %}
                 <p class="text-sm text-muted">

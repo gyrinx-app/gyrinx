@@ -20,8 +20,16 @@ _ATTRS = {
     if not callable(names)
     for name in names
 } | {"href": "href"}
+# The tags an island may draw, for the browser's second check.
+SVG_TAGS = sorted(SVG_ALLOWED_TAGS)
 # Only these carry text worth keeping: an accessible name or a description.
 _TEXT_TAGS = {"title", "desc"}
+
+
+def _local(value):
+    """Whether a paint or clip value refers only within the drawing."""
+    lowered = value.lower()
+    return "url(" not in lowered or lowered.strip().startswith("url(#")
 
 
 def _allowed(tag, name, value):
@@ -53,8 +61,14 @@ class _Tree(HTMLParser):
         props = {}
         for key, value in attrs:
             attr = _ATTRS.get(key)
-            if attr is not None and value is not None and _allowed(name, attr, value):
-                props[_prop(attr)] = value
+            if (
+                attr is not None
+                and value is not None
+                and _local(value)
+                and _allowed(name, attr, value)
+            ):
+                # The allowlist judges a reference after trimming it; so does the island.
+                props[_prop(attr)] = value.strip() if attr == "href" else value
         return {"tag": name, "props": props, "children": []}
 
     def handle_starttag(self, tag, attrs):
@@ -80,6 +94,10 @@ class _Tree(HTMLParser):
         if not self.skipping and self.stack[-1].get("tag") in _TEXT_TAGS:
             if data.strip():
                 self.stack[-1]["children"].append(data)
+
+
+# The attributes an island may draw, under React's names.
+SVG_PROPS = sorted({_prop(name) for name in _ATTRS.values()})
 
 
 def svg_tree(markup):

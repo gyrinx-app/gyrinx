@@ -37,17 +37,20 @@ export type CampaignGangPickerProps = {
     wealthCeiling: number;
 };
 
+// A native range reaches only multiples of its step, so the top rounds up
+// to one; otherwise the richest gang could not be brought back in.
+const WEALTH_STEP = 50;
+
 /**
  * The gangs a campaign can take, narrowed by name, player, wealth and
  * whether they already play. Each row's Add submits the surrounding form.
  */
 export function CampaignGangPicker(props: CampaignGangPickerProps) {
+    const wealthTop =
+        Math.ceil(props.wealthCeiling / WEALTH_STEP) * WEALTH_STEP;
     const [query, setQuery] = useState("");
     const [people, setPeople] = useState<string[] | null>(null);
-    const [wealth, setWealth] = useState<[number, number]>([
-        0,
-        props.wealthCeiling,
-    ]);
+    const [wealth, setWealth] = useState<[number, number]>([0, wealthTop]);
     const [hidePlaying, setHidePlaying] = useState(true);
     const needle = query.trim().toLowerCase();
     const shown = props.gangs.filter(
@@ -75,8 +78,8 @@ export function CampaignGangPicker(props: CampaignGangPickerProps) {
                     <RangeMenu
                         label="Wealth"
                         min={0}
-                        max={props.wealthCeiling}
-                        step={50}
+                        max={wealthTop}
+                        step={WEALTH_STEP}
                         suffix="¢"
                         atMaxLabel="Any"
                         value={wealth}

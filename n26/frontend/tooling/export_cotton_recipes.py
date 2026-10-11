@@ -758,6 +758,18 @@ def tick_list_recipe():
     }
 
 
+def svg_tags():
+    from n26.badges import SVG_TAGS
+
+    return SVG_TAGS
+
+
+def svg_props():
+    from n26.badges import SVG_PROPS
+
+    return SVG_PROPS
+
+
 def range_menu_recipe():
     """Extract the two-thumb range menu: its trigger, panel, slider and ends.
 
@@ -1058,6 +1070,9 @@ def recipes():
         "pickList": pick_list_recipe(),
         "tickList": tick_list_recipe(),
         "reactMark": react_mark_recipe(),
+        # The platform's SVG tag allowlist, which UserLink checks again.
+        "svgTags": svg_tags(),
+        "svgProps": svg_props(),
         "rangeMenu": range_menu_recipe(),
         "userLink": user_link_recipe(),
         "toggle": toggle_recipe(),
