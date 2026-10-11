@@ -121,13 +121,19 @@ class TestTheBadgeBesideAName:
         it is the only place left that says which account this is — and
         the badge goes with the name, out of the same registry rather
         than out of a second guess made here."""
-        body = client.get("/n26/gangs/new/").content.decode()
-        bar = body[: body.index("</header>")]
-        # The last role="menu" in the bar: the switcher's panel is one
-        # too, and the account menu sits at the far end, after it.
-        menu = bar[bar.rindex('role="menu"') :]
-        assert "patron" in menu
-        assert badge_svg(GUILDER).strip() in menu
+        import json
+
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(client.get("/n26/gangs/new/").content, "html.parser")
+        host = soup.select_one('[data-react-name="account-menu"]')
+        menu = json.loads(soup.find(id=host["data-react-props"]).string)
+        # The island names the reader on the menu's first line, with the
+        # badge the props carry from the platform's registry.
+        assert menu["items"][0] == {"type": "person"}
+        assert menu["person"]["name"] == "patron"
+        assert menu["person"]["badge"] == "guilder"
+        assert menu["badges"]["guilder"]["label"] == GUILDER.description
 
     def test_the_bars_account_button_marks_the_name_it_shows(
         self, supporter, client, default_pack
@@ -136,10 +142,10 @@ class TestTheBadgeBesideAName:
         it, and a name shown there without its badge would be the one
         place in the chrome that disagreed about who this is."""
         body = client.get("/n26/gangs/new/").content.decode()
-        # Everything before the account menu, which is the last
-        # role="menu" in the header — the bar's switcher panel is an
-        # earlier one, and nothing in it carries a badge.
-        button = body[: body[: body.index("</header>")].rindex('role="menu"')]
+        # The button drawn until the island mounts; the island draws the
+        # same name and badge from its props.
+        host = body.index('data-react-name="account-menu"')
+        button = body[host : body.index("</button>", host)]
         assert "patron" in button
         assert badge_svg(GUILDER).strip() in button
 

@@ -985,9 +985,9 @@ GROUPS: list[Group] = [
                     "before Alpine boots. It sets the dark class on <html>, stores "
                     "the choice, follows the OS in system mode and syncs across "
                     'tabs. variant="headless" hands the scope to the call site so '
-                    "it can draw its own control. The account menu's control, "
-                    "c-n26.site.nav.theme, is the theme-choice island instead; it "
-                    "shares storage_key with the head script."
+                    "it can draw its own control. The account menu's theme "
+                    "choice is drawn by the account-menu island instead, under "
+                    "the same storage_key as the head script."
                 ),
                 parts=(
                     Part(
@@ -2767,14 +2767,6 @@ GROUPS: list[Group] = [
                         "c-n26.site.nav.gang",
                         "n26/site/nav/gang.html",
                         "A link to one of the reader's own gangs, in the drawer.",
-                    ),
-                    Part(
-                        "c-n26.site.nav.theme",
-                        "n26/site/nav/theme.html",
-                        (
-                            "Light, dark and the machine's own setting, as one "
-                            "segmented control in the account menu."
-                        ),
                     ),
                 ),
             ),

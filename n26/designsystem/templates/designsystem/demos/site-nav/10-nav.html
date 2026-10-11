@@ -5,6 +5,7 @@
 <c-n26.site.nav title="Gyrinx"
                 href="#"
                 user_label="tom"
+                :account="sample_account_menu"
                 class="rounded-box border border-box-border">
     <c-slot name="logo">
         <img src="{% static 'n26/gyrinx-logo.svg' %}"
@@ -30,17 +31,5 @@
                              name="Gravebolt Kin"
                              type="Goliath"
                              :type_icon="sample_gang_icon" />
-    </c-slot>
-    <c-slot name="menu">
-        <c-ui.dropdown.item href="#">
-            Your account
-        </c-ui.dropdown.item>
-        <c-ui.dropdown.group label="Theme">
-            <c-n26.site.nav.theme storage_key="n26-theme" />
-        </c-ui.dropdown.group>
-        <c-ui.dropdown.separator />
-        <c-ui.dropdown.item href="#" variant="danger">
-            Sign out
-        </c-ui.dropdown.item>
     </c-slot>
 </c-n26.site.nav>

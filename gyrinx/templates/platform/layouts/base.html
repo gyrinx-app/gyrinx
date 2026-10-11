@@ -1,15 +1,18 @@
 {% extends "n26/layouts/base.html" %}
 {% load static %}
+{% load account_menu %}
 {% block site_nav %}
     {% if request.edition == "n26" %}
         {% url 'n26-dashboard' as edition_home_url %}
     {% else %}
         {% url 'core:index' as edition_home_url %}
     {% endif %}
+    {% account_menu compact=True as account_menu_ %}
     <c-n26.site.nav title="Gyrinx"
                     href="{{ edition_home_url }}"
                     sticky="1"
                     :unread="unread_notification_count"
+                    :account="account_menu_"
                     class="dark">
         <c-slot name="logo">
             <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
@@ -42,15 +45,6 @@
         {% if user.is_authenticated %}
             <c-slot name="user_label">
                 <c-n26.user-link :user="user" :linked="False" tone="current" underline="none" />
-            </c-slot>
-            <c-slot name="menu">
-                <c-ui.dropdown.item href="{% url 'core:account_home' %}">Your account</c-ui.dropdown.item>
-                <c-ui.dropdown.item href="{% url 'core:notifications' %}">Notifications <c-n26.count-badge :count="unread_notification_count" label="unread notifications" /></c-ui.dropdown.item>
-                <c-ui.dropdown.group label="Theme">
-                    <c-n26.site.nav.theme storage_key="theme" />
-                </c-ui.dropdown.group>
-                {% if user.is_staff %}<c-ui.dropdown.item href="{% url 'admin:index' %}">Admin</c-ui.dropdown.item>{% endif %}
-                <c-ui.dropdown.item href="{% url 'account_logout' %}" variant="danger">Sign out</c-ui.dropdown.item>
             </c-slot>
         {% endif %}
         <c-ui.navbar.item href="{{ edition_home_url }}">

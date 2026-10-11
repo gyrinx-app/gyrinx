@@ -1,6 +1,7 @@
 {% load static %}
 {% load banner %}
 {% load navigation %}
+{% load account_menu %}
 {% load pages %}
 {% comment %}
 The n26 page shell. Block names and order match the platform base template
@@ -179,22 +180,28 @@ gtm_container_id, messages, user.
         string "0" is true, and the bar would carry an empty-inbox badge.
         {% endcomment %}
         {% block site_nav %}
+            {% comment %}
+            The account menu — who you are, the doors only staff have, and the
+            way out — is built in n26.core.templatetags.account_menu and drawn
+            by the account-menu island.
+            {% endcomment %}
+            {% account_menu as account_menu_ %}
             <c-n26.site.nav title="Gyrinx"
                             href="{% url 'n26-dashboard' %}"
                             sticky="1"
                             :unread="unread_notification_count"
+                            :account="account_menu_"
                             class="dark">
                 {% comment %}
-            The account button's name, with the badge the account holds. A slot
-            rather than the user_label attribute because an attribute is escaped
-            and the badge would arrive as its own source code; drawn only when
-            there is someone to name, because an empty label is what tells the
-            bar a visitor has no account menu to open.
+            The account button's name, with the badge the account holds, as
+            the bar shows it until the account-menu island draws the button. A
+            slot rather than the user_label attribute because an attribute is
+            escaped and the badge would arrive as its own source code.
 
             Which badge is the platform's answer rather than this edition's —
             supporter standing and staff flag belong to the account — and
-            c-n26.user-link is what asks. No href: the button around it is the
-            control, and a link inside a button is a click with two answers.
+            c-n26.user-link is what asks. No href: a link inside a button is a
+            click with two answers.
                 {% endcomment %}
                 {% if user.is_authenticated %}
                     <c-slot name="user_label">
@@ -276,152 +283,6 @@ gtm_container_id, messages, user.
                                                  :type_icon="gang.gang_type.artwork"
                                                  colour="{{ gang.colour }}" />
                         {% endfor %}
-                    </c-slot>
-                {% endif %}
-                {% comment %}
-            The account menu: what you are signed in as, the doors only staff
-            have, and the way out. Each separator is drawn by the section
-            below it, so a section that is not there leaves no rule behind
-            and nobody sees two in a row.
-
-            c-ui.dropdown.item, not c-ui.menu.item — menu.item calls
-            selectOption(), which is combobox machinery outside a dropdown's
-            scope, so it throws on click and the panel never closes.
-                {% endcomment %}
-                {% if user.is_authenticated %}
-                    <c-slot name="menu">
-                        {% url 'admin:index' as admin_url_ %}
-                        {% url 'account_logout' as logout_url_ %}
-                        {% comment %}
-                    Who you are, at the top of the menu about you. The bar's
-                    own button drops the name below sm — the width belongs to
-                    the page there — and this is where it goes instead, so
-                    there is one click between a reader and the answer to
-                    which account they are signed in as. Drawn at every width
-                    rather than only the narrow ones: a menu whose first line
-                    appears and disappears with the window is one nobody
-                    learns the shape of.
-
-                    A line, not an item: it goes nowhere, because "Your
-                    account" directly below it is that door and two doors to
-                    one room is one too many. So it takes the surrounding text
-                    colour and no underline — accent and a hover rule would
-                    promise a click that does nothing.
-
-                    The badge is whichever one the account actually holds,
-                    from the platform's registry: supporter standing and staff
-                    flag are the account's business rather than this edition's,
-                    and c-n26.user-link is what asks.
-                        {% endcomment %}
-                        <div class="flex items-center gap-2 px-4 pt-2 pb-1 text-sm font-medium text-ink-900 dark:text-ink-100">
-                            <c-n26.user-link :user="user" :linked="False" tone="current" underline="none" />
-                        </div>
-                        {% comment %}
-                    The account page belongs to the site rather than to either
-                    edition, so it is named rather than spelled out: a name
-                    that stops resolving raises here, while a path that stops
-                    existing quietly serves a 404 nobody notices.
-
-                    The rule belongs to this item and not to the line above
-                    it, which is the discipline the whole menu follows: a
-                    section draws the break above itself, so nothing can be
-                    left holding a rule with nothing under it.
-                        {% endcomment %}
-                        <c-ui.dropdown.separator />
-                        <c-ui.dropdown.item href="{% url 'core:account_home' %}">
-                            Your account
-                        </c-ui.dropdown.item>
-                        {% comment %}
-                    The inbox, under the account it belongs to. One inbox
-                    serves both editions — a battle in the classic app and a
-                    gang here write to the same place — so this is the site's
-                    page, named rather than spelled out, and it is drawn in the
-                    site's own chrome when the reader arrives.
-
-                    The same pill as the one on the corner of the button that
-                    opens this menu, so the mark a reader saw from the outside
-                    is the mark they find inside. Labelled here and not there:
-                    this row is read out as it stands, where the button's own
-                    accessible name already carries the number.
-                        {% endcomment %}
-                        <c-ui.dropdown.item href="{% url 'core:notifications' %}">
-                            Notifications
-                            <c-n26.count-badge :count="unread_notification_count" label="unread notifications" />
-                        </c-ui.dropdown.item>
-                        {% comment %}
-                    The colour scheme, in the menu rather than in the bar. It is
-                    clicked once and then never again, and the row of the bar it
-                    used to sit in is wanted by the page's name and the switcher
-                    beside it on every screen.
-
-                    The group's own label is the break above it; a separator as
-                    well would say the same thing twice.
-                        {% endcomment %}
-                        <c-ui.dropdown.group label="Theme">
-                            <c-n26.site.nav.theme storage_key="theme" />
-                        </c-ui.dropdown.group>
-                        {% comment %}
-                    The doors into the admin and into content authoring, kept
-                    together and out of the drawer: the drawer is for the
-                    places every reader has, and writing content is something
-                    a handful of accounts do. The gate inside authoring is
-                    staff-only regardless — this only decides who sees it.
-
-                    The heading is the break between them and the account
-                    items above; a rule as well would say the same thing
-                    twice.
-                        {% endcomment %}
-                        {% if user.is_staff %}
-                            <c-ui.dropdown.group label="Staff only">
-                                {% if admin_url_ %}
-                                    <c-ui.dropdown.item href="{{ admin_url_ }}">
-                                        Admin
-                                    </c-ui.dropdown.item>
-                                {% endif %}
-                                <c-ui.dropdown.item href="{% url 'authoring-index' %}">
-                                    Content Library
-                                </c-ui.dropdown.item>
-                                {% comment %}
-                            The way into the account whose gang or campaign is
-                            on screen, set by the read guards in
-                            n26.core.views.permissions and narrowed to a target
-                            this reader may take by
-                            gyrinx.context_processors.impersonation. Absent on
-                            a page that is already the reader's own, and while
-                            an overlay is running — a second one is refused.
-
-                            Starting is a POST, and the kit's menu row is a
-                            type="button" that cannot submit one, so the click
-                            is caught on the form around it: the row's own
-                            handler closes the menu, the click bubbles, and the
-                            form submits. Nothing is lost without JavaScript
-                            because this menu's panel is Alpine's and is not
-                            there at all.
-
-                            requestSubmit is preferred so the form's own submit
-                            event fires, and guarded because it throws where it
-                            is missing (Safari before 16).
-                                {% endcomment %}
-                                {% if impersonate_target %}
-                                    <form method="post"
-                                          action="{% url 'core:impersonate-start' impersonate_target.pk %}"
-                                          role="none"
-                                          x-on:click="$el.requestSubmit ? $el.requestSubmit() : $el.submit()">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                                        <c-ui.dropdown.item variant="danger">
-                                            Impersonate {{ impersonate_target.username }}
-                                        </c-ui.dropdown.item>
-                                    </form>
-                                {% endif %}
-                            </c-ui.dropdown.group>
-                        {% endif %}
-                        {% if logout_url_ %}
-                            <c-ui.dropdown.separator />
-                            <c-ui.dropdown.item href="{{ logout_url_ }}" variant="danger">
-                                Sign out
-                            </c-ui.dropdown.item>
-                        {% endif %}
                     </c-slot>
                 {% endif %}
                 <c-slot name="actions">

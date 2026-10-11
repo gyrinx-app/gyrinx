@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Icon } from "../../ui";
+import { Glyph } from "./glyph";
 
 type Mode = "light" | "dark" | "system";
 
@@ -36,8 +36,7 @@ function darkFor(mode: Mode) {
 /**
  * Light, dark or the device's choice. The `dark` class on the root element
  * is the shared truth: another control or the head script may change it, and
- * this follows; another tab's choice arrives through storage. theme.html's
- * fallback buttons repeat these classes; change both.
+ * this follows; another tab's choice arrives through storage.
  */
 export function ThemeChoice({
     storageKey,
@@ -113,6 +112,7 @@ export function ThemeChoice({
                         key={scheme}
                         type="button"
                         role="menuitemradio"
+                        tabIndex={-1}
                         aria-checked={checked}
                         aria-label={
                             scheme === "system"
@@ -126,11 +126,7 @@ export function ThemeChoice({
                                 : "text-ink-600 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white"
                         }`}
                     >
-                        <Icon
-                            name={icon}
-                            className="size-4"
-                            strokeWidth={1.7}
-                        />
+                        <Glyph name={icon} className="size-4" />
                         {label}
                     </button>
                 );
