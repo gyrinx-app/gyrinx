@@ -49,11 +49,9 @@
         </dl>
         <p class="text-sm text-muted">Added to the campaign {{ details.created|date:"j M Y, H:i" }}.</p>
     </c-n26.form-section>
-    {% if choices %}
-        <c-n26.form-section title="Choices">
-            <c-n26.detail-list>
-                <c-n26.choice-slots :choices="choices" size="lg" variant="default" />
-            </c-n26.detail-list>
+    {% if boons %}
+        <c-n26.form-section title="Boons">
+            {% include "n26/includes/asset_boons.html" %}
         </c-n26.form-section>
     {% endif %}
     <c-n26.form-section title="Battles staked in">

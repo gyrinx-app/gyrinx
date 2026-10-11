@@ -1,0 +1,43 @@
+{% comment %}
+One current asset and choice per row, with effective standing counter benefits.
+The supplied choices are the same ChoiceLine objects linked by the page.
+Standing effects appear once, below the asset's first choice or on their own row.
+{% endcomment %}
+<dl class="divide-y divide-box-border">
+    {% for boon in boons %}
+        {% for choice in boon.choices %}
+            <div class="grid min-w-0 grid-cols-1 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:gap-4">
+                <dt class="min-w-0 break-words text-sm font-medium">{{ boon.name }}<span class="block text-xs font-normal text-muted">{{ choice.kind_label }}</span></dt>
+                <dd class="min-w-0 space-y-2">
+                    <div class="flex min-w-0 flex-wrap items-center gap-2">
+                        {% if choice.dismissed %}
+                            <span class="text-base">Dismissed</span>
+                        {% elif choice.href %}
+                            <c-ui.button size="lg"
+                                         variant="default"
+                                         href="{{ choice.href }}"
+                                         class="max-w-full whitespace-normal! text-left">{% if choice.is_resolved %}{{ choice.chosen }}{% elif choice.follows_status %}Resolve →{% else %}Choose{% endif %}</c-ui.button>
+                        {% else %}
+                            <span class="min-w-0 break-words text-base">{% if choice.is_resolved %}{{ choice.chosen }}{% else %}—{% endif %}</span>
+                        {% endif %}
+                        <c-n26.choice-dismiss :choice="choice" />
+                    </div>
+                    {% if forloop.first %}
+                        {% for effect in boon.effects %}
+                            <p class="text-sm"><span class="text-muted">{{ effect.name }}</span> <span class="tabular-nums">{{ effect.text }}</span></p>
+                        {% endfor %}
+                    {% endif %}
+                </dd>
+            </div>
+        {% empty %}
+            <div class="grid min-w-0 grid-cols-1 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:gap-4">
+                <dt class="min-w-0 break-words text-sm font-medium">{{ boon.name }}</dt>
+                <dd class="min-w-0 space-y-2">
+                    {% for effect in boon.effects %}
+                        <p class="text-sm"><span class="text-muted">{{ effect.name }}</span> <span class="tabular-nums">{{ effect.text }}</span></p>
+                    {% endfor %}
+                </dd>
+            </div>
+        {% endfor %}
+    {% endfor %}
+</dl>

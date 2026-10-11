@@ -134,6 +134,19 @@ its own selection, shown on the territory page and the gang sheet. The selected
 pickable and its nested choices last until the gang releases or transfers that
 asset, or leaves the campaign. Regaining the same asset starts a new choice.
 
+An asset with selectable base Income has an **Income** option carrying its
+ordinary Income contribution. Its catalogue figure and Income editor use that
+contribution, including 0. The standard territory conversion records which
+option supplies the base figure. Each new owner starts with Income selected.
+An arbitrator's Income override replaces that option's amount only while
+that exact holding has it selected. Selecting an alternative, or removing the
+selection, stops the base Income and its override. Independent standing boons
+still apply. Settlement uses the same effective Income reading.
+
+Cycle reward options record the selected policy. Resolve recruitment discounts
+and equipment rewards manually at cycle end; selection does not recruit a
+fighter, change a recruitment price or add equipment to a stash.
+
 ### Asset table
 
 *A table of one transferable asset type's assets — the Territory Selection Table — that a gang holds.*

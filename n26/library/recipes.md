@@ -950,3 +950,29 @@ a gang changes that gang's readings immediately, even when the modifier is
 staged. Check the preview and the current holders before applying the update.
 Collect credits manually. Recruiting at a discount and adding equipment to a
 stash need a separate recorded post-cycle action; they are not standing boons.
+
+## Income or a cycle reward
+
+The **Add territory boon choices** maintenance operation converts the supported
+standard territories, including Settlement. Run **Add territory income and
+standing boons** first, then check the choices preview. It preserves authored
+conflicts and selects Income for current owners.
+
+1. Open a converted territory and check that **Boon** shows Income. The Income
+   contribution applies immediately. Each new owner also starts with Income.
+2. Select the alternative. The territory's base Income stops, including any
+   custom Income value for that holding. The asset page, gang and campaign
+   show the same effective Income. Independent standing boons still apply.
+3. Select Income again. Its contribution returns. A custom Income value
+   replaces the base figure for that holding alone.
+4. Check two copies of the same territory and each gang's Settlement. Each
+   keeps its own selection. Transfer or release a territory to check that the
+   previous gang loses its selected boon.
+
+The Income box still edits the catalogue figure. Setting it to 0 keeps the
+Income option, so a custom Income value can still apply when selected. A
+recorded selection remains effective if the choice is later dismissed.
+
+Resolve the alternative's recruitment discount or equipment reward manually at
+cycle end. Its summary states the eligibility and amount. Selecting an option
+does not grant a persistent reward immediately.

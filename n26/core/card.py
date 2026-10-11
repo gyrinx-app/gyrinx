@@ -567,6 +567,7 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
         # drawn on a card it did not land on names its slot type there,
         # which is the same rule: compute may not query.
         "asset__asset_type",
+        "asset__base_income_modifier",
         "pickable__category",
         "pickable__slot_type",
         # Whether a slot type allows the same pickable twice is read
@@ -1240,11 +1241,29 @@ def build_modifier_index(assignables, max_depth=3):
             prefetch_related_objects(things, _modifiers_path(model))
             if hasattr(model, "income_override"):
                 prefetch_related_objects(things, "income_override")
+            via = getattr(model, "carries_modifiers_of", None)
+            assets = [getattr(thing, via) if via else thing for thing in things]
+            assets = [
+                asset for asset in assets if hasattr(asset, "base_income_modifier_id")
+            ]
+            if assets:
+                # The catalogue amount remains available when its Income
+                # option is unanswered or another option is selected.
+                prefetch_related_objects(assets, "base_income_modifier")
         hydrated = {}
         modifier_instances = []
         for things in by_model.values():
             for thing in things:
-                for modifier in _modifiers_of(thing):
+                modifiers = _modifiers_of(thing)
+                asset = _modifier_carrier(thing)
+                base = getattr(asset, "base_income_modifier", None)
+                if base is not None:
+                    modifiers.append(base)
+                if getattr(thing, "income_override_id", None) and getattr(
+                    asset, "base_income_modifier_id", None
+                ):
+                    modifiers.append(thing.income_override)
+                for modifier in modifiers:
                     hydrated.setdefault(modifier.pk, modifier)
                     modifier_instances.append(modifier)
         # An M2M attachment can return separate instances of one modifier
@@ -1260,7 +1279,9 @@ def build_modifier_index(assignables, max_depth=3):
                 # hydrated instance, or the other copy answers compute
                 # with the lazy queries it is forbidden to make.
                 modifiers = [hydrated[m.pk] for m in _modifiers_of(thing)]
-                if getattr(thing, "income_override_id", None):
+                if getattr(thing, "income_override_id", None) and not getattr(
+                    _modifier_carrier(thing), "base_income_modifier_id", None
+                ):
                     from n26.library.income import is_income_contribution
 
                     modifiers = [
@@ -1297,11 +1318,18 @@ def _modifiers_path(model):
 
 def _modifiers_of(thing):
     """The modifiers one carrier runs, already prefetched."""
-    via = getattr(type(thing), "carries_modifiers_of", None)
-    modifiers = list((getattr(thing, via) if via else thing).modifiers.all())
-    if getattr(thing, "income_override_id", None):
+    carrier = _modifier_carrier(thing)
+    modifiers = list(carrier.modifiers.all())
+    if getattr(thing, "income_override_id", None) and not getattr(
+        carrier, "base_income_modifier_id", None
+    ):
         modifiers.append(thing.income_override)
     return modifiers
+
+
+def _modifier_carrier(thing):
+    via = getattr(type(thing), "carries_modifiers_of", None)
+    return getattr(thing, via) if via else thing
 
 
 def carriers(*cards):

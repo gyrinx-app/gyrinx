@@ -1484,6 +1484,7 @@ def _campaign_asset_or_404(campaign, asset_pk):
         return get_object_or_404(
             CampaignAsset.objects.select_related(
                 "asset__asset_type",
+                "asset__base_income_modifier__contributes_to_counter__counter",
                 "holder__gang",
                 "income_override__contributes_to_counter",
             ),

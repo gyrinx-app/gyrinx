@@ -43,14 +43,10 @@ Assets retain their authored groups and links. This card owns its container.
                 </div>
             {% endfor %}
         </dl>
-        {% if campaign.holding_choices %}
+        {% if campaign.boons %}
             <section class="border-t border-box-border px-4 pb-2.5 pt-4" aria-labelledby="n26-campaign-boons-heading">
                 <h3 id="n26-campaign-boons-heading" class="text-sm font-semibold">Boons</h3>
-                <dl class="mt-1 divide-y divide-box-border">
-                    {% for choice in campaign.holding_choices %}
-                        {% include "n26/includes/campaign_choice.html" %}
-                    {% endfor %}
-                </dl>
+                {% include "n26/includes/asset_boons.html" with boons=campaign.boons %}
             </section>
         {% endif %}
     </c-ui.card>

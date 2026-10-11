@@ -483,7 +483,60 @@ class Operation:
         # away, so nothing it would write on arrival may run.
         if not removes:
             self._run_stored_effects(assignment, assignable)
+            self._default_asset_income(assignment, assignable)
         return assignment
+
+    def _default_asset_income(self, assignment, assignable):
+        """Record a declared Income selection when an owned asset arrives."""
+        from n26.library.models import Asset
+
+        if (
+            not isinstance(assignable, Asset)
+            or not getattr(assignable, "base_income_modifier_id", None)
+            or self.gang is None
+            or assignment.gang_root_id != self.gang.pk
+        ):
+            return
+        from n26.core.card import build_gang_card, build_modifier_index, carriers
+        from n26.core.effects import compute_gang
+        from n26.core.models import DismissedOffer
+        from n26.core.models.dismissed_offer import GANG_SLOT_HOST, slot_key
+        from n26.library.income_choices import declared_income_choice
+
+        declared = declared_income_choice(assignable)
+        if declared is None:
+            return
+        if (
+            Assignment.objects.filter(
+                chosen_for=assignment, chosen_for_slot=declared.slot
+            ).exists()
+            or DismissedOffer.objects.filter(
+                gang=self.gang,
+                slot_key=slot_key(GANG_SLOT_HOST, assignment.pk, declared.slot.pk),
+            ).exists()
+        ):
+            return
+        card = build_gang_card(self.gang)
+        computed = compute_gang(card, build_modifier_index(carriers(card)))
+        choice = next(
+            (
+                choice
+                for choice in computed.choices
+                if choice.slot is not None
+                and choice.slot.pk == declared.slot.pk
+                and getattr(choice.anchor, "key", None) == assignment.pk
+            ),
+            None,
+        )
+        if choice is None or choice.picks:
+            return
+        member = (
+            declared.slot.picklist.available_members(include_staged=True)
+            .filter(pickable=declared.pickable, pickable__record_only=False)
+            .first()
+        )
+        if member is not None:
+            self.choose(assignment, member.pickable, slot=declared.slot)
 
     def _run_stored_effects(self, assignment, assignable):
         """Execute anything this assignable writes rather than computes.
@@ -531,6 +584,18 @@ class Operation:
         from n26.library.staged import sees_staged
 
         include_staged = sees_staged(self.gang.owner)
+        from n26.core.models import DismissedOffer
+        from n26.core.models.dismissed_offer import holding_slot_key
+        from n26.library.income_choices import declared_income_choice
+
+        declared = (
+            declared_income_choice(holding.asset)
+            if getattr(holding.asset, "base_income_modifier_id", None)
+            else None
+        )
+
+        def declared_slot(slot):
+            return declared is not None and slot.pk == declared.slot.pk
 
         def eligible(choice):
             slot = choice.slot
@@ -541,7 +606,11 @@ class Operation:
                 and not slot.hidden
                 and not slot.follows_status
                 and not slot.picklist.dice
-                and (include_staged or not (slot.staged or slot.picklist.staged))
+                and (
+                    declared_slot(slot)
+                    or include_staged
+                    or not (slot.staged or slot.picklist.staged)
+                )
             )
 
         slots = [
@@ -567,11 +636,16 @@ class Operation:
                 chosen_for_slot=slot,
             ).exists():
                 continue
-            member = (
-                slot.picklist.available_members(include_staged=include_staged)
-                .filter(pickable__record_only=False)
-                .first()
-            )
+            if DismissedOffer.objects.filter(
+                gang=self.gang, slot_key=holding_slot_key(holding, slot.pk)
+            ).exists():
+                continue
+            members = slot.picklist.available_members(
+                include_staged=include_staged or declared_slot(slot)
+            ).filter(pickable__record_only=False)
+            if declared_slot(slot):
+                members = members.filter(pickable=declared.pickable)
+            member = members.first()
             if member is not None:
                 self.choose(holding, member.pickable, slot=slot)
 

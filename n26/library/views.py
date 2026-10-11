@@ -1981,10 +1981,14 @@ def attach_modifier(request, kind):
                 pk__in=[thing.pk for thing in things], modifiers=modifier
             ).values_list("pk", flat=True)
         )
-        with transaction.atomic():
-            for thing in things:
-                if thing.pk not in had:
-                    authoring.attach_modifiers_to(thing, [modifier])
+        try:
+            with transaction.atomic():
+                for thing in things:
+                    if thing.pk not in had:
+                        authoring.attach_modifiers_to(thing, [modifier])
+        except ValidationError as refused:
+            messages.error(request, " ".join(refused.messages))
+            return redirect("authoring-leaf", kind=kind)
         attached = len(things) - len(had)
         if attached == 0:
             said = f"Every selected {singular} already had {modifier.name}."
@@ -2083,7 +2087,7 @@ def create(request, kind):
                 # away something an author typed — two boxes that make no
                 # sense together, most often. The words belong on the form
                 # they were typed into, not on an error page.
-                form.add_error(None, refused)
+                _refuse_content_form(form, refused)
             except IntegrityError:
                 # Not every kind calls its name "name" — the spec says
                 # which field an author reads as one, so the refusal
@@ -2503,7 +2507,7 @@ def detail(request, kind, pk):
             except ValidationError as refused:
                 # The row's own sense check turned the edit away in words;
                 # they belong on the form the values were typed into.
-                edit_form.add_error(None, refused)
+                _refuse_content_form(edit_form, refused)
             except IntegrityError:
                 named = spec.identity
                 noun = model._meta.verbose_name
@@ -2554,7 +2558,7 @@ def detail(request, kind, pk):
                 except ValidationError as refused:
                     # A verb turning a part away in words says something
                     # about what was typed, so it is said on the form.
-                    form.add_error(None, refused)
+                    _refuse_content_form(form, refused)
                 else:
                     said, _ = section["describe"](part)
                     messages.success(request, f"Added {said}.")
@@ -2731,7 +2735,7 @@ def _edit_part(request, kind, thing, sections):
             with transaction.atomic():
                 form.apply_to(part)
         except ValidationError as refused:
-            form.add_error(None, refused)
+            _refuse_content_form(form, refused)
         except IntegrityError:
             named = part_spec.identity
             form.add_error(
@@ -2853,7 +2857,7 @@ def _add_under_part(request, kind, thing, sections, under):
             with transaction.atomic():
                 made = spec.verb(**{under["carrier_field"]: part}, **form.verb_data())
         except ValidationError as refused:
-            form.add_error(None, refused)
+            _refuse_content_form(form, refused)
         except IntegrityError:
             named = spec.identity
             noun = spec.creates._meta.verbose_name
@@ -3002,6 +3006,15 @@ def staged_put_live(request):
     )
 
 
+def _refuse_content_form(form, refused):
+    """Keep field errors where the form has that field; show other refusals above it."""
+    if hasattr(refused, "error_dict"):
+        for field, errors in refused.error_dict.items():
+            form.add_error(field if field in form.fields else None, errors)
+    else:
+        form.add_error(None, refused)
+
+
 def _modifier_action(request, kind, thing, act):
     """One modifier action against a carrier: compose, attach, detach.
 
@@ -3022,6 +3035,9 @@ def _modifier_action(request, kind, thing, act):
             try:
                 with transaction.atomic():
                     made = composer.save()
+            except ValidationError as refused:
+                _refuse_content_form(composer, refused)
+                return None, composer
             except IntegrityError:
                 composer.add_error(
                     "name",
@@ -3044,11 +3060,19 @@ def _modifier_action(request, kind, thing, act):
         if refusal is not None:
             messages.error(request, refusal)
         else:
-            authoring.attach_modifiers_to(thing, [modifier])
-            messages.success(request, f"Attached {modifier.name}.")
+            try:
+                authoring.attach_modifiers_to(thing, [modifier])
+            except ValidationError as refused:
+                messages.error(request, " ".join(refused.messages))
+            else:
+                messages.success(request, f"Attached {modifier.name}.")
     elif act == "detach":
-        authoring.detach_modifier(thing, modifier)
-        messages.success(request, f"Detached {modifier.name} — it still exists.")
+        try:
+            authoring.detach_modifier(thing, modifier)
+        except ValidationError as refused:
+            messages.error(request, " ".join(refused.messages))
+        else:
+            messages.success(request, f"Detached {modifier.name} — it still exists.")
     else:
         raise Http404(f"No such action: {act}")
     return redirect("authoring-detail", kind=kind, pk=thing.pk), None
@@ -4562,6 +4586,8 @@ def modifier_create(request):
                 try:
                     with transaction.atomic():
                         made = bound.save()
+                except ValidationError as refused:
+                    _refuse_content_form(bound, refused)
                 except IntegrityError:
                     bound.add_error(
                         "name",
@@ -4670,6 +4696,9 @@ def modifier_page(request, pk):
             try:
                 with transaction.atomic():
                     composer.save()
+            except ValidationError as refused:
+                modifier.refresh_from_db()
+                _refuse_content_form(composer, refused)
             except IntegrityError:
                 # The write is undone, and the row in hand is the
                 # half-written one — read it back before drawing it.
@@ -5416,7 +5445,7 @@ def slot_type_page(request, pk):
                 with transaction.atomic():
                     edit_form.apply_to(slot_type)
             except ValidationError as refused:
-                edit_form.add_error(None, refused)
+                _refuse_content_form(edit_form, refused)
             except IntegrityError:
                 edit_form.add_error(
                     "name",
@@ -5443,7 +5472,7 @@ def slot_type_page(request, pk):
                     "in this pack.",
                 )
             except ValidationError as refused:
-                form.add_error(None, refused)
+                _refuse_content_form(form, refused)
             else:
                 messages.success(request, f"Created {made}.")
                 return redirect("authoring-detail", kind="slot-type", pk=pk)
@@ -6051,7 +6080,7 @@ def picklist_table(request, pk):
                 with transaction.atomic():
                     member = spec.verb(picklist, **form.verb_data())
             except ValidationError as refused:
-                form.add_error(None, refused)
+                _refuse_content_form(form, refused)
             else:
                 messages.success(request, f"Added {member.label}.")
                 return redirect("authoring-picklist-table", pk=pk)

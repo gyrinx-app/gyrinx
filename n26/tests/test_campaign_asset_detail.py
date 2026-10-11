@@ -12,21 +12,24 @@ from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
-from n26.core.models import Battle, CampaignParticipant, LedgerEvent
+from n26.core.models import Assignment, Battle, CampaignParticipant, LedgerEvent
 from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
     add_asset_type,
+    attach_modifiers_to,
     create_asset,
     create_pickable,
     create_picklist,
     create_slot,
     create_slot_type,
+    detach_modifier,
     ef_adds,
     ef_contributes_to_counter,
     modifier,
+    set_base_income_modifier,
     targets_gang_alone,
 )
-from n26.library.income import ensure_income_counter
+from n26.library.income import ensure_income_counter, income_modifiers
 from n26.library.models import AssetType
 from n26.tests.sandbox.actions import found_campaign, found_gang
 
@@ -486,3 +489,83 @@ def test_gang_groups_each_holding_choice_under_boons_after_other_assets(client, 
     readonly = soup.find(id="n26-campaign-boons-heading").find_parent("section")
     assert readonly.find("a") is None
     assert readonly.find("form") is None
+
+
+def test_more_distinct_selectable_holdings_do_not_add_roster_or_campaign_page_queries(
+    client, setup
+):
+    """Repeated asset Boons and named Income explanations use one loaded graph."""
+    from n26.core.operations import operation
+
+    arbitrator, player, campaign, holding, first, _ = setup
+    income = ensure_income_counter()
+    if not Assignment.objects.filter(
+        gang_root=first.gang, counter=income, archived=False
+    ).exists():
+        with operation(first.gang, actor=player) as op:
+            op.assign(income, gang=first.gang, caused_by=first.type_carrier)
+
+    def add_selectable(number):
+        name = f"Selectable territory {number}"
+        asset = create_asset(name, holding.asset.asset_type, income=15)
+        baseline = income_modifiers(asset)[0]
+        kind = create_slot_type(f"{name} boon")
+        income_pick = create_pickable("Income", kind, qualifier=name)
+        alternative = create_pickable("Manual provision", kind, qualifier=name)
+        attach_modifiers_to(income_pick, [baseline])
+        detach_modifier(asset, baseline)
+        picklist = create_picklist(f"{name} boons", kind, [income_pick, alternative])
+        slot = create_slot("Boon", kind, picklist, assigned_to="gang", qualifier=name)
+        modifier(
+            f"{name} offers boon", targets_gang_alone(), ef_adds(slot), attach_to=asset
+        )
+        modifier(
+            f"{name} extra income",
+            targets_gang_alone(),
+            ef_contributes_to_counter(income, 2),
+            attach_to=asset,
+        )
+        set_base_income_modifier(asset, baseline)
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            op.assign(op.add_asset(asset), first)
+
+    def page_queries(path):
+        # Warm both shapes after each mutation, including the fresh request's
+        # permission and feature caches, before comparing repeated reads.
+        assert client.get(path).status_code == 200
+        with CaptureQueriesContext(connection) as captured:
+            response = client.get(path)
+        assert response.status_code == 200
+        return len(captured), response
+
+    client.force_login(player)
+    paths = [
+        reverse("n26-gang", args=[first.gang.pk]),
+        reverse("n26-campaign", args=[campaign.pk]),
+    ]
+    add_selectable(0)
+    few = {path: page_queries(path)[0] for path in paths}
+    for number in range(1, 8):
+        add_selectable(number)
+    for path in paths:
+        many, response = page_queries(path)
+        assert many <= few[path], (
+            f"{path}: {few[path]} queries with 1 selectable holding, {many} with 8"
+        )
+        soup = BeautifulSoup(response.content, "html.parser")
+        if path == paths[0]:
+            section = soup.find(id="n26-campaign-boons-heading").find_parent("section")
+            rows = section.find("dl").find_all("div", recursive=False)
+            assert len(rows) == 8
+            assert all("Selectable territory" in row.dt.get_text() for row in rows)
+            assert all("+2¢" in row.dd.get_text() for row in rows)
+        else:
+            entries = [
+                entry
+                for table in response.context["sheet"].assets
+                for entry in table.entries
+                if entry.name.startswith("Selectable territory")
+            ]
+            assert len(entries) == 8
+            assert all(entry.income == 17 for entry in entries)
+        assert len(soup.select('[data-react-name="income-tooltip"]')) >= 1

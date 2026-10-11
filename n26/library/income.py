@@ -1,7 +1,7 @@
 """Income — the system counter a campaign's assets contribute to.
 
-An asset's income is not a figure written on the asset. It is a
-modifier the asset carries: a ``TargetsGang`` scope with a
+An asset's income is a modifier carried directly or by its Income option:
+a ``TargetsGang`` scope with a
 ``ContributesToCounter`` effect aimed at the system pack's **Income**
 counter, so a gang's Income *reading* is the sum of what it holds —
 its Settlement, every Territory it has this cycle — read the way any
@@ -80,8 +80,9 @@ def _modifiers(asset, modifiers):
 
 
 def income_modifiers(asset, modifiers=None):
-    """The asset's income contributions — one, once ``set_income`` has
-    been through, but an author can attach more by hand."""
+    """The declared base contribution, or the asset's direct base modifiers."""
+    if getattr(asset, "base_income_modifier_id", None):
+        return [asset.base_income_modifier]
     return [row for row in _modifiers(asset, modifiers) if is_income_contribution(row)]
 
 
@@ -102,9 +103,9 @@ def income_of(asset, modifiers=None):
 def boons_of(asset, modifiers=None):
     """The asset's modifiers other than its income: what holding it does
     beyond the base figure."""
-    return [
-        row for row in _modifiers(asset, modifiers) if not is_income_contribution(row)
-    ]
+    rows = list(_modifiers(asset, modifiers))
+    baseline = {row.pk for row in income_modifiers(asset, rows)}
+    return [row for row in rows if row.pk not in baseline]
 
 
 def with_income(assets):
@@ -114,13 +115,17 @@ def with_income(assets):
 
     from n26.library.models import Modifier
 
-    return assets.prefetch_related(
+    return assets.select_related(
+        "base_income_modifier__contributes_to_counter__counter",
+        "base_income_modifier__targets_gang",
+    ).prefetch_related(
+        "base_income_modifier__targets_gang__has_gang_pickable__pickables",
         Prefetch(
             "modifiers",
             queryset=Modifier.objects.select_related(
                 "contributes_to_counter__counter", "targets_gang"
             ).prefetch_related("targets_gang__has_gang_pickable__pickables"),
-        )
+        ),
     )
 
 

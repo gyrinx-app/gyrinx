@@ -102,12 +102,17 @@ def _asset_context(request, pk, asset_pk, *, back=None):
     history = list(reversed(asset_ownership_history(holding)))
     page = Paginator(history, 50).get_page(request.GET.get("page"))
     choices = []
+    boons = []
     income_modifiers = None
     if held:
         from n26.core.card import build_gang_card, build_modifier_index, carriers
         from n26.core.effects import compute_gang
         from n26.core.models import DismissedOffer
-        from n26.core.render import hide_dismissed_choices, holding_choices
+        from n26.core.render import (
+            hide_dismissed_choices,
+            holding_boons,
+            holding_choices,
+        )
         from n26.core.views.choose import link_slots
 
         gang = holding.holder.gang
@@ -126,6 +131,9 @@ def _asset_context(request, pk, asset_pk, *, back=None):
         if owning:
             link_slots(gang, offered, back=back or request.get_full_path())
         choices = offered.questions
+        boon = holding_boons(computed, holding, choices)
+        if boon is not None and (boon.effects or boon.choices):
+            boons = [boon]
     else:
         income_modifiers = list(
             holding.asset.modifiers.select_related(
@@ -151,6 +159,7 @@ def _asset_context(request, pk, asset_pk, *, back=None):
         ),
         "actions": actions,
         "choices": choices,
+        "boons": boons,
         "battles": battles,
         "history": page.object_list,
         "pages": _pages(request, page) if page.paginator.num_pages > 1 else None,

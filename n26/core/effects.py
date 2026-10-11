@@ -187,6 +187,9 @@ class CounterContribution:
     #: modifier reached through a chosen grant.
     modifier: object = None
     carrier_key: object = None
+    #: The modifier that actually substituted this contribution's amount.
+    #: None when the authored effect ran, including an unselected override.
+    applied_override: object = None
 
 
 @dataclass
@@ -807,6 +810,7 @@ def compute(card, index):
     for node in card.all_nodes():
         is_assigned[ModifierIndex.key(node.assignable)] = node.assignment is not None
         lines[node.key] = node
+    asset_owners = _AssetOrigins(card)
     offers = _Offers()
     given_slots = _Offers()
     #: Gang-held picks a modifier says to draw here, settled once the
@@ -1217,15 +1221,23 @@ def compute(card, index):
                         # Never written down: the reading is worked out
                         # from these every time it is asked for, so a
                         # carrier taken away takes its figure with it.
+                        applied_override = _income_override(
+                            step, lines, asset_owners, index
+                        )
                         contributed = CounterContribution(
                             counter=effect.counter,
-                            amount=effect.amount,
+                            amount=(
+                                applied_override.contributes_to_counter.amount
+                                if applied_override is not None
+                                else effect.amount
+                            ),
                             source=label,
                             source_kind=label_kind,
                             root_key=step.root_key,
                             holding=step.holding,
                             modifier=step.modifier,
                             carrier_key=source_key,
+                            applied_override=applied_override,
                         )
                         computed.counter_contributions.append(contributed)
                         log.applied.append(
@@ -1611,32 +1623,37 @@ def counter_totals(computed):
     return totals
 
 
-def counter_contributions_by_holding(computed):
-    """Standing contributions grouped by their holding and ownership revision.
+class _AssetOrigins:
+    """Asset occurrences behind loaded choices, causes and host links."""
 
-    Picks and their descendants retain assignment anchors. Resolve their
-    holding through the loaded choice, cause and host links without changing
-    the addresses used to choose nested options.
-    """
-    nodes = {node.key: node for node in computed.card.all_nodes()}
-    parents = {
-        child.key: node.key for node in nodes.values() for child in node.children
-    }
-    active = {
-        (holding.pk, holding.ownership_revision)
-        for holding in getattr(computed.card, "holdings", ())
-    }
-    origins = {}
+    def __init__(self, card):
+        self.nodes = {node.key: node for node in card.all_nodes()}
+        self.parents = {
+            child.key: node.key
+            for node in self.nodes.values()
+            for child in node.children
+        }
+        self.holdings = {
+            (holding.pk, holding.ownership_revision): holding
+            for holding in getattr(card, "holdings", ())
+        }
+        self.origins = {}
 
-    def origin(key, visiting=frozenset()):
-        if key in origins:
-            return origins[key]
-        if key is None or key in visiting or key not in nodes:
+    def origin(self, key, visiting=frozenset()):
+        from n26.library.models import Asset
+
+        if key in self.origins:
+            return self.origins[key]
+        if key is None or key in visiting or key not in self.nodes:
             return None
-        node = nodes[key]
-        if node.chosen_for_holding_key is not None:
+        node = self.nodes[key]
+        if node.suppressed or node.computed:
+            return None
+        if isinstance(node.assignable, Asset):
+            result = node
+        elif node.chosen_for_holding_key is not None:
             address = (node.chosen_for_holding_key, node.chosen_for_holding_revision)
-            result = address if address in active else None
+            result = self.holdings.get(address)
         else:
             result = next(
                 (
@@ -1644,26 +1661,89 @@ def counter_contributions_by_holding(computed):
                     for link in (
                         node.chosen_for_key,
                         node.caused_by_key,
-                        parents.get(key),
+                        self.parents.get(key),
                     )
-                    if (found := origin(link, visiting | {key})) is not None
+                    if (found := self.origin(link, visiting | {key})) is not None
                 ),
                 None,
             )
-        origins[key] = result
+        self.origins[key] = result
         return result
 
+    def for_contribution(self, contribution):
+        if contribution.holding is not None:
+            return self.holdings.get(
+                (contribution.holding.pk, contribution.holding.ownership_revision)
+            )
+        return self.origin(contribution.root_key)
+
+
+def asset_origins(card):
+    """Each loaded line's owning Asset Node or current CampaignAsset.
+
+    An ordinary asset keeps its assignment identity. A holding keeps its
+    ownership revision, so another copy's selection cannot stand in for it.
+    Nothing follows an assignment FK or changes a choice's address.
+    """
+    origins = _AssetOrigins(card)
+    return {key: origins.origin(key) for key in origins.nodes}
+
+
+def _income_override(step, lines, origins, index):
+    """The override actually selected through this holding's base choice."""
+    from n26.core.models import CampaignAsset
+    from n26.library.models import Pickable
+
+    selected = lines.get(step.root_key)
+    if (
+        selected is None
+        or step.node is not selected
+        or not isinstance(selected.assignable, Pickable)
+    ):
+        return None
+    owner = origins.origin(selected.key)
+    if (
+        isinstance(owner, CampaignAsset)
+        and selected.chosen_for_holding_key == owner.pk
+        and selected.chosen_for_holding_revision == owner.ownership_revision
+        and owner.asset.base_income_modifier_id == step.modifier.pk
+        and owner.income_override_id is not None
+        and any(
+            modifier.adds_assignable_id is not None
+            and modifier.adds_assignable.slot_id == selected.chosen_for_slot_id
+            for modifier, _ in index.for_thing(owner)
+        )
+    ):
+        # Substitute before the next round builds its counter facts. The
+        # shared library modifier still holds the catalogue amount.
+        return owner.income_override
+    return None
+
+
+def counter_contributions_by_holding(computed):
+    """Standing contributions grouped by holding and ownership revision."""
+    from n26.core.models import CampaignAsset
+
+    origins = _AssetOrigins(computed.card)
     grouped = {}
     for contribution in computed.counter_contributions:
-        if contribution.holding is not None:
-            address = (
-                contribution.holding.pk,
-                contribution.holding.ownership_revision,
-            )
-        else:
-            address = origin(contribution.root_key)
-        if address in active:
+        owner = origins.for_contribution(contribution)
+        if isinstance(owner, CampaignAsset):
+            address = (owner.pk, owner.ownership_revision)
             grouped.setdefault(address, []).append(contribution)
+    return grouped
+
+
+def counter_contributions_by_asset_assignment(computed):
+    """Standing contributions grouped by their owning Asset assignment key."""
+    from n26.core.card import Node
+
+    origins = _AssetOrigins(computed.card)
+    grouped = {}
+    for contribution in computed.counter_contributions:
+        owner = origins.for_contribution(contribution)
+        if isinstance(owner, Node) and not owner.broadcast:
+            grouped.setdefault(owner.key, []).append(contribution)
     return grouped
 
 
