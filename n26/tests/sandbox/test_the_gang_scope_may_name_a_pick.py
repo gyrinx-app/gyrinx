@@ -490,7 +490,7 @@ class TestAConditionalTerritoryBoon:
         assert self.reading(gangs["Irontooth"]) == 0
         assert self.reading(gangs["Wild Roses"]) == 20
 
-    def test_the_campaign_page_prints_the_boon_in_its_scopes_words(
+    def test_the_campaign_page_prints_the_base_income(
         self, campaign, amneo_vats, gangs
     ):
         add_asset(campaign, amneo_vats)
@@ -499,7 +499,6 @@ class TestAConditionalTerritoryBoon:
         (entry,) = territories.entries
 
         assert entry.income == 20
-        assert entry.boons == [f"Goliath gangs: +10 {INCOME}."]
 
 
 # --- Nothing changes for a scope with no conditions ------------------------

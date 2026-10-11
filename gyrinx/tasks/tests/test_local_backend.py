@@ -90,7 +90,10 @@ def test_eager_runs_inline_on_enqueue():
 
 
 @pytest.mark.django_db
-def test_eager_retains_a_scoped_task_while_writes_are_paused(monkeypatch):
+@pytest.mark.parametrize("exclusive_write", [False, True])
+def test_eager_retains_a_scoped_task_while_writes_are_paused(
+    monkeypatch, exclusive_write
+):
     from gyrinx.site.models import WritePause
     from gyrinx.site.write_pause import pause_scope
     from gyrinx.tasks import registry, route
@@ -99,7 +102,13 @@ def test_eager_retains_a_scoped_task_while_writes_are_paused(monkeypatch):
     monkeypatch.setattr(
         registry,
         "_tasks",
-        [route.TaskRoute(_record_task, write_scope="test-eager-pause")],
+        [
+            route.TaskRoute(
+                _record_task,
+                write_scope="test-eager-pause",
+                exclusive_write=exclusive_write,
+            )
+        ],
     )
     pause_scope("test-eager-pause", actor=None, reason="Maintenance")
 
@@ -207,15 +216,18 @@ def test_manual_defers_until_delivered(task_queue):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("exclusive_write", [False, True])
 def test_manual_pause_deferral_does_not_spend_attempt_or_start_execution(
-    task_queue, monkeypatch
+    task_queue, monkeypatch, exclusive_write
 ):
     from gyrinx.site.models import WritePause
     from gyrinx.site.write_pause import pause_scope
     from gyrinx.tasks import registry, route
 
     WritePause.objects.create(scope="test-task-scope")
-    scoped_route = route.TaskRoute(_record_task, write_scope="test-task-scope")
+    scoped_route = route.TaskRoute(
+        _record_task, write_scope="test-task-scope", exclusive_write=exclusive_write
+    )
     monkeypatch.setattr(registry, "_tasks", [scoped_route])
     result = _record_task.enqueue("later")
     pause_scope("test-task-scope", actor=None, reason="Maintenance")

@@ -16,10 +16,6 @@ from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
     add_asset_type,
     create_asset,
-    create_rule,
-    ef_adds,
-    modifier,
-    targets_gang,
 )
 from n26.library.models import AssetType
 from n26.tests.sandbox.actions import found_campaign, found_gang
@@ -41,12 +37,6 @@ def setup(client, campaign_type, gang_type):
         label_plural="Territories",
     )
     asset = create_asset("Old Ruins", kind, income=30)
-    modifier(
-        "Ruins Salvage",
-        targets_gang(),
-        ef_adds(create_rule("Salvage")),
-        attach_to=asset,
-    )
     campaign = found_campaign("Dust Falls", campaign_type, owner=arbitrator)
     CampaignParticipant.objects.create(
         campaign=campaign, user=player, state=CampaignParticipant.State.ACCEPTED
@@ -66,7 +56,7 @@ def address(campaign, holding):
     return reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
 
 
-def test_details_show_the_holding_name_income_boons_holder_and_creation_time_without_writes(
+def test_details_show_the_holding_name_income_holder_and_creation_time_without_writes(
     client, setup
 ):
     _, _, campaign, holding, first, _ = setup
@@ -74,11 +64,11 @@ def test_details_show_the_holding_name_income_boons_holder_and_creation_time_wit
     response = client.get(address(campaign, holding))
     assert response.status_code == 200
     assert response.context["details"].income == 30
-    assert response.context["details"].boons == ["Salvage."]
     assert response.context["details"].holder == first.gang.name
     html = response.content.decode()
     assert "Ruins by the sump" in html and "Old Ruins" in html
     assert "Added to the campaign" in html
+    assert "Boons" not in BeautifulSoup(html, "html.parser").get_text()
     assert "went to Rust Kings" in html
     assert LedgerEvent.objects.count() == before
     assert client.post(address(campaign, holding)).status_code == 405
@@ -92,6 +82,13 @@ def test_asset_row_and_holding_log_link_to_the_exact_holding(client, setup):
     links = soup.find_all("a", href=address(campaign, holding))
     assert len(links) >= 2
     assert all("Ruins by the sump" in link.get_text() for link in links)
+    table = soup.find(id="n26-campaign-assets").find("table")
+    assert [heading.get_text(strip=True) for heading in table.thead.find_all("th")] == [
+        "Territory",
+        "Income",
+        "Held by",
+        "Actions",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -249,7 +246,7 @@ def test_bad_keys_other_campaigns_and_closed_feature_do_not_expose_details(
     assert client.get(address(campaign, holding)).status_code == 404
 
 
-def test_more_battles_boons_and_ownership_changes_do_not_add_queries(client, setup):
+def test_more_battles_and_ownership_changes_do_not_add_queries(client, setup):
     arbitrator, _, campaign, holding, first, second = setup
     path = address(campaign, holding)
     stake_battle(campaign, holding, first, second, 0)
@@ -257,12 +254,6 @@ def test_more_battles_boons_and_ownership_changes_do_not_add_queries(client, set
     with CaptureQueriesContext(connection) as few:
         assert client.get(path).status_code == 200
     for number in range(1, 9):
-        modifier(
-            f"Boon {number}",
-            targets_gang(),
-            ef_adds(create_rule(f"Rule {number}")),
-            attach_to=holding.asset,
-        )
         with campaign_operation(campaign, actor=arbitrator) as op:
             holding.refresh_from_db()
             op.transfer(holding, second if holding.holder_id == first.pk else first)
@@ -270,7 +261,6 @@ def test_more_battles_boons_and_ownership_changes_do_not_add_queries(client, set
     with CaptureQueriesContext(connection) as many:
         response = client.get(path)
     assert len(response.context["battles"]) == 9
-    assert len(response.context["details"].boons) == 9
     assert len(many) <= len(few)
 
 

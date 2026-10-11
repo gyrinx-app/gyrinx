@@ -83,7 +83,7 @@ def register_operation(operation):
 
 
 def register_control_operation(operation):
-    """Register a pause control page that must remain reachable while paused."""
+    """Register a page whose service takes exclusive admission itself."""
     register_platform_operation(operation)
 
 
@@ -227,7 +227,7 @@ class Operation(models.TextChoices):
     )
     SEED_JOURNAL_CONTENT = (
         "n26_seed_journal_content",
-        "n26: the Gang supertype and the Underhive Journal territories are created",
+        "n26: update journal territories and gang supertypes",
     )
     DELETE_TEST_CONTENT = (
         "n26_delete_test_content",
@@ -2396,12 +2396,12 @@ register_operation(
 
 @task
 def seed_journal_content(backfill_id, **said_by_whoever_enqueued_it):
-    """Create the Gang supertype and the two Underhive Journals' territories
-    and tables, once, and record what was created.
+    """Create missing Gang supertype and journal content, remove seeded
+    Controlled boons, and record every change and skipped item.
 
     Library-only work in one transaction under the runner discipline:
-    every row is matched on its name and pack and left alone where it
-    stands, so a rerun creates nothing and says so. The built-in members
+    missing content is matched on its name and pack. Known seeded boon
+    modifiers and unused placeholder rules are removed. The built-in members
     it adds file the propagation pass that gives gangs already founded
     their supertype pick.
     """
@@ -2417,10 +2417,10 @@ def seed_journal_content(backfill_id, **said_by_whoever_enqueued_it):
 
 
 def seed_journal_content_view(request):
-    """Say what the seed would create (GET), or record a run and enqueue it.
+    """Preview journal content changes (GET), or record and enqueue a run.
 
     The preview is the seed itself, run and rolled back, so it lists
-    exactly the rows a run would create or skip. A seed with nothing to
+    exactly the content a run would create, remove or skip. A run with nothing to
     do records no run.
     """
     from n26.library.journal_content import NOTHING_TO_DO, preview
@@ -2452,7 +2452,8 @@ def seed_journal_content_view(request):
         )
         seed_journal_content.enqueue(backfill_id=str(backfill.id))
         messages.success(
-            request, "The seed is running. This page shows what it creates."
+            request,
+            "The journal content update is running. This page shows its changes.",
         )
         return HttpResponseRedirect(
             reverse("admin:maintenance_backfill_detail", args=[backfill.id])
@@ -2477,22 +2478,25 @@ def seed_journal_content_view(request):
     return render(request, "admin/maintenance/n26/seed_journal_content.html", context)
 
 
-register_operation(
+register_control_operation(
     MaintenanceOperation(
         operation=Operation.SEED_JOURNAL_CONTENT.value,
         name=Operation.SEED_JOURNAL_CONTENT.label,
         added=date(2026, 9, 7),
         description=(
-            "Create the Gang supertype: a hidden gang-level slot with six "
+            "Create the gang supertype: a hidden gang-level slot with six "
             "marker pickables, Goliath to Cawdor. It is built into each Clan "
             "House gang type with that House picked, and Clan House Outcast "
             "gangs are given it by their Clan House pickable. Create the two "
             "Underhive Journals' territories as well: twelve Territories "
-            "under the Territory campaign type, each with its income and its "
-            "House Controlled boon, and the Goliath Territories and Escher "
+            "under the Territory campaign type, each with its baseline "
+            "income, and the Goliath Territories and Escher "
             "Territories tables, each given to the gangs of its House. The "
-            "journal rows are staged until an author puts them live. Every "
-            "row is matched by name, so running this again creates nothing. "
+            "journal rows are staged until an author puts them live. Remove "
+            "the known seeded House Controlled modifiers and unused "
+            "placeholder rules. Retain and report modified or reused content "
+            "and rules referenced by player history. Running this again "
+            "makes no further changes. "
             "No money moves; the propagation pass gives gangs already "
             "founded their supertype pick."
         ),
@@ -2978,7 +2982,12 @@ task_routes = [
     ),
     N26TaskRoute(delete_empty_affiliations, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(open_founding_actions, ack_deadline=600),
-    N26TaskRoute(seed_journal_content, ack_deadline=600, min_retry_delay=60),
+    N26TaskRoute(
+        seed_journal_content,
+        exclusive_write=True,
+        ack_deadline=600,
+        min_retry_delay=60,
+    ),
     N26TaskRoute(clear_item_restrictions, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(order_collections, ack_deadline=600, min_retry_delay=60),
     N26TaskRoute(initialise_action_allowances, ack_deadline=600),

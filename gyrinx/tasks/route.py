@@ -75,6 +75,8 @@ class TaskRoute:
         max_retry_delay: Maximum retry backoff in seconds (default 600)
         schedule: Optional cron expression for scheduled execution (e.g., "0 3 * * *")
         schedule_timezone: Timezone for the schedule (default "UTC")
+        exclusive_write: Drain write_scope before delivery and hold exclusive
+            admission across the task's transactions (default False)
 
     Example:
         # On-demand only
@@ -98,6 +100,7 @@ class TaskRoute:
     schedule_timezone: str = "UTC"
     write_scope: str | None = None
     paused_consumer: PausedTaskConsumer | None = None
+    exclusive_write: bool = False
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -106,6 +109,8 @@ class TaskRoute:
             validate_timezone(self.schedule_timezone)
         if self.paused_consumer is not None and not self.write_scope:
             raise ValueError("paused_consumer requires write_scope")
+        if self.exclusive_write and not self.write_scope:
+            raise ValueError("exclusive_write requires write_scope")
 
     @property
     def _underlying_func(self) -> Callable:

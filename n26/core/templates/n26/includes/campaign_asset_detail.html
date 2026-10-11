@@ -44,14 +44,6 @@
                 </dd>
             </div>
         </dl>
-        {% if details.boons %}
-            <div>
-                <h3 class="text-sm font-medium text-muted">Boons</h3>
-                <ul class="mt-1 space-y-1">
-                    {% for boon in details.boons %}<li>{{ boon }}</li>{% endfor %}
-                </ul>
-            </div>
-        {% endif %}
         <p class="text-sm text-muted">Added to the campaign {{ details.created|date:"j M Y, H:i" }}.</p>
     </c-n26.form-section>
     <c-n26.form-section title="Battles staked in">

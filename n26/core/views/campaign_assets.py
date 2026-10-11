@@ -13,13 +13,12 @@ from n26.core.render import (
     CampaignAssetAction,
     CampaignAssetBattle,
     CampaignAssetDetails,
-    boon_said,
 )
 from n26.core.views.campaigns import _campaign_asset_or_404, _holding_owner
 from n26.core.views.gangs import _pages
 from n26.core.views.permissions import _any_campaign_or_404
 from n26.flags import CAMPAIGNS, requires_flag
-from n26.library.income import boons_of, income_of
+from n26.library.income import income_of
 from n26.library.models import Modifier
 from n26.library.references import reading_sentences
 
@@ -117,7 +116,6 @@ def _asset_context(request, pk, asset_pk):
             income=holding.income_override.contributes_to_counter.amount
             if holding.income_override_id
             else income_of(holding.asset),
-            boons=[boon_said(modifier) for modifier in boons_of(holding.asset)],
             holder=holding.holder.gang.name if held else "",
             holder_href=reverse("n26-gang", args=[holding.holder.gang_id])
             if held

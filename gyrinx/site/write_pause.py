@@ -214,19 +214,39 @@ def request_gate(scope):
 
 @contextmanager
 def task_delivery_gate(route, kwargs):
-    """Hold shared admission for a whole task delivery, including commit gaps."""
+    """Hold a scope's admission for a whole delivery, including commit gaps."""
     if not route.write_scope:
         yield DeliveryAdmission(True)
         return
     scope = route.write_scope
-    raw_connection = _session_lock("pg_advisory_lock_shared", scope)
+    raw_connection = None
+    unlock_function = (
+        "pg_advisory_unlock" if route.exclusive_write else "pg_advisory_unlock_shared"
+    )
     token = None
     try:
         try:
+            if route.exclusive_write:
+                # Drain before taking a session lock, using the control lock's
+                # bounded wait. Promote on the same physical session before the
+                # transaction ends so no authoring write can enter the gap.
+                with exclusive_write_scope(scope):
+                    raw_connection = _session_lock("pg_advisory_lock", scope)
+                # The admission transaction must finish before the task starts:
+                # runners can commit attempt counts separately from their work.
+            else:
+                raw_connection = _session_lock("pg_advisory_lock_shared", scope)
             pause = _get_pause(scope)
         except ImproperlyConfigured:
             logger.error(
                 "Task delivery deferred because write-pause state is missing",
+                extra={"write_scope": scope, "task_name": route.path},
+            )
+            yield DeliveryAdmission(False)
+            return
+        except WritesPaused:
+            logger.info(
+                "Task delivery deferred because active writes did not drain",
                 extra={"write_scope": scope, "task_name": route.path},
             )
             yield DeliveryAdmission(False)
@@ -262,7 +282,8 @@ def task_delivery_gate(route, kwargs):
     finally:
         if token is not None:
             _permit.reset(token)
-        _session_unlock("pg_advisory_unlock_shared", scope, raw_connection)
+        if raw_connection is not None:
+            _session_unlock(unlock_function, scope, raw_connection)
 
 
 @contextmanager

@@ -3,7 +3,7 @@ import threading
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
-from django.db import DatabaseError, transaction
+from django.db import DatabaseError, close_old_connections, connection, transaction
 from django.http import HttpResponse
 from django.test import RequestFactory, override_settings
 
@@ -51,8 +51,13 @@ def test_write_guard_fails_closed_for_missing_state():
 
 
 @pytest.mark.django_db
-def test_task_delivery_defers_for_missing_state():
-    route = TaskRoute(_task, write_scope="missing-task-pause-row")
+@pytest.mark.parametrize("exclusive_write", [False, True])
+def test_task_delivery_defers_for_missing_state(exclusive_write):
+    route = TaskRoute(
+        _task,
+        write_scope="missing-task-pause-row",
+        exclusive_write=exclusive_write,
+    )
     with task_delivery_gate(route, {}) as admission:
         assert not admission.allowed
         assert admission.pause is None
@@ -97,12 +102,16 @@ def test_resume_rejects_a_stale_generation(scope):
     assert scope.generation == latest.generation
 
 
-def test_exact_bound_task_is_admitted_and_stale_generation_is_deferred(scope):
+@pytest.mark.parametrize("exclusive_write", [False, True])
+def test_exact_bound_task_is_admitted_and_stale_generation_is_deferred(
+    scope, exclusive_write
+):
     paused = pause_scope(scope.scope, actor=None, reason="Cutover")
     route = TaskRoute(
         _task,
         write_scope=scope.scope,
         paused_consumer=PausedTaskConsumer(),
+        exclusive_write=exclusive_write,
     )
     bind_paused_consumer(
         scope.scope,
@@ -123,14 +132,182 @@ def test_exact_bound_task_is_admitted_and_stale_generation_is_deferred(scope):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_task_gate_releases_session_lock_when_body_raises(scope):
-    route = TaskRoute(_task, write_scope=scope.scope)
+@pytest.mark.parametrize("exclusive_write", [False, True])
+@override_settings(WRITE_PAUSE_DRAIN_TIMEOUT_SECONDS=0.1)
+def test_task_gate_releases_session_lock_when_body_raises(scope, exclusive_write):
+    route = TaskRoute(_task, write_scope=scope.scope, exclusive_write=exclusive_write)
     with pytest.raises(RuntimeError):
         with task_delivery_gate(route, {}):
             raise RuntimeError("delivery failed")
-    # An exclusive control operation on the same connection would hang if the
-    # session-scoped shared lock leaked from the exceptional delivery.
-    pause_scope(scope.scope, actor=None, reason="Still drainable")
+    # A different session must be able to drain after the exceptional delivery.
+    # The acquiring session could reacquire its own leaked lock and hide a leak.
+    errors = []
+
+    def pause_after_delivery():
+        close_old_connections()
+        try:
+            pause_scope(scope.scope, actor=None, reason="Still drainable")
+        except Exception as exc:  # pragma: no cover - surfaced below
+            errors.append(exc)
+        finally:
+            close_old_connections()
+
+    thread = threading.Thread(target=pause_after_delivery)
+    thread.start()
+    thread.join(5)
+    assert not thread.is_alive()
+    assert errors == []
+
+
+def test_exclusive_task_route_requires_a_write_scope():
+    with pytest.raises(ValueError, match="exclusive_write requires write_scope"):
+        TaskRoute(_task, exclusive_write=True)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_exclusive_task_gate_keeps_attempt_commit_outside_work_rollback(scope):
+    route = TaskRoute(_task, write_scope=scope.scope, exclusive_write=True)
+
+    with task_delivery_gate(route, {}) as admission:
+        assert admission.allowed
+        assert not connection.in_atomic_block
+        # Maintenance runners commit their attempt before opening the work's
+        # transaction. Admission must not turn both into one transaction.
+        with transaction.atomic():
+            WritePause.objects.filter(pk=scope.pk).update(reason="Attempt recorded")
+        with pytest.raises(RuntimeError):
+            with transaction.atomic(), write_guard(scope.scope):
+                WritePause.objects.filter(pk=scope.pk).update(reason="Failed work")
+                raise RuntimeError("Roll back only the work")
+
+    scope.refresh_from_db()
+    assert scope.reason == "Attempt recorded"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_exclusive_task_gate_drains_writes_and_holds_across_commit_gaps(
+    scope, monkeypatch
+):
+    module = importlib.import_module("gyrinx.site.write_pause")
+    original_advisory = module._advisory
+    drain_started = threading.Event()
+    exclusive_admitted = threading.Event()
+    writer_started = threading.Event()
+    writer_admitted = threading.Event()
+    nested_guard_done = threading.Event()
+    release_delivery = threading.Event()
+    errors = []
+
+    def exclusive_delivery():
+        close_old_connections()
+        try:
+            route = TaskRoute(_task, write_scope=scope.scope, exclusive_write=True)
+            with task_delivery_gate(route, {}) as admission:
+                assert admission.allowed
+                assert not connection.in_atomic_block
+                current = WritePause.objects.get(pk=scope.pk)
+                assert current.reason == "Author committed"
+                exclusive_admitted.set()
+                assert writer_started.wait(5)
+                # A queued writer must not prevent nested shared guards on the
+                # session that already owns exclusive admission.
+                with transaction.atomic(), write_guard(scope.scope):
+                    WritePause.objects.filter(pk=scope.pk).update(
+                        reason="Reset committed"
+                    )
+                nested_guard_done.set()
+                assert release_delivery.wait(5)
+        except Exception as exc:  # pragma: no cover - surfaced below
+            errors.append(exc)
+        finally:
+            close_old_connections()
+
+    def later_author():
+        close_old_connections()
+        try:
+            with transaction.atomic(), write_guard(scope.scope):
+                current = WritePause.objects.get(pk=scope.pk)
+                assert current.reason == "Reset committed"
+                writer_admitted.set()
+        except Exception as exc:  # pragma: no cover - surfaced below
+            errors.append(exc)
+        finally:
+            close_old_connections()
+
+    delivery_thread = threading.Thread(target=exclusive_delivery)
+    writer_thread = threading.Thread(target=later_author)
+
+    def observed_advisory(function, slug):
+        if slug == scope.scope:
+            if function == "pg_advisory_xact_lock":
+                drain_started.set()
+            elif (
+                function == "pg_advisory_xact_lock_shared"
+                and threading.current_thread() is writer_thread
+            ):
+                writer_started.set()
+        return original_advisory(function, slug)
+
+    monkeypatch.setattr(module, "_advisory", observed_advisory)
+    try:
+        with transaction.atomic(), write_guard(scope.scope):
+            WritePause.objects.filter(pk=scope.pk).update(reason="Author committed")
+            delivery_thread.start()
+            assert drain_started.wait(5)
+            assert not exclusive_admitted.is_set()
+        assert exclusive_admitted.wait(5)
+        writer_thread.start()
+        assert writer_started.wait(5)
+        assert nested_guard_done.wait(5)
+        assert not writer_admitted.is_set()
+    finally:
+        release_delivery.set()
+        delivery_thread.join(5)
+        if writer_thread.ident is not None:
+            writer_thread.join(5)
+
+    assert not delivery_thread.is_alive()
+    assert not writer_thread.is_alive()
+    assert writer_admitted.is_set()
+    assert errors == []
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(WRITE_PAUSE_DRAIN_TIMEOUT_SECONDS=0.02)
+def test_exclusive_task_gate_timeout_defers_delivery(scope):
+    admitted = threading.Event()
+    release = threading.Event()
+    errors = []
+
+    def active_author():
+        close_old_connections()
+        try:
+            with transaction.atomic(), write_guard(scope.scope):
+                admitted.set()
+                assert release.wait(5)
+        except Exception as exc:  # pragma: no cover - surfaced below
+            errors.append(exc)
+        finally:
+            close_old_connections()
+
+    thread = threading.Thread(target=active_author)
+    thread.start()
+    try:
+        assert admitted.wait(5)
+        route = TaskRoute(_task, write_scope=scope.scope, exclusive_write=True)
+        with task_delivery_gate(route, {}) as admission:
+            assert not admission.allowed
+            assert admission.pause is None
+        assert not connection.in_atomic_block
+    finally:
+        release.set()
+        thread.join(5)
+
+    assert not thread.is_alive()
+    assert errors == []
+    # Timeout leaves neither a transaction nor a session lock behind.
+    with task_delivery_gate(route, {}) as admission:
+        assert admission.allowed
 
 
 @pytest.mark.django_db(transaction=True)

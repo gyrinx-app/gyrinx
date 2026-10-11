@@ -306,7 +306,7 @@ def test_every_ordinary_n26_maintenance_page_declares_its_write_scope():
         if operation.operation.startswith("n26_")
     ]
     assert n26_operations
-    controls = {"n26_activate_counter_history"}
+    controls = {"n26_activate_counter_history", "n26_seed_journal_content"}
     assert {
         operation.operation
         for operation in n26_operations

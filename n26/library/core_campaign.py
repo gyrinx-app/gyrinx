@@ -54,8 +54,7 @@ FORMER_BUILT_INS = f"{FORMER_NAME} built-ins"
 DESCRIPTION = (
     "The core rulebook's campaign: gangs fight for control of Territory. "
     "Every gang keeps a Settlement it cannot lose and starts with one "
-    "Territory drawn from the campaign's table. Each Territory a gang "
-    "holds gives it a Boon, such as income, Reputation or equipment. The "
+    "Territory drawn from the campaign's table. The "
     "campaign has three phases: Occupation, Downtime and Takeover. It ends "
     "with Triumphs awarded for the most Territories, the highest Reputation, "
     "the most battles fought, the most enemies taken out of action and the "
@@ -66,7 +65,7 @@ LIBRARY_AUTHOR_HELP = (
     "The campaign type from the core rulebook. Settlement is a possession: "
     "every gang has its own. Territory is a holding: one gang "
     "holds it at a time. Add each Territory as an asset under that asset "
-    "type, with its income in the Income box and its Boons as modifiers. "
+    "type, with its income in the Income box. "
     "Reputation at 0, Income at 0 and the Settlement are built in, so every "
     "gang that joins starts with all three."
 )

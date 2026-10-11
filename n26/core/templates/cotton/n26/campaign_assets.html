@@ -27,7 +27,6 @@ Roll is primary because it begins a form. The other controls do not.
                 <tr>
                     <th scope="col">{{ table.label }}</th>
                     <th scope="col" class="text-right">Income</th>
-                    <th scope="col">Boons</th>
                     <th scope="col">Held by</th>
                     <th scope="col" class="relative"><span class="sr-only">Actions</span></th>
                 </tr>
@@ -41,15 +40,6 @@ Roll is primary because it begins a form. The other controls do not.
                         </td>
                         <td class="text-right tabular-nums whitespace-nowrap">
                             {% if entry.income %}{{ entry.income }}¢{% else %}<span class="text-muted">&mdash;</span>{% endif %}
-                        </td>
-                        <td class="min-w-40 max-w-sm text-xs">
-                            {% if entry.boons %}
-                                <ul class="flex flex-col gap-0.5">
-                                    {% for boon in entry.boons %}<li>{{ boon }}</li>{% endfor %}
-                                </ul>
-                            {% else %}
-                                <span class="text-muted">&mdash;</span>
-                            {% endif %}
                         </td>
                         <td class="w-1/3 min-w-40 max-w-64">
                             {% if entry.held %}

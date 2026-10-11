@@ -64,8 +64,8 @@ def is_income_contribution(modifier):
     the scope's condition rows, which ``with_income`` prefetches.
 
     A contribution that applies only to some gangs — "gangs that have
-    picked Goliath: 10 more Income" — is a boon, not the figure: it
-    prints with its scope wording, and applies to the gangs it names
+    picked Goliath: 10 more Income" — is separate from the base figure.
+    It applies to the gangs it names
     through the effects engine, like any other modifier.
     """
     if modifier.targets_gang_id is None or modifier.contributes_to_counter_id is None:
@@ -101,7 +101,7 @@ def income_of(asset, modifiers=None):
 
 def boons_of(asset, modifiers=None):
     """The asset's modifiers other than its income: what holding it does
-    beyond the figure, for a column that prints the figure separately."""
+    beyond the base figure."""
     return [
         row for row in _modifiers(asset, modifiers) if not is_income_contribution(row)
     ]
