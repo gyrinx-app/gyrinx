@@ -877,6 +877,47 @@ def user_link_recipe():
     }
 
 
+def site_nav_trigger_recipe():
+    """The account button <c-n26.site.nav> draws until the account-menu
+    island mounts: the button, the name beside it and the icons' wrapper."""
+    from unittest import mock
+
+    with mock.patch(
+        "n26.core.templatetags.react._entry", return_value=("/island.js", "")
+    ):
+        rendered = Template(
+            CottonCompiler().process(
+                '<c-n26.site.nav user_label="Name" :unread="2" :account="account" />'
+            )
+        ).render(Context({"account": {"label": "Open account menu"}}))
+    elements = Elements(rendered).elements
+    at = next(
+        index
+        for index, (tag, attrs) in enumerate(elements)
+        if tag == "button" and attrs.get("title") == "Open account menu"
+    )
+    button, name, icons = (elements[at + offset] for offset in (0, 1, 2))
+    if (
+        name[0] != "span"
+        or icons[0] != "span"
+        or "n26-icon-only" not in class_name(icons[1])
+    ):
+        raise ValueError(f"Site nav account button changed: {elements[at : at + 3]}")
+    badge = next(
+        attrs
+        for tag, attrs in elements[at:]
+        if tag == "span" and "rounded-full" in class_name(attrs)
+    )
+    pill = count_badge_recipe()["root"].split()
+    return {
+        "button": class_name(button[1]),
+        "name": class_name(name[1]),
+        "icons": class_name(icons[1]),
+        # Only what the bar adds to the count pill: where it sits.
+        "badge": " ".join(c for c in class_name(badge).split() if c not in pill),
+    }
+
+
 def dropdown_group_recipe():
     """A labelled section of a dropdown: its wrapper and its heading."""
     root, label = classes(
@@ -1096,6 +1137,7 @@ def recipes():
         "filterMenu": filter_menu_recipe(),
         "actionMenu": action_menu_recipe(),
         "dropdownGroup": dropdown_group_recipe(),
+        "siteNavTrigger": site_nav_trigger_recipe(),
         "countBadge": count_badge_recipe(),
         "quickSwitcher": quick_switcher_recipe(),
         "pickList": pick_list_recipe(),

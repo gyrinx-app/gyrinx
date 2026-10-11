@@ -1,12 +1,13 @@
 import { Fragment } from "react";
 import {
     CountBadge,
-    Icon,
     MenuButton,
     MenuGroup,
     MenuLink,
     MenuSeparator,
     MenuSubmit,
+    SiteNavAccount,
+    siteNavAccountButton,
     ThemeChoice,
     UserLink,
     type BadgeMark,
@@ -40,15 +41,13 @@ export type AccountMenuProps = {
     /** The button's name, before any unread count is added to it. */
     label: string;
     unread: number;
+    /** The unread count in words, singular or plural, for the button's name. */
+    unreadText: string;
     person: { name: string; href: string; badge: string | null };
     badges: Record<string, BadgeMark>;
     /** In the order they are drawn; the server decides every break. */
     items: AccountMenuEntry[];
 };
-
-// <c-n26.site.nav> draws the same button until this mounts; change both.
-const TRIGGER =
-    "relative inline-flex cursor-pointer items-center gap-1.5 rounded-control px-2.5 py-1.5 text-sm font-medium text-ink-600 hover:bg-ink-100 focus-ring dark:text-ink-300 dark:hover:bg-ink-800";
 
 /** The signed-in reader's menu: who they are, their doors and the way out. */
 export function AccountMenu(props: AccountMenuProps) {
@@ -112,34 +111,12 @@ export function AccountMenu(props: AccountMenuProps) {
         <MenuButton
             label={
                 props.unread
-                    ? `${props.label} — ${props.unread} unread notifications`
+                    ? `${props.label} — ${props.unreadText}`
                     : props.label
             }
             title={props.label}
-            className={TRIGGER}
-            trigger={
-                <>
-                    <span className="hidden max-w-40 truncate sm:inline">
-                        {name}
-                    </span>
-                    <span className="n26-icon-only gap-0.5">
-                        <Icon
-                            name="ellipsis-vertical"
-                            className="size-4"
-                            strokeWidth={1.7}
-                        />
-                        <Icon
-                            name="chevron-down"
-                            className="size-3"
-                            strokeWidth={2.5}
-                        />
-                    </span>
-                    <CountBadge
-                        count={props.unread}
-                        className="absolute -top-0.5 -right-0.5"
-                    />
-                </>
-            }
+            className={siteNavAccountButton}
+            trigger={<SiteNavAccount name={name} unread={props.unread} />}
         >
             {props.items.map((entry, key) => (
                 <Fragment key={key}>{draw(entry, key)}</Fragment>

@@ -6,6 +6,7 @@ import { AccountMenu, type AccountMenuProps } from "./AccountMenu";
 const props: AccountMenuProps = {
     label: "Open account menu",
     unread: 0,
+    unreadText: "0 unread notifications",
     person: { name: "boss", href: "/n26/users/@boss/", badge: "staff" },
     badges: {
         staff: {
@@ -79,7 +80,13 @@ const trigger = () =>
 
 describe("account menu", () => {
     it("names the reader on the button, with their badge, and counts unread", () => {
-        render(<AccountMenu {...props} unread={120} />);
+        render(
+            <AccountMenu
+                {...props}
+                unread={120}
+                unreadText="120 unread notifications"
+            />,
+        );
         const button = trigger();
         expect(button.getAttribute("aria-label")).toBe(
             "Open account menu — 120 unread notifications",

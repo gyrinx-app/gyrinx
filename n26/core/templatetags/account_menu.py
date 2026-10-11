@@ -35,6 +35,7 @@ def account_menu(context, compact=False):
     if user is None or not user.is_authenticated:
         return None
     unread = context.get("unread_notification_count") or 0
+    unread_noun = "unread notification" if unread == 1 else "unread notifications"
     badges = {}
     person = person_link(user, badges)
     notifications = {
@@ -42,7 +43,7 @@ def account_menu(context, compact=False):
         "label": "Notifications",
         "href": reverse("core:notifications"),
         "count": unread,
-        "countLabel": "unread notifications",
+        "countLabel": unread_noun,
     }
     account = {
         "type": "link",
@@ -84,7 +85,7 @@ def account_menu(context, compact=False):
             staff.append(
                 {
                     "type": "link",
-                    "label": "Content Library",
+                    "label": "Content library",
                     "href": reverse("authoring-index"),
                 }
             )
@@ -109,6 +110,7 @@ def account_menu(context, compact=False):
     return {
         "label": "Open account menu",
         "unread": unread,
+        "unreadText": f"{unread} {unread_noun}",
         "person": person,
         "badges": badges,
         "items": items,

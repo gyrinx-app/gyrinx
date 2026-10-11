@@ -967,7 +967,7 @@ class TestTheNavigation:
                 "Your account",
                 "Staff only",
                 "Admin",
-                "Content Library",
+                "Content library",
                 "Sign out",
             )
         ]
@@ -1020,7 +1020,7 @@ class TestTheNavigation:
         rows = menu_rows(account_menu(client.get("/n26/").content.decode()))
         words = [words for _, words in rows]
         assert "Admin" not in words
-        assert "Content Library" not in words
+        assert "Content library" not in words
         assert "Staff only" not in words
         # The name's rule and the way out's, and no third one left behind by
         # the section they do not have.
@@ -1264,9 +1264,23 @@ class TestTheInbox:
     def test_only_your_own_is_counted(self, tester, client, default_pack):
         self.unread(User.objects.create_user("rival"), 5)
         self.unread(tester, 1)
-        assert reads_as(account_button(client.get("/n26/").content.decode())) == (
-            "tester 1"
+        body = client.get("/n26/").content.decode()
+        assert reads_as(account_button(body)) == "tester 1"
+
+    def test_one_is_a_notification_not_notifications(
+        self, tester, client, default_pack
+    ):
+        """Read aloud, a count of one takes the singular, on the button and
+        against the entry."""
+        self.unread(tester, 1)
+        body = client.get("/n26/").content.decode()
+        assert 'aria-label="Open account menu — 1 unread notification"' in (
+            account_button(body)
         )
+        menu = account_menu(body)
+        assert menu["unreadText"] == "1 unread notification"
+        entry = menu_entry(menu, "link", "Notifications")
+        assert (entry["count"], entry["countLabel"]) == (1, "unread notification")
 
 
 class TestTheEditionToggle:

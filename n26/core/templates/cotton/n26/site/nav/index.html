@@ -64,9 +64,9 @@ The drawer's root is display:contents, so the burger sits in this row. The panel
             {% if account %}
                 {% react_host "account-menu" account %}
                     <span class="relative inline-block">
-                        {# AccountMenu.tsx draws the same button; change both. #}
+                        {# The account-menu island reads this button's classes from the recipes. #}
                         <button type="button"
-                                aria-label="{{ menu_label }}{% if unread %} — {{ unread }} unread notifications{% endif %}"
+                                aria-label="{{ menu_label }}{% if unread %} — {{ unread }} unread notification{{ unread|pluralize }}{% endif %}"
                                 title="{{ menu_label }}"
                                 class="relative inline-flex cursor-pointer items-center gap-1.5 rounded-control px-2.5 py-1.5
                                        text-sm font-medium text-ink-600 hover:bg-ink-100 focus-ring

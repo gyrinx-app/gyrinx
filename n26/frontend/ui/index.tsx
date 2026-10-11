@@ -943,6 +943,38 @@ export function UserLink({
     );
 }
 
+/** The class of the site bar's account button, as `<c-n26.site.nav>` draws it. */
+export const siteNavAccountButton = cotton.siteNavTrigger.button;
+
+/** The inside of the site bar's account button: the name, the icons and the unread pill. */
+export function SiteNavAccount({
+    name,
+    unread,
+}: {
+    name: ReactNode;
+    unread: number;
+}) {
+    const recipe = cotton.siteNavTrigger;
+    return (
+        <>
+            <span className={recipe.name}>{name}</span>
+            <span className={recipe.icons}>
+                <Icon
+                    name="ellipsis-vertical"
+                    className="size-4"
+                    strokeWidth={1.7}
+                />
+                <Icon
+                    name="chevron-down"
+                    className="size-3"
+                    strokeWidth={2.5}
+                />
+            </span>
+            <CountBadge count={unread} className={recipe.badge} />
+        </>
+    );
+}
+
 /**
  * A red count pill, as `<c-n26.count-badge>` draws it: nothing at zero, the
  * face capped at `max`, and the real count spoken with `label`.
