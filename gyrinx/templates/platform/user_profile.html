@@ -83,7 +83,8 @@
                                     {% if entry.stars is not None %}
                                         <span class="inline-flex items-center gap-1" title="Stars">
                                             <c-n26.icon name="star" class="size-4" />
-                                        {{ entry.stars }}</span>
+                                            {{ entry.stars }} <span class="sr-only">stars</span>
+                                        </span>
                                     {% endif %}
                                     {% if entry.amount %}<c-ui.badge>{{ entry.amount }}</c-ui.badge>{% endif %}
                                 </div>
