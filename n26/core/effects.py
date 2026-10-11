@@ -373,6 +373,15 @@ class DrawnPick:
 
 
 @dataclass(frozen=True)
+class CycleRewardOffer:
+    effect: object
+    source: str
+    holding: object
+    root_key: object
+    modifier: object
+
+
+@dataclass(frozen=True)
 class StoredEffect:
     """Something a card's kit does beyond adding a line to this card.
 
@@ -669,6 +678,7 @@ class ComputedCard:
     #: the stored values so a reading can state both and neither is
     #: mistaken for the other.
     counter_contributions: list[CounterContribution] = field(default_factory=list)
+    cycle_rewards: list[CycleRewardOffer] = field(default_factory=list)
     #: The category heading this model sorts under on the gang sheet,
     #: when a rule re-files them — None sorts by the profile's own.
     sorted_under: object = None
@@ -787,6 +797,8 @@ def compute(card, index):
         ExcludesCampaignAssets,
         HidesCategories,
         OffersChoice,
+        OffersCycleEquipment,
+        OffersCycleRecruitment,
         PlacesCategory,
         RemovesAssignable,
         RequiresCompanions,
@@ -1248,6 +1260,16 @@ def compute(card, index):
                                 contributed,
                             )
                         )
+                    elif isinstance(
+                        effect, (OffersCycleEquipment, OffersCycleRecruitment)
+                    ):
+                        offer = CycleRewardOffer(
+                            effect, label, step.holding, step.root_key, step.modifier
+                        )
+                        computed.cycle_rewards.append(offer)
+                        log.applied.append(
+                            _Applied(source_key, computed, "cycle_rewards", offer)
+                        )
                     elif isinstance(effect, OffersChoice):
                         # Addressed on the line the offerer stands on, as a
                         # given slot is: an offer carried by something a
@@ -1570,6 +1592,7 @@ class ComputedGang:
     #: alliance's "adds a Magistrate", said once, here.
     effects: list = field(default_factory=list)
     notes: list = field(default_factory=list)
+    cycle_rewards: list[CycleRewardOffer] = field(default_factory=list)
 
     def choice(self, kind_label):
         """First slot by label — for tests and lookups."""
@@ -1775,6 +1798,7 @@ def compute_gang(gang_card, index):
     # them however many ask.
     gang_card.acquired = tuple(computed.acquired)
     return ComputedGang(
+        cycle_rewards=computed.cycle_rewards,
         card=gang_card,
         plan=computed.plan,
         choices=computed.choices,

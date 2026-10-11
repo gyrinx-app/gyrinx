@@ -3091,3 +3091,43 @@ def detach_modifier(assignable, modifier):
     it may hang on other carriers, or wait as a reusable."""
     assignable.modifiers.remove(modifier)
     return assignable
+
+
+@guarded_write
+def ef_offers_cycle_recruitment(
+    profiles=(), profile_type=None, discount=0, maximum=None
+):
+    """Offer one recruitment from these profiles or this type after each cycle."""
+    from n26.library.models import OffersCycleRecruitment
+
+    profiles = tuple(profiles)
+    if not profiles and profile_type is None:
+        raise ValidationError("Select profiles or a profile type for this recruitment.")
+    effect = OffersCycleRecruitment.objects.create(
+        profile_type=profile_type, discount=discount, maximum=maximum
+    )
+    effect.profiles.set(profiles)
+    effect.full_clean()
+    return effect
+
+
+@guarded_write
+def ef_offers_cycle_equipment(thing, quantity=1):
+    """Offer owned equipment for the stash after each cycle."""
+    from n26.library.models import OffersCycleEquipment, Wargear, Weapon
+
+    if not isinstance(thing, (Wargear, Weapon)):
+        raise ValidationError("Select a weapon or wargear for this reward.")
+    field = "weapon" if isinstance(thing, Weapon) else "wargear"
+    effect = OffersCycleEquipment(**{field: thing}, quantity=quantity)
+    effect.full_clean()
+    effect.save()
+    return effect
+
+
+@guarded_write
+def set_cycle_recruitment_profiles(reward, *, profiles):
+    """Replace the profiles offered by a cycle recruitment reward."""
+    reward.profiles.set(profiles)
+    reward.full_clean()
+    return reward

@@ -1177,6 +1177,9 @@ def build_modifier_index(assignables, max_depth=3):
         *(f"removes_assignable__{name}" for name in GRANTABLE_FIELDS),
         "changes_stat__stat",
         "contributes_to_counter__counter",
+        "offers_cycle_recruitment__profile_type",
+        "offers_cycle_equipment__weapon",
+        "offers_cycle_equipment__wargear",
         "excludes_campaign_assets__asset_type",
         "adds_assignable__asset__asset_type",
         "removes_assignable__asset__asset_type",
@@ -1186,6 +1189,7 @@ def build_modifier_index(assignables, max_depth=3):
     #: per card to learn who it reaches.
     also_prefetch = (
         "hides_categories__categories",
+        "offers_cycle_recruitment__profiles",
         "targets_miniature__has_subtypes__subtypes",
         "targets_miniature__is_profile__profiles",
         "targets_miniature__is_profile_type__profile_types",

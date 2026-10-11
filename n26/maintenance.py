@@ -102,6 +102,7 @@ __all__ = [
     "seed_journal_content",
     "seed_territory_boons",
     "seed_territory_boon_choices",
+    "seed_territory_cycle_rewards",
     "remove_published_journal_boons",
     "PlanRefused",
     "run_batched",
@@ -237,6 +238,10 @@ class Operation(models.TextChoices):
         "n26_seed_territory_boons",
         "n26: add territory income and standing boons",
     )
+    SEED_TERRITORY_CYCLE_REWARDS = (
+        "n26_seed_territory_cycle_rewards",
+        "n26: enable territory cycle rewards",
+    )
     SEED_TERRITORY_BOON_CHOICES = (
         "n26_seed_territory_boon_choices",
         "n26: add territory boon choices",
@@ -305,6 +310,7 @@ LOCK_KEYS = {
     Operation.SEED_JOURNAL_CONTENT: 826_020_619,
     Operation.SEED_TERRITORY_BOONS: 826_020_631,
     Operation.SEED_TERRITORY_BOON_CHOICES: 826_020_632,
+    Operation.SEED_TERRITORY_CYCLE_REWARDS: 826_020_633,
     Operation.REMOVE_PUBLISHED_JOURNAL_BOONS: 826_020_629,
     Operation.DELETE_TEST_CONTENT: 826_020_620,
     Operation.DELETE_FIRING_LINE: 826_020_621,
@@ -2822,6 +2828,92 @@ register_control_operation(
 
 
 @task
+def seed_territory_cycle_rewards(backfill_id, **said_by_whoever_enqueued_it):
+    """Record the guarded territory boon conversion and current Income picks."""
+    from n26.library.territory_cycle_rewards import seed_all
+
+    _run_recorded(
+        backfill_id,
+        Operation.SEED_TERRITORY_CYCLE_REWARDS,
+        "Territory cycle rewards",
+        seed_all,
+        (),
+    )
+
+
+def seed_territory_cycle_rewards_view(request):
+    """Preview the content pass, then enqueue one recorded library transaction."""
+    from n26.library.territory_cycle_rewards import NOTHING_TO_DO, preview
+    from n26.write_pause import SCOPE, exclusive_write_scope
+
+    operation = Operation.SEED_TERRITORY_CYCLE_REWARDS
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        with exclusive_write_scope(SCOPE):
+            running = running_guard(operation)
+            if running is not None:
+                messages.warning(request, "That content update is already running.")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_backfill_detail", args=[running.id])
+                )
+            try:
+                lines = preview()
+            except (
+                ObjectDoesNotExist,
+                MultipleObjectsReturned,
+                ValidationError,
+            ) as broke:
+                messages.error(request, f"The content update cannot run: {broke}")
+                return HttpResponseRedirect(address)
+            if lines[0] == NOTHING_TO_DO:
+                messages.info(request, NOTHING_TO_DO)
+                return HttpResponseRedirect(address)
+            backfill = Backfill.objects.create(
+                operation=operation,
+                triggered_by=request.user,
+                status=Backfill.Status.RUNNING,
+                summary={"preview": lines, "attempts": 0},
+            )
+        # Task delivery must see the committed run and released admission.
+        seed_territory_cycle_rewards.enqueue(backfill_id=str(backfill.id))
+        messages.success(request, "The territory boon update is running.")
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+    problem = ""
+    try:
+        lines = preview()
+    except (ObjectDoesNotExist, MultipleObjectsReturned, ValidationError) as broke:
+        lines, problem = [], str(broke)
+    context = page_context(
+        request,
+        operation.label,
+        preview=lines,
+        nothing_to_do=bool(lines) and lines[0] == NOTHING_TO_DO,
+        problem=problem,
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(
+        request, "admin/maintenance/n26/seed_territory_cycle_rewards.html", context
+    )
+
+
+register_control_operation(
+    MaintenanceOperation(
+        operation=Operation.SEED_TERRITORY_CYCLE_REWARDS.value,
+        name=Operation.SEED_TERRITORY_CYCLE_REWARDS.label,
+        added=date(2026, 10, 11),
+        description=(
+            "Attach typed recruitment and stash rewards to unchanged seeded territory boon choices. Preserve authored content and report missing targets. No cycle rewards are paid by this operation."
+        ),
+        view=seed_territory_cycle_rewards_view,
+        detail_template="admin/maintenance/n26/_seed_territory_cycle_rewards_detail.html",
+    )
+)
+
+
+@task
 def remove_published_journal_boons(backfill_id, **said_by_whoever_enqueued_it):
     """Remove unchanged published journal placeholders in a separate run."""
     from n26.library.published_journal_boons import remove_published_journal_boons
@@ -3397,6 +3489,12 @@ task_routes = [
     ),
     N26TaskRoute(
         seed_territory_boons,
+        exclusive_write=True,
+        ack_deadline=600,
+        min_retry_delay=60,
+    ),
+    N26TaskRoute(
+        seed_territory_cycle_rewards,
         exclusive_write=True,
         ack_deadline=600,
         min_retry_delay=60,

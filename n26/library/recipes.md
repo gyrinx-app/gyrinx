@@ -977,3 +977,22 @@ operation preserves a dismissed unresolved choice instead of selecting Income.
 Resolve the alternative's recruitment discount or equipment reward manually at
 cycle end. Its summary states the eligibility and amount. Selecting an option
 does not grant a persistent reward immediately.
+
+### Offer equipment once per campaign cycle
+
+Attach a deferred reward to the pickable selected by a territory's ordinary
+Boon slot. Its scope may use the same House conditions as any other modifier.
+
+```python
+modifier(
+    "Mine Workings: cycle reward",
+    targets_gang_alone(),
+    ef_offers_cycle_equipment(respirator, quantity=2),
+    attach_to=respirator_boon,
+)
+```
+
+For recruitment, use `ef_offers_cycle_recruitment(profiles=[ammo_jack],
+discount=30, maximum=1)`. Eligible recruits come from the gang's current hire
+lists. The arbitrator selects a fighter and name when applying the cycle; the
+normal recruitment operation records its price, discount, payment and rating.

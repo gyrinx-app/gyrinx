@@ -144,7 +144,7 @@ selection, stops the base Income and its override. Independent standing boons
 still apply. Settlement uses the same effective Income reading.
 
 Cycle reward options record the selected policy. Resolve recruitment discounts
-and equipment rewards manually at cycle end; selection does not recruit a
+and equipment rewards through the campaign cycle screen; selection does not recruit a
 fighter, change a recruitment price or add equipment to a stash.
 
 ### Asset table
@@ -480,3 +480,17 @@ A model is a membership assignment naming a profile, plus everything attached to
 Fields: none of its own beyond its link to the gang and its pinned worth. Created at founding.
 
 A host like any other: things can be assigned to it. Its worth is repinned by every operation. Counts towards wealth.
+
+### Campaign cycle rewards
+
+`OffersCycleRecruitment` offers one fighter from authored profiles or a profile
+kind, with a credit discount and an optional limit on existing matching fighters.
+`OffersCycleEquipment` offers a quantity of one weapon or wargear to the stash.
+Both are computed gang effects: choosing a boon changes the current offer but
+creates no fighter, equipment or payment until the arbitrator applies a cycle.
+
+A campaign cycle has a permanent number and an optional editable name. Applying
+boons records one resolution per gang and cycle, including skipped rows and the
+arbitrator's comment. Claims identify the physical territory or asset assignment,
+so transferring it cannot produce another award during that cycle. Rewards use
+ordinary gang operations and remain owned after the source territory is lost.
