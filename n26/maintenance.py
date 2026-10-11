@@ -100,6 +100,7 @@ __all__ = [
     "repair_doubled_refunds",
     "repoint_champion_picks",
     "seed_journal_content",
+    "remove_published_journal_boons",
     "PlanRefused",
     "run_batched",
     "run_per_gang",
@@ -230,6 +231,10 @@ class Operation(models.TextChoices):
         "n26_seed_journal_content",
         "n26: update journal territories and gang supertypes",
     )
+    REMOVE_PUBLISHED_JOURNAL_BOONS = (
+        "n26_remove_published_journal_boons",
+        "n26: remove published journal boon placeholders",
+    )
     DELETE_TEST_CONTENT = (
         "n26_delete_test_content",
         "n26: content is deleted along with the test gangs holding it",
@@ -288,6 +293,7 @@ LOCK_KEYS = {
     Operation.OPEN_FOUNDING_ACTIONS: 826_020_617,
     Operation.DELETE_LEGACY_AFFILIATION_ASSIGNMENTS: 826_020_618,
     Operation.SEED_JOURNAL_CONTENT: 826_020_619,
+    Operation.REMOVE_PUBLISHED_JOURNAL_BOONS: 826_020_629,
     Operation.DELETE_TEST_CONTENT: 826_020_620,
     Operation.DELETE_FIRING_LINE: 826_020_621,
     Operation.MERGE_INTO: 826_020_622,
@@ -2622,6 +2628,98 @@ register_control_operation(
 
 
 @task
+def remove_published_journal_boons(backfill_id, **said_by_whoever_enqueued_it):
+    """Remove unchanged published journal placeholders in a separate run."""
+    from n26.library.published_journal_boons import remove_published_journal_boons
+
+    _run_recorded(
+        backfill_id,
+        Operation.REMOVE_PUBLISHED_JOURNAL_BOONS,
+        "Published journal boon cleanup",
+        remove_published_journal_boons,
+        (),
+    )
+
+
+def remove_published_journal_boons_view(request):
+    """Preview this cleanup independently of the journal content update."""
+    from n26.library.published_journal_boons import NOTHING_TO_DO, preview
+    from n26.write_pause import SCOPE, exclusive_write_scope
+
+    operation = Operation.REMOVE_PUBLISHED_JOURNAL_BOONS
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        with exclusive_write_scope(SCOPE):
+            running = running_guard(operation)
+            if running is not None:
+                messages.warning(request, "That cleanup is already running.")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_backfill_detail", args=[running.id])
+                )
+            try:
+                lines = preview()
+            except (
+                ObjectDoesNotExist,
+                MultipleObjectsReturned,
+                ValidationError,
+            ) as broke:
+                messages.error(request, f"The cleanup cannot run: {broke}")
+                return HttpResponseRedirect(address)
+            if lines[0] == NOTHING_TO_DO:
+                messages.info(request, NOTHING_TO_DO)
+                return HttpResponseRedirect(address)
+            backfill = Backfill.objects.create(
+                operation=operation,
+                triggered_by=request.user,
+                status=Backfill.Status.RUNNING,
+                summary={"preview": lines, "attempts": 0},
+            )
+        # Publishing starts delivery immediately, so the run must commit first.
+        remove_published_journal_boons.enqueue(backfill_id=str(backfill.id))
+        messages.success(request, "The published journal boon cleanup is running.")
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+    problem = ""
+    try:
+        lines = preview()
+    except (ObjectDoesNotExist, MultipleObjectsReturned, ValidationError) as broke:
+        lines, problem = [], str(broke)
+    return render(
+        request,
+        "admin/maintenance/n26/remove_published_journal_boons.html",
+        page_context(
+            request,
+            operation.label,
+            preview=lines,
+            nothing_to_do=bool(lines) and lines[0] == NOTHING_TO_DO,
+            problem=problem,
+            apply_url=address,
+            recent=Backfill.objects.filter(operation=operation)[:10],
+        ),
+    )
+
+
+register_control_operation(
+    MaintenanceOperation(
+        operation=Operation.REMOVE_PUBLISHED_JOURNAL_BOONS.value,
+        name=Operation.REMOVE_PUBLISHED_JOURNAL_BOONS.label,
+        added=date(2026, 10, 11),
+        description=(
+            "Remove the original Goliath Controlled and Escher Controlled "
+            "territory modifiers and unused placeholder rules after publication. "
+            "Retain edited or archived content, reused modifiers and rules "
+            "referenced by content or player history. Preview the exact removals "
+            "and skips before applying. Holdings, their history and baseline "
+            "Income stay unchanged."
+        ),
+        view=remove_published_journal_boons_view,
+        detail_template="admin/maintenance/n26/_remove_published_journal_boons_detail.html",
+    )
+)
+
+
+@task
 def delete_test_content(backfill_id, **said_by_whoever_enqueued_it):
     """Delete content and the test gangs holding it, exactly as the
     authoring page showed it.
@@ -3099,6 +3197,12 @@ task_routes = [
     N26TaskRoute(open_founding_actions, ack_deadline=600),
     N26TaskRoute(
         seed_journal_content,
+        exclusive_write=True,
+        ack_deadline=600,
+        min_retry_delay=60,
+    ),
+    N26TaskRoute(
+        remove_published_journal_boons,
         exclusive_write=True,
         ack_deadline=600,
         min_retry_delay=60,
