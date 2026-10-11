@@ -4,7 +4,7 @@ How the parts of Gyrinx N26 fit together.
 
 The four things to remember:
 
-1. **To control who gets a thing, control where it lands — there is no per-type switch.** For something gang-wide, build it into the gang type, or use a slot whose pick is assigned to the gang. For something on one model, build it into the profile, or pick "the bearer". There is no "make this broadcast" setting on a pickable or a rule. Reach follows entirely from the **host**, so you aim content by choosing how it arrives.
+1. **To control who gets a thing, control where it lands — there is no per-type switch.** For something gang-wide, build it into the gang type, or use a slot whose pick is assigned to the gang. For something on one model, build it into the profile, or pick "the bearer". There is no "make this broadcast" setting on a pickable or a rule. Reach depends only on the **host**, so you decide who gets content by choosing how it arrives.
 
 2. **Behaviour comes from modifiers attached to carriers — and modifiers are shared, so edit with care.** A rule or a pickable starts as a name. Its attached modifiers define its behaviour (scope plus effect, with conditions ANDed). Two practical consequences: attach a modifier to the content it should affect; and before editing an existing modifier, check its carriers, because the change applies everywhere it is attached. Know the two effect families: computed effects (gives, takes away, stat changes, counter contributions, choices, placements, limits) come and go with their carrier and are safe to rework; written effects (brings a model, moves a counter) happen once, and removing the carrier does not reverse them.
 
@@ -20,7 +20,7 @@ An **assignable** is usually very simple: a piece of data that, once assigned, c
 
 The **host** is the specific object the assignment sits on: a model, the gang, a parent item (a scope fitted to a gun), or the stash. The host decides *reach*: an assignment hosted on a model is that model's; an assignment hosted on the gang is **broadcast** to every member's card.
 
-The **cause** is the action that created a particular assignment. It answers "why is this here?" Cause drives one important behaviour: **removal cascades down the cause chain**. Remove an assignment and everything caused by it (and caused by *those*, recursively) is removed too. It is also where provenance comes from: the card can show "came with X" because the assignment records its cause.
+The **cause** is the action that created a particular assignment. It records why the assignment is there. Cause drives one important behaviour: **removal cascades down the cause chain**. Remove an assignment and everything caused by it (and caused by *those*, recursively) is removed too. It is also where provenance comes from: the card can show "came with X" because the assignment records its cause.
 
 A **modifier** is attached to a specific assignable (for example the Aranthian pickable), which we call the **carrier**. It states who it reaches (**scope**) and what it does (**effect**). Conditions limit the scope. They are ANDed across conditions and any-of within a single condition, so an effect applies only in certain contexts.
 
@@ -37,7 +37,7 @@ We use **carrier** as a library-side word for one specific piece of *content*, b
 
 So: you buy a power maul for Vex. The purchase writes one assignment — **assignable**: the maul, **host**: Vex, **cause**: the purchase. The maul's assignment points at its underlying **assignable**, which is a **carrier** of a **modifier**, which now applies to its **bearer**, Vex. When the maul **assignment** is reassigned, the same assignment gets a new host, and the modifier follows the maul, not Vex.
 
-Often the host and the bearer are the same. But when the Outcast Leader settles the gang's Gang Legacy slot, the pickable they choose is assigned *to the gang*. When the gang is the host, every model sees it (and becomes the bearer), even though the Leader was the one who chose:
+Often the host and the bearer are the same. But when the Outcast Leader settles the gang's Gang Legacy slot, the pickable they choose is assigned *to the gang*. When the gang is the host, every model gets it and becomes its bearer, even though the Leader made the choice:
 
 1. The Leader's Profile (assignable) carries a modifier adding the Gang Legacy slot, which lands on the gang
 2. The choice is made. One assignment is written: assignable = the pickable, host = the gang, cause = the Leader
@@ -83,7 +83,7 @@ A choice can arrive already made. Built into a gang type, a slot takes a **start
 
 A pick the gang holds is a fact about every model in it, whether the pick was written or given. A condition on a model that asks "has picked Goliath" is true of every member of a gang that has picked Goliath, even when the grant is the gang's alone.
 
-The gang scope takes the same condition, about the gang itself. A modifier that targets the gang, or the gang alone, can be narrowed to **gangs that have picked** one of the pickables you name, or to every gang except those. The condition reads the gang's own picks, written or given, so a boon written for Goliath gangs reaches a Goliath gang and a Clan House Goliath Outcast gang alike. With no condition the gang scope reaches the gang as before.
+The gang scope takes the same condition, about the gang itself. A modifier that targets the gang, or the gang alone, can be narrowed to **gangs that have picked** one of the pickables you name, or to every gang except those. The condition reads the gang's own picks, written or given, so a boon written for Goliath gangs reaches a Goliath gang and a Clan House Goliath Outcast gang alike. With no condition, the gang scope reaches the gang whatever it has picked.
 
 The slot type's name is the word the card and the history use. The slot's label is the wording of the choice on one card. See **Slot type** below.
 
@@ -103,7 +103,7 @@ Author note: we mostly do not want broadcast for gang rules. Instead, attach a m
 
 Fields of its own: an icon (stored artwork, drawn inline so it takes the text's colour; addresses resolve only against this site's storage); **starting credits** (a founding-budget override for gangs of this type); and **foundable** (whether a player may create one — off for a type that exists to be hired from or fought).
 
-Assignable for the same reason a profile is: founding is a gang-hosted assignment naming the type. That gives the gang's built-ins something to be caused by (the house list arrives this way), and gives gang-wide modifiers a carrier. Mostly overrides and extras — the fighter entries are profiles, and each entry's skill access rides that profile. Its pricing fields stay at zero; nobody buys a gang type.
+Assignable for the same reason a profile is: founding is a gang-hosted assignment naming the type. That gives the gang's built-ins something to be caused by (the house list arrives this way), and gives gang-wide modifiers a carrier. What it carries is mostly overrides and extras: the fighter entries are profiles, and each entry's skill access belongs to that profile. Its pricing fields stay at zero; nobody buys a gang type.
 
 ### Campaign type
 
@@ -113,7 +113,7 @@ Fields of its own: a **description** and its **asset types** (see below). The de
 
 Assignable for the same reason a gang type is: joining a campaign is a gang-hosted assignment naming the type. That gives everything a member gang receives on joining — a Reputation counter with its opening value, a Settlement — something to be caused by, and gives campaign-wide modifiers a carrier every member's card can find. On the type's page that list is headed "Every gang that joins gets". A counter or a rule is added to it by hand; an asset of an inherent asset type with **Give to every gang** enabled is added to it when the asset is created, and taken out when the asset is deleted, so the author never adds one. Its pricing fields stay at zero; nobody buys a campaign type.
 
-Shared types live in the system pack. The one that ships is the **Territory campaign**, the core rulebook's own: gangs fight for control of Territory, every gang keeps a Settlement and starts with one Territory. The campaign has three phases (Occupation, Downtime, Takeover) and ends with Triumphs. Its asset types are Settlement (inherent) and Territory (transferable); it has a Settlement asset, and Reputation at 0, Income at 0 and the Settlement built in. What an arbitrator adds to one campaign — a counter, an asset type, a label — goes on a second campaign type in that campaign's own pack, layered on the shared one rather than copied from it. That second type is the campaign's machinery: the authoring lists leave it out, and the campaign page shows what it holds as tables and columns beside the shared type's.
+Shared types live in the system pack. The one that ships is the **Territory campaign**, the core rulebook's own: gangs fight for control of Territory, every gang keeps a Settlement and starts with one Territory. The campaign has three phases (Occupation, Downtime, Takeover) and ends with Triumphs. Its asset types are Settlement (inherent) and Territory (transferable); it has a Settlement asset, and Reputation at 0, Income at 0 and the Settlement built in. What an arbitrator adds to one campaign — a counter, an asset type, a label — goes on a second campaign type in that campaign's own pack, layered on the shared one rather than copied from it. That second type is not shown as a type of its own: the authoring lists leave it out, and the campaign page shows what it holds as tables and columns beside the shared type's.
 
 **Asset type** — *a class of asset a campaign type has: Territory, Settlement.* A row on the campaign type, edited on its page: a label (singular and plural, the plural defaulting to an s), an **ownership**, and a position. Its assets are listed under it on the same page, and added there. The ownership is on the asset type, not the asset, because a whole class behaves one way. **Inherent**: each gang that receives the asset has its own (a Settlement, a home territory). **Transferable**: one gang holds it at a time, and it can change hands (a Territory). Two asset types of one campaign type cannot share a label, and an asset type cannot be removed while any asset is of it.
 
@@ -123,7 +123,7 @@ Shared types live in the system pack. The one that ships is the **Territory camp
 
 One entry in the list of what a campaign type hands out. It is made on the campaign type's page, under one of the type's asset types, and that is the only way it belongs to the campaign type. Assets have no listing or create page of their own; an asset's own page, reached from the campaign type's, is where its modifiers and the rest of its fields are edited.
 
-Fields of its own: its **asset type** (settled when the asset is made, and fixing both the campaign type it belongs to and how it behaves), and **Give to every gang** (on by default for inherent assets; switch off to distribute an asset through a modifier instead). The asset can carry ordinary modifiers, such as Reputation while held or a special rule. Its **income** is one of them: the Income box on the authoring forms writes a modifier that adds the figure to the holder's **Income** counter, a system counter every gang in a Territory campaign has at 0. A gang's Income is therefore the sum of what it holds, and is drawn wherever its counters are. Nothing collects the reading; nothing moves credits.
+Fields of its own: its **asset type** (settled when the asset is made, and fixing both the campaign type it belongs to and how it behaves), and **Give to every gang** (on by default for inherent assets; switch off to distribute an asset through a modifier instead). The asset can carry ordinary modifiers, such as Reputation while held or a special rule. Its **income** is one of them: the Income box on the authoring forms writes a modifier that adds the figure to the holder's **Income** counter, a system counter every gang in a Territory campaign has at 0. A gang's Income is therefore the sum of what it holds, and is drawn wherever its counters are. The app does not collect this Income or move any credits.
 
 Assignable so that an inherent asset can be built into its campaign type and arrive on every member gang, and so that an asset of either ownership can carry modifiers. An inherent asset with **Give to every gang** enabled is built in as it is created, taken out when it is deleted or archived, and built in again when an archived one is brought back; gangs already given one keep it. It is built into its asset type's campaign type, or, for an asset an arbitrator makes in a campaign's own pack, into that campaign's own type. A **Gives something** modifier can give an inherent asset to the gang while it plays a campaign using that asset type. Its boons apply, and the asset appears under its asset type on the gang and campaign pages. **Excludes campaign assets** suppresses the campaign-provided inherent assets of one type, including campaign-authored additions, while explicit modifier grants remain. A named **Takes something away** can suppress an inherent asset or cancel its grant. Exclusion and removal suppress its boons too.
 
@@ -155,17 +155,17 @@ Made on the campaign type's page, under one of its transferable asset types; an 
 
 Fields of its own: its **asset type** (settled when the table is made) and **dice**. A table with dice is rolled on; a table without is an ordered list, chosen from rather than rolled.
 
-A gang may roll on any table it holds, and it comes to hold one the three ways it holds anything. A table is built into its campaign type as it is created — the core Territory Selection Table reaches every gang that joins a Territory campaign with no author's step — and taken out when it is deleted or archived, the way an inherent asset is. A modifier may give a table to the gang (*targets the gang alone → gives the Goliath Territories table*), which is how a journal's table reaches every gang of its House. And an arbitrator opens a table to every gang in one campaign by building it into the campaign's own additions. Whichever way it arrived, a table draws no line on the gang sheet or the campaign page: the roll controls read which tables a gang holds.
+A gang may roll on any table it holds. A gang can hold a table in three ways. A table is built into its campaign type as it is created — the core Territory Selection Table reaches every gang that joins a Territory campaign with no author's step — and taken out when it is deleted or archived, the way an inherent asset is. A modifier may give a table to the gang (*targets the gang alone → gives the Goliath Territories table*), which is how a journal's table reaches every gang of its House. And an arbitrator opens a table to every gang in one campaign by building it into the campaign's own additions. Whichever way it arrived, a table draws no line on the gang sheet or the campaign page: the roll controls read which tables a gang holds.
 
 The Territory Selection Table ships in the system pack: eighteen Territories on a D66, built into the Territory campaign type.
 
 ### Hidden
 
-*A carrier for effects that draws no row of its own.*
+*A carrier for effects that draws no line of its own.*
 
 Fields of its own: none. Its name is authored to be read on the pages that explain things. Its kind is never shown.
 
-The bundle mechanism: some printed rules are a side effect with no item behind them (each of the Arachni-Rig's guns takes a point off Attacks), so the option's set includes a hidden item carrying the modifier. Being its own kind is the point: no selector reaches it and the card draws nothing. It can be both given and taken away, so one take-away can cancel a whole bundle.
+The bundle mechanism: some printed rules are a side effect with no item behind them (each of the Arachni-Rig's guns takes a point off Attacks), so the option's set includes a hidden item carrying the modifier. It is a separate kind so that no selector reaches it and the card draws nothing. It can be both given and taken away, so one take-away can cancel a whole bundle.
 
 ### Profile
 
@@ -291,9 +291,9 @@ The summary explains the option to players but does not create its effects; modi
 
 Fields of its own: a **slot type** and a **name**; and, where the list is a roll table, the **dice** it is rolled on and how a roll **selects** its entry. Each pickable on it carries its place in the order and, where this list calls it something else, a wording of its own. On a roll table it also carries the **band** of rolls that lands on it, "51" or "21-26".
 
-A set of pickables available in a slot. One slot type throughout, no headings and no prices — where a collection is a catalogue, this is a menu. One slot type may have several picklists, which is how a limited selection of the pickables is offered in certain situations: what a leader picks from and what a champion picks from could be two lists of one slot type. Not an assignable; a slot names it.
+A set of pickables available in a slot. It holds one slot type throughout and, unlike a collection, has no headings and no prices. One slot type may have several picklists, which is how a limited selection of the pickables is offered in certain situations: what a leader picks from and what a champion picks from could be two lists of one slot type. Not an assignable; a slot names it.
 
-A roll table is a picklist that names its dice and how a roll finds its entry — the one entry whose band contains the roll, or every entry at or below it. The die is a closed set — D3, D6, D66 or 2D6 — so every roll it can produce is known. A band is plain numbers even on a D66, where "31-46" spans rolls that can never come up. A lookup is only ever made for a roll that did. The bands are authored; the player's pick screen rolls the die, or takes a roll made at the table, and puts the roll in the gang's history before anything is picked for it. The pick that follows names its roll, and a roll is applied once. The entry the roll landed on is shown first, never enforced: the rules substitute results, and the record shows the roll beside whatever was picked.
+A roll table is a picklist that names its dice and how a roll finds its entry — the one entry whose band contains the roll, or every entry at or below it. The die is a closed set — D3, D6, D66 or 2D6 — so every roll it can produce is known. A band is plain numbers even on a D66, where "31-46" spans rolls that can never come up. A lookup is only made for a roll that actually came up. The bands are authored; the player's pick screen rolls the die, or takes a roll made at the table, and puts the roll in the gang's history before anything is picked for it. The pick that follows names its roll, and a roll is applied once. The entry the roll landed on is shown first, never enforced: the rules substitute results, and the record shows the roll beside whatever was picked.
 
 ### Slot
 
@@ -303,7 +303,7 @@ A roll table is a picklist that names its dice and how a roll finds its entry �
 
 Fields of its own: its **slot type** and **picklist**; the **label** shown on the card; an optional **introduction** shown below the choice page title; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; a **mode**; and a position among the slots on one card. A tier ladder holds one pick and gives every picklist member a unique numeric level. Level 0 means that the slot has no pick.
 
-One specific, named use of a slot type. Assigning one to a model or gang — built into a profile, given by a modifier, or brought by an option when something is bought — makes the slot appear. The card draws the label with what the player has picked, or what is set by default, or a control to pick, on the holder's own card and nowhere else: a slot the gang holds appears once rather than on every fighter. Picking under the minimum adds a note on the card and blocks nothing (no page prints these notes yet), and the picker stops offering at the maximum. A slot of one pick is settled by picking, and picking again replaces the pick. A slot of several picks is filled a pick at a time, each option on the picker adding or removing its own. A slot of 0 picks shows no choice. **Hidden** makes the slot invisible while the pick still does everything it does: grouped hidden assignables, under one name.
+One specific, named use of a slot type. Assigning one to a model or gang — built into a profile, given by a modifier, or brought by an option when something is bought — makes the slot appear. The card draws the label with what the player has picked, or what is set by default, or a control to pick, on the holder's own card and nowhere else: a slot the gang holds appears once rather than on every fighter. Picking under the minimum adds a note on the card and blocks nothing (no page prints these notes yet), and the picker stops offering at the maximum. A slot of one pick is settled by picking, and picking again replaces the pick. A slot of several picks is filled a pick at a time, each option on the picker adding or removing its own. A slot of 0 picks shows no choice. **Hidden** makes the slot invisible while the pick keeps all its effects, so a hidden slot works as a named group of hidden assignables.
 
 **Follows status** gives each status change a fresh use of this choice. It takes one pick on the model. A modifier narrowed by **Has status** can show it only while that status applies. Earlier picks stay in history and do not settle a later occurrence.
 
@@ -315,7 +315,7 @@ One specific, named use of a slot type. Assigning one to a model or gang — bui
 
 Fields of its own: a **name** (what an author calls it), a **title** (the heading the screen shows; blank uses the name), a **description** (what the screen says under the heading), whether it is **skippable**, and a position among several shown on one screen. It is attached to one or more **slots**, each attachment in its place.
 
-When a founding, a hire or a pick puts a slot on a gang or a model, every interstitial attached to that slot is collected and shown on one screen, straight after the act and before the reader lands where they were going. The screen names the choice and offers the picker for it. A skippable one shows Skip; one that is not shows no Continue until the pick is made, though the reader can still leave by the navigation. One interstitial attached to several slots that arrive together is shown once, with each slot's picker under it. A purchase and a clone never show one. A slot with nothing attached arrives as it always has, so nothing changes until an author attaches an interstitial. The word "interstitial" is an author's word: no player sees it.
+When a founding, a hire or a pick puts a slot on a gang or a model, every interstitial attached to that slot is collected and shown on one screen, straight after the founding, hire or pick and before the player reaches the page they were going to. The screen names the choice and offers the picker for it. A skippable one shows Skip; one that is not shows no Continue until the pick is made, though the player can still leave using the navigation. One interstitial attached to several slots that arrive together is shown once, with each slot's picker under it. A purchase and a clone never show one. A slot with no interstitial attached shows no screen when it arrives. The word "interstitial" is an author's word: no player sees it.
 
 ### Picks
 
@@ -329,7 +329,7 @@ A pick the gang holds is broadcast (but not displayed) to every member: a rule r
 
 A pick can also arrive with a slot a modifier gives (*gives* a hidden slot **with a pick**). That pick is not an assignment: it is worked out when the card is read, draws no line, and the player cannot change or remove it. It counts as picked wherever a condition asks, on the holder and, for a slot the gang holds, on every member. It goes when the slot goes. Only a hidden slot can be given this way.
 
-Where the slot type does not allow repeats, the picker marks the pickables already picked for another slot, and the card notes when one pickable is picked for two (no page prints these notes yet). Marks and notes, never locks: the narrowing informs, and an owner may still hand over a pickable no picklist offered.
+Where the slot type does not allow repeats, the picker marks the pickables already picked for another slot, and the card notes when one pickable is picked for two (no page prints these notes yet). The marks and notes block nothing, and picklists only guide: an owner may still give a pickable that no picklist offered.
 
 ---
 
@@ -337,7 +337,7 @@ Where the slot type does not allow repeats, the picker marks the pickables alrea
 
 An **action** is an assignable capability a fighter may use at recruitment or after a cycle. Its inherited price is the price of acquiring the capability. Its **use price** is a separate ordered list: every component is paid together. A component spends either gang credits or an identified counter on the gang or fighter. An empty list means that using the action is free.
 
-An action lists one or more **outcomes** in order. Each outcome owns one typed operation: augment one carried item's tier ladder, resolve an advancement slot, or apply an ordered set of counter changes and pick removals. Several actions may list the same outcome.
+An action lists one or more **outcomes** in order. Each outcome has one typed operation: augment one carried item's tier ladder, resolve an advancement slot, or apply an ordered set of counter changes and pick removals. Several actions may list the same outcome.
 
 An optional **allowance rule** says when one use is earned. Recruitment grants one use when recruitment completes. A rank rule grants uses when an increase to its counter crosses thresholds in the fighter's effective rank table. An action with an allowance has no use price.
 
@@ -439,7 +439,7 @@ settled by choosing a power)
 
 *Lists the pick carrying it on the cards this modifier reaches.*
 
-No fields: the scope is the whole of what it does. Carried by a pickable, so the line comes and goes with the pick, and it acts only on a pick **the gang** holds. A model's own pick is already shown in the choice line that settled it.
+No fields: everything it does comes from its scope. Carried by a pickable, so the line shows only while the pick is held, and it acts only on a pick **the gang** holds. A model's own pick is already shown in the choice line that settled it.
 
 The line is headed by the slot type's name ("Archetype") and holds what was picked. It leads nowhere: the choice is made and changed on the card that offered it, and that card draws its own choice line instead of this.
 
@@ -475,7 +475,7 @@ A model is a membership assignment naming a profile, plus everything attached to
 
 ### Stash
 
-*The gang's pocket: gear held by nobody, counted in wealth*
+*Gear the gang holds that no model carries, counted in wealth*
 
 Fields: none of its own beyond its link to the gang and its pinned worth. Created at founding.
 

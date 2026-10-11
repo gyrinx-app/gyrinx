@@ -38,7 +38,7 @@ When it is present, read the relevant note before a non-trivial change.
 | `n26/library/artwork.py` | `gyrinx.artwork` | Bind N26's upload folder here; keep storage-address checks in the platform. |
 | `n26/core/templatetags/artwork.py` | `gyrinx.svg` | Use the shared SVG sanitiser rather than another allowlist. |
 | `n26/core/templatetags/banner.py` | `gyrinx.site.icons` | Reuse the platform's banner icon set. |
-| `n26/badges.py` | `gyrinx.svg`, the platform's `badge_for` | Ask the platform which badge a person shows; hand islands its artwork as an allowlisted element tree, never markup. |
+| `n26/badges.py` | `gyrinx.svg`, the platform's `badge_for` | Use `badge_for` to find which badge a person shows; pass its artwork to islands as an allowlisted element tree, never as markup. |
 | Gang and campaign search views | `gyrinx.querysets` | Pass N26 querysets through the model-agnostic search helper only. |
 | Stateful N26 models and propagation | `gyrinx.state_machine` | Use the shared row-locked transition implementation and exception. |
 | `n26/core/views/changelog.py` | `gyrinx.site.models.ChangelogEntry` | Keep the import deferred in the shared queryset helper. |

@@ -1,8 +1,8 @@
 """Assignment sets — a named selection of one model's equipment.
 
-A model owns one pool, bought once. A set is which weapons and wargear
-show on one card; everything else rides every card. Building a card
-without a set means everything the model owns.
+A model's equipment is bought once. A set chooses which weapons and wargear
+show on one card; every other assignment shows on every card. A card built
+without a set shows everything the model owns.
 
 Selectable kinds are weapons and wargear hosted on the model; a weapon's
 ammo follows the weapon. Sets change no stored rating and never go through

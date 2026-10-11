@@ -1,11 +1,11 @@
 {% comment %}
 <c-n26.stash.group> — One kind of stashed gear, as a labelled list.
 
-The first line's menu is the switch for the whole group.
+If the first line has a menu, the whole group draws as a list with menus. Otherwise it draws as one comma-separated line.
 React draws each line's menu. Its panel is fixed, so the scrolling gear list does not clip it.
 A print-out and a reader who does not own the gang have empty menus on every line.
 The view orders each menu and places its separators: see stash_menu in n26/core/views/owned.py.
-A zero rating is omitted. This drawing cannot tell a bundled figure from a gift, so it must not say free.
+A zero rating is omitted. Zero can mean bundled or gifted, and this template cannot tell which, so it must not say free.
 Capitalise the label here. Kinds arrive from verbose_name in lower case, written to sit mid-sentence.
 {% endcomment %}
 

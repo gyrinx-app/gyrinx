@@ -1,6 +1,6 @@
 # Analytics warehouse
 
-This directory contains tools for analyzing production data locally.
+This directory contains tools for analysing production data locally.
 
 ## Quick Start
 

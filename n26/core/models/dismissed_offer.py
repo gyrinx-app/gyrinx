@@ -1,21 +1,20 @@
-"""Dismissed offers — the open choices a gang's owner has put out of sight.
+"""Dismissed offers: open choices a gang's owner has hidden.
 
-An offer is not a stored row. It is a slot computed from a modifier or a
-profile while its carrier stands (``n26.core.effects``), and only what
-was chosen for it is ever written. This row stands in for the slot's
-address, which every renderer of the gang then leaves out.
+An offer is not stored. It is a slot computed from a modifier or a
+profile while its carrier exists (``n26.core.effects``); only the pick is
+written. A ``DismissedOffer`` stores the slot's key, and every renderer of
+the gang skips slots with a stored key.
 
-Per gang, everywhere: the owner's screens, the sheet anyone reads, and
-the printed roster. It is display state, like ``PrintConfig``: it moves
-no money, changes no rating and never goes through ``n26.operations``.
-Only an offer with nothing chosen for it can be dismissed; one holding
-a pick draws that pick and offers no way to hide it.
+A dismissal applies across the gang: the owner's pages, the shared sheet
+and the printed roster. It is display state, like ``PrintConfig``: it moves
+no money, changes no rating and does not go through ``n26.operations``.
+Only an offer with no pick can be dismissed. An offer with a pick shows the
+pick and has no hide control.
 
-The key is the slot's address as ``n26.core.render._slot_key`` writes
-it — the card it sits on, the assignment carrying the offer, the offer
-itself — and is only as durable as those rows. Re-buying the carrier or
-re-authoring the offer brings the Choose back. A carrier that is sold
-leaves its row behind, keyed to nothing; a stale row hides nothing.
+The key comes from ``slot_key`` below: the card, the assignment carrying
+the offer, and the offer itself. It matches only while those rows exist,
+so re-buying the carrier or re-authoring the offer shows the choice again.
+Selling the carrier leaves a dismissal that matches no slot and has no effect.
 """
 
 from django.db import models
@@ -46,10 +45,10 @@ def identity_key(identity_pk, status_revision=None):
 
 
 def slot_key(host, anchor_pk, identity_pk, status_revision=None):
-    """One slot's address: the card it is drawn on (a model's id, or the
-    gang's own word), the assignment carrying the offer, and the offer or
-    slot itself. The one place the shape is written, so the renderer that
-    draws a slot and the operation that settles one cannot disagree."""
+    """One slot's key: the card it is drawn on (a model's id, or
+    ``GANG_SLOT_HOST``), the assignment carrying the offer, and the offer or
+    slot itself. The renderer and the operations both build keys here, so
+    the keys they write always match."""
     return f"{host}:{anchor_pk}:{identity_key(identity_pk, status_revision)}"
 
 
@@ -79,9 +78,8 @@ class DismissedOffer(Base):
 
     @classmethod
     def clear(cls, gang, *, host, anchor, identity, status_revision=None):
-        """Take off any dismissal of one slot, because a pick has landed
-        on it: taking that pick back later should leave the offer open
-        rather than hide it again."""
+        """Delete any dismissal of one slot when a pick fills it, so that
+        removing the pick later shows the offer again instead of hiding it."""
         cls.objects.filter(
             gang=gang, slot_key=slot_key(host, anchor.pk, identity.pk, status_revision)
         ).delete()

@@ -1,12 +1,12 @@
 {% comment %}
-<c-n26.view.model-edit> — Edit face of a model: header card, notes, picture, skills, characteristics, and lore.
+<c-n26.view.model-edit> — The model edit page: header card, notes, picture, skills, characteristics, and lore.
 
 The header's card slot is filled here. Pass the model card as the card prop.
 htmx and status_href travel into the card include.
 Only a page that also draws the dialog hosts may set htmx true. An out-of-band swap whose id is missing from the page is dropped silently.
 Notes always renders. Picture, skills, lore, and edits omit themselves when empty.
 dismissed_choices stay off the card. Only this page draws them, so a print sheet never will.
-The include draws the card in edit mode, which is where its controls come out.
+The include draws the card in edit mode, which shows its edit controls.
 The editors are siblings of the card, not children, so replacing the card leaves them in place.
 Without name_action the include draws the rename pencil.
 flows renders action panels beside the model card and above the screen tabs.

@@ -168,7 +168,7 @@ pytest `FAILURES` excerpt.
 - pre-commit runs `./scripts/check_migrations.sh --pre-commit`. It checks the
   staged tree: unstaged edits to tracked files are put aside, and untracked
   migration files are hidden for that check, then put back. An untracked
-  migration for another branch no longer fails this commit. Stage the
+  migration for another branch does not fail this commit. Stage the
   migration with its model change. A manual `./scripts/check_migrations.sh`
   still sees untracked migration files.
 - `manage prodshell` is read-only. Never work around that protection.

@@ -5,5 +5,5 @@ The platform tag draws only the SVG. Sizing, tooltip, and accessible name belong
 The artwork comes from the platform badge registry. Do not copy the SVG here, or the two editions will drift.
 This keeps a fixed palette, not currentColor, whatever the surrounding text does.
 A crispEdges attribute on the SVG has no effect. app.css sets geometricPrecision on every svg, and a CSS declaration outranks a presentation attribute.
-Drawing a particular person's badge is user-link, which decides which mark they show.
+To draw a person's badge, use c-n26.user-link. It picks which badge that person shows.
 {% endcomment %}{% load badge_tags %}{% badge_svg "staff" %}

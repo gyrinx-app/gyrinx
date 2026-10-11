@@ -3,8 +3,8 @@
 One row per edit, created in the edit's own transaction. Strictly
 forward: PENDING → RUNNING → DONE or FAILED; a retry is a fresh row,
 so the table is a permanent record of every run and how it ended.
-Rows are never shared or reused — why, and how the runs work, is
-:mod:`n26.core.propagation`'s story.
+Rows are never shared or reused; :mod:`n26.core.propagation` explains
+why and how the runs work.
 """
 
 from django.db import models
@@ -15,11 +15,10 @@ from n26.core.models.abstract import Base
 
 class BuiltInPropagationTask(Base):
     # By label, as every core reference into the library is. CASCADE: a
-    # filing is meaningless without the set it names. ``related_name="+"``
-    # only drops the reverse accessor — the library's reference scan still
-    # walks this edge. Authors do not see these rows because nothing
-    # downstream matches the field, and the delete page lists only edges
-    # that protect, which a cascade never does.
+    # task is meaningless without its set. ``related_name="+"`` only drops
+    # the reverse accessor; the library's reference scan still walks this
+    # edge. Authors never see these rows: nothing downstream matches this
+    # field, and the delete page lists only PROTECT edges.
     default_set = models.ForeignKey(
         "library.DefaultAssignmentSet",
         on_delete=models.CASCADE,

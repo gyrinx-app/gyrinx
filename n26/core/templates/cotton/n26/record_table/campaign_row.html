@@ -1,13 +1,13 @@
 {% comment %}
-<c-n26.record-table.campaign-row> — One campaign listing in a record table.
+<c-n26.record-table.campaign-row> — One campaign row in a record table.
 
-A record table filters these data attributes without replacing the listing markup.
-n26-row-link stretches the click target over the whole listing.
-Keep the actions cell relative so its button stays clickable above that sheet.
-Do not let this listing span two grid rows. The name would sit on the first while the button centres across both.
+A record table filters these data attributes without replacing the row markup.
+n26-row-link stretches the click target over the whole row.
+Keep the actions cell relative so its button stays clickable above the stretched link.
+Do not let this row span two grid rows. The name would sit on the first while the button centres across both.
 Keep the owner beside the name. A second line would make campaigns you run a different height from the rest.
 Pass owner as a user object. A name string cannot carry the badge the platform registry decides.
-The actions cell is floored at one button's height so listings with and without a button stay the same height.
+The actions cell is floored at one button's height so rows with and without a button stay the same height.
 Repeat that floor if the button's padding changes.
 {% endcomment %}
 

@@ -3,8 +3,8 @@
 
 entry must be a HireEntry. Nested options submit as scope:group-index, where scope is value or the slugified name.
 Without value, Hire is a button and does not submit the form.
-A pick-one group with one option is skipped: it is taken unasked.
-The first drawn group has no heading. Later groups that still ask the reader do.
+A pick-one group with one option is skipped, and that option is chosen automatically.
+The first drawn group has no heading. Each later drawn group has one.
 mainpick follows the first group's checked input. Later groups retotal the price but do not switch the card.
 If entry.card_url is set, details load through deferred. Otherwise each option's card is inlined and shown by mainpick.
 retotal subtracts base from each ticked total. A group's default is already in the base, so it must contribute zero.

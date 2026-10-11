@@ -2,17 +2,17 @@
 <c-n26.owned-lines> — Each held copy, with its parts, rating, and actions.
 
 Parts hang under the copy they belong to.
-The weapon's own profile is not among the parts. It is the weapon.
+The weapon's own profile is not among the parts. The copy line already stands for it.
 Their rating is extra on that copy, prefixed with a plus.
 Accessorise opens a dialog whose id is n26-accessorise- plus the copy id.
 The page must host that dialog. Without JS the href navigates.
-The click is a React island. It names that dialog; the panel stays where the page drew it.
-The accessorise panel is already on the page. Opening it must not rebuild a listing of hundreds of lines.
-Keep every control a link. This listing sits inside the catalogue form, and HTML cannot nest a form.
+The Accessorise button is a React island. It opens that dialog where the page drew it.
+The accessorise panel is already on the page. Opening it must not redraw the catalogue, which can run to hundreds of lines.
+Keep every control a link. This component sits inside the catalogue form, and HTML cannot nest a form.
 A part offers no move. Operation.move refuses a weapon profile.
 Chosen options belong on the copy, not on a heading. Two of the same mount may carry different guns.
-n26-cp-price is the collection picker's price column, so contributed rating lines up with what the listing asks.
-Rating zero draws as nothing. A line that added nothing has no figure to state.
+n26-cp-price is the collection picker's price column, so contributed rating lines up with the listing price.
+Rating zero draws as nothing.
 {% endcomment %}
 {% load accessorise_link react %}
 
@@ -26,7 +26,7 @@ Rating zero draws as nothing. A line that added nothing has no figure to state.
                     {{ copy.marked_name }}
 
                     {% if copy.accessorise %}
-                        {# The island names n26-accessorise- plus the copy id. The page must host that dialog. #}
+                        {# The island opens the dialog whose id is n26-accessorise- plus the copy id. The page must host it. #}
                         {# Without a script this link navigates, and the server draws the panel open. #}
                         {% accessorise_link_props href=copy.accessorise.target copy_id=copy.id label=copy.accessorise.label name=copy.marked_name as props_ %}
                         {% react_host "accessorise-link" props_ class="inline" %}

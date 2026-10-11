@@ -1,9 +1,9 @@
 {% comment %}
 <c-n26.campaign-block> — The gang's campaign state in a separate roster card.
 
-The view supplies editable addresses only to the owner. Counters and labels
+The view supplies edit URLs only to the owner. Counters and labels
 open existing server forms in the page's campaign-state dialog host.
-Assets retain their authored groups and links. This card owns its container.
+Assets retain their authored groups and links. This component draws its own card and wrapper.
 {% endcomment %}
 <c-vars :campaign="None" :redrawn="False" class="" />
 {% if campaign %}

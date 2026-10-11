@@ -15,14 +15,14 @@ class Miniature(Base, Owned, Rated):
     """
 
     name = models.CharField(max_length=200)
-    #: Where the model stands between battles. Written only by
+    #: The model's status between battles. Written only by
     #: ``Operation.set_status``, which journals every change. A dead model
-    #: keeps its row and its card and counts nothing towards rating; leaving
-    #: the roster is still the membership's archive.
+    #: keeps its row and card and adds nothing to rating; removing a model
+    #: from the roster archives its membership instead.
     status = models.CharField(max_length=12, choices=Status, default=Status.ACTIVE)
     status_revision = models.PositiveIntegerField(default=0)
-    #: What a card shows only when the model keeps no XP counter. Where
-    #: there is one, its value is the number and ``tally`` is what moves it.
+    #: Shown on the card only when the model has no XP counter. Otherwise
+    #: the counter's value is shown and ``tally`` changes it.
     xp = models.PositiveIntegerField(default=0)
     xp_target = models.PositiveIntegerField(
         null=True,
@@ -51,8 +51,8 @@ class Miniature(Base, Owned, Rated):
     #: in practice means the gang was.
     #:
     #: Nullable so a miniature can exist without a gang (``gang`` is then
-    #: None). Hire and clone write the membership first, then create the
-    #: miniature already pointing at it; a null cascades from nothing.
+    #: None), and no cascade reaches it. Hire and clone write the membership
+    #: first, then create the miniature already pointing at it.
     membership = models.OneToOneField(
         "n26.Assignment",
         on_delete=models.CASCADE,

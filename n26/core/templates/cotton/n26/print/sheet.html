@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.print.sheet> — The paper: page size, margins, and print colour.
 
-@page is document-wide. Nested or sibling sheets must pass owns_page empty so they do not fight.
+@page is document-wide. Nested or sibling sheets must pass owns_page empty so only one sheet sets it.
 The sheet publishes --print-content-w and --print-content-h. The grid divides those into cells and the fold guides measure from them.
 Passing 0 does not turn it off: only an empty value is false.
 page must be a4, a5, or letter, and orientation portrait or landscape. Any other value keeps A4 portrait geometry on the box while @page names something else.

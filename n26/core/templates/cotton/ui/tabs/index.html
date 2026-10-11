@@ -11,7 +11,7 @@ The default variant draws through c-n26.tab-strip.
 On a narrow strip, more than narrow_tabs tabs keep only the active one visible. The rest open from a quick-switcher.
 narrow_tabs defaults to two. When it is above two, narrow tabs of size md pad less, so three short labels fit a 320px phone.
 Longer labels wrap to a second row. add:0 makes narrow_tabs a number when it is passed without the colon.
-An idle tab's border must stay opaque. A transparent border is a hole in the line under the strip.
+An idle tab's border must stay opaque. A transparent border leaves a gap in the line under the strip.
 Do not compose these rows from c-n26.quick-switcher.choice. That bakes the label at render, and a tab exists only after Alpine boots.
 Keep the open tab in the menu. Hiding it leaves a search for that tab as a blank menu with no empty state.
 The segmented variant stays a scrolling strip and does not collapse. no-scrollbar is defined in app.css; the package names the class and does not ship it.

@@ -7,10 +7,10 @@ Test the default slot with strip. Newlines between named slots are truthy, so th
 A named label slot becomes the dt when the label needs markup.
 A named dialog slot opens a panel. href is ignored then.
 Declare the dialog slots. An undeclared slot name takes whatever the enclosing page holds under that name.
-dialog decides whether this listing is a control. A page variable of that name would turn every listing into a trigger.
-Declare dialog header and footer on this listing, not nested inside dialog. Cotton only sees slots on this component's own children.
+dialog decides whether this row is a control. A page variable of that name would turn every row into a trigger.
+Declare dialog header and footer on this row, not nested inside dialog. Cotton only sees slots on this component's own children.
 The kit button does not wrap. whitespace-normal on the value beats that class.
-min-w-0 on this listing and the dd lets a long value shrink. Without both, the sheet grows past the viewport.
+min-w-0 on this row and the dd lets a long value shrink. Without both, the sheet grows past the viewport.
 Trailing is extra markup beside the value.
 size is xs for a compact fact or lg for body-sized text and a larger control.
 The lg label wraps so a long choice name fits a phone screen.
@@ -37,7 +37,7 @@ The lg label wraps so a long choice name fits a phone screen.
         {# Pass a boolean. The string False still draws a button. #}
         {% if not editable %}
 
-            {# Padded to the button's own inset so a settled fact sits level with values that can be changed. #}
+            {# Padded to the button's own inset so a read-only value lines up with editable ones. #}
             <span class="inline-block max-w-full {% if size == 'lg' %}px-4 py-2.5{% else %}px-2 py-1{% endif %} text-ink-900 dark:text-ink-100">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</span>
         {% elif dialog %}
 

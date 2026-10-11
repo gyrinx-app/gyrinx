@@ -1,7 +1,8 @@
 """Durable records of fighter actions and the selections they produced.
 
-An action assignment is access. These records are player history, so they do
-not hang from that assignment's cause chain and survive when access changes.
+An action assignment grants access to an action. These records are player
+history, so they sit outside that assignment's cause chain and are kept when
+access changes.
 Library references use labels to preserve the library-to-core dependency
 direction described in ``n26/AGENTS.md``.
 """

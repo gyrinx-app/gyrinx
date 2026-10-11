@@ -29,9 +29,9 @@ module changed:
   `operation(...)` block. They default the actor to the gang's owner;
   the real API deliberately does not.
 
-**Prefer the verbs over the ORM.** Reach for `objects.create` in a
-sandbox test only where no verb covers the wiring — and check first,
-because verbs have grown to cover ground older tests built by hand.
+**Prefer the verbs over the ORM.** Use `objects.create` in a sandbox
+test only where no verb covers the wiring. Check first: the verbs cover
+much of what older tests built by hand.
 `test_content_authoring.py` alone uses the raw ORM throughout,
 deliberately: its docstring says it is the reference for what an ingest
 or the admin really does.
@@ -74,8 +74,8 @@ or the admin really does.
 - **No golden files.** Two patterns instead: pinned literal tables
   ("pinned so it changes deliberately"), and print-the-text then assert
   on a few load-bearing substrings. Pick substrings the page can only
-  contain if the behaviour worked — a test here once passed because a
-  stylesheet happened to contain the word "complete".
+  contain if the behaviour worked. A common word such as "complete" can
+  also appear in a stylesheet and let a broken test pass.
 - End any test that spends money with `assert_reconciled(gang)`.
 - For query counts, prefer asserting the count stays the same after
   adding more fighters; a pinned literal count is acceptable for one
@@ -87,7 +87,7 @@ or the admin really does.
   discovery to make a failure go away.
 - Discovery used in `parametrize` runs at collection time — keep it
   import-safe, no database access.
-- Tests run with `--nomigrations`, so data migrations never ran: any row
+- Tests run with `--nomigrations`, so data migrations do not run: any row
   a data migration would have created exists only if a test creates it.
 - Tests name rules by their titles only — never the book's wording.
 

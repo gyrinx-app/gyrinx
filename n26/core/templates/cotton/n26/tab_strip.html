@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.tab-strip> — two copies of a tab run: one for wide screens, one for narrow.
+<c-n26.tab-strip> — two copies of a row of tabs: one for wide screens, one for narrow.
 
 <c-n26.tab-strip>
     <c-slot name="full">…</c-slot>
@@ -9,11 +9,10 @@
 Both copies stay in the HTML. sm:flex and sm:hidden pick which one shows.
 The trailing span draws the leftover underline. Do not put a border on the last tab instead.
 The spacer is ordered last so a slot that appends nodes cannot put it first.
-The split is the window, not this box. A strip in a narrow column still draws every tab while the window is wide.
-Nothing here watches width, so nothing here can mis-measure it.
-Put the caller's landmark around this component. There is no single root for a class to land on.
+The switch follows the viewport width, not this element's. A strip in a narrow column still draws every tab while the window is wide.
+Wrap this component in the caller's landmark. It has no single root element to carry a class.
 Adjust each strip with full_class or narrow_class.
-Do not put a rule on the container and pull the current tab's border over it. That lands a pixel proud and reads as a double line.
+Do not put a rule on the container and pull the current tab's border over it. The border then sits a pixel out and looks like a double line.
 Do not centre the items. Stretch keeps every tab and both spacers the row's height, so their bottom borders meet as one line.
 {% endcomment %}
 

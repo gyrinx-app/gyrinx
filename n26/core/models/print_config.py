@@ -3,18 +3,17 @@
 A config names a selection over the gang: which models get a card, which
 of each model's weapons show, and whether the gang header, the stash,
 and the notes strip (notes, picture, space to write) print at all. It is
-the print screen's memory, nothing more — pure display state, like
-``AssignmentSet``, so it moves no money, changes no rating and never
-goes through ``n26.operations``.
+display state only, like ``AssignmentSet``: it moves no money, changes no
+rating and does not go through ``n26.operations``.
 
 Selections are literal: a config prints exactly what was ticked, and
-nothing joins it by being acquired later. A model hired after a config
-was saved is not on it until someone reopens the config and ticks them —
-predictable staleness, over a config whose meaning shifts under it.
+nothing acquired later joins it. A model hired after a config was saved
+is not on it until someone reopens the config and ticks the model. This
+is deliberate, so a saved config never changes as the gang changes.
 
-One config per gang has no name — the scratch config, rewritten by every
-ad-hoc print so unnamed runs never pile up as rows. Giving it a name is
-what saves it: the same row, now listed with the others.
+Each gang has at most one unnamed config: the scratch config, rewritten
+by every ad-hoc print so unsaved prints do not accumulate. Naming it saves
+it; the same row then appears in the saved list.
 """
 
 from django.db import models
@@ -68,10 +67,9 @@ class PrintConfig(Base):
         related_name="print_configs",
         help_text="The models that get a card on this print.",
     )
-    #: Ticked weapons, across every model on the config. Weapons only:
-    #: wargear, skills and the rest always ride a printed card, the same
-    #: split ``AssignmentSet`` draws — this is about which guns clutter
-    #: the table, not about what the model owns.
+    #: Ticked weapon assignments across every model on the config. Only
+    #: weapons are selectable; wargear, skills and everything else always
+    #: print.
     assignments = models.ManyToManyField(
         "n26.Assignment",
         blank=True,

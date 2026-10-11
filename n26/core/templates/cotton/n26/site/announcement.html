@@ -6,8 +6,8 @@ Tone is a data-tone attribute, so background, border, and ink stay in step.
 Pass none to hide the icon. An empty icon draws the tone's default. Any other
 name is drawn from the icon registry.
 A CTA needs both cta_text and cta_url.
-The action slot is extra controls, typically a form. It stays in this markup,
-with the message, because a form cannot travel through the dismiss control.
+The action slot is extra controls, typically a form. It is drawn beside
+the message, not inside the dismiss island, because island props cannot carry markup.
 Dismiss hides the bar for this visit. dismiss_url posts banner_id so the server
 can remember it. Pass an empty dismissible to keep the bar.
 Do not add role=status. That announces on change, and this bar is already on the page at load.

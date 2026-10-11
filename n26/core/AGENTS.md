@@ -56,29 +56,31 @@ Model-specific wiring rules live there.
   Everything it needs is loaded by `card.py`. If compute needs a new
   relation, add it to `build_modifier_index` or `hydrate_rows`'s
   paths — then update the tests that pin exact query counts.
-- The query budget is an invariant, not a hope: a whole gang is a fixed
+- The query budget is an invariant: a whole gang loads in a fixed
   number of queries however many models and however much kit. Tests
   check the count stays flat as the gang grows.
-- **Renderers get plain dataclasses.** Nothing in `render.py` knows HTML.
+- **Renderers get plain dataclasses.** Nothing in `render.py` builds HTML.
   A new display fact is a new field, computed in Python.
 - Every assignable a card shows carries a `Provenance` saying where it
   came from.
-- **Host decides visibility; the scope says the reach.** An assignment
-  hosted on the gang rides every member's card (marked `broadcast=True`)
-  so its modifiers *can* run there — they draw no line, and gang-hosted
-  assignments carry no rating of their own. Whether a targets-the-model
-  modifier actually reaches through that ride is the scope's stated
-  `reach` ("the model carrying it" never does; "all models in the gang"
-  is what the ride is for). Any new code walking a card's nodes needs
-  `if node.broadcast: continue` or it will double-count the gang's kit
-  onto every fighter.
-- **What the gang holds by *grant* rides too.** A thing a modifier gave
-  the gang has no row to broadcast, so the gang's card is computed first
-  and its acquisitions are dealt onto each member as that card's guests
-  (`ComputedCard.echoed`): their modifiers run, and they draw no line,
-  add no rating, and say their stored effects only on the gang. Anything
-  asking "what does this fighter get from the gang" must read both the
-  broadcast rows and the guests, as `access.py` does.
+- **The host decides which cards an assignment is on; the scope's
+  `reach` decides which models it affects.** An assignment hosted on the
+  gang is added to every member's card as a node marked `broadcast=True`,
+  so its modifiers *can* run there. Broadcast nodes draw no line, and
+  gang-hosted assignments carry no rating of their own. Whether a
+  modifier that targets the model reaches a member through a broadcast
+  node depends on the scope's `reach`: "the model carrying it" never
+  does; "all models in the gang" does. Any new code walking a card's
+  nodes needs `if node.broadcast: continue` or it will double-count the
+  gang's kit onto every fighter.
+- **What the gang holds by *grant* reaches members too.** A thing a
+  modifier gave the gang has no assignment to broadcast. So the gang's
+  card is computed first, and its acquisitions are added to each
+  member's card as `ComputedCard.echoed`. Their modifiers run there, but
+  they draw no line and add no rating, and their stored effects are
+  noted only on the gang's card. Code that asks "what does this fighter
+  get from the gang" must read both the broadcast nodes and `echoed`, as
+  `access.py` does.
 - **Inform, never police.** Restrictions become `Note`s attached to
   lines (`notes.py` — `about` is a real object, never a string). Nothing
   blocks; `buy` deliberately never consults access.
@@ -86,9 +88,10 @@ Model-specific wiring rules live there.
 ## Cross-layer wiring
 
 - `history.py` describes an old event through its assignment's current name.
-  A conversion that changes an assignment's kind can therefore rewrite the
-  displayed past. Check the history page and keep the player-facing kind words
-  stable. A pick uses its slot type's name, never the slot's label.
+  A conversion that changes an assignment's kind can therefore change how
+  past events are displayed. Check the history page and keep the
+  player-facing kind words stable. A pick uses its slot type's name, never
+  the slot's label.
 - `Has.as_q` needs a `register_lookup()` entry for every model and kind pair, or
   it raises `NotExpressibleAsQuery`.
 

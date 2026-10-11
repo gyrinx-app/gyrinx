@@ -56,10 +56,10 @@ class Component:
 
     @property
     def uses_react(self) -> bool:
-        """Whether this component, or one of its parts, now renders through React.
+        """Whether this component, or one of its parts, renders through React.
 
-        Read from the templates, so a component counts once its template mounts
-        an island and stops counting if that is taken out again.
+        Read from the templates, so it changes when a template adds or removes
+        an island mount.
         """
         return any(
             introspect.mounts_react(template)
@@ -188,11 +188,11 @@ GROUPS: list[Group] = [
                     "Action that submits raises. Items are drawn in the order "
                     "given, and one with no address is left out. When no item is "
                     "left, nothing is drawn. A separator is drawn only above an "
-                    "item that asks for one, so each caller decides where they "
-                    "fall. label names the button and is its tooltip. The page "
-                    "draws the same button until React mounts, so nothing moves. "
-                    ":scriptless adds the links as a plain list for readers "
-                    "without JavaScript. The component is one outer element, so "
+                    "item that sets one, so each caller places them. label names "
+                    "the button and is its tooltip. The page draws the same "
+                    "button until React mounts, so nothing moves. :scriptless "
+                    "adds the links as a plain list for users without "
+                    "JavaScript. The component is one outer element, so "
                     "it can sit in a button group. Use c-ui.dropdown for a menu "
                     "with buttons, groups or htmx items."
                 ),
@@ -362,7 +362,7 @@ GROUPS: list[Group] = [
                 needs=(ALPINE, KIT_JS),
                 notes=(
                     "Options come from the :options prop rather than a slot. "
-                    ":writable lets a reader enter values that were not in the "
+                    ":writable lets the user enter values that were not in the "
                     "list, and :searchable adds a filter box. It submits through a "
                     "hidden <select multiple>. Alpine builds the whole control, so "
                     "use c-n26.filter-select where a picker has to work with "
@@ -665,7 +665,7 @@ GROUPS: list[Group] = [
     Group(
         "Navigation",
         (
-            "Link sets that move a reader between pages: top bars, tab strips, "
+            "Link sets for moving between pages: top bars, tab strips, "
             "sidebars, trails and page links."
         ),
         [
@@ -1095,7 +1095,7 @@ GROUPS: list[Group] = [
                     "ancestor scope, not numbers. Pass model_min and model_max "
                     "together for a two-thumb range; if either is empty the "
                     "single-thumb path runs. Unlike c-n26.filter-menu there is "
-                    "no OK or Cancel, because the list responds as the reader "
+                    "no OK or Cancel, because the list updates while the user "
                     "drags. The trigger states the bound rather than the label, "
                     "and at_min_label and at_max_label replace the figure at "
                     "either end where the number alone is not clear."
@@ -1237,11 +1237,10 @@ GROUPS: list[Group] = [
                     "c-n26.collection-picker, and still needs that picker's "
                     "nested section and item children. tabs is forwarded "
                     "explicitly, because an empty value here would override the "
-                    "picker and untab the list. The trade-points filter is "
-                    "gone: tp_ceiling is neither declared nor forwarded, so a "
-                    "call site cannot lower the fixed cap of 99. limited on a "
-                    "profile states a composition limit; nothing here enforces "
-                    "it, because that check belongs at the operation boundary."
+                    "picker and untab the list. tp_ceiling is neither declared "
+                    "nor forwarded, so a call site cannot lower the fixed "
+                    "trade-points cap of 99. limited on a profile shows a "
+                    "composition limit; this picker does not enforce it."
                 ),
                 parts=(
                     Part(
@@ -1256,8 +1255,8 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
-                # Not "dialog": the kit's own c-ui.dialog has that slug, and a
-                # second component answering to it would take its page.
+                # Not "dialog": c-ui.dialog already uses that slug, and a
+                # duplicate slug would replace its gallery page.
                 slug="server-dialog",
                 tag="c-n26.dialog",
                 template="n26/dialog.html",
@@ -1285,14 +1284,14 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE,),
                 notes=(
-                    "Render it only when the hire question is open, since it "
+                    "Render it only when the hire dialog should show, since it "
                     "always draws the dialog open. The profile and its options "
                     "go in :fields as hidden inputs, because they were chosen "
                     "on the listing that was clicked. price is what that "
                     "listing was configured to, not the advertised figure. "
                     ":rate_at_paid controls whether a price typed over the "
                     "quote also becomes the model's rating, and must be passed "
-                    "back from the posted form so a redraw keeps an untick. Put "
+                    "back from the posted form so a redraw keeps it unticked. Put "
                     "the CSRF token in the default slot."
                 ),
             ),
@@ -1300,16 +1299,18 @@ GROUPS: list[Group] = [
                 slug="owned-dialog",
                 tag="c-n26.owned-dialog",
                 template="n26/owned_dialog.html",
-                summary=("A confirmation panel for an act on equipment a gang holds."),
+                summary=(
+                    "A confirmation panel for an action on equipment a gang holds."
+                ),
                 needs=(ALPINE,),
                 notes=(
                     "Pass the dict owned_dialog() builds as :dialog. One panel "
                     "covers selling, moving, refunding, removing, fitting an "
                     "accessory, detaching one and changing what a copy was bought "
                     "with; a kind this template does not name falls back to the "
-                    "delete wording. Each wording states what the page does not "
-                    "show: a sale its arithmetic, a move that it charges nothing, a "
-                    "refund what was paid. Pass open, redrawn, htmx and id through "
+                    "delete wording. Each wording adds what the page does not "
+                    "show: the sale arithmetic, that a move is free, or the "
+                    "amount refunded. Pass open, redrawn, htmx and id through "
                     "to c-n26.dialog. A page drawing one panel per weapon must pass "
                     "a distinct id, because the accessory field is named from it."
                 ),
@@ -1319,15 +1320,16 @@ GROUPS: list[Group] = [
                 tag="c-n26.owned-actions",
                 template="n26/owned_actions.html",
                 summary=(
-                    "Sell, and the other acts available on one copy a model holds."
+                    "Sell, and the other actions available on one item a model holds."
                 ),
                 needs=(ALPINE,),
                 notes=(
                     "Sell is shown directly and the rest sit behind a chevron, "
                     "drawn from the :sell, :more and :add structures the view "
-                    "builds, so an act added there appears here with nothing "
-                    'edited. :add is drawn only when layout="menu". Use size sm '
-                    "on a listing line and xs on a model card. Set :htmx only "
+                    "builds, so an action added there appears here without a "
+                    'template change. :add is drawn only when layout="menu". '
+                    "Use size sm on a listing line and xs on a model card. "
+                    "Set :htmx only "
                     "on a screen that hosts the update panels, as "
                     "n26/includes/equip_hosts.html does; the included snippets "
                     "read it from context."
@@ -1580,8 +1582,8 @@ GROUPS: list[Group] = [
                 template="n26/form_actions.html",
                 summary="A form's footer: Cancel, any extra controls, then the submit.",
                 notes=(
-                    "cancel_url draws Cancel as a link, so it never submits; a form "
-                    "with nowhere to go back to passes none and gets none. No "
+                    "cancel_url draws Cancel as a link, so it never submits; omit "
+                    "it when the form has nowhere to go back to. No "
                     "submit_label means no submit button. Extra controls go in the "
                     "default slot, between Cancel and the submit, and a second "
                     "submit there needs its own name and value, because only the "
@@ -1604,7 +1606,7 @@ GROUPS: list[Group] = [
                     "the submit. The footer draws only when actions, submit_label "
                     "or cancel_url is set. Declare every slot you intend to fill: a "
                     "slot this wrapper does not declare is not empty when nobody "
-                    "fills it, it holds whatever the page has under that name. "
+                    "fills it; it holds whatever the page has under that name. "
                     "max-w-3xl is a cap, so nothing inside may set a measure of its "
                     "own."
                 ),
@@ -1616,11 +1618,10 @@ GROUPS: list[Group] = [
                 summary="A titled group of fields inside a form.",
                 notes=(
                     "title renders as an h2, so a run of sections gives the "
-                    "form a real document outline. Sections are separated by "
-                    "space and a heading rather than boxed, and c-ui.card is "
-                    "there for the cases that need a container. Spacing is "
-                    "space-y rather than flex gap, so a field the view left out "
-                    "cannot leave an empty box collecting space."
+                    "form a real document outline. Sections are not boxed; use "
+                    "c-ui.card where a section needs a container. Spacing is "
+                    "space-y, not flex gap, so a field the view left out leaves "
+                    "no empty gap."
                 ),
             ),
             Component(
@@ -1705,8 +1706,8 @@ GROUPS: list[Group] = [
                     "Pass a ChoiceOffer as :offer, and use c-n26.choice-picks "
                     "instead where the offer has takes_several. Every group shares "
                     "one input name, which keeps a single selection across the "
-                    "whole list: the headings are how it reads, not separate "
-                    "questions. labelled_by prefixes each group's id so an external "
+                    "whole list; the headings only group the options. "
+                    "labelled_by prefixes each group's id so an external "
                     "heading can name the list. Nothing here is specific to what is "
                     "being picked, so a skill, a pick and an affiliation can share "
                     "a screen. The caller supplies the empty state."
@@ -1795,8 +1796,8 @@ GROUPS: list[Group] = [
                 notes=(
                     "It is built from the ledger event that recorded the roll, so a "
                     "reload draws the same result and nothing is rolled by drawing. "
-                    "It shows the dice faces where the total says which they were, "
-                    "and the figure alone otherwise. It then states where the roll "
+                    "It shows the dice faces when the total identifies them, and "
+                    "the figure alone otherwise. It then states where the roll "
                     "landed on the table, that the table has no result for that "
                     "number, or that the result has already been applied. It must "
                     "sit inside the pick form, which has to carry the roll key in a "
@@ -1815,11 +1816,11 @@ GROUPS: list[Group] = [
                     "or every special rule. What is held is ticked boxes, and "
                     "add_label opens the rest as a quick-switcher panel. Drawn as "
                     "the pick-list React island. The panel only ticks boxes and adds "
-                    "no input of its own, so no value can arrive that nobody chose. "
+                    "no input of its own, so every submitted value is a ticked box. "
                     "save names the submit button, disabled until a box changes; "
                     "reset_form names the form a Reset button submits. A disabled "
-                    "box submits nothing, so whatever applies the difference must "
-                    "not read that silence as a clearing. :grouped draws each group "
+                    "box submits nothing, so the view applying the changes must "
+                    "not treat its absence as unticked. :grouped draws each group "
                     "under its own name."
                 ),
                 parts=(
@@ -1841,13 +1842,12 @@ GROUPS: list[Group] = [
                 notes=(
                     "It must sit inside a form and runs no script, so what arrives "
                     "ticked is what the server rendered. Every box submits under "
-                    "one name across every group: the headings are how the list "
-                    "reads, not a question each. An option a rule grants is ticked "
-                    "and disabled, naming what grants it. A disabled box posts "
-                    "nothing, so whatever applies the difference must leave granted "
-                    "options out rather than read that silence as a clearing. An "
-                    "empty offer draws nothing, so the page has to explain why it "
-                    "is empty."
+                    "one name across every group; the headings only group the "
+                    "options. An option a rule grants is ticked and disabled, "
+                    "naming what grants it. A disabled box posts nothing, so the "
+                    "view applying the changes must skip granted options rather "
+                    "than treat their absence as unticked. An empty offer draws "
+                    "nothing, so the page has to explain why it is empty."
                 ),
             ),
             Component(
@@ -1875,13 +1875,11 @@ GROUPS: list[Group] = [
                     "A horizontal rule that can carry a label or icons in the middle."
                 ),
                 notes=(
-                    "Use the label to state the relationship the rule marks, so "
-                    'that "or" makes the block below an alternative to the one '
-                    "above rather than a continuation. The lines are flex spans "
-                    "rather than a styled <hr>, so the label sits in the rule with "
-                    "no background patch behind it and works over any page colour. "
-                    "With nothing in the middle it draws a plain rule and adds no "
-                    "gap."
+                    "Use the label to state the relationship the rule marks, such "
+                    'as "or" to make the block below an alternative to the one '
+                    "above. The label needs no background, so it works over any "
+                    "page colour. With nothing in the middle it draws a plain rule "
+                    "and adds no gap."
                 ),
             ),
             Component(
@@ -1893,9 +1891,9 @@ GROUPS: list[Group] = [
                     "built yet."
                 ),
                 notes=(
-                    "Do not use it for an empty list: a list's own empty slot tells "
-                    "the reader that a different search may help, while this states "
-                    "that the section is not built yet. It draws no illustration "
+                    "Do not use it for an empty list: a list's own empty slot "
+                    "suggests a different search, while this says the section is "
+                    "not built yet. It draws no illustration "
                     "and nothing to click. Whitespace-only slot content counts as "
                     "empty, so the subtitle line is dropped."
                 ),
@@ -1908,12 +1906,12 @@ GROUPS: list[Group] = [
                 notes=(
                     'Pass the count as :count. Written count="{{ n }}" it arrives '
                     'as the string "0", which is truthy, so a control with nothing '
-                    "waiting still gets a badge. The visible face caps at max, "
-                    "since three digits would widen the pill past whatever it "
-                    "rides. The number is hidden from assistive tech and label is "
+                    "waiting still gets a badge. The visible number caps at max, "
+                    "since three digits would widen the pill past the control it "
+                    "sits on. The number is hidden from assistive tech and label is "
                     "what makes it announced, so do not pass one inside a control "
-                    "whose own aria-label already carries the count. Placement is "
-                    "the caller's: the same pill rides a button's corner and sits "
+                    "whose own aria-label already carries the count. The caller "
+                    "positions it: the same pill can sit on a button's corner or "
                     "in a line of text."
                 ),
             ),
@@ -1986,7 +1984,7 @@ GROUPS: list[Group] = [
                         "n26/record_table/campaign_row.html",
                         (
                             "A campaign listing: its name, its arbitrator, and Edit "
-                            "where the reader runs it."
+                            "when the viewer is the arbitrator."
                         ),
                     ),
                 ),
@@ -2054,8 +2052,8 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
-                    "Only an open action reaches it: starting one belongs to "
-                    "whatever holds the card, which on the gang sheet is "
+                    "Pass only an open action. Starting one is the job of the "
+                    "card's container, which on the gang sheet is "
                     "c-n26.activities-square. The title, mark, help and tally all "
                     "come from :card. Extra markup goes in the named body slot and "
                     "sits above the complete form, so fields there do not submit. "
@@ -2078,7 +2076,8 @@ GROUPS: list[Group] = [
                     "cell, for an owner with founding or campaigns access. Pass one "
                     "square with only the controls the owner may use. Post-battle "
                     "uses the same next-step layout as ransom and Clean House. "
-                    "History is a link in the header; the square does not list acts. "
+                    "History is a link in the header; the square does not list "
+                    "past events. "
                     "The nothing-open message shows only when nothing is running and "
                     "nothing is waiting. The start control is a form, as is any "
                     "waiting step that acts on the click, because following a link "
@@ -2096,7 +2095,7 @@ GROUPS: list[Group] = [
                     "wrapper, so every call site draws the same violet; class is "
                     "forwarded to the inner icon, and a colour utility there "
                     "overrides the mark. Do not draw it in the accent colour or the "
-                    "green a completing button takes, or it reads as a control. "
+                    "green of a completing button, or it looks like a control. "
                     "Pass label where the flag is the only marker of founding."
                 ),
             ),
@@ -2160,7 +2159,7 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "The count is the trigger: it opens two readings of that roster "
+                    "The count is the trigger: it opens two views of the roster "
                     "in two tabs, one by profile and rank and one of every model "
                     "with its pinned rating, both in the roster's own order, pets "
                     "after their keepers. The ratings total is the sum of the "
@@ -2197,13 +2196,10 @@ GROUPS: list[Group] = [
                 ),
                 notes=(
                     "Put c-n26.detail-list.row and .heading children inside; "
-                    "other markup breaks the dt and dd pairing. One fact gets "
-                    "one control however much it holds: three skill sets are "
-                    "one question, and three buttons would read as three. "
-                    "Spacing lives on the list, so a fact hidden by a "
-                    "permission check cannot leave a gap. It is a wrapping flex "
-                    "list rather than a grid, which would align every value to "
-                    "the widest label on the sheet."
+                    "other markup breaks the dt and dd pairing. Give each fact "
+                    "one control however many values it holds: three skill sets "
+                    "get one button, not three. Spacing lives on the list, so a "
+                    "fact hidden by a permission check cannot leave a gap."
                 ),
             ),
             Component(
@@ -2217,11 +2213,11 @@ GROUPS: list[Group] = [
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
                     "It emits lines and no container, so it must sit inside a "
-                    "c-n26.detail-list, and class lands on every line. A "
-                    "settled slot and an open one are the same control leading "
-                    "to the same page, so clicking a settled one is how a "
-                    "reader changes their mind, and an open one is never marked "
-                    "as missing. A line with no address, such as a card built "
+                    "c-n26.detail-list, and class lands on every line. Settled "
+                    "and open slots use the same control and link to the same "
+                    "page, so the user changes a pick by clicking a settled slot. "
+                    "An open slot is never marked as missing. A line with no "
+                    "address, such as a card built "
                     "from a profile's default equipment, draws as text with a "
                     "dash rather than a button that goes nowhere. A dismissed "
                     "line is marked as dismissed and offers Restore."
@@ -2236,7 +2232,8 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
-                    "It owns a roster card and appears before the gang activities. "
+                    "It fills one roster card and appears before the gang "
+                    "activities. "
                     "Each counter and label occupies a separate row. "
                     "An asset's line is labelled with the "
                     "campaign type's word for its asset type. A holding links to "
@@ -2299,7 +2296,7 @@ GROUPS: list[Group] = [
                     "in a native popover outside the scrolling table. Tab moves "
                     "through its links and Escape closes it. A control is drawn "
                     "only where the structure carries its address, "
-                    "so a reader who may not act sees no controls rather than "
+                    "so a viewer without permission sees no controls, not "
                     "disabled ones; n26.core.views.campaigns fills them for the "
                     "arbitrator and the holding gang's owner. Roll is the primary "
                     "control because it begins a form, and it fetches with "
@@ -2520,9 +2517,9 @@ GROUPS: list[Group] = [
                 template="n26/button_group.html",
                 summary="Buttons and links joined into one segmented control.",
                 notes=(
-                    "The kit has no button group. The group owns the outer radius "
-                    "and its children give up theirs, joined in app.css outside any "
-                    "layer so it beats the radius utilities on kit buttons. "
+                    "The kit has no button group. The group draws the outer radius "
+                    "and removes its children's own, in app.css outside any layer "
+                    "so it beats the radius utilities on kit buttons. "
                     "Anything can join the run, a dropdown trigger included, which "
                     "is how a split caret ends a toolbar. A wrapper around a "
                     "trigger must be a direct child, or the heights do not match."
@@ -2752,8 +2749,8 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
-                    "The links live in the drawer and nowhere else, which leaves "
-                    "the space beside the brand to the page's own name. heading "
+                    "The links appear only in the drawer, so the space beside the "
+                    "brand holds the page's own name. heading "
                     "must be a slot, because a Django block inside a Cotton "
                     "attribute never runs. The default slot is drawn twice, once in "
                     "the drawer and once in a <noscript> strip: Alpine builds the "
@@ -2766,7 +2763,7 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.site.nav.gang",
                         "n26/site/nav/gang.html",
-                        "A link to one of the reader's own gangs, in the drawer.",
+                        "A link to one of the signed-in user's gangs, in the drawer.",
                     ),
                 ),
             ),
@@ -2784,8 +2781,7 @@ GROUPS: list[Group] = [
                     "so nothing toggles in place and no script is needed. The "
                     "N23 href must keep ?edition=n23, because a bare root link "
                     "redirects back here: the last edition is held in a cookie. "
-                    "Draw it only where the reader can follow both links, which "
-                    "means signed in."
+                    "Draw it only for signed-in users, who can follow both links."
                 ),
             ),
             Component(
@@ -2873,17 +2869,16 @@ GROUPS: list[Group] = [
                 tag="c-n26.view.model-edit",
                 template="n26/view/model_edit.html",
                 summary=(
-                    "The Edit face of a model's page: the card, the forms and the "
-                    "notes."
+                    "The Edit tab of a model's page: the card, the forms and the notes."
                 ),
                 needs=(ALPINE, KIT_JS, FOCUS, "n26/imagecrop.js", "Cropper.js"),
                 notes=(
                     "The model card fills the header's card slot in edit mode, "
-                    "above the tab strip, where the Equip and Options faces draw it "
+                    "above the tab strip, where the Equip and Options tabs draw it "
                     "too. Under the strip is a grid, one column on a phone and two "
                     "above it, with nothing spanning both. Each form arrives as a "
-                    "slot, fields and submit together, because saving is the page's "
-                    "business. The editors are siblings of the card, not children, "
+                    "slot, fields and submit together, because the page handles "
+                    "saving. The editors are siblings of the card, not children, "
                     "so replacing the card leaves them in place. Set :htmx only on "
                     "a page that also draws the dialog hosts, since an out-of-band "
                     "swap whose id is missing is dropped silently."
@@ -2937,7 +2932,8 @@ GROUPS: list[Group] = [
                 ),
                 notes=(
                     "The fields are split into required and optional groups, so a "
-                    "reader can stop after the first and have a gang. Pass "
+                    "user can stop after the required group and still create a "
+                    "gang. Pass "
                     "gang_types yourself, because the radio cards do not read the "
                     "form field, and put the CSRF token in the default slot. Keep "
                     "the starting credits help text: blank means no limit, which an "

@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.statline.edit> — Editable characteristic boxes, wrapping or in a single table strip.
 
-Group rules and highlights must match the read-only statline. A different divider here is a different statline.
+Group rules and highlights must match the read-only statline, or the two look like different statlines.
 Errors render after the boxes, not inside them. Putting a message in a cell stretches the grid.
 Do not use c-ui.input. It writes its own class, and a second class attribute from the call site is dropped by the browser.
 Takes EditableStatCells, not a Django form. Pairing a type with a bound form belongs in Python, and the gallery has no database.

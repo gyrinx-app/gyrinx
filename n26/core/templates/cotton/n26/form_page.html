@@ -3,7 +3,7 @@
 
 header_actions is the heading's controls. actions is extra footer controls beside submit.
 Put the csrf token in the default slot. This wrapper draws the form tag and does not include the token.
-max-w-3xl is a cap, not a width. Nothing inside may set a measure of its own, or it overflows this column.
+max-w-3xl is a maximum, so a narrow window shrinks the form. Children must not set a fixed width of their own, or they can overflow this column.
 The footer draws only when actions, submit_label, or cancel_url is set.
 form and the heading slots are in c-vars so they cannot leak from the view.
 A Django form's string is the whole form as HTML. Left on the tag it would print a second copy into the page.

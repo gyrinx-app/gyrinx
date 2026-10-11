@@ -31,7 +31,7 @@ Design notes for the local backend: `.claude/notes/local-async-tasks-research.md
 - [`registry.py`](registry.py) / [`route.py`](route.py) /
   [`discovery.py`](discovery.py) — task registration and per-task config. Apps
   declare their own routes in a `task_routes` list in their `<app>/tasks.py`;
-  the registry collects them, so platform code does not reference any edition task (#2093).
+  the registry collects them, so platform code does not reference any edition task.
 - [`provisioning.py`](provisioning.py) / [`apps.py`](apps.py) — Pub/Sub + Scheduler
   provisioning (Cloud Run only; skipped locally, in migrations, and in tests).
 
@@ -47,15 +47,14 @@ Design notes for the local backend: `.claude/notes/local-async-tasks-research.md
 ## Redelivery is at-least-once — mind the invariants
 
 Delivery can happen more than once (Pub/Sub, or the worker pool after a lease
-lapse). Two invariants live here:
+lapse). Two invariants must hold:
 
 1. **`TaskExecution` state** ([`signals.py`](signals.py)). `SUCCESSFUL` is the only
    sticky terminal state: a redelivery of a SUCCESSFUL task re-runs the function but
    leaves the record SUCCESSFUL. A redelivery of a FAILED task is a *retry* — the
    record is reset to READY *before* it starts, so the fresh attempt records its
-   own outcome. So the two terminal states part company here: SUCCESSFUL must
-   never go straight to RUNNING, while FAILED may — but only by way of that
-   reset. **Never** let `handle_task_started` mark a terminal execution RUNNING
+   own outcome. So the two terminal states differ: SUCCESSFUL must never go
+   straight to RUNNING; FAILED may, but only through that reset. **Never** let `handle_task_started` mark a terminal execution RUNNING
    directly; that is an illegal state transition that raises, and via the prod
    push handler becomes a 500 → Pub/Sub redelivery storm. Both handlers are `@transaction.atomic` and
    take a `select_for_update` lock on the execution row, because these guards are

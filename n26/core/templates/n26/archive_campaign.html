@@ -1,15 +1,13 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-The question asked before a campaign is archived, at an address of its own.
+Confirmation page shown before a campaign is archived. It is a page rather
+than a JavaScript dialog so it survives a reload, Back cancels, and it works
+without JavaScript. Opening this page changes nothing; only the form's POST
+archives the campaign.
 
-A page rather than a scripted prompt, for the same reason the gang's is: it
-survives a reload, Back is a real answer, and it works with scripting switched
-off. Nothing here changes anything — the form's POST is the act, and following
-the link that leads here is not.
-
-The alert is warning rather than error: an error reports something that
-already went wrong, and nothing has yet.
+The alert uses the warning variant because the error variant is for something
+that has already failed.
 {% endcomment %}
 {% block head_title %}Archive {{ campaign.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -38,12 +36,6 @@ already went wrong, and nothing has yet.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        {% comment %}
-        What is true, and only what is true. The campaign stops being anywhere
-        the arbitrator can reach it and archiving cannot be undone. Every gang
-        still playing is taken out first and loses what the campaign gave it,
-        as removing it would; the gang itself stays with its owner.
-        {% endcomment %}
         <c-ui.alert variant="warning" title="You cannot undo this">
             Archiving takes {{ campaign.name }} out of your campaigns. It stops
             appearing in your list and its pages stop opening. Its records are

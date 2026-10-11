@@ -21,6 +21,6 @@ explanations.
 - Import every settings-group model from `models/__init__.py` so it registers
   itself in `SETTING_GROUPS`.
 - Readers opt into `archived=False`; it is never a default manager filter.
-- An assignment with `removes=True` is machinery rather than a displayed line.
+- An assignment with `removes=True` is never displayed as a line.
   `assemble()` keeps it in `Card.removals`, but direct database readers must
   also exclude it.

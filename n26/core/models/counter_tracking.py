@@ -1,8 +1,8 @@
 """Installation state for the structured counter journal.
 
-This is a single site-wide switch, rather than game content or an
-availability rule. Deployment creates the schema; a recorded maintenance
-run establishes every counter's opening balance before enabling writers.
+A single site-wide switch. Deployment creates the schema; a recorded
+maintenance run sets every counter's opening balance before writers are
+enabled.
 """
 
 from django.db import models

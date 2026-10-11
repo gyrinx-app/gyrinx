@@ -11,8 +11,8 @@ That markup sits above the complete form, not inside it.
 Fields there will not submit with the button.
 Use the actions slot for a link beside completion. Set complete_variant to default when that link is the primary action.
 Pass boxed as a boolean. The string False still draws the card chrome.
-Only an open action reaches here. The way to start one belongs to whatever holds this card.
-Title, mark, about, and tally all come from the card. Do not draw one action's identity onto another.
+This card draws only an open action. The control that starts one belongs to the parent.
+Title, mark, about, and tally all come from card. There are no props to override them.
 The complete button posts act. Do not turn it into a link. Following a link must never start or end an action.
 {% endcomment %}
 

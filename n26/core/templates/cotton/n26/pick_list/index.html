@@ -6,7 +6,7 @@ addable options stay out of the list until picked. Without JavaScript they are a
 save names the submit button, which stays disabled until a box changes. Empty draws no buttons.
 reset_form names the form a Reset button submits. Empty draws no Reset.
 The switcher adds no input of its own. Only the boxes post, so a value that was never on the page cannot arrive.
-A disabled box submits nothing. The view that applies the difference must not read that silence as a clearing.
+A disabled box submits nothing. The view that applies the changes must not treat its absence as an untick.
 {% endcomment %}
 
 {% load pick_list react %}

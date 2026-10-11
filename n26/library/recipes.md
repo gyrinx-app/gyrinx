@@ -636,7 +636,7 @@ unless the rules assign a rating increase to that tier.
 For each weapon, create its own tiers, picklist and slot using the steps above.
 Write a summary for every tier and an optional introduction for the slot.
 Use the weapon's name as the qualifier and build the slot into the weapon,
-not its firing profile.
+not its weapon profile.
 
 - **Weapon stats:** select **The model's weapons → Changes a stat**, then
   **Configure new modifier**. Click **Add a condition**, set **Kind** to
@@ -726,7 +726,7 @@ staged profiles. The built-in test gear arrives with the model.
    1 better. The card should show **Jakara hunting rig (Tier 2)** on one line.
    The ordinary chooser may switch among Tier 1, Tier 2 and None without
    changing Kill Count or the completed action records.
-5. For a weapon, repeat through every tier and inspect its firing profile and
+5. For a weapon, repeat through every tier and inspect its weapon profile and
    traits. For a rule-based benefit, check the special rule and its annotation
    on the card. Check both newly equipped and already-carried items.
 6. Separately check **Suit Maintenance** with a non-zero Glitch Count and enough

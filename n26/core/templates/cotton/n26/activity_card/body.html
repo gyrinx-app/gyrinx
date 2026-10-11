@@ -1,12 +1,12 @@
 {% comment %}
 <c-n26.activity-card.body> — The tally, extra body, and the form that completes an action.
 
-The hidden act field is what the view reads for the button.
+The view reads the hidden act field to know which action the button completes.
 Slot content sits above the form, so extra fields there are not submitted.
 Actions sit beside the complete form and do not submit with it. With actions, help sits above the controls.
 Kept as its own template so the boxed and unboxed shapes cannot draw different contents.
 Write the help size classes out. A class name built at render time is one the stylesheet build never sees.
-Keep the label and tick in one flex span. Loose in the button they break onto two lines.
+Keep the label and tick in one flex span. Without the span they wrap onto two lines.
 {% endcomment %}
 
 <c-vars :card="None" actions="" complete_variant="success" button_size="sm" help_size="sm" />

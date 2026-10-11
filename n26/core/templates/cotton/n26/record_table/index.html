@@ -1,11 +1,11 @@
 {% comment %}
-<c-n26.record-table> — Filters gang or campaign listings as you type and by type.
+<c-n26.record-table> — Filters gang or campaign rows as you type and by type.
 
-Child listings expose data-record-row facets for the controls; only this table's rows are filtered.
-React owns the search and type controls. The listing markup stays server-rendered.
-Live typing only hides listings already on the page. Submitting Search asks the server for more.
+Child rows expose data-record-row facets for the controls; only this table's rows are filtered.
+React owns the search and type controls. The row markup stays server-rendered.
+Live typing only hides rows already on the page. Submitting Search asks the server for more.
 Anything in filters asks the server and reloads.
-The listings wrapper is a query container. A gang listing's wide layout keys off that, not the viewport.
+The rows wrapper is a query container. A gang row's wide layout keys off that, not the viewport.
 {% endcomment %}
 
 <c-vars :type_options="[]" noun="gangs" singular="gang" action="" query="" empty=""
