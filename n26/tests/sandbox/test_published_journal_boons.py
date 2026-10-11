@@ -633,6 +633,96 @@ class TestTheSeparateMaintenanceOperation:
         assert NOTHING_TO_DO in response.content.decode()
         assert not Backfill.objects.exists()
 
+    @pytest.mark.django_db(transaction=True)
+    def test_simultaneous_submissions_share_one_committed_run(
+        self, client, superuser, published_boons, address, task_queue, monkeypatch
+    ):
+        import importlib
+        import threading
+
+        from django.db import close_old_connections, connection
+        from django.test import Client
+
+        from gyrinx.tasks.local_backend import DatabaseBackend
+
+        library = importlib.import_module("n26.library.published_journal_boons")
+        admission = importlib.import_module("gyrinx.site.write_pause")
+        original_preview = library.preview
+        original_advisory = admission._advisory
+        original_enqueue = DatabaseBackend.enqueue
+        first_preview_started = threading.Event()
+        second_admission_started = threading.Event()
+        responses = []
+        errors = []
+        enqueued = []
+
+        def preview_after_second_submission_starts():
+            if threading.current_thread() is first:
+                first_preview_started.set()
+                assert second_admission_started.wait(10)
+            return original_preview()
+
+        def observed_advisory(function, scope):
+            if (
+                threading.current_thread() is second
+                and scope == "n26"
+                and function == "pg_advisory_xact_lock"
+            ):
+                second_admission_started.set()
+            return original_advisory(function, scope)
+
+        def enqueue_after_commit(backend, task, args, kwargs):
+            if task.func is cleanup_task.func:
+                assert not connection.in_atomic_block
+                enqueued.append(kwargs["backfill_id"])
+            return original_enqueue(backend, task, args, kwargs)
+
+        def post():
+            close_old_connections()
+            try:
+                request_client = Client()
+                request_client.force_login(User.objects.get(pk=superuser.pk))
+                responses.append(request_client.post(address))
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                close_old_connections()
+
+        first = threading.Thread(target=post)
+        second = threading.Thread(target=post)
+        monkeypatch.setattr(library, "preview", preview_after_second_submission_starts)
+        monkeypatch.setattr(admission, "_advisory", observed_advisory)
+        monkeypatch.setattr(DatabaseBackend, "enqueue", enqueue_after_commit)
+        try:
+            first.start()
+            assert first_preview_started.wait(10)
+            second.start()
+        finally:
+            first.join(15)
+            if second.ident is not None:
+                second.join(15)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert errors == []
+        assert len(responses) == 2
+        assert all(response.status_code == 302 for response in responses)
+        record = Backfill.objects.get(
+            operation=Operation.REMOVE_PUBLISHED_JOURNAL_BOONS
+        )
+        assert enqueued == [str(record.pk)]
+        assert task_queue.pending() == 1
+        assert responses[0]["Location"] == responses[1]["Location"]
+        assert str(record.pk) in responses[0]["Location"]
+
+        client.force_login(superuser)
+        repeated = client.post(address)
+        assert repeated["Location"] == responses[0]["Location"]
+        assert task_queue.pending() == 1
+        assert task_queue.deliver_all() == 1
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.DONE
+
     def test_only_a_superuser_can_preview_or_enqueue_it(self, client, address):
         staff = User.objects.create_user("staff", is_staff=True)
         client.force_login(staff)

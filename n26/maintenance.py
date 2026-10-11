@@ -2529,30 +2529,37 @@ def remove_published_journal_boons(backfill_id, **said_by_whoever_enqueued_it):
 def remove_published_journal_boons_view(request):
     """Preview this cleanup independently of the journal content update."""
     from n26.library.published_journal_boons import NOTHING_TO_DO, preview
+    from n26.write_pause import SCOPE, exclusive_write_scope
 
     operation = Operation.REMOVE_PUBLISHED_JOURNAL_BOONS
     address = reverse(f"admin:maintenance_{operation.value}")
     if request.method == "POST":
-        running = running_guard(operation)
-        if running is not None:
-            messages.warning(request, "That cleanup is already running.")
-            return HttpResponseRedirect(
-                reverse("admin:maintenance_backfill_detail", args=[running.id])
+        with exclusive_write_scope(SCOPE):
+            running = running_guard(operation)
+            if running is not None:
+                messages.warning(request, "That cleanup is already running.")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_backfill_detail", args=[running.id])
+                )
+            try:
+                lines = preview()
+            except (
+                ObjectDoesNotExist,
+                MultipleObjectsReturned,
+                ValidationError,
+            ) as broke:
+                messages.error(request, f"The cleanup cannot run: {broke}")
+                return HttpResponseRedirect(address)
+            if lines[0] == NOTHING_TO_DO:
+                messages.info(request, NOTHING_TO_DO)
+                return HttpResponseRedirect(address)
+            backfill = Backfill.objects.create(
+                operation=operation,
+                triggered_by=request.user,
+                status=Backfill.Status.RUNNING,
+                summary={"preview": lines, "attempts": 0},
             )
-        try:
-            lines = preview()
-        except (ObjectDoesNotExist, MultipleObjectsReturned, ValidationError) as broke:
-            messages.error(request, f"The cleanup cannot run: {broke}")
-            return HttpResponseRedirect(address)
-        if lines[0] == NOTHING_TO_DO:
-            messages.info(request, NOTHING_TO_DO)
-            return HttpResponseRedirect(address)
-        backfill = Backfill.objects.create(
-            operation=operation,
-            triggered_by=request.user,
-            status=Backfill.Status.RUNNING,
-            summary={"preview": lines, "attempts": 0},
-        )
+        # Publishing starts delivery immediately, so the run must commit first.
         remove_published_journal_boons.enqueue(backfill_id=str(backfill.id))
         messages.success(request, "The published journal boon cleanup is running.")
         return HttpResponseRedirect(
