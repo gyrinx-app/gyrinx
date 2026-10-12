@@ -1,116 +1,93 @@
 # N26 Scenario Generator: what it does
 
 The Scenario Generator gives an N26 campaign a quick way to set up a battle.
-It rolls a D6 on four scenario tables, shows the results, and lets the
-players share them, save them to the campaign log, or carry them into the
-battle record.
-
-Status: built and tested locally on the branch `feat/n26-scenario-generator`.
-It is not yet in a pull request.
+For each of four scenario tables, a player rolls a D6, chooses an entry, or
+leaves the table out. They can then share the result, save it to the
+campaign log, or take it to **Record a battle**.
 
 ## Where to find it
 
-Every campaign's **Battles** box has a **Generate scenario** button, next to
-**Record a battle**. Anyone who can read the campaign sees it. The **Record a
-battle** page also has a **Generate scenario** button beside the Scenario
-name.
+Every campaign's **Battles** box has a **Generate scenario** button next to
+**Record a battle**. Anyone who can read the campaign sees it.
 
 ## The four tables
 
 Each table has six entries, one for each face of a D6. Each entry has a name
-and a paragraph of text.
+and a description.
 
 | Table | What it decides |
 | --- | --- |
-| Deployment | Where each gang sets up. Each entry also has a map image. |
+| Deployment | Where each gang sets up. Each entry also has a map. |
 | Objective | How the battle is won. |
-| Side Job | An extra goal a gang can complete. |
+| Side job | An extra goal a gang can complete. |
 | Crew | How each gang picks its starting crew. |
 
-All the table wording and the Deployment maps are original content written
-for Gyrinx.
+The table wording and the Deployment maps are original content written for
+Gyrinx.
 
 ## Generating a scenario
 
-The page offers three options:
+The page has one drop-down list for each table. Each list offers:
 
-- **Generate full scenario** rolls once on each of the four tables.
-- **Generate scenario components** rolls only on the tables the reader ticks.
-- **Choose my own** shows all four tables and lets the reader pick an entry
-  from each. They then press **Use these options**.
+- **Roll a D6**, the default
+- **Leave out**, for a component the players already have covered
+- any of the table's six entries, chosen by name
 
-The results appear in a **Results** box under the controls, with a die for
-each roll. Pressing the button again replaces the results.
+**Generate scenario** shows the result. The result gives each component its
+name, its number, its full description and, for Deployment, its map. Your
+choices stay set, and the button changes to **Generate again**. Pressing it
+rolls again for every table still set to **Roll a D6**.
 
-Generating saves nothing. A player can roll a scenario, play the game, and
-record the battle afterwards, or never record it.
+On a wide screen the choices sit on the left and the scenario on the right.
+On a phone the choices come first.
+
+Generating saves nothing. A player can generate a scenario, play the game,
+and record the battle afterwards, or never record it.
 
 ## Doing something with the result
 
-| Button | Who sees it | What it does |
+| Action | Who can use it | What it does |
 | --- | --- | --- |
-| **Copy scenario** | Everyone | Copies a link to the result on desktop, or opens the share sheet on a phone. Whoever opens the link sees the same result. |
-| **Save to campaign log** | Accepted players | Asks for a scenario name, then adds one line to the campaign log for the arbitrator to review. |
-| **Record result** | The arbitrator and accepted players | Opens **Record a battle** with the four results attached. The reader names the battle and records it as usual. |
+| **Share** | Everyone who can read the campaign | Copies a link to the scenario on a desktop, or opens the share sheet on a phone. Anyone who opens the link sees the same scenario. |
+| **Save to log** | The arbitrator and accepted players | Opens **Save scenario**, which asks for a scenario name and adds one line to the campaign log. |
+| **Record a battle** | The arbitrator and accepted players | Opens **Record a battle** with the scenario attached. The player names the battle and records it as usual. |
 
-Hovering over **Copy scenario** or **Save to campaign log** on a desktop
-browser shows a short note about what the button does.
+A saved scenario appears in the log like this:
 
-### What the campaign log shows
+> **Alex** saved the scenario **Vent ambush**: Deployment 3 (Stand Off),
+> Objective 4 (Object Lesson), Crew 4 (Surprise Attack!)
 
-A saved scenario reads like this:
-
-> **Alex** rolled a scenario for **Grudge match at the sump**: Deployment 1
-> (Sniping Range), Objective 6 (Burn Them Out), Side Job 5 (Spread Unrest),
-> Crew 3 (Patrol)
-
-A battle recorded from the generator reads like this:
-
-> **Alex** recorded a scenario for **Grudge match at the sump** on 7 October:
-> Deployment 6 (Chance Encounter), Objective 5 (Flank 'em), …
-
-Each line links back to the scenario or to the battle.
-
-### Rolled or chosen
-
-The log says **rolled** only when Gyrinx made the rolls. A result picked with
-**Choose my own** says **chose**. So does a link whose numbers someone has
-edited, because each rolled link carries a hidden check that editing breaks.
-The arbitrator can therefore trust a "rolled" line.
-
-The log does not show rolls that a player discarded before saving.
+The line links back to the scenario. A recorded battle appears in the log in
+the usual way, for example "recorded Vent ambush on 2026-10-12".
 
 ## The battle record
 
-A battle recorded from the generator keeps its four results. The battle's
-page shows them in a **Scenario** section, with the Deployment map.
+On **Record a battle**, a **Scenario components** box lists each component
+under the scenario name. **View scenario details** opens the full
+descriptions and the map. If the form shows an error, the scenario and
+everything else already entered stay in place.
 
-## Recording the outcome later
+The battle keeps its scenario, and the battle's page shows it in a
+**Scenario** section.
 
-Most battles are recorded before they are played, so the outcome is added
-afterwards:
+## Checks
 
-- **The arbitrator** uses **Edit battle** or **Record outcome**, as before.
-- **A player whose gang fought the battle** now gets **Record outcome** while
-  no outcome is recorded. It offers only the outcome and the winning gangs.
-  Once an outcome is recorded, only the arbitrator can change it.
+- **Saving** needs a scenario name of up to 200 characters, the same rule as
+  a battle's scenario.
+- **A component that is not on its table is refused.** For example, a link
+  naming Deployment 7 is not used, even if its other components are valid.
+  A component that was left out is fine.
+- **Archived campaigns** cannot have scenarios saved to them.
 
-This changes an existing team rule, under which only the arbitrator could
-change a battle after it was recorded. The pull request should ask the
-maintainers to agree to it.
+## Decisions
 
-## Decisions made
-
-- Generating a scenario saves nothing. Players save it or record it only when
-  they want to.
-- A saved scenario takes up one log line, not one line for every roll.
-- Battles store which entries came up, not a copy of their text. If the table
-  wording is revised later, older battles show the new wording.
-- The labels follow N26 style: sentence-case buttons, and "log" rather than
-  "history".
-
-## Before release
-
-1. Run the project's copy review on the new interface text.
-2. Open a pull request. Call out the change that lets players record
-   outcomes, so the team can agree to it.
+- Generating a scenario saves nothing. Players save a scenario or record a
+  battle only when they want to.
+- A saved scenario adds one line to the log.
+- Battles and saved scenarios store which entries came up, not a copy of
+  their text. If the table wording is revised, older records show the new
+  wording.
+- Rolled and chosen results are treated the same. A link does not prove who
+  rolled a scenario, or how many times they rolled.
+- Letting players record a battle's outcome later is a separate change with
+  its own pull request.

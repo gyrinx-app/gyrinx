@@ -4,27 +4,29 @@ This document explains how the N26 Scenario Generator is built, so a
 developer can maintain or extend it. For what the feature does, see
 [scenario-generator.md](scenario-generator.md).
 
-Branch: `feat/n26-scenario-generator`, based on `origin/main` at `7f620910`.
-The changes are local and uncommitted.
-
 ## Design in brief
 
-- **The page is rendered by the server, with no React and no new JavaScript.**
-  The generator's whole state is in the query string, for example
-  `?mode=full&deployment=6&objective=2&side_job=3&crew=1&check=…`. This
-  follows the project's rule that page state belongs in the URL.
-- **Roll, then redirect.** Pressing the button sends a GET with `?roll=1`.
-  The view rolls once, then redirects to an address holding the rolls, so a
-  reload never rolls again and the link can be shared.
-- **The tables are Python constants, not library content.** They are fixed
-  text that ships with the code, which follows the pattern of
-  `n26/library/territory_table.py`.
-- **Only the table key and roll number are stored.** Battles and log notes
-  never hold an entry's text. The text is looked up from the constants when a
-  page is drawn.
-- **Rolled links are signed.** A rolled result carries `check`, a Django
-  `Signer` signature over the campaign id and the rolls. Edited or hand-picked
-  results fail the check and are treated as chosen.
+- **The pages are rendered by the server, with no React and no new
+  JavaScript.** The generator is a GET form of four native selects. The
+  battle form's details section is a native `<details>` element.
+- **Roll, then redirect.** **Generate scenario** submits `?generate=1`. The
+  view resolves every table once, rolling where asked, then redirects to an
+  address that holds the result. A reload never rolls again, and the
+  standard **Share** control passes the same scenario on.
+- **The address carries the result and the choices.** Each result is under
+  its table's key, and each choice that is not the default is under
+  `<key>_pick`. For example,
+  `?deployment_pick=3&side_job_pick=leave&deployment=3&objective=4&crew=4`
+  means Deployment was chosen, Side job was left out, and Objective and Crew
+  were rolled. **Generate again** keeps the choices and rolls the rest
+  again.
+- **The content lives in the library and is read by core.**
+  `n26/library/scenario_tables.py` holds the fixed definitions.
+  `n26/core/scenarios.py` rolls, checks and describes scenarios.
+- **Only the table key and roll are stored.** Battles and log notes never
+  hold an entry's text. The text is looked up when a page is drawn.
+- **Checking is strict.** A supplied component that is not on its table
+  refuses the whole scenario. A component left out is valid.
 
 ## Files
 
@@ -32,197 +34,147 @@ The changes are local and uncommitted.
 
 | File | Purpose |
 | --- | --- |
-| `n26/core/scenarios.py` | The four tables and every helper: rolling, parsing results, signing, log notes and descriptions. |
+| `n26/library/scenario_tables.py` | `ScenarioEntry`, `ScenarioTable`, the four tables, `TABLES` and `table(key)`. |
+| `n26/core/scenarios.py` | `ScenarioResult`, `roll`, `parse`, `results`, `rolls_of`, `describe`, and the log-note helpers. |
 | `n26/core/templates/n26/scenario_generator.html` | The generator page. |
-| `n26/core/templates/n26/includes/scenario_results.html` | Draws a list of results. Used by the generator, the Record a battle page and the battle page. |
-| `n26/core/templates/n26/battle_outcome.html` | The outcome-only page for players. |
-| `n26/core/static/n26/scenarios/deployment-{1..6}.png` | The Deployment maps. The `PLACEHOLDERS/` folder holds the old SVGs. |
-| `n26/core/migrations/0079_scenario_generator.py` | Adds `Battle.scenario_rolls` and the `SCENARIO_SAVED` log kind. It merges main's two `0078` migrations. |
+| `n26/core/templates/n26/save_scenario.html` | The **Save scenario** page. |
+| `n26/core/templates/n26/includes/scenario_results.html` | Full results: the table, the entry, the die, the description and the map. |
+| `n26/core/templates/n26/includes/scenario_summary.html` | A compact list of each table and its entry. |
+| `n26/core/static/n26/scenarios/deployment-{1..6}.png` | The Deployment maps. |
+| `n26/core/migrations/0079_scenario_generator.py` | Adds `Battle.scenario_rolls` and the `SCENARIO_SAVED` log kind. It was regenerated on current main with `makemigrations`. |
+| `n26/library/test_scenario_tables.py` | Tests for the content: six entries per table, and that the maps ship. |
 | `n26/core/test_scenarios.py` | Unit tests for `scenarios.py`. |
-| `n26/tests/test_views_scenario_generator.py` | View tests for generating, permissions, saving and recording. |
-| `n26/tests/test_views_battle_outcome.py` | View tests for players recording an outcome. |
+| `n26/tests/test_views_scenario_generator.py` | View tests for generating, saving, permissions and recording a battle. |
 
 ### Changed
 
 | File | Change |
 | --- | --- |
-| `n26/core/models/campaign.py` | Adds the `CampaignEvent.Kind.SCENARIO_SAVED` kind, the `Battle.scenario_rolls` field (`JSONField`, `{key: roll}`) and the `Battle.scenario_results` property. |
-| `n26/core/campaigns.py` | `record_battle(..., scenario_rolls=None)` stores the rolls. Adds `save_scenario(rolls, *, rolled, name)` and `record_outcome(battle, *, result, winners, revision)`. |
-| `n26/core/campaign_permissions.py` | Adds `may_record_outcome(battle, user)`. |
-| `n26/core/forms.py` | Adds `ScenarioGeneratorForm` and `BattleOutcomeForm`. `BattleForm` gains hidden roll fields on add, which reach `cleaned_data` as `scenario_rolls`. |
-| `n26/core/history.py` | Log wording for `SCENARIO_SAVED`, and `BATTLE_RECORDED` wording for battles that have scenario rolls. |
-| `n26/core/views/campaigns.py` | Adds the `scenario_generator` and `save_scenario` views. `add_battle` reads rolls from the query string. |
-| `n26/core/views/battles.py` | Adds the `record_battle_outcome` view. The battle page passes `may_record_outcome`. |
-| `n26/urls.py`, `n26/core/views/__init__.py` | Register the three new routes. |
-| `campaign.html`, `add_battle.html`, `battle.html` | Add the buttons, the generated-scenario box and the Scenario section. |
-| `designsystem/shell/campaign.html`, `demos/view-campaign-sheet/10-sheet.html` | Mirror the new Battles button in the gallery copies, which must be edited with `campaign.html`. |
-| Share control: `Share.tsx`, `templatetags/share.py`, `cotton/n26/share.html` and their tests | Optional `label` (default "Share"), `compact` (default on) and `title` props. Existing uses are unchanged. |
+| `n26/core/models/campaign.py` | Adds the `CampaignEvent.Kind.SCENARIO_SAVED` kind and the `Battle.scenario_rolls` field (a `JSONField` holding `{key: roll}`). |
+| `n26/core/campaigns.py` | `record_battle(..., scenario_rolls=None)` checks and stores the rolls. Adds `save_scenario(rolls, *, name)`. |
+| `n26/core/forms.py` | Adds `ScenarioGeneratorForm` (the four `<key>_pick` selects), `ScenarioComponentsMixin` (the hidden component fields) and `SaveScenarioForm`. `BattleForm` uses the mixin when a battle is added. |
+| `n26/core/history.py` | Words the `SCENARIO_SAVED` log line. `BATTLE_RECORDED` is unchanged. |
+| `n26/core/views/campaigns.py` | Adds the `scenario_generator` and `save_scenario` views. `add_battle` reads and checks the rolls. |
+| `n26/core/views/battles.py` | The battle page passes `scenario_results`. |
+| `n26/urls.py`, `n26/core/views/__init__.py` | Register the two new routes. |
+| `campaign.html`, `add_battle.html`, `battle.html` | Add the **Generate scenario** button, the components box and the Scenario section. |
+| `designsystem/shell/campaign.html`, `demos/view-campaign-sheet/10-sheet.html` | Mirror the new Battles button in the gallery copies of the campaign page, which must be kept in step with `campaign.html`. |
 
 ## Routes
 
 | Name | Path | View | Who may use it |
 | --- | --- | --- | --- |
 | `n26-scenario-generator` | `campaigns/<pk>/scenario/` | `scenario_generator` | Anyone who can read the campaign (`_any_campaign_or_404`). |
-| `n26-save-scenario` | `campaigns/<pk>/scenario/save/` | `save_scenario` (POST only) | Accepted players (`_plays_in`). Anyone else gets a 404. |
-| `n26-campaign-battle-outcome` | `campaigns/<pk>/battles/<battle_pk>/outcome/` | `record_battle_outcome` | `may_record_outcome`. Anyone else gets a 404. |
+| `n26-save-scenario` | `campaigns/<pk>/scenario/save/` | `save_scenario` (GET and POST) | `may_record_campaign`, through `_recording_campaign_or_404`: the arbitrator and accepted players, on a campaign that is not archived. |
 
-Every route sits behind `requires_flag(CAMPAIGNS)` and `login_required`.
+Both routes sit behind `requires_flag(CAMPAIGNS)` and `login_required`.
+Every redirect is built with `reverse(...)`.
 
-## `n26/core/scenarios.py`
+## The content: `n26/library/scenario_tables.py`
 
-### Data
+- `ScenarioEntry(roll, name, text, image="")`. Its `label` is the name
+  without a trailing colon or spaces, for use inside sentences.
+- `ScenarioTable(key, name, entries)`. `entry(roll)` returns the entry for
+  that roll, or `None`.
+- The keys are `deployment`, `objective`, `side_job` and `crew`. Links and
+  saved battles name these keys and rolls, so do not change them.
+- Names and text can change freely. Older battles and log lines show the new
+  wording.
 
-- `ScenarioEntry(roll, name, text, image="")`. `label` is the name without a
-  trailing colon or spaces, for use inside sentences.
-- `ScenarioTable(key, name, entries)`. `entry(roll)` returns the entry for a
-  roll, or `None`.
-- `DEPLOYMENT`, `OBJECTIVE`, `SIDE_JOB` and `CREW` are the tables, and
-  `TABLES` lists them in display order.
-- The table keys are `deployment`, `objective`, `side_job` and `crew`. Saved
-  battles and links use these keys, so do not rename them.
+## The logic: `n26/core/scenarios.py`
 
-### Rolling and reading results
-
-- `roll(keys, rng=None)` returns `{key: roll}` for the named tables, using
-  `Dice.roll(Dice.D6, rng)`. Pass a seeded `rng` in tests.
-- `results(mapping)` turns `{key: roll}` (or a `QueryDict`) into
-  `ScenarioResult` objects in table order. It skips unknown keys and
-  out-of-range rolls, so a hand-edited address draws what it can.
-- `rolls_of(results)` turns results back into `{key: int}`.
-- `choosable(mapping)` gives every table with its entries, marking the ones
-  already picked. It drives the radio cards in "Choose my own".
-
-### Signing
-
-- `stamp(campaign_id, rolls)` signs a canonical string of the campaign id and
-  the sorted rolls. The salt is `n26.core.scenarios.stamp`.
-- `is_stamped(campaign_id, rolls, check)` checks a stamp in constant time.
-- `generator_query(campaign_id, rolled, rolls)` builds a result's query
-  string, using the mode that would have produced it and, when rolled, its
-  stamp. The view, the save redirect and the log links all use it.
-
-### Log notes
-
-`CampaignEvent` stores no sentences, only a note that the reader turns into
-one (see the model docstring).
-
-- A `SCENARIO_SAVED` note looks like `rolled deployment=6,crew=2 Grudge match`:
-  the verb, then the rolls, then the name. The name may contain spaces.
-- `history_note(...)` writes a note and `read_history_note(note)` returns
-  `(rolled, rolls, name)`.
+- `roll(keys, rng=None)` rolls a D6 with `Dice.roll(Dice.D6, rng)` for each
+  named table. Pass a seeded `rng` in tests.
+- `parse(mapping)` returns `(results, wrong)`. It reads the value under each
+  table's key. A missing or blank value means the table was left out. A value
+  that is not 1 to 6 goes into `wrong`.
+- `results(mapping)` is `parse` that returns nothing if anything is wrong.
+- `rolls_of(results)` returns `{key: int}`.
 - `describe(results)` returns text such as
-  `Deployment 6 (Chance Encounter), Crew 2 (Patrol)`. Both log lines use it.
+  `Deployment 6 (Chance Encounter), Crew 2 (Patrol)`.
+- `history_note(rolls, name)` and `read_history_note(note)` write and read a
+  `SCENARIO_SAVED` note, such as `deployment=6,crew=2 Vent ambush`. The name
+  may contain spaces.
 
 ## Request flows
 
 ### Generating
 
-`scenario_generator` binds `ScenarioGeneratorForm` from `request.GET`.
+`ScenarioGeneratorForm` binds to `request.GET`.
 
-- `mode` is `full`, `components` or `choose`.
-- `tables` lists the components to roll.
-- One pick field per table key is used by "Choose my own".
+- Each table's field is `<key>_pick`. Its value is `roll`, `leave` or a roll
+  from 1 to 6. A missing value means `roll`.
+- `generate()` resolves the scenario.
+- `chosen_picks()` returns only the choices that are not the default, so
+  the link stays short.
 
-The "select at least one" checks run only when `?roll` is present
-(`rolling=True`), so an address that only shows a result is never refused.
-
-The template draws every part of the form, and the radio button that is
-ticked decides what shows. CSS reads the real radio with
-`group-has-[input[name=mode][value=…]:checked]/scenario:…`, which is the
-same technique `cotton/n26/radio_cards` uses. Parts that are hidden still
-submit, but the view reads only what the chosen mode needs.
+When the page draws a result, it uses `parse(request.GET)`. A wrong component
+shows an error and no scenario.
 
 ### Saving
 
-The save form posts the rolls, `check` and `name`.
+**Save to log** links to `n26-save-scenario?deployment=…`.
 
-- `save_scenario` checks the stamp again on the server and does not trust the
-  page.
-- It runs `CampaignOperation.save_scenario` inside `campaign_operation`. The
-  operation enforces accepted-player status and the name rule (1–200
-  characters, the same as a battle's scenario), then writes one
-  `SCENARIO_SAVED` event.
-- It redirects back to `generator_query(...)` rebuilt from what was saved, so
-  it never redirects to an address from the request.
+1. The GET shows the summary and a `SaveScenarioForm`. The components ride
+   as hidden fields, and **Cancel** returns to the same scenario.
+2. The POST validates the form: a required name of up to 200 characters,
+   every component on its table, and at least one component.
+3. If the form is valid, the view calls `CampaignOperation.save_scenario`.
+   The operation checks the permission through `_require_recorder`, then
+   checks the name and the components again, and writes one `SCENARIO_SAVED`
+   event.
+4. Errors render the bound form, so the name and the scenario stay visible.
+5. On success the view redirects to the generator with the saved scenario.
 
 ### Recording a battle
 
-**Record result** links to `n26-campaign-add-battle?deployment=6&…`.
+**Record a battle** links to `n26-campaign-add-battle?deployment=…`.
 
-- `add_battle` passes the rolls as initial data. `BattleForm` (add only)
-  carries them as hidden `TypedChoiceField`s and collects them into
-  `cleaned_data["scenario_rolls"]`.
-- `record_battle` stores `rolls_of(results(...))`, which drops anything that
-  is off a table.
-- The Scenario name is left blank on purpose, so the reader has to give one.
-- The existing `BATTLE_RECORDED` event is unchanged. `history.py` words it
-  from the battle's rolls when there are any.
-
-### Recording an outcome later
-
-`may_record_outcome(battle, user)` is true when all of these hold:
-
-- no outcome is recorded yet
-- `may_record_campaign` is true
-- the reader is the arbitrator, or owns one of the battle's gangs
-
-`CampaignOperation.record_outcome` locks the battle, checks
-`may_record_outcome` again, and calls `edit_battle` with the battle's own
-scenario, date and gangs, and with the stake left as it is (`KEEP`). As a
-result, the revision check, outcome validation, the `BATTLE_EDITED` event and
-the rule that stakes move only when changed all come from the existing code.
-The full `edit_battle` view stays arbitrator-only, and upstream's
-`test_players_can_create_battles_but_cannot_edit_or_remove_them` still passes.
+- `add_battle` uses `parse` on the GET. A wrong component attaches nothing
+  and says so.
+- `BattleForm` carries the components through `ScenarioComponentsMixin`.
+  Hidden fields cannot show errors of their own, so a wrong component
+  becomes one error on the form.
+- `record_battle` refuses wrong components again, then stores
+  `rolls_of(...)` in `Battle.scenario_rolls`.
+- The scenario name starts blank. Validation errors keep the hidden
+  components and the fields already entered.
 
 ## Existing features reused
 
 - `Dice.roll` from `n26/library/models/slots.py`.
-- `<c-n26.die>`, `<c-n26.radio-cards>`, `<c-n26.form-page>` and
-  `<c-n26.section>`.
-- The share island, extended with optional props.
-- `campaign_operation`, `CampaignOperation.event`, `may_record_campaign`,
-  `_plays_in` and `_any_campaign_or_404`.
-- The existing `BattleForm`, `record_battle` and `edit_battle`, along with
-  their validation messages.
-
-## Changing the content
-
-Edit the entries in `n26/core/scenarios.py`. Each table must keep exactly six
-entries with rolls 1–6, which `test_every_table_has_one_entry_for_each_face_of_a_d6`
-checks. Do not change the `key` values. Deployment images live in
-`n26/core/static/n26/scenarios/` and are referenced by the `image=` paths.
-
-Because only keys and rolls are stored, changing the wording updates old
-battles and log lines too. If an entry ever needs to read differently on old
-records, that would need a new design, such as storing the text.
+- `<c-n26.share>` (the standard Share control), `<c-n26.die>`,
+  `<c-n26.page-header>`, `<c-n26.section>`, `<c-n26.form-page>` and
+  `<c-n26.form-section>`, plus the `c-ui` fields, native selects and buttons.
+- `campaign_operation`, `CampaignOperation.event`, `_require_recorder`,
+  `may_record_campaign` and `_recording_campaign_or_404`.
+- The existing `BattleForm` and `record_battle`, and the battle scenario's
+  name rule and message.
 
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest -n 4 n26/core/test_scenarios.py n26/tests/test_views_scenario_generator.py n26/tests/test_views_battle_outcome.py n26/core/test_views_share.py
-npx vitest run n26/frontend/islands/share
+.venv/bin/python -m pytest -n 4 n26/library/test_scenario_tables.py n26/core/test_scenarios.py n26/tests/test_views_scenario_generator.py
 ```
 
-There are 44 feature tests in the three new files, plus 2 share-control tests.
-At handover the full N26 suite passed (8,485 tests), as did `npm run
-typecheck` and `./scripts/fmt.sh`.
+The full N26 suite also passes: `.venv/bin/python -m pytest -n 4 n26`. Check
+migrations with `manage makemigrations --check`,
+`manage check_migration_conflicts` and
+`manage check_migration_overlap --base origin/main`.
 
-## Local development notes
+## Local development
 
-- The worktree is `~/gyrinx-scenario-generator`, served at
-  http://localhost:8811 by `./scripts/dev.sh`. Run that from the worktree,
-  not from the main checkout.
-- The local database has no N26 library content. Two test gang types were
-  created with `create_gang_type`, and the `campaigns` feature flag was set
-  to Everyone in the worktree database.
-- Sign in with `/_debug/login/?user=agent` (arbitrator) or
-  `?user=agent-player` (accepted player in ScenGenCamp).
-- `scripts/dev.sh` needs Node 22.12 or later for Sass. On this machine that is
-  Homebrew `node@24`.
-
-## Open items
-
-- Run the `microcopy` copy review on the new interface strings.
-- In the pull request, call out the change that lets players record
-  outcomes, since it changes a rule the maintainers chose.
-- Consider adding these documents to `docs/SUMMARY.md`.
+- Use a dedicated worktree, for example `~/gyrinx-scenario-generator`, and
+  start it with `./scripts/dev.sh` from that worktree. The script prints the
+  worktree's own URL, which is a port from 8100 to 9599. Port 8000 belongs to
+  the main checkout. On this machine the worktree uses
+  http://localhost:8811.
+- `scripts/dev.sh` needs Node 22.12 or later, because Sass needs it. The CI
+  workflows use Node 24.
+- A database copied from a fresh `gyrinx_main` has no N26 library content
+  and the `campaigns` feature flag is off. Turn the flag on with
+  `FeatureFlag` in `manage shell`, and create a test gang type with
+  `n26.library.authoring.create_gang_type`.
+- Sign in through the dev-only link printed by
+  `manage agent_login_url /n26/campaigns/`, or with
+  `/_debug/login/?user=agent-<purpose>`.
