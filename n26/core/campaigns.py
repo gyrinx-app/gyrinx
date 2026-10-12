@@ -579,6 +579,33 @@ class CampaignOperation:
         )
         return battle
 
+    def record_outcome(self, battle, *, result, winners, revision):
+        """Record the outcome of a battle that has none, from its page.
+
+        For the players who fought it as well as the arbitrator, so the
+        result is in once the game is played. Everything else about the
+        battle is kept as it is, its stake included, through the same
+        edit the arbitrator makes.
+        """
+        from n26.core.campaign_permissions import may_record_outcome
+        from n26.core.operations import Refusal
+
+        battle = self._locked_battle(battle)
+        if not may_record_outcome(battle, self.actor):
+            raise Refusal(
+                "The outcome is already recorded, or this battle is not yours "
+                "to record. Ask the arbitrator to change it."
+            )
+        return self.edit_battle(
+            battle,
+            scenario=battle.scenario,
+            date=battle.date,
+            gangs=list(battle.gangs.all()),
+            result=result,
+            winners=winners,
+            revision=revision,
+        )
+
     def _stake_details(self, battle, *, stake, awarded_to, gang_ids):
         """Check a battle's stake against its participants.
 
