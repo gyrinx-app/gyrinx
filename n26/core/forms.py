@@ -744,6 +744,54 @@ class BattleForm(forms.Form):
         return cleaned
 
 
+class BattleOutcomeForm(forms.Form):
+    """A battle's outcome, recorded after the game: a draw, or which of
+    its participants won. Nothing else about the battle is offered."""
+
+    result = forms.ChoiceField(
+        label="Outcome",
+        error_messages={"required": "Select an outcome."},
+    )
+    winners = forms.ModelMultipleChoiceField(
+        queryset=None,
+        required=False,
+        label="Winning gangs",
+        widget=forms.CheckboxSelectMultiple,
+    )
+    revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
+
+    def __init__(self, *args, battle, **kwargs):
+        from n26.core.models import Battle
+
+        super().__init__(*args, **kwargs)
+        self.battle = battle
+        self.fields["result"].choices = [
+            choice
+            for choice in Battle.Result.choices
+            if choice[0] != Battle.Result.NOT_RECORDED
+        ]
+        self.fields["winners"].queryset = battle.gangs.order_by("name")
+        self.fields["winners"].widget.attrs["class"] = (
+            "size-4 shrink-0 accent-[var(--color-accent)] focus-ring"
+        )
+        self.initial.setdefault("revision", battle.revision)
+
+    def clean(self):
+        from n26.core.models import Battle
+
+        cleaned = super().clean()
+        if "result" in cleaned and "winners" in cleaned:
+            try:
+                Battle.validate_outcome(
+                    result=cleaned["result"],
+                    gangs=self.battle.gangs.all(),
+                    winners=cleaned["winners"],
+                )
+            except forms.ValidationError as exc:
+                self.add_error(None, exc)
+        return cleaned
+
+
 class AddAssetForm(forms.Form):
     """Assets to add to a campaign.
 
