@@ -1,0 +1,15 @@
+{% extends "n26/layouts/base.html" %}
+{% load react %}
+{% block head_title %}{{ title }} · {{ campaign.name }}{% endblock %}
+{% block content %}
+    <div class="max-w-5xl space-y-6">
+        <c-n26.page-header title="{{ title }}" lead="{{ campaign.name }} · {{ cycle.label }}">
+            <c-slot name="actions"><c-ui.button size="sm"
+             href="{% url 'n26-campaign' campaign.pk %}">Back to campaign</c-ui.button></c-slot>
+        </c-n26.page-header>
+        {% if read_only %}<p class="text-sm text-muted">Preview this cycle's rewards. Only the campaign arbitrator can apply them.</p>{% else %}<p class="text-sm text-muted">Apply each selected gang's rewards once for this cycle. Skip rewards already handled manually. Skipped rewards are recorded and cannot be claimed again this cycle.</p>{% endif %}
+        {% react_host "cycle-rewards" props %}
+            <p>Enable JavaScript to view cycle boons.</p>
+        {% endreact_host %}
+    </div>
+{% endblock %}

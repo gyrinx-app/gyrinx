@@ -208,6 +208,12 @@ class TestTheCampaignHeader:
 
         assert entries(props) == [
             (
+                "Cycle history",
+                reverse("n26-cycle-history", args=[campaign.pk]),
+                "default",
+                False,
+            ),
+            (
                 "View log",
                 reverse("n26-campaign-log", args=[campaign.pk]),
                 "default",
@@ -253,5 +259,8 @@ class TestTheCampaignHeader:
 
         _, props, _ = the_menu(html)
 
-        assert [item["label"] for item in props["items"]] == ["View log"]
+        assert [item["label"] for item in props["items"]] == [
+            "Cycle history",
+            "View log",
+        ]
         assert reverse("n26-archive-campaign", args=[campaign.pk]) not in html

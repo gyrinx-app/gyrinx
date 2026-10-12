@@ -974,6 +974,23 @@ Income option, so a custom Income value can still apply when selected. Removing
 the recorded Income selection stops its contribution. Rerunning the maintenance
 operation preserves a dismissed unresolved choice instead of selecting Income.
 
-Resolve the alternative's recruitment discount or equipment reward manually at
-cycle end. Its summary states the eligibility and amount. Selecting an option
-does not grant a persistent reward immediately.
+The arbitrator applies the alternative's recruitment discount or equipment
+reward from the campaign's cycle screen. Its summary states the eligibility
+and amount. Selecting an option does not grant a persistent reward immediately.
+
+### Offer equipment once per campaign cycle
+
+1. Open the pickable offered by the territory's Boon choice and add a modifier.
+2. Choose **The gang carrying it**. Add a House condition when the reward is
+   restricted to one House.
+3. Choose **Offers equipment each cycle**, select the respirator and set
+   Quantity to 2. Save the modifier.
+4. Select that pickable on the territory, then preview the campaign's cycle
+   boons. The reward adds two respirators to the gang's stash when applied.
+
+For recruitment, choose **Offers recruitment each cycle** instead. Select the
+eligible profiles or profile type, enter the discount and, when needed, the
+maximum number of existing models. For an Ammo-jack reward, select its profile,
+set the discount to 30 and the maximum to 1. The arbitrator selects a fighter
+and name on the cycle screen; the receipt records its price, discount and
+payment. The fighter retains the full quoted rating.

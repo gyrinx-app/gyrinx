@@ -429,7 +429,7 @@ def gang_sheet(request, pk):
     )
     campaigns_open = link_model_cards(gang, sheet.models, request.user)
     dialog = None
-    link_campaign(sheet.campaign, request.user)
+    link_campaign(sheet.campaign, request.user, gang=gang)
     budget_notice = (
         _campaign_budget_notice(request, gang)
         if campaigns_open and sheet.campaign is not None

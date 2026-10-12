@@ -156,7 +156,7 @@ def credits_href(gang, user):
     return reverse("n26-gang-credits", args=[gang.pk])
 
 
-def link_campaign(block, user):
+def link_campaign(block, user, *, gang=None):
     """Point a gang sheet's campaign block at the campaign's own pages,
     or at nothing for a reader who cannot open them.
 
@@ -177,6 +177,12 @@ def link_campaign(block, user):
         return
     block.href = reverse("n26-campaign", args=[block.campaign_id])
     block.assets_href = block.href + "#assets"
+    if gang is not None:
+        from n26.core.cycle_display import cycle_summary
+        from n26.core.models import Campaign
+
+        campaign = Campaign.objects.get(pk=block.campaign_id)
+        block.cycle = cycle_summary(campaign, actor=user, gang=gang)
 
 
 def may_see_founding(gang, user):

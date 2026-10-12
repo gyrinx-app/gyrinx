@@ -28,6 +28,10 @@ from django.utils.text import capfirst
 from n26.core.constraints import exactly_one_of
 from n26.core.status import Status
 from n26.library.models.base import Content
+from n26.library.models.cycle_rewards import (
+    OffersCycleEquipment,
+    OffersCycleRecruitment,
+)
 
 #: The kinds of thing a scope can select.
 MODEL = "model"
@@ -56,6 +60,8 @@ COMPUTED_EFFECT_FIELDS = (
     "requires_companions",
     "allows_at_most",
     "contributes_to_counter",
+    "offers_cycle_recruitment",
+    "offers_cycle_equipment",
 )
 
 #: Effects that write player data — an assignment, a ledger event — run
@@ -2262,6 +2268,20 @@ class Modifier(Content):
         blank=True,
         related_name="modifier",
         verbose_name="contributes to counter",
+    )
+    offers_cycle_recruitment = models.OneToOneField(
+        OffersCycleRecruitment,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="modifier",
+    )
+    offers_cycle_equipment = models.OneToOneField(
+        OffersCycleEquipment,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="modifier",
     )
     op_adds_miniature = models.OneToOneField(
         OpAddsMiniature,

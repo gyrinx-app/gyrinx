@@ -1692,6 +1692,7 @@ class CampaignBlock:
     holdings: list[CampaignAssetLine] = field(default_factory=list)
     choices: list[ChoiceLine] = field(default_factory=list)
     boon_assets: list[AssetBoonLine] = field(default_factory=list)
+    cycle: dict = field(default_factory=dict)
     #: Where the campaign's name and its holdings lead — the campaign
     #: page, and its assets section — filled in by whoever knows both the
     #: URL space and who may open them, as a counter's own href is. Empty
@@ -1923,6 +1924,7 @@ class CampaignGangLine:
     label_names: list[str] = field(default_factory=list)
     asset_names: list[str] = field(default_factory=list)
     grouped_assets: list[GangDetail] | None = None
+    cycle: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -2007,6 +2009,7 @@ class CampaignAssetEntry:
     campaign_asset_id: str
     name: str
     asset_name: str = ""
+    boon: str = ""
     income: int = 0
     income_source: IncomeSource | None = None
     held: bool = False
@@ -2097,6 +2100,7 @@ class CampaignSheet:
     #: wrote any. Drawn behind the type's name rather than beside it: the
     #: name is the fact, the description is what it means.
     campaign_type_description: str = ""
+    cycle: dict = field(default_factory=dict)
     status: str = "Pre-campaign"
     budget: int | None = None
     #: The arbitrator's own words, as editor HTML — sanitised where drawn.
@@ -4482,8 +4486,8 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         withdrawn_members,
     )
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
-    from n26.core.effects import compute, counter_readings
-    from n26.core.models import CampaignMembership
+    from n26.core.effects import asset_origins, compute, counter_readings
+    from n26.core.models import CampaignAsset, CampaignMembership
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.references import reading_sentences
     from n26.library.staged import sees_staged
@@ -4543,6 +4547,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     picks = {}
     incomes = {}
     income_breakdowns = {}
+    boon_names = {}
     held_tables = {}
     # Tables given through a member the arbitrator has since closed stay
     # on the gangs and are not offered: one query for every card at once.
@@ -4555,6 +4560,22 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         computed = compute(card, index)
         incomes.update(holding_income(computed))
         income_breakdowns.update(holding_income_sources(computed))
+        origins = asset_origins(card)
+        labels = {}
+        for choice in computed.choices:
+            if choice.is_history_only:
+                continue
+            origin = choice.holding or origins.get(getattr(choice.anchor, "key", None))
+            if isinstance(origin, CampaignAsset):
+                labels.setdefault(_asset_origin_key(origin), []).append(
+                    choice.chosen_name or "Choose boon"
+                )
+        for choice in _orphan_asset_choices(computed, origins):
+            labels.setdefault(choice.asset_key, []).append(choice.chosen)
+        for holding in card.holdings:
+            boon_names[holding.pk] = ", ".join(
+                labels.get(_asset_origin_key(holding), ())
+            )
         readings = counter_readings(card, computed)
         keys = _campaign_keys(card, membership)
         parts[membership.pk] = _campaign_parts(
@@ -4692,6 +4713,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
                 )
                 if holder
                 else unclaimed_income_source(campaign_asset),
+                boon=boon_names.get(campaign_asset.pk, ""),
                 held=holder is not None,
                 holder=holder.gang.name if holder else "",
                 holder_gang_id=str(holder.gang_id) if holder else "",

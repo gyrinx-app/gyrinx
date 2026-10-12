@@ -53,6 +53,10 @@ from n26.library.models.collection import (
     Price,
     price_of,
 )
+from n26.library.models.cycle_rewards import (
+    OffersCycleEquipment,
+    OffersCycleRecruitment,
+)
 from n26.library.models.defaults import (
     DefaultAssignment,
     DefaultAssignmentSet,
@@ -187,6 +191,8 @@ __all__ = [
     "DrawsPick",
     "Rule",
     "OffersChoice",
+    "OffersCycleRecruitment",
+    "OffersCycleEquipment",
     "OpAddsMiniature",
     "OpChangesCounter",
     "OpSetsStatus",

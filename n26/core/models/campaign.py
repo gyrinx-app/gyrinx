@@ -150,6 +150,8 @@ class CampaignEvent(Base):
         BUDGET_SET = "budget_set", "Budget set"
         SUMMARY_EDITED = "summary_edited", "Summary edited"
         STATUS_CHANGED = "status_changed", "Status changed"
+        CYCLE_STARTED = "cycle_started", "Cycle started"
+        CYCLE_RENAMED = "cycle_renamed", "Cycle renamed"
         ARCHIVED = "archived", "Archived"
         DICE_ROLLED = "dice_rolled", "Dice rolled"
         DICE_ROLL_NOTED = "dice_roll_noted", "Dice roll noted"

@@ -977,15 +977,19 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
     return card
 
 
-def build_gang_cards(gangs, holdings):
-    """Every gang's own card at once — the gang-hosted rows and nothing
-    else, in a fixed number of queries however many gangs.
+def build_gang_cards(gangs, holdings, *, with_members=False):
+    """Every gang's own card at once, in a fixed number of queries.
+    By default only gang-hosted rows are loaded.
 
     What a campaign page asks of each gang is what the gang itself holds:
     its counters and their readings, and what the campaign gave it. None
     of that is on a member's card, so the members are not fetched — one
     assignment query covers every gang, one hydration pass covers every
     row, and ``compute`` runs on each card off one shared index.
+
+    ``with_members`` also deals the members' cards from the same fetch and
+    hydration pass, without statlines or stash contents. Reward previews use
+    these cards to evaluate roster-dependent conditions.
 
     ``holdings`` are the campaign's assets, keyed by gang id, read by the
     caller in one query for the whole campaign. A gang with none gets an
@@ -995,24 +999,48 @@ def build_gang_cards(gangs, holdings):
     by_gang = {gang.pk: gang for gang in gangs}
     if not by_gang:
         return {}
-    rows = _flat_rows(
-        gang_root__in=list(by_gang),
-        miniature_root__isnull=True,
-        stash_root__isnull=True,
-    )
+    filters = {"gang_root__in": list(by_gang), "stash_root__isnull": True}
+    if not with_members:
+        filters["miniature_root__isnull"] = True
+    rows = _flat_rows(with_status=with_members, **filters)
     hydrate_rows(rows)
     theirs = {pk: [] for pk in by_gang}
     for row in rows:
         theirs[row.gang_root_id].append(row)
-    return {
-        pk: GangCard(
+    cards = {}
+    for pk, gang in by_gang.items():
+        held = list(holdings.get(pk, ()))
+        active = _without_inactive_holding_choices(theirs[pk], held)
+        shared = [row for row in active if row.miniature_root_id is None]
+        grouped = {}
+        for row in active:
+            if row.miniature_root_id is not None:
+                grouped.setdefault(row.miniature_root_id, []).append(row)
+        card = GangCard(
             gang=gang,
-            roots=_forest(theirs[pk], holdings.get(pk, ())),
-            shared_rows=theirs[pk],
-            holdings=list(holdings.get(pk, ())),
+            roots=_forest(shared, held),
+            shared_rows=shared,
+            holdings=held,
+            member_rows=grouped,
         )
-        for pk, gang in by_gang.items()
-    }
+        statuses = {
+            row.miniature_root_id: (row.member_status, row.member_status_revision)
+            for row in active
+            if with_members and row.member_status is not None
+        }
+        card.members = {
+            miniature_id: assemble(
+                None,
+                member_rows,
+                status=statuses.get(miniature_id, (None, 0))[0],
+                status_revision=statuses.get(miniature_id, (None, 0))[1],
+                broadcast=shared,
+                gang_card=card,
+            )
+            for miniature_id, member_rows in grouped.items()
+        }
+        cards[pk] = card
+    return cards
 
 
 def build_card_from_profile(profile, option=None, base=None):
@@ -1177,6 +1205,9 @@ def build_modifier_index(assignables, max_depth=3):
         *(f"removes_assignable__{name}" for name in GRANTABLE_FIELDS),
         "changes_stat__stat",
         "contributes_to_counter__counter",
+        "offers_cycle_recruitment__profile_type",
+        "offers_cycle_equipment__weapon",
+        "offers_cycle_equipment__wargear",
         "excludes_campaign_assets__asset_type",
         "adds_assignable__asset__asset_type",
         "removes_assignable__asset__asset_type",
@@ -1186,6 +1217,7 @@ def build_modifier_index(assignables, max_depth=3):
     #: per card to learn who it reaches.
     also_prefetch = (
         "hides_categories__categories",
+        "offers_cycle_recruitment__profiles",
         "targets_miniature__has_subtypes__subtypes",
         "targets_miniature__is_profile__profiles",
         "targets_miniature__is_profile_type__profile_types",

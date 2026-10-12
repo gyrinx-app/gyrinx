@@ -117,6 +117,17 @@ React draws the menu. Its panel is fixed, so the table's scroll wrapper does not
                     </td>
                 </tr>
             {% endfor %}
+            {% if gang.cycle %}
+                <tr class="border-b-0! max-md:hover:bg-transparent! max-md:grid max-md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                    <th scope="row" class="w-64 min-w-48 max-w-64 align-top font-normal! text-xs text-muted max-md:block max-md:w-auto max-md:min-w-0 max-md:max-w-none">Cycle boons</th>
+                    <td colspan="{{ gang.detail_colspan }}" class="align-top whitespace-normal! max-md:block">
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                            <span class="text-muted">{{ gang.cycle.state }}</span>
+                            {% if gang.cycle.receipt_href %}<c-n26.link href="{{ gang.cycle.receipt_href }}">View receipt</c-n26.link>{% elif gang.cycle.apply_href %}<c-n26.link href="{{ gang.cycle.apply_href }}">Review boons</c-n26.link>{% elif gang.cycle.view_href %}<c-n26.link href="{{ gang.cycle.view_href }}">View boons</c-n26.link>{% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% endif %}
         </tbody>
     {% endfor %}
 </c-ui.table>

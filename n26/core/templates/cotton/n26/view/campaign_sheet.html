@@ -86,6 +86,18 @@ log_count may be markup: the campaign page passes a host that a roll update redr
                         {% if edit_href %}<c-ui.button href="{{ edit_href }}#campaign-status" size="xs" variant="text" aria-label="Edit campaign status" class="py-0!"><span class="n26-icon-inline"><c-n26.icon name="pencil" /></span></c-ui.button>{% endif %}
                     </dd>
                 </div>
+                {% if sheet.cycle %}
+                    <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-start gap-3 py-2.5">
+                        <dt class="text-sm text-muted">Cycle</dt>
+                        <dd class="min-w-0 space-y-2 text-right text-sm">
+                            <div>{{ sheet.cycle.label }}{% if sheet.cycle.rename_href %} <c-n26.link href="{{ sheet.cycle.rename_href }}" class="text-xs">Rename</c-n26.link>{% endif %}</div>
+                            {% if sheet.cycle.edit_href %}<div class="flex flex-wrap justify-end gap-2">
+                                {% if sheet.cycle.apply_href %}<c-ui.button size="sm" variant="primary" href="{{ sheet.cycle.apply_href }}">Apply boons</c-ui.button>{% endif %}
+                                {% if sheet.cycle.apply_href %}<c-ui.button size="sm" variant="ghost" href="{{ sheet.cycle.edit_href }}">Next cycle</c-ui.button>{% else %}<c-ui.button size="sm" variant="primary" href="{{ sheet.cycle.edit_href }}">Start first cycle</c-ui.button>{% endif %}
+                            </div>{% elif sheet.cycle.view_href %}<c-n26.link href="{{ sheet.cycle.view_href }}">View boons</c-n26.link>{% endif %}
+                        </dd>
+                    </div>
+                {% endif %}
                 <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 py-2.5">
                     <dt class="text-sm text-muted">Gang budget</dt>
                     <dd class="flex items-center justify-end gap-2 text-sm tabular-nums">

@@ -100,6 +100,7 @@ def test_asset_row_and_holding_log_link_to_the_exact_holding(client, setup):
         "Territory",
         "Income",
         "Held by",
+        "Boon",
         "Actions",
     ]
 

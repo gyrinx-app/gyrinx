@@ -974,6 +974,8 @@ def _tell(e, row, alive):
                 at,
                 Span(f"{went_as} to the trading post"),
             ), "credits"
+        case Kind.CYCLE_RESOLVED:
+            return (Span("resolved cycle boons"),), "campaign"
         case Kind.NOTED:
             # About no model, so about the gang — as a rename is.
             if model is None:
@@ -1572,6 +1574,10 @@ def _tell_campaign(e):
         case kinds.STATUS_CHANGED:
             _, _, now = e.note.rpartition(" → ")
             return (Span(f"set the campaign status to {now}"),), "campaign"
+        case kinds.CYCLE_STARTED:
+            return (Span(f"started {e.note}"),), "campaign"
+        case kinds.CYCLE_RENAMED:
+            return (Span(f"renamed {e.note}"),), "campaign"
         case kinds.SUMMARY_EDITED:
             return (Span("edited the campaign's summary"),), "campaign"
         case kinds.ARCHIVED:

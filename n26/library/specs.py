@@ -258,6 +258,7 @@ class Union:
     over: dict = dataclass_field(default_factory=dict)
     through: type = None
     filters: dict = dataclass_field(default_factory=dict)
+    written_by: object = None
 
     help = ""
 
@@ -432,6 +433,8 @@ def _build_registry():
         IsProfile,
         IsProfileType,
         OffersChoice,
+        OffersCycleEquipment,
+        OffersCycleRecruitment,
         OpAddsMiniature,
         OpChangesCounter,
         OpSetsStatus,
@@ -758,6 +761,39 @@ def _build_registry():
                 "On the Leader subtype: adds 2 to the fighter's Trading "
                 "Post visit contribution counter. On Champion: adds 1."
             ),
+        ),
+        Spec(
+            authoring.ef_offers_cycle_recruitment,
+            {
+                "profiles": Many(
+                    model=Profile,
+                    source=(OffersCycleRecruitment, "profiles"),
+                    replaced_by=authoring.set_cycle_recruitment_profiles,
+                ),
+                "profile_type": One(
+                    model=ProfileType,
+                    optional=True,
+                    source=(OffersCycleRecruitment, "profile_type"),
+                ),
+                "discount": Int(source=(OffersCycleRecruitment, "discount")),
+                "maximum": Int(source=(OffersCycleRecruitment, "maximum")),
+            },
+            label="Offers recruitment each cycle",
+            blurb="Offers one recruitment with a discount when the arbitrator applies cycle boons.",
+            example="A settlement offers a 25-credit recruitment discount.",
+        ),
+        Spec(
+            authoring.ef_offers_cycle_equipment,
+            {
+                "thing": Union(
+                    over={"weapon": "library.Weapon", "wargear": "library.Wargear"},
+                    written_by=authoring.set_cycle_equipment,
+                ),
+                "quantity": Int(source=(OffersCycleEquipment, "quantity")),
+            },
+            label="Offers equipment each cycle",
+            blurb="Adds equipment to the gang’s stash when the arbitrator applies cycle boons.",
+            example="Mine workings offers two respirators.",
         ),
         Spec(
             authoring.ef_offers_choice,
