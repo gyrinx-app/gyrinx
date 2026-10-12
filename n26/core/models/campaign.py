@@ -443,7 +443,7 @@ class Battle(Base):
     #: What each scenario generator table landed on, as ``{key: roll}``,
     #: for the tables the battle was played with. Empty when the scenario
     #: was not generated. Only the rolls are stored; the battle's page
-    #: looks each entry up in ``n26.core.scenarios``.
+    #: looks each entry up through ``n26.core.scenarios``.
     scenario_rolls = models.JSONField(default=dict, blank=True)
     result = models.CharField(
         max_length=20, choices=Result, default=Result.NOT_RECORDED
@@ -499,14 +499,6 @@ class Battle(Base):
     @property
     def title(self):
         return self.scenario or f"Battle on {format_date(self.date, 'j M Y')}"
-
-    @property
-    def scenario_results(self):
-        """What each scenario table landed on, as the generator draws it,
-        in table order. Empty when the scenario was not generated."""
-        from n26.core.scenarios import results
-
-        return results(self.scenario_rolls or {})
 
     @property
     def gang_outcomes(self):

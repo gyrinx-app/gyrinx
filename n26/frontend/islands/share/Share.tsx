@@ -11,10 +11,6 @@ export type ShareProps = {
     message: string;
     size: ButtonLinkSize;
     variant: ButtonLinkVariant;
-    /** The button's words and accessible name. */
-    label?: string;
-    /** Breadcrumb-row size, with the words hidden below sm. */
-    compact?: boolean;
 };
 
 const COPIED_FOR_MS = 4000;
@@ -36,14 +32,7 @@ function isAbort(error: unknown) {
     );
 }
 
-export function Share({
-    url,
-    message,
-    size,
-    variant,
-    label = "Share",
-    compact = true,
-}: ShareProps) {
+export function Share({ url, message, size, variant }: ShareProps) {
     const [copied, setCopied] = useState(false);
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -117,14 +106,12 @@ export function Share({
                 href={url}
                 size={size}
                 variant={variant}
-                aria-label={label}
-                className={compact ? FIT : "inline-flex items-center gap-1.5"}
+                aria-label="Share"
+                className={FIT}
                 onClick={onClick}
             >
                 <Icon name="share-2" className="size-3.5" strokeWidth={1.7} />
-                <span className={compact ? "hidden sm:inline" : undefined}>
-                    {label}
-                </span>
+                <span className="hidden sm:inline">Share</span>
             </ButtonLink>
             {/* Mounted from the start so a reader announces the text when it appears. */}
             <span
