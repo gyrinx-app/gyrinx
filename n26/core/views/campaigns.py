@@ -1969,11 +1969,13 @@ def transfer_asset(request, pk, asset_pk):
 @login_required
 def remove_asset(request, pk, asset_pk):
     """The question at its own address, then the act."""
+    from n26.core.campaign_table import table_view_href
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
+    back = table_view_href(request, _campaign_page(found)) + "#assets"
 
     if request.method == "POST":
         name = str(campaign_asset)
@@ -1987,7 +1989,7 @@ def remove_asset(request, pk, asset_pk):
                 messages.error(request, f"{name} was already removed.")
             else:
                 messages.success(request, f"Removed {name}.")
-        return redirect(_assets_anchor(found))
+        return redirect(back)
 
     return render(
         request,
@@ -1995,7 +1997,7 @@ def remove_asset(request, pk, asset_pk):
         {
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "back": _assets_anchor(found),
+            "back": back,
         },
     )
 

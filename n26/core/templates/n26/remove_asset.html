@@ -14,7 +14,7 @@ changes nothing; the POST is the act.
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-asset-remove' campaign.pk campaign_asset.pk %}"
+    <c-n26.form-page action="{{ request.get_full_path }}"
                      title="Remove {{ campaign_asset }}?"
                      submit_label="Remove"
                      submit_variant="danger"
