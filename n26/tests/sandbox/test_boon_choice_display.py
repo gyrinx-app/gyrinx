@@ -371,7 +371,7 @@ class TestSelectableHoldingDisplay:
         detail_controls = detail_body.select('a[href*="/choose/"]')
         assert len(detail_controls) == 1
         assert detail_controls[0].get_text(strip=True) == "Income"
-        assert "text-base" in detail_controls[0].get("class", [])
+        assert "text-sm" in detail_controls[0].get("class", [])
         assert "bg-white" in detail_controls[0].get("class", [])
         detail_effects = (
             detail_controls[0].find_parent("dd").find_all("p", recursive=False)
