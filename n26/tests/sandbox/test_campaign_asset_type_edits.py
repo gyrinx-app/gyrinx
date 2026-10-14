@@ -334,6 +334,36 @@ class TestTheEditPage:
 
 
 class TestAssetDisplayGroups:
+    @pytest.mark.parametrize("creating", [True, False])
+    def test_an_overlong_display_group_shows_its_validation_error(
+        self, client, campaign, racket, creating
+    ):
+        client.force_login(campaign.owner)
+        url = (
+            reverse("n26-campaign-add-asset-type", args=[campaign.pk])
+            if creating
+            else edit_url(campaign, racket)
+        )
+        response = client.post(
+            url,
+            {
+                "label_singular": "Depot",
+                "label_plural": "Depots",
+                "ownership": HOLDING,
+                "display_group": "x" * 201,
+            },
+        )
+        assert response.status_code == 200
+        errors = response.context["form"].errors["display_group"]
+        assert errors
+        text = BeautifulSoup(response.content, "html.parser").get_text(" ", strip=True)
+        assert all(error in text for error in errors)
+        assert not campaign.additions.asset_types.filter(
+            label_singular="Depot"
+        ).exists()
+        racket.refresh_from_db()
+        assert racket.display_group == ""
+
     def test_arbitrator_can_create_and_change_a_display_group(self, client, campaign):
         client.force_login(campaign.owner)
         response = client.post(

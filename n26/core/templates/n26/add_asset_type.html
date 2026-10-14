@@ -59,6 +59,7 @@ are, so the form posts with no script and a redisplay keeps the pick.
             </c-ui.field>
             <c-ui.field label="{{ form.display_group.label }}"
                         description="{{ form.display_group.help_text }}"
+                        error="x"
                         :form="form"
                         name="display_group"
                         for="asset-type-display-group">

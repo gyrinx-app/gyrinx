@@ -9,7 +9,11 @@
                      cancel_url="{{ back }}">
         {% csrf_token %}
         <c-n26.form-section title="Default grouping">
-            <c-ui.field label="Group gangs by" for="campaign-grouping" :field="form.grouping">
+            <c-ui.field label="Group gangs by"
+                        for="campaign-grouping"
+                        error="x"
+                        :form="form"
+                        name="grouping">
                 <c-ui.select.native id="campaign-grouping" name="grouping" placeholder="">
                     {% for value, label in form.fields.grouping.choices %}<option value="{{ value }}"
         {% if form.grouping.value == value %}selected{% endif %}>{{ label }}</option>{% endfor %}

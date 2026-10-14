@@ -307,11 +307,18 @@ def test_group_settings_reject_foreign_labels_invalid_colours_and_other_players(
     response = client.post(url, {"grouping": "not-a-label"})
     assert response.status_code == 200
     assert response.context["form"].errors["grouping"]
+    text = BeautifulSoup(response.content, "html.parser").get_text(" ", strip=True)
+    assert all(error in text for error in response.context["form"].errors["grouping"])
     response = client.post(
         url, {"grouping": str(slot.pk), f"colour_{slot.pk}_{upper.pk}": "invalid"}
     )
     assert response.status_code == 200
     assert response.context["form"].errors[f"colour_{slot.pk}_{upper.pk}"]
+    text = BeautifulSoup(response.content, "html.parser").get_text(" ", strip=True)
+    assert all(
+        error in text
+        for error in response.context["form"].errors[f"colour_{slot.pk}_{upper.pk}"]
+    )
     other = User.objects.create_user("group-settings-player")
     client.force_login(other)
     assert client.get(url).status_code == 404
