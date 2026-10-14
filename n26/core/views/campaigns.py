@@ -481,6 +481,8 @@ def _starting(sheet, gang_id, asked):
     Anything else is a page without the panel."""
     from django.urls import reverse
 
+    from n26.library.territory_table import TERRITORY
+
     line = next((g for g in sheet.gangs if g.gang_id == gang_id), None)
     if line is None:
         return None
@@ -493,7 +495,7 @@ def _starting(sheet, gang_id, asked):
         column for column in sheet.asset_types if column.asset_type_id == asked
     )
     label = column.label.lower()
-    allocating = sheet.starting_from_pool and label == "territory"
+    allocating = sheet.starting_from_pool and column.label == TERRITORY
     return {
         "plural": column.plural.lower(),
         "allocating": allocating,
@@ -599,6 +601,7 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
                     table_id__in=[table.table_id for table in tables],
                     asset_id__in=pool_counts,
                 )
+                .order_by()
                 .values_list("table_id", "asset_id")
                 .distinct()
             )

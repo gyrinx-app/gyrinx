@@ -1971,3 +1971,66 @@ def test_allocation_dialog_reads_stay_flat_as_the_unclaimed_pool_grows(
     assert first.status_code == second.status_code == 200
     assert _roll_props(second.content.decode())["tables"][0]["availableCount"] == 10
     assert len(many) <= len(few)
+
+
+@pytest.mark.usefixtures("campaigns_open")
+@pytest.mark.parametrize("label", ["territory", "TERRITORY"])
+def test_custom_asset_labels_keep_their_additional_starting_roll(
+    client, arbitrator, goliath, label
+):
+    from n26.core.campaigns import campaign_operation
+    from n26.library.authoring import add_asset_type
+
+    campaign_type = create_campaign_type("Custom campaign")
+    asset_type = add_asset_type(campaign_type, label, "pooled")
+    table = create_asset_table("Custom territory table", asset_type, dice="d6")
+    asset = create_asset("Outpost", asset_type)
+    add_asset_table_entry(table, asset, roll_low=1, roll_high=6)
+    campaign = found_campaign("Custom starting rolls", campaign_type, owner=arbitrator)
+    gang = found_gang("Slag Kings", goliath, owner=arbitrator)
+    join_campaign(gang, campaign)
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.set_starting_from_pool(True)
+    client.force_login(arbitrator)
+    body = client.get(
+        reverse("n26-campaign", args=[campaign.pk]),
+        {"starting": str(gang.pk), "type": str(asset_type.pk)},
+        HTTP_HX_REQUEST="true",
+    ).content.decode()
+    assert _roll_props(body)["allocating"] is False
+    assert "Roll starting territory for Slag Kings" in body
+    response = client.post(
+        reverse("n26-campaign-roll-starting", args=[campaign.pk, gang.pk]),
+        {"type": str(asset_type.pk), "table": str(table.pk), "rolled": "1"},
+    )
+    assert response.status_code == 302
+    holding = campaign.campaign_assets.get()
+    assert holding.asset_id == asset.pk
+    assert holding.holder.gang_id == gang.pk
+
+
+@pytest.mark.usefixtures("campaigns_open")
+def test_multiple_table_bands_count_each_matching_pool_holding_once(
+    client, campaign, arbitrator, goliath, territory
+):
+    from n26.core.campaigns import campaign_operation
+
+    table = create_asset_table("Repeated territory bands", territory, dice="d6")
+    asset = create_asset("Outpost", territory)
+    add_asset_table_entry(table, asset, position=0, roll_low=1, roll_high=3)
+    add_asset_table_entry(table, asset, position=1, roll_low=4, roll_high=6)
+    gang = found_gang("Slag Kings", goliath, owner=arbitrator)
+    join_campaign(gang, campaign)
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.roll_asset(table, rolled=1)
+        op.roll_asset(table, rolled=4)
+        op.set_starting_from_pool(True)
+    client.force_login(arbitrator)
+    body = client.get(
+        reverse("n26-campaign", args=[campaign.pk]),
+        {"starting": str(gang.pk), "type": str(territory.pk)},
+        HTTP_HX_REQUEST="true",
+    ).content.decode()
+    props = _roll_props(body)
+    counts = {option["value"]: option["availableCount"] for option in props["tables"]}
+    assert counts[str(table.pk)] == 2
