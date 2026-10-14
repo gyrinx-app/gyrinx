@@ -2135,3 +2135,45 @@ def test_the_pool_allocation_hint_labels_the_target_instead_of_claiming_inventor
     assert (
         "Suggested pool: 6 territories. 1 starting territory still to allocate." in body
     )
+
+
+@pytest.mark.usefixtures("campaigns_open")
+@pytest.mark.parametrize("band", [None, (11, 16)])
+def test_allocation_counts_only_pool_assets_a_table_roll_can_reach(
+    client, campaign, arbitrator, goliath, territory, band
+):
+    from n26.core.campaigns import campaign_operation
+
+    table = create_asset_table("Unreachable pool matches", territory, dice="d6")
+    asset = create_asset("Outpost", territory)
+    if band is None:
+        add_asset_table_entry(table, asset)
+    else:
+        add_asset_table_entry(table, asset, roll_low=band[0], roll_high=band[1])
+    gang = found_gang("Slag Kings", goliath, owner=arbitrator)
+    join_campaign(gang, campaign)
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.add_asset(asset)
+        op.set_starting_from_pool(True)
+    client.force_login(arbitrator)
+    body = client.get(
+        reverse("n26-campaign", args=[campaign.pk]),
+        {"starting": str(gang.pk), "type": str(territory.pk)},
+        HTTP_HX_REQUEST="true",
+    ).content.decode()
+    counts = {
+        option["value"]: option["availableCount"]
+        for option in _roll_props(body)["tables"]
+    }
+    assert counts[str(table.pk)] == 0
+    response = client.post(
+        reverse("n26-campaign-roll-starting", args=[campaign.pk, gang.pk]),
+        {"type": str(territory.pk), "table": str(table.pk)},
+        HTTP_HX_REQUEST="true",
+    )
+    assert (
+        "No unclaimed territories from this table are available in the pool."
+        in response.content.decode()
+    )
+    assert campaign.campaign_assets.count() == 1
+    assert not campaign.campaign_assets.filter(holder__isnull=False).exists()

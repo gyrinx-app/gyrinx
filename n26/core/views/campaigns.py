@@ -625,10 +625,10 @@ def _roll_context(
             "checked": bool(form["avoid_duplicates"].value()),
         }
         if question.get("allocating"):
-            from collections import Counter
+            from collections import Counter, defaultdict
 
             from n26.core.models import CampaignAsset
-            from n26.library.models import AssetTableEntry
+            from n26.library.models import AssetTableEntry, Dice
 
             pool_counts = Counter(
                 CampaignAsset.objects.filter(
@@ -638,18 +638,23 @@ def _roll_context(
             entries = AssetTableEntry.objects.all()
             if not sees_staged(campaign.owner):
                 entries = entries.live().filter(asset__staged=False)
-            pairs = (
-                entries.filter(
-                    table_id__in=[table.table_id for table in tables],
-                    asset_id__in=pool_counts,
-                )
-                .order_by()
-                .values_list("table_id", "asset_id")
-                .distinct()
-            )
+            by_table = defaultdict(list)
+            for entry in entries.filter(
+                table_id__in=[table.table_id for table in tables]
+            ).select_related("table"):
+                by_table[str(entry.table_id)].append(entry)
             matching = Counter()
-            for table_id, asset_id in pairs:
-                matching[str(table_id)] += pool_counts[asset_id]
+            for table in tables:
+                bands = by_table[table.table_id]
+                if not bands:
+                    continue
+                # Count only the assets allocation can reach with this table's die.
+                reachable = {
+                    entry.asset_id
+                    for roll in Dice.rolls(table.dice)
+                    if (entry := bands[0].table.landing(roll, bands)) is not None
+                }
+                matching[table.table_id] = sum(pool_counts[pk] for pk in reachable)
             for table in island_tables["tables"]:
                 table["availableCount"] = matching[table["value"]]
         if rolling:
