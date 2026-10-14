@@ -1477,26 +1477,19 @@ class CampaignOperation:
         """Run ``remove(op, copy)`` on each gang's live copy of an archived
         member, one gang at a time under that gang's line, in key order.
 
-        Every gang in the campaign is visited, not only those holding a copy
-        before the walk began: a propagation pass already holding a gang's
-        line can be granting it a copy of the member as it was. That pass
-        commits before this one takes the line, so its copy is found here
-        and removed. A pass that starts later reads the member as archived
-        and grants nothing.
+        Every gang playing the campaign is visited, not only those holding a
+        copy before the walk began: a propagation pass already holding a
+        gang's line can be granting it a copy of the member as it was. That
+        pass commits before this one takes the line, so its copy is found
+        here and removed. A pass that starts later reads the member as
+        archived and grants nothing. Only gangs playing it: a clone of one
+        carries copies naming the same member, and is somebody else's gang
+        outside the campaign.
         """
-        from django.db.models import Q
-
-        from n26.core.models import Assignment, Gang
+        from n26.core.models import Assignment
         from n26.core.operations import operation
 
-        playing = self.campaign.memberships.filter(left__isnull=True).values("gang_id")
-        holding = Assignment.objects.filter(
-            materialised_from=member, archived=False
-        ).values("gang_root_id")
-        gangs = Gang.objects.filter(Q(pk__in=playing) | Q(pk__in=holding)).order_by(
-            "pk"
-        )
-        for gang in gangs:
+        for gang in _playing_gangs(self.campaign):
             with operation(gang, actor=self.actor, batch=self.batch) as op:
                 for copy in Assignment.objects.filter(
                     materialised_from=member, archived=False, gang_root=gang
@@ -1862,6 +1855,16 @@ def _table_named(table):
     word, since the name is the author's."""
     name = str(table)
     return f"the {name}" if name.lower().endswith("table") else name
+
+
+def _playing_gangs(campaign):
+    """The gangs playing this campaign now, in the order gang lines are
+    taken."""
+    from n26.core.models import Gang
+
+    return Gang.objects.filter(
+        pk__in=campaign.memberships.filter(left__isnull=True).values("gang_id")
+    ).order_by("pk")
 
 
 def own_additions(campaign, kind):

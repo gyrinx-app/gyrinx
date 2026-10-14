@@ -213,6 +213,68 @@ class TestArchivingACounter:
 
         assert client.get(reverse("n26-tally", args=[held.pk])).status_code == 404
 
+    def test_a_tally_that_found_the_counter_before_the_archive_moves_nothing(
+        self, client, table, monkeypatch
+    ):
+        """A tally that read the counter before the archive took the gang's
+        line, and waited for it, must not move the archived value."""
+        from n26.core.views import permissions
+
+        held = copies(table["faith"]).get(gang_root=table["kings"])
+        found = permissions._campaign_counter_or_404
+
+        def found_then_archived(request, pk):
+            assignment = found(request, pk)
+            archive(table, "counter")
+            return assignment
+
+        monkeypatch.setattr(
+            permissions, "_campaign_counter_or_404", found_then_archived
+        )
+        client.force_login(table["arbitrator"])
+        response = client.post(
+            reverse("n26-tally", args=[held.pk]), {"change": "1"}, follow=True
+        )
+
+        assert "Faith is no longer on Rust Kings." in response.content.decode()
+        assert CounterValue.objects.get(assignment=held).value == 4
+        assert not LedgerEvent.objects.filter(
+            assignment=held,
+            kind=LedgerEvent.Kind.TALLIED,
+            created__gt=LedgerEvent.objects.get(
+                assignment=held, kind=LedgerEvent.Kind.REMOVED
+            ).created,
+        ).exists()
+
+    def test_a_clone_outside_the_campaign_keeps_its_copy(self, table):
+        """A clone of a gang in the campaign carries copies naming the same
+        built-in, but it is another gang and not in the campaign."""
+        from n26.core.operations import clone_gang
+
+        clone = clone_gang(table["kings"], name="Rust Kings II", owner=table["player"])
+        cloned = copies(table["faith"]).get(gang_root=clone)
+
+        archive(table, "counter")
+
+        cloned.refresh_from_db()
+        assert not cloned.archived
+        assert not LedgerEvent.objects.filter(
+            gang=clone, kind=LedgerEvent.Kind.REMOVED
+        ).exists()
+
+    def test_the_confirm_page_leaves_out_a_clone_outside_the_campaign(
+        self, client, table
+    ):
+        from n26.core.operations import clone_gang
+
+        clone_gang(table["kings"], name="Rust Kings II", owner=table["player"])
+        client.force_login(table["arbitrator"])
+        page = client.get(archive_url(table, "counter"))
+        assert [line["gang"] for line in page.context["gangs"]] == [
+            "Ash Wolves",
+            "Rust Kings",
+        ]
+
     def test_adding_one_by_the_same_name_is_refused_in_words(self, table):
         archive(table, "counter")
         with (
