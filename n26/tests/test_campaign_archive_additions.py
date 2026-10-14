@@ -339,10 +339,32 @@ class TestArchivingALabel:
         alignment.slot.refresh_from_db()
         assert alignment.archived
         assert alignment.slot.archived
-        assert alignment.slot.slot_type.pickables.filter(archived=False).count() == 0
+        assert alignment.slot.slot_type.archived
         for gang in (table["kings"], table["wolves"]):
             gang.refresh_from_db()
             assert_reconciled(gang)
+
+    def test_a_clone_outside_the_campaign_keeps_the_label_and_its_options(self, table):
+        """A clone carries the label but is not in the campaign: it keeps its
+        pick, and the options stay there to pick from."""
+        from n26.core.operations import clone_gang
+
+        clone = clone_gang(table["kings"], name="Rust Kings II", owner=table["player"])
+        question = copies(table["alignment"]).get(gang_root=clone)
+
+        archive(table, "label")
+
+        question.refresh_from_db()
+        assert not question.archived
+        assert (
+            Assignment.objects.get(chosen_for=question, archived=False).pickable.name
+            == "Lawful"
+        )
+        options = table["alignment"].slot.picklist.available_members()
+        assert sorted(member.pickable.name for member in options) == [
+            "Chaotic",
+            "Lawful",
+        ]
 
     def test_each_gang_history_says_what_it_had_picked(self, table):
         archive(table, "label")

@@ -1429,8 +1429,7 @@ class CampaignOperation:
         archived first, then each gang's copy of the slot is removed
         under that gang's own line, taking its pick with it, and the
         removal names that pick so the gang's history reads "(was
-        Lawful)". The four library rows ``add_label`` wrote are archived
-        last.
+        Lawful)". The label's slot and slot type are archived last.
 
         A label another rule still names — the label itself, or any of
         its options — is refused in words (:func:`_refuse_while_named`).
@@ -1440,7 +1439,6 @@ class CampaignOperation:
         member = self._still_own(member, "slot")
         slot = member.slot
         _refuse_archiving(self.campaign, member)
-        picklist, pickables, _ = _label_rows(self.campaign, slot)
         member.archive()
 
         def remove(op, copy):
@@ -1451,7 +1449,9 @@ class CampaignOperation:
                 op.remove(copy, before_pick=pick)
 
         self._off_every_gang(member, remove)
-        for row in (slot, picklist, *pickables, slot.slot_type):
+        # The options and their list stay live: a clone outside the campaign
+        # still carries the label, and its picker offers only live options.
+        for row in (slot, slot.slot_type):
             row.archive()
         self.event(CampaignEvent.Kind.LABEL_ARCHIVED, note=slot.choice_label)
         return slot
