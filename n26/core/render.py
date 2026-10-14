@@ -2007,6 +2007,7 @@ class CampaignAssetEntry:
     campaign_asset_id: str
     name: str
     asset_name: str = ""
+    boon: str = ""
     income: int = 0
     income_source: IncomeSource | None = None
     held: bool = False
@@ -2551,7 +2552,37 @@ def hide_dismissed_choices(keys, choices, *, reveal=False, removed=None):
     return found
 
 
-def build_choice_offer(slot, computed, *, include_staged=False):
+def build_choice_offers(slots, computed, *, include_staged=False):
+    """Several choice lists with their picklist options loaded together."""
+    from n26.core.browse import Listed
+    from n26.library.models import PicklistMember
+
+    slots = list(slots)
+    picklists = {
+        slot.slot.picklist_id
+        for slot in slots
+        if slot.slot is not None and not slot.slot.picklist.dice
+    }
+    grouped = {pk: [] for pk in picklists}
+    if picklists:
+        for member in PicklistMember.available_for_choices(
+            picklists, include_staged=include_staged
+        ):
+            grouped[member.picklist_id].append(
+                Listed(thing=member.pickable, name=member.label, band=member.band)
+            )
+    catalogues = {
+        ("picklist", pk, include_staged): members for pk, members in grouped.items()
+    }
+    return [
+        build_choice_offer(
+            slot, computed, include_staged=include_staged, _catalogues=catalogues
+        )
+        for slot in slots
+    ]
+
+
+def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None):
     """What may be chosen for one slot, in the one shape a picker draws.
 
     The offer decides the list; this only flattens it. A slot narrowed to
@@ -2582,7 +2613,9 @@ def build_choice_offer(slot, computed, *, include_staged=False):
         # click here could write, so there is nothing to draw.
         return ChoiceOffer(label=slot.kind_label, chosen=slot.chosen_name)
 
-    offered = offered_by(slot, computed, include_staged=include_staged)
+    offered = offered_by(
+        slot, computed, include_staged=include_staged, _catalogues=_catalogues
+    )
     current = slot.resolved_with.assignable if slot.resolved_with is not None else None
 
     if isinstance(offered, CollectionView):
@@ -4482,8 +4515,8 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         withdrawn_members,
     )
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
-    from n26.core.effects import compute, counter_readings
-    from n26.core.models import CampaignMembership
+    from n26.core.effects import asset_origins, compute, counter_readings
+    from n26.core.models import CampaignAsset, CampaignMembership
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.references import reading_sentences
     from n26.library.staged import sees_staged
@@ -4543,6 +4576,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     picks = {}
     incomes = {}
     income_breakdowns = {}
+    boon_names = {}
     held_tables = {}
     # Tables given through a member the arbitrator has since closed stay
     # on the gangs and are not offered: one query for every card at once.
@@ -4555,6 +4589,22 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         computed = compute(card, index)
         incomes.update(holding_income(computed))
         income_breakdowns.update(holding_income_sources(computed))
+        origins = asset_origins(card)
+        labels = {}
+        for choice in computed.choices:
+            if choice.is_history_only or not choice.chosen_name:
+                continue
+            origin = choice.holding or origins.get(getattr(choice.anchor, "key", None))
+            if isinstance(origin, CampaignAsset):
+                labels.setdefault(_asset_origin_key(origin), []).append(
+                    choice.chosen_name
+                )
+        for choice in _orphan_asset_choices(computed, origins):
+            labels.setdefault(choice.asset_key, []).append(choice.chosen)
+        for holding in card.holdings:
+            boon_names[holding.pk] = ", ".join(
+                labels.get(_asset_origin_key(holding), ())
+            )
         readings = counter_readings(card, computed)
         keys = _campaign_keys(card, membership)
         parts[membership.pk] = _campaign_parts(
@@ -4692,6 +4742,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
                 )
                 if holder
                 else unclaimed_income_source(campaign_asset),
+                boon=boon_names.get(campaign_asset.pk, ""),
                 held=holder is not None,
                 holder=holder.gang.name if holder else "",
                 holder_gang_id=str(holder.gang_id) if holder else "",

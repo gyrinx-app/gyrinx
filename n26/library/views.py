@@ -5564,6 +5564,7 @@ def foundations(request):
         progression_plan,
     )
     from n26.library.standard_content import STANDARD_CONTENT
+    from n26.maintenance import territory_boon_setup_links
 
     rollout_plan = progression_plan()
     plan_ids = [
@@ -5654,6 +5655,7 @@ def foundations(request):
         "authoring/foundations.html",
         {
             "entries": entries,
+            "territory_boon_setup": territory_boon_setup_links(request.user),
             "progression_plan": rollout_plan,
             "progression_eligible": sum(not row.excluded for row in rollout_plan),
             "progression_attached": sum(

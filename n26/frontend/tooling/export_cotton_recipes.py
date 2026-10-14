@@ -67,6 +67,24 @@ def native_select_recipe():
     }
 
 
+def radio_option_recipe():
+    root, control, content, label, description = classes(
+        '<c-n26.radio-option label="Income" description="Income contribution." />',
+        "label",
+        "input",
+        "span",
+        "span",
+        "span",
+    )
+    return dict(
+        root=root,
+        control=control,
+        content=content,
+        label=label,
+        description=description,
+    )
+
+
 def input_recipe():
     root, control = classes('<c-ui.input type="text" />', "div", "input")
     return {"root": root, "control": control}
@@ -1079,6 +1097,7 @@ def recipes():
         "checkboxCard": checkbox_card_recipe(),
         "callout": callout_recipe(),
         "radioCards": radio_cards_recipe(),
+        "radioOption": radio_option_recipe(),
         "input": input_recipe(),
         "nativeSelect": native_select_recipe(),
         "field": {

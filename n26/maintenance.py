@@ -2731,6 +2731,18 @@ register_control_operation(
 )
 
 
+def territory_boon_setup_links(user):
+    """Authoring shortcuts to the existing superuser-only content previews."""
+    if not user.is_superuser:
+        return {}
+    return {
+        "income": reverse(f"admin:maintenance_{Operation.SEED_TERRITORY_BOONS.value}"),
+        "choices": reverse(
+            f"admin:maintenance_{Operation.SEED_TERRITORY_BOON_CHOICES.value}"
+        ),
+    }
+
+
 @task
 def seed_territory_boon_choices(backfill_id, **said_by_whoever_enqueued_it):
     """Record the guarded territory boon conversion and current Income picks."""
