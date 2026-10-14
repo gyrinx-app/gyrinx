@@ -2311,6 +2311,8 @@ def gang_sheet():
                 CampaignAssetLine(
                     type_label="Settlement",
                     type_plural="Settlements",
+                    asset_type_id="settlement",
+                    display_group="Territories",
                     name="Settlement",
                     provenance=Provenance(
                         source="Territory campaign", source_kind="campaign type"
@@ -2349,6 +2351,8 @@ def gang_sheet():
                 CampaignAssetLine(
                     type_label="Territory",
                     type_plural="Territories",
+                    asset_type_id="territory",
+                    display_group="Territories",
                     name="Old Ruins",
                     income=30,
                     campaign_asset_id="old-ruins",
@@ -2792,9 +2796,14 @@ CAMPAIGN_ASSET_TYPES = [
         label="Settlement",
         plural="Settlements",
         holding=False,
+        display_group="Territories",
     ),
     AssetTypeColumn(
-        asset_type_id="territory", label="Territory", plural="Territories", holding=True
+        asset_type_id="territory",
+        label="Territory",
+        plural="Territories",
+        holding=True,
+        display_group="Territories",
     ),
 ]
 

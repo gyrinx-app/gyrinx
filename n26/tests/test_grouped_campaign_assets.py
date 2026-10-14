@@ -1,6 +1,7 @@
 """The same named campaign asset groups on screen, paper, text and captures."""
 
 import pytest
+from bs4 import BeautifulSoup
 from django.apps import apps
 from django.contrib.auth.models import User
 from django.db import connection
@@ -54,10 +55,9 @@ def test_named_groups_keep_multiples_and_renamed_copies(grouped):
     gang, _, _, _ = grouped
     block = render_gang(gang).campaign
     groups = {group.label: group for group in block.asset_groups}
-    assert groups["Territories"].names == "Old Ruins, Shop (x2), Sump shop"
+    assert groups["Territories"].names == "Settlement, Old Ruins, Shop (x2), Sump shop"
     assert groups["Territories"].held
-    assert groups["Settlements"].names == "Settlement"
-    assert not groups["Settlements"].held
+    assert "Settlements" not in groups
     assert (
         next(counter.value for counter in block.counters if counter.name == "Income")
         == 60
@@ -74,7 +74,9 @@ def test_screen_uses_one_row_and_links_the_named_list(client, grouped):
     label = soup.find("dt", string="Territories")
     assert label is not None
     names = label.find_next_sibling("dd")
-    assert "Old Ruins, Shop (x2), Sump shop" in names.get_text(" ", strip=True)
+    assert "Settlement, Old Ruins, Shop (x2), Sump shop" in names.get_text(
+        " ", strip=True
+    )
     assert (
         names.find("a")["href"]
         == reverse("n26-campaign", args=[campaign.pk]) + "#assets"
@@ -87,24 +89,35 @@ def test_print_and_text_follow_the_same_groups(client, grouped):
     gang, _, _, _ = grouped
     html = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
     assert "Territories" in html
-    assert "Old Ruins, Shop (x2), Sump shop" in html
+    assert "Settlement, Old Ruins, Shop (x2), Sump shop" in html
     text = gang_to_text(gang)
     assert "Campaign: Dust Falls" in text
-    assert "Territories: Old Ruins, Shop (x2), Sump shop" in text
-    assert "Settlements: Settlement" in text
+    assert "Territories: Settlement, Old Ruins, Shop (x2), Sump shop" in text
+    assert "Settlements:" not in text
     assert "Income: 60" in text
 
 
-def test_capture_keeps_the_group_and_detects_a_lost_copy(grouped):
+def test_capture_keeps_the_group_and_detects_a_lost_copy(grouped, monkeypatch):
+    from n26.core import capture
+
     gang, _, _, tokens = grouped
     before = gang_state(gang)
-    assert ("Territories", "Old Ruins, Shop (x2), Sump shop") in before["campaign"][
-        "assets"
-    ]
+    assert ("Territories", "Settlement, Old Ruins, Shop (x2), Sump shop") in before[
+        "campaign"
+    ]["assets"]
+    reordered = render_gang(gang)
+    reordered.campaign.lines.reverse()
+    reordered.campaign.holdings.reverse()
+    reordered.campaign.asset_types.reverse()
+    with monkeypatch.context() as patch:
+        patch.setattr(capture, "render_gang", lambda _: reordered)
+        assert gang_state(gang) == before
     unassign_asset(tokens[0])
     after = gang_state(gang)
     assert before != after
-    assert ("Territories", "Old Ruins, Shop, Sump shop") in after["campaign"]["assets"]
+    assert ("Territories", "Settlement, Old Ruins, Shop, Sump shop") in after[
+        "campaign"
+    ]["assets"]
     assert ("Income", "50") in after["campaign"]["counters"]
 
 
@@ -149,9 +162,9 @@ def test_repeated_campaign_possessions_are_grouped_too(grouped):
     group = next(
         group
         for group in render_gang(gang).campaign.asset_groups
-        if group.label == "Settlements"
+        if group.label == "Territories"
     )
-    assert group.names == "Settlement (x2)"
+    assert group.names == "Settlement (x2), Old Ruins, Shop (x2), Sump shop"
 
 
 def test_campaign_choices_appear_once_in_text_and_stay_dismissed_on_print(
@@ -201,3 +214,156 @@ def test_a_campaign_print_with_only_one_side_uses_one_column():
     soup = BeautifulSoup(rendered, "html.parser")
     card = soup.find(string="Dust Falls").find_parent(class_="n26-print-card")
     assert len(card.select(".n26-print-column")) == 1
+
+
+def test_authored_display_groups_combine_arbitrary_types_on_both_sheets(grouped):
+    from n26.core.render import render_campaign
+    from n26.library.authoring import add_asset_type
+    from n26.library.models import AssetType
+
+    gang, campaign, _, _ = grouped
+    for singular in ["Workshop", "Depot"]:
+        kind = add_asset_type(
+            campaign.campaign_type,
+            singular,
+            AssetType.Ownership.HOLDING,
+            display_group="Supply sites",
+        )
+        asset = create_asset(singular + " East", kind)
+        assign_asset(add_asset(campaign, asset), gang)
+    block = render_gang(gang).campaign
+    group = next(group for group in block.asset_groups if group.label == "Supply sites")
+    assert group.names == "Workshop East, Depot East"
+    line = render_campaign(campaign).gangs[0]
+    group = next(detail for detail in line.details if detail.label == "Supply sites")
+    assert group.text == "Workshop East, Depot East"
+    assert campaign.campaign_type.asset_types.get(label_singular="Workshop").is_holding
+
+
+def test_arbitrator_sets_shared_grouping_and_colours_with_viewer_override(
+    client, grouped
+):
+    from n26.core.campaigns import campaign_operation
+    from n26.core.models import CampaignEvent
+    from n26.core.operations import operation
+    from n26.library.models import Pickable
+    from n26.tests.sandbox.actions import choose
+
+    gang, campaign, _, _ = grouped
+    with campaign_operation(campaign, actor=campaign.owner) as op:
+        slot = op.add_label("Division", ["Upper", "Lower"])
+    with operation(gang, actor=gang.owner) as op:
+        anchor = op.assign(slot, gang=gang, paid=0)
+    upper = Pickable.objects.get(pack=campaign.pack, name="Upper")
+    choose(anchor, upper)
+    url = reverse("n26-campaign-grouping", args=[campaign.pk])
+    response = client.get(url)
+    assert response.status_code == 200
+    payload = {"grouping": str(slot.pk), f"colour_{slot.pk}_{upper.pk}": "red"}
+    assert client.post(url, payload).status_code == 302
+    campaign.refresh_from_db()
+    assert campaign.gang_grouping_id == slot.pk
+    assert campaign.group_colours == {str(slot.pk): {str(upper.pk): "red"}}
+    events = campaign.events.filter(kind=CampaignEvent.Kind.GROUPING_CHANGED).count()
+    assert client.post(url, payload).status_code == 302
+    assert (
+        campaign.events.filter(kind=CampaignEvent.Kind.GROUPING_CHANGED).count()
+        == events
+    )
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+    assert response.context["sheet"].table_group == "label-0"
+    group = response.context["sheet"].table_groups[0]
+    assert (group["label"], group["colour"]) == ("Upper", "red")
+    assert "background: var(--color-red-500)" in response.content.decode()
+    table = BeautifulSoup(response.content, "html.parser").select_one(
+        "#n26-campaign-gangs table"
+    )
+    heading = table.select_one("th[id^=campaign-gangs-group-]")
+    assert "Upper" in heading.get_text()
+    gang_heading = table.find(id=f"campaign-gangs-gang-{gang.pk}")
+    assert heading["id"] in gang_heading["headers"]
+    cells = gang_heading.find_parent("tbody").find_all("td")
+    assert cells
+    for cell in cells:
+        assert heading["id"] in cell["headers"]
+        assert gang_heading["id"] in cell["headers"]
+        assert all(table.find("th", id=ref) for ref in cell["headers"])
+    for cell in gang_heading.find_parent("tr").find_all("td"):
+        assert any(
+            ref.startswith("campaign-gangs-col-") for ref in cell["headers"]
+        ) or ("campaign-gangs-actions" in cell["headers"])
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]), {"group": ""})
+    assert response.context["sheet"].table_group == ""
+    campaign.refresh_from_db()
+    assert campaign.gang_grouping_id == slot.pk
+    assert (
+        "changed the gang grouping and colours"
+        in client.get(reverse("n26-campaign-log", args=[campaign.pk])).content.decode()
+    )
+
+
+def test_group_settings_reject_foreign_labels_invalid_colours_and_other_players(
+    client, grouped
+):
+    from n26.core.campaigns import campaign_operation
+    from n26.library.models import Pickable
+
+    _, campaign, _, _ = grouped
+    with campaign_operation(campaign, actor=campaign.owner) as op:
+        slot = op.add_label("Division", ["Upper"])
+    upper = Pickable.objects.get(pack=campaign.pack, name="Upper")
+    url = reverse("n26-campaign-grouping", args=[campaign.pk])
+    response = client.post(url, {"grouping": "not-a-label"})
+    assert response.status_code == 200
+    assert response.context["form"].errors["grouping"]
+    text = BeautifulSoup(response.content, "html.parser").get_text(" ", strip=True)
+    assert all(error in text for error in response.context["form"].errors["grouping"])
+    response = client.post(
+        url, {"grouping": str(slot.pk), f"colour_{slot.pk}_{upper.pk}": "invalid"}
+    )
+    assert response.status_code == 200
+    assert response.context["form"].errors[f"colour_{slot.pk}_{upper.pk}"]
+    text = BeautifulSoup(response.content, "html.parser").get_text(" ", strip=True)
+    assert all(
+        error in text
+        for error in response.context["form"].errors[f"colour_{slot.pk}_{upper.pk}"]
+    )
+    other = User.objects.create_user("group-settings-player")
+    client.force_login(other)
+    assert client.get(url).status_code == 404
+    assert client.post(url, {"grouping": str(slot.pk)}).status_code == 404
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+    assert all(action.target != url for action in response.context["more_actions"])
+    campaign.refresh_from_db()
+    assert campaign.gang_grouping is None and campaign.group_colours == {}
+
+
+def test_coloured_grouping_adds_no_queries_as_campaign_gangs_grow(client, grouped):
+    from n26.core.campaigns import campaign_operation
+    from n26.core.operations import operation
+    from n26.library.models import Pickable
+    from n26.tests.sandbox.actions import choose
+
+    gang, campaign, _, _ = grouped
+    with campaign_operation(campaign, actor=campaign.owner) as op:
+        slot = op.add_label("Division", ["Upper"])
+    upper = Pickable.objects.get(pack=campaign.pack, name="Upper")
+    with operation(gang, actor=gang.owner) as op:
+        anchor = op.assign(slot, gang=gang, paid=0)
+    choose(anchor, upper)
+    with campaign_operation(campaign, actor=campaign.owner) as op:
+        op.set_gang_grouping(str(slot.pk), {str(slot.pk): {str(upper.pk): "green"}})
+    url = reverse("n26-campaign", args=[campaign.pk])
+
+    def queries():
+        client.get(url)
+        with CaptureQueriesContext(connection) as captured:
+            assert client.get(url).status_code == 200
+        return len(captured)
+
+    before = queries()
+    for index in range(4):
+        extra = found_gang(f"Extra {index}", gang.gang_type, owner=campaign.owner)
+        join_campaign(extra, campaign)
+        choose(extra.assignments.get(slot=slot, archived=False), upper)
+    assert queries() == before

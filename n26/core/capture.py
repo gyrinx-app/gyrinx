@@ -53,6 +53,27 @@ def _assets(lines):
     )
 
 
+def _asset_groups(block):
+    """Display groups with canonical type and name order for comparison."""
+    lines = [*block.lines, *block.holdings]
+    names = {}
+    for line in lines:
+        names.setdefault(line.asset_type_id, []).append(str(line.name))
+    type_names = {key: tuple(sorted(values)) for key, values in names.items()}
+    ordered = sorted(
+        lines,
+        key=lambda line: (
+            str(line.type_plural),
+            type_names[line.asset_type_id],
+            str(line.name),
+        ),
+    )
+    return sorted(
+        (group.label, group.names)
+        for group in group_campaign_assets(ordered, types=block.asset_types)
+    )
+
+
 def _rated(lines):
     """Lines whose printed figure matters as much as their name."""
     return sorted((_line_label(line), line.rating) for line in _each(lines))
@@ -173,15 +194,7 @@ def gang_state(gang):
                 "lines": _assets(sheet.campaign.lines),
                 # Grouped display and individual income facts are both kept:
                 # presentation changes must not conceal a lost copy or boon.
-                "assets": sorted(
-                    (group.label, group.names)
-                    for group in group_campaign_assets(
-                        sorted(
-                            [*sheet.campaign.lines, *sheet.campaign.holdings],
-                            key=lambda line: str(line.name),
-                        )
-                    )
-                ),
+                "assets": _asset_groups(sheet.campaign),
                 "counters": sorted(
                     (str(counter.name), str(counter.value))
                     for counter in sheet.campaign.counters

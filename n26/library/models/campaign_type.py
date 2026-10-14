@@ -154,6 +154,16 @@ class AssetType(Content):
             "and an s is added."
         ),
     )
+    display_group = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        verbose_name="Display group",
+        help_text=(
+            "Asset types with the same display group share one line on campaign "
+            'and gang sheets, e.g. "Territories". Leave blank for a separate line.'
+        ),
+    )
     ownership = models.CharField(
         max_length=20,
         choices=Ownership,

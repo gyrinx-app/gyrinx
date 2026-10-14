@@ -1,11 +1,29 @@
-{# title: A list holding two sorts of campaign #}
-{# note: The campaign row's twin cases, which a list mixes freely: the ones a reader arbitrates carry the way in to change them, and the ones they only play in name whoever runs it and carry no button at all — the whole row already opens the campaign, and there is nothing on the far side for them to change. The empty cell is still drawn, so both sorts stand the same height and the names keep one left edge. #}
+{# title: Campaign facts #}
+{# note: Campaign rows share the gang table's identity and statistics layout. Every row names its arbitrator and opens the campaign. #}
 {# layout: full #}
 <c-n26.record-table noun="campaigns" singular="campaign">
     <c-slot name="empty">
         No campaigns match that. Try a shorter search.
     </c-slot>
-    <c-n26.record-table.campaign-row name="Dust Falls" href="#" action_label="Edit" />
-    <c-n26.record-table.campaign-row name="Sump Wars" href="#" :owner="sample_user" action_label="" />
-    <c-n26.record-table.campaign-row name="The Ash Wastes" href="#" action_label="Edit" />
+    <c-n26.record-table.campaign-row name="Dust Falls"
+                                     href="#"
+                                     :owner="sample_user"
+                                     type="Territory campaign"
+                                     status="Pre-campaign"
+                                     gangs="6"
+                                     battles="0" />
+    <c-n26.record-table.campaign-row name="Sump Wars"
+                                     href="#"
+                                     :owner="sample_user"
+                                     type="Territory campaign"
+                                     status="In progress"
+                                     gangs="8"
+                                     battles="12" />
+    <c-n26.record-table.campaign-row name="The Ash Wastes"
+                                     href="#"
+                                     :owner="sample_user"
+                                     type="Territory campaign"
+                                     status="Post-campaign"
+                                     gangs="4"
+                                     battles="20" />
 </c-n26.record-table>

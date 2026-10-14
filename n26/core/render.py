@@ -1491,11 +1491,12 @@ class CampaignAssetLine:
     #: actual type rather than merging unrelated types with the same label.
     type_plural: str = ""
     asset_type_id: str = ""
+    display_group: str = ""
 
 
 @dataclass(frozen=True)
 class CampaignAssetGroup:
-    """One asset type's named holdings or possessions on a gang sheet."""
+    """Named holdings and possessions sharing one authored display line."""
 
     label: str
     names: str
@@ -1504,18 +1505,25 @@ class CampaignAssetGroup:
 
 
 def group_campaign_assets(lines, *, types=()):
-    """One row per available type, with the shared xN convention."""
+    """One row per display group or ungrouped type, with the shared xN convention."""
     grouped = {key: [] for key, _ in types}
     labels = dict(types)
     for line in lines:
         if line.type_plural:
-            key = line.asset_type_id or line.type_plural
-            labels.setdefault(key, line.type_plural)
+            key = line.display_group or line.asset_type_id or line.type_plural
+            labels.setdefault(key, line.display_group or line.type_plural)
             grouped.setdefault(key, []).append(line)
     return [
         CampaignAssetGroup(
             label=labels[key],
-            names=stacked_names(line.name for line in members) if members else "None",
+            names=", ".join(
+                stacked_names(
+                    line.name for line in members if line.asset_type_id == kind
+                )
+                for kind in dict.fromkeys(line.asset_type_id for line in members)
+            )
+            if members
+            else "None",
             held=any(line.campaign_asset_id for line in members),
             provenance=members[0].provenance
             if members
@@ -1888,8 +1896,7 @@ class CampaignGangLine:
     #: Whether the reader owns this gang — what decides which of the
     #: table's controls are theirs.
     yours: bool = False
-    #: The columns a detail value spans: rating, credits, wealth, counters
-    #: and the gang menu. Set by the sheet alongside the detail headings.
+    #: The full table width: gang identity, money, counters and menu.
     detail_colspan: int = 1
 
     @property
@@ -1902,7 +1909,10 @@ class CampaignGangLine:
         details = [
             *(
                 GangDetail(label=name, text=pick)
-                for name, pick in zip(self.label_names, self.labels, strict=True)
+                for index, (name, pick) in enumerate(
+                    zip(self.label_names, self.labels, strict=True)
+                )
+                if index != self.grouped_label_index
             ),
             *(
                 self.grouped_assets
@@ -1923,6 +1933,7 @@ class CampaignGangLine:
     label_names: list[str] = field(default_factory=list)
     asset_names: list[str] = field(default_factory=list)
     grouped_assets: list[GangDetail] | None = None
+    grouped_label_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -1992,6 +2003,7 @@ class AssetTypeColumn:
     #: Whether one gang holds each asset of this type at a time. A
     #: possession is every gang's own and the campaign keeps none.
     holding: bool
+    display_group: str = ""
 
 
 @dataclass
@@ -2105,6 +2117,9 @@ class CampaignSheet:
     gangs: list[CampaignGangLine] = field(default_factory=list)
     counter_columns: list[str] = field(default_factory=list)
     label_columns: list[str] = field(default_factory=list)
+    label_ids: list[str] = field(default_factory=list)
+    label_options: dict[str, list[dict]] = field(default_factory=dict)
+    default_group: str = ""
     asset_types: list[AssetTypeColumn] = field(default_factory=list)
     assets: list[CampaignAssetTable] = field(default_factory=list)
     battles_fought: int = 0
@@ -2119,39 +2134,31 @@ class CampaignSheet:
     #: Suggested unclaimed pool: three territories per active gang.
     territories_to_generate: int = 0
 
+    table_headers: list[dict] = field(default_factory=list)
+    table_groups: list[dict] = field(default_factory=list)
+    table_sort_options: list[dict] = field(default_factory=list)
+    table_group_options: list[dict] = field(default_factory=list)
+    table_sort: str = "name"
+    table_group: str = ""
+    table_href: str = ""
+
     def __post_init__(self):
-        # Detail values span every column after the gang identity. Labels
-        # and asset names stay in the same order as their prepared values.
+        # Details span the table. Labels and asset names retain their column order.
         for line in self.gangs:
-            line.detail_colspan = 4 + len(self.counter_columns)
+            line.detail_colspan = 5 + len(self.counter_columns)
             line.label_names = self.label_columns
             line.asset_names = [asset_type.plural for asset_type in self.asset_types]
-            settlement = next(
-                (
-                    i
-                    for i, kind in enumerate(self.asset_types)
-                    if kind.label.casefold() == "settlement" and not kind.holding
-                ),
-                None,
-            )
-            territory = next(
-                (
-                    i
-                    for i, kind in enumerate(self.asset_types)
-                    if kind.label.casefold() == "territory" and kind.holding
-                ),
-                None,
-            )
-            if settlement is not None and territory is not None:
-                groups = []
-                for i, kind in enumerate(self.asset_types):
-                    if i == settlement:
-                        continue
-                    names = line.assets[i]
-                    if i == territory:
-                        names = [*line.assets[settlement], *names]
-                    groups.append(GangDetail(label=kind.plural, text=", ".join(names)))
-                line.grouped_assets = groups
+            groups = {}
+            for kind, names in zip(self.asset_types, line.assets, strict=True):
+                key = kind.display_group or kind.asset_type_id
+                label = kind.display_group or kind.plural
+                groups.setdefault(key, [label, []])[1].extend(
+                    [stacked_names(names)] if names else []
+                )
+            line.grouped_assets = [
+                GangDetail(label=label, text=", ".join(names))
+                for label, names in groups.values()
+            ]
 
     @property
     def gang_count(self):
@@ -3909,6 +3916,7 @@ def _possession_lines(possessions, types, provenance_of, income_for):
                 else capfirst(kind_of(node.assignable)),
                 type_plural=asset_type.plural if asset_type else "",
                 asset_type_id=str(asset_type.pk) if asset_type else "",
+                display_group=asset_type.display_group if asset_type else "",
                 name=node.name,
                 income=income_for(node.assignable, node) if asset_type else 0,
                 provenance=provenance_of(node),
@@ -3995,7 +4003,10 @@ def _campaign_block(gang_card, membership, keys, readings, index=None, computed=
         campaign_id=str(membership.campaign_id),
         boon_assets=[row for key, row in boons.items() if key in boon_keys],
         asset_types=[
-            (str(asset_type.pk), asset_type.plural)
+            (
+                asset_type.display_group or str(asset_type.pk),
+                asset_type.display_group or asset_type.plural,
+            )
             for asset_type in sorted(
                 AssetType.objects.filter(
                     campaign_type_id__in=(
@@ -4019,6 +4030,7 @@ def _campaign_block(gang_card, membership, keys, readings, index=None, computed=
                 type_label=campaign_asset.asset.asset_type.label_singular,
                 type_plural=campaign_asset.asset.asset_type.plural,
                 asset_type_id=str(campaign_asset.asset.asset_type_id),
+                display_group=campaign_asset.asset.asset_type.display_group,
                 name=str(campaign_asset),
                 income=income_for(campaign_asset.asset, campaign_asset),
                 campaign_asset_id=str(campaign_asset.pk),
@@ -4506,6 +4518,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     """
     from django.db.models import Prefetch
 
+    from n26.core.campaign_table import label_options
     from n26.core.campaigns import (
         foreign_tables,
         over_budget,
@@ -4762,12 +4775,16 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         gangs=lines,
         counter_columns=counter_columns,
         label_columns=label_columns,
+        label_ids=[str(slot.pk) for slot in label_slots],
+        label_options=label_options(campaign, label_slots),
+        default_group=str(campaign.gang_grouping_id or ""),
         asset_types=[
             AssetTypeColumn(
                 asset_type_id=str(asset_type.pk),
                 label=asset_type.label_singular,
                 plural=asset_type.plural,
                 holding=asset_type.is_holding,
+                display_group=asset_type.display_group,
             )
             for asset_type in asset_types
         ],

@@ -96,7 +96,10 @@ places — the same pattern a gang's screens use for their siblings.
                         <c-n26.record-table.campaign-row name="{{ row.name }}"
                                                          href="{% url 'n26-campaign' row.pk %}"
                                                          :owner="row.arbitrator"
-                                                         action_label="{{ row.action_label }}" />
+                                                         type="{{ row.campaign_type.name }}"
+                                                         status="{{ row.get_status_display }}"
+                                                         :gangs="row.active_gangs"
+                                                         :battles="row.battle_count" />
                     {% endfor %}
                 </c-n26.record-table>
             </c-slot>

@@ -55,6 +55,11 @@ urlpatterns = [
         name="n26-edit-campaign",
     ),
     path(
+        "campaigns/<str:pk>/grouping/",
+        views.campaign_grouping,
+        name="n26-campaign-grouping",
+    ),
+    path(
         "campaigns/<str:pk>/archive/",
         views.archive_campaign,
         name="n26-archive-campaign",
