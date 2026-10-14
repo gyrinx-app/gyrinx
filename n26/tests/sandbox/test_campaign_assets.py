@@ -17,13 +17,11 @@ from django.apps import apps
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.history import build, campaign_history
 from n26.core.models import CampaignAsset, CampaignEvent, LedgerEvent
 from n26.core.operations import Refusal
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_gang
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
     create_asset,
     create_rule,
@@ -387,17 +385,11 @@ class TestTheAssetsOnTheCampaignPage:
     holder; the acts are the arbitrator's, and the holding gang's owner may
     hand an asset back."""
 
-    @pytest.fixture(autouse=True)
-    def open_to_everyone(self):
-        return FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
-
     def test_the_gang_sheet_links_the_campaign_and_its_assets(
         self, client, campaign_assets, gang, campaign
     ):
-        """A reader inside the campaigns feature gets the way through to
-        the campaign and to the assets section a holding belongs to."""
+        """A signed-in reader gets the way through to the campaign and to
+        the assets section a holding belongs to."""
         assign_asset(campaign_assets[0], gang)
         client.force_login(gang.owner)
 
@@ -956,12 +948,6 @@ class TestCampaignSuppression:
 
 
 class TestInventoryViews:
-    @pytest.fixture(autouse=True)
-    def campaigns_enabled(self):
-        return FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
-
     def test_sorted_holdings_keep_their_details_actions_and_return_view(
         self, client, campaign_assets, campaign, gang, arbitrator
     ):

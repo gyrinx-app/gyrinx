@@ -18,9 +18,7 @@ from django.apps import apps
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.render import render_campaign, render_gang
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
     create_asset,
     create_rule,
@@ -291,12 +289,6 @@ class TestWhatAGangReads:
 
 
 class TestTheCampaignPage:
-    @pytest.fixture(autouse=True)
-    def open_to_everyone(self):
-        return FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
-
     def test_the_gangs_table_has_an_income_column(self, campaign, territory, gangs):
         ruins = create_asset("Old Ruins", territory, income=30)
         assign_asset(add_asset(campaign, ruins), gangs[0])

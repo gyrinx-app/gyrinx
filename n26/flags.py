@@ -22,41 +22,19 @@ from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_o
 
 __all__ = [
     "BUILT_IN_PROPAGATION",
-    "CAMPAIGNS",
-    "FOUNDING",
     "STAGED_CONTENT",
     "enabled",
-    "enabled_for_request",
     "requires_flag",
     "switched_on",
 ]
 
-#: Running a campaign: the campaign itself, who is in it, and what it owns.
-CAMPAIGNS = "campaigns"
-
 #: A built-in set change reaching the gangs already holding the set. Shut,
 #: edits still file their passes; nothing runs them until it opens.
 BUILT_IN_PROPAGATION = "built-in-propagation"
-
-#: Founding a gang as an action: its controls in the gang's Actions panel, the
-#: founding Trade Point budgets on the cards and equip screens, and Trading
-#: Post purchases spending them while the action is open. Shut, none of it
-#: is drawn, and purchases count against no founding budget.
-FOUNDING = "founding"
 
 #: Seeing content an author has staged but not yet put live, everywhere a
 #: player adds to a gang. Staff see it by right; this is how anyone else
 #: does, so a release can be rehearsed with a group before it is made.
 STAGED_CONTENT = "staged-content"
 
-register_flags(CAMPAIGNS, BUILT_IN_PROPAGATION, FOUNDING, STAGED_CONTENT)
-
-
-def enabled_for_request(slug, request):
-    """Share a reader's feature answer across a page and its navigation."""
-    asked = getattr(request, "_n26_open_features", None)
-    if asked is None:
-        asked = request._n26_open_features = {}
-    if slug not in asked:
-        asked[slug] = enabled(slug, getattr(request, "user", None))
-    return asked[slug]
+register_flags(BUILT_IN_PROPAGATION, STAGED_CONTENT)

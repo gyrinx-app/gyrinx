@@ -2,8 +2,8 @@
 
 Lives here rather than beside the code because it reaches across to the
 platform, which only ``n26/tests/`` may do. What it pins is this edition's
-half of the arrangement: the slugs it claims, and the group its allowlist
-reads.
+half of the arrangement: the slugs it claims, and the undoing of the group
+migration an earlier allowlist read.
 """
 
 import importlib
@@ -14,7 +14,7 @@ from django.contrib.auth.models import Group, User
 
 from gyrinx.site.flags import enabled, known_flags
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS, FOUNDING, STAGED_CONTENT
+from n26.flags import BUILT_IN_PROPAGATION, STAGED_CONTENT
 
 pytestmark = [pytest.mark.django_db, pytest.mark.core]
 
@@ -22,38 +22,35 @@ GROUP_NAME = "N26 Campaigns"
 
 
 class TestWhatThisEditionClaims:
-    def test_campaigns_is_registered(self):
-        """Claimed as the app starts, so a guard written against it works
-        wherever it is applied."""
-        assert CAMPAIGNS in known_flags()
-
     def test_built_in_propagation_is_registered(self):
         """The running side of propagation checks this flag; unclaimed,
         that check would raise instead of standing down."""
         assert BUILT_IN_PROPAGATION in known_flags()
-
-    def test_founding_is_registered(self):
-        """The gate on the Actions square and the founding budgets asks
-        for it on every owner's gang page; unclaimed, that ask would raise
-        instead of standing shut."""
-        assert FOUNDING in known_flags()
 
     def test_staged_content_is_registered(self):
         """Who sees staged content asks this flag on every screen where a
         player adds to a gang; unclaimed, every one of them would raise."""
         assert STAGED_CONTENT in known_flags()
 
+    def test_the_released_features_are_no_longer_claimed(self):
+        """Campaigns and founding are open to everyone in code, so neither
+        is a slug this edition asks about."""
+        assert not {"campaigns", "founding"} & known_flags()
+
     def test_the_seam_answers_for_it(self):
         """A slug with no row is off — the same answer the platform gives,
         reached through this edition's own door."""
-        assert enabled(CAMPAIGNS, User.objects.create_user("reader")) is False
+        reader = User.objects.create_user("reader")
+        assert enabled(STAGED_CONTENT, reader) is False
 
     def test_a_row_here_opens_it(self):
         reader = User.objects.create_user("reader")
         FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
+            slug=STAGED_CONTENT,
+            name="Staged content",
+            availability=Availability.EVERYONE,
         )
-        assert enabled(CAMPAIGNS, reader) is True
+        assert enabled(STAGED_CONTENT, reader) is True
 
 
 class TestUndoingTheGroupMigration:

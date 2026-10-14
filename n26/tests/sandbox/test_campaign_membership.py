@@ -1,7 +1,7 @@
 """Which campaign a gang is playing, and what that puts in each log.
 
 The write side and the reading, with no page in the way. The screens that
-reach these are covered where the feature flag can be opened.
+reach these are covered by the view tests.
 """
 
 import pytest

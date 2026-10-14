@@ -45,7 +45,6 @@ from n26.core.views.permissions import (
     _any_gang_or_404,
     _own_gang_or_404,
 )
-from n26.flags import CAMPAIGNS, requires_flag
 
 
 def _report_or_404(pk):
@@ -151,7 +150,6 @@ def _campaign_report_entry(battle, gang):
     return entry
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def gang_post_battle(request, pk):
     from n26.core.post_battle import start_report
@@ -208,7 +206,6 @@ def gang_post_battle(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def battle_report(request, pk, battle_pk, gang_pk):
     """Start a campaign battle's report on POST; a GET only redirects."""
@@ -242,7 +239,6 @@ def battle_report(request, pk, battle_pk, gang_pk):
     return _report_destination(report)
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def post_battle_editor(request, pk):
     from n26.core.post_battle import (
@@ -457,7 +453,6 @@ def post_battle_editor(request, pk):
     return render(request, "n26/post_battle.html", context, status=status)
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def post_battle_receipt(request, pk, sequence=None):
     from n26.core.post_battle import can_edit_report
@@ -491,7 +486,6 @@ def post_battle_receipt(request, pk, sequence=None):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 @require_POST
 def correct_post_battle(request, pk):

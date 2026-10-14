@@ -1,7 +1,7 @@
 """N26's reader for the platform-owned public account page.
 
 Non-archived gang names, types and wealth are public. Campaigns require a
-signed-in reader with the campaigns feature, matching their detail pages.
+signed-in reader, matching their detail pages.
 """
 
 from django.urls import reverse
@@ -20,7 +20,6 @@ from gyrinx.accounts.public_profiles import (
     profile_redirect as profile_redirect,
 )
 from n26.core.models import Campaign, Gang
-from n26.flags import CAMPAIGNS, enabled_for_request
 
 __all__ = ["profile_person", "profile_redirect"]
 
@@ -47,7 +46,7 @@ def sections(person, request):
             reverse("n26-create-gang") if own else "",
         ),
     ]
-    if viewer.is_authenticated and enabled_for_request(CAMPAIGNS, request):
+    if viewer.is_authenticated:
         campaigns = tuple(
             ProfileEntry(
                 campaign.name,
@@ -78,7 +77,6 @@ def actions(person, request) -> tuple[ProfileAction, ...]:
     if (
         viewer.is_authenticated
         and viewer.pk != person.pk
-        and enabled_for_request(CAMPAIGNS, request)
         and _owned_campaigns(viewer, person).exists()
     ):
         return (

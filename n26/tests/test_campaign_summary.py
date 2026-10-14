@@ -5,10 +5,8 @@ from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.forms import CampaignForm
 from n26.core.models import CampaignEvent
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import create_campaign_type
 from n26.tests.sandbox.actions import found_campaign
 
@@ -17,9 +15,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def campaign(client, default_pack):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     owner = User.objects.create_user("summary-arbitrator")
     campaign_type = create_campaign_type("Territory campaign")
     campaign = found_campaign("Dust Falls", campaign_type, owner=owner)

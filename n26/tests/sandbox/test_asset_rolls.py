@@ -44,7 +44,7 @@ from n26.core.operations import ROLL_ENTERED, Refusal
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
 from n26.core.views.campaigns import _holding_assets
-from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
+from n26.flags import BUILT_IN_PROPAGATION
 from n26.library.authoring import (
     add_asset_table_entry,
     create_asset,
@@ -92,13 +92,6 @@ def _roll_props(body):
 @pytest.fixture
 def arbitrator(db):
     return User.objects.create_user("arbitrator")
-
-
-@pytest.fixture
-def campaigns_open(db):
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture
@@ -520,7 +513,7 @@ class TestTheCatalogue:
         assert after == before
 
     def test_an_opened_tables_entry_can_be_added_by_hand(
-        self, client, campaign, journal, arbitrator, campaigns_open
+        self, client, campaign, journal, arbitrator
     ):
         """The picker and the act read one rule: what the widened catalogue
         offers, Add territory accepts, though the asset sits in a pack the
@@ -697,10 +690,6 @@ class TestThePages:
     """Every control is the arbitrator's and takes the asset type's own
     word; the dialogs offer only what can be rolled on; nothing new
     reaches the gang sheet."""
-
-    @pytest.fixture(autouse=True)
-    def flag(self, campaigns_open):
-        return campaigns_open
 
     def test_the_roll_control_appears_only_where_a_rolled_table_is_held(
         self, client, arbitrator, default_pack
@@ -1565,7 +1554,6 @@ class TestThePages:
         assert not badge_reads(refused)
 
 
-@pytest.mark.usefixtures("campaigns_open")
 class TestBatchPool:
     def test_quantity_generates_unclaimed_results_and_records_each_roll(
         self, client, campaign, territory, selection_table, arbitrator, monkeypatch
@@ -1669,7 +1657,6 @@ class TestBatchPool:
         assert "Add to pool" in page
 
 
-@pytest.mark.usefixtures("campaigns_open")
 class TestPoolReads:
     def test_larger_batches_reuse_the_available_table_and_entries(
         self, campaign, selection_table, arbitrator
@@ -1723,7 +1710,7 @@ class TestManualPoolPreview:
         )
 
     def test_preview_matches_the_saved_result_without_creating_assets_or_events(
-        self, client, campaign, selection_table, arbitrator, campaigns_open
+        self, client, campaign, selection_table, arbitrator
     ):
         client.force_login(arbitrator)
         response = self.preview(client, campaign, selection_table, 34)
@@ -1736,7 +1723,7 @@ class TestManualPoolPreview:
 
     @pytest.mark.parametrize("value", ["17", "20", "0", "67", "2.5", "e", ""])
     def test_preview_rejects_numbers_the_die_cannot_make(
-        self, client, campaign, selection_table, arbitrator, campaigns_open, value
+        self, client, campaign, selection_table, arbitrator, value
     ):
         client.force_login(arbitrator)
         response = self.preview(client, campaign, selection_table, value)
@@ -1744,7 +1731,7 @@ class TestManualPoolPreview:
         assert not rolled_events(campaign)
 
     def test_a_valid_roll_in_a_live_table_gap_creates_no_assets_or_events(
-        self, client, campaign, territory, arbitrator, campaigns_open
+        self, client, campaign, territory, arbitrator
     ):
         table = create_campaign_table(campaign, territory, "Holed", dice="d6")
         add_asset_table_entry(
@@ -1764,7 +1751,7 @@ class TestManualPoolPreview:
         assert (campaign.campaign_assets.count(), campaign.events.count()) == before
 
     def test_preview_respects_staged_entry_visibility(
-        self, client, campaign, selection_table, arbitrator, campaigns_open
+        self, client, campaign, selection_table, arbitrator
     ):
         from n26.library.models import Asset
 
@@ -1784,7 +1771,7 @@ class TestManualPoolPreview:
         )
 
     def test_preview_requires_the_arbitrator_and_a_table_held_by_the_campaign(
-        self, client, campaign, selection_table, arbitrator, campaigns_open, territory
+        self, client, campaign, selection_table, arbitrator, territory
     ):
         client.force_login(User.objects.create_user("outsider-preview"))
         assert self.preview(client, campaign, selection_table, 34).status_code == 404
@@ -1803,7 +1790,6 @@ class TestManualPoolPreview:
         assert client.post(url, {}).status_code == 405
 
 
-@pytest.mark.usefixtures("campaigns_open")
 class TestTerritorySetupOptions:
     def test_duplicate_avoidance_excludes_held_assets_and_results_in_the_same_batch(
         self, campaign, selection_table, arbitrator, slag_kings
@@ -2016,7 +2002,6 @@ class TestTerritorySetupOptions:
         )
 
 
-@pytest.mark.usefixtures("campaigns_open")
 def test_allocation_dialog_reads_stay_flat_as_the_unclaimed_pool_grows(
     client, campaign, arbitrator, slag_kings, selection_table, territory
 ):
@@ -2042,7 +2027,6 @@ def test_allocation_dialog_reads_stay_flat_as_the_unclaimed_pool_grows(
     assert len(many) <= len(few)
 
 
-@pytest.mark.usefixtures("campaigns_open")
 @pytest.mark.parametrize("label", ["territory", "TERRITORY"])
 def test_custom_asset_labels_keep_their_additional_starting_roll(
     client, arbitrator, goliath, label
@@ -2078,7 +2062,6 @@ def test_custom_asset_labels_keep_their_additional_starting_roll(
     assert holding.holder.gang_id == gang.pk
 
 
-@pytest.mark.usefixtures("campaigns_open")
 def test_multiple_table_bands_count_each_matching_pool_holding_once(
     client, campaign, arbitrator, goliath, territory
 ):
@@ -2105,7 +2088,6 @@ def test_multiple_table_bands_count_each_matching_pool_holding_once(
     assert counts[str(table.pk)] == 2
 
 
-@pytest.mark.usefixtures("campaigns_open")
 def test_the_pool_allocation_hint_labels_the_target_instead_of_claiming_inventory(
     client, campaign, arbitrator, slag_kings, wild_cats, selection_table
 ):
@@ -2130,7 +2112,6 @@ def test_the_pool_allocation_hint_labels_the_target_instead_of_claiming_inventor
     )
 
 
-@pytest.mark.usefixtures("campaigns_open")
 @pytest.mark.parametrize("band", [None, (11, 16)])
 def test_allocation_counts_only_pool_assets_a_table_roll_can_reach(
     client, campaign, arbitrator, goliath, territory, band

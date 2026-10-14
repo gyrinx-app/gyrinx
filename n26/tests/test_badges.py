@@ -25,9 +25,7 @@ from django.urls import reverse
 
 from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.badges import STAFF_BADGE, badge_by_slug
-from gyrinx.site.models import Availability, FeatureFlag
 from gyrinx.site.templatetags.badge_tags import badge_svg
-from n26.flags import CAMPAIGNS
 
 pytestmark = pytest.mark.django_db
 
@@ -282,15 +280,7 @@ class TestTheNamesOnACampaign:
     whole page, not once per name."""
 
     @pytest.fixture
-    def campaigns_open(self):
-        """The flag rows are seeded by a data migration, which does not run
-        under --nomigrations."""
-        return FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
-
-    @pytest.fixture
-    def table(self, supporter, campaign_type, campaigns_open):
+    def table(self, supporter, campaign_type):
         """A campaign the supporter arbitrates."""
         from n26.tests.sandbox.actions import found_campaign
 
@@ -378,7 +368,7 @@ class TestTheNamesOnACampaign:
         assert badge_svg(GUILDER).strip() in rows
 
     def test_the_list_reads_the_badges_once_for_every_campaign(
-        self, supporter, campaign_type, campaigns_open, player, client
+        self, supporter, campaign_type, player, client
     ):
         from n26.tests.sandbox.actions import found_campaign
 
@@ -851,7 +841,7 @@ class TestTheNamesOnACampaign:
         assert badge_svg(GUILDER).strip() in invitations
 
     def test_the_list_reads_the_badges_once_for_every_invitation(
-        self, supporter, campaign_type, campaigns_open, client
+        self, supporter, campaign_type, client
     ):
         from n26.core.campaigns import campaign_operation
         from n26.tests.sandbox.actions import found_campaign

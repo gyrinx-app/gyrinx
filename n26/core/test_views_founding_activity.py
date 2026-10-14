@@ -16,7 +16,6 @@ from django.urls import reverse
 from n26.core import history
 from n26.core.models import Activity, Gang, LedgerEvent
 from n26.core.operations import Refusal, operation
-from n26.tests.fixtures import admit_to_founding
 
 pytestmark = pytest.mark.django_db
 
@@ -34,11 +33,7 @@ ONE_AT_A_TIME = "You can have only one of these actions open at a time."
 @pytest.fixture
 def tester(db):
     """The signed-in person these tests look at the app as."""
-    # On the founding flag's allowlist, because the square and its address
-    # reach the owners it admits; the owner it does not has tests of their own.
-    person = User.objects.create_user("player")
-    admit_to_founding(person)
-    return person
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -340,7 +335,6 @@ class TestTheSquareOnTheGangPage:
             op.close_activity(gang.open_activity(FOUNDING))
 
         body = client.get(sheet(gang)).content.decode()
-        assert "No action is open." in body
         assert 'value="start"' not in body
 
     def test_an_open_founding_action_takes_the_control_away(self, client, gang):
@@ -361,36 +355,24 @@ class TestTheSquareOnTheGangPage:
         assert "Spend founding TP" not in body
         assert "Complete action" not in body
 
-    def test_the_flag_open_to_everyone_admits_no_reader_but_the_owner(
-        self, client, gang
-    ):
-        """Opening the flag widens who among owners sees their own square;
-        it never puts another gang's actions in front of a reader."""
-        from gyrinx.site.models import Availability, FeatureFlag
+    def test_a_visitor_gets_no_square_on_a_gang_with_no_owner(self, rf, gang):
+        """A signed-out reader and an ownerless gang both have no owner id,
+        which must not make the visitor the owner. Read from the view's
+        context rather than the page, which cannot draw a gang with no
+        owner to link to."""
+        from django.contrib.auth.models import AnonymousUser
+        from django.contrib.sessions.backends.db import SessionStore
 
-        FeatureFlag.objects.filter(slug="founding").update(
-            availability=Availability.EVERYONE
-        )
-        client.force_login(User.objects.create_user("stranger"))
-        body = client.get(sheet(gang)).content.decode()
-        assert "Spend founding TP" not in body
-        assert 'value="start"' not in body
-        assert "No action is open." not in body
+        from n26.core.views.gangs import gang_sheet
 
-    def test_an_owner_the_flag_does_not_admit_gets_no_square(self, client, gang):
-        """Outside the founding flag's allowlist the owner reads the gang
-        page as it was before the square, and the open action stays open
-        behind it."""
-        plain = User.objects.create_user("plain-player")
-        gang.owner = plain
+        gang.owner = None
         gang.save(update_fields=["owner"])
-        client.force_login(plain)
-        body = client.get(sheet(gang)).content.decode()
-        assert "Spend founding TP" not in body
-        assert "No action is open." not in body
-        assert 'value="start"' not in body
-        assert "Nothing in the stash" in body
-        assert gang.open_activity(FOUNDING) is not None
+        request = rf.get(sheet(gang))
+        request.user = AnonymousUser()
+        request.session = SessionStore()
+        context = gang_sheet(request, gang.pk).context_data
+        assert context["activities_square"] is None
+        assert context["founding_blocks_visit"] is False
 
     def test_the_stash_card_cannot_start_a_visit_beside_it(self, client, gang):
         """A gang holds one action of each kind. The stash card's way into
@@ -426,24 +408,6 @@ class TestTheSquareOnTheGangPage:
     ):
         with operation(gang, actor=tester) as op:
             op.close_activity(gang.open_activity(FOUNDING))
-
-        body = client.get(sheet(gang)).content.decode()
-        label = body.index("Set up Trading Post visit")
-        control = body[body.rindex("<", 0, body.rindex("<", 0, label)) : label]
-
-        assert "disabled" not in control
-        assert reverse("n26-gang-trade-points", args=[gang.pk]) in control
-        assert ONE_AT_A_TIME not in body
-
-    def test_an_owner_the_founding_does_not_reach_keeps_the_way_in(self, client, gang):
-        """Every gang carries an open founding action, and an owner the
-        feature has not reached is given no way to close one — so shutting
-        the button for them would take visits away with nothing offered in
-        their place."""
-        plain = User.objects.create_user("plain-player")
-        gang.owner = plain
-        gang.save(update_fields=["owner"])
-        client.force_login(plain)
 
         body = client.get(sheet(gang)).content.decode()
         label = body.index("Set up Trading Post visit")
@@ -753,16 +717,6 @@ class TestTheActsBehindIt:
     def test_somebody_elses_gang_is_not_theirs_to_act_on(self, client, gang):
         client.force_login(User.objects.create_user("stranger"))
         assert client.post(act_page(gang), {"act": "finish"}).status_code == 404
-
-    def test_an_owner_the_flag_does_not_admit_cannot_reach_the_address(
-        self, client, gang
-    ):
-        plain = User.objects.create_user("plain-player")
-        gang.owner = plain
-        gang.save(update_fields=["owner"])
-        client.force_login(plain)
-        assert client.post(act_page(gang), {"act": "finish"}).status_code == 404
-        assert gang.open_activity(FOUNDING) is not None
 
     def test_signing_in_is_required(self, client, gang):
         client.logout()

@@ -8,12 +8,10 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.capture import gang_state
 from n26.core.effects import StackedName
 from n26.core.render import render_gang
 from n26.core.render_text import gang_to_text
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import create_asset
 from n26.library.core_campaign import CAMPAIGN_TYPE, seed_core_campaign
 from n26.library.models import CampaignType
@@ -32,9 +30,6 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def grouped(client, default_pack, gang_type):
     seed_core_campaign(apps)
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     owner = User.objects.create_user("asset-groups-arbitrator")
     kind = CampaignType.objects.get(name=CAMPAIGN_TYPE)
     campaign = found_campaign("Dust Falls", kind, owner=owner)
