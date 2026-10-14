@@ -634,7 +634,9 @@ class TestCampaignDashboardLayout:
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         table = drawn.split('id="n26-campaign-gangs"', 1)[1].split("</table>", 1)[0]
         headings = re.findall(r"<th\b[^>]*>(.*?)</th>", table, re.S)
-        assert [heading.strip() for heading in headings[:4]] == [
+        assert [
+            re.sub(r"<[^>]+>", "", heading).strip() for heading in headings[:4]
+        ] == [
             "Gang",
             "Rating",
             "Credits",
@@ -646,7 +648,7 @@ class TestCampaignDashboardLayout:
         assert texts == ["Rating 125¢", "Credits 800¢", "Wealth 1000¢"]
         assert_reconciled(gang)
 
-    def test_labels_use_full_width_rows_without_adding_numeric_columns(
+    def test_labels_share_one_detail_line_without_adding_numeric_columns(
         self, client, campaign, arbitrator, gang_type, open_to_everyone
     ):
         from n26.tests.sandbox.actions import add_campaign_label, join_campaign
@@ -665,16 +667,13 @@ class TestCampaignDashboardLayout:
         assert not {"Alignment", "Campaign objective"} & {
             heading.get_text(strip=True) for heading in headings
         }
-        details = {
-            row.th.get_text(strip=True): row
-            for row in table.tbody.find_all("tr", recursive=False)[1:]
-        }
-        for name in ["Alignment", "Campaign objective"]:
-            row = details[name]
-            assert row.th["scope"] == "row"
-            assert len(row.find_all(["th", "td"], recursive=False)) == 2
-            assert int(row.td["colspan"]) == len(headings) - 1
-            assert row.td.get_text(strip=True) == "—"
+        main, details = table.tbody.find_all("tr", recursive=False)
+        assert len(main.find_all(["th", "td"], recursive=False)) == len(headings)
+        (cell,) = details.find_all("td", recursive=False)
+        assert int(cell["colspan"]) == len(headings)
+        text = cell.get_text(" ", strip=True)
+        assert "Alignment —" in text
+        assert "Campaign objective —" in text
 
     def test_gang_name_precedes_its_log_action(
         self, client, campaign, arbitrator, gang_type, open_to_everyone
@@ -1464,7 +1463,7 @@ class TestWhatAParticipantSees:
         drawn = client.get("/n26/campaigns/").content.decode()
         # The name is drawn through <c-n26.user-link>, which wraps it so the
         # badge the arbitrator holds can follow it.
-        assert re.search(r"arbitrated by <a[^>]*><span[^>]*>kesh<", drawn)
+        assert "Arbitrator:" in drawn and ">kesh<" in drawn
         assert reverse("user-profile", args=[theirs.owner.username]) in drawn
         assert f"/n26/campaigns/{theirs.pk}/edit/" not in drawn
 
@@ -1939,3 +1938,43 @@ class TestTheArbitratorIsNotAParticipant:
         )
         assert "no longer exists" in response.content.decode()
         assert not CampaignParticipant.objects.exists()
+
+
+class TestCampaignListingFacts:
+    def test_home_and_list_name_the_arbitrator_type_status_and_counts(
+        self, client, campaign, open_to_everyone
+    ):
+        from bs4 import BeautifulSoup
+
+        for url in ["/n26/?tab=Campaigns", "/n26/campaigns/"]:
+            response = client.get(url)
+            soup = BeautifulSoup(response.content, "html.parser")
+            row = next(
+                row
+                for row in soup.select("[data-record-row]")
+                if "Dust Falls" in row.get_text()
+            )
+            text = row.get_text(" ", strip=True)
+            assert campaign.campaign_type.name in text
+            assert "Arbitrator:" in text and "arbitrator" in text
+            assert "Pre-campaign" in text
+            assert "0 gangs" in text and "0 battles" in text
+            assert not row.find("button")
+            assert "Edit" not in text
+
+    def test_campaign_rows_add_no_queries_as_the_list_grows(
+        self, client, campaign, campaign_type, arbitrator, open_to_everyone
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def queries():
+            client.get("/n26/campaigns/")
+            with CaptureQueriesContext(connection) as captured:
+                assert client.get("/n26/campaigns/").status_code == 200
+            return len(captured)
+
+        before = queries()
+        for index in range(5):
+            found_campaign(f"More {index}", campaign_type, owner=arbitrator)
+        assert queries() == before

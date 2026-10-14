@@ -895,6 +895,36 @@ class TestThePages:
         assert "A D66 roll is 11 to 66." in kings
         assert "The rolled territory will be assigned to Slag Kings." in kings
 
+    def test_starting_roll_cancel_keeps_the_table_view_after_a_refusal(
+        self, client, campaign, territory, journal, slag_kings, arbitrator
+    ):
+        client.force_login(arbitrator)
+        page = reverse("n26-campaign", args=[campaign.pk])
+        current = page + "?sort=-rating&group="
+        opened = client.get(
+            page,
+            {
+                "starting": str(slag_kings.pk),
+                "type": str(territory.pk),
+                "sort": "-rating",
+                "group": "",
+            },
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver" + current,
+        )
+        assert _roll_props(opened.content.decode())["cancelUrl"] == current
+        response = client.post(
+            reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]),
+            {"type": str(territory.pk), "table": str(journal.pk), "rolled": 99},
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver"
+            + current
+            + f"&starting={slag_kings.pk}&type={territory.pk}",
+        )
+        assert response.status_code == 200
+        assert _roll_props(response.content.decode())["cancelUrl"] == current
+        assert not CampaignAsset.objects.filter(campaign=campaign).exists()
+
     def test_the_starting_dialog_draws_its_roll_and_buttons_in_one_island(
         self, client, campaign, territory, journal, slag_kings, wild_cats, arbitrator
     ):

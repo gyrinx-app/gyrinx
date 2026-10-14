@@ -1,0 +1,154 @@
+"""URL-based ordering and label groups for the campaign's prepared gang lines."""
+
+from urllib.parse import parse_qs, urlencode, urlsplit
+
+
+def prepare_gang_table(sheet, request, here):
+    query = request.GET
+    if request.headers.get("HX-Request"):
+        query = {
+            key: values[-1]
+            for key, values in parse_qs(
+                urlsplit(request.headers.get("HX-Current-URL", "")).query,
+                keep_blank_values=True,
+            ).items()
+        }
+    columns = [
+        ("name", "Gang"),
+        ("rating", "Rating"),
+        ("credits", "Credits"),
+        ("wealth", "Wealth"),
+    ]
+    columns += [(f"counter-{i}", name) for i, name in enumerate(sheet.counter_columns)]
+    choices = [*columns, ("type", "Gang type"), ("owner", "Player")]
+    choices += [(f"label-{i}", name) for i, name in enumerate(sheet.label_columns)]
+    sort = query.get("sort", "name")
+    descending = sort.startswith("-")
+    key = sort.removeprefix("-")
+    if key not in dict(choices):
+        key, sort, descending = "name", "name", False
+    label_ids = getattr(sheet, "label_ids", [])
+    default = getattr(sheet, "default_group", "")
+    default_group = f"label-{label_ids.index(default)}" if default in label_ids else ""
+    group = query.get("group", default_group)
+    groups = [(f"label-{i}", name) for i, name in enumerate(sheet.label_columns)]
+    if group not in dict(groups):
+        group = ""
+
+    def value(line):
+        if key.startswith("counter-"):
+            counter = line.counters[int(key.split("-")[1])]
+            return counter.value if counter else None
+        if key.startswith("label-"):
+            return line.labels[int(key.split("-")[1])].casefold() or None
+        if key == "type":
+            return line.gang_type.casefold()
+        if key == "owner":
+            return line.owner.username.casefold() if line.owner else None
+        if key == "credits" and line.credits_unlimited:
+            return None
+        reading = getattr(line, key)
+        return reading.casefold() if isinstance(reading, str) else reading
+
+    # Missing values stay last in either direction. Names break numeric ties.
+    named = sorted(sheet.gangs, key=lambda line: (line.name.casefold(), line.gang_id))
+    present = [line for line in named if value(line) is not None]
+    absent = [line for line in named if value(line) is None]
+    sheet.gangs = sorted(present, key=value, reverse=descending) + absent
+    for line in sheet.gangs:
+        line.grouped_label_index = int(group.split("-")[1]) if group else None
+    sheet.table_sort = sort
+    sheet.table_group = group
+    sheet.table_href = here
+    if "sort" in query or "group" in query:
+        sheet.table_href += "?" + urlencode({"sort": sort, "group": group})
+    sheet.table_sort_options = [
+        {
+            "value": prefix + token,
+            "label": label + suffix,
+            "selected": sort == prefix + token,
+        }
+        for token, label in choices
+        for prefix, suffix in [("", " (ascending)"), ("-", " (descending)")]
+    ]
+    sheet.table_group_options = [
+        {"value": "", "label": "No grouping", "selected": not group},
+        *(
+            {"value": token, "label": name, "selected": group == token}
+            for token, name in groups
+        ),
+    ]
+    sheet.table_headers = [
+        {
+            "label": label,
+            "href": here
+            + "?"
+            + urlencode(
+                {
+                    "sort": ("-" + token) if sort == token else token,
+                    "group": group,
+                }
+            )
+            + "#gangs",
+            "direction": ("descending" if descending else "ascending")
+            if key == token
+            else "none",
+        }
+        for token, label in columns
+    ]
+    if group:
+        index = int(group.split("-")[1])
+        buckets = {}
+        for line in sheet.gangs:
+            buckets.setdefault(line.labels[index], []).append(line)
+        sheet.table_groups = [
+            {
+                "label": label or "Not set",
+                "gangs": buckets[label],
+                "colour": next(
+                    (
+                        option["colour"]
+                        for option in getattr(sheet, "label_options", {}).get(
+                            label_ids[index], []
+                        )
+                        if option["name"] == label
+                    ),
+                    "",
+                )
+                if label_ids
+                else "",
+            }
+            for label in sorted(
+                buckets, key=lambda label: (not bool(label), label.casefold())
+            )
+        ]
+    else:
+        sheet.table_groups = [{"label": "", "gangs": sheet.gangs}]
+
+
+def label_options(campaign, slots):
+    """Read every offered group and its campaign colour in one query."""
+    from n26.library.models import PicklistMember
+
+    members = list(
+        PicklistMember.objects.filter(
+            picklist_id__in=[slot.picklist_id for slot in slots],
+            archived=False,
+        )
+        .select_related("pickable")
+        .order_by("position", "pk")
+    )
+    return {
+        str(slot.pk): [
+            {
+                "id": str(member.pickable_id),
+                "name": member.pickable.name,
+                "colour": campaign.group_colours.get(str(slot.pk), {}).get(
+                    str(member.pickable_id), ""
+                ),
+            }
+            for member in members
+            if member.picklist_id == slot.picklist_id
+        ]
+        for slot in slots
+    }

@@ -1572,6 +1572,8 @@ def _tell_campaign(e):
         case kinds.STATUS_CHANGED:
             _, _, now = e.note.rpartition(" → ")
             return (Span(f"set the campaign status to {now}"),), "campaign"
+        case kinds.GROUPING_CHANGED:
+            return (Span("changed the gang grouping and colours"),), "campaign"
         case kinds.SUMMARY_EDITED:
             return (Span("edited the campaign's summary"),), "campaign"
         case kinds.ARCHIVED:

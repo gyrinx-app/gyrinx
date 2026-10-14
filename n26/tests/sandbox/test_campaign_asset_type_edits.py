@@ -331,3 +331,51 @@ class TestTheEditPage:
         assert response.status_code == 404
         racket.refresh_from_db()
         assert racket.label_singular == "Rakit"
+
+
+class TestAssetDisplayGroups:
+    def test_arbitrator_can_create_and_change_a_display_group(self, client, campaign):
+        client.force_login(campaign.owner)
+        response = client.post(
+            reverse("n26-campaign-add-asset-type", args=[campaign.pk]),
+            {
+                "label_singular": "Depot",
+                "label_plural": "Depots",
+                "ownership": HOLDING,
+                "display_group": "Supply sites",
+            },
+        )
+        assert response.status_code == 302
+        kind = campaign.additions.asset_types.get(label_singular="Depot")
+        assert kind.display_group == "Supply sites"
+        response = client.get(edit_url(campaign, kind))
+        assert response.context["form"]["display_group"].value() == "Supply sites"
+        response = client.post(
+            edit_url(campaign, kind),
+            {
+                "label_singular": "Depot",
+                "label_plural": "Depots",
+                "ownership": HOLDING,
+                "display_group": "Territories",
+            },
+        )
+        assert response.status_code == 302
+        kind.refresh_from_db()
+        assert kind.display_group == "Territories"
+        assert campaign.events.last().kind == CampaignEvent.Kind.ASSET_TYPE_EDITED
+
+    def test_clearing_a_group_restores_a_separate_line(self, campaign, racket):
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.edit_asset_type(
+                racket,
+                "Rakit",
+                HOLDING,
+                label_plural="Rakits",
+                display_group="Supply sites",
+            )
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.edit_asset_type(
+                racket, "Rakit", HOLDING, label_plural="Rakits", display_group=""
+            )
+        racket.refresh_from_db()
+        assert racket.display_group == ""

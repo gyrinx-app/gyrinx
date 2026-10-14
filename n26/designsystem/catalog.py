@@ -1983,8 +1983,8 @@ GROUPS: list[Group] = [
                         "c-n26.record-table.campaign-row",
                         "n26/record_table/campaign_row.html",
                         (
-                            "A campaign listing: its name, its arbitrator, and Edit "
-                            "when the viewer is the arbitrator."
+                            "A campaign listing: its name, type, arbitrator, status "
+                            "and participation counts."
                         ),
                     ),
                 ),

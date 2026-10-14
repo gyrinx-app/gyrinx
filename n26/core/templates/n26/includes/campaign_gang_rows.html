@@ -1,0 +1,95 @@
+{% load action_menu platform_tags %}
+{% with details=gang.details %}
+    <tbody class="border-b border-box-border last:border-b-0 [&>tr:last-child>*]:pb-3! max-md:block">
+        <tr class="border-b-0! max-md:hover:bg-transparent! max-md:grid max-md:grid-cols-3 max-md:[&>td]:py-2!">
+            <th scope="rowgroup"
+                class="w-64 min-w-48 max-w-64 align-middle font-normal! whitespace-normal! [overflow-wrap:anywhere] max-md:col-span-2 max-md:row-start-1 max-md:w-auto max-md:min-w-0 max-md:max-w-none">
+                <div class="flex flex-col">
+                    <span class="font-semibold text-ink-900 dark:text-ink-100">
+                        <c-n26.link href="{{ gang.href }}" tone="current">
+                            <c-slot name="leading">
+                                <c-n26.color-swatch color="{{ gang.colour }}" />
+                            </c-slot>
+                            {{ gang.name }}
+                        </c-n26.link>
+                    </span>
+                    <span class="text-xs text-muted">{{ gang.gang_type }}<c-n26.flair-link tone="current"><c-n26.flair.gang-type :icon="gang.type_icon" /></c-n26.flair-link>{% if gang.owner %} · <c-n26.user-link :user="gang.owner" tone="current" />{% endif %}</span>
+                </div>
+            </th>
+            <td class="align-middle tabular-nums whitespace-nowrap max-md:block">
+                <span class="block text-xs font-medium text-muted md:hidden">Rating</span>
+                {{ gang.rating }}¢
+            </td>
+            <td class="align-middle tabular-nums whitespace-nowrap max-md:block">
+                <span class="block text-xs font-medium text-muted md:hidden">Credits</span>
+                {% if gang.credits_unlimited %}
+                    <span class="text-muted">—</span>
+                {% elif gang.credits_href %}
+                    <c-n26.link href="{{ gang.credits_href }}">
+                        {{ gang.credits }}¢
+                    </c-n26.link>
+                {% else %}
+                    {{ gang.credits }}¢
+                {% endif %}
+            </td>
+            <td class="align-middle tabular-nums whitespace-nowrap max-md:block">
+                <span class="block text-xs font-medium text-muted md:hidden">Wealth</span>
+                {{ gang.wealth }}¢
+            </td>
+            {% for line in gang.counters %}
+                <td class="align-middle tabular-nums whitespace-nowrap max-md:block">
+                    <span class="block text-xs font-medium text-muted whitespace-normal [overflow-wrap:anywhere] md:hidden">{{ sheet.counter_columns|get_item:forloop.counter0 }}</span>
+                    {# None means this gang does not carry that counter. A blank cell would look like a failed number. #}
+                    {% if line is None %}
+                        <span class="text-muted">—</span>
+                    {% else %}
+                        {% include "n26/includes/campaign_counter_value.html" with counter=line redrawn=False %}
+                    {% endif %}
+                </td>
+            {% endfor %}
+            <td class="w-0 text-right align-middle max-md:col-start-3 max-md:row-start-1 max-md:block max-md:w-auto max-md:justify-self-end">
+                {% if gang.remove_href %}
+                    {% link_actions danger_label="Remove from campaign" danger_href=gang.remove_href as menu_ %}
+                    <c-n26.action-menu :items="menu_"
+                                       label="Actions for {{ gang.name }}"
+                                       variant="ghost"
+                                       align="end"
+                                       min_width="12rem" />
+                {% endif %}
+            </td>
+        </tr>
+        {% if gang.over_budget or details %}
+            <tr class="border-b-0! max-md:hover:bg-transparent! max-md:block">
+                <td colspan="{{ gang.detail_colspan }}"
+                    class="pt-0! pb-3! whitespace-normal! max-md:block">
+                    <div class="flex flex-wrap items-baseline gap-x-5 gap-y-1.5 text-xs">
+                        {% if gang.over_budget %}<c-ui.badge color="amber" size="sm">Over budget</c-ui.badge>{% endif %}
+                        {% for detail in details %}
+                            {% if detail.rolls %}
+                                {% for roll in detail.rolls %}
+                                    {# The response opens a dialog. Swapping this fetch would replace the table. #}
+                                    <c-ui.button size="sm"
+                                                 variant="text"
+                                                 class="py-0! text-xs!"
+                                                 href="{{ roll.href }}"
+                                                 hx-get="{{ roll.href }}"
+                                                 hx-swap="none">
+                                        <span class="flex items-center gap-1">
+                                            {{ roll.label }}
+                                            <c-n26.icon name="arrow-right" class="size-3.5" />
+                                        </span>
+                                    </c-ui.button>
+                                {% endfor %}
+                            {% else %}
+                                <span class="inline-flex max-w-full flex-wrap gap-x-2">
+                                    <span class="text-muted">{{ detail.label }}</span>
+                                    <span class="min-w-0 break-words">{% if detail.text %}{{ detail.text }}{% else %}<span class="text-muted">—</span>{% endif %}</span>
+                                </span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </td>
+            </tr>
+        {% endif %}
+    </tbody>
+{% endwith %}

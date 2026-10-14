@@ -112,7 +112,13 @@ def create_campaign_type(
 
 @guarded_write
 def add_asset_type(
-    campaign_type, label_singular, ownership, label_plural="", position=None, **kwargs
+    campaign_type,
+    label_singular,
+    ownership,
+    label_plural="",
+    position=None,
+    display_group="",
+    **kwargs,
 ):
     """One asset type a campaign type deals in, at the end of its listing
     unless placed. Two asset types of one campaign type cannot share a
@@ -141,6 +147,7 @@ def add_asset_type(
         campaign_type=campaign_type,
         label_singular=label_singular,
         label_plural=label_plural,
+        display_group=display_group.strip(),
         ownership=ownership,
         position=position,
         **kwargs,

@@ -1525,6 +1525,7 @@ def _build_registry():
             {
                 "label_singular": Text(source=(AssetType, "label_singular")),
                 "label_plural": Text(source=(AssetType, "label_plural")),
+                "display_group": Text(source=(AssetType, "display_group")),
                 "ownership": Choice(source=(AssetType, "ownership")),
                 "position": Int(source=(AssetType, "position")),
             },

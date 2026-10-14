@@ -59,6 +59,16 @@ one radio.
                             autocomplete="off"
                             value="{{ form.label_plural.value|default:'' }}" />
             </c-ui.field>
+            <c-ui.field label="{{ form.display_group.label }}"
+                        description="{{ form.display_group.help_text }}"
+                        :form="form"
+                        name="display_group"
+                        for="asset-type-display-group">
+                <c-ui.input id="asset-type-display-group"
+                            name="display_group"
+                            autocomplete="off"
+                            value="{{ form.display_group.value|default:'' }}" />
+            </c-ui.field>
         </c-n26.form-section>
         <c-n26.form-section title="Ownership">
             {% if ownership_note %}
