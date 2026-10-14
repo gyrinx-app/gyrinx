@@ -360,24 +360,18 @@ class TestSelectableHoldingDisplay:
         ] == [("Income", 10)]
         detail = render_to_string("n26/includes/campaign_asset_detail.html", context)
         detail_body = BeautifulSoup(detail, "html.parser")
-        assert "Boons" in detail_body.get_text() and "+10¢" in detail_body.get_text()
-        detail_choice = detail_body.select_one('a[href*="/choose/"]')
-        assert (
-            detail_choice.find_parent("dd")
-            .find_previous_sibling("dt")
-            .get_text(strip=True)
-            == "Long named workshop"
+        assert detail_body.select_one('[data-react-name="territory-boon-choices"]')
+        editor = context["boon_editor"]
+        assert editor["effects"] == [{"name": "Income", "text": "+10¢"}]
+        assert len(editor["groups"]) == 1
+        group = editor["groups"][0]
+        assert group["label"] == "Boon"
+        chosen = next(
+            option
+            for option in group["options"]
+            if option["value"] == group["selected"]
         )
-        detail_controls = detail_body.select('a[href*="/choose/"]')
-        assert len(detail_controls) == 1
-        assert detail_controls[0].get_text(strip=True) == "Income"
-        assert "text-base" in detail_controls[0].get("class", [])
-        assert "bg-white" in detail_controls[0].get("class", [])
-        detail_effects = (
-            detail_controls[0].find_parent("dd").find_all("p", recursive=False)
-        )
-        assert len(detail_effects) == 1
-        assert "text-right" not in detail_effects[0].get("class", [])
+        assert chosen["label"] == "Income"
 
     def test_lost_holdings_leave_no_active_boon_but_keep_recorded_history(
         self, gang, campaign, content, gang_type, owner

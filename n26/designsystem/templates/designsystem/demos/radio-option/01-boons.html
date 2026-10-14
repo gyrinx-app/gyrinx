@@ -1,0 +1,14 @@
+{# title: Compact choice list #}
+{# layout: col #}
+<fieldset>
+    <legend class="text-sm font-medium">Boon</legend>
+    <c-n26.radio-option name="boon"
+                        value="income"
+                        label="Income"
+                        description="Use the territory’s income contribution."
+                        :checked="True" />
+    <c-n26.radio-option name="boon"
+                        value="supplies"
+                        label="Supplies"
+                        description="Resolve the supplies reward manually." />
+</fieldset>

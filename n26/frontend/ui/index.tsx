@@ -630,6 +630,55 @@ export function Callout({
     );
 }
 
+export function RadioOption({
+    name,
+    value,
+    label,
+    description = "",
+    checked,
+    disabled = false,
+    onChange,
+}: {
+    name: string;
+    value: string;
+    label: string;
+    description?: string;
+    checked: boolean;
+    disabled?: boolean;
+    onChange: () => void;
+}) {
+    const id = useId();
+    const recipe = cotton.radioOption;
+    return (
+        <label className={recipe.root}>
+            <input
+                type="radio"
+                name={name}
+                value={value}
+                checked={checked}
+                disabled={disabled}
+                onChange={onChange}
+                className={recipe.control}
+                aria-labelledby={`${id}-label`}
+                aria-describedby={description ? `${id}-description` : undefined}
+            />
+            <span className={recipe.content}>
+                <span id={`${id}-label`} className={recipe.label}>
+                    {label}
+                </span>
+                {description && (
+                    <span
+                        id={`${id}-description`}
+                        className={recipe.description}
+                    >
+                        {description}
+                    </span>
+                )}
+            </span>
+        </label>
+    );
+}
+
 export function RadioCards({
     legend,
     min = "14rem",

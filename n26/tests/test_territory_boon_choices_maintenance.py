@@ -304,3 +304,60 @@ def test_a_failed_recorded_conversion_rolls_back_content_and_keeps_its_error(
         Slot.objects.count(),
         Pickable.objects.count(),
     ) == before
+
+
+def test_foundations_links_to_the_recorded_boon_setup_for_site_administrators(
+    client, superuser, content, address, task_queue
+):
+    from bs4 import BeautifulSoup
+
+    client.force_login(superuser)
+    before = (Asset.objects.count(), Modifier.objects.count(), Backfill.objects.count())
+    page = client.get(reverse("authoring-foundations"))
+    assert page.status_code == 200
+    links = page.context["territory_boon_setup"]
+    assert links["choices"] == address
+    assert links["income"] == reverse("admin:maintenance_n26_seed_territory_boons")
+    soup = BeautifulSoup(page.content, "html.parser")
+    assert soup.find("a", href=address).get_text(strip=True) == "Review boon choices"
+    assert before == (
+        Asset.objects.count(),
+        Modifier.objects.count(),
+        Backfill.objects.count(),
+    )
+    with task_queue.capture():
+        response = client.post(links["choices"])
+    assert response.status_code == 302
+    record = Backfill.objects.get(operation=Operation.SEED_TERRITORY_BOON_CHOICES)
+    task_queue.deliver_all()
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.DONE
+    assert Asset.objects.filter(base_income_modifier__isnull=False).count() == 12
+    assert NOTHING_TO_DO == preview()[0]
+
+
+def test_staff_foundations_explains_setup_without_offering_admin_only_controls(
+    client, content
+):
+    from bs4 import BeautifulSoup
+
+    staff = User.objects.create_user("content-author", is_staff=True)
+    client.force_login(staff)
+    response = client.get(reverse("authoring-foundations"))
+    assert response.status_code == 200
+    assert response.context["territory_boon_setup"] == {}
+    soup = BeautifulSoup(response.content, "html.parser")
+    assert "Ask a site administrator" in soup.get_text()
+    assert (
+        soup.find(
+            "a", href=reverse("admin:maintenance_n26_seed_territory_boon_choices")
+        )
+        is None
+    )
+    assert (
+        client.post(
+            reverse("admin:maintenance_n26_seed_territory_boon_choices")
+        ).status_code
+        == 403
+    )
+    assert not Backfill.objects.exists()
