@@ -1541,8 +1541,7 @@ class CampaignOperation:
 
         member = self._still_archived(member, "slot")
         slot = member.slot
-        picklist, pickables, _ = _label_rows(self.campaign, slot)
-        for row in (slot.slot_type, *pickables, picklist, slot):
+        for row in (slot.slot_type, slot):
             row.unarchive()
         member.unarchive()
 
