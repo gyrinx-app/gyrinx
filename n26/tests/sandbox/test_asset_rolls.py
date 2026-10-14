@@ -2110,3 +2110,28 @@ def test_multiple_table_bands_count_each_matching_pool_holding_once(
     props = _roll_props(body)
     counts = {option["value"]: option["availableCount"] for option in props["tables"]}
     assert counts[str(table.pk)] == 2
+
+
+@pytest.mark.usefixtures("campaigns_open")
+def test_the_pool_allocation_hint_labels_the_target_instead_of_claiming_inventory(
+    client, campaign, arbitrator, slag_kings, wild_cats, selection_table
+):
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.set_starting_from_pool(True)
+    client.force_login(arbitrator)
+    page = reverse("n26-campaign", args=[campaign.pk])
+    body = client.get(page).content.decode()
+    assert (
+        "Suggested pool: 6 territories. 2 starting territories still to allocate."
+        in body
+    )
+    assert not campaign.campaign_assets.exists()
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        asset = op.roll_asset(selection_table, rolled=34).campaign_asset
+        op.assign(asset, campaign.memberships.get(gang=slag_kings))
+    body = client.get(page).content.decode()
+    assert (
+        "Suggested pool: 6 territories. 1 starting territory still to allocate." in body
+    )

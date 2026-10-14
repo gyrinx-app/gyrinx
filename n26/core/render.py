@@ -2162,7 +2162,11 @@ class CampaignSheet:
                             roll.label = "Allocate starting territory"
             if self.status == "Pre-campaign" and self.gangs and table.tables:
                 if self.starting_from_pool:
-                    table.setup_hint = f"Setup: {self.territories_to_generate} territories in the pool. {remaining} starting territories still to allocate."
+                    starting_label = "territory" if remaining == 1 else "territories"
+                    table.setup_hint = (
+                        f"Suggested pool: {self.territories_to_generate} territories. "
+                        f"{remaining} starting {starting_label} still to allocate."
+                    )
                 else:
                     table.setup_hint = f"Setup: {self.territories_to_generate} unclaimed + {len(self.gangs)} starting territories. {remaining} still to roll."
         # Details span the table. Labels and asset names retain their column order.
