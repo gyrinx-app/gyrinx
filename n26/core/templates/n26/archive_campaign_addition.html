@@ -24,7 +24,7 @@ page says so and offers no button.
                          cancel_url="{{ back }}"
                          cancel_label="Back">
             <c-slot name="breadcrumb">
-                {% include "n26/includes/archive_campaign_addition_breadcrumb.html" %}
+                {% include "n26/includes/archive_campaign_addition_breadcrumb.html" with here="Archive" %}
             </c-slot>
             <c-ui.alert variant="warning">
                 {{ refusal }}
@@ -37,10 +37,10 @@ page says so and offers no button.
                          submit_variant="danger"
                          cancel_url="{{ back }}">
             <c-slot name="breadcrumb">
-                {% include "n26/includes/archive_campaign_addition_breadcrumb.html" %}
+                {% include "n26/includes/archive_campaign_addition_breadcrumb.html" with here="Archive" %}
             </c-slot>
             {% csrf_token %}
-            <c-ui.alert variant="warning" title="You cannot undo this">
+            <c-ui.alert variant="warning" title="{{ heading }}">
                 {{ consequences }}
             </c-ui.alert>
             {% if gangs %}

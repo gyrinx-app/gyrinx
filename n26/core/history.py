@@ -224,7 +224,7 @@ def _acts_from(events, viewer, *, alive):
     """The acts these events tell, oldest first."""
     rows = _rows_for(events)
     _name_the_rolls(events, rows)
-    _name_the_lost_picks(events, rows)
+    _name_the_named_picks(events, rows)
     sources = _comes_with_sources(events, rows)
     acts = []
     #: Where each thing's opening act landed, so an old record's grant
@@ -258,7 +258,7 @@ def _comes_with_sources(events, rows):
 def _rows_for(events):
     """The assignments the events name, resolved to their things."""
     wanted = {e.assignment_id for e in events if e.assignment_id}
-    wanted |= {e.before_pick_id for e in events if _names_its_pick(e)}
+    wanted |= {_named_pick_id(e) for e in events} - {None}
     fetched = Assignment.with_assignables(
         Assignment.objects.filter(pk__in=wanted).select_related(
             "ledger_entry",
@@ -275,39 +275,44 @@ def _rows_for(events):
     return {row.pk: row for row in fetched}
 
 
-def _names_its_pick(e):
-    """Whether this is a label's removal naming the pick it had.
+def _named_pick_id(e):
+    """The pick a label's removal or restoration names, or None.
 
-    Archiving a label removes each gang's copy of the label with its
-    pick as ``before_pick``. Every other removal that names a pick
-    names the removed pick itself, so it says nothing more.
+    Archiving a label removes each gang's copy of it with its pick as
+    ``before_pick``; unarchiving puts it back with that pick as
+    ``after_pick``. Every other removal that names a pick names the
+    removed pick itself, so it says nothing more.
     """
-    return (
-        e.kind == Kind.REMOVED
-        and e.before_pick_id is not None
-        and e.before_pick_id != e.assignment_id
-    )
+    if e.kind == Kind.REMOVED:
+        pick = e.before_pick_id
+    elif e.kind == Kind.RESTORED:
+        pick = e.after_pick_id
+    else:
+        return None
+    return pick if pick is not None and pick != e.assignment_id else None
 
 
-def _name_the_lost_picks(events, rows):
-    """Put the pick on each label removed with one, so the sentence can
-    say what it was. The picks come in with the records' own read
-    (``_rows_for``), so this costs nothing further."""
+def _name_the_named_picks(events, rows):
+    """Put the pick on each label removed or restored with one, so the
+    sentence can say what it was. The picks come in with the records'
+    own read (``_rows_for``), so this costs nothing further."""
     for e in events:
-        pick = rows.get(e.before_pick_id) if _names_its_pick(e) else None
+        pick = rows.get(_named_pick_id(e))
         if pick is not None and pick.chosen_for_id == e.assignment_id:
-            e.lost_pick = pick
+            e.named_pick = pick
 
 
-def _was(e):
-    """What an archived counter or label stood at as it went: " (was 4)",
-    " (was Lawful)". Nothing for any other removal."""
+def _stood_at(e):
+    """What an archived counter or label stood at as it went or came back:
+    " (was 4)" and " (was Lawful)" on a removal, " (4)" and " (Lawful)"
+    on a restoration. Nothing for any other event."""
     if e.note.startswith(ARCHIVED_COUNTER_NOTE_PREFIX):
-        return (Span(f" (was {e.note.removeprefix(ARCHIVED_COUNTER_NOTE_PREFIX)})"),)
-    lost_pick = getattr(e, "lost_pick", None)
-    if lost_pick is not None:
-        return (Span(f" (was {_name(lost_pick)})"),)
-    return ()
+        value = e.note.removeprefix(ARCHIVED_COUNTER_NOTE_PREFIX)
+    elif getattr(e, "named_pick", None) is not None:
+        value = _name(e.named_pick)
+    else:
+        return ()
+    return (Span(f" (was {value})" if e.kind == Kind.REMOVED else f" ({value})"),)
 
 
 def _name_the_rolls(events, rows):
@@ -389,10 +394,10 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
     # beneath it.
     joined = any(e.kind == Kind.JOINED_CAMPAIGN for e in cluster)
     left = any(e.kind == Kind.LEFT_CAMPAIGN for e in cluster)
-    # A label removed with its pick says the pick: "removed Alignment
-    # (was Lawful)". The pick's own removal would say it again.
+    # A label removed or restored with its pick says the pick: "removed
+    # Alignment (was Lawful)". The pick's own event would say it again.
     told_picks = {
-        e.before_pick_id for e in cluster if getattr(e, "lost_pick", None) is not None
+        e.named_pick.pk for e in cluster if getattr(e, "named_pick", None) is not None
     }
     standing = []
     waiting = []
@@ -400,7 +405,7 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
         row = rows.get(e.assignment_id)
         if _machinery(e, row):
             continue
-        if e.kind == Kind.REMOVED and e.assignment_id in told_picks:
+        if e.kind in {Kind.REMOVED, Kind.RESTORED} and e.assignment_id in told_picks:
             continue
         if (
             e.kind == Kind.GRANTED
@@ -602,7 +607,10 @@ def _rides(e, row):
         return None
     if e.kind == Kind.GRANTED:
         return row.caused_by_id
-    if e.kind in {Kind.REMOVED, Kind.REFUNDED, Kind.SOLD} and not row.removes:
+    if (
+        e.kind in {Kind.REMOVED, Kind.RESTORED, Kind.REFUNDED, Kind.SOLD}
+        and not row.removes
+    ):
         return row.parent_id or row.caused_by_id
     return None
 
@@ -876,8 +884,15 @@ def _tell(e, row, alive):
             return (
                 Span("removed "),
                 thing,
-                *_was(e),
+                *_stood_at(e),
                 *_for(model, at, "from"),
+            ), category
+        case Kind.RESTORED:
+            return (
+                Span("restored "),
+                thing,
+                *_stood_at(e),
+                *_for(model, at, "on"),
             ), category
         case Kind.REFUNDED:
             return (Span("returned "), thing, Span(" for a refund")), "credits"
@@ -1389,10 +1404,12 @@ def _joining_companions():
 
 
 def _archiving_companions():
-    """Each gang's removal when the arbitrator archives a counter or label
-    shares the archive's mark; only the archive is a campaign act.
+    """Each gang's removal or restoration when the arbitrator archives or
+    unarchives a counter or label shares that act's mark; only the act
+    itself is a campaign act.
 
-    The gang's own history keeps its line, which says what it lost.
+    The gang's own history keeps its line, which says what it lost or
+    got back.
     """
     from django.db.models import Exists, OuterRef
 
@@ -1403,6 +1420,8 @@ def _archiving_companions():
             kind__in=(
                 CampaignEvent.Kind.COUNTER_ARCHIVED,
                 CampaignEvent.Kind.LABEL_ARCHIVED,
+                CampaignEvent.Kind.COUNTER_UNARCHIVED,
+                CampaignEvent.Kind.LABEL_UNARCHIVED,
             ),
         )
     )
@@ -1536,7 +1555,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
 
     rows = _rows_for(events)
     _name_the_rolls(events, rows)
-    _name_the_lost_picks(events, rows)
+    _name_the_named_picks(events, rows)
     sources = _comes_with_sources(events, rows)
     # Only the living have a page to link to, across every gang here.
     alive = set(
@@ -1802,4 +1821,10 @@ def _tell_campaign(e):
         case kinds.LABEL_ARCHIVED:
             what = f"the label {e.note}" if e.note else "a label"
             return (Span(f"archived {what}"),), "campaign"
+        case kinds.COUNTER_UNARCHIVED:
+            what = f"the counter {e.note}" if e.note else "a counter"
+            return (Span(f"unarchived {what}"),), "campaign"
+        case kinds.LABEL_UNARCHIVED:
+            what = f"the label {e.note}" if e.note else "a label"
+            return (Span(f"unarchived {what}"),), "campaign"
     return (Span("changed the campaign"),), "campaign"

@@ -1,0 +1,59 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+The question asked before an archived counter or label goes back to every
+gang still in the campaign, at an address of its own. Following the link
+that leads here changes nothing; the POST is the act.
+
+Two lists: the gangs that get back what they had, and the gangs that joined
+while it was archived, which get it new.
+{% endcomment %}
+{% block head_title %}Unarchive {{ name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{{ action }}"
+                     title="Unarchive the {{ kind }} {{ name }}?"
+                     submit_label="Unarchive {{ kind }}"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            {% include "n26/includes/archive_campaign_addition_breadcrumb.html" with here="Unarchive" %}
+        </c-slot>
+        {% csrf_token %}
+        <p class="text-sm">Unarchiving gives {{ name }} to the gangs listed here.</p>
+        {% if returning %}
+            <section class="mt-4">
+                <h2 class="text-sm font-semibold">Gangs that get back what they had</h2>
+                <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                    {% for line in returning %}
+                        <dt class="text-muted">{{ line.gang }}</dt>
+                        <dd class="break-words{% if line.muted %} text-muted{% endif %}">
+                            {{ line.value }}
+                        </dd>
+                    {% endfor %}
+                </dl>
+            </section>
+        {% endif %}
+        {% if new %}
+            <section class="mt-4">
+                <h2 class="text-sm font-semibold">{{ new_heading }}</h2>
+                <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                    {% for line in new %}
+                        <dt class="text-muted">{{ line.gang }}</dt>
+                        <dd class="break-words{% if line.muted %} text-muted{% endif %}">
+                            {{ line.value }}
+                        </dd>
+                    {% endfor %}
+                </dl>
+            </section>
+        {% endif %}
+        {% if not returning and not new %}
+            <p class="mt-4 text-sm text-muted">No gang in {{ campaign.name }} gets {{ name }}.</p>
+        {% endif %}
+    </c-n26.form-page>
+{% endblock content %}
