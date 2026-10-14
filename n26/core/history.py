@@ -294,8 +294,9 @@ def _name_the_lost_picks(events, rows):
     say what it was. The picks come in with the records' own read
     (``_rows_for``), so this costs nothing further."""
     for e in events:
-        if _names_its_pick(e):
-            e.lost_pick = rows.get(e.before_pick_id)
+        pick = rows.get(e.before_pick_id) if _names_its_pick(e) else None
+        if pick is not None and pick.chosen_for_id == e.assignment_id:
+            e.lost_pick = pick
 
 
 def _was(e):
@@ -390,7 +391,9 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
     left = any(e.kind == Kind.LEFT_CAMPAIGN for e in cluster)
     # A label removed with its pick says the pick: "removed Alignment
     # (was Lawful)". The pick's own removal would say it again.
-    told_picks = {e.before_pick_id for e in cluster if _names_its_pick(e)}
+    told_picks = {
+        e.before_pick_id for e in cluster if getattr(e, "lost_pick", None) is not None
+    }
     standing = []
     waiting = []
     for e in cluster:

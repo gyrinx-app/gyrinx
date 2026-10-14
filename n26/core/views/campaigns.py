@@ -2300,12 +2300,15 @@ def archive_addition(request, pk, member_pk, kind):
                     act.archive_label(member)
         except Refusal as refused:
             messages.error(request, str(refused))
-        except ValueError:
-            messages.error(request, f"{name} was already archived.")
         else:
             messages.success(request, f"Archived the {kind} {name}.")
         return redirect(back)
 
+    kept = (
+        f"every change to {name} and the value it ended on"
+        if member.counter_id
+        else f"the gang's pick for {name}"
+    )
     _badge_a_redrawn_page(request, found)
     return render(
         request,
@@ -2316,6 +2319,11 @@ def archive_addition(request, pk, member_pk, kind):
             "name": name,
             "action": request.path,
             "back": back,
+            "consequences": (
+                f"Archiving removes {name} from every gang in {found.name}. "
+                f"Gangs that join later will not get it. "
+                f"Each gang's history keeps {kept}."
+            ),
             "gangs": _what_each_gang_has(member),
             "refusal": archive_refusal(found, member),
         },
@@ -2323,9 +2331,10 @@ def archive_addition(request, pk, member_pk, kind):
 
 
 def _what_each_gang_has(member):
-    """Each gang carrying a counter or label of the campaign's own, with
-    the counter's value or the option it picked ("" for none yet), by
-    gang name. Two queries whatever the number of gangs."""
+    """Each gang carrying a counter or label of the campaign's own, by
+    gang name, with what to show beside it: the counter's value, the
+    option it picked, or that it has picked nothing yet. Two queries
+    whatever the number of gangs."""
     from n26.core.models import Assignment
 
     copies = list(
@@ -2337,7 +2346,11 @@ def _what_each_gang_has(member):
         # A copy with no value yet reads as 0, as the gang sheet does.
         values = [getattr(copy, "counter_value", None) for copy in copies]
         return [
-            (copy.gang_root.name, held.value if held is not None else 0)
+            {
+                "gang": copy.gang_root.name,
+                "value": str(held.value if held is not None else 0),
+                "muted": False,
+            }
             for copy, held in zip(copies, values, strict=True)
         ]
     picks = {
@@ -2346,7 +2359,14 @@ def _what_each_gang_has(member):
             chosen_for__in=copies, archived=False
         ).select_related("pickable")
     }
-    return [(copy.gang_root.name, picks.get(copy.pk, "")) for copy in copies]
+    return [
+        {
+            "gang": copy.gang_root.name,
+            "value": picks.get(copy.pk, "Nothing picked yet"),
+            "muted": copy.pk not in picks,
+        }
+        for copy in copies
+    ]
 
 
 # --- The arbitrator's tables ---------------------------------------------------

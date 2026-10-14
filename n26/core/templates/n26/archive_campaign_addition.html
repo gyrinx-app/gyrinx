@@ -41,34 +41,22 @@ page says so and offers no button.
             </c-slot>
             {% csrf_token %}
             <c-ui.alert variant="warning" title="You cannot undo this">
-                Archiving removes {{ name }} from every gang in {{ campaign.name }},
-                and gangs that join later will not get it. Each gang's history keeps
-                {% if kind == "counter" %}
-                    every change to {{ name }} and the value it ended on.
-                {% else %}
-                    what it picked for {{ name }}.
-                {% endif %}
+                {{ consequences }}
             </c-ui.alert>
             {% if gangs %}
                 <section class="mt-4">
                     <h2 class="text-sm font-semibold">Gangs that have {{ name }}</h2>
                     <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-                        {% for gang_name, value in gangs %}
-                            <dt class="text-muted">{{ gang_name }}</dt>
-                            <dd class="break-words">
-                                {% if kind == "counter" %}
-                                    {{ value }}
-                                {% elif value %}
-                                    {{ value }}
-                                {% else %}
-                                    <span class="text-muted">Nothing picked yet</span>
-                                {% endif %}
+                        {% for line in gangs %}
+                            <dt class="text-muted">{{ line.gang }}</dt>
+                            <dd class="break-words{% if line.muted %} text-muted{% endif %}">
+                                {{ line.value }}
                             </dd>
                         {% endfor %}
                     </dl>
                 </section>
             {% else %}
-                <p class="mt-4 text-sm text-muted">No gang has {{ name }} yet.</p>
+                <p class="mt-4 text-sm text-muted">No gang has {{ name }}.</p>
             {% endif %}
         </c-n26.form-page>
     {% endif %}

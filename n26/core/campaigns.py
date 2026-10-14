@@ -1304,7 +1304,7 @@ class CampaignOperation:
         if archived is not None:
             raise Refusal(
                 f"{self.campaign.name} has an archived counter called "
-                f"{archived.name}. Choose another name."
+                f"{archived.name}. Use another name."
             )
         taken = (
             Counter.objects.filter(pack=self.campaign.pack, name__iexact=name).exists()
@@ -1357,7 +1357,7 @@ class CampaignOperation:
         if archived is not None:
             raise Refusal(
                 f"{self.campaign.name} has an archived label called "
-                f"{archived.name}. Choose another name."
+                f"{archived.name}. Use another name."
             )
         if SlotType.objects.filter(pack=pack, name__iexact=name).exists():
             raise Refusal(f"{self.campaign.name} already has a label called {name}.")
@@ -1404,17 +1404,18 @@ class CampaignOperation:
         (:func:`_refuse_while_named`).
         """
         from n26.core.models import CounterValue
-        from n26.core.operations import operation
 
-        member = own_addition(self.campaign, member.pk, "counter")
+        member = self._still_own(member, "counter")
         counter = member.counter
         _refuse_archiving(self.campaign, member)
         member.archive()
-        for copy in _live_copies(member):
-            with operation(copy.gang_root, actor=self.actor, batch=self.batch) as op:
-                held = CounterValue.objects.filter(assignment=copy).first()
-                value = held.value if held is not None else 0
-                op.remove(copy, note=f"{ARCHIVED_COUNTER_NOTE_PREFIX}{value}")
+
+        def remove(op, copy):
+            held = CounterValue.objects.filter(assignment=copy).first()
+            value = held.value if held is not None else 0
+            op.remove(copy, note=f"{ARCHIVED_COUNTER_NOTE_PREFIX}{value}")
+
+        self._off_every_gang(member, remove)
         counter.archive()
         self.event(CampaignEvent.Kind.COUNTER_ARCHIVED, note=str(counter))
         return counter
@@ -1435,26 +1436,79 @@ class CampaignOperation:
         its options — is refused in words (:func:`_refuse_while_named`).
         """
         from n26.core.models import Assignment
-        from n26.core.operations import operation
 
-        member = own_addition(self.campaign, member.pk, "slot")
+        member = self._still_own(member, "slot")
         slot = member.slot
         _refuse_archiving(self.campaign, member)
         picklist, pickables, _ = _label_rows(self.campaign, slot)
         member.archive()
-        for copy in _live_copies(member):
-            with operation(copy.gang_root, actor=self.actor, batch=self.batch) as op:
-                pick = Assignment.objects.filter(
-                    chosen_for=copy, archived=False
-                ).first()
-                if pick is None:
-                    op.remove(copy)
-                else:
-                    op.remove(copy, before_pick=pick)
+
+        def remove(op, copy):
+            pick = Assignment.objects.filter(chosen_for=copy, archived=False).first()
+            if pick is None:
+                op.remove(copy)
+            else:
+                op.remove(copy, before_pick=pick)
+
+        self._off_every_gang(member, remove)
         for row in (slot, picklist, *pickables, slot.slot_type):
             row.archive()
         self.event(CampaignEvent.Kind.LABEL_ARCHIVED, note=slot.choice_label)
         return slot
+
+    def _still_own(self, member, kind):
+        """The member read again under the campaign's line, or a refusal in
+        words if it was archived since the page was read. Anything else
+        that is not the campaign's own stays a ValueError."""
+        from n26.core.operations import Refusal
+        from n26.library.models import DefaultAssignment
+
+        try:
+            return own_addition(self.campaign, member.pk, kind)
+        except ValueError:
+            archived = (
+                DefaultAssignment.objects.select_related(kind)
+                .filter(
+                    pk=member.pk,
+                    archived=True,
+                    default_set_id=self.campaign.additions.built_ins_id,
+                )
+                .first()
+            )
+            if archived is None:
+                raise
+            name = archived.counter if kind == "counter" else archived.slot.choice_label
+            raise Refusal(f"{name} was already archived.") from None
+
+    def _off_every_gang(self, member, remove):
+        """Run ``remove(op, copy)`` on each gang's live copy of an archived
+        member, one gang at a time under that gang's line, in key order.
+
+        Every gang in the campaign is visited, not only those holding a copy
+        before the walk began: a propagation pass already holding a gang's
+        line can be granting it a copy of the member as it was. That pass
+        commits before this one takes the line, so its copy is found here
+        and removed. A pass that starts later reads the member as archived
+        and grants nothing.
+        """
+        from django.db.models import Q
+
+        from n26.core.models import Assignment, Gang
+        from n26.core.operations import operation
+
+        playing = self.campaign.memberships.filter(left__isnull=True).values("gang_id")
+        holding = Assignment.objects.filter(
+            materialised_from=member, archived=False
+        ).values("gang_root_id")
+        gangs = Gang.objects.filter(Q(pk__in=playing) | Q(pk__in=holding)).order_by(
+            "pk"
+        )
+        for gang in gangs:
+            with operation(gang, actor=self.actor, batch=self.batch) as op:
+                for copy in Assignment.objects.filter(
+                    materialised_from=member, archived=False, gang_root=gang
+                ).order_by("pk"):
+                    remove(op, copy)
 
     def open_table(self, table):
         """Let every gang in the campaign roll on an asset table, by
@@ -1750,19 +1804,6 @@ def own_additions(campaign, kind):
     )
 
 
-def _live_copies(member):
-    """Every gang's live copy of one built-in, in the order gang lines are
-    taken. A gang that left the campaign has had its copy archived with
-    the rest of what the campaign gave it, so it is not among them."""
-    from n26.core.models import Assignment
-
-    return list(
-        Assignment.objects.filter(materialised_from=member, archived=False)
-        .select_related("gang_root")
-        .order_by("gang_root_id", "pk")
-    )
-
-
 def _key(row):
     return (type(row)._meta.label_lower, row.pk)
 
@@ -1835,7 +1876,8 @@ def _refuse_while_named(name, things, own):
     )
     if uses:
         raise Refusal(
-            f"You cannot archive {name}. It is used by {_and(uses)}. "
+            f"You cannot archive {name}. It is used by "
+            f"{_and(f'“{use}”' for use in uses)}. "
             "Ask a Gyrinx admin to change that first."
         )
 

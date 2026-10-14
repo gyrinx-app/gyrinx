@@ -225,12 +225,37 @@ class TestArchivingACounter:
         a_rule_reads_faith(table)
         with pytest.raises(
             Refusal,
-            match="You cannot archive Faith. It is used by Shrines add two Faith",
+            match="You cannot archive Faith. It is used by “Shrines add two Faith”.",
         ):
             archive(table, "counter")
         table["faith"].refresh_from_db()
         assert not table["faith"].archived
         assert copies(table["faith"]).filter(archived=False).count() == 2
+
+    def test_archiving_it_twice_is_refused_in_words(self, table):
+        archive(table, "counter")
+        with pytest.raises(Refusal, match="Faith was already archived."):
+            archive(table, "counter")
+
+    def test_a_gang_still_waiting_for_its_copy_is_left_as_it_is(self, table, gang_type):
+        """A gang whose copy has not reached it yet has nothing taken away
+        and no removal written; once archived, nothing grants it later."""
+        from n26.core.models import CampaignMembership
+
+        waiting = found_gang("Slow Boat", gang_type, owner=table["player"])
+        with campaign_operation(table["campaign"], actor=table["arbitrator"]) as op:
+            op.add_gang(waiting)
+        copies(table["faith"]).filter(gang_root=waiting).delete()
+        assert CampaignMembership.objects.filter(
+            gang=waiting, left__isnull=True
+        ).exists()
+
+        archive(table, "counter")
+
+        assert not LedgerEvent.objects.filter(
+            gang=waiting, kind=LedgerEvent.Kind.REMOVED
+        ).exists()
+        assert not copies(table["faith"]).filter(gang_root=waiting).exists()
 
 
 class TestArchivingALabel:
@@ -330,13 +355,18 @@ class TestThePages:
         client.force_login(table["arbitrator"])
         counter_page = client.get(archive_url(table, "counter"))
         assert counter_page.status_code == 200
-        assert counter_page.context["gangs"] == [("Ash Wolves", 1), ("Rust Kings", 4)]
+        assert counter_page.context["gangs"] == [
+            {"gang": "Ash Wolves", "value": "1", "muted": False},
+            {"gang": "Rust Kings", "value": "4", "muted": False},
+        ]
         assert counter_page.context["refusal"] == ""
-        assert "Archive counter" in counter_page.content.decode()
+        html = counter_page.content.decode()
+        assert "Archive counter" in html
+        assert "Each gang&#x27;s history keeps every change to Faith" in html
         label_page = client.get(archive_url(table, "label"))
         assert label_page.context["gangs"] == [
-            ("Ash Wolves", ""),
-            ("Rust Kings", "Lawful"),
+            {"gang": "Ash Wolves", "value": "Nothing picked yet", "muted": True},
+            {"gang": "Rust Kings", "value": "Lawful", "muted": False},
         ]
         assert "Nothing picked yet" in label_page.content.decode()
         # Reading the page changes nothing.
@@ -359,10 +389,10 @@ class TestThePages:
         a_rule_reads_faith(table)
         client.force_login(table["arbitrator"])
         page = client.get(archive_url(table, "counter"))
-        assert "It is used by Shrines add two Faith" in page.context["refusal"]
+        assert "It is used by “Shrines add two Faith”" in page.context["refusal"]
         assert "Archive counter" not in page.content.decode()
         response = client.post(archive_url(table, "counter"), follow=True)
-        assert "It is used by Shrines add two Faith" in response.content.decode()
+        assert "It is used by “Shrines add two Faith”" in response.content.decode()
         assert copies(table["faith"]).filter(archived=False).count() == 2
 
     def test_nobody_else_reaches_it_and_shared_counters_are_not_there(
