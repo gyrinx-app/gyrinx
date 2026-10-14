@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 
 from django.urls import reverse
 
-from n26.core.campaigns import NO_CEILING
+from n26.core.campaigns import ARCHIVED_COUNTER_NOTE_PREFIX, NO_CEILING
 from n26.core.cloning import CLONED_RATING_NOTE_PREFIX, clone_event_details
 from n26.core.effects import kind_of
 from n26.core.models import Assignment, CampaignEvent, LedgerEvent, Reason
@@ -224,6 +224,7 @@ def _acts_from(events, viewer, *, alive):
     """The acts these events tell, oldest first."""
     rows = _rows_for(events)
     _name_the_rolls(events, rows)
+    _name_the_lost_picks(events, rows)
     sources = _comes_with_sources(events, rows)
     acts = []
     #: Where each thing's opening act landed, so an old record's grant
@@ -257,6 +258,7 @@ def _comes_with_sources(events, rows):
 def _rows_for(events):
     """The assignments the events name, resolved to their things."""
     wanted = {e.assignment_id for e in events if e.assignment_id}
+    wanted |= {e.before_pick_id for e in events if _names_its_pick(e)}
     fetched = Assignment.with_assignables(
         Assignment.objects.filter(pk__in=wanted).select_related(
             "ledger_entry",
@@ -271,6 +273,41 @@ def _rows_for(events):
         )
     )
     return {row.pk: row for row in fetched}
+
+
+def _names_its_pick(e):
+    """Whether this is a label's removal naming the pick it had.
+
+    Archiving a label removes each gang's copy of the label with its
+    pick as ``before_pick``. Every other removal that names a pick
+    names the removed pick itself, so it says nothing more.
+    """
+    return (
+        e.kind == Kind.REMOVED
+        and e.before_pick_id is not None
+        and e.before_pick_id != e.assignment_id
+    )
+
+
+def _name_the_lost_picks(events, rows):
+    """Put the pick on each label removed with one, so the sentence can
+    say what it was. The picks come in with the records' own read
+    (``_rows_for``), so this costs nothing further."""
+    for e in events:
+        pick = rows.get(e.before_pick_id) if _names_its_pick(e) else None
+        if pick is not None and pick.chosen_for_id == e.assignment_id:
+            e.lost_pick = pick
+
+
+def _was(e):
+    """What an archived counter or label stood at as it went: " (was 4)",
+    " (was Lawful)". Nothing for any other removal."""
+    if e.note.startswith(ARCHIVED_COUNTER_NOTE_PREFIX):
+        return (Span(f" (was {e.note.removeprefix(ARCHIVED_COUNTER_NOTE_PREFIX)})"),)
+    lost_pick = getattr(e, "lost_pick", None)
+    if lost_pick is not None:
+        return (Span(f" (was {_name(lost_pick)})"),)
+    return ()
 
 
 def _name_the_rolls(events, rows):
@@ -352,11 +389,18 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
     # beneath it.
     joined = any(e.kind == Kind.JOINED_CAMPAIGN for e in cluster)
     left = any(e.kind == Kind.LEFT_CAMPAIGN for e in cluster)
+    # A label removed with its pick says the pick: "removed Alignment
+    # (was Lawful)". The pick's own removal would say it again.
+    told_picks = {
+        e.before_pick_id for e in cluster if getattr(e, "lost_pick", None) is not None
+    }
     standing = []
     waiting = []
     for e in cluster:
         row = rows.get(e.assignment_id)
         if _machinery(e, row):
+            continue
+        if e.kind == Kind.REMOVED and e.assignment_id in told_picks:
             continue
         if (
             e.kind == Kind.GRANTED
@@ -829,7 +873,12 @@ def _tell(e, row, alive):
         case Kind.REMOVED if row is not None and row.removes:
             return (Span("put "), thing, Span(" back"), *_for(model, at, "on")), "model"
         case Kind.REMOVED:
-            return (Span("removed "), thing, *_for(model, at, "from")), category
+            return (
+                Span("removed "),
+                thing,
+                *_was(e),
+                *_for(model, at, "from"),
+            ), category
         case Kind.REFUNDED:
             return (Span("returned "), thing, Span(" for a refund")), "credits"
         case Kind.SOLD:
@@ -1187,6 +1236,9 @@ def _shown_note(e):
         return ""
     if e.note == "reset":
         return ""
+    # The value an archived counter stood at, which the sentence has said.
+    if e.note.startswith(ARCHIVED_COUNTER_NOTE_PREFIX):
+        return ""
     # A holding's note is its name, which the sentence has already said.
     if _about_a_holding(e):
         return ""
@@ -1336,6 +1388,26 @@ def _joining_companions():
     )
 
 
+def _archiving_companions():
+    """Each gang's removal when the arbitrator archives a counter or label
+    shares the archive's mark; only the archive is a campaign act.
+
+    The gang's own history keeps its line, which says what it lost.
+    """
+    from django.db.models import Exists, OuterRef
+
+    return Exists(
+        CampaignEvent.objects.filter(
+            campaign_id=OuterRef("campaign_id"),
+            batch=OuterRef("batch"),
+            kind__in=(
+                CampaignEvent.Kind.COUNTER_ARCHIVED,
+                CampaignEvent.Kind.LABEL_ARCHIVED,
+            ),
+        )
+    )
+
+
 def campaign_history_size(campaign):
     """How many acts the history holds, without building any of them.
 
@@ -1358,6 +1430,7 @@ def campaign_history_size(campaign):
     return (
         campaign.events.count()
         + campaign.gang_events.exclude(_joining_companions())
+        .exclude(_archiving_companions())
         .exclude(riders)
         .exclude(handed_over)
         .exclude(kind=Kind.CLONED, assignment__isnull=False)
@@ -1414,6 +1487,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
     events = (
         LedgerEvent.objects.filter(campaign=campaign)
         .exclude(_joining_companions())
+        .exclude(_archiving_companions())
         # A clone's assignment-level openings are ledger machinery. Its one
         # standalone event already holds the visible act and its totals, so
         # letting the openings consume a page would make one large clone hide
@@ -1462,6 +1536,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
 
     rows = _rows_for(events)
     _name_the_rolls(events, rows)
+    _name_the_lost_picks(events, rows)
     sources = _comes_with_sources(events, rows)
     # Only the living have a page to link to, across every gang here.
     alive = set(
@@ -1721,4 +1796,10 @@ def _tell_campaign(e):
             if name:
                 return (Span(f"added the label {name}"),), "campaign"
             return (Span("added a label"),), "campaign"
+        case kinds.COUNTER_ARCHIVED:
+            what = f"the counter {e.note}" if e.note else "a counter"
+            return (Span(f"archived {what}"),), "campaign"
+        case kinds.LABEL_ARCHIVED:
+            what = f"the label {e.note}" if e.note else "a label"
+            return (Span(f"archived {what}"),), "campaign"
     return (Span("changed the campaign"),), "campaign"

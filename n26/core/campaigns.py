@@ -48,6 +48,12 @@ NO_CEILING = "unlimited"
 #: Left as it is: what ``edit_battle`` takes for a stake it is not given.
 KEEP = object()
 
+#: Marks the note on the removal a gang is written when the arbitrator
+#: archives a counter: the value the counter stood at, which the gang's
+#: history prints as "(was 4)". A marker rather than a bare figure, so the
+#: history never mistakes a player's reason for a value.
+ARCHIVED_COUNTER_NOTE_PREFIX = "archived-counter:v1:"
+
 
 def _now():
     return timezone.now()
@@ -1292,6 +1298,14 @@ class CampaignOperation:
         from n26.library.models import Counter, DefaultAssignment
 
         name = (name or "").strip()
+        archived = Counter.objects.filter(
+            pack=self.campaign.pack, name__iexact=name, archived=True
+        ).first()
+        if archived is not None:
+            raise Refusal(
+                f"{self.campaign.name} has an archived counter called "
+                f"{archived.name}. Use another name."
+            )
         taken = (
             Counter.objects.filter(pack=self.campaign.pack, name__iexact=name).exists()
             or DefaultAssignment.objects.filter(
@@ -1337,6 +1351,14 @@ class CampaignOperation:
         if not options:
             raise ValueError("A label needs at least one option.")
         pack = self.campaign.pack
+        archived = SlotType.objects.filter(
+            pack=pack, name__iexact=name, archived=True
+        ).first()
+        if archived is not None:
+            raise Refusal(
+                f"{self.campaign.name} has an archived label called "
+                f"{archived.name}. Use another name."
+            )
         if SlotType.objects.filter(pack=pack, name__iexact=name).exists():
             raise Refusal(f"{self.campaign.name} already has a label called {name}.")
         slot_type = create_slot_type(name, pack=pack, allows_repeats=False)
@@ -1362,6 +1384,124 @@ class CampaignOperation:
             CampaignEvent.Kind.LABEL_ADDED, note=f"{name} → {', '.join(options)}"
         )
         return slot
+
+    def archive_counter(self, member):
+        """Take a counter the arbitrator added off every gang in the
+        campaign, keeping every value it reached.
+
+        ``member`` is the counter's place in the campaign's additions
+        (:func:`own_addition`). It is archived, so no gang joining later
+        receives the counter, and each gang still carrying it has it
+        removed under that gang's own line, in key order, as leaving the
+        campaign removes it. Nothing is deleted or set to zero: the value
+        stays on the archived row and the gang's history keeps every
+        change, with the removal saying what the counter stood at. The
+        counter itself is archived last, which takes it out of the
+        library's lists without losing the name its history reads.
+
+        A counter another rule still names is refused in words, since
+        archiving it would change what that rule does
+        (:func:`_refuse_while_named`).
+        """
+        from n26.core.models import CounterValue
+
+        member = self._still_own(member, "counter")
+        counter = member.counter
+        _refuse_archiving(self.campaign, member)
+        member.archive()
+
+        def remove(op, copy):
+            held = CounterValue.objects.filter(assignment=copy).first()
+            value = held.value if held is not None else 0
+            op.remove(copy, note=f"{ARCHIVED_COUNTER_NOTE_PREFIX}{value}")
+
+        self._off_every_gang(member, remove)
+        counter.archive()
+        self.event(CampaignEvent.Kind.COUNTER_ARCHIVED, note=str(counter))
+        return counter
+
+    def archive_label(self, member):
+        """Take a label the arbitrator added off every gang in the
+        campaign, keeping every pick made for it.
+
+        ``member`` is the label's slot in the campaign's additions
+        (:func:`own_addition`). As :meth:`archive_counter`: the member is
+        archived first, then each gang's copy of the slot is removed
+        under that gang's own line, taking its pick with it, and the
+        removal names that pick so the gang's history reads "(was
+        Lawful)". The label's slot and slot type are archived last.
+
+        A label another rule still names — the label itself, or any of
+        its options — is refused in words (:func:`_refuse_while_named`).
+        """
+        from n26.core.models import Assignment
+
+        member = self._still_own(member, "slot")
+        slot = member.slot
+        _refuse_archiving(self.campaign, member)
+        member.archive()
+
+        def remove(op, copy):
+            pick = Assignment.objects.filter(chosen_for=copy, archived=False).first()
+            if pick is None:
+                op.remove(copy)
+            else:
+                op.remove(copy, before_pick=pick)
+
+        self._off_every_gang(member, remove)
+        # The options and their list stay live: a clone outside the campaign
+        # still carries the label, and its picker offers only live options.
+        for row in (slot, slot.slot_type):
+            row.archive()
+        self.event(CampaignEvent.Kind.LABEL_ARCHIVED, note=slot.choice_label)
+        return slot
+
+    def _still_own(self, member, kind):
+        """The member read again under the campaign's line, or a refusal in
+        words if it was archived since the page was read. Anything else
+        that is not the campaign's own stays a ValueError."""
+        from n26.core.operations import Refusal
+        from n26.library.models import DefaultAssignment
+
+        try:
+            return own_addition(self.campaign, member.pk, kind)
+        except ValueError:
+            archived = (
+                DefaultAssignment.objects.select_related(kind)
+                .filter(
+                    pk=member.pk,
+                    archived=True,
+                    default_set_id=self.campaign.additions.built_ins_id,
+                )
+                .first()
+            )
+            if archived is None:
+                raise
+            name = archived.counter if kind == "counter" else archived.slot.choice_label
+            raise Refusal(f"{name} was already archived.") from None
+
+    def _off_every_gang(self, member, remove):
+        """Run ``remove(op, copy)`` on each gang's live copy of an archived
+        member, one gang at a time under that gang's line, in key order.
+
+        Every gang playing the campaign is visited, not only those holding a
+        copy before the walk began: a propagation pass already holding a
+        gang's line can be granting it a copy of the member as it was. That
+        pass commits before this one takes the line, so its copy is found
+        here and removed. A pass that starts later reads the member as
+        archived and grants nothing. Only gangs playing it: a clone of one
+        carries copies naming the same member, and is somebody else's gang
+        outside the campaign.
+        """
+        from n26.core.models import Assignment
+        from n26.core.operations import operation
+
+        for gang in _playing_gangs(self.campaign):
+            with operation(gang, actor=self.actor, batch=self.batch) as op:
+                for copy in Assignment.objects.filter(
+                    materialised_from=member, archived=False, gang_root=gang
+                ).order_by("pk"):
+                    remove(op, copy)
 
     def open_table(self, table):
         """Let every gang in the campaign roll on an asset table, by
@@ -1601,6 +1741,148 @@ def _table_named(table):
     word, since the name is the author's."""
     name = str(table)
     return f"the {name}" if name.lower().endswith("table") else name
+
+
+def _playing_gangs(campaign):
+    """The gangs playing this campaign now, in the order gang lines are
+    taken."""
+    from n26.core.models import Gang
+
+    return Gang.objects.filter(
+        pk__in=campaign.memberships.filter(left__isnull=True).values("gang_id")
+    ).order_by("pk")
+
+
+def own_addition(campaign, member_pk, kind):
+    """One counter or label the arbitrator added to this campaign, as its
+    place in the campaign's additions, or ValueError.
+
+    ``kind`` is ``"counter"`` or ``"slot"``. Only a live member of the
+    additions' built-ins naming a thing in the campaign's own pack
+    qualifies: Reputation and Income come with the shared type, a gang's
+    own questions come with its gang type, and neither is the
+    arbitrator's to archive. A view turns the ValueError into a 404.
+    """
+    from django.core.exceptions import ValidationError
+
+    from n26.library.models import DefaultAssignment
+
+    built_ins = campaign.additions.built_ins_id
+    try:
+        member = (
+            DefaultAssignment.objects.select_related(kind)
+            .filter(
+                pk=member_pk,
+                default_set_id=built_ins,
+                archived=False,
+                **{f"{kind}__pack_id": campaign.pack_id},
+            )
+            .first()
+            if built_ins is not None
+            else None
+        )
+    except ValidationError:
+        member = None
+    if member is None:
+        raise ValueError(f"No {kind} of {campaign}'s own has the key {member_pk}.")
+    return member
+
+
+def own_additions(campaign, kind):
+    """Every counter or label the arbitrator added to this campaign and
+    has not archived, as members of its additions, in added order."""
+    from n26.library.models import DefaultAssignment
+
+    built_ins = campaign.additions.built_ins_id
+    if built_ins is None:
+        return DefaultAssignment.objects.none()
+    return (
+        DefaultAssignment.objects.select_related(kind)
+        .filter(
+            default_set_id=built_ins,
+            archived=False,
+            **{f"{kind}__pack_id": campaign.pack_id},
+        )
+        .order_by("position", "pk")
+    )
+
+
+def _key(row):
+    return (type(row)._meta.label_lower, row.pk)
+
+
+def archive_refusal(campaign, member):
+    """Why this counter or label of the campaign's own cannot be archived,
+    in words, or "" when it can. The confirm page asks before it offers
+    the button; the archive itself asks again under the campaign's line."""
+    from n26.core.operations import Refusal
+
+    try:
+        _refuse_archiving(campaign, member)
+    except Refusal as refused:
+        return str(refused)
+    return ""
+
+
+def _label_rows(campaign, slot):
+    """What ``add_label`` wrote beside the slot: its picklist, the options
+    in the campaign's pack, and the picklist's entries for them."""
+    picklist = slot.picklist
+    pickables = list(slot.slot_type.pickables.filter(pack_id=campaign.pack_id))
+    return picklist, pickables, list(picklist.members.all())
+
+
+def _refuse_archiving(campaign, member):
+    """Refuse, in words, to archive a counter or label another library
+    row names (:func:`_refuse_while_named`)."""
+    if member.counter_id is not None:
+        counter = member.counter
+        _refuse_while_named(counter, [counter], own={_key(member)})
+        return
+    slot = member.slot
+    picklist, pickables, entries = _label_rows(campaign, slot)
+    own = {
+        _key(row)
+        for row in (member, slot, slot.slot_type, picklist, *pickables, *entries)
+    }
+    for things in ([slot.slot_type], [slot], [picklist], pickables):
+        if things:
+            _refuse_while_named(slot.choice_label, things, own=own)
+
+
+def _refuse_while_named(name, things, own):
+    """Refuse, in words, to archive something another library row names.
+
+    ``things`` are rows of one kind; ``own`` is the set of rows that make
+    up the counter or label itself, which naming each other is not a use.
+    What a gang holds is not a use either: a copy, its pick and its
+    history are what archiving deals with. Anything else in the library —
+    a condition reading the counter, a rule granting a pick — would
+    change what it does, so the archive stops and says what to change.
+    """
+    from n26.core.operations import Refusal
+    from n26.library.references import named, references_to
+
+    def said(row):
+        # A modifier's part says what it does ("adds 2 to Faith"); the
+        # rule it belongs to is what an admin would look for.
+        modifier = getattr(row, "modifier", None)
+        return str(modifier) if modifier is not None else named(row)
+
+    uses = sorted(
+        {
+            said(reference.row)
+            for reference in references_to(*things)
+            if reference.row._meta.app_label == "library"
+            and _key(reference.row) not in own
+        }
+    )
+    if uses:
+        raise Refusal(
+            f"You cannot archive {name}. It is used by "
+            f"{_and(f'“{use}”' for use in uses)}. "
+            "Ask a Gyrinx admin to change that first."
+        )
 
 
 def _own_table(campaign, table):
