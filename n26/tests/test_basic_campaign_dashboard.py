@@ -1,6 +1,5 @@
 """Approved dashboard behaviour over campaign, holding and counter operations."""
 
-import json
 from uuid import uuid4
 
 import pytest
@@ -104,9 +103,14 @@ def test_reader_sees_income_breakdown_but_cannot_adjust_or_add(client, dashboard
     client.force_login(User.objects.create_user("dashboard-reader"))
     page = client.get(reverse("n26-campaign", args=[campaign.pk]))
     assert page.status_code == 200
-    soup = BeautifulSoup(page.content, "html.parser")
-    help_host = soup.select_one('[data-react-name="income-tooltip"]')
-    explanation = json.loads(soup.find(id=help_host["data-react-props"]).string)
+    from n26.tests.fixtures import island_props
+
+    props = island_props(page.content, "campaign-gangs")
+    counters = props["gangs"][0]["counters"]
+    explanation = next(
+        counter["income"] for counter in counters if counter and counter["income"]
+    )
+    assert not any(counter["adjustHref"] for counter in counters if counter)
     assert explanation == {
         "value": 20,
         "contributed": 20,

@@ -211,7 +211,12 @@ class TestExplainingTheGangReading:
             == props["value"]
         )
         html = render_to_string("n26/includes/campaign_gangs.html", {"sheet": sheet})
-        assert island_props(html) == [props]
+        from n26.tests.fixtures import island_props as table_props
+
+        counters = table_props(html, "campaign-gangs")["gangs"][0]["counters"]
+        assert [
+            counter["income"] for counter in counters if counter and counter["income"]
+        ] == [props]
         assert_reconciled(gang)
 
     def test_two_named_holdings_keep_their_own_choices_and_contributions(

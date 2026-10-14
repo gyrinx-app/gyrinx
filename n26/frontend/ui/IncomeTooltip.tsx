@@ -1,4 +1,4 @@
-import { HelpPopover } from "../../ui";
+import { HelpPopover } from "./HelpPopover";
 
 export type IncomePart = {
     label: string;

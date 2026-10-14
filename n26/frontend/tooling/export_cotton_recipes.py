@@ -52,8 +52,11 @@ def checked_classes(attrs):
     return {"checked": match[1], "unchecked": match[2]}
 
 
-def native_select_recipe():
-    (select,) = attributes('<c-ui.select.native placeholder="" />', "select")
+def native_select_recipe(size=""):
+    size_attribute = f'size="{size}"' if size else ""
+    (select,) = attributes(
+        f'<c-ui.select.native placeholder="" {size_attribute} />', "select"
+    )
     style = select.get("style", "").strip()
     match = re.fullmatch(
         r"background-image:\s*(url\('[^']*'\));\s*background-size:\s*([^;]+);?",
@@ -1100,6 +1103,7 @@ def recipes():
         "radioOption": radio_option_recipe(),
         "input": input_recipe(),
         "nativeSelect": native_select_recipe(),
+        "nativeSelectSmall": native_select_recipe("sm"),
         "field": {
             **dict(
                 zip(
@@ -1167,6 +1171,7 @@ def recipes():
         "svgProps": svg_props(),
         "rangeMenu": range_menu_recipe(),
         "userLink": user_link_recipe(),
+        "colorSwatch": classes('<c-n26.color-swatch color="red" />', "span")[0],
         "toggle": toggle_recipe(),
         "popover": {
             "panel": classes(
@@ -1199,6 +1204,10 @@ def recipes():
                 "sun",
                 "moon",
                 "monitor",
+                "arrow-up",
+                "arrow-down",
+                "arrow-right",
+                "pencil",
             )
         },
     }

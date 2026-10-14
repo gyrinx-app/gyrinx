@@ -713,13 +713,13 @@ class TestTheShellStillDraws:
         # Each gang names its owner under its name, through the same
         # component the app draws people with — a sample person is a
         # username, so the name comes through and no badge follows it.
-        document = BeautifulSoup(page, "html.parser")
-        gang_headers = document.select('th[scope="rowgroup"]')
+        from n26.tests.fixtures import island_props
+
+        rows = island_props(page, "campaign-gangs")["gangs"]
         for gang_type, owner in [("Goliath (HoC)", "marta"), ("Escher (HoB)", "tom")]:
-            header = next(
-                header for header in gang_headers if gang_type in header.get_text()
-            )
-            assert header.find("span", string=owner) is not None
+            row = next(row for row in rows if row["type"] == gang_type)
+            assert row["owner"]["name"] == owner
+            assert row["owner"]["badge"] is None
         # The players and the log name people the same way; the
         # arbitrator's own acts read "You", as the page reads them.
         assert re.search(r"<td[^>]*>\s*<span[^>]*>vey<", page)

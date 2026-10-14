@@ -54,6 +54,34 @@ def told(gang, viewer):
     ]
 
 
+@pytest.mark.parametrize("actor", ["owner", "arbitrator"])
+def test_credit_changes_keep_a_safe_campaign_table_return_url(
+    client, table, feature, actor
+):
+    client.force_login(getattr(table, actor))
+    back = (
+        reverse("n26-campaign", args=[table.campaign.pk]) + "?sort=-wealth&group=#gangs"
+    )
+    response = client.get(url(table.gang), {"back": back})
+    assert response.context["back"] == back
+    assert (
+        BeautifulSoup(response.content, "html.parser").find("input", {"name": "back"})[
+            "value"
+        ]
+        == back
+    )
+    bad = client.post(
+        url(table.gang), {"direction": "add", "amount": "words", "back": back}
+    )
+    assert bad.status_code == 200 and bad.context["back"] == back
+    saved = client.post(
+        url(table.gang), {"direction": "add", "amount": "5", "back": back}
+    )
+    assert saved.status_code == 302 and saved.url == back
+    outside = client.get(url(table.gang), {"back": "https://example.com/"})
+    assert outside.context["back"] != "https://example.com/"
+
+
 class TestTheOwner:
     """The gang's owner adds and removes credits, and the gang never
     goes below zero."""
@@ -269,11 +297,12 @@ class TestTheArbitrator:
     def test_the_campaign_table_links_each_gangs_credits(self, client, table, feature):
         client.force_login(table.arbitrator)
         response = client.get(reverse("n26-campaign", args=[table.campaign.pk]))
+        from n26.tests.fixtures import island_props
 
-        page = BeautifulSoup(response.content, "html.parser")
-        link = page.select_one(f'a[href="{url(table.gang)}"]')
-        assert link is not None
-        assert link.get_text(strip=True) == "100¢"
+        props = island_props(response.content, "campaign-gangs")
+        line = next(line for line in props["gangs"] if line["id"] == str(table.gang.pk))
+        assert line["creditsHref"] == url(table.gang)
+        assert line["credits"] == 100
 
 
 class TestEveryoneElse:

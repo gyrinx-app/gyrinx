@@ -1215,19 +1215,12 @@ class TestThePages:
         soup = BeautifulSoup(response.content, "html.parser")
         region = soup.find(id="n26-campaign-gangs")
         assert region["hx-swap-oob"] == "true"
-        menus = {}
-        for host in region.select('[data-react-name="action-menu"]'):
-            props = json.loads(soup.find(id=host["data-react-props"]).string)
-            menus[props["label"]] = [
-                (item["label"], item["href"]) for item in props["items"]
-            ]
-        assert menus == {
-            f"Actions for {gang.name}": [
-                (
-                    "Remove from campaign",
-                    reverse("n26-campaign-remove-gang", args=[campaign.pk, gang.pk]),
-                )
-            ]
+        from n26.tests.fixtures import island_props
+
+        props = island_props(response.content, "campaign-gangs")
+        assert not region.select('[data-react-name="action-menu"]')
+        assert {gang["name"]: gang["removeHref"] for gang in props["gangs"]} == {
+            gang.name: reverse("n26-campaign-remove-gang", args=[campaign.pk, gang.pk])
             for gang in (slag_kings, wild_cats)
         }
 

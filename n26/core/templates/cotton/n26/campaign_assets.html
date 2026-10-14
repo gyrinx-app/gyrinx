@@ -7,7 +7,7 @@ Draw a control only when table carries its URL. A viewer with no URLs sees no co
 Position the Actions header so its hidden label stays inside the scrolling table.
 Roll is primary because it begins a form. The other controls do not.
 {% endcomment %}
-{% load react %}
+{% load react campaign_table %}
 
 <c-vars :table="None" class="" />
 
@@ -18,7 +18,12 @@ Roll is primary because it begins a form. The other controls do not.
                 <c-ui.button size="sm" variant="primary" href="{{ table.roll_href }}" hx-get="{{ table.roll_href }}" hx-swap="none">Roll {{ table.plural|lower }}</c-ui.button>
             {% endif %}
             {% if table.add_href %}
-                <c-ui.button size="sm" variant="default" href="{{ table.add_href }}">Add {{ table.plural|lower }}</c-ui.button>
+                {% with plural=table.plural|lower %}
+                    {% campaign_view_link table.add_href "Add "|add:plural as add_props %}
+                    {% react_host "campaign-view-link" add_props class="contents" %}
+                        <c-ui.button size="sm" variant="default" href="{{ table.add_href }}">Add {{ plural }}</c-ui.button>
+                    {% endreact_host %}
+                {% endwith %}
             {% endif %}
         </c-slot>
     {% endif %}
@@ -84,8 +89,10 @@ Roll is primary because it begins a form. The other controls do not.
                                                      hx-get="{{ entry.assign_href }}" hx-swap="none">Assign</c-ui.button>
                                     {% endif %}
                                     {% if entry.remove_href %}
-                                        <c-ui.button size="sm" variant="ghost" class="w-full text-left! text-red-600! dark:text-red-400!"
-                                                     href="{{ entry.remove_href }}">Remove</c-ui.button>
+                                        {% campaign_view_link entry.remove_href "Remove" variant="ghost" class_name="w-full text-left! text-red-600! dark:text-red-400!" as remove_props %}
+                                        {% react_host "campaign-view-link" remove_props class="contents" %}
+                                            <c-ui.button size="sm" variant="ghost" class="w-full text-left! text-red-600! dark:text-red-400!" href="{{ entry.remove_href }}">Remove</c-ui.button>
+                                        {% endreact_host %}
                                     {% endif %}
                                 </div>
                             {% endif %}

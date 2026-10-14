@@ -23,7 +23,7 @@ and optional names for the selected assets.
     The asset type rides the form's own address, so a failed submit comes
     back to the same narrowed list rather than to every type at once.
     {% endcomment %}
-    <c-n26.form-page action="{% url 'n26-campaign-add-asset' campaign.pk %}{% if asset_type %}?type={{ asset_type.pk }}{% endif %}"
+    <c-n26.form-page action="{{ request.get_full_path }}"
                      title="Add {{ adding }}"
                      lead="Each stays unclaimed until you assign it to a gang."
                      :form="form"

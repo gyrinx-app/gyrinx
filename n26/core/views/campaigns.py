@@ -245,7 +245,7 @@ def campaign(request, pk):
             "n26/includes/campaign_roll_dialogs.html",
             _roll_context(found, rolling, starting, cancel_url=sheet.table_href),
         )
-        response["HX-Replace-Url"] = request.get_full_path()
+        response["HX-Replace-Url"] = _table_action_href(request)
         return response
     if asked_for_a_dialog:
         # Asked for a dialog that cannot be drawn — a stale or withdrawn
@@ -1455,6 +1455,9 @@ def remove_gang(request, pk, gang_pk):
     if not may_remove_gang(found, membership.gang, request.user):
         raise Http404("No such gang in this campaign")
     gang = membership.gang
+    from n26.core.campaign_table import table_view_href
+
+    back = table_view_href(request, _campaign_page(found))
 
     if request.method == "POST":
         with campaign_operation(found, actor=request.user) as act:
@@ -1464,7 +1467,7 @@ def remove_gang(request, pk, gang_pk):
         else:
             messages.success(request, f"Removed {gang.name} from {found.name}.")
         # The top of the page, not the gangs table, so the message is in view.
-        return redirect("n26-campaign", pk=found.pk)
+        return redirect(back)
 
     losing, returning = _what_the_gang_loses(found, gang)
     return render(
@@ -1475,6 +1478,7 @@ def remove_gang(request, pk, gang_pk):
             "gang": gang,
             "losing": losing,
             "returning": returning,
+            "back": back + "#gangs",
         },
     )
 
@@ -1622,6 +1626,23 @@ def _assets_anchor(campaign):
     return reverse("n26-campaign", args=[campaign.pk]) + "#assets"
 
 
+def _table_action_href(request, here=""):
+    """Carry the visible table's state into a dialog opened from an older link."""
+    from urllib.parse import parse_qsl, urlencode, urlsplit
+
+    from n26.core.campaign_table import table_query
+    from n26.core.views.htmx import is_htmx
+
+    query = table_query(request)
+    url = urlsplit(here or request.get_full_path())
+    parameters = dict(parse_qsl(url.query, keep_blank_values=True))
+    if is_htmx(request) and request.headers.get("HX-Current-URL"):
+        for key in ("sort", "group"):
+            parameters.pop(key, None)
+    parameters.update({key: query[key] for key in ("sort", "group") if key in query})
+    return url.path + ("?" + urlencode(parameters) if parameters else "")
+
+
 def _gangs_anchor(campaign):
     """The campaign page, opened at its gangs table — where a counter or a
     label the arbitrator adds shows as a column."""
@@ -1726,6 +1747,9 @@ def add_asset(request, pk):
     from n26.library.models import AssetType
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    from n26.core.campaign_table import table_view_href
+
+    back = table_view_href(request, _campaign_page(found)) + "#assets"
     asset_type = _asset_type_asked_for(found, request.GET.get("type"))
     offered = _holding_assets(found, include_staged=sees_staged(request.user))
     if asset_type is not None:
@@ -1755,7 +1779,7 @@ def add_asset(request, pk):
                 messages.success(
                     request, f"Added {len(form.cleaned_data['asset'])} {label}."
                 )
-            return redirect(_assets_anchor(found))
+            return redirect(back)
     else:
         form = AddAssetForm(offered=offered)
 
@@ -1802,6 +1826,8 @@ def add_asset(request, pk):
         if has_holding_type
         else ""
     )
+    if custom_href:
+        custom_href = _table_action_href(request, custom_href)
     empty_next_href = custom_href or reverse(
         "n26-campaign-add-asset-type", args=[found.pk]
     )
@@ -1814,13 +1840,14 @@ def add_asset(request, pk):
             "campaign": found,
             "asset_type": asset_type,
             "adding": noun,
-            "catalogue_href": request.path
-            + (f"?type={asset_type.pk}" if asset_type else ""),
+            "catalogue_href": _table_action_href(
+                request, request.path + (f"?type={asset_type.pk}" if asset_type else "")
+            ),
             "custom_href": custom_href,
             "custom_label": asset_type.label_singular.lower()
             if asset_type
             else "asset",
-            "back": _assets_anchor(found),
+            "back": back,
             # Drawn as cards, one per asset.
             "assets": assets,
             "fallback_options": [
@@ -1901,14 +1928,14 @@ def assign_asset(request, pk, asset_pk):
                 for membership in playing
             ],
             "back": _asset_back(request, found, campaign_asset),
-            "action": request.get_full_path(),
+            "action": _table_action_href(request),
             "redrawn": is_htmx(request),
             "reopened": is_htmx(request) and request.method == "POST",
         },
     )
 
     if is_htmx(request):
-        response["HX-Replace-Url"] = request.get_full_path()
+        response["HX-Replace-Url"] = _table_action_href(request)
     return response
 
 
@@ -1969,12 +1996,12 @@ def unassign_asset(request, pk, asset_pk):
             "campaign": found,
             "campaign_asset": campaign_asset,
             "back": _asset_back(request, found, campaign_asset),
-            "action": request.get_full_path(),
+            "action": _table_action_href(request),
         },
     )
 
     if is_htmx(request):
-        response["HX-Replace-Url"] = request.get_full_path()
+        response["HX-Replace-Url"] = _table_action_href(request)
     return response
 
 
@@ -2064,12 +2091,12 @@ def transfer_asset(request, pk, asset_pk):
             # of their own away and the arbitrator is moving the campaign's.
             "verb": "Transfer" if arbitrating else "Hand over",
             "back": _asset_back(request, found, campaign_asset),
-            "action": request.get_full_path(),
+            "action": _table_action_href(request),
         },
     )
 
     if is_htmx(request):
-        response["HX-Replace-Url"] = request.get_full_path()
+        response["HX-Replace-Url"] = _table_action_href(request)
     return response
 
 
@@ -2301,6 +2328,7 @@ def new_asset(request, pk):
     ``?type=`` picks the asset type in advance, which is how a link beside
     one type's table reaches here; the reader may still change it.
     """
+    from n26.core.campaign_table import table_view_href
     from n26.core.forms import NewAssetForm
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
@@ -2340,7 +2368,7 @@ def new_asset(request, pk):
         form,
         "n26/new_asset.html",
         act,
-        _assets_anchor(found),
+        table_view_href(request, _campaign_page(found)) + "#assets",
         asset_types=[
             {
                 "value": str(asset_type.pk),
@@ -2358,8 +2386,11 @@ def new_asset(request, pk):
         unified=unified,
         custom_label=asset_type.label_singular.lower() if asset_type else "asset",
         custom_href=request.get_full_path(),
-        catalogue_href=reverse("n26-campaign-add-asset", args=[found.pk])
-        + (f"?type={asset_type.pk}" if asset_type else ""),
+        catalogue_href=_table_action_href(
+            request,
+            reverse("n26-campaign-add-asset", args=[found.pk])
+            + (f"?type={asset_type.pk}" if asset_type else ""),
+        ),
     )
 
 

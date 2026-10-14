@@ -1348,10 +1348,9 @@ def refund_assignment(request, pk):
 
 
 def _campaign_counter_update(request, assignment, gang, back, *, close=False):
-    """Redraw the counter, or its campaign table when a counter controls sorting."""
+    """Refresh the campaign table, or the counter on its gang sheet."""
     from urllib.parse import urlsplit
 
-    from n26.core.campaign_table import table_query
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute_gang
     from n26.core.render import build_campaign_block
@@ -1373,12 +1372,9 @@ def _campaign_counter_update(request, assignment, gang, back, *, close=False):
     messages.success(request, f"{counter.name} is now {counter.value}.")
 
     sheet = None
-    sorting = table_query(request, current_url=back).get("sort", "").removeprefix("-")
-    if (
-        sorting.startswith("counter-")
-        and urlsplit(back).path == reverse("n26-campaign", args=[block.campaign_id])
-        and enabled(CAMPAIGNS, request.user)
-    ):
+    if urlsplit(back).path == reverse(
+        "n26-campaign", args=[block.campaign_id]
+    ) and enabled(CAMPAIGNS, request.user):
         from n26.core.render import render_campaign
         from n26.core.views.campaigns import _fill_addresses
         from n26.core.views.permissions import _any_campaign_or_404
@@ -1395,6 +1391,8 @@ def _campaign_counter_update(request, assignment, gang, back, *, close=False):
             request=request,
             current_url=back,
         )
+        if close:
+            sheet.table_focus_counter = str(assignment.pk)
     return with_toasts(
         request,
         render(
