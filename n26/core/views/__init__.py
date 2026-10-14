@@ -58,6 +58,7 @@ from n26.core.views.campaigns import (
     roll_asset,
     roll_starting_asset,
     transfer_asset,
+    unarchive_addition,
     unassign_asset,
 )
 from n26.core.views.changelog import (
@@ -170,6 +171,7 @@ __all__ = [
     "edit_asset_type",
     "add_label",
     "archive_addition",
+    "unarchive_addition",
     "remove_asset",
     "roll_asset",
     "roll_starting_asset",

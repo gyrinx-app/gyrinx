@@ -1446,7 +1446,7 @@ class CampaignOperation:
         if archived is not None:
             raise Refusal(
                 f"{self.campaign.name} has an archived counter called "
-                f"{archived.name}. Use another name."
+                f"{archived.name}. Unarchive it, or use another name."
             )
         taken = (
             Counter.objects.filter(pack=self.campaign.pack, name__iexact=name).exists()
@@ -1499,7 +1499,7 @@ class CampaignOperation:
         if archived is not None:
             raise Refusal(
                 f"{self.campaign.name} has an archived label called "
-                f"{archived.name}. Use another name."
+                f"{archived.name}. Unarchive it, or use another name."
             )
         if SlotType.objects.filter(pack=pack, name__iexact=name).exists():
             raise Refusal(f"{self.campaign.name} already has a label called {name}.")
@@ -1603,19 +1603,12 @@ class CampaignOperation:
         words if it was archived since the page was read. Anything else
         that is not the campaign's own stays a ValueError."""
         from n26.core.operations import Refusal
-        from n26.library.models import DefaultAssignment
 
         try:
             return own_addition(self.campaign, member.pk, kind)
         except ValueError:
             archived = (
-                DefaultAssignment.objects.select_related(kind)
-                .filter(
-                    pk=member.pk,
-                    archived=True,
-                    default_set_id=self.campaign.additions.built_ins_id,
-                )
-                .first()
+                archived_additions(self.campaign, kind).filter(pk=member.pk).first()
             )
             if archived is None:
                 raise
@@ -1644,6 +1637,126 @@ class CampaignOperation:
                     materialised_from=member, archived=False, gang_root=gang
                 ).order_by("pk"):
                     remove(op, copy)
+
+    def unarchive_counter(self, member):
+        """Give an archived counter back to every gang still in the
+        campaign, at the value each gang had when it was archived.
+
+        ``member`` is the counter's archived place in the campaign's
+        additions (:func:`archived_addition`). The counter and the member
+        are unarchived, then each gang the archive took it from gets that
+        same assignment back, under the gang's own line, its value
+        untouched (:meth:`_back_on_every_gang`). A gang that joined while
+        it was archived never had it, so the propagation pass filed here
+        gives it the counter at its starting value, as any built-in added
+        to the campaign reaches gangs already playing.
+        """
+        from n26.core.models import CounterValue
+        from n26.core.propagation import file_propagation_task
+
+        member = self._still_archived(member, "counter")
+        counter = member.counter
+        counter.unarchive()
+        member.unarchive()
+
+        def restore(op, copy, removal):
+            held = CounterValue.objects.filter(assignment=copy).first()
+            value = held.value if held is not None else 0
+            op.restore(copy, note=f"{ARCHIVED_COUNTER_NOTE_PREFIX}{value}")
+
+        self._back_on_every_gang(member, restore)
+        file_propagation_task(member.default_set)
+        self.event(CampaignEvent.Kind.COUNTER_UNARCHIVED, note=str(counter))
+        return counter
+
+    def unarchive_label(self, member):
+        """Give an archived label back to every gang still in the
+        campaign, with the option each gang had picked.
+
+        As :meth:`unarchive_counter`. A gang's pick comes back only where
+        the archive removed it — the pick its removal names, archived in
+        the same act — so an option the gang had already replaced stays
+        replaced. A gang that had picked nothing gets the label back
+        unanswered.
+        """
+        from n26.core.propagation import file_propagation_task
+
+        member = self._still_archived(member, "slot")
+        slot = member.slot
+        for row in (slot.slot_type, slot):
+            row.unarchive()
+        member.unarchive()
+
+        def restore(op, copy, removal):
+            pick = removal.before_pick
+            if (
+                pick is not None
+                and pick.archived
+                and getattr(_last_removal(pick), "batch", None) == removal.batch
+            ):
+                op.restore(copy, after_pick=pick)
+                op.restore(pick)
+            else:
+                op.restore(copy)
+
+        self._back_on_every_gang(member, restore)
+        file_propagation_task(member.default_set)
+        self.event(CampaignEvent.Kind.LABEL_UNARCHIVED, note=slot.choice_label)
+        return slot
+
+    def _still_archived(self, member, kind):
+        """The archived member read again under the campaign's line, or a
+        refusal in words if it was unarchived since the page was read."""
+        from n26.core.operations import Refusal
+
+        try:
+            return archived_addition(self.campaign, member.pk, kind)
+        except ValueError:
+            live = own_additions(self.campaign, kind).filter(pk=member.pk).first()
+            if live is None:
+                raise
+            name = live.counter if kind == "counter" else live.slot.choice_label
+            raise Refusal(f"{name} is not archived.") from None
+
+    def _back_on_every_gang(self, member, restore):
+        """Run ``restore(op, copy, removal)`` for each gang still in the
+        campaign whose copy of the member an archive removed, one gang at a
+        time under that gang's line, in key order.
+
+        Only the copy made for the gang's current membership qualifies: a
+        gang that left took its copy with it, and a gang that came back
+        has a new membership that never held one. Only a copy whose last
+        removal was an archive's is put back, never one removed for any
+        other reason.
+        """
+        from n26.core.models import Assignment
+        from n26.core.operations import operation
+
+        archives = CampaignEvent.objects.filter(
+            campaign=self.campaign,
+            kind__in=(
+                CampaignEvent.Kind.COUNTER_ARCHIVED,
+                CampaignEvent.Kind.LABEL_ARCHIVED,
+            ),
+        )
+        memberships = (
+            self.campaign.memberships.filter(
+                left__isnull=True, additions_carrier__isnull=False
+            )
+            .select_related("gang")
+            .order_by("gang_id")
+        )
+        for membership in memberships:
+            with operation(membership.gang, actor=self.actor, batch=self.batch) as op:
+                copy = Assignment.objects.filter(
+                    materialised_from=member,
+                    materialised_for_id=membership.additions_carrier_id,
+                    archived=True,
+                ).last()
+                removal = _last_removal(copy) if copy is not None else None
+                if removal is None or not archives.filter(batch=removal.batch).exists():
+                    continue
+                restore(op, copy, removal)
 
     def open_table(self, table):
         """Let every gang in the campaign roll on an asset table, by
@@ -1922,44 +2035,36 @@ def _playing_gangs(campaign):
     ).order_by("pk")
 
 
-def own_addition(campaign, member_pk, kind):
-    """One counter or label the arbitrator added to this campaign, as its
-    place in the campaign's additions, or ValueError.
-
-    ``kind`` is ``"counter"`` or ``"slot"``. Only a live member of the
-    additions' built-ins naming a thing in the campaign's own pack
-    qualifies: Reputation and Income come with the shared type, a gang's
-    own questions come with its gang type, and neither is the
-    arbitrator's to archive. A view turns the ValueError into a 404.
-    """
-    from django.core.exceptions import ValidationError
-
-    from n26.library.models import DefaultAssignment
-
-    built_ins = campaign.additions.built_ins_id
-    try:
-        member = (
-            DefaultAssignment.objects.select_related(kind)
-            .filter(
-                pk=member_pk,
-                default_set_id=built_ins,
-                archived=False,
-                **{f"{kind}__pack_id": campaign.pack_id},
-            )
-            .first()
-            if built_ins is not None
-            else None
-        )
-    except ValidationError:
-        member = None
-    if member is None:
-        raise ValueError(f"No {kind} of {campaign}'s own has the key {member_pk}.")
-    return member
-
-
 def own_additions(campaign, kind):
     """Every counter or label the arbitrator added to this campaign and
-    has not archived, as members of its additions, in added order."""
+    has not archived, as members of its additions, in added order.
+
+    ``kind`` is ``"counter"`` or ``"slot"``. Only members naming a thing
+    in the campaign's own pack qualify: Reputation and Income come with
+    the shared type, a gang's own questions come with its gang type, and
+    neither is the arbitrator's to archive.
+    """
+    return _additions(campaign, kind, archived=False)
+
+
+def archived_additions(campaign, kind):
+    """Every counter or label the arbitrator added to this campaign and
+    then archived, as members of its additions, in added order."""
+    return _additions(campaign, kind, archived=True)
+
+
+def own_addition(campaign, member_pk, kind):
+    """One of :func:`own_additions` by key, or ValueError. A view turns the
+    ValueError into a 404."""
+    return _one(own_additions(campaign, kind), campaign, member_pk, kind)
+
+
+def archived_addition(campaign, member_pk, kind):
+    """One of :func:`archived_additions` by key, or ValueError."""
+    return _one(archived_additions(campaign, kind), campaign, member_pk, kind)
+
+
+def _additions(campaign, kind, *, archived):
     from n26.library.models import DefaultAssignment
 
     built_ins = campaign.additions.built_ins_id
@@ -1969,11 +2074,138 @@ def own_additions(campaign, kind):
         DefaultAssignment.objects.select_related(kind)
         .filter(
             default_set_id=built_ins,
-            archived=False,
+            archived=archived,
             **{f"{kind}__pack_id": campaign.pack_id},
         )
         .order_by("position", "pk")
     )
+
+
+def _one(members, campaign, member_pk, kind):
+    from django.core.exceptions import ValidationError
+
+    try:
+        member = members.filter(pk=member_pk).first()
+    except ValidationError:
+        member = None
+    if member is None:
+        raise ValueError(f"No {kind} of {campaign}'s own has the key {member_pk}.")
+    return member
+
+
+def _last_removal(assignment):
+    """The latest removal written for an assignment, or None."""
+    return (
+        LedgerEvent.objects.filter(assignment=assignment, kind=LedgerEvent.Kind.REMOVED)
+        .select_related("before_pick")
+        .order_by("-created", "-id")
+        .first()
+    )
+
+
+@dataclass(frozen=True)
+class UnarchiveLine:
+    """One gang, as the unarchive page lists it: what it gets back, or
+    what it gets for the first time."""
+
+    gang: str
+    value: str
+    #: Nothing to show beyond its absence: no option picked yet.
+    muted: bool
+
+
+@dataclass(frozen=True)
+class UnarchivePreview:
+    """What unarchiving one counter or label gives the gangs in the
+    campaign, read the way the act decides it (``_back_on_every_gang``)."""
+
+    returning: list
+    new: list
+
+
+def unarchive_preview(campaign, member):
+    """What unarchiving this archived counter or label would give each
+    gang still in the campaign, in a fixed number of queries.
+
+    A gang whose copy an archive removed gets that copy back, with its
+    value or the option it had picked. Every other gang still in the
+    campaign — one that joined while it was archived — gets it new: a
+    counter at its starting value, a label with nothing picked.
+    """
+    from n26.core.models import Assignment
+
+    memberships = list(
+        campaign.memberships.filter(left__isnull=True, additions_carrier__isnull=False)
+        .select_related("gang")
+        .order_by("gang__name", "gang_id")
+    )
+    copies = {
+        copy.materialised_for_id: copy
+        for copy in Assignment.objects.filter(
+            materialised_from=member,
+            archived=True,
+            materialised_for_id__in=[m.additions_carrier_id for m in memberships],
+        )
+        .select_related("counter_value")
+        # The newest copy per carrier wins, as ``.last()`` picks it in the act.
+        .order_by("pk")
+    }
+    removals = _last_removals(copies.values())
+    picks = [r.before_pick for r in removals.values() if r.before_pick_id]
+    pick_removals = _last_removals(picks)
+    archives = set(
+        campaign.events.filter(
+            kind__in=(
+                CampaignEvent.Kind.COUNTER_ARCHIVED,
+                CampaignEvent.Kind.LABEL_ARCHIVED,
+            )
+        ).values_list("batch", flat=True)
+    )
+    returning, new = [], []
+    for membership in memberships:
+        name = membership.gang.name
+        copy = copies.get(membership.additions_carrier_id)
+        if copy is None:
+            if member.counter_id:
+                new.append(UnarchiveLine(name, str(member.amount), muted=False))
+            else:
+                new.append(UnarchiveLine(name, "Nothing picked yet", muted=True))
+            continue
+        removal = removals.get(copy.pk)
+        if removal is None or removal.batch not in archives:
+            # Removed for another reason: the act leaves it, and a copy
+            # already made for this membership is never granted again.
+            continue
+        if member.counter_id:
+            held = getattr(copy, "counter_value", None)
+            value = str(held.value if held is not None else 0)
+            returning.append(UnarchiveLine(name, value, muted=False))
+            continue
+        pick = removal.before_pick
+        pick_removal = pick_removals.get(pick.pk) if pick is not None else None
+        if pick is not None and pick.archived and pick_removal is not None:
+            if pick_removal.batch == removal.batch:
+                returning.append(UnarchiveLine(name, pick.pickable.name, muted=False))
+                continue
+        returning.append(UnarchiveLine(name, "Nothing picked yet", muted=True))
+    return UnarchivePreview(returning=returning, new=new)
+
+
+def _last_removals(assignments):
+    """The latest removal of each of these assignments, by key: one query."""
+    keys = [assignment.pk for assignment in assignments]
+    if not keys:
+        return {}
+    latest = {}
+    for removal in (
+        LedgerEvent.objects.filter(
+            assignment_id__in=keys, kind=LedgerEvent.Kind.REMOVED
+        )
+        .select_related("before_pick__pickable")
+        .order_by("created", "id")
+    ):
+        latest[removal.assignment_id] = removal
+    return latest
 
 
 def _key(row):
@@ -2587,11 +2819,11 @@ def summarise_campaign_type(campaign_type, checked=False):
 
 
 def _asset_type_sentence(asset_type):
-    """How assets of one type behave, in one sentence: "one" rather than
+    """How assets of one type behave, in one sentence: "each" rather than
     an article, so the label needs no a/an."""
     if asset_type.is_holding:
-        return f"One gang holds each {asset_type.label_singular} at a time."
-    return f"Each gang owns the {asset_type.label_singular} assets it receives."
+        return f"Each {asset_type.label_singular} is held by one gang at a time."
+    return f"Each gang has its own {asset_type.label_singular.lower()}."
 
 
 def _given(member):

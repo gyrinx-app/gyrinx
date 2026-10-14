@@ -197,6 +197,10 @@ class CampaignEvent(Base):
         # the same mark, so the log shows the archive as this one line.
         COUNTER_ARCHIVED = "counter_archived", "Counter archived"
         LABEL_ARCHIVED = "label_archived", "Label archived"
+        # The same counter or label given back to every gang still in the
+        # campaign, each gang's restoration written under the same mark.
+        COUNTER_UNARCHIVED = "counter_unarchived", "Counter unarchived"
+        LABEL_UNARCHIVED = "label_unarchived", "Label unarchived"
         # Changes to the asset tables available to every gang in the
         # campaign beyond its type's own: a table added to the campaign's
         # additions, removed from them, or created for this campaign.

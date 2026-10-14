@@ -287,8 +287,8 @@ class TestSettingOneUp:
         body = client.get("/n26/campaigns/new/").content.decode()
         assert "Territory campaign" in body
         assert "gangs fight for control of Territory" in body
-        assert "Each gang owns the Settlement assets it receives." in body
-        assert "One gang holds each Territory at a time." in body
+        assert "Each gang has its own settlement." in body
+        assert "Each Territory is held by one gang at a time." in body
         assert (
             "Every gang starts with Reputation at 0, one Settlement and Income at 0."
             in body
@@ -342,9 +342,11 @@ class TestSettingOneUp:
         assert response.context["form"]["budget"].value() == 1000
         body = response.content.decode()
         assert 'value="1000"' in body
-        # The field still says what clearing it does, which is the one thing
-        # a reader cannot see from a box that already holds a figure.
-        assert "Leave blank for no budget." in body
+        assert "Available credits for hiring and equipping the gang." in body
+        assert not response.context["form"].fields["summary"].help_text
+        assert (
+            "What this campaign is, and anything the players have agreed." not in body
+        )
 
     def test_a_blank_budget_means_no_limit_rather_than_zero(
         self, client, arbitrator, campaign_type, open_to_everyone

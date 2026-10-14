@@ -446,22 +446,12 @@ class CampaignForm(forms.Form):
         min_value=0,
         initial=1000,
         label="Gang budget",
-        help_text=(
-            "What a gang should be worth to join, counting its rating, stash "
-            "and unspent credits. A gang worth more than this can still join. "
-            "Over-budget warnings appear only while the campaign status is "
-            "Pre-campaign. Leave blank for no budget."
-        ),
+        help_text="Available credits for hiring and equipping the gang.",
     )
     summary = forms.CharField(
         required=False,
         label="Summary",
         widget=RichText(mce_attrs=CAMPAIGN_SUMMARY_CONFIG),
-        help_text=(
-            "What this campaign is, and anything the players have agreed. "
-            "Shown at the top of the campaign's page. Paste an image, upload one "
-            "with the image button, or enter a public image URL."
-        ),
     )
 
     def clean_summary(self):

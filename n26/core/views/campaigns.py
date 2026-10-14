@@ -1033,7 +1033,7 @@ def edit_campaign(request, pk):
     from django.urls import reverse
 
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.campaigns import campaign_operation
+    from n26.core.campaigns import archived_additions, campaign_operation
     from n26.core.forms import EditCampaignForm
     from n26.library.models import DefaultAssignment
 
@@ -1047,6 +1047,8 @@ def edit_campaign(request, pk):
     asset_types = []
     shared_asset_types = ""
     shared_definitions = ""
+    archived_counters = []
+    archived_labels = []
 
     if request.method == "POST":
         form = EditCampaignForm(request.POST)
@@ -1144,6 +1146,24 @@ def edit_campaign(request, pk):
                 f"{names} come with {found.campaign_type}. "
                 "You cannot archive them here."
             )
+        archived_counters = [
+            {
+                "name": str(member.counter),
+                "unarchive_href": reverse(
+                    "n26-campaign-unarchive-counter", args=[found.pk, member.pk]
+                ),
+            }
+            for member in archived_additions(found, "counter")
+        ]
+        archived_labels = [
+            {
+                "name": member.slot.choice_label,
+                "unarchive_href": reverse(
+                    "n26-campaign-unarchive-label", args=[found.pk, member.pk]
+                ),
+            }
+            for member in archived_additions(found, "slot")
+        ]
 
     _badge_a_redrawn_page(request, found)
     return render(
@@ -1171,6 +1191,8 @@ def edit_campaign(request, pk):
             "asset_types": asset_types,
             "shared_asset_types": shared_asset_types,
             "shared_definitions": shared_definitions,
+            "archived_counters": archived_counters,
+            "archived_labels": archived_labels,
         },
     )
 
@@ -2326,7 +2348,7 @@ def new_asset(request, pk):
                 "description": (
                     "Owned by one gang at a time and can be transferred."
                     if asset_type.is_holding
-                    else f"Each gang owns the {asset_type.label_singular} assets it receives."
+                    else f"Each gang has its own {asset_type.label_singular.lower()}."
                 ),
                 "checked": str(asset_type.pk) == picked,
             }
@@ -2438,10 +2460,12 @@ def archive_addition(request, pk, member_pk, kind):
             "name": name,
             "action": request.path,
             "back": back,
+            "heading": f"Archiving removes {name} from every gang in {found.name}",
             "consequences": (
-                f"Archiving removes {name} from every gang in {found.name}. "
                 f"Gangs that join later will not get it. "
-                f"Each gang's history keeps {kept}."
+                f"Each gang's history keeps {kept}. "
+                f"You can unarchive it later to give each gang still in "
+                f"{found.name} what it had."
             ),
             "gangs": _what_each_gang_has(found, member),
             "refusal": archive_refusal(found, member),
@@ -2491,6 +2515,70 @@ def _what_each_gang_has(campaign, member):
         }
         for copy in copies
     ]
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def unarchive_addition(request, pk, member_pk, kind):
+    """The question at its own address, then the act: give an archived
+    counter or label back to every gang still in the campaign.
+
+    ``kind`` is ``"counter"`` or ``"label"``, fixed by the route. Only the
+    campaign's own archived additions are reachable. The page lists the
+    gangs that get it back, with the value or option each had, and the
+    gangs that joined since, which get it new.
+    """
+    from django.http import Http404
+
+    from n26.core.campaigns import (
+        archived_addition,
+        campaign_operation,
+        unarchive_preview,
+    )
+    from n26.core.operations import Refusal
+
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    field = "counter" if kind == "counter" else "slot"
+    try:
+        member = archived_addition(found, member_pk, field)
+    except ValueError:
+        raise Http404(f"No such archived {kind} in this campaign") from None
+    name = str(member.counter) if member.counter_id else member.slot.choice_label
+    back = _campaign_settings_url(found)
+
+    if request.method == "POST":
+        try:
+            with campaign_operation(found, actor=request.user) as act:
+                if member.counter_id:
+                    act.unarchive_counter(member)
+                else:
+                    act.unarchive_label(member)
+        except Refusal as refused:
+            messages.error(request, str(refused))
+        else:
+            messages.success(request, f"Unarchived the {kind} {name}.")
+        return redirect(back)
+
+    preview = unarchive_preview(found, member)
+    _badge_a_redrawn_page(request, found)
+    return render(
+        request,
+        "n26/unarchive_campaign_addition.html",
+        {
+            "campaign": found,
+            "kind": kind,
+            "name": name,
+            "action": request.path,
+            "back": back,
+            "returning": preview.returning,
+            "new": preview.new,
+            "new_heading": (
+                f"Gangs that get {name} at its starting value"
+                if member.counter_id
+                else f"Gangs that get {name} with nothing picked"
+            ),
+        },
+    )
 
 
 # --- The arbitrator's tables ---------------------------------------------------

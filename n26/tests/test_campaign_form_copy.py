@@ -121,7 +121,7 @@ class TestOwnershipCopy:
             description = (
                 "Owned by one gang at a time and can be transferred."
                 if asset_type.is_holding
-                else f"Each gang owns the {asset_type.label_singular} assets it receives."
+                else f"Each gang has its own {asset_type.label_singular.lower()}."
             )
             assert description in card.get_text(" ", strip=True)
             assert not card.select(".truncate")

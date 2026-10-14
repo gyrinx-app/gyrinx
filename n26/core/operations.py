@@ -1502,6 +1502,26 @@ class Operation:
             )
         return assignment
 
+    def restore(self, assignment, note="", **event_fields):
+        """Put back one removed assignment, exactly as it was.
+
+        Only this assignment: unlike ``remove`` nothing beneath it comes
+        back with it, because what it caused may have been removed for
+        reasons of its own — a pick the player replaced stays replaced.
+        The caller restores each assignment it means to. Nothing it held
+        changed while it was archived, so a counter's value and a slot's
+        pick read as they did. Already live means nothing to do.
+        """
+        assignment = _under_the_lock(assignment)
+        if not assignment.archived:
+            return None
+        self.touched(assignment.miniature_root)
+        assignment.archived = False
+        assignment.archived_at = None
+        assignment.save(update_fields=["archived", "archived_at", "modified"])
+        self.event(assignment, LedgerEvent.Kind.RESTORED, note=note, **event_fields)
+        return assignment
+
     def refund(self, assignment, note=""):
         """Take something back and return what was paid for it.
 

@@ -193,6 +193,18 @@ urlpatterns = [
         {"kind": "label"},
         name="n26-campaign-archive-label",
     ),
+    path(
+        "campaigns/<str:pk>/counters/<str:member_pk>/unarchive/",
+        views.unarchive_addition,
+        {"kind": "counter"},
+        name="n26-campaign-unarchive-counter",
+    ),
+    path(
+        "campaigns/<str:pk>/labels/<str:member_pk>/unarchive/",
+        views.unarchive_addition,
+        {"kind": "label"},
+        name="n26-campaign-unarchive-label",
+    ),
     # Rolling on an asset table: for the campaign's pool, and for one gang's
     # starting asset. Both dialogs are drawn on the campaign's page; these
     # are the acts behind them.
