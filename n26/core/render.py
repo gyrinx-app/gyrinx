@@ -2072,6 +2072,7 @@ class CampaignAssetTable:
     #: Where the pool roll is asked. Empty for a reader who may not, and
     #: where there is no rolled table to roll on.
     roll_href: str = ""
+    setup_hint: str = ""
 
     @property
     def held(self):
@@ -2133,6 +2134,7 @@ class CampaignSheet:
     tables_href: str = ""
     #: Suggested unclaimed pool: three territories per active gang.
     territories_to_generate: int = 0
+    starting_from_pool: bool = False
 
     table_headers: list[dict] = field(default_factory=list)
     table_groups: list[dict] = field(default_factory=list)
@@ -2143,6 +2145,30 @@ class CampaignSheet:
     table_href: str = ""
 
     def __post_init__(self):
+        for table in self.assets:
+            if table.label != "Territory":
+                continue
+            remaining = sum(
+                any(
+                    roll.asset_type_id == table.asset_type_id
+                    for roll in line.starting_rolls
+                )
+                for line in self.gangs
+            )
+            if self.starting_from_pool:
+                for line in self.gangs:
+                    for roll in line.starting_rolls:
+                        if roll.asset_type_id == table.asset_type_id:
+                            roll.label = "Allocate starting territory"
+            if self.status == "Pre-campaign" and self.gangs and table.tables:
+                if self.starting_from_pool:
+                    starting_label = "territory" if remaining == 1 else "territories"
+                    table.setup_hint = (
+                        f"Suggested pool: {self.territories_to_generate} territories. "
+                        f"{remaining} starting {starting_label} still to allocate."
+                    )
+                else:
+                    table.setup_hint = f"Setup: {self.territories_to_generate} unclaimed + {len(self.gangs)} starting territories. {remaining} still to roll."
         # Details span the table. Labels and asset names retain their column order.
         for line in self.gangs:
             line.detail_colspan = 5 + len(self.counter_columns)
@@ -4772,6 +4798,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         budget=campaign.budget,
         status=campaign.get_status_display(),
         summary=campaign.summary,
+        starting_from_pool=campaign.starting_from_pool,
         gangs=lines,
         counter_columns=counter_columns,
         label_columns=label_columns,

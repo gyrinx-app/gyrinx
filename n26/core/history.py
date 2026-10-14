@@ -1666,6 +1666,10 @@ def _tell_campaign(e):
         case kinds.STATUS_CHANGED:
             _, _, now = e.note.rpartition(" → ")
             return (Span(f"set the campaign status to {now}"),), "campaign"
+        case kinds.STARTING_MODE_SET:
+            return (
+                Span(f"changed starting territories: {e.note.lower()}"),
+            ), "campaign"
         case kinds.GROUPING_CHANGED:
             return (Span("changed the gang grouping and colours"),), "campaign"
         case kinds.SUMMARY_EDITED:

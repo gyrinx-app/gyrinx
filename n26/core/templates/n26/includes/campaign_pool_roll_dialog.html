@@ -79,5 +79,15 @@ The surrounding dialog owns modal and htmx behaviour.
                         autocomplete="off"
                         value="{{ form.rolled.value|default_if_none:'' }}" />
         </c-ui.field>
+        {% if not question.allocating %}
+            <label class="flex items-start gap-2">
+                <input type="checkbox"
+                       name="avoid_duplicates"
+                       class="mt-1 accent-accent"
+                       {% if form.avoid_duplicates.value %}checked{% endif %}>
+                <span>{{ form.avoid_duplicates.label }}</span>
+            </label>
+            <p class="text-sm text-muted">{{ form.avoid_duplicates.help_text }}</p>
+        {% endif %}
     {% endreact_host %}
 </c-n26.dialog>
