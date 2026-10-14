@@ -13,6 +13,7 @@ export type TerritoryBoonChoicesProps = {
             disabled: boolean;
         }[];
     }[];
+    showLabels?: boolean;
     effects: { name: string; text: string }[];
     saveUrl: string;
     csrfToken: string;
@@ -25,6 +26,7 @@ export function TerritoryBoonChoices(
     },
 ) {
     const id = useId();
+    const showLabels = props.showLabels ?? props.groups.length > 1;
     const original = Object.fromEntries(
         props.groups.map((group) => [group.key, group.selected]),
     );
@@ -71,7 +73,7 @@ export function TerritoryBoonChoices(
                     <div
                         key={group.key}
                         className={
-                            props.groups.length > 1
+                            showLabels
                                 ? "grid min-w-0 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:gap-4"
                                 : "min-w-0 py-3"
                         }
@@ -79,7 +81,7 @@ export function TerritoryBoonChoices(
                         <div
                             id={`${id}-group-${index}`}
                             className={
-                                props.groups.length > 1
+                                showLabels
                                     ? "pt-2 text-sm font-medium"
                                     : "sr-only"
                             }

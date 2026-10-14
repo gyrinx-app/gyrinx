@@ -748,6 +748,25 @@ def test_inline_boons_save_multiple_choices_together_and_keep_other_copies_indep
     assert "Reload" in repeated.json()["error"]
 
 
+def test_mixed_inline_and_multi_pick_boons_keep_both_choice_labels(
+    client, inline_boons
+):
+    from n26.library.models import Slot
+
+    _, _, campaign, holding, _, _, _ = inline_boons
+    support = Slot.objects.get(name="Support")
+    support.max_picks = 2
+    support.save(update_fields=["max_picks"])
+    response = client.get(address(campaign, holding))
+    editor = response.context["boon_editor"]
+    assert [group["label"] for group in editor["groups"]] == ["Production"]
+    assert editor["showLabels"] is True
+    assert len(response.context["static_boons"]) == 1
+    soup = BeautifulSoup(response.content, "html.parser")
+    static_label = soup.select_one("#n26-territory-boons dt span")
+    assert static_label.get_text(strip=True) == "Support"
+
+
 def test_hidden_saved_boons_can_be_reverted_without_allowing_new_hidden_picks(
     client, inline_boons
 ):

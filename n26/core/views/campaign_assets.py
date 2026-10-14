@@ -147,6 +147,7 @@ def _asset_context(request, pk, asset_pk, *, back=None):
                 if groups:
                     boon_editor = {
                         "groups": [group["props"] for group in groups],
+                        "showLabels": len(choices) > 1,
                         "effects": [
                             dict(name=effect.name, text=effect.text)
                             for effect in boon.effects

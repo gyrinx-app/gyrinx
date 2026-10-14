@@ -54,7 +54,7 @@
             {% if boon_editor %}
                 {% react_island "territory-boon-choices" boon_editor %}
                 {% if static_boons %}
-                    {% include "n26/includes/asset_boons.html" with boons=static_boons prominent_choices=True %}
+                    {% include "n26/includes/asset_boons.html" with boons=static_boons prominent_choices=True show_choice_labels=True %}
                 {% endif %}
             {% else %}
                 {% include "n26/includes/asset_boons.html" with prominent_choices=True %}

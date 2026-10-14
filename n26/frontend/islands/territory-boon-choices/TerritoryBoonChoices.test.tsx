@@ -84,6 +84,19 @@ describe("Territory boon choices", () => {
                 .disabled,
         ).toBe(true);
     });
+    it("keeps a sole inline group label visible alongside other choice controls", () => {
+        render(
+            <TerritoryBoonChoices
+                {...props}
+                groups={[props.groups[0]]}
+                showLabels
+                onSave={vi.fn()}
+            />,
+        );
+        expect(screen.getByText("Production").className).not.toContain(
+            "sr-only",
+        );
+    });
     it("saves changed groups together and disables controls while saving", async () => {
         const user = userEvent.setup();
         const save = vi.fn(() => new Promise<void>(() => {}));

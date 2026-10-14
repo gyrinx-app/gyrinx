@@ -2,6 +2,7 @@
 One current asset and choice per row, with effective standing counter benefits.
 The supplied choices are the same ChoiceLine objects linked by the page.
 Choice labels distinguish assets with more than one choice.
+show_choice_labels keeps labels when other choices are displayed separately.
 Standing effects appear once, below the asset's first choice or on their own row.
 prominent_choices uses standard secondary controls on territory detail;
 omitted or false uses the compact roster choice presentation.
@@ -10,7 +11,7 @@ omitted or false uses the compact roster choice presentation.
     {% for boon in boons %}
         {% for choice in boon.choices %}
             <div class="grid min-w-0 {% if prominent_choices %}grid-cols-1 items-center gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:gap-4{% else %}grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 py-2.5{% endif %}">
-                <dt class="min-w-0 break-words text-sm font-medium">{{ boon.name }}{% if boon.choices|length > 1 %}<span class="block text-xs font-normal text-muted">{{ choice.kind_label }}</span>{% endif %}</dt>
+                <dt class="min-w-0 break-words text-sm font-medium">{{ boon.name }}{% if show_choice_labels or boon.choices|length > 1 %}<span class="block text-xs font-normal text-muted">{{ choice.kind_label }}</span>{% endif %}</dt>
                 <dd class="min-w-0 space-y-2">
                     {% if prominent_choices %}
                         <div class="flex min-w-0 flex-wrap items-center gap-2">
