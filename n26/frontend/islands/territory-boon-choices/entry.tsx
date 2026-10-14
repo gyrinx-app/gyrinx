@@ -17,7 +17,6 @@ export async function saveTerritoryBoons(
         response = await fetch(props.saveUrl, {
             method: "POST",
             credentials: "same-origin",
-            redirect: "error",
             headers: {
                 "X-CSRFToken": props.csrfToken,
                 Accept: "application/json",
@@ -28,7 +27,10 @@ export async function saveTerritoryBoons(
     } catch {
         throw new Error("Could not save boons. Try again.");
     }
-    if (!response.headers.get("Content-Type")?.includes("application/json"))
+    if (
+        response.redirected ||
+        !response.headers.get("Content-Type")?.includes("application/json")
+    )
         throw new Error("Could not save boons. Reload the page and try again.");
     const result = (await response.json()) as {
         error?: string;

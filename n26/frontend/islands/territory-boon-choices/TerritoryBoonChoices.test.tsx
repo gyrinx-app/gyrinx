@@ -181,6 +181,19 @@ describe("Territory boon choices", () => {
         expect(request.body.get("snapshot")).toBe("snapshot");
         expect(request.body.get("choice_production")).toBe("supplies");
     });
+    it("asks for a reload after an authentication or CSRF redirect", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue({
+                ok: true,
+                redirected: true,
+                headers: new Headers({ "Content-Type": "application/json" }),
+            }),
+        );
+        await expect(
+            saveTerritoryBoons(props, { production: "supplies" }),
+        ).rejects.toThrow("Reload the page");
+    });
     it("rejects an unexpected HTML response without losing the draft", async () => {
         vi.stubGlobal(
             "fetch",
