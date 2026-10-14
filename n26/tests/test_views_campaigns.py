@@ -1979,6 +1979,48 @@ class TestCampaignListingFacts:
             found_campaign(f"More {index}", campaign_type, owner=arbitrator)
         assert queries() == before
 
+    def test_counts_do_not_join_memberships_to_battle_history(
+        self, client, campaign, gang_type, open_to_everyone
+    ):
+        from datetime import date
+
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.campaigns import campaign_operation
+        from n26.tests.sandbox.actions import join_campaign
+
+        for index in range(12):
+            player = User.objects.create_user(f"campaign-player-{index}")
+            seat(campaign, player)
+            gang = found_gang(f"Gang {index}", gang_type, owner=player)
+            join_campaign(gang, campaign)
+        with campaign_operation(campaign, actor=campaign.owner) as op:
+            for index in range(120):
+                op.record_battle(date(2026, 8, 3), scenario=f"Battle {index}")
+
+        for url in ["/n26/?tab=Campaigns", "/n26/campaigns/"]:
+            with CaptureQueriesContext(connection) as captured:
+                response = client.get(url)
+            row = response.context["campaigns"][0]
+            assert (row.active_gangs, row.battle_count) == (12, 120)
+            sql = next(
+                query["sql"]
+                for query in captured
+                if 'AS "active_gangs"' in query["sql"]
+            )
+            with connection.cursor() as cursor:
+                cursor.execute("EXPLAIN (ANALYZE, FORMAT JSON) " + sql)
+                plan = cursor.fetchone()[0][0]["Plan"]
+
+            def joins(node):
+                if "Join Type" in node:
+                    yield node
+                for child in node.get("Plans", []):
+                    yield from joins(child)
+
+            assert all(node["Actual Rows"] <= 12 for node in joins(plan))
+
 
 def test_submitted_campaign_search_matches_the_type_shown_in_live_search(
     client, campaign, open_to_everyone

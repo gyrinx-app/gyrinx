@@ -2,7 +2,9 @@
 {% with details=gang.details %}
     <tbody class="border-b border-box-border last:border-b-0 [&>tr:last-child>*]:pb-3! max-md:block">
         <tr class="border-b-0! max-md:hover:bg-transparent! max-md:grid max-md:grid-cols-3 max-md:[&>td]:py-2!">
-            <th scope="rowgroup"
+            <th id="campaign-gangs-gang-{{ gang.gang_id }}"
+                scope="rowgroup"
+                headers="campaign-gangs-col-0{% if group_label %} campaign-gangs-group-{{ group_index }}{% endif %}"
                 class="w-64 min-w-48 max-w-64 align-middle font-normal! whitespace-normal! [overflow-wrap:anywhere] max-md:col-span-2 max-md:row-start-1 max-md:w-auto max-md:min-w-0 max-md:max-w-none">
                 <div class="flex flex-col">
                     <span class="font-semibold text-ink-900 dark:text-ink-100">
@@ -16,11 +18,13 @@
                     <span class="text-xs text-muted">{{ gang.gang_type }}<c-n26.flair-link tone="current"><c-n26.flair.gang-type :icon="gang.type_icon" /></c-n26.flair-link>{% if gang.owner %} · <c-n26.user-link :user="gang.owner" tone="current" />{% endif %}</span>
                 </div>
             </th>
-            <td class="align-middle tabular-nums whitespace-nowrap max-md:block">
+            <td headers="campaign-gangs-gang-{{ gang.gang_id }} campaign-gangs-col-1{% if group_label %} campaign-gangs-group-{{ group_index }}{% endif %}"
+                class="align-middle tabular-nums whitespace-nowrap max-md:block">
                 <span class="block text-xs font-medium text-muted md:hidden">Rating</span>
                 {{ gang.rating }}¢
             </td>
-            <td class="align-middle tabular-nums whitespace-nowrap max-md:block">
+            <td headers="campaign-gangs-gang-{{ gang.gang_id }} campaign-gangs-col-2{% if group_label %} campaign-gangs-group-{{ group_index }}{% endif %}"
+                class="align-middle tabular-nums whitespace-nowrap max-md:block">
                 <span class="block text-xs font-medium text-muted md:hidden">Credits</span>
                 {% if gang.credits_unlimited %}
                     <span class="text-muted">—</span>
@@ -32,12 +36,14 @@
                     {{ gang.credits }}¢
                 {% endif %}
             </td>
-            <td class="align-middle tabular-nums whitespace-nowrap max-md:block">
+            <td headers="campaign-gangs-gang-{{ gang.gang_id }} campaign-gangs-col-3{% if group_label %} campaign-gangs-group-{{ group_index }}{% endif %}"
+                class="align-middle tabular-nums whitespace-nowrap max-md:block">
                 <span class="block text-xs font-medium text-muted md:hidden">Wealth</span>
                 {{ gang.wealth }}¢
             </td>
             {% for line in gang.counters %}
-                <td class="align-middle tabular-nums whitespace-nowrap max-md:block">
+                <td headers="campaign-gangs-gang-{{ gang.gang_id }} campaign-gangs-col-{{ forloop.counter0|add:4 }}{% if group_label %} campaign-gangs-group-{{ group_index }}{% endif %}"
+                    class="align-middle tabular-nums whitespace-nowrap max-md:block">
                     <span class="block text-xs font-medium text-muted whitespace-normal [overflow-wrap:anywhere] md:hidden">{{ sheet.counter_columns|get_item:forloop.counter0 }}</span>
                     {# None means this gang does not carry that counter. A blank cell would look like a failed number. #}
                     {% if line is None %}
@@ -47,7 +53,8 @@
                     {% endif %}
                 </td>
             {% endfor %}
-            <td class="w-0 text-right align-middle max-md:col-start-3 max-md:row-start-1 max-md:block max-md:w-auto max-md:justify-self-end">
+            <td headers="campaign-gangs-gang-{{ gang.gang_id }} campaign-gangs-actions{% if group_label %} campaign-gangs-group-{{ group_index }}{% endif %}"
+                class="w-0 text-right align-middle max-md:col-start-3 max-md:row-start-1 max-md:block max-md:w-auto max-md:justify-self-end">
                 {% if gang.remove_href %}
                     {% link_actions danger_label="Remove from campaign" danger_href=gang.remove_href as menu_ %}
                     <c-n26.action-menu :items="menu_"
@@ -60,7 +67,8 @@
         </tr>
         {% if gang.over_budget or details %}
             <tr class="border-b-0! max-md:hover:bg-transparent! max-md:block">
-                <td colspan="{{ gang.detail_colspan }}"
+                <td headers="campaign-gangs-gang-{{ gang.gang_id }}{% if group_label %} campaign-gangs-group-{{ group_index }}{% endif %}"
+                    colspan="{{ gang.detail_colspan }}"
                     class="pt-0! pb-3! whitespace-normal! max-md:block">
                     <div class="flex flex-wrap items-baseline gap-x-5 gap-y-1.5 text-xs">
                         {% if gang.over_budget %}<c-ui.badge color="amber" size="sm">Over budget</c-ui.badge>{% endif %}

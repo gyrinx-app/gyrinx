@@ -10,7 +10,8 @@ itself say that something is there.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Count
+from django.db.models import Count, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -109,16 +110,29 @@ def campaigns(request):
 def campaign_rows(listed):
     """Campaign facts shared by the dashboard and the campaigns list.
 
-    Fetch participation counts together so additional campaigns add no queries.
+    Count memberships and battles independently so their rows do not multiply.
     """
-    from django.db.models import Q
+    from n26.core.models import Battle, CampaignMembership
+
+    memberships = (
+        CampaignMembership.objects.filter(campaign=OuterRef("pk"), left__isnull=True)
+        .order_by()
+        .values("campaign")
+        .annotate(count=Count("pk"))
+        .values("count")
+    )
+    battles = (
+        Battle.objects.filter(campaign=OuterRef("pk"))
+        .order_by()
+        .values("campaign")
+        .annotate(count=Count("pk"))
+        .values("count")
+    )
 
     rows = list(
         listed.annotate(
-            active_gangs=Count(
-                "memberships", filter=Q(memberships__left__isnull=True), distinct=True
-            ),
-            battle_count=Count("battles", distinct=True),
+            active_gangs=Coalesce(Subquery(memberships), 0),
+            battle_count=Coalesce(Subquery(battles), 0),
         )
     )
     for row in rows:

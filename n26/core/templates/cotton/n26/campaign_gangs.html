@@ -46,23 +46,25 @@ React draws the menu. Its panel is fixed, so the table's scroll wrapper does not
         <tr>
             {% if sheet.table_headers %}
                 {% for heading in sheet.table_headers %}
-                    <th scope="col" aria-sort="{{ heading.direction }}"><a href="{{ heading.href }}" class="inline-flex items-center gap-1 text-current focus-ring">{{ heading.label }}{% if heading.direction == 'ascending' %}<c-n26.icon name="arrow-up" class="size-3" />{% elif heading.direction == 'descending' %}<c-n26.icon name="arrow-down" class="size-3" />{% endif %}</a></th>
+                    <th id="campaign-gangs-col-{{ forloop.counter0 }}" scope="col" aria-sort="{{ heading.direction }}"><a href="{{ heading.href }}" class="inline-flex items-center gap-1 text-current focus-ring">{{ heading.label }}{% if heading.direction == 'ascending' %}<c-n26.icon name="arrow-up" class="size-3" />{% elif heading.direction == 'descending' %}<c-n26.icon name="arrow-down" class="size-3" />{% endif %}</a></th>
                 {% endfor %}
             {% else %}
-            <th scope="col" class="w-64">Gang</th>
-            <th scope="col">Rating</th>
-            <th scope="col">Credits</th>
-            <th scope="col">Wealth</th>
-            {% for name in sheet.counter_columns %}<th scope="col">{{ name }}</th>{% endfor %}
+            <th id="campaign-gangs-col-0" scope="col" class="w-64">Gang</th>
+            <th id="campaign-gangs-col-1" scope="col">Rating</th>
+            <th id="campaign-gangs-col-2" scope="col">Credits</th>
+            <th id="campaign-gangs-col-3" scope="col">Wealth</th>
+            {% for name in sheet.counter_columns %}<th id="campaign-gangs-col-{{ forloop.counter0|add:4 }}" scope="col">{{ name }}</th>{% endfor %}
             {% endif %}
-            <th scope="col" class="w-0"><span class="sr-only">Actions</span></th>
+            <th id="campaign-gangs-actions" scope="col" class="w-0"><span class="sr-only">Actions</span></th>
         </tr>
     </thead>
     {% if sheet.table_groups %}
         {% for group in sheet.table_groups %}
-            {% if group.label %}<tbody class="max-md:block"><tr class="max-md:block"><th colspan="{{ sheet.table_headers|length|add:1 }}" scope="rowgroup" class="bg-ink-500/5 py-2! text-sm max-md:block max-md:w-full"
+            {% with group_index=forloop.counter0 group_label=group.label %}
+            {% if group.label %}<tbody class="max-md:block"><tr class="max-md:block"><th id="campaign-gangs-group-{{ group_index }}" colspan="{{ sheet.table_headers|length|add:1 }}" class="bg-ink-500/5 py-2! text-sm max-md:block max-md:w-full"
                             {% if group.colour %}style="border-left: 3px solid {{ group.colour|css_color }}"{% endif %}><c-n26.color-swatch color="{{ group.colour }}" />{{ group.label }} <span class="font-normal text-muted">· {{ group.gangs|length }} gang{{ group.gangs|length|pluralize }}</span></th></tr></tbody>{% endif %}
             {% for gang in group.gangs %}{% include "n26/includes/campaign_gang_rows.html" %}{% endfor %}
+            {% endwith %}
         {% endfor %}
     {% else %}
         {% for gang in sheet.gangs %}{% include "n26/includes/campaign_gang_rows.html" %}{% endfor %}

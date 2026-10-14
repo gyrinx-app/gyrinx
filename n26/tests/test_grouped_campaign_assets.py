@@ -1,6 +1,7 @@
 """The same named campaign asset groups on screen, paper, text and captures."""
 
 import pytest
+from bs4 import BeautifulSoup
 from django.apps import apps
 from django.contrib.auth.models import User
 from django.db import connection
@@ -265,6 +266,23 @@ def test_arbitrator_sets_shared_grouping_and_colours_with_viewer_override(
     group = response.context["sheet"].table_groups[0]
     assert (group["label"], group["colour"]) == ("Upper", "red")
     assert "background: var(--color-red-500)" in response.content.decode()
+    table = BeautifulSoup(response.content, "html.parser").select_one(
+        "#n26-campaign-gangs table"
+    )
+    heading = table.select_one("th[id^=campaign-gangs-group-]")
+    assert "Upper" in heading.get_text()
+    gang_heading = table.find(id=f"campaign-gangs-gang-{gang.pk}")
+    assert heading["id"] in gang_heading["headers"]
+    cells = gang_heading.find_parent("tbody").find_all("td")
+    assert cells
+    for cell in cells:
+        assert heading["id"] in cell["headers"]
+        assert gang_heading["id"] in cell["headers"]
+        assert all(table.find("th", id=ref) for ref in cell["headers"])
+    for cell in gang_heading.find_parent("tr").find_all("td"):
+        assert any(
+            ref.startswith("campaign-gangs-col-") for ref in cell["headers"]
+        ) or ("campaign-gangs-actions" in cell["headers"])
     response = client.get(reverse("n26-campaign", args=[campaign.pk]), {"group": ""})
     assert response.context["sheet"].table_group == ""
     campaign.refresh_from_db()
