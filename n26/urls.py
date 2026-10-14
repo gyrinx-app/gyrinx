@@ -190,6 +190,11 @@ urlpatterns = [
         name="n26-campaign-roll-asset",
     ),
     path(
+        "campaigns/<str:pk>/assets/<str:asset_pk>/boons/",
+        views.save_asset_boons,
+        name="n26-campaign-asset-boons",
+    ),
+    path(
         "campaigns/<str:pk>/assets/<str:asset_pk>/",
         views.asset_detail,
         name="n26-campaign-asset",

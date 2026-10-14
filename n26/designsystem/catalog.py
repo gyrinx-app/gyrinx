@@ -1664,6 +1664,13 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="radio-option",
+                tag="c-n26.radio-option",
+                template="n26/radio_option.html",
+                summary="A native radio option with a label and optional description.",
+                notes="Options in one choice share a name. Use these for compact lists of alternatives.",
+            ),
+            Component(
                 slug="radio-cards",
                 tag="c-n26.radio-cards",
                 template="n26/radio_cards/index.html",
