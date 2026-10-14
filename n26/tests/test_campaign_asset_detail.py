@@ -748,6 +748,41 @@ def test_inline_boons_save_multiple_choices_together_and_keep_other_copies_indep
     assert "Reload" in repeated.json()["error"]
 
 
+def test_hidden_saved_boons_can_be_reverted_without_allowing_new_hidden_picks(
+    client, inline_boons
+):
+    from n26.library.models import PicklistMember
+
+    _, _, campaign, holding, _, _, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    selected = editor["groups"][0]["selected"]
+    PicklistMember.objects.get(pickable_id=selected.rsplit(":", 1)[1]).archive()
+    editor = editor_payload(client, campaign, holding)
+    current = next(
+        option
+        for option in editor["groups"][0]["options"]
+        if option["value"] == selected
+    )
+    assert current["description"] == "Current choice"
+    assert current["disabled"] is False
+    payload = changed_boons(editor, (1,))
+    payload["choice_" + editor["groups"][0]["key"]] = selected
+    assert client.post(editor["saveUrl"], payload).status_code == 200
+    assert client.get(address(campaign, holding)).context["details"].income == 41
+
+    fresh = editor_payload(client, campaign, holding)
+    assert client.post(fresh["saveUrl"], changed_boons(fresh, (0,))).status_code == 200
+    fresh = editor_payload(client, campaign, holding)
+    before = LedgerEvent.objects.count()
+    attempted = {
+        "snapshot": fresh["snapshot"],
+        "choice_" + fresh["groups"][0]["key"]: selected,
+    }
+    assert client.post(fresh["saveUrl"], attempted).status_code == 400
+    assert LedgerEvent.objects.count() == before
+    assert client.get(address(campaign, holding)).context["details"].income == 45
+
+
 def test_inline_boons_bad_option_rolls_back_the_whole_group(client, inline_boons):
     _, _, campaign, holding, _, _, _ = inline_boons
     editor = editor_payload(client, campaign, holding)

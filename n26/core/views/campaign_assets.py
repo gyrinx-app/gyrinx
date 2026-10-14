@@ -262,7 +262,7 @@ def _boon_groups(computed, choices, viewer):
                     value=current,
                     label=line.chosen,
                     description="Current choice",
-                    disabled=True,
+                    disabled=False,
                 ),
             )
         groups.append(
