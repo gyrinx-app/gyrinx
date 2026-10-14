@@ -28,14 +28,12 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core import select
 from n26.core.card import build_gang_card, build_modifier_index
 from n26.core.effects import _Facts, compute, compute_gang
 from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
     add_asset_table_entry,
     add_asset_type,
@@ -103,13 +101,6 @@ def d6_table(dominion):
 @pytest.fixture
 def arbitrator(db):
     return User.objects.create_user("arbitrator")
-
-
-@pytest.fixture
-def campaigns_open():
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 def gang_computed(gang):
@@ -339,7 +330,7 @@ class TestATableIsBuiltIntoItsCampaignType:
         )
 
     def test_a_table_in_a_campaigns_own_pack_is_given_by_its_additions(
-        self, dominion, arbitrator, campaigns_open
+        self, dominion, arbitrator
     ):
         campaign = found_campaign("Dust Falls", dominion["type"], owner=arbitrator)
         with pytest.raises(ValueError, match="own pack"):
@@ -452,7 +443,7 @@ class TestNothingDrawsATable:
     with it as without."""
 
     @pytest.fixture
-    def held(self, dominion, d6_table, arbitrator, gang_type, owner, campaigns_open):
+    def held(self, dominion, d6_table, arbitrator, gang_type, owner):
         create_asset("Settlement", dominion["settlement"])
         campaign = found_campaign("Dust Falls", dominion["type"], owner=arbitrator)
         gang = found_gang("The Sump Dogs", gang_type, owner=owner, budget=1000)

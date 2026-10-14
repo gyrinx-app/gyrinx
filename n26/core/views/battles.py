@@ -24,7 +24,6 @@ from n26.core.models import (
 from n26.core.operations import Refusal
 from n26.core.views.campaigns import _badge_a_redrawn_page
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
-from n26.flags import CAMPAIGNS, requires_flag
 
 
 def battle_or_404(campaign, pk):
@@ -60,7 +59,6 @@ class BattleParticipant:
         return "View results"
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def battle(request, pk, battle_pk):
     campaign = _any_campaign_or_404(request, pk)
@@ -138,7 +136,6 @@ def battle(request, pk, battle_pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def edit_battle(request, pk, battle_pk):
     campaign = _own_campaign_or_404(

@@ -24,7 +24,6 @@ from n26.core.render import build_model_card, option_key, slot_key
 from n26.core.status import Status
 from n26.library.models import Picklist, Slot
 from n26.library.standard_content import STANDARD_CONTENT
-from n26.tests.fixtures import admit_to_founding
 from n26.tests.sandbox.actions import (
     create_profile,
     ef_adds,
@@ -290,7 +289,6 @@ class TestLastingEffectRowsOnTheCard:
     def test_the_sheet_leaves_it_off_and_edit_offers_it(
         self, client, owner, gang, krago, tables
     ):
-        admit_to_founding(owner)
         client.force_login(owner)
         sheet = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
         assert "Lasting Injuries" not in sheet

@@ -11,7 +11,6 @@ from django.urls import reverse
 from n26.core.campaigns import campaign_operation
 from n26.core.models import Campaign, CampaignParticipant
 from n26.core.operations import Refusal
-from n26.flags import CAMPAIGNS, requires_flag
 from n26.profiles import profile_person, profile_redirect
 
 
@@ -20,7 +19,6 @@ def user_profile_by_id(request, pk):
     return profile_redirect(request, person, "n26")
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def invite_user_by_id(request, pk):
     person = get_object_or_404(User, pk=pk, is_active=True)
@@ -62,7 +60,6 @@ class InviteCampaignForm(forms.Form):
         self.fields["campaign"].queryset = campaigns
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def invite_user(request, username):
     """Send a campaign invitation and its optional message from one form."""

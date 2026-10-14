@@ -848,14 +848,12 @@ class TestTheNavigation:
         assert 'href="/help/n26/"' in icon.group()
 
     def test_a_place_with_no_page_yet_is_not_a_link(self, tester, client, default_pack):
-        """Campaigns and Content Packs are coming and are worth naming,
-        but a link that lands nowhere teaches a reader to distrust the
-        rest of the list."""
+        """Content Packs is coming and is worth naming, but a link that
+        lands nowhere teaches a reader to distrust the rest of the list."""
         drawer = nav_drawer(client.get("/n26/").content.decode())
         labels = links_in(drawer)
-        assert "Campaigns" not in labels
+        assert "Campaigns" in labels
         assert "Content Packs" not in labels
-        assert "Campaigns" in reads_as(drawer)
         assert "Content Packs" in reads_as(drawer)
 
     def test_the_drawer_lists_the_readers_own_gangs(

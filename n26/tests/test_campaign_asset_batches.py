@@ -6,10 +6,8 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.models import CampaignAsset, CampaignEvent
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import add_asset_type, create_asset
 from n26.library.models import AssetType
 from n26.tests.sandbox.actions import found_campaign
@@ -19,9 +17,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def batch(client, campaign_type):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     owner = User.objects.create_user("batch-arbitrator")
     campaign = found_campaign("Batch review", campaign_type, owner=owner)
     kind = add_asset_type(

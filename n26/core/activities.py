@@ -196,10 +196,9 @@ def founding_blocks_visit(gang, seen):
     is a control that would be refused. It is drawn dead with a reason
     rather than led to a page that says no.
 
-    ``seen`` is whether the founding reaches this reader at all. Every
-    gang carries an open founding action, and a reader the feature has
-    not opened to is given no way to close one — shutting the button for
-    them would take visits away with nothing offered in its place.
+    ``seen`` is whether this reader may close the founding action. Shutting
+    the button for anyone else would take visits away with nothing offered
+    in its place.
 
     Reads the gang's open actions, which a screen drawing this has
     normally asked for already.

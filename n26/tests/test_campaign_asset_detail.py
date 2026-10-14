@@ -10,10 +10,8 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.models import Assignment, Battle, CampaignParticipant, LedgerEvent
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
     add_asset_type,
     attach_modifiers_to,
@@ -38,9 +36,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def setup(client, campaign_type, gang_type):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     arbitrator = User.objects.create_user("arbitrator")
     player = User.objects.create_user("player")
     kind = add_asset_type(
@@ -239,7 +234,7 @@ def test_staked_battles_show_results_and_recorded_transfer_without_moving_again(
     assert LedgerEvent.objects.count() == before
 
 
-def test_bad_keys_other_campaigns_and_closed_feature_do_not_expose_details(
+def test_bad_keys_other_campaigns_and_visitors_do_not_expose_details(
     client, setup, campaign_type
 ):
     arbitrator, _, campaign, holding, _, _ = setup
@@ -251,13 +246,8 @@ def test_bad_keys_other_campaigns_and_closed_feature_do_not_expose_details(
         ).status_code
         == 404
     )
-    FeatureFlag.objects.filter(slug=CAMPAIGNS).update(availability=Availability.OFF)
-    assert client.get(address(campaign, holding)).status_code == 404
-    FeatureFlag.objects.filter(slug=CAMPAIGNS).update(
-        availability=Availability.EVERYONE
-    )
     client.logout()
-    assert client.get(address(campaign, holding)).status_code == 404
+    assert client.get(address(campaign, holding)).status_code == 302
 
 
 def test_more_battles_and_ownership_changes_do_not_add_queries(client, setup):

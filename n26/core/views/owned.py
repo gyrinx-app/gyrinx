@@ -1355,7 +1355,6 @@ def _campaign_counter_update(request, assignment, gang, back, *, close=False):
     from n26.core.effects import compute_gang
     from n26.core.render import build_campaign_block
     from n26.core.views.htmx import with_toasts
-    from n26.flags import CAMPAIGNS, enabled
 
     card = build_gang_card(gang)
     index = build_modifier_index(carriers(card, *card.members.values()))
@@ -1372,9 +1371,10 @@ def _campaign_counter_update(request, assignment, gang, back, *, close=False):
     messages.success(request, f"{counter.name} is now {counter.value}.")
 
     sheet = None
-    if urlsplit(back).path == reverse(
-        "n26-campaign", args=[block.campaign_id]
-    ) and enabled(CAMPAIGNS, request.user):
+    if (
+        urlsplit(back).path == reverse("n26-campaign", args=[block.campaign_id])
+        and request.user.is_authenticated
+    ):
         from n26.core.render import render_campaign
         from n26.core.views.campaigns import _fill_addresses
         from n26.core.views.permissions import _any_campaign_or_404

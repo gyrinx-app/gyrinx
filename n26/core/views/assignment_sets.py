@@ -21,7 +21,6 @@ from n26.core.models import Assignment, AssignmentSet, DismissedOffer, Miniature
 from n26.core.progression import progression_summaries_for_cards
 from n26.core.render import ModelCard, brought_in_by, build_model_card, hide_dismissed
 from n26.core.views.permissions import _own_miniature_or_404
-from n26.flags import CAMPAIGNS, requires_flag
 
 
 def _model(request, pk, miniature_pk):
@@ -149,7 +148,6 @@ def _previews(miniature, assignment_sets):
     return previews
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def model_cards(request, pk, miniature_pk):
     miniature = _model(request, pk, miniature_pk)
@@ -174,7 +172,6 @@ def model_cards(request, pk, miniature_pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def edit_model_card(request, pk, miniature_pk, set_pk=None):
     miniature = _model(request, pk, miniature_pk)
@@ -205,7 +202,6 @@ def edit_model_card(request, pk, miniature_pk, set_pk=None):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def remove_model_card(request, pk, miniature_pk, set_pk):
     miniature = _model(request, pk, miniature_pk)

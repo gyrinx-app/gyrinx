@@ -70,7 +70,7 @@ from n26.library.authoring import (
 from n26.library.income import income_of
 from n26.library.journal_content import seed_journal_content
 from n26.library.models import Asset, CampaignType
-from n26.tests.fixtures import admit_to_founding, library_setup
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_asset,
     archive_campaign,
@@ -772,7 +772,6 @@ class TestTheSharedPicker:
     def test_the_owner_can_choose_and_replace_at_the_normal_picker(
         self, client, owner, holding, gang, content
     ):
-        admit_to_founding(owner)
         client.force_login(owner)
         url = reverse(
             "n26-choose", args=[gang.pk, key_for(gang, holding, content["slot"])]
@@ -808,7 +807,6 @@ class TestTheSharedPicker:
     def test_old_gets_posts_and_dismissals_cannot_follow_a_reacquired_holding(
         self, client, owner, holding, gang, content
     ):
-        admit_to_founding(owner)
         client.force_login(owner)
         old_key = key_for(gang, holding, content["slot"])
         unassign_asset(holding)
@@ -835,7 +833,6 @@ class TestTheSharedPicker:
     def test_a_dismissal_hides_only_one_holding_and_one_ownership_period(
         self, client, owner, holding, gang, campaign, content
     ):
-        admit_to_founding(owner)
         client.force_login(owner)
         second = assign_asset(add_asset(campaign, content["asset"]), gang)
         remove(question(gang, holding, content["slot"]).picks[0].assignment)
@@ -885,7 +882,6 @@ class TestTheSharedPicker:
             if choice.holding is None and choice.anchor.assignment.pk == root.pk
         )
         url = reverse("n26-choose", args=[gang.pk, slot_key(nested, GANG_SLOT_HOST)])
-        admit_to_founding(owner)
         client.force_login(owner)
         assert client.get(url).status_code == 200
         if change == "transfer":
@@ -915,7 +911,6 @@ class TestTheSharedPicker:
         url = reverse("n26-choose", args=[gang.pk, key])
         before = counts()
         for user in (rival.owner, campaign.owner):
-            admit_to_founding(user)
             client.force_login(user)
             assert client.get(url).status_code == 404
             assert (
@@ -978,7 +973,6 @@ class TestHoldingRolls:
             assert counts() == before
         unassign_asset(holding)
         current = assign_asset(holding, gang)
-        admit_to_founding(owner)
         client.force_login(owner)
         url = reverse("n26-choose", args=[gang.pk, key_for(gang, current, slot)])
         before = counts()
@@ -1395,7 +1389,6 @@ class TestReadingHoldingChoices:
     def test_the_sheet_and_picker_have_the_same_query_count_with_more_holdings_and_fighters(
         self, client, owner, holding, gang, campaign, content
     ):
-        admit_to_founding(owner)
         client.force_login(owner)
         choose_for(holding, content["income_pick"], content["slot"])
         hire(gang, content["profile"], "First guard")

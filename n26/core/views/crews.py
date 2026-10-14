@@ -15,7 +15,6 @@ from n26.core.operations import Refusal
 from n26.core.printing import detail_columns
 from n26.core.views.battles import battle_or_404
 from n26.core.views.permissions import _any_campaign_or_404
-from n26.flags import CAMPAIGNS, requires_flag
 
 CREW_HELP = {
     "label": "More about crew selection",
@@ -104,7 +103,6 @@ def _crew_picker(form, *, crew, battle_url):
     }
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 @require_http_methods(["GET", "POST"])
 def edit_crew(request, pk, battle_pk, gang_pk):
@@ -172,7 +170,6 @@ def edit_crew(request, pk, battle_pk, gang_pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 @require_http_methods(["GET"])
 def crew_sheet(request, pk, battle_pk, gang_pk):

@@ -15,10 +15,9 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.models import Campaign
 from n26.core.render import render_campaign
-from n26.flags import CAMPAIGNS, STAGED_CONTENT
+from n26.flags import STAGED_CONTENT
 from n26.library.authoring import (
     add_asset_type,
     add_built_in,
@@ -334,9 +333,6 @@ class TestTheQueryBudget:
     def test_the_page_costs_a_fixed_number_of_queries(
         self, client, campaign, gang_type, old_ruins, arbitrator
     ):
-        FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
         # What the arbitrator added draws a counter column with a control in
         # every cell, and a label every gang is asked.
         # Added before any gang joins, so every gang measured carries the

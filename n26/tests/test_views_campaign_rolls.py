@@ -10,12 +10,10 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.history import campaign_history
 from n26.core.models import Battle, CampaignEvent, CampaignRoll, LedgerEvent
 from n26.core.operations import Refusal
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import create_profile
 from n26.library.models import Dice
 from n26.tests.sandbox.actions import found_campaign, found_gang, hire, join_campaign
@@ -25,9 +23,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def campaign(client, campaign_type):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     owner = User.objects.create_user("arb")
     client.force_login(owner)
     return found_campaign("Dust Falls", campaign_type, owner=owner)
@@ -355,18 +350,10 @@ class TestRecordingPages:
             == 404
         )
 
-    def test_the_flag_and_archive_gate_both_roll_pages(self, client, campaign):
+    def test_archiving_gates_both_roll_pages(self, client, campaign):
         client.post(record_url(campaign), payload())
         roll = CampaignRoll.objects.get()
         urls = [record_url(campaign), roll_url(roll)]
-        flag = FeatureFlag.objects.get(slug=CAMPAIGNS)
-        flag.availability = Availability.OFF
-        flag.save()
-        for url in urls:
-            assert client.get(url).status_code == 404
-            assert client.post(url, payload()).status_code == 404
-        flag.availability = Availability.EVERYONE
-        flag.save()
         with campaign_operation(campaign, actor=campaign.owner) as act:
             act.archive()
         for url in urls:

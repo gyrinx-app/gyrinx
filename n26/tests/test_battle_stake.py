@@ -15,7 +15,6 @@ from django.apps import apps
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core import history
 from n26.core.campaigns import BattleStake, battle_stake, campaign_operation
 from n26.core.forms import BattleForm
@@ -23,7 +22,6 @@ from n26.core.history import build, latest
 from n26.core.models import Battle, Gang, LedgerEvent, PostBattleReport
 from n26.core.operations import Refusal
 from n26.core.post_battle import start_report
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import create_asset
 from n26.library.core_campaign import seed_core_campaign
 from n26.library.models import CampaignType
@@ -45,9 +43,6 @@ pytestmark = pytest.mark.django_db
 def table(client, default_pack, gang_type):
     """A campaign with two gangs in one battle and a third that did not
     play; the Choir holds the Old Ruins."""
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     seed_core_campaign(apps)
     core = CampaignType.objects.get(name="Territory campaign")
     arbitrator = User.objects.create_user("arbitrator")
