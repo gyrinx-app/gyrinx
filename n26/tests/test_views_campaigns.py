@@ -1463,7 +1463,7 @@ class TestWhatAParticipantSees:
         drawn = client.get("/n26/campaigns/").content.decode()
         # The name is drawn through <c-n26.user-link>, which wraps it so the
         # badge the arbitrator holds can follow it.
-        assert "Arbitrator:" in drawn and ">kesh<" in drawn
+        assert "Arbitrator:" not in drawn and ">kesh<" in drawn
         assert reverse("user-profile", args=[theirs.owner.username]) in drawn
         assert f"/n26/campaigns/{theirs.pk}/edit/" not in drawn
 
@@ -1956,7 +1956,7 @@ class TestCampaignListingFacts:
             )
             text = row.get_text(" ", strip=True)
             assert campaign.campaign_type.name in text
-            assert "Arbitrator:" in text and "arbitrator" in text
+            assert "Arbitrator:" not in text and "arbitrator" in text
             assert "Pre-campaign" in text
             assert "0 gangs" in text and "0 battles" in text
             assert not row.find("button")

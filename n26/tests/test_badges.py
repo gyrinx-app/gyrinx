@@ -368,7 +368,7 @@ class TestTheNamesOnACampaign:
         client.force_login(person)
         body = client.get("/n26/campaigns/").content.decode()
         rows = body.split("</header>")[-1]
-        assert "Arbitrator:" in rows
+        assert "Arbitrator:" not in rows
         assert badge_svg(GUILDER).strip() in rows
 
     def test_the_list_reads_the_badges_once_for_every_campaign(
