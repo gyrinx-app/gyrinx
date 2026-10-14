@@ -936,6 +936,7 @@ def edit_campaign(request, pk):
     labels = []
     asset_types = []
     shared_asset_types = ""
+    shared_definitions = ""
 
     if request.method == "POST":
         form = EditCampaignForm(request.POST)
@@ -1001,11 +1002,36 @@ def edit_campaign(request, pk):
             .select_related("counter", "slot")
             .order_by("position", "pk")
         )
+        shared = []
         for member in members:
             if member.counter_id:
-                counters.append({"name": str(member.counter), "opening": member.amount})
-            if member.slot_id:
-                labels.append({"name": member.slot.choice_label})
+                item = {"name": str(member.counter), "opening": member.amount}
+                counters.append(item)
+                thing, route = member.counter, "n26-campaign-archive-counter"
+            else:
+                item = {"name": member.slot.choice_label}
+                labels.append(item)
+                thing, route = member.slot, "n26-campaign-archive-label"
+            # Only what the arbitrator added can be archived here; what the
+            # shared type gives is named once, under the lists.
+            if (
+                member.default_set_id == found.additions.built_ins_id
+                and thing.pack_id == found.pack_id
+            ):
+                item["archive_href"] = reverse(route, args=[found.pk, member.pk])
+            else:
+                shared.append(item["name"])
+        if len(shared) == 1:
+            shared_definitions = (
+                f"{shared[0]} comes with {found.campaign_type}. "
+                "You cannot archive it here."
+            )
+        elif shared:
+            names = f"{', '.join(shared[:-1])} and {shared[-1]}"
+            shared_definitions = (
+                f"{names} come with {found.campaign_type}. "
+                "You cannot archive them here."
+            )
 
     _badge_a_redrawn_page(request, found)
     return render(
@@ -1032,6 +1058,7 @@ def edit_campaign(request, pk):
             "labels": labels,
             "asset_types": asset_types,
             "shared_asset_types": shared_asset_types,
+            "shared_definitions": shared_definitions,
         },
     )
 
@@ -2235,6 +2262,91 @@ def add_label(request, pk):
     return _addition_page(
         request, found, form, "n26/add_label.html", act, _campaign_settings_url(found)
     )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def archive_addition(request, pk, member_pk, kind):
+    """The question at its own address, then the act: archive a counter or
+    label the arbitrator added, taking it off every gang.
+
+    ``kind`` is ``"counter"`` or ``"label"``, fixed by the route. Only the
+    campaign's own additions are reachable (``own_addition``); Reputation,
+    Income and a gang's own questions are a 404 like any other key that
+    is not one. The page lists each gang with what it has, so the
+    arbitrator sees what goes before it goes, and says why when another
+    rule still uses the thing — without a button, since it would refuse.
+    """
+    from django.http import Http404
+
+    from n26.core.campaigns import archive_refusal, campaign_operation, own_addition
+    from n26.core.operations import Refusal
+
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    field = "counter" if kind == "counter" else "slot"
+    try:
+        member = own_addition(found, member_pk, field)
+    except ValueError:
+        raise Http404(f"No such {kind} in this campaign") from None
+    name = str(member.counter) if member.counter_id else member.slot.choice_label
+    back = _campaign_settings_url(found)
+
+    if request.method == "POST":
+        try:
+            with campaign_operation(found, actor=request.user) as act:
+                if member.counter_id:
+                    act.archive_counter(member)
+                else:
+                    act.archive_label(member)
+        except Refusal as refused:
+            messages.error(request, str(refused))
+        except ValueError:
+            messages.error(request, f"{name} was already archived.")
+        else:
+            messages.success(request, f"Archived the {kind} {name}.")
+        return redirect(back)
+
+    _badge_a_redrawn_page(request, found)
+    return render(
+        request,
+        "n26/archive_campaign_addition.html",
+        {
+            "campaign": found,
+            "kind": kind,
+            "name": name,
+            "action": request.path,
+            "back": back,
+            "gangs": _what_each_gang_has(member),
+            "refusal": archive_refusal(found, member),
+        },
+    )
+
+
+def _what_each_gang_has(member):
+    """Each gang carrying a counter or label of the campaign's own, with
+    the counter's value or the option it picked ("" for none yet), by
+    gang name. Two queries whatever the number of gangs."""
+    from n26.core.models import Assignment
+
+    copies = list(
+        Assignment.objects.filter(materialised_from=member, archived=False)
+        .select_related("gang_root", "counter_value")
+        .order_by("gang_root__name", "pk")
+    )
+    if member.counter_id:
+        # A copy with no value yet reads as 0, as the gang sheet does.
+        values = [getattr(copy, "counter_value", None) for copy in copies]
+        return [
+            (copy.gang_root.name, held.value if held is not None else 0)
+            for copy, held in zip(copies, values, strict=True)
+        ]
+    picks = {
+        pick.chosen_for_id: pick.pickable.name
+        for pick in Assignment.objects.filter(
+            chosen_for__in=copies, archived=False
+        ).select_related("pickable")
+    }
+    return [(copy.gang_root.name, picks.get(copy.pk, "")) for copy in copies]
 
 
 # --- The arbitrator's tables ---------------------------------------------------

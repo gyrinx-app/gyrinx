@@ -1,0 +1,75 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+The question asked before a counter or label the arbitrator added is
+archived, at an address of its own. Following the link that leads here
+changes nothing; the POST is the act.
+
+The list is every gang that has it now, with what it stands at, so the
+arbitrator sees what goes before it goes. When another rule uses it, the
+page says so and offers no button.
+{% endcomment %}
+{% block head_title %}Archive {{ name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    {% if refusal %}
+        <c-n26.form-page action="{{ action }}"
+                         title="Archive the {{ kind }} {{ name }}?"
+                         cancel_url="{{ back }}"
+                         cancel_label="Back">
+            <c-slot name="breadcrumb">
+                {% include "n26/includes/archive_campaign_addition_breadcrumb.html" %}
+            </c-slot>
+            <c-ui.alert variant="warning">
+                {{ refusal }}
+            </c-ui.alert>
+        </c-n26.form-page>
+    {% else %}
+        <c-n26.form-page action="{{ action }}"
+                         title="Archive the {{ kind }} {{ name }}?"
+                         submit_label="Archive {{ kind }}"
+                         submit_variant="danger"
+                         cancel_url="{{ back }}">
+            <c-slot name="breadcrumb">
+                {% include "n26/includes/archive_campaign_addition_breadcrumb.html" %}
+            </c-slot>
+            {% csrf_token %}
+            <c-ui.alert variant="warning" title="You cannot undo this">
+                Archiving removes {{ name }} from every gang in {{ campaign.name }},
+                and gangs that join later will not get it. Each gang's history keeps
+                {% if kind == "counter" %}
+                    every change to {{ name }} and the value it ended on.
+                {% else %}
+                    what it picked for {{ name }}.
+                {% endif %}
+            </c-ui.alert>
+            {% if gangs %}
+                <section class="mt-4">
+                    <h2 class="text-sm font-semibold">Gangs that have {{ name }}</h2>
+                    <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                        {% for gang_name, value in gangs %}
+                            <dt class="text-muted">{{ gang_name }}</dt>
+                            <dd class="break-words">
+                                {% if kind == "counter" %}
+                                    {{ value }}
+                                {% elif value %}
+                                    {{ value }}
+                                {% else %}
+                                    <span class="text-muted">Nothing picked yet</span>
+                                {% endif %}
+                            </dd>
+                        {% endfor %}
+                    </dl>
+                </section>
+            {% else %}
+                <p class="mt-4 text-sm text-muted">No gang has {{ name }} yet.</p>
+            {% endif %}
+        </c-n26.form-page>
+    {% endif %}
+{% endblock content %}

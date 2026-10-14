@@ -177,6 +177,11 @@ class CampaignEvent(Base):
         ASSET_CREATED = "asset_created", "Asset created"
         COUNTER_ADDED = "counter_added", "Counter added"
         LABEL_ADDED = "label_added", "Label added"
+        # A counter or label the arbitrator added, taken off every gang.
+        # Each gang's removal is that gang's ledger event, written under
+        # the same mark, so the log shows the archive as this one line.
+        COUNTER_ARCHIVED = "counter_archived", "Counter archived"
+        LABEL_ARCHIVED = "label_archived", "Label archived"
         # Changes to the asset tables available to every gang in the
         # campaign beyond its type's own: a table added to the campaign's
         # additions, removed from them, or created for this campaign.
