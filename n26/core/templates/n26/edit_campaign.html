@@ -96,6 +96,9 @@ django-tinymce reads its config.
                                 <tr>
                                     <th scope="col">Counter</th>
                                     <th scope="col" class="text-right">Starting value</th>
+                                    <th scope="col">
+                                        <span class="sr-only">Actions</span>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -103,6 +106,14 @@ django-tinymce reads its config.
                                     <tr>
                                         <td>{{ counter.name }}</td>
                                         <td class="text-right tabular-nums">{{ counter.opening }}</td>
+                                        <td class="text-right">
+                                            {% if counter.archive_href %}
+                                                <c-n26.link href="{{ counter.archive_href }}"
+                                                            aria-label="Archive {{ counter.name }}">
+                                                    Archive
+                                                </c-n26.link>
+                                            {% endif %}
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -119,12 +130,23 @@ django-tinymce reads its config.
                     </c-slot>
                     {% if labels %}
                         <ul class="divide-y divide-box-border">
-                            {% for label in labels %}<li class="py-3 text-sm">{{ label.name }}</li>{% endfor %}
+                            {% for label in labels %}
+                                <li class="flex items-baseline justify-between gap-4 py-3 text-sm">
+                                    <span class="min-w-0 break-words">{{ label.name }}</span>
+                                    {% if label.archive_href %}
+                                        <c-n26.link href="{{ label.archive_href }}"
+                                                    aria-label="Archive {{ label.name }}">
+                                            Archive
+                                        </c-n26.link>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
                         </ul>
                     {% else %}
                         <p class="text-sm text-muted">No campaign labels.</p>
                     {% endif %}
                 </c-n26.section>
+                {% if shared_definitions %}<p class="text-sm text-muted">{{ shared_definitions }}</p>{% endif %}
             {% endif %}
         </div>
     {% else %}

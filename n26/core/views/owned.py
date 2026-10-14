@@ -1551,6 +1551,14 @@ def tally_counter(request, pk):
 
     try:
         with operation(gang, actor=request.user) as op:
+            # Read again under the gang's line: an arbitrator archiving the
+            # counter can take it off the gang after this page found it.
+            if (
+                type(assignment)
+                .objects.filter(pk=assignment.pk, archived=True)
+                .exists()
+            ):
+                raise Refusal(f"{name} is no longer on {gang.name}.")
             if setting_income or (adjusting and change < 0):
                 from n26.core.models import CounterValue
 
