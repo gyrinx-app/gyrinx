@@ -2324,21 +2324,26 @@ def archive_addition(request, pk, member_pk, kind):
                 f"Gangs that join later will not get it. "
                 f"Each gang's history keeps {kept}."
             ),
-            "gangs": _what_each_gang_has(member),
+            "gangs": _what_each_gang_has(found, member),
             "refusal": archive_refusal(found, member),
         },
     )
 
 
-def _what_each_gang_has(member):
-    """Each gang carrying a counter or label of the campaign's own, by
-    gang name, with what to show beside it: the counter's value, the
-    option it picked, or that it has picked nothing yet. Two queries
-    whatever the number of gangs."""
+def _what_each_gang_has(campaign, member):
+    """Each gang playing the campaign that carries one of its own counters
+    or labels, by gang name, with what to show beside it: the counter's
+    value, the option it picked, or that it has picked nothing yet. Two
+    queries whatever the number of gangs."""
     from n26.core.models import Assignment
 
     copies = list(
-        Assignment.objects.filter(materialised_from=member, archived=False)
+        Assignment.objects.filter(
+            materialised_from=member,
+            archived=False,
+            gang_root__campaign_memberships__campaign=campaign,
+            gang_root__campaign_memberships__left__isnull=True,
+        )
         .select_related("gang_root", "counter_value")
         .order_by("gang_root__name", "pk")
     )

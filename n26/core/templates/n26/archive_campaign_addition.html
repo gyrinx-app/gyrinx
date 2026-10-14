@@ -46,10 +46,10 @@ page says so and offers no button.
             {% if gangs %}
                 <section class="mt-4">
                     <h2 class="text-sm font-semibold">Gangs that have {{ name }}</h2>
-                    <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                    <dl class="mt-2 grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-x-4 gap-y-1 text-sm">
                         {% for line in gangs %}
-                            <dt class="text-muted">{{ line.gang }}</dt>
-                            <dd class="break-words{% if line.muted %} text-muted{% endif %}">
+                            <dt class="text-muted [overflow-wrap:anywhere]">{{ line.gang }}</dt>
+                            <dd class="[overflow-wrap:anywhere]{% if line.muted %} text-muted{% endif %}">
                                 {{ line.value }}
                             </dd>
                         {% endfor %}
