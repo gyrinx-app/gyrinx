@@ -579,12 +579,20 @@ export function CheckboxCardItem({
     value,
     label,
     defaultChecked = false,
+    checked,
+    disabled = false,
+    onCheckedChange,
+    describedBy,
     meta,
 }: {
     name: string;
     value: string;
     label: string;
     defaultChecked?: boolean;
+    checked?: boolean;
+    disabled?: boolean;
+    onCheckedChange?: (checked: boolean) => void;
+    describedBy?: string;
     meta?: string;
 }) {
     const recipe = cotton.checkboxCard;
@@ -594,7 +602,17 @@ export function CheckboxCardItem({
                 type="checkbox"
                 name={name}
                 value={value}
-                defaultChecked={defaultChecked}
+                defaultChecked={
+                    checked === undefined ? defaultChecked : undefined
+                }
+                checked={checked}
+                disabled={disabled}
+                onChange={
+                    onCheckedChange
+                        ? (event) => onCheckedChange(event.target.checked)
+                        : undefined
+                }
+                aria-describedby={describedBy}
                 className={recipe.itemInput}
             />
             <span className={recipe.itemLabel}>{label}</span>

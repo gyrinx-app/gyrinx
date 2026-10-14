@@ -9,6 +9,9 @@ export function mount(element: HTMLElement, props: CampaignRollProps) {
     const table = element.querySelector<HTMLInputElement>(
         'input[name="table"]:checked',
     );
+    const duplicate = element.querySelector<HTMLInputElement>(
+        'input[name="avoid_duplicates"]',
+    );
     const active = document.activeElement;
     let focused: string | undefined;
     if (active instanceof HTMLElement && element.contains(active)) {
@@ -20,6 +23,12 @@ export function mount(element: HTMLElement, props: CampaignRollProps) {
     }
     return mountRoot(element, CampaignRoll, {
         ...props,
+        avoidDuplicates: props.avoidDuplicates
+            ? {
+                  ...props.avoidDuplicates,
+                  checked: duplicate?.checked ?? props.avoidDuplicates.checked,
+              }
+            : props.avoidDuplicates,
         table: table?.value ?? props.table,
         rolled: { ...props.rolled, value: rolled?.value ?? props.rolled.value },
         focused,

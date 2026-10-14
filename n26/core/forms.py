@@ -479,6 +479,16 @@ class CampaignForm(forms.Form):
 
 
 class EditCampaignForm(CampaignForm):
+    starting_from_pool = forms.BooleanField(
+        required=False,
+        label="Allocate starting territories from the existing pool",
+        help_text=(
+            "By default, each gang rolls an additional territory. Tick to claim "
+            "an unclaimed territory from its selected table instead. This applies "
+            "to future starting rolls."
+        ),
+    )
+
     status = forms.ChoiceField(
         choices=Campaign.Status.choices,
         required=False,
@@ -991,6 +1001,12 @@ class RollAssetForm(forms.Form):
         min_value=1,
         label="Your own roll",
         help_text="Optional. Leave blank and the roll is made for you.",
+    )
+
+    avoid_duplicates = forms.BooleanField(
+        required=False,
+        label="Avoid duplicate territories",
+        help_text="Re-roll results already in this campaign.",
     )
 
     def __init__(self, *args, tables, **kwargs):

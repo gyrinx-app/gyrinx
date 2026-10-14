@@ -74,9 +74,19 @@ sentence and the act named Roll.
                         autocomplete="off"
                         value="{{ form.rolled.value|default_if_none:'' }}" />
         </c-ui.field>
+        {% if not question.allocating %}
+            <label class="flex items-start gap-2">
+                <input type="checkbox"
+                       name="avoid_duplicates"
+                       class="mt-1 accent-accent"
+                       {% if form.avoid_duplicates.value %}checked{% endif %}>
+                <span>{{ form.avoid_duplicates.label }}</span>
+            </label>
+            <p class="text-sm text-muted">{{ form.avoid_duplicates.help_text }}</p>
+        {% endif %}
         <c-n26.form-actions cancel_url="{{ question.roll_fields.cancelUrl }}">
             <c-ui.button type="submit" variant="success">
-                Roll
+                {% if question.allocating %}Roll and allocate{% else %}Roll{% endif %}
             </c-ui.button>
         </c-n26.form-actions>
     {% endreact_host %}

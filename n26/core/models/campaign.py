@@ -115,6 +115,10 @@ class Campaign(Base, Owned, Archived):
     #: way out (n26.core.templatetags.richtext), so a tightened allowlist
     #: reaches what was already saved.
     summary = models.TextField(blank=True, default="")
+    starting_from_pool = models.BooleanField(
+        default=False,
+        help_text="Allocate starting territories from the existing unclaimed pool.",
+    )
 
     objects = CampaignQuerySet.as_manager()
 
@@ -149,6 +153,7 @@ class CampaignEvent(Base):
         RENAMED = "renamed", "Renamed"
         BUDGET_SET = "budget_set", "Budget set"
         SUMMARY_EDITED = "summary_edited", "Summary edited"
+        STARTING_MODE_SET = "starting_mode_set", "Starting territories changed"
         STATUS_CHANGED = "status_changed", "Status changed"
         ARCHIVED = "archived", "Archived"
         DICE_ROLLED = "dice_rolled", "Dice rolled"

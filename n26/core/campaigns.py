@@ -191,6 +191,19 @@ class CampaignOperation:
         self.event(CampaignEvent.Kind.SUMMARY_EDITED)
         return campaign
 
+    def set_starting_from_pool(self, enabled):
+        """Choose where future starting territories come from; leave completed ones alone."""
+        campaign = self.campaign
+        if campaign.starting_from_pool == enabled:
+            return campaign
+        campaign.starting_from_pool = enabled
+        campaign.save(update_fields=["starting_from_pool", "modified"])
+        self.event(
+            CampaignEvent.Kind.STARTING_MODE_SET,
+            note="From the unclaimed pool" if enabled else "Additional territories",
+        )
+        return campaign
+
     def invite(self, user, message=""):
         """Ask somebody into the campaign, and tell them.
 
@@ -820,7 +833,9 @@ class CampaignOperation:
             income_override=income_override,
         )
 
-    def roll_asset(self, table, *, membership=None, rolled=None, rng=None):
+    def roll_asset(
+        self, table, *, membership=None, rolled=None, rng=None, avoid_duplicates=False
+    ):
         """Roll on an asset table and add what the roll lands on.
 
         Without a membership this is the arbitrator generating the pool:
@@ -830,10 +845,10 @@ class CampaignOperation:
         With a membership it is a gang's starting roll: the table has to
         be one that gang holds, on its card as stored or granted, and the
         asset is assigned to the gang as :meth:`assign` would, so the
-        gang's ledger gets its GAINED. The two rolls are independent, and
-        a roll may land on an asset the campaign already has: the rules
-        allow the same territory to come up more than once, and the
-        campaign asset's own name is what tells the two apart.
+        gang's ledger gets its GAINED. Starting territories are additional
+        by default. With starting_from_pool, territory rolls claim a matching
+        unclaimed asset instead. Duplicate avoidance excludes assets already
+        in the campaign from generated rolls, but records manual rolls as entered.
 
         ``rolled`` is a roll the reader made themselves and typed in
         rather than one generated here; it has to be one the die can
@@ -846,12 +861,39 @@ class CampaignOperation:
         names no dice, or has no entry for the roll.
         """
         self._check_roll_table(table, membership=membership)
+        entries = self._roll_entries(table)
+        pool = None
+        available = None
+        from n26.library.territory_table import TERRITORY
+
+        if (
+            membership is not None
+            and self.campaign.starting_from_pool
+            and table.asset_type.label_singular == TERRITORY
+        ):
+            # The campaign lock protects the pool until assign takes the gang lock.
+            pool = {}
+            for asset in (
+                self.campaign.campaign_assets.filter(
+                    holder__isnull=True, asset__in=[entry.asset for entry in entries]
+                )
+                .select_related("asset")
+                .order_by("created", "pk")
+            ):
+                pool.setdefault(asset.asset_id, asset)
+            available = set(pool)
+        elif avoid_duplicates and rolled is None:
+            available = {entry.asset_id for entry in entries} - set(
+                self.campaign.campaign_assets.values_list("asset_id", flat=True)
+            )
         return self._roll_asset(
             table,
-            self._roll_entries(table),
+            entries,
             membership=membership,
             rolled=rolled,
             rng=rng,
+            available=available,
+            pool=pool,
         )
 
     def _check_roll_table(self, table, *, membership=None):
@@ -893,14 +935,27 @@ class CampaignOperation:
     def _roll_entries(self, table):
         return roll_table_entries(table, self.actor)
 
-    def _roll_asset(self, table, entries, *, membership=None, rolled=None, rng=None):
+    def _roll_asset(
+        self,
+        table,
+        entries,
+        *,
+        membership=None,
+        rolled=None,
+        rng=None,
+        available=None,
+        pool=None,
+    ):
         from n26.core.operations import ROLL_ENTERED, Refusal
         from n26.library.models import Dice
 
         dice = Dice(table.dice)
         entered = rolled is not None
         if not entered:
-            rolled = Dice.roll(dice, rng)
+            if available is None:
+                rolled = Dice.roll(dice, rng)
+            else:
+                rolled = _available_roll(table, entries, available, rng=rng, pool=pool)
         elif rolled not in Dice.rolls(dice):
             raise Refusal(f"You cannot roll {rolled} on a {dice.label}.")
 
@@ -909,7 +964,15 @@ class CampaignOperation:
             raise Refusal(
                 f"Nothing on {table} covers a roll of {rolled}. Fill that gap first."
             )
-        campaign_asset = self._keep(entry.asset)
+        if available is not None and entry.asset_id not in available:
+            raise Refusal(
+                f"No unclaimed {entry.asset} is available in the pool."
+                if pool is not None
+                else f"{entry.asset} is already in this campaign."
+            )
+        campaign_asset = (
+            pool[entry.asset_id] if pool is not None else self._keep(entry.asset)
+        )
         who = f" for {membership.gang.name}" if membership is not None else ""
         note = f"Rolled {rolled} from {_table_named(table)}{who}: {campaign_asset}."
         if entered:
@@ -921,7 +984,16 @@ class CampaignOperation:
             roll=rolled, dice=dice, table=table, campaign_asset=campaign_asset
         )
 
-    def roll_assets(self, table, *, count, request_key, rolled=None, rng=None):
+    def roll_assets(
+        self,
+        table,
+        *,
+        count,
+        request_key,
+        rolled=None,
+        rng=None,
+        avoid_duplicates=False,
+    ):
         """Generate an unclaimed pool together and record the submission."""
         from n26.core.operations import Refusal
 
@@ -935,11 +1007,35 @@ class CampaignOperation:
             return []
         self._check_roll_table(table)
         entries = self._roll_entries(table)
+        from n26.library.models import Dice
+
+        available = None
+        if avoid_duplicates and rolled is None:
+            available = {entry.asset_id for entry in entries} - set(
+                self.campaign.campaign_assets.values_list("asset_id", flat=True)
+            )
+            # Count reachable assets, not entries: bands may name the same asset.
+            reachable = {
+                entry.asset_id
+                for roll in Dice.rolls(table.dice)
+                if (entry := table.landing(roll, entries)) is not None
+                and entry.asset_id in available
+            }
+            if count > len(reachable):
+                raise Refusal(
+                    f"Only {len(reachable)} different {table.asset_type.plural.lower()} "
+                    "remain on this table. Reduce the number to roll or allow duplicates."
+                )
         self.batch = request_key
-        return [
-            self._roll_asset(table, entries, rolled=rolled, rng=rng)
-            for _ in range(count)
-        ]
+        results = []
+        for _ in range(count):
+            result = self._roll_asset(
+                table, entries, rolled=rolled, rng=rng, available=available
+            )
+            results.append(result)
+            if available is not None:
+                available.discard(result.campaign_asset.asset_id)
+        return results
 
     def remove_asset(self, campaign_asset):
         """Take an asset nobody holds out of the campaign.
@@ -1593,6 +1689,33 @@ class AssetRoll:
     dice: object
     table: object
     campaign_asset: object
+
+
+def _available_roll(table, entries, available, *, rng=None, pool=None):
+    """A roll conditioned on eligible assets, retaining each die's probability.
+
+    Enumerating the dice avoids an unbounded re-roll loop when the table is
+    exhausted or when a test generator keeps returning an excluded result.
+    """
+    import random
+
+    from n26.core.operations import Refusal
+    from n26.library.models import Dice
+
+    outcomes = []
+    for roll in Dice.rolls(table.dice):
+        entry = table.landing(roll, entries)
+        if entry is not None and entry.asset_id in available:
+            weight = 6 - abs(7 - roll) if table.dice == Dice.TWO_D6 else 1
+            outcomes.extend([roll] * weight)
+    if not outcomes:
+        label = table.asset_type.plural.lower()
+        raise Refusal(
+            f"No unclaimed {label} from this table are available in the pool."
+            if pool is not None
+            else f"No different {label} remain on this table. Allow duplicates to roll again."
+        )
+    return outcomes[(rng or random).randint(0, len(outcomes) - 1)]  # nosec B311
 
 
 def _table_named(table):

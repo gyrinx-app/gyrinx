@@ -196,3 +196,43 @@ describe("campaign roll", () => {
         },
     );
 });
+
+describe("starting allocation", () => {
+    it("keeps the house table selected until the player explicitly chooses a table with pool matches", async () => {
+        const user = userEvent.setup();
+        render(
+            <CampaignRoll
+                {...props}
+                allocating
+                tables={props.tables.map((table) => ({
+                    ...table,
+                    availableCount: table.value === "journal" ? 0 : 2,
+                }))}
+            />,
+        );
+        expect(
+            screen.getByRole("radio", { name: /Goliath Territories/ }),
+        ).toHaveProperty("checked", true);
+        expect(
+            screen.getByRole("button", { name: "Roll and allocate" }),
+        ).toHaveProperty("disabled", true);
+        expect(
+            screen.getByText(
+                "No unclaimed territories from this table in the pool.",
+            ),
+        ).toBeTruthy();
+        await user.click(
+            screen.getByRole("radio", { name: /Territory Selection Table/ }),
+        );
+        expect(
+            screen.getByRole("button", { name: "Roll and allocate" }),
+        ).toHaveProperty("disabled", false);
+        expect(
+            screen.getByText("2 matching territories available in the pool."),
+        ).toBeTruthy();
+        await user.type(roll(), "34");
+        expect(
+            screen.getByRole("button", { name: "Use my roll and allocate" }),
+        ).toBeTruthy();
+    });
+});

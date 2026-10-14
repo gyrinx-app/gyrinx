@@ -1,5 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Callout, Field, Input, RadioCard, RadioCards } from "../../ui";
+import {
+    Callout,
+    CheckboxCardItem,
+    Field,
+    Input,
+    RadioCard,
+    RadioCards,
+} from "../../ui";
 
 type RollField = {
     label: string;
@@ -11,6 +18,11 @@ type RollField = {
 export type PoolRollProps = {
     count: RollField;
     rolled: RollField;
+    avoidDuplicates?: {
+        label: string;
+        helpText: string;
+        checked: boolean;
+    } | null;
     table: string;
     tableErrors: string[];
     tables: {
@@ -32,6 +44,10 @@ export function PoolRoll(props: PoolRollProps) {
     const [rolled, setRolled] = useState(props.rolled.value);
     const countRef = useRef<HTMLInputElement>(null);
     const rollRef = useRef<HTMLInputElement>(null);
+    const duplicateHelpId = useId();
+    const [avoidDuplicates, setAvoidDuplicates] = useState(
+        props.avoidDuplicates?.checked ?? false,
+    );
     const [table, setTable] = useState(props.table);
     const [preview, setPreview] = useState<{
         key: string;
@@ -185,6 +201,24 @@ export function PoolRoll(props: PoolRollProps) {
                     </p>
                 )}
             </div>
+            {props.avoidDuplicates && (
+                <div>
+                    <CheckboxCardItem
+                        name="avoid_duplicates"
+                        value="on"
+                        label={props.avoidDuplicates.label}
+                        checked={avoidDuplicates}
+                        disabled={manual}
+                        onCheckedChange={setAvoidDuplicates}
+                        describedBy={duplicateHelpId}
+                    />
+                    <p id={duplicateHelpId} className="mt-1 text-sm text-muted">
+                        {manual
+                            ? "Your own roll is recorded as entered."
+                            : props.avoidDuplicates.helpText}
+                    </p>
+                </div>
+            )}
             <div role="status" aria-live="polite" className="text-sm">
                 {manual &&
                     props.previewUrl &&

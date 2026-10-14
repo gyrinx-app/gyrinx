@@ -22,6 +22,9 @@ Roll is primary because it begins a form. The other controls do not.
             {% endif %}
         </c-slot>
     {% endif %}
+    {% if table.setup_hint and table.roll_href %}
+        <p class="px-4 pb-3 text-sm text-muted">{{ table.setup_hint }}</p>
+    {% endif %}
     {% if table.entries %}
         <c-ui.table>
             <thead>

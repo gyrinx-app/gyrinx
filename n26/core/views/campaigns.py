@@ -453,16 +453,15 @@ def _rolling(campaign, sheet, asked):
     # type the arbitrator declared has no such rule, so its dialog says
     # nothing about how many to generate.
     label = table.plural.lower()
-    lead = (
-        f"Each rolled {table.label.lower()} will be added to the campaign as unclaimed."
-    )
+    lead = f"Add unclaimed {label} to the campaign pool."
+    count_help = "Choose how many to add to the unclaimed pool, up to 100 at a time."
     if table.label == TERRITORY:
-        lead += (
-            " The rules generate three per gang: "
-            f"{sheet.territories_to_generate} for this campaign."
-        )
+        if not sheet.starting_from_pool:
+            lead += " Each gang's starting territory is additional."
+        count_help = f"Three per gang: {sheet.territories_to_generate} unclaimed territories for this campaign."
     return {
         "kind": "pool",
+        "count_help": count_help,
         "title": f"Roll {label}",
         "lead": lead,
         "action": reverse("n26-campaign-roll-asset", args=[campaign.pk]),
@@ -490,15 +489,21 @@ def _starting(sheet, gang_id, asked):
         return None
     # The type's own word, off the sheet's columns rather than peeled off
     # the control's wording, so a change to the button cannot reach here.
-    label = next(
-        column.label.lower()
-        for column in sheet.asset_types
-        if column.asset_type_id == asked
+    column = next(
+        column for column in sheet.asset_types if column.asset_type_id == asked
     )
+    label = column.label.lower()
+    allocating = sheet.starting_from_pool and label == "territory"
     return {
+        "plural": column.plural.lower(),
+        "allocating": allocating,
         "kind": "starting",
-        "title": f"Roll starting {label} for {line.name}",
-        "lead": f"The rolled {label} will be assigned to {line.name}.",
+        "title": f"{'Allocate' if allocating else 'Roll'} starting {label} for {line.name}",
+        "lead": (
+            f"Allocate an unclaimed {label} from the pool to {line.name}."
+            if allocating
+            else f"Roll an additional {label} for this gang, separate from the unclaimed pool."
+        ),
         "action": reverse(
             "n26-campaign-roll-starting", args=[sheet.campaign_id, gang_id]
         ),
@@ -547,6 +552,11 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
                 initial={"count": question.get("default_count", 1)},
                 tables=AssetTable.objects.filter(pk__in=[t.table_id for t in tables]),
             )
+        if rolling:
+            form.fields["count"].help_text = question["count_help"]
+        form.fields[
+            "avoid_duplicates"
+        ].label = f"Avoid duplicate {question.get('plural', question['label'])}"
         chosen = str(form["table"].value() or "")
         if chosen not in {table.table_id for table in tables}:
             chosen = tables[0].table_id
@@ -565,8 +575,41 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
                 for table in tables
             ],
         }
+        duplicate_field = {
+            "label": form["avoid_duplicates"].label,
+            "helpText": form["avoid_duplicates"].help_text,
+            "checked": bool(form["avoid_duplicates"].value()),
+        }
+        if question.get("allocating"):
+            from collections import Counter
+
+            from n26.core.models import CampaignAsset
+            from n26.library.models import AssetTableEntry
+
+            pool_counts = Counter(
+                CampaignAsset.objects.filter(
+                    campaign=campaign, holder__isnull=True
+                ).values_list("asset_id", flat=True)
+            )
+            entries = AssetTableEntry.objects.all()
+            if not sees_staged(campaign.owner):
+                entries = entries.live().filter(asset__staged=False)
+            pairs = (
+                entries.filter(
+                    table_id__in=[table.table_id for table in tables],
+                    asset_id__in=pool_counts,
+                )
+                .values_list("table_id", "asset_id")
+                .distinct()
+            )
+            matching = Counter()
+            for table_id, asset_id in pairs:
+                matching[str(table_id)] += pool_counts[asset_id]
+            for table in island_tables["tables"]:
+                table["availableCount"] = matching[table["value"]]
         if rolling:
             question["pool_fields"] = {
+                "avoidDuplicates": duplicate_field,
                 "count": _island_field(form["count"]),
                 "rolled": _island_field(form["rolled"]),
                 "previewUrl": reverse(
@@ -577,6 +620,10 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
             }
         else:
             question["roll_fields"] = {
+                "allocating": question.get("allocating", False),
+                "avoidDuplicates": None
+                if question.get("allocating")
+                else duplicate_field,
                 "rolled": _island_field(form["rolled"]),
                 "inputId": f"{question['kind']}-roll",
                 "cancelUrl": _campaign_page(campaign),
@@ -666,6 +713,7 @@ def roll_asset(request, pk):
                 rolls = act.roll_assets(
                     form.cleaned_data["table"],
                     count=form.cleaned_data["count"],
+                    avoid_duplicates=form.cleaned_data["avoid_duplicates"],
                     request_key=form.cleaned_data["request_key"],
                     rolled=form.cleaned_data["rolled"],
                 )
@@ -816,6 +864,7 @@ def roll_starting_asset(request, pk, gang_pk):
                     form.cleaned_data["table"],
                     membership=membership,
                     rolled=form.cleaned_data["rolled"],
+                    avoid_duplicates=form.cleaned_data["avoid_duplicates"],
                 )
         except Refusal as refused:
             form.add_error(None, str(refused))
@@ -944,6 +993,7 @@ def edit_campaign(request, pk):
                 act.rename(form.cleaned_data["name"])
                 act.set_budget(form.cleaned_data["budget"])
                 act.edit_summary(form.cleaned_data["summary"])
+                act.set_starting_from_pool(form.cleaned_data["starting_from_pool"])
                 if form.cleaned_data["status"]:
                     act.set_status(form.cleaned_data["status"])
             record(request, N26Noun.CAMPAIGN, EventVerb.UPDATE, found)
@@ -956,6 +1006,7 @@ def edit_campaign(request, pk):
                 "budget": found.budget,
                 "summary": found.summary,
                 "status": found.status,
+                "starting_from_pool": found.starting_from_pool,
             }
         )
 
@@ -2326,8 +2377,8 @@ def _tables_lead(asset_types):
 
     holding = [t for t in asset_types if t.is_holding]
     if len(holding) == 1 and holding[0].label_singular == TERRITORY:
-        return "Tables of territories the gangs in this campaign can use."
-    return "Tables the gangs in this campaign can use."
+        return "These are roll options. Generate the unclaimed pool separately with Roll territories."
+    return "These are roll options. Generate unclaimed assets separately on the campaign page."
 
 
 @requires_flag(CAMPAIGNS)
@@ -2395,8 +2446,7 @@ def campaign_tables(request, pk):
                 "label": label,
                 "plural": plural,
                 "intro": (
-                    f"Gangs can roll for a starting {label} from any of these. "
-                    f"You can also roll to add unclaimed {plural} to the campaign."
+                    f"Use these tables for starting rolls or to generate unclaimed {plural}."
                 ),
                 "ticks_help": (
                     "Tick a table to make it available to every gang. Untick to "
@@ -2437,6 +2487,9 @@ def campaign_tables(request, pk):
             "campaign": found,
             "sections": sections,
             "lead": _tables_lead(asset_types),
+            "tables_title": "Available territory tables"
+            if [t.label_singular for t in asset_types if t.is_holding] == ["Territory"]
+            else "Available tables",
             "back": _assets_anchor(found),
             "new_href": reverse("n26-campaign-new-table", args=[found.pk]),
         },

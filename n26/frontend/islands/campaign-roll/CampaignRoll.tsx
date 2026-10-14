@@ -1,7 +1,8 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import {
     Button,
     ButtonLink,
+    CheckboxCardItem,
     Field,
     FieldErrors,
     FormActions,
@@ -17,7 +18,13 @@ export type CampaignRollProps = {
         value: string;
         errors: string[];
     };
+    allocating?: boolean;
     inputId: string;
+    avoidDuplicates?: {
+        label: string;
+        helpText: string;
+        checked: boolean;
+    } | null;
     table: string;
     tableErrors: string[];
     tables: {
@@ -26,6 +33,7 @@ export type CampaignRollProps = {
         die: string;
         lowest: number;
         highest: number;
+        availableCount?: number;
     }[];
     cancelUrl: string;
     /** The control focused before mount: rolled, submit, cancel or table:<value>. */
@@ -34,6 +42,10 @@ export type CampaignRollProps = {
 
 /** One roll on a campaign table, with the dialog's Cancel and submit. */
 export function CampaignRoll(props: CampaignRollProps) {
+    const duplicateHelpId = useId();
+    const [avoidDuplicates, setAvoidDuplicates] = useState(
+        props.avoidDuplicates?.checked ?? false,
+    );
     const [table, setTable] = useState(props.table);
     const [rolled, setRolled] = useState(props.rolled.value);
     const rollRef = useRef<HTMLInputElement>(null);
@@ -87,6 +99,13 @@ export function CampaignRoll(props: CampaignRollProps) {
                     ))}
                 </RadioCards>
             )}
+            {props.allocating && selected && (
+                <p className="text-sm text-muted">
+                    {selected.availableCount
+                        ? `${selected.availableCount} matching territories available in the pool.`
+                        : "No unclaimed territories from this table in the pool."}
+                </p>
+            )}
             <Field
                 label={props.rolled.label}
                 htmlFor={props.inputId}
@@ -117,6 +136,24 @@ export function CampaignRoll(props: CampaignRollProps) {
                 />
             </Field>
             {/* The dialog closes on a click of a link to its own cancel address. */}
+            {props.avoidDuplicates && (
+                <div>
+                    <CheckboxCardItem
+                        name="avoid_duplicates"
+                        value="on"
+                        label={props.avoidDuplicates.label}
+                        checked={avoidDuplicates}
+                        disabled={rolled !== ""}
+                        onCheckedChange={setAvoidDuplicates}
+                        describedBy={duplicateHelpId}
+                    />
+                    <p id={duplicateHelpId} className="mt-1 text-sm text-muted">
+                        {rolled !== ""
+                            ? "Your own roll is recorded as entered."
+                            : props.avoidDuplicates.helpText}
+                    </p>
+                </div>
+            )}
             <FormActions>
                 <ButtonLink
                     ref={cancelRef}
@@ -125,8 +162,21 @@ export function CampaignRoll(props: CampaignRollProps) {
                 >
                     Cancel
                 </ButtonLink>
-                <Button ref={submitRef} type="submit" variant="success">
-                    {rolled ? "Use my roll" : "Roll"}
+                <Button
+                    ref={submitRef}
+                    type="submit"
+                    variant="success"
+                    disabled={
+                        props.allocating && selected?.availableCount === 0
+                    }
+                >
+                    {props.allocating
+                        ? rolled
+                            ? "Use my roll and allocate"
+                            : "Roll and allocate"
+                        : rolled
+                          ? "Use my roll"
+                          : "Roll"}
                 </Button>
             </FormActions>
         </>

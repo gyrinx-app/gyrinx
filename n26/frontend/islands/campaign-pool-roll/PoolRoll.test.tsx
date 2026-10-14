@@ -286,3 +286,40 @@ describe("manual territory preview", () => {
         ).toBeTruthy();
     });
 });
+
+describe("duplicate avoidance", () => {
+    it("posts the checkbox only for generated rolls and keeps the choice after clearing a manual roll", async () => {
+        const user = userEvent.setup();
+        const view = render(
+            <form>
+                <PoolRoll
+                    {...props}
+                    avoidDuplicates={{
+                        label: "Avoid duplicate territories",
+                        helpText: "Re-roll results already in this campaign.",
+                        checked: false,
+                    }}
+                />
+            </form>,
+        );
+        const checkbox = screen.getByRole("checkbox", {
+            name: "Avoid duplicate territories",
+        });
+        await user.click(checkbox);
+        expect(
+            new FormData(view.container.querySelector("form")!).get(
+                "avoid_duplicates",
+            ),
+        ).toBe("on");
+        await user.type(inputs().rolled, "34");
+        expect(checkbox).toHaveProperty("disabled", true);
+        expect(
+            new FormData(view.container.querySelector("form")!).get(
+                "avoid_duplicates",
+            ),
+        ).toBeNull();
+        await user.clear(inputs().rolled);
+        expect(checkbox).toHaveProperty("checked", true);
+        expect(checkbox).toHaveProperty("disabled", false);
+    });
+});
