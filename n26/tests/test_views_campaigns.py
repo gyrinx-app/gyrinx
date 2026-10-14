@@ -1979,8 +1979,9 @@ class TestCampaignListingFacts:
             found_campaign(f"More {index}", campaign_type, owner=arbitrator)
         assert queries() == before
 
+    @pytest.mark.parametrize("nested_loops", ["on", "off"])
     def test_counts_do_not_join_memberships_to_battle_history(
-        self, client, campaign, gang_type, open_to_everyone
+        self, client, campaign, gang_type, open_to_everyone, nested_loops
     ):
         from datetime import date
 
@@ -1999,6 +2000,29 @@ class TestCampaignListingFacts:
             for index in range(120):
                 op.record_battle(date(2026, 8, 3), scenario=f"Battle {index}")
 
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT set_config('enable_nestloop', %s, true)", [nested_loops]
+            )
+
+        counted_tables = {CampaignMembership._meta.db_table, Battle._meta.db_table}
+
+        def joined_relations(node):
+            if node["Node Type"] == "Aggregate":
+                return set()
+            tables = {node["Relation Name"]} if "Relation Name" in node else set()
+            for child in node.get("Plans", []):
+                # Correlated counts are evaluated separately from a join's inputs.
+                if child.get("Parent Relationship") not in {"SubPlan", "InitPlan"}:
+                    tables.update(joined_relations(child))
+            return tables
+
+        def joins(node):
+            if "Join Type" in node:
+                yield node
+            for child in node.get("Plans", []):
+                yield from joins(child)
+
         for url in ["/n26/?tab=Campaigns", "/n26/campaigns/"]:
             with CaptureQueriesContext(connection) as captured:
                 response = client.get(url)
@@ -2013,13 +2037,8 @@ class TestCampaignListingFacts:
                 cursor.execute("EXPLAIN (ANALYZE, FORMAT JSON) " + sql)
                 plan = cursor.fetchone()[0][0]["Plan"]
 
-            def joins(node):
-                if "Join Type" in node:
-                    yield node
-                for child in node.get("Plans", []):
-                    yield from joins(child)
-
-            assert all(node["Actual Rows"] <= 12 for node in joins(plan))
+            for node in joins(plan):
+                assert not counted_tables <= joined_relations(node), node
 
 
 def test_submitted_campaign_search_matches_the_type_shown_in_live_search(
