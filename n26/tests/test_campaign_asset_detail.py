@@ -100,6 +100,7 @@ def test_asset_row_and_holding_log_link_to_the_exact_holding(client, setup):
         "Territory",
         "Income",
         "Held by",
+        "Boon",
         "Actions",
     ]
 
@@ -576,4 +577,79 @@ def test_more_distinct_selectable_holdings_do_not_add_roster_or_campaign_page_qu
             ]
             assert len(entries) == 8
             assert all(entry.income == 17 for entry in entries)
+            assert all(entry.boon == "Income" for entry in entries)
         assert len(soup.select('[data-react-name="income-tooltip"]')) >= 1
+
+
+@pytest.mark.parametrize("person", ["arbitrator", "player", "reader"])
+def test_campaign_shows_each_holdings_current_boon_to_every_viewer(
+    client, setup, person
+):
+    from n26.core.operations import operation
+
+    arbitrator, player, campaign, holding, first, second = setup
+    kind = create_slot_type("Shared territory boon")
+    income = create_pickable("Income", kind)
+    supplies = create_pickable("Respirators", kind)
+    picklist = create_picklist("Shared territory boons", kind, [income, supplies])
+    slot = create_slot("Boon", kind, picklist, assigned_to="gang")
+    grant = modifier(
+        "Shared territory boon",
+        targets_gang_alone(),
+        ef_adds(slot),
+        attach_to=holding.asset,
+    )
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.unassign(holding)
+        op.assign(holding, first)
+        other = op.add_asset(holding.asset, name="Second ruins")
+        op.assign(other, second)
+    holding.refresh_from_db()
+    viewer = {"arbitrator": arbitrator, "player": player}.get(person)
+    client.force_login(viewer or User.objects.create_user("shared-boon-reader"))
+
+    def selected():
+        before = LedgerEvent.objects.count()
+        response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+        assert response.status_code == 200
+        assert LedgerEvent.objects.count() == before
+        entries = {
+            entry.campaign_asset_id: entry
+            for table in response.context["sheet"].assets
+            for entry in table.entries
+        }
+        soup = BeautifulSoup(response.content, "html.parser")
+        table = soup.find(id="n26-campaign-assets").find("table")
+        for entry in entries.values():
+            row = table.find("a", href=entry.href).find_parent("tr")
+            cell = row.find_all("td")[3]
+            assert cell.get_text(strip=True) == (entry.boon or "—")
+            assert cell.find("a") is None and cell.find("button") is None
+        assert "Apply boons" not in soup.get_text()
+        return entries
+
+    assert selected()[str(holding.pk)].boon == "Income"
+    with campaign_operation(campaign, actor=player):
+        with operation(first.gang, actor=player) as op:
+            previous = Assignment.objects.get(
+                chosen_for_holding=holding,
+                chosen_for_slot=slot,
+                archived=False,
+                chosen_for_holding_revision=holding.ownership_revision,
+            )
+            op.remove(previous)
+            op.choose(holding, supplies, slot=slot)
+    entries = selected()
+    assert entries[str(holding.pk)].boon == "Respirators"
+    assert entries[str(other.pk)].boon == "Income"
+
+    # A hidden offer still leaves the selected fact on the holder's graph.
+    detach_modifier(holding.asset, grant)
+    assert selected()[str(holding.pk)].boon == "Respirators"
+    attach_modifiers_to(holding.asset, [grant])
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.transfer(holding, second)
+    assert selected()[str(holding.pk)].boon == "Income"
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.unassign(holding)
+    assert selected()[str(holding.pk)].boon == ""

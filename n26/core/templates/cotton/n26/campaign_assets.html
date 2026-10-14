@@ -29,6 +29,7 @@ Roll is primary because it begins a form. The other controls do not.
                     <th scope="col">{{ table.label }}</th>
                     <th scope="col" class="text-right">Income</th>
                     <th scope="col">Held by</th>
+                    <th scope="col">Boon</th>
                     <th scope="col" class="relative"><span class="sr-only">Actions</span></th>
                 </tr>
             </thead>
@@ -51,6 +52,7 @@ Roll is primary because it begins a form. The other controls do not.
                                 <span class="text-muted">Unclaimed</span>
                             {% endif %}
                         </td>
+                        <td class="min-w-32 max-w-64 break-words text-sm">{{ entry.boon|default:"—" }}</td>
                         <td class="w-12 text-right">
                             {% if entry.unassign_href or entry.transfer_href or entry.assign_href or entry.remove_href %}
                                 <c-ui.button size="sm" variant="ghost"
