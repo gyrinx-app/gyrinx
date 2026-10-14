@@ -3,16 +3,32 @@
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 
-def prepare_gang_table(sheet, request, here):
-    query = request.GET
-    if request.headers.get("HX-Request"):
-        query = {
+def table_query(request, *, current_url=""):
+    """Read table preferences from a known return URL or the visible HTMX page."""
+    source = current_url or (
+        request.headers.get("HX-Current-URL", "")
+        if request.headers.get("HX-Request")
+        else ""
+    )
+    if source:
+        return {
             key: values[-1]
             for key, values in parse_qs(
-                urlsplit(request.headers.get("HX-Current-URL", "")).query,
-                keep_blank_values=True,
+                urlsplit(source).query, keep_blank_values=True
             ).items()
         }
+    return request.GET
+
+
+def table_view_href(request, here):
+    """Keep only table preferences when returning to the campaign page."""
+    query = table_query(request)
+    preferences = {key: query.get(key) for key in ("sort", "group") if key in query}
+    return here + ("?" + urlencode(preferences) if preferences else "")
+
+
+def prepare_gang_table(sheet, request, here, *, current_url=""):
+    query = table_query(request, current_url=current_url)
     columns = [
         ("name", "Gang"),
         ("rating", "Rating"),

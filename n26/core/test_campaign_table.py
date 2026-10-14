@@ -132,3 +132,24 @@ def test_a_default_view_keeps_its_canonical_url_after_redraw():
         "/campaign/",
     )
     assert table.table_href == "/campaign/"
+
+
+def test_a_counter_dialog_uses_its_return_url_for_table_preferences():
+    table = sheet()
+    table.label_ids = ["division"]
+    table.default_group = "division"
+    prepare_gang_table(
+        table,
+        RequestFactory().post(
+            "/tally/",
+            headers={
+                "HX-Request": "true",
+                "HX-Current-URL": "http://localhost/tally/?back=campaign",
+            },
+        ),
+        "/campaign/",
+        current_url="/campaign/?sort=-counter-0&group=",
+    )
+    assert [line.name for line in table.gangs] == ["Alpha", "Gamma", "Beta"]
+    assert table.table_group == ""
+    assert table.table_href == "/campaign/?sort=-counter-0&group="

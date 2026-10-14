@@ -806,6 +806,52 @@ class TestThePages:
             "Each rolled territory will be added to the campaign as unclaimed." in body
         )
 
+    def test_pool_roll_keeps_explicit_table_preferences_through_the_dialog(
+        self, client, campaign, territory, selection_table, arbitrator
+    ):
+        from uuid import uuid4
+
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            label = op.add_label("Division", ["Upper"])
+            op.set_gang_grouping(str(label.pk), {})
+        client.force_login(arbitrator)
+        page = reverse("n26-campaign", args=[campaign.pk])
+        current = page + "?sort=-rating&group="
+        sheet = client.get(current).context["sheet"]
+        link = next(
+            table.roll_href
+            for table in sheet.assets
+            if table.asset_type_id == str(territory.pk)
+        )
+        opened = client.get(
+            link,
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver" + current,
+        )
+        assert opened.context["cancel_url"] == current
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {
+                "type": str(territory.pk),
+                "table": str(selection_table.pk),
+                "count": 1,
+                "rolled": 11,
+                "request_key": str(uuid4()),
+            },
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver" + opened["HX-Replace-Url"],
+        )
+        assert response.status_code == 200
+        assert response["HX-Replace-Url"] == current
+        assert response.context["sheet"].table_sort == "-rating"
+        assert response.context["sheet"].table_group == ""
+        assert (
+            CampaignAsset.objects.filter(campaign=campaign, holder__isnull=True).count()
+            == 1
+        )
+
     @pytest.mark.parametrize("allocation", ["roll", "assign"])
     def test_a_starting_roll_disappears_after_use_and_stays_gone_after_loss(
         self,

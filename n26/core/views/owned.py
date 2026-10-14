@@ -1348,11 +1348,15 @@ def refund_assignment(request, pk):
 
 
 def _campaign_counter_update(request, assignment, gang, back, *, close=False):
-    """Redraw one computed campaign counter, including rules contributions."""
+    """Redraw the counter, or its campaign table when a counter controls sorting."""
+    from urllib.parse import urlsplit
+
+    from n26.core.campaign_table import table_query
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute_gang
     from n26.core.render import build_campaign_block
     from n26.core.views.htmx import with_toasts
+    from n26.flags import CAMPAIGNS, enabled
 
     card = build_gang_card(gang)
     index = build_modifier_index(carriers(card, *card.members.values()))
@@ -1367,6 +1371,30 @@ def _campaign_counter_update(request, assignment, gang, back, *, close=False):
     if counter is None:
         return no_update(request)
     messages.success(request, f"{counter.name} is now {counter.value}.")
+
+    sheet = None
+    sorting = table_query(request, current_url=back).get("sort", "").removeprefix("-")
+    if (
+        sorting.startswith("counter-")
+        and urlsplit(back).path == reverse("n26-campaign", args=[block.campaign_id])
+        and enabled(CAMPAIGNS, request.user)
+    ):
+        from n26.core.render import render_campaign
+        from n26.core.views.campaigns import _fill_addresses
+        from n26.core.views.permissions import _any_campaign_or_404
+
+        campaign = _any_campaign_or_404(
+            request, block.campaign_id, with_owner_badge=False
+        )
+        sheet = render_campaign(campaign, viewer=request.user)
+        _fill_addresses(
+            sheet,
+            campaign,
+            yours=campaign.owner_id == request.user.pk,
+            viewer=request.user,
+            request=request,
+            current_url=back,
+        )
     return with_toasts(
         request,
         render(
@@ -1374,6 +1402,7 @@ def _campaign_counter_update(request, assignment, gang, back, *, close=False):
             "n26/includes/campaign_counter_update.html",
             {
                 "counter": counter,
+                "sheet": sheet,
                 "redrawn": True,
                 "close_dialog": close,
                 "steps": back == reverse("n26-gang", args=[gang.pk]),

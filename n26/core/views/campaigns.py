@@ -81,7 +81,7 @@ def campaigns(request):
         .prefetch_related("owner__badge_grants")
         .order_by("name", "pk")
     )
-    found = search_queryset(listed, query, ["name"])
+    found = search_queryset(listed, query, ["name", "campaign_type__name"])
 
     page = Paginator(found, CAMPAIGNS_PER_PAGE).get_page(request.GET.get("page"))
     rows = campaign_rows(page.object_list)
@@ -342,7 +342,7 @@ def more_actions(campaign, *, yours):
     return actions
 
 
-def _fill_addresses(sheet, campaign, *, yours, viewer, request=None):
+def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url=""):
     """Put the addresses on a campaign sheet. The structure says who may
     act; only the view knows where each act is asked, so the same filling
     serves the page and the partial update a roll delivers."""
@@ -351,10 +351,12 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None):
     from n26.core.owned import with_query
 
     here = reverse("n26-campaign", args=[campaign.pk])
+    preferences = {}
     if request is not None:
-        from n26.core.campaign_table import prepare_gang_table
+        from n26.core.campaign_table import prepare_gang_table, table_query
 
-        prepare_gang_table(sheet, request, here)
+        prepare_gang_table(sheet, request, here, current_url=current_url)
+        preferences = table_query(request, current_url=sheet.table_href)
     for line in sheet.gangs:
         line.href = reverse("n26-gang", args=[line.gang_id])
         # The arbitrator of a campaign still being played may change any
@@ -405,7 +407,9 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None):
             # Only where there is a rolled table: a control for a roll
             # with nothing to roll from would be a control saying no.
             if table.tables:
-                table.roll_href = f"{here}?roll={table.asset_type_id}"
+                table.roll_href = with_query(
+                    sheet.table_href or here, roll=table.asset_type_id
+                )
         for entry in table.entries:
             entry.href = reverse(
                 "n26-campaign-asset", args=[campaign.pk, entry.campaign_asset_id]
@@ -431,6 +435,16 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None):
                     "n26-campaign-asset-remove",
                     args=[campaign.pk, entry.campaign_asset_id],
                 )
+            if preferences:
+                for field in (
+                    "assign_href",
+                    "unassign_href",
+                    "transfer_href",
+                    "remove_href",
+                ):
+                    href = getattr(entry, field)
+                    if href:
+                        setattr(entry, field, with_query(href, **preferences))
 
 
 def _recent_acts(campaign, viewer):
@@ -1525,7 +1539,9 @@ def _asset_back(request, campaign, holding):
 
     if request.GET.get("from") == "detail":
         return reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
-    return _assets_anchor(campaign)
+    from n26.core.campaign_table import table_view_href
+
+    return table_view_href(request, _campaign_page(campaign)) + "#assets"
 
 
 def _asset_update(request, campaign, holding):

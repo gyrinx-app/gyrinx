@@ -1978,3 +1978,11 @@ class TestCampaignListingFacts:
         for index in range(5):
             found_campaign(f"More {index}", campaign_type, owner=arbitrator)
         assert queries() == before
+
+
+def test_submitted_campaign_search_matches_the_type_shown_in_live_search(
+    client, campaign, open_to_everyone
+):
+    response = client.get(reverse("n26-campaigns"), {"q": campaign.campaign_type.name})
+    assert response.status_code == 200
+    assert campaign.pk in {row.pk for row in response.context["campaigns"]}
