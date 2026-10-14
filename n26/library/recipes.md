@@ -953,6 +953,11 @@ stash need a separate recorded post-cycle action; they are not standing boons.
 
 ## Income or a cycle reward
 
+Open **Foundations → Territory boons**. A site administrator can use **Review
+income and standing boons**, then **Review boon choices** to open the maintenance
+previews. Applying the choices preview creates the Income option and the
+recruitment or equipment alternative automatically.
+
 The **Add territory boon choices** maintenance operation converts the supported
 standard territories, including Settlement. Run **Add territory income and
 standing boons** first, then check the choices preview. It preserves authored

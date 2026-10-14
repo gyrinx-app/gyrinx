@@ -97,12 +97,21 @@ def test_print_and_text_follow_the_same_groups(client, grouped):
     assert "Income: 60" in text
 
 
-def test_capture_keeps_the_group_and_detects_a_lost_copy(grouped):
+def test_capture_keeps_the_group_and_detects_a_lost_copy(grouped, monkeypatch):
+    from n26.core import capture
+
     gang, _, _, tokens = grouped
     before = gang_state(gang)
     assert ("Territories", "Settlement, Old Ruins, Shop (x2), Sump shop") in before[
         "campaign"
     ]["assets"]
+    reordered = render_gang(gang)
+    reordered.campaign.lines.reverse()
+    reordered.campaign.holdings.reverse()
+    reordered.campaign.asset_types.reverse()
+    with monkeypatch.context() as patch:
+        patch.setattr(capture, "render_gang", lambda _: reordered)
+        assert gang_state(gang) == before
     unassign_asset(tokens[0])
     after = gang_state(gang)
     assert before != after

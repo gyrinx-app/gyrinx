@@ -47,7 +47,7 @@ def test_general_settings_and_definitions_have_separate_url_tabs(client, campaig
     assert {
         item["name"]: item["opening"] for item in definitions.context["counters"]
     } == {"Reputation": 2, "Meat": 3}
-    assert definitions.context["labels"] == [{"name": "Faction"}]
+    assert [label["name"] for label in definitions.context["labels"]] == ["Faction"]
     assert 'name="summary"' not in definitions.content.decode()
     assert "tinymce.min.js" not in definitions.content.decode()
     assert "Save campaign" not in definitions.content.decode()

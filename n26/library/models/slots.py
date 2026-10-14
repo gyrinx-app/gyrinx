@@ -440,14 +440,9 @@ class Picklist(Content):
 
     def available_members(self, *, include_staged=False):
         """Members available for a new choice, rather than stored history."""
-        members = (
-            self.members.select_related("pickable")
-            .unarchived()
-            .filter(pickable__archived=False, pickable__pack__archived=False)
+        return PicklistMember.available_for_choices(
+            [self.pk], include_staged=include_staged
         )
-        if not include_staged:
-            members = members.filter(staged=False, pickable__staged=False)
-        return members
 
     def landing(self, roll, members=None):
         """The rows a roll lands on: the one whose band holds it on a band
@@ -556,6 +551,22 @@ class PicklistMember(Content):
                 name="picklist_member_band_is_whole",
             ),
         ]
+
+    @classmethod
+    def available_for_choices(cls, picklist_ids, *, include_staged=False):
+        """Available options for several picklists in one query."""
+        members = (
+            cls.objects.select_related("pickable")
+            .unarchived()
+            .filter(
+                picklist_id__in=picklist_ids,
+                pickable__archived=False,
+                pickable__pack__archived=False,
+            )
+        )
+        if not include_staged:
+            members = members.filter(staged=False, pickable__staged=False)
+        return members
 
     def __str__(self):
         return self.label

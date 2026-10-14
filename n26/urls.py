@@ -181,6 +181,18 @@ urlpatterns = [
         views.add_label,
         name="n26-campaign-add-label",
     ),
+    path(
+        "campaigns/<str:pk>/counters/<str:member_pk>/archive/",
+        views.archive_addition,
+        {"kind": "counter"},
+        name="n26-campaign-archive-counter",
+    ),
+    path(
+        "campaigns/<str:pk>/labels/<str:member_pk>/archive/",
+        views.archive_addition,
+        {"kind": "label"},
+        name="n26-campaign-archive-label",
+    ),
     # Rolling on an asset table: for the campaign's pool, and for one gang's
     # starting asset. Both dialogs are drawn on the campaign's page; these
     # are the acts behind them.
@@ -193,6 +205,11 @@ urlpatterns = [
         "campaigns/<str:pk>/assets/roll/",
         views.roll_asset,
         name="n26-campaign-roll-asset",
+    ),
+    path(
+        "campaigns/<str:pk>/assets/<str:asset_pk>/boons/",
+        views.save_asset_boons,
+        name="n26-campaign-asset-boons",
     ),
     path(
         "campaigns/<str:pk>/assets/<str:asset_pk>/",

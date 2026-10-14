@@ -21,7 +21,7 @@ from n26.core.views.assignment_sets import (
     remove_model_card,
 )
 from n26.core.views.battles import battle, edit_battle
-from n26.core.views.campaign_assets import asset_detail
+from n26.core.views.campaign_assets import asset_detail, save_asset_boons
 from n26.core.views.campaign_rolls import (
     campaign_roll,
     preview_pool_roll,
@@ -36,6 +36,7 @@ from n26.core.views.campaigns import (
     add_label,
     add_player,
     answer_invitation,
+    archive_addition,
     archive_campaign,
     assign_asset,
     campaign,
@@ -140,6 +141,7 @@ __all__ = [
     "edit_battle",
     "accessorise_assignment",
     "asset_detail",
+    "save_asset_boons",
     "campaign",
     "campaign_log",
     "campaign_roll",
@@ -167,6 +169,7 @@ __all__ = [
     "add_asset_type",
     "edit_asset_type",
     "add_label",
+    "archive_addition",
     "remove_asset",
     "roll_asset",
     "roll_starting_asset",

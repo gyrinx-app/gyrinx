@@ -17,7 +17,7 @@ Built on ``render_gang``, the same derivation every screen uses, so the
 capture cannot agree with a broken page.
 """
 
-from n26.core.render import render_gang
+from n26.core.render import group_campaign_assets, render_gang
 
 
 def _each(lines):
@@ -50,6 +50,27 @@ def _assets(lines):
     the income printed beside it."""
     return sorted(
         (str(line.type_label), str(line.name), str(line.income)) for line in lines
+    )
+
+
+def _asset_groups(block):
+    """Display groups with canonical type and name order for comparison."""
+    lines = [*block.lines, *block.holdings]
+    names = {}
+    for line in lines:
+        names.setdefault(line.asset_type_id, []).append(str(line.name))
+    type_names = {key: tuple(sorted(values)) for key, values in names.items()}
+    ordered = sorted(
+        lines,
+        key=lambda line: (
+            str(line.type_plural),
+            type_names[line.asset_type_id],
+            str(line.name),
+        ),
+    )
+    return sorted(
+        (group.label, group.names)
+        for group in group_campaign_assets(ordered, types=block.asset_types)
     )
 
 
@@ -173,9 +194,7 @@ def gang_state(gang):
                 "lines": _assets(sheet.campaign.lines),
                 # Grouped display and individual income facts are both kept:
                 # presentation changes must not conceal a lost copy or boon.
-                "assets": sorted(
-                    (group.label, group.names) for group in sheet.campaign.asset_groups
-                ),
+                "assets": _asset_groups(sheet.campaign),
                 "counters": sorted(
                     (str(counter.name), str(counter.value))
                     for counter in sheet.campaign.counters
