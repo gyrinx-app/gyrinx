@@ -169,6 +169,10 @@ class LedgerEvent(Base):
         AMENDED = "amended", "Amended"
         REPRICED = "repriced", "Repriced"
         REMOVED = "removed", "Removed"
+        # One removed assignment put back exactly as it was, when an
+        # arbitrator unarchives a campaign counter or label. Never a fresh
+        # grant: the value or pick it held comes back with it.
+        RESTORED = "restored", "Restored"
         REFUNDED = "refunded", "Refunded"
         # Separate from REFUNDED: a refund undoes a purchase and returns what
         # was paid; a sale is a later trade at half the item's rating. The

@@ -24,7 +24,7 @@ from n26.core.models import (
 from n26.core.operations import Refusal
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign
-from n26.flags import CAMPAIGNS
+from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
 from n26.library.authoring import add_built_in, create_counter
 from n26.library.models import DefaultAssignment, Pickable
 from n26.tests.sandbox.actions import (
@@ -521,4 +521,287 @@ class TestThePages:
             with CaptureQueriesContext(connection) as queries:
                 response = client.get(archive_url(table, kind))
             assert len(response.context["gangs"]) == 6
+            assert len(queries) <= small[kind]
+
+
+def unarchive(table, kind):
+    campaign = table["campaign"]
+    with campaign_operation(campaign, actor=table["arbitrator"]) as op:
+        if kind == "counter":
+            return op.unarchive_counter(table["faith"])
+        return op.unarchive_label(table["alignment"])
+
+
+def live_pick(table, gang):
+    return Assignment.objects.get(
+        gang_root=gang, chosen_for_slot=table["alignment"].slot, archived=False
+    )
+
+
+@pytest.fixture
+def propagating(db):
+    """The running side of built-in propagation sits behind a flag."""
+    return FeatureFlag.objects.create(
+        slug=BUILT_IN_PROPAGATION,
+        name="Built-in propagation",
+        availability=Availability.EVERYONE,
+    )
+
+
+class TestUnarchivingACounter:
+    """Every gang still in the campaign gets the counter back at the value
+    it had; a gang that joined while it was archived gets it new."""
+
+    def test_each_gang_gets_back_the_value_it_had(self, table):
+        archive(table, "counter")
+
+        unarchive(table, "counter")
+
+        values = {
+            copy.gang_root_id: copy.counter_value.value
+            for copy in copies(table["faith"]).filter(archived=False)
+        }
+        assert values == {table["kings"].pk: 4, table["wolves"].pk: 1}
+        table["faith"].refresh_from_db()
+        table["faith"].counter.refresh_from_db()
+        assert not table["faith"].archived
+        assert not table["faith"].counter.archived
+        sheet = render_campaign(table["campaign"], with_owner_badges=False)
+        assert "Faith" in sheet.counter_columns
+        for gang in (table["kings"], table["wolves"]):
+            gang.refresh_from_db()
+            assert_reconciled(gang)
+
+    def test_each_gang_history_and_the_log_say_so_once(self, table):
+        archive(table, "counter")
+        unarchive(table, "counter")
+
+        kings = sentences(build(table["kings"]))
+        assert "restored Faith (4)" in kings
+        assert "removed Faith (was 4)" in kings
+        log = sentences(campaign_history(table["campaign"]))
+        assert log.count("unarchived the counter Faith") == 1
+        assert not [line for line in log if line.startswith("restored")]
+
+    def test_it_can_be_tallied_again(self, client, table):
+        archive(table, "counter")
+        unarchive(table, "counter")
+        held = copies(table["faith"]).get(gang_root=table["kings"])
+        client.force_login(table["arbitrator"])
+        assert client.get(reverse("n26-tally", args=[held.pk])).status_code == 200
+
+    def test_a_gang_that_left_meanwhile_gets_nothing_back(self, table):
+        archive(table, "counter")
+        membership = CampaignMembership.objects.get(
+            campaign=table["campaign"], gang=table["wolves"], left__isnull=True
+        )
+        with campaign_operation(table["campaign"], actor=table["arbitrator"]) as op:
+            op.remove_gang(membership)
+
+        unarchive(table, "counter")
+
+        assert (
+            not copies(table["faith"])
+            .filter(gang_root=table["wolves"], archived=False)
+            .exists()
+        )
+
+    def test_a_gang_that_joined_meanwhile_gets_it_at_its_starting_value(
+        self, table, gang_type, propagating, task_queue
+    ):
+        archive(table, "counter")
+        late = found_gang("Late Comers", gang_type, owner=table["player"])
+        with campaign_operation(table["campaign"], actor=table["arbitrator"]) as op:
+            op.add_gang(late)
+        assert not copies(table["faith"]).filter(gang_root=late).exists()
+
+        with task_queue.capture():
+            unarchive(table, "counter")
+        task_queue.deliver_all()
+
+        fresh = copies(table["faith"]).get(gang_root=late, archived=False)
+        assert fresh.counter_value.value == 1
+        late.refresh_from_db()
+        assert_reconciled(late)
+
+    def test_a_second_archive_and_unarchive_brings_back_the_newer_value(self, table):
+        archive(table, "counter")
+        unarchive(table, "counter")
+        tally(copies(table["faith"]).get(gang_root=table["kings"]), 2)
+        archive(table, "counter")
+
+        unarchive(table, "counter")
+
+        kings = copies(table["faith"]).get(gang_root=table["kings"])
+        assert not kings.archived
+        assert kings.counter_value.value == 6
+        assert sentences(build(table["kings"])).count("restored Faith (6)") == 1
+
+    def test_one_that_is_not_archived_is_refused_in_words(self, table):
+        with pytest.raises(Refusal, match="Faith is not archived."):
+            unarchive(table, "counter")
+
+    def test_adding_its_name_again_points_at_unarchive(self, table):
+        archive(table, "counter")
+        with (
+            pytest.raises(Refusal, match="Unarchive it, or use another name."),
+            campaign_operation(table["campaign"], actor=table["arbitrator"]) as op,
+        ):
+            op.add_counter("Faith")
+
+
+class TestUnarchivingALabel:
+    """Every gang still in the campaign gets the label back with the option
+    the archive took from it, and nothing it had already replaced."""
+
+    def test_each_gang_gets_back_the_option_it_had_picked(self, table):
+        archive(table, "label")
+
+        unarchive(table, "label")
+
+        assert live_pick(table, table["kings"]).pickable.name == "Lawful"
+        assert copies(table["alignment"]).filter(archived=False).count() == 2
+        assert not Assignment.objects.filter(
+            gang_root=table["wolves"],
+            chosen_for_slot=table["alignment"].slot,
+            archived=False,
+        ).exists()
+        sheet = render_campaign(table["campaign"], with_owner_badges=False)
+        assert "Alignment" in sheet.label_columns
+        for gang in (table["kings"], table["wolves"]):
+            gang.refresh_from_db()
+            assert_reconciled(gang)
+
+    def test_each_gang_history_and_the_log_say_so_once(self, table):
+        archive(table, "label")
+        unarchive(table, "label")
+
+        kings = sentences(build(table["kings"]))
+        assert "restored Alignment (Lawful)" in kings
+        assert "restored Lawful" not in kings
+        assert "restored Alignment" in sentences(build(table["wolves"]))
+        log = sentences(campaign_history(table["campaign"]))
+        assert log.count("unarchived the label Alignment") == 1
+        assert not [line for line in log if line.startswith("restored")]
+
+    def test_an_option_replaced_before_the_archive_stays_replaced(self, table):
+        from n26.core.operations import operation
+
+        question = copies(table["alignment"]).get(gang_root=table["kings"])
+        lawful = live_pick(table, table["kings"])
+        chaotic = Pickable.objects.get(
+            slot_type=table["alignment"].slot.slot_type, name="Chaotic"
+        )
+        with operation(table["kings"], actor=table["player"]) as op:
+            op.remove(lawful)
+            op.choose(question, chaotic, slot=table["alignment"].slot)
+        archive(table, "label")
+
+        unarchive(table, "label")
+
+        assert live_pick(table, table["kings"]).pickable.name == "Chaotic"
+        lawful.refresh_from_db()
+        assert lawful.archived
+
+
+def unarchive_url(table, kind):
+    member = table["faith"] if kind == "counter" else table["alignment"]
+    return reverse(
+        f"n26-campaign-unarchive-{kind}", args=[table["campaign"].pk, member.pk]
+    )
+
+
+class TestTheUnarchivePages:
+    """The settings tab lists what is archived, each with a confirm page
+    saying what every gang gets."""
+
+    def test_the_archive_page_says_it_can_be_undone(self, client, table):
+        client.force_login(table["arbitrator"])
+        page = client.get(archive_url(table, "counter"))
+        assert page.context["heading"] == (
+            "Archiving removes Faith from every gang in Dust Falls"
+        )
+        assert "You can unarchive it later" in page.context["consequences"]
+        assert "You cannot undo this" not in page.content.decode()
+
+    def test_the_tab_lists_archived_counters_and_labels(self, client, table):
+        archive(table, "counter")
+        archive(table, "label")
+        client.force_login(table["arbitrator"])
+        response = client.get(settings_url(table["campaign"]))
+        assert response.context["archived_counters"] == [
+            {"name": "Faith", "unarchive_href": unarchive_url(table, "counter")}
+        ]
+        assert response.context["archived_labels"] == [
+            {"name": "Alignment", "unarchive_href": unarchive_url(table, "label")}
+        ]
+        html = response.content.decode()
+        assert unarchive_url(table, "counter") in html
+        assert unarchive_url(table, "label") in html
+
+    def test_the_confirm_page_lists_what_each_gang_gets(self, client, table, gang_type):
+        archive(table, "counter")
+        archive(table, "label")
+        late = found_gang("Late Comers", gang_type, owner=table["player"])
+        with campaign_operation(table["campaign"], actor=table["arbitrator"]) as op:
+            op.add_gang(late)
+        client.force_login(table["arbitrator"])
+
+        counter_page = client.get(unarchive_url(table, "counter"))
+        assert counter_page.status_code == 200
+        assert [
+            (line.gang, line.value) for line in counter_page.context["returning"]
+        ] == [("Ash Wolves", "1"), ("Rust Kings", "4")]
+        assert [(line.gang, line.value) for line in counter_page.context["new"]] == [
+            ("Late Comers", "1")
+        ]
+        label_page = client.get(unarchive_url(table, "label"))
+        assert [
+            (line.gang, line.value) for line in label_page.context["returning"]
+        ] == [("Ash Wolves", "Nothing picked yet"), ("Rust Kings", "Lawful")]
+        assert "Unarchive label" in label_page.content.decode()
+
+    @pytest.mark.parametrize("kind", ["counter", "label"])
+    def test_posting_unarchives_and_returns_to_the_tab(self, client, table, kind):
+        archive(table, kind)
+        client.force_login(table["arbitrator"])
+        response = client.post(unarchive_url(table, kind), follow=True)
+        assert response.redirect_chain[-1][0] == settings_url(table["campaign"])
+        name = "Faith" if kind == "counter" else "Alignment"
+        assert f"Unarchived the {kind} {name}." in response.content.decode()
+        member = table["faith"] if kind == "counter" else table["alignment"]
+        assert copies(member).filter(archived=False).count() == 2
+        assert name in [row["name"] for row in response.context[f"{kind}s"]]
+        assert client.post(unarchive_url(table, kind)).status_code == 404
+
+    def test_nobody_else_reaches_it_and_a_live_one_is_not_there(self, client, table):
+        client.force_login(table["arbitrator"])
+        assert client.get(unarchive_url(table, "counter")).status_code == 404
+        archive(table, "counter")
+        client.force_login(table["player"])
+        assert client.get(unarchive_url(table, "counter")).status_code == 404
+        assert client.post(unarchive_url(table, "counter")).status_code == 404
+
+    def test_more_gangs_do_not_grow_the_confirm_page_queries(
+        self, client, table, gang_type
+    ):
+        archive(table, "counter")
+        archive(table, "label")
+        client.force_login(table["arbitrator"])
+        small = {}
+        for kind in ("counter", "label"):
+            client.get(unarchive_url(table, kind))
+            with CaptureQueriesContext(connection) as queries:
+                assert client.get(unarchive_url(table, kind)).status_code == 200
+            small[kind] = len(queries)
+        with campaign_operation(table["campaign"], actor=table["arbitrator"]) as op:
+            for number in range(4):
+                op.add_gang(
+                    found_gang(f"Gang {number}", gang_type, owner=table["player"])
+                )
+        for kind in ("counter", "label"):
+            client.get(unarchive_url(table, kind))
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(unarchive_url(table, kind))
+            assert len(response.context["new"]) == 4
             assert len(queries) <= small[kind]

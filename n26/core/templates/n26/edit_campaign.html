@@ -147,6 +147,30 @@ django-tinymce reads its config.
                     {% endif %}
                 </c-n26.section>
                 {% if shared_definitions %}<p class="text-sm text-muted">{{ shared_definitions }}</p>{% endif %}
+                {% if archived_counters or archived_labels %}
+                    <c-n26.section title="Archived">
+                        <ul class="divide-y divide-box-border">
+                            {% for counter in archived_counters %}
+                                <li class="flex items-baseline justify-between gap-4 py-3 text-sm">
+                                    <span class="min-w-0 break-words">{{ counter.name }} <span class="text-muted">counter</span></span>
+                                    <c-n26.link href="{{ counter.unarchive_href }}"
+                                                aria-label="Unarchive {{ counter.name }}">
+                                        Unarchive
+                                    </c-n26.link>
+                                </li>
+                            {% endfor %}
+                            {% for label in archived_labels %}
+                                <li class="flex items-baseline justify-between gap-4 py-3 text-sm">
+                                    <span class="min-w-0 break-words">{{ label.name }} <span class="text-muted">label</span></span>
+                                    <c-n26.link href="{{ label.unarchive_href }}"
+                                                aria-label="Unarchive {{ label.name }}">
+                                        Unarchive
+                                    </c-n26.link>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </c-n26.section>
+                {% endif %}
             {% endif %}
         </div>
     {% else %}
