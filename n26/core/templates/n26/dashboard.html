@@ -85,23 +85,25 @@ places — the same pattern a gang's screens use for their siblings.
         {% endcomment %}
         {% if campaigns_open %}
             <c-slot name="campaigns">
-                {% include "n26/includes/campaign_invitations.html" with back=request.get_full_path %}
-                <c-n26.record-table noun="campaigns"
-                                    singular="campaign"
-                                    action="{% url 'n26-campaigns' %}">
-                    <c-slot name="empty">
-                        No campaigns yet — <c-n26.link href="{% url 'n26-create-campaign' %}">set one up</c-n26.link>.
-                    </c-slot>
-                    {% for row in campaigns %}
-                        <c-n26.record-table.campaign-row name="{{ row.name }}"
-                                                         href="{% url 'n26-campaign' row.pk %}"
-                                                         :owner="row.arbitrator"
-                                                         type="{{ row.campaign_type.name }}"
-                                                         status="{{ row.get_status_display }}"
-                                                         :gangs="row.active_gangs"
-                                                         :battles="row.battle_count" />
-                    {% endfor %}
-                </c-n26.record-table>
+                <div class="flex flex-col gap-8">
+                    {% include "n26/includes/campaign_invitations.html" with back=request.get_full_path %}
+                    <c-n26.record-table noun="campaigns"
+                                        singular="campaign"
+                                        action="{% url 'n26-campaigns' %}">
+                        <c-slot name="empty">
+                            No campaigns yet — <c-n26.link href="{% url 'n26-create-campaign' %}">set one up</c-n26.link>.
+                        </c-slot>
+                        {% for row in campaigns %}
+                            <c-n26.record-table.campaign-row name="{{ row.name }}"
+                                                             href="{% url 'n26-campaign' row.pk %}"
+                                                             :owner="row.arbitrator"
+                                                             type="{{ row.campaign_type.name }}"
+                                                             status="{{ row.get_status_display }}"
+                                                             :gangs="row.active_gangs"
+                                                             :battles="row.battle_count" />
+                        {% endfor %}
+                    </c-n26.record-table>
+                </div>
             </c-slot>
         {% endif %}
         <c-slot name="changelog">
