@@ -130,18 +130,16 @@ export function TerritoryBoonChoices(
                     <FieldErrors errors={[error]} />
                 </div>
             )}
-            {dirty && (
-                <div className="mt-4 flex justify-end">
-                    <Button
-                        type="submit"
-                        variant="success"
-                        size="sm"
-                        disabled={pending}
-                    >
-                        {pending ? "Saving…" : "Save"}
-                    </Button>
-                </div>
-            )}
+            <div className="mt-4 flex justify-end">
+                <Button
+                    type="submit"
+                    variant="success"
+                    size="sm"
+                    disabled={!dirty || pending}
+                >
+                    {pending ? "Saving…" : "Save"}
+                </Button>
+            </div>
         </form>
     );
 }

@@ -56,10 +56,13 @@ const props: TerritoryBoonChoicesProps = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Territory boon choices", () => {
-    it("shows the saved selections and reveals one Save only while choices differ", async () => {
+    it("keeps Save in place and enables it only while choices differ", async () => {
         const user = userEvent.setup();
         render(<TerritoryBoonChoices {...props} onSave={vi.fn()} />);
-        expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+        expect(
+            (screen.getByRole("button", { name: "Save" }) as HTMLButtonElement)
+                .disabled,
+        ).toBe(true);
         expect(
             (screen.getByRole("radio", { name: "Income" }) as HTMLInputElement)
                 .checked,
@@ -71,8 +74,15 @@ describe("Territory boon choices", () => {
         ).toBeTruthy();
         await user.click(screen.getByRole("radio", { name: "Supplies" }));
         expect(screen.getAllByRole("button", { name: "Save" })).toHaveLength(1);
+        expect(
+            (screen.getByRole("button", { name: "Save" }) as HTMLButtonElement)
+                .disabled,
+        ).toBe(false);
         await user.click(screen.getByRole("radio", { name: "Income" }));
-        expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+        expect(
+            (screen.getByRole("button", { name: "Save" }) as HTMLButtonElement)
+                .disabled,
+        ).toBe(true);
     });
     it("saves changed groups together and disables controls while saving", async () => {
         const user = userEvent.setup();
