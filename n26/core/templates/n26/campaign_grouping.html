@@ -1,0 +1,37 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}Gang grouping · {{ campaign.name }}{% endblock %}
+{% block content %}
+    <c-n26.form-page title="Gang grouping"
+                     lead="Choose the default grouping and a colour for each group. Players can change grouping while viewing the table."
+                     :form="form"
+                     action="{% url 'n26-campaign-grouping' campaign.pk %}"
+                     submit_label="Save"
+                     cancel_url="{{ back }}">
+        {% csrf_token %}
+        <c-n26.form-section title="Default grouping">
+            <c-ui.field label="Group gangs by"
+                        for="campaign-grouping"
+                        error="x"
+                        :form="form"
+                        name="grouping">
+                <c-ui.select.native id="campaign-grouping" name="grouping" placeholder="">
+                    {% for value, label in form.fields.grouping.choices %}<option value="{{ value }}"
+        {% if form.grouping.value == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </c-ui.select.native>
+            </c-ui.field>
+        </c-n26.form-section>
+        {% for group in groups %}
+            <c-n26.form-section title="{{ group.label }} colours">
+                {% for row in group.rows %}
+                    <c-n26.colour-picker name="{{ row.field.name }}"
+                                         label="{{ row.field.label }}"
+                                         value="{{ row.field.value|default:'' }}" />
+                    {% if row.field.errors %}<p class="text-sm text-red-600">{{ row.field.errors|join:', ' }}</p>{% endif %}
+                {% endfor %}
+            </c-n26.form-section>
+        {% empty %}
+            <p class="text-sm text-muted">Add a campaign label to group gangs.</p>
+            <c-n26.link href="{% url 'n26-campaign-add-label' campaign.pk %}">Add label</c-n26.link>
+        {% endfor %}
+    </c-n26.form-page>
+{% endblock %}

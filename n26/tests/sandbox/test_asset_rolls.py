@@ -806,6 +806,52 @@ class TestThePages:
             "Each rolled territory will be added to the campaign as unclaimed." in body
         )
 
+    def test_pool_roll_keeps_explicit_table_preferences_through_the_dialog(
+        self, client, campaign, territory, selection_table, arbitrator
+    ):
+        from uuid import uuid4
+
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            label = op.add_label("Division", ["Upper"])
+            op.set_gang_grouping(str(label.pk), {})
+        client.force_login(arbitrator)
+        page = reverse("n26-campaign", args=[campaign.pk])
+        current = page + "?sort=-rating&group="
+        sheet = client.get(current).context["sheet"]
+        link = next(
+            table.roll_href
+            for table in sheet.assets
+            if table.asset_type_id == str(territory.pk)
+        )
+        opened = client.get(
+            link,
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver" + current,
+        )
+        assert opened.context["cancel_url"] == current
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {
+                "type": str(territory.pk),
+                "table": str(selection_table.pk),
+                "count": 1,
+                "rolled": 11,
+                "request_key": str(uuid4()),
+            },
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver" + opened["HX-Replace-Url"],
+        )
+        assert response.status_code == 200
+        assert response["HX-Replace-Url"] == current
+        assert response.context["sheet"].table_sort == "-rating"
+        assert response.context["sheet"].table_group == ""
+        assert (
+            CampaignAsset.objects.filter(campaign=campaign, holder__isnull=True).count()
+            == 1
+        )
+
     @pytest.mark.parametrize("allocation", ["roll", "assign"])
     def test_a_starting_roll_disappears_after_use_and_stays_gone_after_loss(
         self,
@@ -894,6 +940,36 @@ class TestThePages:
         assert "A D6 roll is 1 to 6." in kings
         assert "A D66 roll is 11 to 66." in kings
         assert "The rolled territory will be assigned to Slag Kings." in kings
+
+    def test_starting_roll_cancel_keeps_the_table_view_after_a_refusal(
+        self, client, campaign, territory, journal, slag_kings, arbitrator
+    ):
+        client.force_login(arbitrator)
+        page = reverse("n26-campaign", args=[campaign.pk])
+        current = page + "?sort=-rating&group="
+        opened = client.get(
+            page,
+            {
+                "starting": str(slag_kings.pk),
+                "type": str(territory.pk),
+                "sort": "-rating",
+                "group": "",
+            },
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver" + current,
+        )
+        assert _roll_props(opened.content.decode())["cancelUrl"] == current
+        response = client.post(
+            reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]),
+            {"type": str(territory.pk), "table": str(journal.pk), "rolled": 99},
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver"
+            + current
+            + f"&starting={slag_kings.pk}&type={territory.pk}",
+        )
+        assert response.status_code == 200
+        assert _roll_props(response.content.decode())["cancelUrl"] == current
+        assert not CampaignAsset.objects.filter(campaign=campaign).exists()
 
     def test_the_starting_dialog_draws_its_roll_and_buttons_in_one_island(
         self, client, campaign, territory, journal, slag_kings, wild_cats, arbitrator

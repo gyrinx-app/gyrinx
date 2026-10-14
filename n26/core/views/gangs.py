@@ -140,10 +140,9 @@ def dashboard(request):
         campaign_rows(
             Campaign.objects.involving(request.user)
             .filter(archived=False)
-            .select_related("owner", "owner__profile")
+            .select_related("owner", "owner__profile", "campaign_type")
             .prefetch_related("owner__badge_grants")
             .order_by("name", "pk"),
-            request.user,
         )
         if campaigns_open
         else []

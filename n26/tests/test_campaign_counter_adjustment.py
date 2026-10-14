@@ -228,11 +228,15 @@ def test_the_owner_sheets_use_async_counter_controls(client, setup):
             assert form["hx-swap"] == "none"
 
 
-def test_the_async_counter_update_does_not_load_other_campaign_gangs(
-    client, setup, gang_type
+@pytest.mark.parametrize("preferences", ["", "?sort=-counter-0&group="])
+def test_the_async_counter_update_adds_no_queries_as_campaign_gangs_grow(
+    client, setup, gang_type, preferences
 ):
     arbitrator, player, campaign, _, held = setup
-    payload = {"change": 1, "back": reverse("n26-campaign", args=[campaign.pk])}
+    payload = {
+        "change": 1,
+        "back": reverse("n26-campaign", args=[campaign.pk]) + preferences,
+    }
     client.post(address(held), payload, HTTP_HX_REQUEST="true")
     with CaptureQueriesContext(connection) as few:
         assert (
@@ -390,3 +394,36 @@ def test_campaign_state_names_available_asset_types_even_without_holdings(
     assert any(
         group.label == asset_type.plural and group.names == "None" for group in groups
     )
+
+
+def test_a_counter_edit_reorders_its_campaign_table_and_keeps_no_grouping(
+    client, setup, gang_type
+):
+    from n26.core.render import render_campaign
+
+    arbitrator, player, campaign, gang, held = setup
+    other = found_gang("Other gang", gang_type, owner=player)
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.add_gang(other)
+        op.set_gang_grouping(render_campaign(campaign).label_ids[0], {})
+    other_held = Assignment.objects.get(
+        gang_root=other, counter=held.counter, archived=False
+    )
+    assert client.post(address(other_held), {"change": 4}).status_code == 302
+    back = reverse("n26-campaign", args=[campaign.pk]) + "?sort=-counter-0&group="
+    before = client.get(back).context["sheet"]
+    assert [line.gang_id for line in before.gangs] == [str(other.pk), str(gang.pk)]
+    response = client.post(
+        address(held),
+        {"adjust": 1, "change": 15, "back": back},
+        HTTP_HX_REQUEST="true",
+        HTTP_HX_CURRENT_URL="http://testserver" + address(held) + "?back=campaign",
+    )
+    assert response.status_code == 200
+    sheet = response.context["sheet"]
+    assert [line.gang_id for line in sheet.gangs] == [str(gang.pk), str(other.pk)]
+    assert sheet.table_sort == "-counter-0" and sheet.table_group == ""
+    soup = BeautifulSoup(response.content, "html.parser")
+    assert soup.find(id="n26-campaign-gangs")["hx-swap-oob"] == "true"
+    assert not soup.find(id="n26-campaign-state-dialog-host").get_text(strip=True)
+    assert response["HX-Replace-Url"] == back

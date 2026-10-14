@@ -572,6 +572,62 @@ class TestTheAssetsOnTheCampaignPage:
         assert "Assigned Old Ruins to The Ashen Choir." in response.content.decode()
         assert CampaignAsset.objects.get(pk=campaign_assets[0].pk).holder == membership
 
+    @pytest.mark.parametrize("action", ["assign", "unassign", "transfer"])
+    def test_asset_dialog_keeps_table_preferences_after_opening_and_submitting(
+        self, client, campaign_assets, gang, campaign, arbitrator, player, action
+    ):
+        from n26.core.campaigns import campaign_operation
+
+        target = gang
+        if action != "assign":
+            assign_asset(campaign_assets[0], gang)
+        if action == "transfer":
+            target = found_gang("Other gang", gang.gang_type, owner=player)
+            join_campaign(target, campaign)
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            label = op.add_label("Division", ["Upper"])
+            op.set_gang_grouping(str(label.pk), {})
+        client.force_login(arbitrator)
+        page = reverse("n26-campaign", args=[campaign.pk])
+        current = page + "?sort=-rating&group="
+        sheet = client.get(current).context["sheet"]
+        entry = next(
+            entry
+            for table in sheet.assets
+            for entry in table.entries
+            if entry.campaign_asset_id == str(campaign_assets[0].pk)
+        )
+        link = getattr(entry, action + "_href")
+        opened = client.get(
+            link,
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver" + current,
+        )
+        assert opened.context["back"] == current + "#assets"
+        payload = (
+            {}
+            if action == "unassign"
+            else {
+                "membership": str(target.campaign_memberships.get(left__isnull=True).pk)
+            }
+        )
+        response = client.post(
+            opened.context["action"],
+            payload,
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver" + opened["HX-Replace-Url"],
+        )
+        assert response.status_code == 200
+        assert response["HX-Replace-Url"] == current
+        assert response.context["sheet"].table_sort == "-rating"
+        assert response.context["sheet"].table_group == ""
+        campaign_assets[0].refresh_from_db()
+        assert campaign_assets[0].holder_id == (
+            None
+            if action == "unassign"
+            else target.campaign_memberships.get(left__isnull=True).pk
+        )
+
     def test_assignment_opens_as_a_dialog_with_gang_identity_cards(
         self, client, campaign_assets, gang, campaign, arbitrator
     ):
@@ -681,6 +737,39 @@ class TestTheAssetsOnTheCampaignPage:
         assert client.get(address).status_code == 404
         assert client.post(address).status_code == 404
         assert CampaignAsset.objects.get(pk=campaign_assets[0].pk).held
+
+    @pytest.mark.parametrize("held", [False, True])
+    def test_asset_removal_keeps_table_preferences_on_cancel_and_submission(
+        self, client, campaign_assets, gang, campaign, arbitrator, held
+    ):
+        from bs4 import BeautifulSoup
+
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            label = op.add_label("Division", ["Upper"])
+            op.set_gang_grouping(str(label.pk), {})
+        client.force_login(arbitrator)
+        current = reverse("n26-campaign", args=[campaign.pk]) + "?sort=-rating&group="
+        sheet = client.get(current).context["sheet"]
+        entry = next(
+            entry
+            for table in sheet.assets
+            for entry in table.entries
+            if entry.campaign_asset_id == str(campaign_assets[0].pk)
+        )
+        opened = client.get(entry.remove_href)
+        assert opened.context["back"] == current + "#assets"
+        soup = BeautifulSoup(opened.content, "html.parser")
+        assert soup.find("a", href=current + "#assets").get_text(strip=True) == "Cancel"
+        action = soup.find("form", method="post")["action"]
+        assert action == entry.remove_href
+        if held:
+            assign_asset(campaign_assets[0], gang)
+        response = client.post(action)
+        assert response.status_code == 302
+        assert response["Location"] == current + "#assets"
+        assert campaign.campaign_assets.count() == (2 if held else 1)
 
     def test_removing_a_held_asset_is_refused_in_words(
         self, client, campaign_assets, gang, campaign, arbitrator

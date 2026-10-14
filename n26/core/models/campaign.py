@@ -100,6 +100,15 @@ class Campaign(Base, Owned, Archived):
             "adds on top of the type the campaign was founded on."
         ),
     )
+    gang_grouping = models.ForeignKey(
+        "library.Slot",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="grouped_campaigns",
+        help_text="The campaign label used to group gangs by default.",
+    )
+    group_colours = models.JSONField(default=dict, blank=True)
     budget = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -150,6 +159,7 @@ class CampaignEvent(Base):
         BUDGET_SET = "budget_set", "Budget set"
         SUMMARY_EDITED = "summary_edited", "Summary edited"
         STATUS_CHANGED = "status_changed", "Status changed"
+        GROUPING_CHANGED = "grouping_changed", "Gang grouping changed"
         ARCHIVED = "archived", "Archived"
         DICE_ROLLED = "dice_rolled", "Dice rolled"
         DICE_ROLL_NOTED = "dice_roll_noted", "Dice roll noted"

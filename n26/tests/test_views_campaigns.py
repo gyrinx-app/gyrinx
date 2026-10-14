@@ -634,7 +634,9 @@ class TestCampaignDashboardLayout:
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         table = drawn.split('id="n26-campaign-gangs"', 1)[1].split("</table>", 1)[0]
         headings = re.findall(r"<th\b[^>]*>(.*?)</th>", table, re.S)
-        assert [heading.strip() for heading in headings[:4]] == [
+        assert [
+            re.sub(r"<[^>]+>", "", heading).strip() for heading in headings[:4]
+        ] == [
             "Gang",
             "Rating",
             "Credits",
@@ -646,7 +648,7 @@ class TestCampaignDashboardLayout:
         assert texts == ["Rating 125¢", "Credits 800¢", "Wealth 1000¢"]
         assert_reconciled(gang)
 
-    def test_labels_use_full_width_rows_without_adding_numeric_columns(
+    def test_labels_share_one_detail_line_without_adding_numeric_columns(
         self, client, campaign, arbitrator, gang_type, open_to_everyone
     ):
         from n26.tests.sandbox.actions import add_campaign_label, join_campaign
@@ -665,16 +667,13 @@ class TestCampaignDashboardLayout:
         assert not {"Alignment", "Campaign objective"} & {
             heading.get_text(strip=True) for heading in headings
         }
-        details = {
-            row.th.get_text(strip=True): row
-            for row in table.tbody.find_all("tr", recursive=False)[1:]
-        }
-        for name in ["Alignment", "Campaign objective"]:
-            row = details[name]
-            assert row.th["scope"] == "row"
-            assert len(row.find_all(["th", "td"], recursive=False)) == 2
-            assert int(row.td["colspan"]) == len(headings) - 1
-            assert row.td.get_text(strip=True) == "—"
+        main, details = table.tbody.find_all("tr", recursive=False)
+        assert len(main.find_all(["th", "td"], recursive=False)) == len(headings)
+        (cell,) = details.find_all("td", recursive=False)
+        assert int(cell["colspan"]) == len(headings)
+        text = cell.get_text(" ", strip=True)
+        assert "Alignment —" in text
+        assert "Campaign objective —" in text
 
     def test_gang_name_precedes_its_log_action(
         self, client, campaign, arbitrator, gang_type, open_to_everyone
@@ -1464,7 +1463,7 @@ class TestWhatAParticipantSees:
         drawn = client.get("/n26/campaigns/").content.decode()
         # The name is drawn through <c-n26.user-link>, which wraps it so the
         # badge the arbitrator holds can follow it.
-        assert re.search(r"arbitrated by <a[^>]*><span[^>]*>kesh<", drawn)
+        assert "Arbitrator:" not in drawn and ">kesh<" in drawn
         assert reverse("user-profile", args=[theirs.owner.username]) in drawn
         assert f"/n26/campaigns/{theirs.pk}/edit/" not in drawn
 
@@ -1939,3 +1938,112 @@ class TestTheArbitratorIsNotAParticipant:
         )
         assert "no longer exists" in response.content.decode()
         assert not CampaignParticipant.objects.exists()
+
+
+class TestCampaignListingFacts:
+    def test_home_and_list_name_the_arbitrator_type_status_and_counts(
+        self, client, campaign, open_to_everyone
+    ):
+        from bs4 import BeautifulSoup
+
+        for url in ["/n26/?tab=Campaigns", "/n26/campaigns/"]:
+            response = client.get(url)
+            soup = BeautifulSoup(response.content, "html.parser")
+            row = next(
+                row
+                for row in soup.select("[data-record-row]")
+                if "Dust Falls" in row.get_text()
+            )
+            text = row.get_text(" ", strip=True)
+            assert campaign.campaign_type.name in text
+            assert "Arbitrator:" not in text and "arbitrator" in text
+            assert "Pre-campaign" in text
+            assert "0 gangs" in text and "0 battles" in text
+            assert not row.find("button")
+            assert "Edit" not in text
+
+    def test_campaign_rows_add_no_queries_as_the_list_grows(
+        self, client, campaign, campaign_type, arbitrator, open_to_everyone
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def queries():
+            client.get("/n26/campaigns/")
+            with CaptureQueriesContext(connection) as captured:
+                assert client.get("/n26/campaigns/").status_code == 200
+            return len(captured)
+
+        before = queries()
+        for index in range(5):
+            found_campaign(f"More {index}", campaign_type, owner=arbitrator)
+        assert queries() == before
+
+    @pytest.mark.parametrize("nested_loops", ["on", "off"])
+    def test_counts_do_not_join_memberships_to_battle_history(
+        self, client, campaign, gang_type, open_to_everyone, nested_loops
+    ):
+        from datetime import date
+
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.campaigns import campaign_operation
+        from n26.tests.sandbox.actions import join_campaign
+
+        for index in range(12):
+            player = User.objects.create_user(f"campaign-player-{index}")
+            seat(campaign, player)
+            gang = found_gang(f"Gang {index}", gang_type, owner=player)
+            join_campaign(gang, campaign)
+        with campaign_operation(campaign, actor=campaign.owner) as op:
+            for index in range(120):
+                op.record_battle(date(2026, 8, 3), scenario=f"Battle {index}")
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT set_config('enable_nestloop', %s, true)", [nested_loops]
+            )
+
+        counted_tables = {CampaignMembership._meta.db_table, Battle._meta.db_table}
+
+        def joined_relations(node):
+            if node["Node Type"] == "Aggregate":
+                return set()
+            tables = {node["Relation Name"]} if "Relation Name" in node else set()
+            for child in node.get("Plans", []):
+                # Correlated counts are evaluated separately from a join's inputs.
+                if child.get("Parent Relationship") not in {"SubPlan", "InitPlan"}:
+                    tables.update(joined_relations(child))
+            return tables
+
+        def joins(node):
+            if "Join Type" in node:
+                yield node
+            for child in node.get("Plans", []):
+                yield from joins(child)
+
+        for url in ["/n26/?tab=Campaigns", "/n26/campaigns/"]:
+            with CaptureQueriesContext(connection) as captured:
+                response = client.get(url)
+            row = response.context["campaigns"][0]
+            assert (row.active_gangs, row.battle_count) == (12, 120)
+            sql = next(
+                query["sql"]
+                for query in captured
+                if 'AS "active_gangs"' in query["sql"]
+            )
+            with connection.cursor() as cursor:
+                cursor.execute("EXPLAIN (ANALYZE, FORMAT JSON) " + sql)
+                plan = cursor.fetchone()[0][0]["Plan"]
+
+            for node in joins(plan):
+                assert not counted_tables <= joined_relations(node), node
+
+
+def test_submitted_campaign_search_matches_the_type_shown_in_live_search(
+    client, campaign, open_to_everyone
+):
+    response = client.get(reverse("n26-campaigns"), {"q": campaign.campaign_type.name})
+    assert response.status_code == 200
+    assert campaign.pk in {row.pk for row in response.context["campaigns"]}

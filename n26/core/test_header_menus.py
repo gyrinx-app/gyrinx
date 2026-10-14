@@ -198,7 +198,7 @@ def test_the_menu_comes_back_when_a_label_choice_redraws_the_sheet(
 
 
 class TestTheCampaignHeader:
-    def test_the_arbitrator_gets_the_log_counters_asset_types_and_archive(
+    def test_the_arbitrator_gets_the_log_counters_asset_types_grouping_and_archive(
         self, client, campaign
     ):
         client.force_login(campaign.owner)
@@ -223,6 +223,12 @@ class TestTheCampaignHeader:
             (
                 "Asset types",
                 reverse("n26-edit-campaign", args=[campaign.pk]) + "?tab=asset-types",
+                "default",
+                False,
+            ),
+            (
+                "Gang grouping",
+                reverse("n26-campaign-grouping", args=[campaign.pk]),
                 "default",
                 False,
             ),

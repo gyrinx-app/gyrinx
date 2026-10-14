@@ -301,7 +301,8 @@ class TestTheGangSheet:
             heading.get_text(" ", strip=True)
             == f"Campaign · {membership.campaign.name}"
         )
-        assert "Settlements" in state.get_text()
+        assert "Territories" in state.get_text()
+        assert "Settlements" not in state.get_text()
 
 
 class TestEditingTheTypeReachesMemberGangs:
