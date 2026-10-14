@@ -862,6 +862,12 @@ class AddAssetTypeForm(forms.Form):
             "blank and an s is added."
         ),
     )
+    display_group = forms.CharField(
+        required=False,
+        max_length=200,
+        label="Display group",
+        help_text=AssetType._meta.get_field("display_group").help_text,
+    )
     ownership = forms.ChoiceField(
         choices=AssetType.Ownership.choices,
         initial=AssetType.Ownership.HOLDING,
@@ -1298,3 +1304,49 @@ class CounterAdjustmentForm(forms.Form):
         if not change:
             raise forms.ValidationError("Enter an amount to add or remove.")
         return change
+
+
+class CampaignGroupingForm(forms.Form):
+    """The arbitrator's default grouping and colours for each label option."""
+
+    grouping = forms.ChoiceField(required=False, label="Group gangs by")
+
+    def __init__(self, *args, campaign, slots, options, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["grouping"].choices = [
+            ("", "No grouping"),
+            *((str(slot.pk), slot.choice_label) for slot in slots),
+        ]
+        self.fields["grouping"].initial = str(campaign.gang_grouping_id or "")
+        self.groups = []
+        for slot in slots:
+            rows = []
+            for option in options[str(slot.pk)]:
+                name = f"colour_{slot.pk}_{option['id']}"
+                self.fields[name] = forms.ChoiceField(
+                    choices=[
+                        ("", "No colour"),
+                        *((colour, colour) for colour in GANG_COLOURS),
+                    ],
+                    required=False,
+                    label=option["name"],
+                    initial=option["colour"],
+                )
+                rows.append(
+                    {"field": self[name], "slot": str(slot.pk), "option": option["id"]}
+                )
+            self.groups.append(
+                {"label": slot.choice_label, "slot": str(slot.pk), "rows": rows}
+            )
+
+    def colours(self):
+        colours = {}
+        for group in self.groups:
+            selected = {
+                row["option"]: self.cleaned_data[row["field"].name]
+                for row in group["rows"]
+                if self.cleaned_data[row["field"].name]
+            }
+            if selected:
+                colours[group["slot"]] = selected
+        return colours

@@ -1651,6 +1651,8 @@ def _tell_campaign(e):
             return (
                 Span(f"changed starting territories: {e.note.lower()}"),
             ), "campaign"
+        case kinds.GROUPING_CHANGED:
+            return (Span("changed the gang grouping and colours"),), "campaign"
         case kinds.SUMMARY_EDITED:
             return (Span("edited the campaign's summary"),), "campaign"
         case kinds.ARCHIVED:

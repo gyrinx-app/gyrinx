@@ -10,7 +10,8 @@ itself say that something is there.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Count
+from django.db.models import Count, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -24,8 +25,7 @@ from n26.core.views.permissions import (
 from n26.flags import CAMPAIGNS, requires_flag
 from n26.library.staged import sees_staged
 
-#: How many campaigns a page of the list holds. A row is a name, a budget
-#: and its controls — shorter than a gang's, so a page holds more of them.
+#: Campaigns per page in the searchable listing.
 CAMPAIGNS_PER_PAGE = 25
 
 #: How many accounts a search for somebody to invite offers at once. Enough
@@ -78,14 +78,14 @@ def campaigns(request):
         .filter(archived=False)
         # A row names its arbitrator with the badge they hold, which reads
         # their profile and their grants.
-        .select_related("owner", "owner__profile")
+        .select_related("owner", "owner__profile", "campaign_type")
         .prefetch_related("owner__badge_grants")
         .order_by("name", "pk")
     )
-    found = search_queryset(listed, query, ["name"])
+    found = search_queryset(listed, query, ["name", "campaign_type__name"])
 
     page = Paginator(found, CAMPAIGNS_PER_PAGE).get_page(request.GET.get("page"))
-    rows = campaign_rows(page.object_list, request.user)
+    rows = campaign_rows(page.object_list)
     return render(
         request,
         "n26/campaigns.html",
@@ -107,26 +107,36 @@ def campaigns(request):
     )
 
 
-def campaign_rows(listed, user):
-    """The listed campaigns, each carrying what its row has to draw.
+def campaign_rows(listed):
+    """Campaign facts shared by the dashboard and the campaigns list.
 
-    A list holding both the campaigns somebody runs and the ones they play
-    in has to say which is which: what an arbitrator may do to a campaign
-    is not what somebody playing in it may. The answer is settled here, as
-    the words the row draws rather than a flag it has to interpret, so the
-    campaigns list and the home page's tab cannot come to disagree about
-    what either sort of row looks like.
-
-    A campaign the reader runs names nobody — they know who runs it — and
-    offers the way in to change it. One they only play in names its
-    arbitrator and offers nothing: the whole row already opens it, and
-    there is nothing on the far side for them to change.
+    Count memberships and battles independently so their rows do not multiply.
     """
-    rows = list(listed)
+    from n26.core.models import Battle, CampaignMembership
+
+    memberships = (
+        CampaignMembership.objects.filter(campaign=OuterRef("pk"), left__isnull=True)
+        .order_by()
+        .values("campaign")
+        .annotate(count=Count("pk"))
+        .values("count")
+    )
+    battles = (
+        Battle.objects.filter(campaign=OuterRef("pk"))
+        .order_by()
+        .values("campaign")
+        .annotate(count=Count("pk"))
+        .values("count")
+    )
+
+    rows = list(
+        listed.annotate(
+            active_gangs=Coalesce(Subquery(memberships), 0),
+            battle_count=Coalesce(Subquery(battles), 0),
+        )
+    )
     for row in rows:
-        arbitrated = row.owner_id == getattr(user, "id", None)
-        row.arbitrator = None if arbitrated else row.owner
-        row.action_label = "Edit" if arbitrated else ""
+        row.arbitrator = row.owner
     return rows
 
 
@@ -228,11 +238,12 @@ def campaign(request, pk):
         if yours and not rolling
         else None
     )
+    _fill_addresses(sheet, found, yours=yours, viewer=request.user, request=request)
     if (rolling or starting) and request.method == "GET" and is_htmx(request):
         response = render(
             request,
             "n26/includes/campaign_roll_dialogs.html",
-            _roll_context(found, rolling, starting),
+            _roll_context(found, rolling, starting, cancel_url=sheet.table_href),
         )
         response["HX-Replace-Url"] = request.get_full_path()
         return response
@@ -240,7 +251,6 @@ def campaign(request, pk):
         # Asked for a dialog that cannot be drawn — a stale or withdrawn
         # question — so the whole page is served, and it names everybody.
         load_owner_badges(found.owner, *(line.owner for line in sheet.gangs))
-    _fill_addresses(sheet, found, yours=yours, viewer=request.user)
     acts, more_acts = _recent_acts(found, request.user)
     battles = found.battles.prefetch_related("gangs", "winners")[:BATTLES_ON_THE_PAGE]
     # Read once and asked twice: the page draws the players, and whether
@@ -293,7 +303,9 @@ def campaign(request, pk):
             "battles": battles,
             "acts": acts,
             "more_acts": more_acts,
-            **_roll_context(found, rolling, starting, redrawn=False),
+            **_roll_context(
+                found, rolling, starting, redrawn=False, cancel_url=sheet.table_href
+            ),
         },
     )
 
@@ -329,6 +341,12 @@ def more_actions(campaign, *, yours):
                 SECONDARY,
             ),
             Action(
+                "Gang grouping",
+                LINK,
+                reverse("n26-campaign-grouping", args=[campaign.pk]),
+                SECONDARY,
+            ),
+            Action(
                 "Archive campaign",
                 LINK,
                 reverse("n26-archive-campaign", args=[campaign.pk]),
@@ -338,7 +356,7 @@ def more_actions(campaign, *, yours):
     return actions
 
 
-def _fill_addresses(sheet, campaign, *, yours, viewer):
+def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url=""):
     """Put the addresses on a campaign sheet. The structure says who may
     act; only the view knows where each act is asked, so the same filling
     serves the page and the partial update a roll delivers."""
@@ -347,6 +365,12 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
     from n26.core.owned import with_query
 
     here = reverse("n26-campaign", args=[campaign.pk])
+    preferences = {}
+    if request is not None:
+        from n26.core.campaign_table import prepare_gang_table, table_query
+
+        prepare_gang_table(sheet, request, here, current_url=current_url)
+        preferences = table_query(request, current_url=sheet.table_href)
     for line in sheet.gangs:
         line.href = reverse("n26-gang", args=[line.gang_id])
         # The arbitrator of a campaign still being played may change any
@@ -367,7 +391,7 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
             for counter in line.counters:
                 if counter is not None and counter.assignment_id:
                     counter.href = reverse("n26-tally", args=[counter.assignment_id])
-                    counter.back = here + "#gangs"
+                    counter.back = (sheet.table_href or here) + "#gangs"
                     counter.adjust_href = with_query(counter.href, back=counter.back)
     if yours:
         # What the arbitrator adds sits where it will show: an asset type
@@ -383,7 +407,11 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
         # type; the address names both so a reload asks it again.
         for line in sheet.gangs:
             for roll in line.starting_rolls:
-                roll.href = f"{here}?starting={line.gang_id}&type={roll.asset_type_id}"
+                roll.href = with_query(
+                    sheet.table_href or here,
+                    starting=line.gang_id,
+                    type=roll.asset_type_id,
+                )
     for table in sheet.assets:
         if yours:
             table.add_href = (
@@ -393,7 +421,9 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
             # Only where there is a rolled table: a control for a roll
             # with nothing to roll from would be a control saying no.
             if table.tables:
-                table.roll_href = f"{here}?roll={table.asset_type_id}"
+                table.roll_href = with_query(
+                    sheet.table_href or here, roll=table.asset_type_id
+                )
         for entry in table.entries:
             entry.href = reverse(
                 "n26-campaign-asset", args=[campaign.pk, entry.campaign_asset_id]
@@ -419,6 +449,16 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
                     "n26-campaign-asset-remove",
                     args=[campaign.pk, entry.campaign_asset_id],
                 )
+            if preferences:
+                for field in (
+                    "assign_href",
+                    "unassign_href",
+                    "transfer_href",
+                    "remove_href",
+                ):
+                    href = getattr(entry, field)
+                    if href:
+                        setattr(entry, field, with_query(href, **preferences))
 
 
 def _recent_acts(campaign, viewer):
@@ -530,7 +570,9 @@ def _island_field(bound):
     }
 
 
-def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
+def _roll_context(
+    campaign, rolling, starting, form=None, *, redrawn=True, cancel_url=""
+):
     """What the roll dialogs template draws from: the open question, its
     form, and which table its cards show as chosen.
 
@@ -629,7 +671,7 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
                 else duplicate_field,
                 "rolled": _island_field(form["rolled"]),
                 "inputId": f"{question['kind']}-roll",
-                "cancelUrl": _campaign_page(campaign),
+                "cancelUrl": cancel_url or _campaign_page(campaign),
                 **island_tables,
             }
 
@@ -639,19 +681,20 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
         "starting": starting,
         "form": form,
         "redrawn": redrawn,
+        "cancel_url": cancel_url or _campaign_page(campaign),
         # A dialog drawn again after a refusal replaces one still open.
         "reopened": redrawn and form is not None and form.is_bound,
     }
 
 
-def _roll_dialog(request, campaign, rolling, starting, form):
+def _roll_dialog(request, campaign, rolling, starting, form, *, cancel_url=""):
     """A refused roll's dialog on its own, in its host, for a page that is
     not rebuilt: drawn open again with the refusal inside it. ``form`` is
     the bound form carrying the refusal."""
     return render(
         request,
         "n26/includes/campaign_roll_dialogs.html",
-        _roll_context(campaign, rolling, starting, form),
+        _roll_context(campaign, rolling, starting, form, cancel_url=cancel_url),
     )
 
 
@@ -661,14 +704,18 @@ def _campaign_update(request, campaign):
     redrawn whole from a fresh sheet, plus the dialog host emptied so the
     panel closes. Whole sections rather than a row, because what a roll
     adds is a new line, and no partial update can put one where there
-    was none. The address goes back to the plain campaign page, and the
+    was none. The address keeps the table’s sorting and grouping, and the
     queued message rides along as a toast."""
     from n26.core.render import render_campaign
     from n26.core.views.htmx import with_toasts
 
     sheet = render_campaign(campaign, viewer=request.user)
     _fill_addresses(
-        sheet, campaign, yours=campaign.owner_id == request.user.pk, viewer=request.user
+        sheet,
+        campaign,
+        yours=campaign.owner_id == request.user.pk,
+        viewer=request.user,
+        request=request,
     )
     acts, more_acts = _recent_acts(campaign, request.user)
     response = render(
@@ -676,7 +723,7 @@ def _campaign_update(request, campaign):
         "n26/includes/campaign_update.html",
         {"campaign": campaign, "sheet": sheet, "acts": acts, "more_acts": more_acts},
     )
-    response["HX-Replace-Url"] = _campaign_page(campaign)
+    response["HX-Replace-Url"] = sheet.table_href or _campaign_page(campaign)
     return with_toasts(request, response)
 
 
@@ -766,6 +813,7 @@ def _roll_refused(request, campaign, form, again, question):
     the page moves; without htmx the reason is queued and the page with
     the dialog open is served again. ``question`` builds the dialog's
     facts from a fresh sheet."""
+    from n26.core.campaign_table import prepare_gang_table
     from n26.core.render import render_campaign
     from n26.core.views.htmx import is_htmx
 
@@ -774,6 +822,7 @@ def _roll_refused(request, campaign, form, again, question):
         return redirect(again)
     # A dialog names no gang's owner.
     sheet = render_campaign(campaign, viewer=request.user, with_owner_badges=False)
+    prepare_gang_table(sheet, request, _campaign_page(campaign))
     asked = question(sheet)
     if asked is None:
         # The dialog no longer has anything to offer — the table was
@@ -782,8 +831,12 @@ def _roll_refused(request, campaign, form, again, question):
         response["HX-Redirect"] = _campaign_page(campaign)
         return response
     if "gang_id" in asked:
-        return _roll_dialog(request, campaign, None, asked, form=form)
-    return _roll_dialog(request, campaign, asked, None, form=form)
+        return _roll_dialog(
+            request, campaign, None, asked, form=form, cancel_url=sheet.table_href
+        )
+    return _roll_dialog(
+        request, campaign, asked, None, form=form, cancel_url=sheet.table_href
+    )
 
 
 def _roll_made(request, campaign):
@@ -1581,7 +1634,9 @@ def _asset_back(request, campaign, holding):
 
     if request.GET.get("from") == "detail":
         return reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
-    return _assets_anchor(campaign)
+    from n26.core.campaign_table import table_view_href
+
+    return table_view_href(request, _campaign_page(campaign)) + "#assets"
 
 
 def _asset_update(request, campaign, holding):
@@ -1995,11 +2050,13 @@ def transfer_asset(request, pk, asset_pk):
 @login_required
 def remove_asset(request, pk, asset_pk):
     """The question at its own address, then the act."""
+    from n26.core.campaign_table import table_view_href
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
+    back = table_view_href(request, _campaign_page(found)) + "#assets"
 
     if request.method == "POST":
         name = str(campaign_asset)
@@ -2013,7 +2070,7 @@ def remove_asset(request, pk, asset_pk):
                 messages.error(request, f"{name} was already removed.")
             else:
                 messages.success(request, f"Removed {name}.")
-        return redirect(_assets_anchor(found))
+        return redirect(back)
 
     return render(
         request,
@@ -2021,7 +2078,7 @@ def remove_asset(request, pk, asset_pk):
         {
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "back": _assets_anchor(found),
+            "back": back,
         },
     )
 
@@ -2107,6 +2164,7 @@ def add_asset_type(request, pk):
             data["label_singular"],
             data["ownership"],
             label_plural=data["label_plural"],
+            display_group=data["display_group"],
         )
         return f"Added the asset type {asset_type.label_singular}."
 
@@ -2169,6 +2227,7 @@ def edit_asset_type(request, pk, asset_type_pk):
         initial={
             "label_singular": asset_type.label_singular,
             "label_plural": asset_type.label_plural,
+            "display_group": asset_type.display_group,
             "ownership": asset_type.ownership,
         },
         ownership_locked=bool(fixed),
@@ -2180,6 +2239,7 @@ def edit_asset_type(request, pk, asset_type_pk):
             data["label_singular"],
             data["ownership"],
             label_plural=data["label_plural"],
+            display_group=data["display_group"],
         )
         if edited is None:
             return "Nothing changed."
@@ -3085,4 +3145,43 @@ def answer_invitation(request, pk):
     )
     return _safe_redirect(
         request, request.POST.get("next", ""), fallback_url=reverse("n26-campaigns")
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def campaign_grouping(request, pk):
+    """Only the arbitrator sets shared grouping and colours."""
+    from n26.core.campaign_table import label_options
+    from n26.core.campaigns import campaign_operation
+    from n26.core.forms import CampaignGroupingForm
+    from n26.core.operations import Refusal
+    from n26.core.render import _arbitrators_additions
+
+    found = _own_campaign_or_404(request, pk, with_owner_badge=False)
+    _, slots = _arbitrators_additions(found)
+    form = CampaignGroupingForm(
+        request.POST or None,
+        campaign=found,
+        slots=slots,
+        options=label_options(found, slots),
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            with campaign_operation(found, actor=request.user) as op:
+                op.set_gang_grouping(form.cleaned_data["grouping"], form.colours())
+        except Refusal as error:
+            form.add_error(None, str(error))
+        else:
+            messages.success(request, "Gang grouping saved.")
+            return redirect(reverse("n26-campaign", args=[found.pk]) + "#gangs")
+    return render(
+        request,
+        "n26/campaign_grouping.html",
+        {
+            "campaign": found,
+            "form": form,
+            "groups": form.groups,
+            "back": reverse("n26-campaign", args=[found.pk]) + "#gangs",
+        },
     )

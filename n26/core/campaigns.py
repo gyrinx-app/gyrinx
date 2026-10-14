@@ -160,6 +160,38 @@ class CampaignOperation:
         )
         return campaign
 
+    def set_gang_grouping(self, grouping, colours):
+        """Set the campaign's default label grouping and its group colours."""
+        from n26.core.campaign_table import label_options
+        from n26.core.colours import GANG_COLOURS
+        from n26.core.operations import Refusal
+        from n26.core.render import _arbitrators_additions
+
+        _, slots = _arbitrators_additions(self.campaign)
+        available = {str(slot.pk): slot for slot in slots}
+        if grouping and grouping not in available:
+            raise Refusal("Select a label from this campaign.")
+        options = label_options(self.campaign, slots)
+        for slot_id, values in colours.items():
+            if slot_id not in available:
+                raise Refusal("Select a label from this campaign.")
+            allowed = {option["id"] for option in options[slot_id]}
+            if any(
+                option_id not in allowed or colour not in GANG_COLOURS
+                for option_id, colour in values.items()
+            ):
+                raise Refusal("Choose one of the colours shown.")
+        if (
+            str(self.campaign.gang_grouping_id or "") == grouping
+            and self.campaign.group_colours == colours
+        ):
+            return None
+        self.campaign.gang_grouping = available.get(grouping)
+        self.campaign.group_colours = colours
+        self.campaign.save(update_fields=["gang_grouping", "group_colours", "modified"])
+        self.event(CampaignEvent.Kind.GROUPING_CHANGED)
+        return self.campaign
+
     def set_budget(self, credits):
         """Change what a gang is founded with here, and record it.
 
@@ -1233,7 +1265,9 @@ class CampaignOperation:
     # and onto its additions type, so it reaches member gangs by the path a
     # gang type's built-ins take. Nothing here touches the shared type.
 
-    def add_asset_type(self, label_singular, ownership, label_plural=""):
+    def add_asset_type(
+        self, label_singular, ownership, label_plural="", display_group=""
+    ):
         """Declare a new asset type for this campaign alone.
 
         The asset type lands on the additions type, in the campaign's pack.
@@ -1263,12 +1297,15 @@ class CampaignOperation:
             label_singular,
             ownership,
             label_plural=(label_plural or "").strip(),
+            display_group=(display_group or "").strip(),
             pack=self.campaign.pack,
         )
         self.event(CampaignEvent.Kind.ASSET_TYPE_ADDED, note=asset_type.label_singular)
         return asset_type
 
-    def edit_asset_type(self, asset_type, label_singular, ownership, label_plural=""):
+    def edit_asset_type(
+        self, asset_type, label_singular, ownership, label_plural="", display_group=""
+    ):
         """Change the labels or ownership of one of this campaign's own
         asset types, and say so in its log.
 
@@ -1290,6 +1327,7 @@ class CampaignOperation:
         asset_type = _asset_type_under_the_lock(asset_type)
         label_singular = (label_singular or "").strip()
         label_plural = (label_plural or "").strip()
+        display_group = (display_group or "").strip()
         if not label_singular:
             raise Refusal("Give the asset type a label.")
         taken = (
@@ -1313,17 +1351,25 @@ class CampaignOperation:
         ):
             raise Refusal(f"You cannot change the ownership now. {fixed}")
         was = asset_type.label_singular
-        if (label_singular, label_plural, ownership) == (
+        if (label_singular, label_plural, ownership, display_group) == (
             was,
             asset_type.label_plural,
             asset_type.ownership,
+            asset_type.display_group,
         ):
             return None
         asset_type.label_singular = label_singular
         asset_type.label_plural = label_plural
         asset_type.ownership = ownership
+        asset_type.display_group = display_group
         asset_type.save(
-            update_fields=["label_singular", "label_plural", "ownership", "modified"]
+            update_fields=[
+                "label_singular",
+                "label_plural",
+                "ownership",
+                "display_group",
+                "modified",
+            ]
         )
         note = label_singular if was == label_singular else f"{was} → {label_singular}"
         self.event(CampaignEvent.Kind.ASSET_TYPE_EDITED, note=note)

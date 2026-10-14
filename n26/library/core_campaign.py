@@ -136,6 +136,14 @@ def seed_core_campaign(apps):
                 label_plural=plural,
                 position=position,
                 **{ownership_field: ownership},
+                **(
+                    {"display_group": "Territories"}
+                    if any(
+                        field.name == "display_group"
+                        for field in AssetType._meta.get_fields()
+                    )
+                    else {}
+                ),
             )
             lines.append(f"created the {label} asset type")
         asset_types[label] = asset_type
