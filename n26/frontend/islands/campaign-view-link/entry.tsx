@@ -46,6 +46,14 @@ export function CampaignViewLink(
         event.preventDefault();
         if (opening.current) return;
         opening.current = true;
+        const request = {};
+        const notify = (pending: boolean) =>
+            window.dispatchEvent(
+                new CustomEvent("n26:campaign-dialog-request", {
+                    detail: { request, pending },
+                }),
+            );
+        notify(true);
         setError(false);
         try {
             await props.onOpenDialog?.(href);
@@ -53,6 +61,7 @@ export function CampaignViewLink(
             setError(true);
         } finally {
             opening.current = false;
+            notify(false);
         }
     }
     return (

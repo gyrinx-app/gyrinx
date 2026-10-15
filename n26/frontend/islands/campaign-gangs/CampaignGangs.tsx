@@ -52,6 +52,8 @@ export function CampaignGangs(
     });
     const [error, setError] = useState("");
     const [pending, setPending] = useState("");
+    const [externalPending, setExternalPending] = useState(false);
+    const externalRequests = useRef(new Set<unknown>());
     const opening = useRef(false);
     const alive = useRef(true);
     const initialised = useRef(false);
@@ -64,6 +66,26 @@ export function CampaignGangs(
         (column) => column.token === view.group,
     );
     const back = viewHref(props.href, view, "gangs");
+    const busy = Boolean(pending) || externalPending;
+    useEffect(() => {
+        function dialogRequest(event: Event) {
+            const { request, pending } = (
+                event as CustomEvent<{
+                    request: unknown;
+                    pending: boolean;
+                }>
+            ).detail;
+            if (pending) externalRequests.current.add(request);
+            else externalRequests.current.delete(request);
+            setExternalPending(externalRequests.current.size > 0);
+        }
+        window.addEventListener("n26:campaign-dialog-request", dialogRequest);
+        return () =>
+            window.removeEventListener(
+                "n26:campaign-dialog-request",
+                dialogRequest,
+            );
+    }, []);
     useEffect(() => {
         if (props.focusCounter)
             counterLinks.current
@@ -109,7 +131,7 @@ export function CampaignGangs(
         };
     }, [props]);
     function change(next: View) {
-        if (opening.current) return;
+        if (opening.current || externalRequests.current.size > 0) return;
         // Dialog responses mark history for HTMX; table views are restored by React.
         const state = { ...window.history.state, htmx: false };
         window.history.replaceState(state, "", window.location.href);
@@ -124,7 +146,7 @@ export function CampaignGangs(
     async function open(event: MouseEvent<HTMLAnchorElement>, href: string) {
         if (!ordinaryClick(event)) return;
         event.preventDefault();
-        if (opening.current) return;
+        if (opening.current || externalRequests.current.size > 0) return;
         opening.current = true;
         setPending(href);
         setError("");
@@ -387,7 +409,7 @@ export function CampaignGangs(
                     Sort by
                     <NativeSelect
                         controlSize="sm"
-                        disabled={Boolean(pending)}
+                        disabled={busy}
                         value={view.sort}
                         onChange={(event) =>
                             change({ ...view, sort: event.target.value })
@@ -411,7 +433,7 @@ export function CampaignGangs(
                         View groups by
                         <NativeSelect
                             controlSize="sm"
-                            disabled={Boolean(pending)}
+                            disabled={busy}
                             value={view.group}
                             onChange={(event) =>
                                 change({ ...view, group: event.target.value })
@@ -476,7 +498,7 @@ export function CampaignGangs(
                                                 "gangs",
                                             )}
                                             className="inline-flex items-center gap-1 text-current focus-ring"
-                                            aria-disabled={Boolean(pending)}
+                                            aria-disabled={busy}
                                             onClick={(event) => {
                                                 if (ordinaryClick(event)) {
                                                     event.preventDefault();
