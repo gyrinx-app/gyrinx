@@ -1,7 +1,8 @@
 {% comment %}
-<c-n26.stash> — The gang's stashed gear, grouped by kind, with its rating total.
+<c-n26.stash> — The gang's stashed gear, grouped by kind, with credits and equipment value.
 
 total is the stash rating. Do not sum the visible figures: a stacked line shows the rating for one copy.
+Pass credits to show the cash balance before the equipment value. Omit it for unlimited credits.
 Stashed gear counts in wealth, not in the models' rating.
 regroup needs dictsort first. Without it, the same kind appearing twice becomes two groups.
 Named slots use .strip because a cotton slot of newlines is not empty.
@@ -13,7 +14,7 @@ An empty stash still draws the card. A slot that comes and goes would shift ever
 The gear list scrolls after max-h-80. Line menus use fixed placement so that box does not clip them.
 {% endcomment %}
 
-<c-vars :lines="None" :total="0" empty="" actions="" controls="" notice="" class="" />
+<c-vars :lines="None" :total="0" :credits="None" :credits_unlimited="False" empty="" actions="" controls="" notice="" class="" />
 
 <c-ui.card padding="none" class="{{ class }}">
     <c-slot name="header">
@@ -33,7 +34,12 @@ The gear list scrolls after max-h-80. Line menus use fixed placement so that box
                 {% if controls.strip %}
                     {{ controls }}
                 {% endif %}
-                <span class="tabular-nums text-muted">{{ total }}¢</span>
+                <span class="whitespace-nowrap tabular-nums text-muted">
+                    {% if credits is not None and not credits_unlimited %}
+                        <span class="sr-only">Credits: </span>{{ credits }}¢ +
+                    {% endif %}
+                    <span class="sr-only">Stashed equipment: </span>{{ total }}¢
+                </span>
             </c-n26.action-links>
         </div>
     </c-slot>
