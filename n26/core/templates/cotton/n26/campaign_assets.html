@@ -15,7 +15,12 @@ Roll is primary because it begins a form. The other controls do not.
     {% if table.add_href or table.roll_href %}
         <c-slot name="actions">
             {% if table.roll_href %}
-                <c-ui.button size="sm" variant="primary" href="{{ table.roll_href }}" hx-get="{{ table.roll_href }}" hx-swap="none">Roll {{ table.plural|lower }}</c-ui.button>
+                {% with plural=table.plural|lower %}
+                    {% campaign_view_link table.roll_href "Roll "|add:plural variant="primary" dialog=True as roll_props %}
+                    {% react_host "campaign-view-link" roll_props class="contents" %}
+                        <c-ui.button size="sm" variant="primary" href="{{ table.roll_href }}" hx-get="{{ table.roll_href }}" hx-swap="none">Roll {{ plural }}</c-ui.button>
+                    {% endreact_host %}
+                {% endwith %}
             {% endif %}
             {% if table.add_href %}
                 {% with plural=table.plural|lower %}
@@ -78,15 +83,24 @@ Roll is primary because it begins a form. The other controls do not.
                                      class="max-h-[min(24rem,75dvh,calc(100%-1rem))] w-48 overflow-y-auto rounded-control border border-box-border bg-surface p-1 text-ink-900 shadow-lg dark:bg-ink-900 dark:text-ink-100"
                                      style="inset: auto; position-area: bottom span-left; position-try-fallbacks: flip-block, flip-inline; margin: 0.25rem 0;">
                                     {% if entry.transfer_href %}
-                                        <c-ui.button size="sm" variant="ghost" class="w-full text-left!" href="{{ entry.transfer_href }}" hx-get="{{ entry.transfer_href }}" hx-swap="none">{{ entry.transfer_label }}</c-ui.button>
+                                        {% campaign_view_link entry.transfer_href entry.transfer_label variant="ghost" class_name="w-full text-left!" dialog=True as dialog_props %}
+                                        {% react_host "campaign-view-link" dialog_props class="contents" %}
+                                            <c-ui.button size="sm" variant="ghost" class="w-full text-left!" href="{{ entry.transfer_href }}" hx-get="{{ entry.transfer_href }}" hx-swap="none">{{ entry.transfer_label }}</c-ui.button>
+                                        {% endreact_host %}
                                     {% endif %}
                                     {% if entry.unassign_href %}
-                                        <c-ui.button size="sm" variant="ghost" class="w-full text-left!" href="{{ entry.unassign_href }}"
+                                        {% campaign_view_link entry.unassign_href "Unassign" variant="ghost" class_name="w-full text-left!" dialog=True as dialog_props %}
+                                        {% react_host "campaign-view-link" dialog_props class="contents" %}
+                                            <c-ui.button size="sm" variant="ghost" class="w-full text-left!" href="{{ entry.unassign_href }}"
                                                      hx-get="{{ entry.unassign_href }}" hx-swap="none">Unassign</c-ui.button>
+                                        {% endreact_host %}
                                     {% endif %}
                                     {% if entry.assign_href %}
-                                        <c-ui.button size="sm" variant="ghost" class="w-full text-left!" href="{{ entry.assign_href }}"
+                                        {% campaign_view_link entry.assign_href "Assign" variant="ghost" class_name="w-full text-left!" dialog=True as dialog_props %}
+                                        {% react_host "campaign-view-link" dialog_props class="contents" %}
+                                            <c-ui.button size="sm" variant="ghost" class="w-full text-left!" href="{{ entry.assign_href }}"
                                                      hx-get="{{ entry.assign_href }}" hx-swap="none">Assign</c-ui.button>
+                                        {% endreact_host %}
                                     {% endif %}
                                     {% if entry.remove_href %}
                                         {% campaign_view_link entry.remove_href "Remove" variant="ghost" class_name="w-full text-left! text-red-600! dark:text-red-400!" as remove_props %}

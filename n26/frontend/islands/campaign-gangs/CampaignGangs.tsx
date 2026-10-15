@@ -109,6 +109,7 @@ export function CampaignGangs(
         };
     }, [props]);
     function change(next: View) {
+        if (opening.current) return;
         // Dialog responses mark history for HTMX; table views are restored by React.
         const state = { ...window.history.state, htmx: false };
         window.history.replaceState(state, "", window.location.href);
@@ -386,6 +387,7 @@ export function CampaignGangs(
                     Sort by
                     <NativeSelect
                         controlSize="sm"
+                        disabled={Boolean(pending)}
                         value={view.sort}
                         onChange={(event) =>
                             change({ ...view, sort: event.target.value })
@@ -409,6 +411,7 @@ export function CampaignGangs(
                         View groups by
                         <NativeSelect
                             controlSize="sm"
+                            disabled={Boolean(pending)}
                             value={view.group}
                             onChange={(event) =>
                                 change({ ...view, group: event.target.value })
@@ -473,6 +476,7 @@ export function CampaignGangs(
                                                 "gangs",
                                             )}
                                             className="inline-flex items-center gap-1 text-current focus-ring"
+                                            aria-disabled={Boolean(pending)}
                                             onClick={(event) => {
                                                 if (ordinaryClick(event)) {
                                                     event.preventDefault();

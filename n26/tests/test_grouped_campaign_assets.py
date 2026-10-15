@@ -65,6 +65,24 @@ def test_named_groups_keep_multiples_and_renamed_copies(grouped):
     assert len(block.holdings) == 4
 
 
+def test_asset_dialog_links_receive_live_view_navigation_props(client, grouped):
+    import json
+
+    _, campaign, _, tokens = grouped
+    unassign_asset(tokens[0])
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+    soup = BeautifulSoup(response.content, "html.parser")
+    dialogs = []
+    for host in soup.select('[data-react-name="campaign-view-link"]'):
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+        if props["dialog"]:
+            dialogs.append(props)
+            assert host.find("a").get("hx-swap") == "none"
+    assert {props["label"] for props in dialogs} >= {"Assign", "Unassign", "Transfer"}
+    for props in dialogs:
+        assert str(campaign.pk) in props["href"]
+
+
 def test_screen_uses_one_row_and_links_the_named_list(client, grouped):
     from bs4 import BeautifulSoup
 

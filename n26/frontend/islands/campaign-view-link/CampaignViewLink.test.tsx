@@ -1,5 +1,6 @@
-import { act, render, screen } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { expect, test, vi } from "vitest";
 import { CampaignViewLink } from "./entry";
 
 test("asset navigation uses the live table view and restores the default on Back", () => {
@@ -33,4 +34,36 @@ test("asset navigation uses the live table view and restores the default on Back
     });
     expect(link.getAttribute("href")).toBe("/assets/add/?type=territory");
     view.unmount();
+});
+
+test("asset dialog hrefs and ordinary clicks use the live view after a local change", async () => {
+    window.history.replaceState(
+        null,
+        "",
+        "/campaign/?sort=name&group=label%3Adivision",
+    );
+    const user = userEvent.setup();
+    const open = vi.fn().mockResolvedValue(undefined);
+    render(
+        <CampaignViewLink
+            href="/assets/assign/?sort=name&group=label%3Adivision"
+            label="Assign"
+            variant="ghost"
+            className=""
+            dialog
+            onOpenDialog={open}
+        />,
+    );
+    act(() => {
+        window.history.replaceState(null, "", "/campaign/?sort=-rating&group=");
+        window.dispatchEvent(new Event("n26:location-changed"));
+    });
+    const link = screen.getByRole("link", { name: "Assign" });
+    expect(link.getAttribute("href")).toBe(
+        "/assets/assign/?sort=-rating&group=",
+    );
+    fireEvent.click(link, { ctrlKey: true });
+    expect(open).not.toHaveBeenCalled();
+    await user.click(link);
+    expect(open).toHaveBeenCalledWith("/assets/assign/?sort=-rating&group=");
 });

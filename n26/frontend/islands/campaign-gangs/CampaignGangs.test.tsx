@@ -263,6 +263,32 @@ test("reports dialog failures and disables duplicate requests while waiting", as
         "The form could not load.",
     );
 });
+test("keeps the view fixed until a pending dialog response arrives", async () => {
+    const user = userEvent.setup();
+    let finish: () => void = () => {};
+    const open = vi.fn(
+        () =>
+            new Promise<void>((resolve) => {
+                finish = resolve;
+            }),
+    );
+    render(<CampaignGangs {...props()} onOpenDialog={open} />);
+    await user.click(
+        screen.getByRole("link", { name: "Edit Reputation for Alpha" }),
+    );
+    expect(
+        (screen.getByLabelText("Sort by") as HTMLSelectElement).disabled,
+    ).toBe(true);
+    expect(
+        (screen.getByLabelText("View groups by") as HTMLSelectElement).disabled,
+    ).toBe(true);
+    await user.click(screen.getByRole("link", { name: "Rating" }));
+    expect(window.location.search).toBe("");
+    expect(gangNames()).toEqual(["Alpha", "Beta", "Gamma"]);
+    await act(async () => finish());
+    await user.click(screen.getByRole("link", { name: "Rating" }));
+    expect(window.location.search).toBe("?sort=rating&group=");
+});
 test("headers associate each value with the gang, group and column", async () => {
     const user = userEvent.setup();
     render(<CampaignGangs {...props()} onOpenDialog={vi.fn()} />);
