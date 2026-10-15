@@ -38,8 +38,24 @@ export async function openCampaignDialog(
 }
 export function mount(element: HTMLElement, props: CampaignGangsProps) {
     const source = element.closest<HTMLElement>("#n26-campaign-gangs");
-    return mountRoot(element, CampaignGangs, {
+    function restoreDialogs() {
+        for (const id of [
+            "n26-campaign-state-dialog-host",
+            "n26-asset-dialog-host",
+            "n26-roll-dialog-host",
+        ]) {
+            document
+                .querySelector<HTMLDialogElement>(`#${id} dialog[open]`)
+                ?.close("n26-history");
+        }
+    }
+    window.addEventListener("popstate", restoreDialogs);
+    const dispose = mountRoot(element, CampaignGangs, {
         ...props,
         onOpenDialog: (href: string) => openCampaignDialog(source, href),
     });
+    return () => {
+        window.removeEventListener("popstate", restoreDialogs);
+        dispose();
+    };
 }

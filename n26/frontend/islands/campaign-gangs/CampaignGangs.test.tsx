@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { CampaignGangs } from "./CampaignGangs";
-import { openCampaignDialog } from "./entry";
+import { mount as mountCampaignGangs, openCampaignDialog } from "./entry";
 import {
     readView,
     tableGroups,
@@ -315,6 +315,33 @@ test("a counter redraw returns keyboard focus to its pencil", () => {
     expect(document.activeElement).toBe(
         screen.getByRole("link", { name: "Edit Reputation for Alpha" }),
     );
+});
+
+test("history restoration dismisses outside dialogs without restoring their saved return URL", () => {
+    const host = document.createElement("div");
+    const outside = document.createElement("div");
+    outside.id = "n26-campaign-state-dialog-host";
+    const dialog = document.createElement("dialog");
+    dialog.setAttribute("open", "");
+    dialog.close = vi.fn();
+    outside.append(dialog);
+    document.body.append(host, outside);
+    let dispose: () => void = () => {};
+    act(() => {
+        dispose = mountCampaignGangs(host, props());
+    });
+    act(() => {
+        window.history.replaceState(null, "", "/campaign/?sort=-rating&group=");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(dialog.close).toHaveBeenCalledWith("n26-history");
+    expect(gangNames()).toEqual(["Gamma", "Beta", "Alpha"]);
+    act(() => dispose());
+    dialog.close = vi.fn();
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(dialog.close).not.toHaveBeenCalled();
+    host.remove();
+    outside.remove();
 });
 
 test("the outside dialog bridge keeps all swaps out of the React children and rejects login responses", async () => {
