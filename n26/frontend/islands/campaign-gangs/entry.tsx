@@ -16,7 +16,12 @@ export async function openCampaignDialog(
     const htmx = (window as Window & { htmx?: Htmx }).htmx;
     if (!source || !htmx) throw new Error("Dialog unavailable");
     let answered = false;
+    const view = window.location.pathname + window.location.search;
     function received(event: Event) {
+        if (window.location.pathname + window.location.search !== view) {
+            event.preventDefault();
+            return;
+        }
         const xhr = (event as CustomEvent<{ xhr: XMLHttpRequest }>).detail.xhr;
         answered =
             xhr.status === 200 &&

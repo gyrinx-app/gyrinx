@@ -339,6 +339,21 @@ test("the outside dialog bridge keeps all swaps out of the React children and re
         source,
         swap: "none",
     });
+    let stale: CustomEvent;
+    ajax.mockImplementation(async () => {
+        window.history.replaceState(null, "", "/campaign/?sort=-rating&group=");
+        stale = new CustomEvent("htmx:beforeOnLoad", {
+            cancelable: true,
+            detail: {
+                xhr: { status: 200, getResponseHeader: () => "/old-dialog/" },
+            },
+        });
+        source.dispatchEvent(stale);
+    });
+    await expect(openCampaignDialog(source, "/tally/Alpha/")).rejects.toThrow(
+        "Dialog unavailable",
+    );
+    expect(stale!.defaultPrevented).toBe(true);
     ajax.mockImplementation(async () => undefined);
     await expect(openCampaignDialog(source, "/tally/Alpha/")).rejects.toThrow(
         "Dialog unavailable",
