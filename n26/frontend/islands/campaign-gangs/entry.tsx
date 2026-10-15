@@ -36,8 +36,39 @@ export async function openCampaignDialog(
         source.removeEventListener("htmx:beforeOnLoad", received);
     }
 }
+export function guardDialogSubmission(
+    form: HTMLFormElement,
+    refresh: () => void,
+) {
+    const view = window.location.pathname + window.location.search;
+    form.addEventListener(
+        "htmx:beforeOnLoad",
+        (event) => {
+            if (window.location.pathname + window.location.search !== view) {
+                event.preventDefault();
+                // The write has completed; reload its facts using the current view.
+                refresh();
+            }
+        },
+        { once: true },
+    );
+}
 export function mount(element: HTMLElement, props: CampaignGangsProps) {
     const source = element.closest<HTMLElement>("#n26-campaign-gangs");
+    function submitting(event: Event) {
+        const form = event.target;
+        const verb = (event as CustomEvent<{ requestConfig: { verb: string } }>)
+            .detail.requestConfig.verb;
+        if (
+            verb.toLowerCase() !== "post" ||
+            !(form instanceof HTMLFormElement) ||
+            !form.closest(
+                "#n26-campaign-state-dialog-host, #n26-asset-dialog-host, #n26-roll-dialog-host",
+            )
+        )
+            return;
+        guardDialogSubmission(form, () => window.location.reload());
+    }
     function restoreDialogs() {
         for (const id of [
             "n26-campaign-state-dialog-host",
@@ -50,12 +81,14 @@ export function mount(element: HTMLElement, props: CampaignGangsProps) {
         }
     }
     window.addEventListener("popstate", restoreDialogs);
+    document.addEventListener("htmx:beforeRequest", submitting);
     const dispose = mountRoot(element, CampaignGangs, {
         ...props,
         onOpenDialog: (href: string) => openCampaignDialog(source, href),
     });
     return () => {
         window.removeEventListener("popstate", restoreDialogs);
+        document.removeEventListener("htmx:beforeRequest", submitting);
         dispose();
     };
 }

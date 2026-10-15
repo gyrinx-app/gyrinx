@@ -2,7 +2,11 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { CampaignGangs } from "./CampaignGangs";
-import { mount as mountCampaignGangs, openCampaignDialog } from "./entry";
+import {
+    guardDialogSubmission,
+    mount as mountCampaignGangs,
+    openCampaignDialog,
+} from "./entry";
 import {
     readView,
     tableGroups,
@@ -343,6 +347,33 @@ test("history restoration dismisses outside dialogs without restoring their save
     host.remove();
     outside.remove();
 });
+
+test.each([false, true])(
+    "a delayed submission refreshes completed writes at the current view only after navigation (%s)",
+    (navigated) => {
+        window.history.replaceState(null, "", "/tally/Alpha/?back=rating");
+        const form = document.createElement("form");
+        document.body.append(form);
+        const refresh = vi.fn();
+        guardDialogSubmission(form, refresh);
+        if (navigated) {
+            window.history.replaceState(
+                null,
+                "",
+                "/campaign/?sort=name&group=",
+            );
+            form.remove();
+        }
+        const response = new CustomEvent("htmx:beforeOnLoad", {
+            cancelable: true,
+        });
+        form.dispatchEvent(response);
+        expect(response.defaultPrevented).toBe(navigated);
+        expect(refresh).toHaveBeenCalledTimes(navigated ? 1 : 0);
+        if (navigated) expect(window.location.search).toBe("?sort=name&group=");
+        form.remove();
+    },
+);
 
 test("the outside dialog bridge keeps all swaps out of the React children and rejects login responses", async () => {
     const source = document.createElement("div");
