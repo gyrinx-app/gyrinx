@@ -1177,6 +1177,7 @@ def build_modifier_index(assignables, max_depth=3):
         *(f"removes_assignable__{name}" for name in GRANTABLE_FIELDS),
         "changes_stat__stat",
         "contributes_to_counter__counter",
+        "contributes_to_counter__per_counter",
         "excludes_campaign_assets__asset_type",
         "adds_assignable__asset__asset_type",
         "removes_assignable__asset__asset_type",

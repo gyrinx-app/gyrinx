@@ -60,7 +60,7 @@ def test_named_groups_keep_multiples_and_renamed_copies(grouped):
     assert "Settlements" not in groups
     assert (
         next(counter.value for counter in block.counters if counter.name == "Income")
-        == 60
+        == 70
     )
     assert len(block.holdings) == 4
 
@@ -112,7 +112,7 @@ def test_print_and_text_follow_the_same_groups(client, grouped):
     assert "Campaign: Dust Falls" in text
     assert "Territories: Settlement, Old Ruins, Shop (x2), Sump shop" in text
     assert "Settlements:" not in text
-    assert "Income: 60" in text
+    assert "Income: 70" in text
 
 
 def test_capture_keeps_the_group_and_detects_a_lost_copy(grouped, monkeypatch):
@@ -136,7 +136,7 @@ def test_capture_keeps_the_group_and_detects_a_lost_copy(grouped, monkeypatch):
     assert ("Territories", "Settlement, Old Ruins, Shop, Sump shop") in after[
         "campaign"
     ]["assets"]
-    assert ("Income", "50") in after["campaign"]["counters"]
+    assert ("Income", "60") in after["campaign"]["counters"]
 
 
 def test_print_header_toggle_keeps_campaign_facts_off_the_cards_only_run(

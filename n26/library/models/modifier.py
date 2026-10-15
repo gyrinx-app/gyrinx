@@ -2118,12 +2118,48 @@ class ContributesToCounter(models.Model):
         help_text="How much to add, for as long as the carrier is held.",
     )
 
+    per_counter = models.ForeignKey(
+        "library.Counter",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+        help_text="Optional. Multiply the amount by this counter's current reading.",
+    )
+
+    def clean(self):
+        super().clean()
+        if self.per_counter_id is None:
+            return
+        dependencies = {}
+        for target, source in (
+            type(self)
+            .objects.exclude(pk=self.pk)
+            .exclude(per_counter=None)
+            .values_list("counter_id", "per_counter_id")
+        ):
+            dependencies.setdefault(target, set()).add(source)
+        dependencies.setdefault(self.counter_id, set()).add(self.per_counter_id)
+
+        def visit(counter, visiting):
+            if counter in visiting:
+                raise ValidationError(
+                    {"per_counter": "Counter contributions cannot form a cycle."}
+                )
+            for source in dependencies.get(counter, ()):
+                visit(source, visiting | {counter})
+
+        visit(self.counter_id, set())
+
     class Meta:
         verbose_name = "contributes to counter"
         verbose_name_plural = "contributes to counters"
 
     def __str__(self):
-        return f"adds {self.amount} to {self.counter}"
+        description = f"adds {self.amount} to {self.counter}"
+        if self.per_counter_id is not None:
+            return f"{description} per point of {self.per_counter}"
+        return description
 
     def accepts(self, target_kind):
         # A model's own counter, or the gang's — both are read the same

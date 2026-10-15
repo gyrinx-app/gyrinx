@@ -74,19 +74,19 @@ def test_income_adjustment_survives_loss_and_gain_and_reset_records_one_change(
     assignment = gang.assignments.get(counter__name="Income")
     credits = gang.credits
     href = reverse("n26-tally", args=[assignment.pk])
-    assert client.post(href, {"adjust": 1, "value": 25}).status_code == 302
-    assert (income(gang).value, income(gang).tallied) == (25, 5)
+    assert client.post(href, {"adjust": 1, "value": 35}).status_code == 302
+    assert (income(gang).value, income(gang).tallied) == (35, 5)
     unassign_asset(holding)
-    assert (income(gang).value, income(gang).tallied) == (5, 5)
+    assert (income(gang).value, income(gang).tallied) == (15, 5)
     assign_asset(holding, gang)
-    assert (income(gang).value, income(gang).tallied) == (25, 5)
+    assert (income(gang).value, income(gang).tallied) == (35, 5)
     with operation(gang, actor=gang.owner) as op:
         op.tally(assignment, 2000)
     before = LedgerEvent.objects.filter(
         assignment=assignment, kind=LedgerEvent.Kind.TALLIED
     ).count()
     assert client.post(href, {"adjust": 1, "reset": 1}).status_code == 302
-    assert (income(gang).value, income(gang).tallied) == (20, 0)
+    assert (income(gang).value, income(gang).tallied) == (30, 0)
     tallies = LedgerEvent.objects.filter(
         assignment=assignment, kind=LedgerEvent.Kind.TALLIED
     )
@@ -112,8 +112,8 @@ def test_reader_sees_income_breakdown_but_cannot_adjust_or_add(client, dashboard
     )
     assert not any(counter["adjustHref"] for counter in counters if counter)
     assert explanation == {
-        "value": 20,
-        "contributed": 20,
+        "value": 30,
+        "contributed": 30,
         "adjustment": 0,
         "sources": [
             {
@@ -127,7 +127,19 @@ def test_reader_sees_income_breakdown_but_cannot_adjust_or_add(client, dashboard
                         "replaced": False,
                     }
                 ],
-            }
+            },
+            {
+                "name": "Territory campaign",
+                "value": 10,
+                "parts": [
+                    {
+                        "label": "Reputation",
+                        "amount": 10,
+                        "detail": "1 × 10¢",
+                        "replaced": False,
+                    }
+                ],
+            },
         ],
     }
     assert "Adjustment 0¢" not in page.content.decode()
@@ -142,7 +154,7 @@ def test_reader_sees_income_breakdown_but_cannot_adjust_or_add(client, dashboard
         client.get(reverse("n26-campaign-add-asset", args=[campaign.pk])).status_code
         == 404
     )
-    assert income(gang).value == 20
+    assert income(gang).value == 30
 
 
 def test_income_total_uses_current_assets_and_repeated_saves_add_no_history(
@@ -152,23 +164,23 @@ def test_income_total_uses_current_assets_and_repeated_saves_add_no_history(
     assignment = gang.assignments.get(counter__name="Income")
     href = reverse("n26-tally", args=[assignment.pk])
     response = client.get(href)
-    assert response.context["counter_preview"]["inputValue"] == "20"
+    assert response.context["counter_preview"]["inputValue"] == "30"
     unassign_asset(holding)
     assert client.post(href, {"adjust": 1, "value": 25}).status_code == 302
-    assert (income(gang).value, income(gang).tallied) == (25, 25)
+    assert (income(gang).value, income(gang).tallied) == (25, 15)
     tallies = LedgerEvent.objects.filter(
         assignment=assignment, kind=LedgerEvent.Kind.TALLIED
     )
-    assert tallies.latest("created").note == "+25 → 25"
+    assert tallies.latest("created").note == "+15 → 15"
     before = tallies.count()
     assert client.post(href, {"adjust": 1, "value": 25}).status_code == 302
     assert tallies.count() == before
     assign_asset(holding, gang)
-    assert client.post(href, {"adjust": 1, "value": 20}).status_code == 302
-    assert (income(gang).value, income(gang).tallied) == (20, 0)
+    assert client.post(href, {"adjust": 1, "value": 30}).status_code == 302
+    assert (income(gang).value, income(gang).tallied) == (30, 0)
 
 
-@pytest.mark.parametrize("total", ["", "1.5", "19", "2147483668"])
+@pytest.mark.parametrize("total", ["", "1.5", "29", "2147483678"])
 def test_income_total_errors_keep_the_input_and_do_not_write(client, dashboard, total):
     _, gang, _, _, _ = dashboard
     assignment = gang.assignments.get(counter__name="Income")
@@ -178,7 +190,7 @@ def test_income_total_errors_keep_the_input_and_do_not_write(client, dashboard, 
     assert response.status_code == 200
     assert response.context["counter_preview"]["inputValue"] == total
     assert response.context["form"].errors["value"]
-    assert (income(gang).value, income(gang).tallied) == (20, 0)
+    assert (income(gang).value, income(gang).tallied) == (30, 0)
     assert not LedgerEvent.objects.filter(
         assignment=assignment, kind=LedgerEvent.Kind.TALLIED
     ).exists()
@@ -267,14 +279,14 @@ def test_catalogue_batch_override_preserves_catalogue_and_applies_to_each_holdin
     assert shared.scope.echoes is False
     for item in added:
         assign_asset(item, gang)
-    assert income(gang).value == 20 + 2 * override
+    assert income(gang).value == 50 + 2 * override
     assert (
         next(
             line.value
             for line in render_gang(gang).campaign.counters
             if line.name == "Reputation"
         )
-        == 2
+        == 3
     )
     assert holding.asset.income == 20 and second.income == 30
     assert client.post(href, data).status_code == 302
@@ -289,7 +301,7 @@ def test_catalogue_batch_override_preserves_catalogue_and_applies_to_each_holdin
         detail = client.get(reverse("n26-campaign-asset", args=[campaign.pk, item.pk]))
         assert detail.context["details"].income == override
         unassign_asset(item)
-    assert income(gang).value == 20
+    assert income(gang).value == 30
     scope, effect = shared.scope, shared.effect
     scope_pk, effect_pk = scope.pk, effect.pk
     with campaign_operation(campaign, actor=campaign.owner) as act:
@@ -397,3 +409,21 @@ def test_player_counts_status_and_gangs_are_accurate_and_query_growth_is_flat(
     assert len(after) <= len(before)
     assert "2 accepted players · 9 pending invitations" in page.content.decode()
     assert "n26/arbitrator.svg" in page.content.decode()
+
+
+def test_reputation_income_adds_no_per_gang_queries(client, dashboard, gang_type):
+    campaign, _, _, arb, player = dashboard
+    client.force_login(arb)
+    href = reverse("n26-campaign", args=[campaign.pk])
+
+    def queries():
+        client.get(href)
+        with CaptureQueriesContext(connection) as captured:
+            assert client.get(href).status_code == 200
+        return len(captured)
+
+    before = queries()
+    for index in range(4):
+        gang = found_gang(f"Extra gang {index}", gang_type, owner=player)
+        join_campaign(gang, campaign)
+    assert queries() <= before

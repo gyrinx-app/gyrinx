@@ -115,8 +115,8 @@ class TestTheSeed:
         seed_core_campaign(apps)
         assert Counter.objects.filter(name__iexact=INCOME).count() == 1
 
-    def test_every_gang_that_joins_reads_income_at_nought(self, gangs):
-        assert [reading(gang) for gang in gangs] == [0, 0]
+    def test_every_gang_that_joins_reads_reputation_income(self, gangs):
+        assert [reading(gang) for gang in gangs] == [10, 10]
 
     def test_the_migration_files_a_propagation_pass_only_when_it_builds_income_in(
         self, default_pack
@@ -233,18 +233,18 @@ class TestWhatAGangReads:
         held = add_asset(campaign, ruins)
         assign_asset(held, gangs[0])
 
-        assert reading(gangs[0]) == 30
-        assert reading(gangs[1]) == 0
+        assert reading(gangs[0]) == 40
+        assert reading(gangs[1]) == 10
 
         unassign_asset(held)
-        assert reading(gangs[0]) == 0
+        assert reading(gangs[0]) == 10
 
     def test_two_territories_add_up(self, campaign, territory, gangs):
         ruins = create_asset("Old Ruins", territory, income=30)
         toll = create_asset("Toll Crossing", territory, income=20)
         assign_asset(add_asset(campaign, ruins), gangs[0])
         assign_asset(add_asset(campaign, toll), gangs[0])
-        assert reading(gangs[0]) == 50
+        assert reading(gangs[0]) == 60
 
     def test_the_stored_value_stays_at_nought(self, campaign, territory, gangs):
         ruins = create_asset("Old Ruins", territory, income=30)
@@ -257,7 +257,7 @@ class TestWhatAGangReads:
         income reaches every gang through the gang's own assignment of it."""
         settlement = Asset.objects.get(name="Settlement")
         set_income(settlement, 10)
-        assert [reading(gang) for gang in gangs] == [10, 10]
+        assert [reading(gang) for gang in gangs] == [20, 20]
         block = render_gang(gangs[0]).campaign
         assert [(line.type_label, line.name, line.income) for line in block.lines] == [
             ("Settlement", "Settlement", 10)
@@ -281,7 +281,7 @@ class TestWhatAGangReads:
         assign_asset(add_asset(campaign, ruins), gangs[0])
         state = gang_state(gangs[0])
         assert state["campaign"]["holdings"] == [("Territory", "Old Ruins", "30")]
-        assert ("Income", "30") in state["campaign"]["counters"]
+        assert ("Income", "40") in state["campaign"]["counters"]
 
     def test_the_figure_is_read_without_effects_too(self, campaign, territory, gangs):
         ruins = create_asset("Old Ruins", territory, income=30)
@@ -304,8 +304,8 @@ class TestTheCampaignPage:
         sheet = render_campaign(campaign)
 
         assert sheet.counter_columns == ["Reputation", INCOME]
-        assert column(sheet, "The Ashen Choir", INCOME) == 30
-        assert column(sheet, "The Rust Kings", INCOME) == 0
+        assert column(sheet, "The Ashen Choir", INCOME) == 40
+        assert column(sheet, "The Rust Kings", INCOME) == 10
 
     def test_the_assets_table_prints_income_alongside_other_modifiers(
         self, campaign, territory, gangs

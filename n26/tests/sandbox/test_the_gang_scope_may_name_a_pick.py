@@ -483,12 +483,12 @@ class TestAConditionalTerritoryBoon:
         held = add_asset(campaign, amneo_vats)
 
         assign_asset(held, gangs["Irontooth"])
-        assert self.reading(gangs["Irontooth"]) == 30
-        assert self.reading(gangs["Wild Roses"]) == 0
+        assert self.reading(gangs["Irontooth"]) == 40
+        assert self.reading(gangs["Wild Roses"]) == 10
 
         transfer_asset(held, gangs["Wild Roses"])
-        assert self.reading(gangs["Irontooth"]) == 0
-        assert self.reading(gangs["Wild Roses"]) == 20
+        assert self.reading(gangs["Irontooth"]) == 10
+        assert self.reading(gangs["Wild Roses"]) == 30
 
     def test_the_campaign_page_prints_the_base_income(
         self, campaign, amneo_vats, gangs

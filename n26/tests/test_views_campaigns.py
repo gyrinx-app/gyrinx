@@ -290,7 +290,7 @@ class TestSettingOneUp:
         assert "Each gang has its own settlement." in body
         assert "Each Territory is held by one gang at a time." in body
         assert (
-            "Every gang starts with Reputation at 0, one Settlement and Income at 0."
+            "Every gang starts with Reputation at 1, one Settlement and Income at 0."
             in body
         )
 

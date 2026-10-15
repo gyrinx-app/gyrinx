@@ -1438,7 +1438,7 @@ class TestReadingHoldingChoices:
         assert not [choice for choice in done.choices if choice.holding is not None]
         assert {reading.name: reading.value for reading in done.counters}[
             "Income"
-        ] == 62
+        ] == 72
         assert not gang.assignments.filter(chosen_for_holding__isnull=False).exists()
         assert_reconciled(gang)
 

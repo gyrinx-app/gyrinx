@@ -746,7 +746,7 @@ class Operation:
         was founded on and its own additions — as gang-hosted assignments,
         granted, with their built-ins landing in the same breath: on N26
         core a gang comes away holding a Settlement and a Reputation counter
-        at 0, each caused by the type's carrier. The membership points at
+        at 1, each caused by the type's carrier. The membership points at
         both carriers, so what the campaign gave can be found again. The
         event is the gang's own, and names the campaign, so it reads in both
         histories from one record.
@@ -3255,8 +3255,8 @@ class Operation:
     def tally(self, assignment, change, note="", **event_fields):
         """Change a counter's value — the only writer it has.
 
-        ``change`` is signed; the value floors at zero. Every change is a
-        ledger event, so the history of a Kill Count reads like the
+        ``change`` is signed; the value floors at the counter's minimum.
+        Every change is a ledger event, so the history of a Kill Count reads like the
         history of anything else the gang owns — and carries what moved
         and where it landed, which is what a reader auditing a number is
         looking for. ``note`` is why, where the caller knows.
@@ -3268,12 +3268,12 @@ class Operation:
         except CounterValue.DoesNotExist:
             held = self.open_counter(assignment, 0)
         before = held.value
-        held.value = max(0, held.value + change)
+        held.value = max(assignment.counter.minimum, held.value + change)
         held.save(update_fields=["value", "modified"])
         # What moved and where it landed, so the history can be read
         # against the number on the card. The movement recorded is the
         # one that happened rather than the one asked for: a subtraction
-        # that would go below zero stops at zero.
+        # that would go below the counter's minimum stops at that minimum.
         moved = f"{held.value - before:+d} → {held.value}"
         amounts = (
             {
@@ -3424,6 +3424,7 @@ class Operation:
                 "You cannot edit this counter. "
                 "Its value is missing, but its history already exists."
             )
+        value = max(assignment.counter.minimum, value)
         held = CounterValue.objects.create(assignment=assignment, value=value)
         if self.counter_tracking_active:
             self.event(

@@ -628,12 +628,12 @@ class TestAJournalTerritoryInPlay:
         held = campaign.campaign_assets.get(asset=vats)
 
         assign_asset(held, gangs["Goliath"])
-        assert income_reading(gangs["Goliath"]) == 15
-        assert income_reading(gangs["Escher"]) == 0
+        assert income_reading(gangs["Goliath"]) == 25
+        assert income_reading(gangs["Escher"]) == 10
 
         held = add_asset(campaign, vats)
         assign_asset(held, gangs["Escher"])
-        assert income_reading(gangs["Escher"]) == 15
+        assert income_reading(gangs["Escher"]) == 25
         for gang in gangs.values():
             gang.refresh_from_db()
             assert_reconciled(gang)
@@ -647,8 +647,8 @@ class TestAJournalTerritoryInPlay:
 
         assert not gang_rules(gangs["Goliath"])
         assert not gang_rules(gangs["Escher"])
-        assert income_reading(gangs["Goliath"]) == 20
-        assert income_reading(gangs["Escher"]) == 20
+        assert income_reading(gangs["Goliath"]) == 30
+        assert income_reading(gangs["Escher"]) == 30
 
 
 class TestTheSeededControlledBoonsAreReset:
@@ -801,13 +801,13 @@ class TestTheSeededControlledBoonsAreReset:
         table = AssetTable.objects.get(name=GOLIATH_TABLE)
         holdings = list(CampaignAsset.objects.filter(campaign=campaign).values())
         recorded = campaign_history(campaign)
-        assert income_reading(gang) == 32
+        assert income_reading(gang) == 42
         assert legacy_boons["Slug House"][1] in gang_rules(gang)
 
         seed_all()
 
         assert income_of(vats) == 15
-        assert income_reading(gang) == 22
+        assert income_reading(gang) == 32
         assert Modifier.objects.filter(pk=override.pk).exists()
         assert not gang_rules(gang)
         assert (

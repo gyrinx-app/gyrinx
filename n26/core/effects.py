@@ -190,6 +190,8 @@ class CounterContribution:
     #: The modifier that actually substituted this contribution's amount.
     #: None when the authored effect ran, including an unselected override.
     applied_override: object = None
+    per_counter: object = None
+    per_counter_value: int = 0
 
 
 @dataclass
@@ -1238,6 +1240,7 @@ def compute(card, index):
                             modifier=step.modifier,
                             carrier_key=source_key,
                             applied_override=applied_override,
+                            per_counter=effect.per_counter,
                         )
                         computed.counter_contributions.append(contributed)
                         log.applied.append(
@@ -1341,6 +1344,7 @@ def compute(card, index):
     computed.echoed = echoed
     dead = _retract(computed, log)
     _settle_counter_origins(computed, log, dead)
+    _scale_counter_contributions(computed)
     computed.acquired = _acquisitions(log, dead)
     # A guest this card's own removals cancelled is not held here either.
     computed.echoed = [
@@ -1578,6 +1582,50 @@ class ComputedGang:
         )
 
 
+def _scale_counter_contributions(computed):
+    """Resolve dependencies after cancelled contributions have been removed."""
+    from n26.library.models import Counter
+
+    recorded = {}
+    for node in computed.card.all_nodes():
+        if isinstance(node.assignable, Counter) and not node.suppressed:
+            key = ModifierIndex.key(node.assignable)
+            held = (
+                getattr(node.assignment, "counter_value", None)
+                if node.assignment
+                else None
+            )
+            recorded.setdefault(key, held.value if held else 0)
+    by_counter = {}
+    for contribution in computed.counter_contributions:
+        by_counter.setdefault(ModifierIndex.key(contribution.counter), []).append(
+            contribution
+        )
+    resolved = {}
+
+    def reading(counter, visiting=frozenset()):
+        key = ModifierIndex.key(counter)
+        if key in resolved:
+            return resolved[key]
+        if key in visiting:
+            raise ValueError("Counter contributions cannot form a cycle.")
+        if key not in recorded and key not in by_counter:
+            return 0
+        total = recorded.get(key, 0)
+        for contribution in by_counter.get(key, ()):
+            if contribution.per_counter is not None:
+                contribution.per_counter_value = reading(
+                    contribution.per_counter, visiting | {key}
+                )
+                contribution.amount *= contribution.per_counter_value
+            total += contribution.amount
+        resolved[key] = max(counter.minimum, total)
+        return resolved[key]
+
+    for contribution in computed.counter_contributions:
+        reading(contribution.counter)
+
+
 def counter_readings(card, computed=None):
     """Every counter on a card, and where each one stands.
 
@@ -1612,7 +1660,7 @@ def counter_readings(card, computed=None):
         readings.append(
             CounterReading(
                 thing=node.assignable,
-                value=(held.value if held else 0) + added,
+                value=max(node.assignable.minimum, (held.value if held else 0) + added),
                 contributions=additions,
             )
         )
@@ -1624,7 +1672,7 @@ def counter_readings(card, computed=None):
         readings.append(
             CounterReading(
                 thing=contribution.counter,
-                value=contributed[thing_key],
+                value=max(contribution.counter.minimum, contributed[thing_key]),
                 contributions=tuple(sources[thing_key]),
             )
         )
