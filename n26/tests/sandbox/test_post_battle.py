@@ -1823,3 +1823,33 @@ def test_a_correction_leaves_an_unchanged_gang_counter_off_the_receipt(
     )
     saved = apply(report, owner)
     assert saved.receipt["gang_counters"] == []
+
+
+@pytest.mark.usefixtures("counter_tracking")
+def test_report_refuses_below_minimum_and_zero_correction_adds_no_reputation(
+    report, owner, model, reputation
+):
+    from n26.library.authoring import revise
+
+    revise(reputation.counter, minimum=1)
+    tally(reputation, -4)
+    key = str(reputation.pk)
+    report = save(report, owner, with_lines(model, counters={key: -1}))
+    plan = preview_report(report, actor=owner)
+    assert "Reputation cannot go below 1." in plan.errors
+    with pytest.raises(Refusal, match="Reputation cannot go below 1"):
+        apply_report(
+            report,
+            actor=owner,
+            generation=report.generation,
+            revision=report.draft_revision,
+            submission_key=uuid4(),
+            review=plan.review,
+        )
+    assert counter_value(reputation) == 1
+    report = save(report, owner, with_lines(model, counters={key: 0}))
+    apply(report, owner)
+    report = start_correction(report, actor=owner)
+    report = save(report, owner, with_lines(model, counters={key: 0}))
+    apply(report, owner)
+    assert counter_value(reputation) == 1

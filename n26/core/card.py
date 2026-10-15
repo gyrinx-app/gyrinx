@@ -336,7 +336,12 @@ class Card:
                     if node.assignment is not None
                     else None
                 )
-                counts.append((select.key(node.assignable), held.value if held else 0))
+                counts.append(
+                    (
+                        select.key(node.assignable),
+                        max(node.assignable.minimum, held.value if held else 0),
+                    )
+                )
         base = select.matchable(profile, assignables=possessions)
         return select.Matchable(
             thing=base.thing,
@@ -470,7 +475,12 @@ class GangCard:
                     if node.assignment is not None
                     else None
                 )
-                counts.append((select.key(node.assignable), held.value if held else 0))
+                counts.append(
+                    (
+                        select.key(node.assignable),
+                        max(node.assignable.minimum, held.value if held else 0),
+                    )
+                )
         base = select.matchable(self.gang, assignables=possessions)
         return select.Matchable(
             thing=base.thing, assignables=base.assignables, counts=tuple(counts)

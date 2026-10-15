@@ -75,13 +75,14 @@ class HeldCounter:
 
     ``reading`` is what the card shows (the stored value and any
     contributions); ``stored`` is the value a tally moves, which never
-    goes below zero.
+    goes below its authored minimum.
     """
 
     assignment: object
     name: str
     reading: int
     stored: int
+    minimum: int = 0
 
     @property
     def id(self):
@@ -133,6 +134,7 @@ def held_counters(nodes, readings):
                 name=str(node.assignable),
                 reading=reading.value,
                 stored=value.value if value else 0,
+                minimum=node.assignable.minimum,
             )
         )
     return held
@@ -201,8 +203,8 @@ def plan_changes(
         was = recorded.get(counter.id, 0)
         effect = effects.get(counter.id, 0)
         after = counter.reading + manual - was + effect
-        if counter.stored + manual - was + effect < 0:
-            errors.append(f"{counter.name} cannot go below 0.")
+        if counter.stored + manual - was + effect < counter.minimum:
+            errors.append(f"{counter.name} cannot go below {counter.minimum}.")
         changes.append(
             CounterChange(
                 assignment_id=counter.id,

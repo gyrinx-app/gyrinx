@@ -192,6 +192,7 @@ class CounterContribution:
     applied_override: object = None
     per_counter: object = None
     per_counter_value: int = 0
+    per_counter_rate: int = 0
 
 
 @dataclass
@@ -985,6 +986,7 @@ def compute(card, index):
     round_no = 0
     while (pending or edits) and round_no <= MAX_CHAIN_DEPTH:
         # The snapshot every scope in this round sees.
+        _scale_counter_contributions(computed)
         facts = _Facts(card, computed, guest_picks)
         adds, removes, exclusions = [], [], []
         # The owner's removals settle with round 0, the reach an
@@ -1241,6 +1243,7 @@ def compute(card, index):
                             carrier_key=source_key,
                             applied_override=applied_override,
                             per_counter=effect.per_counter,
+                            per_counter_rate=effect.amount,
                         )
                         computed.counter_contributions.append(contributed)
                         log.applied.append(
@@ -1583,7 +1586,9 @@ class ComputedGang:
 
 
 def _scale_counter_contributions(computed):
-    """Resolve dependencies after cancelled contributions have been removed."""
+    """Compute per-point amounts from the current counter values."""
+    if not any(item.per_counter is not None for item in computed.counter_contributions):
+        return
     from n26.library.models import Counter
 
     recorded = {}
@@ -1595,7 +1600,9 @@ def _scale_counter_contributions(computed):
                 if node.assignment
                 else None
             )
-            recorded.setdefault(key, held.value if held else 0)
+            recorded.setdefault(
+                key, max(node.assignable.minimum, held.value if held else 0)
+            )
     by_counter = {}
     for contribution in computed.counter_contributions:
         by_counter.setdefault(ModifierIndex.key(contribution.counter), []).append(
@@ -1617,9 +1624,11 @@ def _scale_counter_contributions(computed):
                 contribution.per_counter_value = reading(
                     contribution.per_counter, visiting | {key}
                 )
-                contribution.amount *= contribution.per_counter_value
+                contribution.amount = (
+                    contribution.per_counter_rate * contribution.per_counter_value
+                )
             total += contribution.amount
-        resolved[key] = max(counter.minimum, total)
+        resolved[key] = total
         return resolved[key]
 
     for contribution in computed.counter_contributions:
@@ -1660,7 +1669,7 @@ def counter_readings(card, computed=None):
         readings.append(
             CounterReading(
                 thing=node.assignable,
-                value=max(node.assignable.minimum, (held.value if held else 0) + added),
+                value=max(node.assignable.minimum, held.value if held else 0) + added,
                 contributions=additions,
             )
         )
@@ -1672,7 +1681,7 @@ def counter_readings(card, computed=None):
         readings.append(
             CounterReading(
                 thing=contribution.counter,
-                value=max(contribution.counter.minimum, contributed[thing_key]),
+                value=contributed[thing_key],
                 contributions=tuple(sources[thing_key]),
             )
         )

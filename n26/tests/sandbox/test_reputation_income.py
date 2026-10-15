@@ -264,3 +264,66 @@ def test_seed_updates_known_help_and_preserves_authored_help(campaign):
     assert seed_reputation_rules(apps) == []
     kind.refresh_from_db()
     assert kind.library_author_help == "Our campaign instructions."
+
+
+def test_threshold_reads_scaled_contributions_without_repeated_multiplication(
+    gang, make_profile
+):
+    from n26.core.card import build_card
+    from n26.core.effects import compute, counter_readings
+    from n26.library.authoring import (
+        counter_at_least,
+        create_rule,
+        ef_adds,
+        targets_model,
+    )
+    from n26.tests.sandbox.actions import hire
+
+    profile = make_profile("Ganger", price=0)
+    model = hire(gang, profile, "Cinder")
+    source = create_counter("Influence")
+    held = assign(source, miniature=model)
+    tally(held, 3)
+    renown = create_counter("Renown")
+    reward = create_rule("Renowned")
+    bonus = create_hidden(
+        "Renown rules",
+        effects=[
+            (targets_model(), ef_contributes_to_counter(renown, 2, per_counter=source)),
+            (targets_model(counter_at_least(renown, 5)), ef_adds(reward)),
+        ],
+    )
+    assign(bonus, miniature=model)
+
+    def reading():
+        card = build_card(model)
+        index = build_modifier_index(carriers(card))
+        with CaptureQueriesContext(connection) as queries:
+            done = compute(card, index)
+            values = {line.name: line.value for line in counter_readings(card, done)}
+        assert len(queries) == 0
+        return values, [line.name for line in done.rules]
+
+    values, rules = reading()
+    assert values["Renown"] == 6
+    assert "Renowned" in rules
+    tally(held, -2)
+    values, rules = reading()
+    assert values["Renown"] == 2
+    assert "Renowned" not in rules
+
+
+def test_legacy_balance_minimum_applies_before_standing_contributions(gang):
+    rep = Counter.objects.get(name="Reputation")
+    CounterValue.objects.filter(assignment=reputation(gang)).update(value=0)
+    assign(
+        create_hidden(
+            "Local fame",
+            effects=[(targets_gang_alone(), ef_contributes_to_counter(rep, 2))],
+        ),
+        gang=gang,
+    )
+    assert counters(gang)["Reputation"] == 3
+    assert counters(gang)["Income"] == 30
+    apply_one(gang.pk)
+    assert counters(gang)["Income"] == 30

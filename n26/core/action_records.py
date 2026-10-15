@@ -163,7 +163,7 @@ def _counter_assignment(gang, fighter, counter, payer, action):
         assignments = assignments.filter(miniature_root=fighter)
     else:
         assignments = assignments.filter(gang=gang)
-    matches = list(assignments.select_related("counter_value")[:2])
+    matches = list(assignments.select_related("counter_value", "counter")[:2])
     if not matches:
         raise Refusal("That counter is no longer available.")
     if len(matches) != 1 or not hasattr(matches[0], "counter_value"):
@@ -210,6 +210,7 @@ def quote_for(fighter, action, *, gang=None):
                 available=available,
                 position=component.position,
                 name=name,
+                minimum=component.counter.minimum if component.counter_id else 0,
             )
         )
     return Quote.coalesce(lines)
@@ -712,9 +713,9 @@ def _plan_apply_changes(op, record, operation, quote):
 def _apply_changes(op, record, planned):
     for kind, target, configured in planned:
         if kind == "counter":
-            assignment = Assignment.objects.select_related("counter_value").get(
-                pk=target, gang_root=op.gang, archived=False
-            )
+            assignment = Assignment.objects.select_related(
+                "counter_value", "counter"
+            ).get(pk=target, gang_root=op.gang, archived=False)
             op.tally(
                 assignment,
                 _counter_change_delta(configured, assignment.counter_value.value),
@@ -728,11 +729,12 @@ def _apply_changes(op, record, planned):
 def _counter_change_delta(configured, before):
     if configured.amount < 0:
         raise LibraryError(f"{configured} has a negative counter amount.")
+    minimum = configured.counter.minimum
     if configured.mode == configured.Mode.SET:
-        return configured.amount - before
+        return max(minimum, configured.amount) - before
     if configured.mode == configured.Mode.ADD:
-        return configured.amount
-    return -min(before, configured.amount)
+        return max(minimum, before + configured.amount) - before
+    return max(minimum, before - configured.amount) - before
 
 
 def _prepare_outcome(op, record, configured, quote):
@@ -785,13 +787,16 @@ def _pay(op, record, quote):
             note=str(record.action),
         )
     for line in quote.lines:
-        if line.after_payment is not None and line.after_payment < 0:
+        if line.after_payment is not None and line.after_payment < line.minimum:
             raise Refusal(f"There is not enough {line.name} to use this action.")
         if line.balance.resource == Resource.COUNTER:
-            assignment = Assignment.objects.select_related("counter_value").get(
-                pk=line.balance.assignment_id, gang_root=op.gang, archived=False
-            )
-            if assignment.counter_value.value < line.amount:
+            assignment = Assignment.objects.select_related(
+                "counter_value", "counter"
+            ).get(pk=line.balance.assignment_id, gang_root=op.gang, archived=False)
+            if (
+                assignment.counter_value.value - line.amount
+                < assignment.counter.minimum
+            ):
                 raise Refusal(f"There is not enough {line.name} to use this action.")
             op.tally(
                 assignment,

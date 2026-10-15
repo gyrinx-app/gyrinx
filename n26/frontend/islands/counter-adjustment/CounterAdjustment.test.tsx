@@ -127,3 +127,62 @@ it("retains the entered income total and server errors", () => {
         screen.getByText("Income must be at least 20¢ from held assets."),
     ).toBeTruthy();
 });
+
+it("previews the authored minimum and preserves standing contributions", () => {
+    const view = render(
+        <CounterAdjustment
+            {...props}
+            value={4}
+            recorded={1}
+            minimum={1}
+            change="-1"
+        />,
+    );
+    expect(
+        view.container.querySelector("[data-counter-preview]")?.textContent,
+    ).toBe("4");
+    expect(
+        view.container.querySelector("[data-counter-delta]")?.textContent,
+    ).toBe("+0");
+});
+
+it("keeps a legacy below-minimum balance preview consistent with its displayed floor", () => {
+    const view = render(
+        <CounterAdjustment
+            {...props}
+            value={4}
+            recorded={0}
+            minimum={1}
+            change="-1"
+        />,
+    );
+    expect(
+        view.container.querySelector("[data-counter-preview]")?.textContent,
+    ).toBe("4");
+    expect(
+        view.container.querySelector("[data-counter-delta]")?.textContent,
+    ).toBe("+1");
+});
+
+it("includes the recorded minimum when editing an income total", () => {
+    render(
+        <CounterAdjustment
+            {...props}
+            isIncome
+            value={33}
+            recorded={3}
+            minimum={3}
+        />,
+    );
+    const input = screen.getByRole("spinbutton", {
+        name: "Income *",
+    }) as HTMLInputElement;
+    expect(input.min).toBe("33");
+    expect(
+        (
+            screen.getByRole("button", {
+                name: "Reset adjustment",
+            }) as HTMLButtonElement
+        ).disabled,
+    ).toBe(true);
+});

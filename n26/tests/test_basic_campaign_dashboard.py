@@ -427,3 +427,18 @@ def test_reputation_income_adds_no_per_gang_queries(client, dashboard, gang_type
         gang = found_gang(f"Extra gang {index}", gang_type, owner=player)
         join_campaign(gang, campaign)
     assert queries() <= before
+
+
+def test_income_editor_and_reset_respect_an_authored_minimum(client, dashboard):
+    from n26.library.authoring import revise
+
+    _, gang, _, _, _ = dashboard
+    assignment = gang.assignments.get(counter__name="Income")
+    revise(assignment.counter, minimum=3)
+    href = reverse("n26-tally", args=[assignment.pk])
+    page = client.get(href)
+    assert page.context["counter_preview"]["minimum"] == 3
+    assert client.post(href, {"adjust": 1, "value": 34}).status_code == 302
+    assert (income(gang).value, income(gang).tallied) == (34, 4)
+    assert client.post(href, {"adjust": 1, "reset": 1}).status_code == 302
+    assert (income(gang).value, income(gang).tallied) == (33, 3)

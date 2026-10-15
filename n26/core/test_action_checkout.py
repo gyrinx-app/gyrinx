@@ -916,3 +916,35 @@ def test_inactive_counter_tracking_preserves_completed_retry_and_draft_cancel(
     assert retried.pk == completed.pk
     assert cancelled.state == ActionRecord.State.CANCELLED
     assert LedgerEvent.objects.filter(action_record=completed).count() == events_before
+
+
+def test_counter_payment_cannot_spend_the_authored_minimum(user, gang, fighter):
+    action, outcome, _, held = configured_action(user, gang, fighter, counter_value=3)
+    authoring.revise(held.counter, minimum=1)
+    assert not quote_for(fighter, action, gang=gang).affordable
+    record = start_and_review(user, gang, fighter, action, outcome)
+    with pytest.raises(Refusal, match="enough Glitches"):
+        with operation(gang, actor=user) as op:
+            op.complete_action(
+                record, revision=record.revision, review=record.review, outcome=outcome
+            )
+    held.counter_value.refresh_from_db()
+    assert held.counter_value.value == 3
+    assert not LedgerEvent.objects.filter(
+        action_record=record, payment_id__isnull=False
+    ).exists()
+
+
+def test_action_outcome_preview_and_saved_counter_share_the_minimum(
+    user, gang, fighter
+):
+    action, outcome, _, held = configured_action(user, gang, fighter, counter_value=5)
+    authoring.revise(held.counter, minimum=1)
+    record = start_and_review(user, gang, fighter, action, outcome)
+    assert record.review["target"][0]["after"] == 1
+    with operation(gang, actor=user) as op:
+        op.complete_action(
+            record, revision=record.revision, review=record.review, outcome=outcome
+        )
+    held.counter_value.refresh_from_db()
+    assert held.counter_value.value == 1
