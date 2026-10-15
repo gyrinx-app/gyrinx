@@ -313,6 +313,7 @@ class CounterLine:
     provenance: Provenance = field(default_factory=Provenance)
     is_income: bool = False
     income_sources: list[IncomeSource] = field(default_factory=list)
+    counter_key: str = ""
 
     @property
     def contributed(self):
@@ -2117,6 +2118,7 @@ class CampaignSheet:
     summary: str = ""
     gangs: list[CampaignGangLine] = field(default_factory=list)
     counter_columns: list[str] = field(default_factory=list)
+    counter_keys: list[str] = field(default_factory=list)
     label_columns: list[str] = field(default_factory=list)
     label_ids: list[str] = field(default_factory=list)
     label_options: dict[str, list[dict]] = field(default_factory=dict)
@@ -2143,6 +2145,7 @@ class CampaignSheet:
     table_sort: str = "name"
     table_group: str = ""
     table_href: str = ""
+    table_focus_counter: str = ""
 
     def __post_init__(self):
         for table in self.assets:
@@ -3887,6 +3890,7 @@ def _campaign_parts(gang_card, membership, keys, readings, *, computed=None):
             counters.append(
                 CounterLine(
                     name=reading.name,
+                    counter_key=str(node.assignable.pk),
                     value=reading.value,
                     tallied=_counter_value(node),
                     is_income=is_income_counter(node.assignable),
@@ -4700,6 +4704,12 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     # under it says so where a missing column would say nothing. Labels
     # remain visible as named details even before any gang picks a value.
     added_counters, label_slots = _arbitrators_additions(campaign)
+    counter_keys = {
+        line.name: line.counter_key
+        for _, counters in parts.values()
+        for line in counters
+    }
+    counter_keys.update(added_counters)
     label_columns = [slot.choice_label for slot in label_slots]
     for name in added_counters:
         if name not in names:
@@ -4801,6 +4811,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         starting_from_pool=campaign.starting_from_pool,
         gangs=lines,
         counter_columns=counter_columns,
+        counter_keys=[counter_keys[name] for name in counter_columns],
         label_columns=label_columns,
         label_ids=[str(slot.pk) for slot in label_slots],
         label_options=label_options(campaign, label_slots),
@@ -4858,7 +4869,7 @@ def _starting_rolls(asset_types, held, received):
 
 
 def _arbitrators_additions(campaign):
-    """Counter names and label slots built into this campaign, in added order.
+    """Counter names with their identities, and label slots, in added order.
 
     One query, and none for a campaign nothing has been added to.
     """
@@ -4866,14 +4877,18 @@ def _arbitrators_additions(campaign):
 
     built_ins = campaign.additions.built_ins
     if built_ins is None:
-        return [], []
+        return {}, []
     members = (
         built_ins.members.filter(archived=False)
         .filter(Q(counter__isnull=False) | Q(slot__isnull=False))
         .select_related("counter", "slot")
         .order_by("position")
     )
-    counters = [str(member.counter) for member in members if member.counter_id]
+    counters = {
+        str(member.counter): str(member.counter_id)
+        for member in members
+        if member.counter_id
+    }
     labels = [member.slot for member in members if member.slot_id]
     return counters, labels
 

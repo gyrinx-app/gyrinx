@@ -65,6 +65,24 @@ def test_named_groups_keep_multiples_and_renamed_copies(grouped):
     assert len(block.holdings) == 4
 
 
+def test_asset_dialog_links_receive_live_view_navigation_props(client, grouped):
+    import json
+
+    _, campaign, _, tokens = grouped
+    unassign_asset(tokens[0])
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+    soup = BeautifulSoup(response.content, "html.parser")
+    dialogs = []
+    for host in soup.select('[data-react-name="campaign-view-link"]'):
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+        if props["dialog"]:
+            dialogs.append(props)
+            assert host.find("a").get("hx-swap") == "none"
+    assert {props["label"] for props in dialogs} >= {"Assign", "Unassign", "Transfer"}
+    for props in dialogs:
+        assert str(campaign.pk) in props["href"]
+
+
 def test_screen_uses_one_row_and_links_the_named_list(client, grouped):
     from bs4 import BeautifulSoup
 
@@ -148,6 +166,50 @@ def test_more_holdings_do_not_add_queries_to_the_sheet_or_print(client, grouped)
     assert counts() == small
 
 
+def test_asset_dialogs_use_the_current_table_view_instead_of_the_original_link(
+    client, grouped
+):
+    _, campaign, _, tokens = grouped
+    page = reverse("n26-campaign", args=[campaign.pk])
+    target = reverse("n26-campaign-asset-unassign", args=[campaign.pk, tokens[0].pk])
+    response = client.get(
+        target,
+        {"sort": "name", "group": "old"},
+        HTTP_HX_REQUEST="true",
+        HTTP_HX_CURRENT_URL="http://testserver" + page + "?sort=-wealth&group=",
+    )
+    assert response.status_code == 200
+    assert response.context["back"] == page + "?sort=-wealth&group=#assets"
+    assert response.context["action"] == target + "?sort=-wealth&group="
+    assert response["HX-Replace-Url"] == response.context["action"]
+
+
+def test_asset_creation_keeps_the_view_when_switching_sources_and_saving(
+    client, grouped
+):
+    _, campaign, shop, _ = grouped
+    target = reverse("n26-campaign-add-asset", args=[campaign.pk])
+    query = {"type": str(shop.asset_type_id), "sort": "-wealth", "group": ""}
+    page = client.get(target, query)
+    assert "sort=-wealth&group=" in page.context["custom_href"]
+    custom = client.get(page.context["custom_href"])
+    assert "sort=-wealth&group=" in custom.context["catalogue_href"]
+    back = reverse("n26-campaign", args=[campaign.pk]) + "?sort=-wealth&group=#assets"
+    assert custom.context["back"] == back
+    invalid = client.post(page.context["custom_href"], {})
+    assert invalid.status_code == 200 and invalid.context["back"] == back
+    saved = client.post(
+        page.context["custom_href"],
+        {
+            "asset_type": str(shop.asset_type_id),
+            "name": "Custom shop",
+            "annotation": "",
+            "income": "0",
+        },
+    )
+    assert saved.status_code == 302 and saved.url == back
+
+
 def test_repeated_campaign_possessions_are_grouped_too(grouped):
     from n26.core.operations import operation
     from n26.library.models import Asset
@@ -165,6 +227,39 @@ def test_repeated_campaign_possessions_are_grouped_too(grouped):
         if group.label == "Territories"
     )
     assert group.names == "Settlement (x2), Old Ruins, Shop (x2), Sump shop"
+
+
+def test_table_tokens_keep_the_selected_columns_when_earlier_additions_are_archived(
+    client, grouped
+):
+    from n26.core.campaigns import campaign_operation
+    from n26.tests.fixtures import island_props
+
+    _, campaign, _, _ = grouped
+    with campaign_operation(campaign, actor=campaign.owner) as op:
+        first_counter = op.add_counter("First")
+        selected_counter = op.add_counter("Selected")
+        first_label = op.add_label("First label", ["A"])
+        selected_label = op.add_label("Selected label", ["B"])
+    query = {
+        "sort": f"-counter:{selected_counter.pk}",
+        "group": f"label:{selected_label.pk}",
+    }
+    page = reverse("n26-campaign", args=[campaign.pk])
+    before = island_props(client.get(page, query).content, "campaign-gangs")
+    assert (before["sort"], before["group"]) == (query["sort"], query["group"])
+    members = campaign.additions.built_ins.members
+    with campaign_operation(campaign, actor=campaign.owner) as op:
+        op.archive_counter(members.get(counter=first_counter, archived=False))
+        op.archive_label(members.get(slot=first_label, archived=False))
+    after = island_props(client.get(page, query).content, "campaign-gangs")
+    assert (after["sort"], after["group"]) == (query["sort"], query["group"])
+    assert before["labels"][1]["token"] == after["labels"][0]["token"]
+    with campaign_operation(campaign, actor=campaign.owner) as op:
+        op.archive_counter(members.get(counter=selected_counter, archived=False))
+        op.archive_label(members.get(slot=selected_label, archived=False))
+    missing = island_props(client.get(page, query).content, "campaign-gangs")
+    assert (missing["sort"], missing["group"]) == ("name", "")
 
 
 def test_campaign_choices_appear_once_in_text_and_stay_dismissed_on_print(
@@ -271,27 +366,15 @@ def test_arbitrator_sets_shared_grouping_and_colours_with_viewer_override(
         == events
     )
     response = client.get(reverse("n26-campaign", args=[campaign.pk]))
-    assert response.context["sheet"].table_group == "label-0"
+    assert response.context["sheet"].table_group == f"label:{slot.pk}"
     group = response.context["sheet"].table_groups[0]
     assert (group["label"], group["colour"]) == ("Upper", "red")
-    assert "background: var(--color-red-500)" in response.content.decode()
-    table = BeautifulSoup(response.content, "html.parser").select_one(
-        "#n26-campaign-gangs table"
-    )
-    heading = table.select_one("th[id^=campaign-gangs-group-]")
-    assert "Upper" in heading.get_text()
-    gang_heading = table.find(id=f"campaign-gangs-gang-{gang.pk}")
-    assert heading["id"] in gang_heading["headers"]
-    cells = gang_heading.find_parent("tbody").find_all("td")
-    assert cells
-    for cell in cells:
-        assert heading["id"] in cell["headers"]
-        assert gang_heading["id"] in cell["headers"]
-        assert all(table.find("th", id=ref) for ref in cell["headers"])
-    for cell in gang_heading.find_parent("tr").find_all("td"):
-        assert any(
-            ref.startswith("campaign-gangs-col-") for ref in cell["headers"]
-        ) or ("campaign-gangs-actions" in cell["headers"])
+    from n26.tests.fixtures import island_props
+
+    props = island_props(response.content, "campaign-gangs")
+    assert props["group"] == f"label:{slot.pk}"
+    assert props["labels"][0]["colours"]["Upper"] == "var(--color-red-500)"
+    assert props["gangs"][0]["labels"] == ["Upper"]
     response = client.get(reverse("n26-campaign", args=[campaign.pk]), {"group": ""})
     assert response.context["sheet"].table_group == ""
     campaign.refresh_from_db()

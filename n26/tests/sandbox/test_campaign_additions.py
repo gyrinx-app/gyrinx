@@ -1340,7 +1340,13 @@ class TestTheArbitratorTallies:
         client.force_login(campaign.owner)
         page = reverse("n26-campaign", args=[campaign.pk])
         body = client.get(page).content.decode()
-        assert "Edit Reputation" in body
+        from n26.tests.fixtures import island_props
+
+        counters = island_props(body, "campaign-gangs")["gangs"][0]["counters"]
+        assert any(
+            counter and counter["name"] == "Reputation" and counter["adjustHref"]
+            for counter in counters
+        )
 
         response = client.post(
             reverse("n26-tally", args=[self.reputation_of(gang).assignment_id]),
@@ -1361,7 +1367,17 @@ class TestTheArbitratorTallies:
         client.force_login(rival.owner)
         body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
         # Their own row carries the control; the other gang's does not.
-        assert body.count("Edit Reputation") == 1
+        from n26.tests.fixtures import island_props
+
+        rows = island_props(body, "campaign-gangs")["gangs"]
+        assert {
+            row["id"]
+            for row in rows
+            if any(
+                counter and counter["name"] == "Reputation" and counter["adjustHref"]
+                for counter in row["counters"]
+            )
+        } == {str(rival.pk)}
         response = client.post(
             reverse("n26-tally", args=[self.reputation_of(gang).assignment_id]),
             {"change": "1"},

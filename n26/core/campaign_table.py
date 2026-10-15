@@ -27,6 +27,27 @@ def table_view_href(request, here):
     return here + ("?" + urlencode(preferences) if preferences else "")
 
 
+def gang_sort_values(sheet, line):
+    counter_keys = getattr(sheet, "counter_keys", []) or sheet.counter_columns
+    label_ids = getattr(sheet, "label_ids", []) or sheet.label_columns
+    return {
+        "name": line.name.casefold(),
+        "type": line.gang_type.casefold(),
+        "owner": line.owner.username.casefold() if line.owner else None,
+        "rating": line.rating,
+        "credits": None if line.credits_unlimited else line.credits,
+        "wealth": line.wealth,
+        **{
+            f"counter:{key}": counter.value if counter else None
+            for key, counter in zip(counter_keys, line.counters, strict=True)
+        },
+        **{
+            f"label:{key}": value.casefold() or None
+            for key, value in zip(label_ids, line.labels, strict=True)
+        },
+    }
+
+
 def prepare_gang_table(sheet, request, here, *, current_url=""):
     query = table_query(request, current_url=current_url)
     columns = [
@@ -35,36 +56,37 @@ def prepare_gang_table(sheet, request, here, *, current_url=""):
         ("credits", "Credits"),
         ("wealth", "Wealth"),
     ]
-    columns += [(f"counter-{i}", name) for i, name in enumerate(sheet.counter_columns)]
+    counter_keys = getattr(sheet, "counter_keys", []) or sheet.counter_columns
+    label_ids = getattr(sheet, "label_ids", []) or sheet.label_columns
+    counters = [
+        (f"counter:{key}", name)
+        for key, name in zip(counter_keys, sheet.counter_columns, strict=True)
+    ]
+    groups = [
+        (f"label:{key}", name)
+        for key, name in zip(label_ids, sheet.label_columns, strict=True)
+    ]
+    columns += counters
     choices = [*columns, ("type", "Gang type"), ("owner", "Player")]
-    choices += [(f"label-{i}", name) for i, name in enumerate(sheet.label_columns)]
+    choices += groups
+    aliases = {f"counter-{i}": token for i, (token, _) in enumerate(counters)}
+    aliases.update({f"label-{i}": token for i, (token, _) in enumerate(groups)})
     sort = query.get("sort", "name")
     descending = sort.startswith("-")
     key = sort.removeprefix("-")
+    key = aliases.get(key, key)
+    sort = ("-" if descending else "") + key
     if key not in dict(choices):
         key, sort, descending = "name", "name", False
-    label_ids = getattr(sheet, "label_ids", [])
     default = getattr(sheet, "default_group", "")
-    default_group = f"label-{label_ids.index(default)}" if default in label_ids else ""
+    default_group = f"label:{default}" if default in label_ids else ""
     group = query.get("group", default_group)
-    groups = [(f"label-{i}", name) for i, name in enumerate(sheet.label_columns)]
+    group = aliases.get(group, group)
     if group not in dict(groups):
         group = ""
 
     def value(line):
-        if key.startswith("counter-"):
-            counter = line.counters[int(key.split("-")[1])]
-            return counter.value if counter else None
-        if key.startswith("label-"):
-            return line.labels[int(key.split("-")[1])].casefold() or None
-        if key == "type":
-            return line.gang_type.casefold()
-        if key == "owner":
-            return line.owner.username.casefold() if line.owner else None
-        if key == "credits" and line.credits_unlimited:
-            return None
-        reading = getattr(line, key)
-        return reading.casefold() if isinstance(reading, str) else reading
+        return gang_sort_values(sheet, line)[key]
 
     # Missing values stay last in either direction. Names break numeric ties.
     named = sorted(sheet.gangs, key=lambda line: (line.name.casefold(), line.gang_id))
@@ -72,7 +94,9 @@ def prepare_gang_table(sheet, request, here, *, current_url=""):
     absent = [line for line in named if value(line) is None]
     sheet.gangs = sorted(present, key=value, reverse=descending) + absent
     for line in sheet.gangs:
-        line.grouped_label_index = int(group.split("-")[1]) if group else None
+        line.grouped_label_index = (
+            [token for token, _ in groups].index(group) if group else None
+        )
     sheet.table_sort = sort
     sheet.table_group = group
     sheet.table_href = here
@@ -113,7 +137,7 @@ def prepare_gang_table(sheet, request, here, *, current_url=""):
         for token, label in columns
     ]
     if group:
-        index = int(group.split("-")[1])
+        index = [token for token, _ in groups].index(group)
         buckets = {}
         for line in sheet.gangs:
             buckets.setdefault(line.labels[index], []).append(line)
@@ -167,4 +191,95 @@ def label_options(campaign, slots):
             if member.picklist_id == slot.picklist_id
         ]
         for slot in slots
+    }
+
+
+def gang_table_props(sheet):
+    """JSON-safe table facts and permitted links from the prepared campaign sheet."""
+    from hashlib import sha256
+
+    from n26.badges import svg_tree
+    from n26.core.people import person_link
+    from n26.core.templatetags.theme import css_color
+
+    counter_keys = sheet.counter_keys or sheet.counter_columns
+    label_ids = sheet.label_ids or sheet.label_columns
+    badges = {}
+    artwork = {}
+    gangs = []
+    for line in sheet.gangs:
+        artwork_key = (
+            sha256(line.type_icon.encode()).hexdigest() if line.type_icon else ""
+        )
+        if artwork_key and artwork_key not in artwork:
+            artwork[artwork_key] = svg_tree(line.type_icon)
+        gangs.append(
+            {
+                "id": line.gang_id,
+                "name": line.name,
+                "type": line.gang_type,
+                "artwork": artwork_key,
+                "owner": person_link(line.owner, badges) if line.owner else None,
+                "colour": css_color(line.colour) if line.colour else "",
+                "href": line.href,
+                "rating": line.rating,
+                "credits": None if line.credits_unlimited else line.credits,
+                "wealth": line.wealth,
+                "creditsHref": line.credits_href,
+                "removeHref": line.remove_href,
+                "overBudget": line.over_budget,
+                "sortValues": gang_sort_values(sheet, line),
+                "labels": line.labels,
+                "assets": [
+                    {"label": detail.label, "text": detail.text}
+                    for detail in line.grouped_assets or []
+                ],
+                "rolls": [
+                    {"label": roll.label, "href": roll.href}
+                    for roll in line.starting_rolls
+                    if roll.href
+                ],
+                "counters": [
+                    None
+                    if counter is None
+                    else {
+                        "id": counter.assignment_id,
+                        "name": counter.name,
+                        "value": counter.value,
+                        "adjustHref": counter.adjust_href,
+                        "income": counter.income_explanation
+                        if counter.is_income
+                        else None,
+                    }
+                    for counter in line.counters
+                ],
+            }
+        )
+    return {
+        "href": sheet.table_href or "#",
+        "sort": sheet.table_sort,
+        "group": sheet.table_group,
+        "defaultGroup": f"label:{sheet.default_group}"
+        if sheet.default_group in label_ids
+        else "",
+        "counters": [
+            {"token": f"counter:{key}", "label": name}
+            for key, name in zip(counter_keys, sheet.counter_columns, strict=True)
+        ],
+        "labels": [
+            {
+                "token": f"label:{key}",
+                "label": name,
+                "colours": {
+                    option["name"]: css_color(option["colour"])
+                    for option in sheet.label_options.get(key, [])
+                    if option["colour"]
+                },
+            }
+            for key, name in zip(label_ids, sheet.label_columns, strict=True)
+        ],
+        "gangs": gangs,
+        "badges": badges,
+        "artwork": artwork,
+        "focusCounter": getattr(sheet, "table_focus_counter", ""),
     }

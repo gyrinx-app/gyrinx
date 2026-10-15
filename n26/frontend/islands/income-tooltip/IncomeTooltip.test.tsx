@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { IncomeTooltip } from "./IncomeTooltip";
+import { IncomeTooltip } from "../../ui";
 
 function open(value: number) {
     const trigger = screen.getByRole("button", {

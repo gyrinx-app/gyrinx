@@ -14,6 +14,7 @@ from n26.core.campaigns import campaign_operation
 from n26.core.models import Assignment, CampaignParticipant, LedgerEvent
 from n26.core.render import render_gang
 from n26.flags import CAMPAIGNS
+from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import (
     assign,
     create_counter,
@@ -156,14 +157,16 @@ def test_return_target_is_validated_for_cancel_and_submit(client, setup):
 def test_campaign_and_owner_roster_offer_amount_links_but_readers_do_not(client, setup):
     _, player, campaign, gang, held = setup
     page = reverse("n26-campaign", args=[campaign.pk])
-    soup = BeautifulSoup(client.get(page).content, "html.parser")
-    assert soup.find("a", {"aria-label": "Edit Meat"})["href"].startswith(address(held))
+    props = island_props(client.get(page).content, "campaign-gangs")
+    assert props["gangs"][0]["counters"][0]["adjustHref"].startswith(address(held))
     client.force_login(player)
     assert (
         "Edit Meat" in client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
     )
     client.force_login(User.objects.create_user("reader"))
-    assert "Edit Meat" not in client.get(page).content.decode()
+    props = island_props(client.get(page).content, "campaign-gangs")
+    assert not props["gangs"][0]["counters"][0]["adjustHref"]
+    assert not props["gangs"][0]["removeHref"]
     assert (
         "Edit Meat"
         not in client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
@@ -196,20 +199,27 @@ def test_one_point_updates_just_the_counter_and_sends_a_toast(
     )
     assert response.status_code == 200
     soup = BeautifulSoup(response.content, "html.parser")
-    host = soup.find(id=f"n26-counter-{held.pk}")
+    if origin == "n26-campaign":
+        host = soup.find(id="n26-campaign-gangs")
+        props = island_props(response.content, "campaign-gangs")
+        assert props["gangs"][0]["counters"][0]["value"] == 6
+        assert not host.select('[data-react-name="income-tooltip"]')
+    else:
+        host = soup.find(id=f"n26-counter-{held.pk}")
+        assert host.select_one("[data-counter-value]").get_text(strip=True) == "6"
+        assert not soup.find(id="n26-campaign-gangs")
     assert host["hx-swap-oob"] == "true"
-    assert host.select_one("[data-counter-value]").get_text(strip=True) == "6"
     assert not soup.find("html")
-    assert not soup.find(id="n26-campaign-gangs")
     assert "HX-Replace-Url" not in response
     assert (
         json.loads(response["HX-Trigger"])["n26-toasts"][0]["message"]
         == "Meat is now 6."
     )
     assert (reading(gang).value, reading(gang).tallied) == (6, 3)
-    pencil = host.find("a", {"aria-label": "Edit Meat"})
-    assert pencil["hx-get"] == pencil["href"]
-    assert bool(host.find("form")) == (origin == "n26-gang")
+    if origin == "n26-gang":
+        pencil = host.find("a", {"aria-label": "Edit Meat"})
+        assert pencil["hx-get"] == pencil["href"]
+        assert host.find("form")
 
 
 def test_the_owner_sheets_use_async_counter_controls(client, setup):
@@ -219,6 +229,13 @@ def test_the_owner_sheets_use_async_counter_controls(client, setup):
         soup = BeautifulSoup(
             client.get(reverse(route, args=[pk])).content, "html.parser"
         )
+        if route == "n26-campaign":
+            props = island_props(str(soup), "campaign-gangs")
+            assert props["gangs"][0]["counters"][0]["adjustHref"].startswith(
+                address(held)
+            )
+            assert not soup.find(id=f"n26-counter-{held.pk}")
+            continue
         host = soup.find(id=f"n26-counter-{held.pk}")
         assert host
         assert host.find("a", {"aria-label": "Edit Meat"})["hx-swap"] == "none"
@@ -283,12 +300,20 @@ def test_pencil_dialog_validates_and_saves_without_reloading_the_page(
     soup = BeautifulSoup(response.content, "html.parser")
     assert not soup.find("html")
     assert not soup.find(id="n26-gang-sheet")
-    assert (
-        soup.find(id=f"n26-counter-{held.pk}")
-        .select_one("[data-counter-value]")
-        .get_text(strip=True)
-        == "20"
-    )
+    if origin == "n26-campaign":
+        assert (
+            island_props(response.content, "campaign-gangs")["gangs"][0]["counters"][0][
+                "value"
+            ]
+            == 20
+        )
+    else:
+        assert (
+            soup.find(id=f"n26-counter-{held.pk}")
+            .select_one("[data-counter-value]")
+            .get_text(strip=True)
+            == "20"
+        )
     assert not soup.find(id="n26-campaign-state-dialog-host").get_text(strip=True)
     assert response["HX-Replace-Url"] == back
     assert events(held).count() == before + 1
@@ -422,7 +447,7 @@ def test_a_counter_edit_reorders_its_campaign_table_and_keeps_no_grouping(
     assert response.status_code == 200
     sheet = response.context["sheet"]
     assert [line.gang_id for line in sheet.gangs] == [str(gang.pk), str(other.pk)]
-    assert sheet.table_sort == "-counter-0" and sheet.table_group == ""
+    assert sheet.table_sort == f"-counter:{held.counter_id}" and sheet.table_group == ""
     soup = BeautifulSoup(response.content, "html.parser")
     assert soup.find(id="n26-campaign-gangs")["hx-swap-oob"] == "true"
     assert not soup.find(id="n26-campaign-state-dialog-host").get_text(strip=True)

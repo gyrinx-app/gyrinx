@@ -372,7 +372,17 @@ class TestTheQueryBudget:
             body = client.get(address).content.decode()
 
         assert "More 2" in body
-        assert body.count("Edit Meat") == 6
+        from n26.tests.fixtures import island_props
+
+        rows = island_props(body, "campaign-gangs")["gangs"]
+        assert (
+            sum(
+                bool(counter and counter["name"] == "Meat" and counter["adjustHref"])
+                for row in rows
+                for counter in row["counters"]
+            )
+            == 6
+        )
         assert len(more_queries.captured_queries) == len(few.captured_queries)
         # Rendering the assets and filling their addresses share the same
         # reader instance, so the staged-content flag is checked once.

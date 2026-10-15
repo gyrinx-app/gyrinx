@@ -2275,18 +2275,14 @@ GROUPS: list[Group] = [
                     "Every gang in the campaign, with its counters, labels and "
                     "assets, as one table."
                 ),
-                needs=(ALPINE, KIT_JS),
                 notes=(
-                    "Numeric counters stay in columns; labels, assets and actions "
-                    "have labelled rows beneath each gang, with values spanning "
-                    "the remaining columns. On phones the figures form a grid "
-                    "and details keep labels beside values. Match values "
-                    "to the sheet's heading lists by position, never by name. "
-                    "Every empty value draws a dash, "
-                    "never a blank, which would look like a failed number. Counter "
-                    "controls appear only where the line carries an address, which "
-                    "the view fills for the arbitrator and for a gang's own owner. "
-                    "At wider widths c-ui.table scrolls extra numeric columns."
+                    "React renders the compact table and updates sorting and label grouping in place. "
+                    "Viewing preferences use stable column identifiers in the URL and support Back/Forward. "
+                    "Numeric counters stay in columns; over-budget status, labels, assets and actions "
+                    "share one wrapping detail line. On phones the figures form a grid. "
+                    "The prepared sheet supplies permitted links and preloaded owner badges. "
+                    "Counter and starting-roll dialogs belong in separate page hosts; their updates "
+                    "replace the Django wrapper around the island."
                 ),
             ),
             Component(

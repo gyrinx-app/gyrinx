@@ -39,6 +39,7 @@ table; the view decides where Cancel and a save return to.
             </c-slot>
         {% endif %}
         {% csrf_token %}
+        <input type="hidden" name="back" value="{{ back }}">
         <c-n26.form-section title="The change">
             <c-n26.radio-cards label="Add or remove *" :form="form" name="direction" min="12rem">
                 {% for choice in directions %}

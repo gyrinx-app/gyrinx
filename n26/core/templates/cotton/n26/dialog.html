@@ -10,6 +10,7 @@ Without script it stays in document flow. Place it where a reader will find it.
 clicked marks a client open. Dismiss without a click navigates to cancel_url.
 A redrawn copy was swapped in by htmx already open. Init sets clicked, and dismiss removes the node.
 The form posts with swap none. The response must update other hosts out of band.
+A history close preserves the URL restored by Back or Forward.
 Put the csrf token in the default slot.
 The actions slot is not in c-vars, so a view variable named actions will draw here if the call site leaves it empty.
 Give every panel its own id. The open event matches on it, and the heading id is derived from it.
@@ -45,6 +46,7 @@ footer False leaves Cancel and the submit to the slot. Its Cancel must link to c
             cancelUrl: '{{ cancel_url }}',
             promote(dialog) {
                 try {
+                    dialog.returnValue = '';
                     dialog.removeAttribute('open');
                     dialog.classList.remove('static', 'm-0');
                     dialog.classList.add('m-auto');
@@ -68,13 +70,13 @@ footer False leaves Cancel and the submit to the slot. Its Cancel must link to c
                 }
             },
             dismiss() {
-                if (!this.clicked) {
+                if (!this.clicked && this.$el.returnValue !== 'n26-history') {
                     window.location = this.cancelUrl;
                     return;
                 }
                 this.clicked = false;
                 this.promoted = false;
-                history.replaceState({}, '', this.cancelUrl);
+                if (this.$el.returnValue !== 'n26-history') history.replaceState({}, '', this.cancelUrl);
                 if (this.redrawn) this.$el.remove();
             },
             leaving(event) {

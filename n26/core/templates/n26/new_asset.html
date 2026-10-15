@@ -16,7 +16,7 @@ with no script and a redisplay keeps the pick.
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% if unified %}{{ custom_href }}{% else %}{% url 'n26-campaign-new-asset' campaign.pk %}{% endif %}"
+    <c-n26.form-page action="{{ request.get_full_path }}"
                      title="{% if unified %}Create custom {{ custom_label }}{% else %}New asset{% endif %}"
                      lead="{% if unified %}Created in this campaign, initially unclaimed.{% else %}Created assets are added to this campaign. Transferable assets start unclaimed.{% endif %}"
                      :form="form"

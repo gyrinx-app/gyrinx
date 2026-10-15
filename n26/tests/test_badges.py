@@ -349,8 +349,14 @@ class TestTheNamesOnACampaign:
 
         mark = badge_svg(GUILDER).strip()
         assert after.split("</header>")[-1].count(mark) == (
-            before.split("</header>")[-1].count(mark) + 6
+            before.split("</header>")[-1].count(mark) + 4
         )
+        from n26.tests.fixtures import island_props
+
+        props = island_props(after, "campaign-gangs")
+        assert {line["owner"]["name"] for line in props["gangs"]} == {"vex", "kesh"}
+        assert all(line["owner"]["badge"] == GUILDER.slug for line in props["gangs"])
+        assert props["badges"][GUILDER.slug]["svg"]["tag"] == "svg"
 
     def test_the_page_reads_the_badges_once_for_everybody(self, table, player, client):
         player(table, "vex")

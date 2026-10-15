@@ -1,6 +1,8 @@
+import json
 from functools import wraps
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import Group
 from django.db import transaction
 
@@ -319,3 +321,10 @@ def names():
         return sorted(queryset.values_list("name", flat=True))
 
     return _names
+
+
+def island_props(body, name):
+    soup = BeautifulSoup(body, "html.parser")
+    host = soup.select_one(f'[data-react-name="{name}"]')
+    assert host is not None
+    return json.loads(soup.find(id=host["data-react-props"]).string)

@@ -634,20 +634,10 @@ class TestCampaignDashboardLayout:
         assign(create_wargear("Spare kit", price=75), stash=gang.stash, paid=75)
         join_campaign(gang, campaign)
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
-        table = drawn.split('id="n26-campaign-gangs"', 1)[1].split("</table>", 1)[0]
-        headings = re.findall(r"<th\b[^>]*>(.*?)</th>", table, re.S)
-        assert [
-            re.sub(r"<[^>]+>", "", heading).strip() for heading in headings[:4]
-        ] == [
-            "Gang",
-            "Rating",
-            "Credits",
-            "Wealth",
-        ]
-        cells = re.findall(r"<td\b[^>]*>(.*?)</td>", table, re.S)
-        # Numeric cells include labels used when the header is hidden on phones.
-        texts = [" ".join(re.sub(r"<[^>]+>", "", cell).split()) for cell in cells[:3]]
-        assert texts == ["Rating 125¢", "Credits 800¢", "Wealth 1000¢"]
+        from n26.tests.fixtures import island_props
+
+        row = island_props(drawn, "campaign-gangs")["gangs"][0]
+        assert (row["rating"], row["credits"], row["wealth"]) == (125, 800, 1000)
         assert_reconciled(gang)
 
     def test_labels_share_one_detail_line_without_adding_numeric_columns(
@@ -660,22 +650,17 @@ class TestCampaignDashboardLayout:
         for name in ["Alignment", "Campaign objective"]:
             add_campaign_label(campaign, name, ["Unset", "Selected"], actor=arbitrator)
         response = client.get(f"/n26/campaigns/{campaign.pk}/")
-        table = (
-            BeautifulSoup(response.content, "html.parser")
-            .find(id="n26-campaign-gangs")
-            .find("table")
-        )
-        headings = table.thead.find_all("th")
+        from n26.tests.fixtures import island_props
+
+        props = island_props(response.content, "campaign-gangs")
+        assert [label["label"] for label in props["labels"]] == [
+            "Alignment",
+            "Campaign objective",
+        ]
+        assert props["gangs"][0]["labels"] == ["", ""]
         assert not {"Alignment", "Campaign objective"} & {
-            heading.get_text(strip=True) for heading in headings
+            counter["label"] for counter in props["counters"]
         }
-        main, details = table.tbody.find_all("tr", recursive=False)
-        assert len(main.find_all(["th", "td"], recursive=False)) == len(headings)
-        (cell,) = details.find_all("td", recursive=False)
-        assert int(cell["colspan"]) == len(headings)
-        text = cell.get_text(" ", strip=True)
-        assert "Alignment —" in text
-        assert "Campaign objective —" in text
 
     def test_gang_name_precedes_its_log_action(
         self, client, campaign, arbitrator, gang_type, open_to_everyone
@@ -952,10 +937,15 @@ class TestTheRollOfGangs:
         table = BeautifulSoup(response.content, "html.parser").find(
             id="n26-campaign-gangs"
         )
-        circle = table.find("circle")
-        assert circle is not None
-        type_line = circle.find_parent("th").find("span", class_="text-xs")
-        assert gang.gang_type.name in type_line.get_text()
+        from n26.tests.fixtures import island_props
+
+        props = island_props(response.content, "campaign-gangs")
+        assert props["gangs"][0]["type"] == gang.gang_type.name
+        assert (
+            props["artwork"][props["gangs"][0]["artwork"]]["children"][0]["tag"]
+            == "circle"
+        )
+        assert not table.select('[data-react-name="action-menu"]')
 
     def test_a_key_naming_nothing_is_refused(self, client, campaign, open_to_everyone):
         response = client.post(
@@ -1868,7 +1858,11 @@ class TestTheArbitratorsOwnAddGangScreen:
 
         response = client.get(f"/n26/campaigns/{campaign.pk}/")
         assert [line.over_budget for line in response.context["sheet"].gangs] == [True]
-        assert "Over budget" in response.content.decode()
+        from n26.tests.fixtures import island_props
+
+        assert island_props(response.content, "campaign-gangs")["gangs"][0][
+            "overBudget"
+        ]
 
 
 class TestNothingTypedIntoAnAddressIsAServerError:

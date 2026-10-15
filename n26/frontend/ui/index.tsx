@@ -307,15 +307,18 @@ export function NativeSelect({
     style,
     "aria-describedby": describedBy,
     "aria-invalid": invalid,
+    controlSize = "default",
     ...props
-}: ComponentProps<"select">) {
+}: ComponentProps<"select"> & { controlSize?: "default" | "sm" }) {
     const field = useFieldControl(id, describedBy);
+    const recipe =
+        controlSize === "sm" ? cotton.nativeSelectSmall : cotton.nativeSelect;
     return (
         <select
             {...props}
             id={field.id}
-            className={`${cotton.nativeSelect.className} ${className}`}
-            style={{ ...cotton.nativeSelect.style, ...style }}
+            className={`${recipe.className} ${className}`}
+            style={{ ...recipe.style, ...style }}
             aria-invalid={invalid ?? (field.errorId ? true : undefined)}
             aria-describedby={field.describedBy}
         />
@@ -970,6 +973,24 @@ function SvgArt({ node }: { node: SvgNode }): ReactNode {
     );
 }
 
+export function Artwork({ node }: { node: SvgNode }) {
+    return (
+        <span className={cotton.userLink.flair} aria-hidden="true">
+            <SvgArt node={node} />
+        </span>
+    );
+}
+
+export function ColorSwatch({ color }: { color: string }) {
+    return color ? (
+        <span
+            className={cotton.colorSwatch}
+            style={{ background: color }}
+            aria-hidden="true"
+        />
+    ) : null;
+}
+
 /**
  * A person's name in the surrounding colour, with their badge after it, as
  * `<c-n26.user-link tone="current">` draws it. Without an href the name is
@@ -1291,6 +1312,7 @@ export {
     type SwitcherRow,
 } from "./QuickSwitcher";
 export { HelpPopover } from "./HelpPopover";
+export { IncomeTooltip, type IncomeTooltipProps } from "./IncomeTooltip";
 export {
     useAnchoredPlacement,
     useDismiss,
