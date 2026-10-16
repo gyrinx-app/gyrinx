@@ -1849,6 +1849,29 @@ class TestModelCounters:
             assert counter_value(assignment) == award
             report = start_correction(report, actor=owner)
 
+    def test_a_result_can_restore_an_untouched_legacy_counter_to_its_minimum(
+        self,
+        report,
+        owner,
+        model,
+        glitches,
+        glitch,
+    ):
+        from n26.library.authoring import revise
+
+        tally(glitches, 0)
+        revise(glitches.counter, minimum=1)
+        payload = with_model(model)
+        payload["models"][0]["effects"] = [effect_for(report, owner, glitch)]
+        report = save(report, owner, payload)
+        plan = preview_report(report, actor=owner)
+        assert plan.valid, plan.errors
+        (change,) = plan.models[0].counters
+        assert change.after == 1
+        saved = apply(report, owner)
+        assert counter_value(glitches) == 1
+        assert saved.receipt["models"][0]["counters"][0]["after"] == 1
+
     def test_xp_is_not_offered_and_every_held_counter_is(
         self, report, owner, model, kill_count, glitches
     ):

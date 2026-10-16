@@ -824,11 +824,17 @@ def _project_counters(card, index, plan, result, facts, manual=None):
     for key, delta in manual.items():
         if key in by_assignment:
             by_assignment[key][0] += delta
-    if any(held[0] < 0 for held in by_assignment.values()):
+    moved = {key for key, delta in reversed_deltas.items() if delta} | {
+        key for key, delta in manual.items() if delta
+    }
+    if result.xp_change:
+        moved.add(result.xp_assignment_id)
+    intermediate = [value for key, value in by_assignment.items() if key in moved]
+    if any(held[0] < 0 for held in intermediate):
         result.errors.append(
             "These corrections would take a counter below zero. Correct its later changes first."
         )
-    elif any(held[0] < held[2].minimum for held in by_assignment.values()):
+    elif any(held[0] < held[2].minimum for held in intermediate):
         result.errors.append(
             "These corrections would take a counter below its minimum. Correct its later changes first."
         )
