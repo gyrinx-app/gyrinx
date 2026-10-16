@@ -1605,7 +1605,7 @@ def _scale_counter_contributions(computed):
                 else None
             )
             recorded.setdefault(
-                key, max(node.assignable.minimum, held.value if held else 0)
+                key, max(node.assignable.minimum, held.value if held else node.opens_at)
             )
     by_counter = {}
     for contribution in computed.counter_contributions:
@@ -1673,7 +1673,10 @@ def counter_readings(card, computed=None):
         readings.append(
             CounterReading(
                 thing=node.assignable,
-                value=max(node.assignable.minimum, held.value if held else 0) + added,
+                value=max(
+                    node.assignable.minimum, held.value if held else node.opens_at
+                )
+                + added,
                 contributions=additions,
             )
         )

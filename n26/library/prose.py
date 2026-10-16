@@ -428,8 +428,9 @@ def _says_changes_stat(effect, parts):
 def _says_contributes_to_counter(effect, parts):
     who = parts.who
     reading = _owned(who, f"{effect.counter} reading")
+    per_point = f" for each {effect.per_counter} point" if effect.per_counter_id else ""
     return (
-        f"{effect.amount} is added to {reading}{_while(who)}.",
+        f"{effect.amount} is added to {reading}{per_point}{_while(who)}.",
         (
             "Worked out on every read, so the reading drops back when "
             "the item carrying this modifier goes. Nothing is written "

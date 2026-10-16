@@ -339,7 +339,10 @@ class Card:
                 counts.append(
                     (
                         select.key(node.assignable),
-                        max(node.assignable.minimum, held.value if held else 0),
+                        max(
+                            node.assignable.minimum,
+                            held.value if held else node.opens_at,
+                        ),
                     )
                 )
         base = select.matchable(profile, assignables=possessions)
@@ -478,7 +481,10 @@ class GangCard:
                 counts.append(
                     (
                         select.key(node.assignable),
-                        max(node.assignable.minimum, held.value if held else 0),
+                        max(
+                            node.assignable.minimum,
+                            held.value if held else node.opens_at,
+                        ),
                     )
                 )
         base = select.matchable(self.gang, assignables=possessions)

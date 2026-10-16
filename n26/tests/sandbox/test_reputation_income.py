@@ -386,3 +386,39 @@ def test_stored_counter_effects_open_at_the_minimum(
         ).value
         == expected
     )
+
+
+@pytest.mark.parametrize("minimum", [0, 3, 7])
+def test_hire_preview_uses_the_counter_opening_balance_for_scaled_contributions(
+    gang, make_profile, minimum
+):
+    from n26.core.card import build_card, build_card_from_profile
+    from n26.core.effects import compute, counter_readings
+    from n26.library.authoring import targets_model
+    from n26.tests.sandbox.actions import hire
+
+    source = create_counter("Personal influence", minimum=minimum)
+    target = create_counter("Personal rewards")
+    profile = make_profile("Ganger", price=0)
+    add_built_in(profile, source, amount=5)
+    modifier(
+        "Personal rewards rule",
+        targets_model(),
+        ef_contributes_to_counter(target, 2, per_counter=source),
+        attach_to=profile,
+    )
+    preview = build_card_from_profile(profile)
+    model = hire(gang, profile, "Cinder")
+    values = []
+    for card in (preview, build_card(model)):
+        computed = compute(card, build_modifier_index(carriers(card)))
+        values.append(
+            {
+                line.name: line.value
+                for line in counter_readings(card, computed)
+                if line.thing.pk in {source.pk, target.pk}
+            }
+        )
+    assert values[0] == values[1]
+    assert values[0]["Personal influence"] == max(minimum, 5)
+    assert values[0]["Personal rewards"] == 2 * max(minimum, 5)

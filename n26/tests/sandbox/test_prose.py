@@ -1582,3 +1582,28 @@ def test_status_narrowing_is_named_in_the_modifier_prose(default_pack):
     assert texts(prose_for(rule).does) == [
         "While their status is Captured, they gain the Veteran subtype."
     ]
+
+
+def test_scaled_contribution_sentence_names_each_source_point(default_pack):
+    income = create_counter("Income")
+    reputation = create_counter("Reputation")
+    rule = modifier(
+        "Reputation income",
+        targets_gang(),
+        ef_contributes_to_counter(income, 10, per_counter=reputation),
+    )
+    text = sentence_for(rule).text
+    assert "10 is added" in text
+    assert "Income reading" in text
+    assert "for each Reputation point" in text
+
+
+def test_fixed_contribution_sentence_keeps_its_amount_without_a_source(default_pack):
+    income = create_counter("Income")
+    rule = modifier(
+        "Fixed income", targets_gang(), ef_contributes_to_counter(income, 10)
+    )
+    text = sentence_for(rule).text
+    assert "10 is added" in text
+    assert "Income reading" in text
+    assert "for each" not in text
