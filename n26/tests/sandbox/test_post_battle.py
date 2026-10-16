@@ -1791,6 +1791,64 @@ class TestModelCounters:
         saved = apply(report, owner)
         assert saved.receipt["models"][0]["counters"][0]["after"] == change.after
 
+    def test_xp_previews_recalculate_contributions_when_a_source_changes(
+        self,
+        report,
+        owner,
+        model,
+        content,
+    ):
+        from n26.library.authoring import create_hidden, ef_contributes_to_counter
+
+        source = assign(create_counter("Influence", minimum=1), miniature=model)
+        tally(source, 0)
+        assign(
+            create_hidden(
+                "Influence XP",
+                effects=[
+                    (
+                        targets_model(),
+                        ef_contributes_to_counter(
+                            content["xp"], 2, per_counter=source.counter
+                        ),
+                    ),
+                ],
+            ),
+            miniature=model,
+        )
+        for amount, expected in [(1, 4), (2, 6)]:
+            report = save(
+                report, owner, with_model(model, counters={str(source.pk): amount})
+            )
+            plan = preview_report(report, actor=owner)
+            assert plan.valid, plan.errors
+            assert plan.models[0].xp_after == expected
+            saved = apply(report, owner)
+            assert saved.receipt["models"][0]["xp_after"] == expected
+            report = start_correction(report, actor=owner)
+
+    def test_xp_preview_uses_the_recorded_legacy_balance_below_the_minimum(
+        self,
+        report,
+        owner,
+        model,
+        content,
+    ):
+        from n26.library.authoring import revise
+
+        assignment = Assignment.objects.get(miniature=model, counter=content["xp"])
+        tally(assignment, 0)
+        revise(content["xp"], minimum=1)
+        for award in [1, 2]:
+            report = save(report, owner, with_model(model, xp=award))
+            plan = preview_report(report, actor=owner)
+            assert plan.valid, plan.errors
+            assert plan.models[0].xp_after == award
+            saved = apply(report, owner)
+            assert saved.receipt["models"][0]["xp_after"] == award
+            assert counter_value(assignment) == award
+            report = start_correction(report, actor=owner)
+
     def test_xp_is_not_offered_and_every_held_counter_is(
         self, report, owner, model, kill_count, glitches
     ):

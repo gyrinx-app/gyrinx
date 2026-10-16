@@ -28,6 +28,7 @@ from n26.core.counter_changes import (
     entries,
     held_counters,
     plan_changes,
+    project_readings,
     projection_sources,
     read_changes,
 )
@@ -784,9 +785,9 @@ def _project_counters(card, index, plan, result, facts, manual=None):
     """Mirror the ordered stored tallies, without writing or hiding a clamp.
 
     ``manual`` is the change this report still has to make to each counter
-    by hand, keyed by assignment id. Returns what the report's results move
-    each counter other than XP by, keyed by assignment id, and the counters
-    a result creates, keyed by the library counter.
+    by hand, keyed by assignment id. Returns result deltas for counters other
+    than XP, newly created counters, and projected stored balances keyed by
+    library counter.
     """
     manual = manual or {}
     effect_deltas = defaultdict(int)
@@ -807,7 +808,6 @@ def _project_counters(card, index, plan, result, facts, manual=None):
             ]
             counters.setdefault(node.assignable.pk, []).append(held)
             by_assignment[str(node.assignment.pk)] = held
-    xp_effect_delta = 0
     reversed_deltas = defaultdict(int)
     for _, _, events in plan._removals:
         for event in events:
@@ -817,9 +817,7 @@ def _project_counters(card, index, plan, result, facts, manual=None):
         held = by_assignment.get(key)
         if held is not None:
             held[0] += delta
-            if held[2].name.casefold() == XP_COUNTER.casefold():
-                xp_effect_delta += delta
-            else:
+            if held[2].name.casefold() != XP_COUNTER.casefold():
                 effect_deltas[key] += delta
     if result.xp_assignment_id in by_assignment:
         by_assignment[result.xp_assignment_id][0] += result.xp_change
@@ -863,11 +861,8 @@ def _project_counters(card, index, plan, result, facts, manual=None):
             facts.append(
                 ["stored-counter", result.id, str(effect.pk), held[1], held[0] - before]
             )
-            if held[2].name.casefold() == XP_COUNTER.casefold():
-                xp_effect_delta += held[0] - before
-            elif held[1] is not None:
+            if held[2].name.casefold() != XP_COUNTER.casefold() and held[1] is not None:
                 effect_deltas[held[1]] += held[0] - before
-    result.xp_after += xp_effect_delta
     local_sources = {
         node.assignable.pk
         for node in card.all_nodes()
@@ -1660,12 +1655,27 @@ def preview_report(report, *, actor, payload=None):
         effect_deltas, created, projected = _project_counters(
             card, index, plan, result, facts, manual
         )
+        sources = projection_sources(card.all_nodes(), readings)
+        totals = project_readings(sources, projected)
+        xp_before = {}
+        for reading in sources:
+            if reading.thing.name.casefold() == XP_COUNTER.casefold():
+                xp_before.setdefault(reading.thing.pk, reading.value)
+        xp_keys = set(xp_before) | {
+            key
+            for key, (_, _, counter) in created.items()
+            if counter.name.casefold() == XP_COUNTER.casefold()
+        }
+        # Keep separate stored balances when duplicate XP counters are held.
+        result.xp_after = result.xp_before + sum(
+            totals.get(key, 0) - xp_before.get(key, 0) for key in xp_keys
+        )
         result.counters, counter_errors = plan_changes(
             held,
             entered,
             recorded,
             effects=effect_deltas,
-            readings=projection_sources(card.all_nodes(), readings),
+            readings=sources,
             projected=projected,
             names=recorded_counter_names.get(model_id, {}),
             change_on=f"{miniature.name}'s card",
@@ -1794,7 +1804,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                 if change.assignment_id and change.delta
             )
             # The preview validates their combined balance. Positive adjustments
-            # must arrive first so tally's zero floor cannot clip a valid total.
+            # must arrive first so tally's minimum cannot clip a valid total.
             for change, assignment, occurrence, event, note in sorted(
                 counter_changes, key=lambda item: -item[0]
             ):

@@ -199,6 +199,39 @@ def read_changes(raw, errors):
     return changes
 
 
+def project_readings(readings, balances):
+    """Counter readings after stored changes and dependent contributions."""
+    by_counter = {}
+    for reading in readings:
+        by_counter.setdefault(reading.thing.pk, reading)
+    resolved = {}
+
+    def projected_reading(key, visiting=frozenset()):
+        if key in resolved:
+            return resolved[key]
+        if key in visiting:
+            raise ValueError("Counter contributions cannot form a cycle.")
+        reading = by_counter.get(key)
+        if reading is None:
+            resolved[key] = balances.get(key, 0)
+            return resolved[key]
+        baseline = reading.value - sum(part.amount for part in reading.contributions)
+        total = balances.get(key, baseline)
+        for part in reading.contributions:
+            total += (
+                part.amount
+                if part.per_counter is None
+                else part.per_counter_rate
+                * projected_reading(part.per_counter.pk, visiting | {key})
+            )
+        resolved[key] = total
+        return total
+
+    for key in by_counter.keys() | balances.keys():
+        projected_reading(key)
+    return resolved
+
+
 def plan_changes(
     held,
     entered,
@@ -247,30 +280,7 @@ def plan_changes(
             ),
         )
     projected_values.update(projected or {})
-    by_counter = {}
-    for reading in readings:
-        by_counter.setdefault(reading.thing.pk, reading)
-    resolved = {}
-
-    def projected_reading(key, visiting=frozenset()):
-        if key in resolved:
-            return resolved[key]
-        if key in visiting:
-            raise ValueError("Counter contributions cannot form a cycle.")
-        reading = by_counter.get(key)
-        if reading is None:
-            return projected_values.get(key, 0)
-        baseline = reading.value - sum(part.amount for part in reading.contributions)
-        total = projected_values.get(key, baseline)
-        for part in reading.contributions:
-            total += (
-                part.amount
-                if part.per_counter is None
-                else part.per_counter_rate
-                * projected_reading(part.per_counter.pk, visiting | {key})
-            )
-        resolved[key] = total
-        return total
+    totals = project_readings(readings, projected_values)
 
     for counter in held:
         manual = entered.get(counter.id, 0)
@@ -284,7 +294,7 @@ def plan_changes(
             after = max(counter.minimum, counter.stored + manual - was + effect) + sum(
                 part.amount
                 if part.per_counter is None
-                else part.per_counter_rate * projected_reading(part.per_counter.pk)
+                else part.per_counter_rate * totals.get(part.per_counter.pk, 0)
                 for part in counter.contributions
             )
         if counter.stored + manual - was + effect < counter.minimum:
