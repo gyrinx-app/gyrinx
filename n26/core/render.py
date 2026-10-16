@@ -3389,7 +3389,7 @@ def card_to_model_card(
             # what is due.
             counter_key = ModifierIndex.key(thing)
             tallied = _counter_value(node)
-            standing = tallied + (
+            standing = max(thing.minimum, tallied) + (
                 0 if counter_key in counted else contributed.get(counter_key, 0)
             )
             counted.add(counter_key)

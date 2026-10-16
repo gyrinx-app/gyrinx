@@ -242,15 +242,24 @@ def income_sources(computed, contributions, *, counter):
             ):
                 base.append(contribution)
             else:
-                parts.append(
-                    IncomePart(
-                        "Modifier",
-                        contribution.amount,
-                        detail=str(contribution.modifier)
-                        if contribution.modifier
-                        else contribution.source,
+                if contribution.per_counter is not None:
+                    parts.append(
+                        IncomePart(
+                            str(contribution.per_counter),
+                            contribution.amount,
+                            detail=f"{contribution.per_counter_value} × {contribution.modifier.contributes_to_counter.amount}¢",
+                        )
                     )
-                )
+                else:
+                    parts.append(
+                        IncomePart(
+                            "Modifier",
+                            contribution.amount,
+                            detail=str(contribution.modifier)
+                            if contribution.modifier
+                            else contribution.source,
+                        )
+                    )
         if base:
             parts.insert(
                 0, IncomePart("Base income", sum(item.amount for item in base))

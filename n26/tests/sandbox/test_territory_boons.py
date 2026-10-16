@@ -120,13 +120,13 @@ class TestStandingReadings:
             LedgerEvent.objects.count(),
             Miniature.objects.count(),
         )
-        assert readings(gang) == {"Reputation": 0, "Income": 0}
+        assert readings(gang) == {"Reputation": 1, "Income": 10}
         assert preview() != [NOTHING_TO_DO]
-        assert readings(gang) == {"Reputation": 0, "Income": 0}
+        assert readings(gang) == {"Reputation": 1, "Income": 10}
 
         seed_all()
 
-        assert readings(gang) == {"Reputation": 1, "Income": 30}
+        assert readings(gang) == {"Reputation": 2, "Income": 50}
         assert holding_readings(campaign)[str(generator.pk)] == 15
         request = RequestFactory().get("/")
         request.user = campaign.owner
@@ -152,19 +152,19 @@ class TestStandingReadings:
         vats = Asset.objects.get(name="Amneo-vats")
         first = assign_asset(add_asset(campaign, vats), goliath)
         second = assign_asset(add_asset(campaign, vats), goliath)
-        assert readings(goliath)["Income"] == 65
+        assert readings(goliath)["Income"] == 75
         assert holding_readings(campaign)[str(first.pk)] == 25
         assert holding_readings(campaign)[str(second.pk)] == 25
 
         transfer_asset(first, escher)
-        assert readings(goliath)["Income"] == 40
-        assert readings(escher)["Income"] == 30
+        assert readings(goliath)["Income"] == 50
+        assert readings(escher)["Income"] == 40
         assert holding_readings(campaign)[str(first.pk)] == 15
         unassign_asset(second)
-        assert readings(goliath)["Income"] == 15
+        assert readings(goliath)["Income"] == 25
         assert holding_readings(campaign)[str(second.pk)] == 15
         assign_asset(second, goliath)
-        assert readings(goliath)["Income"] == 40
+        assert readings(goliath)["Income"] == 50
         for gang in (goliath, escher):
             gang.refresh_from_db()
             assert_reconciled(gang)
@@ -181,17 +181,17 @@ class TestStandingReadings:
         assert holding_readings(campaign)[str(holding.pk)] == 42
         assign_asset(holding, gang)
         assert holding_readings(campaign)[str(holding.pk)] == 52
-        assert readings(gang)["Income"] == 67
+        assert readings(gang)["Income"] == 77
         assert Asset.objects.get(pk=vats.pk).income == 15
 
     @pytest.mark.parametrize(
         "house,territory,expected_income,expected_rep",
         [
-            ("Goliath", "Amneo-vats", 40, 0),
-            ("Escher", "Amneo-vats", 30, 0),
-            ("Escher", "Shivver Den", 30, 1),
-            ("Goliath", "Shivver Den", 30, 0),
-            ("Goliath", "Gambling Den", 30, 1),
+            ("Goliath", "Amneo-vats", 50, 1),
+            ("Escher", "Amneo-vats", 40, 1),
+            ("Escher", "Shivver Den", 50, 2),
+            ("Goliath", "Shivver Den", 40, 1),
+            ("Goliath", "Gambling Den", 50, 2),
         ],
     )
     def test_only_the_matching_house_gets_its_standing_boon(
@@ -209,19 +209,19 @@ class TestStandingReadings:
         gang = member(campaign, content, "Outcast", "The Cast Out")
         for name in ("Amneo-vats", "Shivver Den"):
             assign_asset(add_asset(campaign, Asset.objects.get(name=name)), gang)
-        assert readings(gang) == {"Income": 45, "Reputation": 0}
+        assert readings(gang) == {"Income": 55, "Reputation": 1}
         anchor = clan_choice(gang)
         goliath_pick = choose(anchor, content["clan_picks"][0])
-        assert readings(gang) == {"Income": 55, "Reputation": 0}
+        assert readings(gang) == {"Income": 65, "Reputation": 1}
         with operation(gang, actor=gang.owner) as op:
             op.remove(goliath_pick)
             op.choose(anchor, content["clan_picks"][1])
-        assert readings(gang) == {"Income": 45, "Reputation": 1}
+        assert readings(gang) == {"Income": 65, "Reputation": 2}
         selected = gang.assignments.get(
             pickable=content["clan_picks"][1], archived=False
         )
         remove(selected)
-        assert readings(gang) == {"Income": 45, "Reputation": 0}
+        assert readings(gang) == {"Income": 55, "Reputation": 1}
 
     def test_a_house_variant_uses_its_supertype_without_name_dispatch(
         self, campaign, content
@@ -236,7 +236,7 @@ class TestStandingReadings:
         content["kinds"]["variant"] = variant
         gang = member(campaign, content, "variant", "Furnace gang")
         assign_asset(add_asset(campaign, Asset.objects.get(name="Amneo-vats")), gang)
-        assert readings(gang)["Income"] == 40
+        assert readings(gang)["Income"] == 50
 
     def test_existing_journal_maintenance_keeps_the_new_standing_effects(
         self, campaign, content
@@ -261,7 +261,7 @@ class TestStandingReadings:
         )
         gang = member(campaign, content, "Goliath", "After journal maintenance")
         assign_asset(add_asset(campaign, Asset.objects.get(name="Amneo-vats")), gang)
-        assert readings(gang)["Income"] == 40
+        assert readings(gang)["Income"] == 50
 
     def test_authored_nested_income_and_reputation_are_not_doubled_by_the_seed(
         self, campaign, content
@@ -290,10 +290,10 @@ class TestStandingReadings:
         )
         gang = member(campaign, content, "Goliath", "Authored effects check")
         assign_asset(add_asset(campaign, asset), gang)
-        assert readings(gang) == {"Income": 15, "Reputation": 1}
+        assert readings(gang) == {"Income": 35, "Reputation": 2}
 
         report = seed_all()
 
         assert any("skipped" in line and "Generatorium" in line for line in report)
         assert list(asset.modifiers.all()) == [authored]
-        assert readings(gang) == {"Income": 30, "Reputation": 1}
+        assert readings(gang) == {"Income": 50, "Reputation": 2}

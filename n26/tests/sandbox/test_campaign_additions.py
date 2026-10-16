@@ -656,7 +656,7 @@ class TestACounter:
         add_campaign_counter(campaign, "Meat", opening=3)
         late = found_gang("Late", gang_type, owner=User.objects.create_user("late"))
         join_campaign(late, campaign)
-        assert readings(late) == {"Reputation": 0, "Income": 0, "Meat": 3}
+        assert readings(late) == {"Reputation": 1, "Income": 10, "Meat": 3}
 
     def test_gangs_already_playing_catch_up(
         self, campaign, gang, rival, propagating, task_queue
@@ -665,8 +665,8 @@ class TestACounter:
             add_campaign_counter(campaign, "Meat", opening=3)
         task_queue.deliver_all()
 
-        assert readings(gang) == {"Reputation": 0, "Income": 0, "Meat": 3}
-        assert readings(rival) == {"Reputation": 0, "Income": 0, "Meat": 3}
+        assert readings(gang) == {"Reputation": 1, "Income": 10, "Meat": 3}
+        assert readings(rival) == {"Reputation": 1, "Income": 10, "Meat": 3}
         caught_up = LedgerEvent.objects.filter(
             gang=gang, kind=LedgerEvent.Kind.CAUGHT_UP
         )
@@ -683,12 +683,12 @@ class TestACounter:
         sheet = render_campaign(campaign)
         assert sheet.counter_columns == ["Reputation", "Income", "Meat"]
         (line,) = sheet.gangs
-        assert [c.value if c else None for c in line.counters] == [0, 0, None]
+        assert [c.value if c else None for c in line.counters] == [1, 10, None]
 
         task_queue.deliver_all()
 
         (line,) = render_campaign(campaign).gangs
-        assert [c.value if c else None for c in line.counters] == [0, 0, 3]
+        assert [c.value if c else None for c in line.counters] == [1, 10, 3]
 
     def test_a_name_the_pack_already_uses_is_refused(self, campaign):
         add_campaign_counter(campaign, "Meat")
@@ -1232,7 +1232,7 @@ class TestCampaignContentIsOutsideAuthoring:
         territory = core.asset_types.get(label_singular="Territory")
         create_campaign_asset(campaign, territory, "Campaign mine", income=15)
         campaign_modifier = Modifier.objects.get(pack=campaign.pack)
-        book_modifier = Modifier.objects.get(pack=old_ruins.pack)
+        book_modifier = old_ruins.modifiers.get()
 
         body = admin_client.get(
             reverse("authoring-leaf", args=["counter"])
@@ -1355,7 +1355,7 @@ class TestTheArbitratorTallies:
 
         assert response.status_code == 302
         assert response["Location"] == page + "#gangs"
-        assert self.reputation_of(gang).value == 1
+        assert self.reputation_of(gang).value == 2
         tallied = LedgerEvent.objects.get(gang=gang, kind=LedgerEvent.Kind.TALLIED)
         assert tallied.actor == campaign.owner
         assert tallied.campaign == campaign
@@ -1383,7 +1383,7 @@ class TestTheArbitratorTallies:
             {"change": "1"},
         )
         assert response.status_code == 404
-        assert self.reputation_of(gang).value == 0
+        assert self.reputation_of(gang).value == 1
 
     def test_the_arbitrator_may_not_move_a_gangs_own_counter(
         self, client, campaign, gang, default_pack

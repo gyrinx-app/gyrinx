@@ -61,7 +61,7 @@ def player():
 
 @pytest.fixture
 def core(default_pack):
-    """The Territory campaign type as it ships: Reputation at 0, a Settlement built
+    """The Territory campaign type as it ships: Reputation at 1, a Settlement built
     in, and Territory as its Holding asset type."""
     seed_core_campaign(apps)
     return CampaignType.objects.get(name="Territory campaign")
@@ -185,7 +185,7 @@ class TestTheCampaignsAssets:
         old_ruins.archive()
         pool = list(campaign_assets[0].campaign.campaign_assets.select_related("asset"))
         assert len(pool) == 2
-        assert reputation(gang) == 1
+        assert reputation(gang) == 2
 
 
 class TestAssigningAndUnassigning:
@@ -298,19 +298,17 @@ class TestWhatHoldingDoes:
     library asset's computed effects run while it is held and stop when it
     is unassigned, each credited to the campaign's asset by name and type."""
 
-    def test_reputation_reads_one_while_held_and_nought_after(
-        self, campaign_assets, gang
-    ):
-        assert reputation(gang) == 0
-        assign_asset(campaign_assets[0], gang)
+    def test_territory_adds_one_reputation_while_held(self, campaign_assets, gang):
         assert reputation(gang) == 1
+        assign_asset(campaign_assets[0], gang)
+        assert reputation(gang) == 2
         unassign_asset(campaign_assets[0])
-        assert reputation(gang) == 0
+        assert reputation(gang) == 1
 
     def test_two_assets_count_twice(self, campaign_assets, gang):
         assign_asset(campaign_assets[0], gang)
         assign_asset(campaign_assets[1], gang)
-        assert reputation(gang) == 2
+        assert reputation(gang) == 3
 
     def test_the_rule_shows_among_the_gangs_rules_credited_to_the_asset(
         self, campaign_assets, gang
@@ -363,7 +361,7 @@ class TestWhatHoldingDoes:
         stays at what the type opened it at."""
         assign_asset(campaign_assets[0], gang)
         counter = gang.assignments.get(counter__name="Reputation")
-        assert counter.counter_value.value == 0
+        assert counter.counter_value.value == 1
 
     def test_the_page_draws_it(self, client, campaign_assets, gang):
         assign_asset(campaign_assets[0], gang)
@@ -378,7 +376,7 @@ class TestWhatHoldingDoes:
                 for line in render_gang(gang).campaign.counters
                 if line.name == "Income"
             )
-            == 30
+            == 50
         )
         assert "Salvage" in body
 

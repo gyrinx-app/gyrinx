@@ -116,6 +116,7 @@ def _action_quote(action, *, balances, credits, gang_id):
             balance = Balance(Resource.CREDITS, str(gang_id))
             held = credits
             name = "Credits"
+            minimum = 0
         else:
             matches = balances.get((component.payer, component.counter_id), ())
             if len(matches) != 1:
@@ -124,16 +125,20 @@ def _action_quote(action, *, balances, credits, gang_id):
             balance = Balance(Resource.COUNTER, str(gang_id), str(assignment.pk))
             held = assignment.counter_value.value
             name = str(component.counter)
+            minimum = component.counter.minimum
         lines.append(
-            QuotedLine(balance, component.amount, held, component.position, name)
+            QuotedLine(
+                balance, component.amount, held, component.position, name, minimum
+            )
         )
     quote = Quote.coalesce(lines)
     problem = ""
     if not quote.affordable:
         shortfalls = [
-            f"{line.amount - line.available} more {line.name}"
+            f"{line.amount + line.minimum - line.available} more {line.name}"
             for line in quote.lines
-            if line.available is not None and line.amount > line.available
+            if line.available is not None
+            and line.amount + line.minimum > line.available
         ]
         problem = f"This flow needs {' and '.join(shortfalls)}."
     return quote, problem

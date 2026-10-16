@@ -103,7 +103,7 @@ def _reset_campaign_copy(campaign_type):
             DESCRIPTION,
         ),
         "library_author_help": (
-            LIBRARY_AUTHOR_HELP.replace(
+            LIBRARY_AUTHOR_HELP.replace("Reputation at 1", "Reputation at 0").replace(
                 "with its income in the Income box.",
                 "with its income in the Income box and its Boons as modifiers.",
             ),

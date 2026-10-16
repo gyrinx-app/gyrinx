@@ -747,6 +747,11 @@ def _build_registry():
             {
                 "counter": One(model=Counter, source=(ContributesToCounter, "counter")),
                 "amount": Int(source=(ContributesToCounter, "amount")),
+                "per_counter": One(
+                    model=Counter,
+                    optional=True,
+                    source=(ContributesToCounter, "per_counter"),
+                ),
             },
             label="Adds to a counter",
             blurb=(
@@ -1018,6 +1023,7 @@ def _build_registry():
             {
                 "name": Text(source=(Counter, "name")),
                 "drawn": Bool(source=(Counter, "drawn")),
+                "minimum": Int(source=(Counter, "minimum")),
                 "qualifier": Text(source=(Counter, "qualifier")),
                 "library_author_help": Text(
                     source=(Counter, "library_author_help"), long=True

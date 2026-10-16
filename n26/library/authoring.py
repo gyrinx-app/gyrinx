@@ -647,12 +647,12 @@ def revise(row, **fields):
                 f"set_ verb that owns it and says what leaving means"
             )
         setattr(row, name, value)
-    from n26.library.models import Asset, PicklistMember
+    from n26.library.models import Asset, ContributesToCounter, PicklistMember
     from n26.library.models.assignable import D6Rollable
 
     if isinstance(row, D6Rollable):
         return _save_rollable(row)
-    if isinstance(row, (Asset, PicklistMember)):
+    if isinstance(row, (Asset, ContributesToCounter, PicklistMember)):
         row.full_clean()
     row.save()
     return row
@@ -1762,13 +1762,16 @@ def add_weapon_profile(
 
 
 @guarded_write
-def create_counter(name, qualifier="", drawn=True, library_author_help="", **kwargs):
+def create_counter(
+    name, qualifier="", drawn=True, library_author_help="", minimum=0, **kwargs
+):
     from n26.library.models import Counter
 
     return Counter.objects.create(
         name=name,
         qualifier=qualifier,
         drawn=drawn,
+        minimum=minimum,
         library_author_help=library_author_help,
         **kwargs,
     )
@@ -2809,14 +2812,19 @@ def ef_changes_stat(stat, mode="worsen", amount=1):
 
 
 @guarded_write
-def ef_contributes_to_counter(counter, amount=0):
+def ef_contributes_to_counter(counter, amount=0, per_counter=None):
     """Adds to a counter's reading while the carrier is held —
     ``ef_contributes_to_counter(visit_tp, 2)`` for the 2 Trade Points a
     Leader brings to a Trading Post visit. Nothing is written down, so
     the contribution goes when the carrier does."""
     from n26.library.models import ContributesToCounter
 
-    return ContributesToCounter.objects.create(counter=counter, amount=amount)
+    effect = ContributesToCounter(
+        counter=counter, amount=amount, per_counter=per_counter
+    )
+    effect.full_clean()
+    effect.save()
+    return effect
 
 
 @guarded_write

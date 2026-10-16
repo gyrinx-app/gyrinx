@@ -336,7 +336,15 @@ class Card:
                     if node.assignment is not None
                     else None
                 )
-                counts.append((select.key(node.assignable), held.value if held else 0))
+                counts.append(
+                    (
+                        select.key(node.assignable),
+                        max(
+                            node.assignable.minimum,
+                            held.value if held else node.opens_at,
+                        ),
+                    )
+                )
         base = select.matchable(profile, assignables=possessions)
         return select.Matchable(
             thing=base.thing,
@@ -470,7 +478,15 @@ class GangCard:
                     if node.assignment is not None
                     else None
                 )
-                counts.append((select.key(node.assignable), held.value if held else 0))
+                counts.append(
+                    (
+                        select.key(node.assignable),
+                        max(
+                            node.assignable.minimum,
+                            held.value if held else node.opens_at,
+                        ),
+                    )
+                )
         base = select.matchable(self.gang, assignables=possessions)
         return select.Matchable(
             thing=base.thing, assignables=base.assignables, counts=tuple(counts)
@@ -1177,6 +1193,7 @@ def build_modifier_index(assignables, max_depth=3):
         *(f"removes_assignable__{name}" for name in GRANTABLE_FIELDS),
         "changes_stat__stat",
         "contributes_to_counter__counter",
+        "contributes_to_counter__per_counter",
         "excludes_campaign_assets__asset_type",
         "adds_assignable__asset__asset_type",
         "removes_assignable__asset__asset_type",

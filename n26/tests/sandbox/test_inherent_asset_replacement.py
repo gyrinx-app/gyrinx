@@ -114,7 +114,7 @@ def test_the_replacement_is_an_inherent_settlement_for_only_its_gang(setup):
     assert not DefaultAssignment.objects.filter(asset=setup["camp"]).exists()
     assert names(setup["gang"]) == ["Test base camp"]
     assert names(setup["ordinary"]) == ["Settlement"]
-    assert [income(gang) for gang in (setup["gang"], setup["ordinary"])] == [25, 10]
+    assert [income(gang) for gang in (setup["gang"], setup["ordinary"])] == [35, 20]
     assert (
         setup["gang"]
         .assignments.filter(asset=setup["settlement"], archived=False)
@@ -138,7 +138,7 @@ def test_campaign_gang_columns_show_the_replacement_and_its_income(setup):
     by_name = {line.name: line for line in sheet.gangs}
     assert by_name["Camp gang"].assets[pos] == ["Test base camp"]
     assert by_name["Ordinary gang"].assets[pos] == ["Settlement"]
-    assert by_name["Camp gang"].counters[incomes].value == 25
+    assert by_name["Camp gang"].counters[incomes].value == 35
 
 
 def test_custom_settlements_of_the_shared_type_are_excluded(setup):
@@ -148,8 +148,8 @@ def test_custom_settlements_of_the_shared_type_are_excluded(setup):
     join_both(setup)
     assert names(setup["gang"]) == ["Test base camp"]
     assert names(setup["ordinary"]) == ["Settlement", "Custom settlement"]
-    assert income(setup["gang"]) == 25
-    assert income(setup["ordinary"]) == 17
+    assert income(setup["gang"]) == 35
+    assert income(setup["ordinary"]) == 27
 
 
 def test_another_inherent_asset_type_is_still_received(setup):
@@ -162,7 +162,7 @@ def test_another_inherent_asset_type_is_still_received(setup):
     create_campaign_asset(setup["campaign"], other_type, "Bolthole", income=3)
     join_both(setup)
     assert names(setup["gang"]) == ["Bolthole", "Test base camp"]
-    assert income(setup["gang"]) == 28
+    assert income(setup["gang"]) == 38
 
 
 def test_removing_the_rule_restores_the_campaign_settlement(setup):
@@ -172,7 +172,7 @@ def test_removing_the_rule_restores_the_campaign_settlement(setup):
     )
     remove(replacement)
     assert names(setup["gang"]) == ["Settlement"]
-    assert income(setup["gang"]) == 10
+    assert income(setup["gang"]) == 20
 
 
 def test_a_named_asset_removal_also_cancels_its_boons(setup):
@@ -186,7 +186,7 @@ def test_a_named_asset_removal_also_cancels_its_boons(setup):
     join_both(setup)
     assignment = assign(cancellation, gang=setup["ordinary"])
     assert names(setup["ordinary"]) == []
-    assert income(setup["ordinary"]) == 0
+    assert income(setup["ordinary"]) == 10
     remove(assignment)
     assert names(setup["ordinary"]) == ["Settlement"]
 
@@ -200,7 +200,7 @@ def test_explicitly_granting_the_same_default_asset_survives_exclusion(setup):
     )
     join_both(setup)
     assert set(names(setup["gang"])) == {"Settlement", "Test base camp"}
-    assert income(setup["gang"]) == 35
+    assert income(setup["gang"]) == 45
 
 
 def test_the_grant_is_inactive_outside_its_campaign_type(setup):
@@ -227,7 +227,7 @@ def test_grants_and_exclusions_compute_without_database_queries(setup):
             (r.name, r.value)
             for r in counter_readings(card, computed)
             if r.name == "Income"
-        ] == [("Income", 25)]
+        ] == [("Income", 35)]
     assert len(queries) == 0
 
 
@@ -364,7 +364,7 @@ def test_settlements_created_after_joining_are_excluded_on_catch_up(setup, task_
         .assignments.filter(asset__name="Later settlement", archived=False)
         .exists()
     )
-    assert income(setup["gang"]) == 25
+    assert income(setup["gang"]) == 35
 
 
 def test_a_second_granter_keeps_the_asset_when_the_first_is_removed(setup):
@@ -379,7 +379,7 @@ def test_a_second_granter_keeps_the_asset_when_the_first_is_removed(setup):
     assignment = assign(backup, gang=setup["gang"])
     remove(setup["gang"].assignments.get(rule=setup["replacement"], archived=False))
     assert set(names(setup["gang"])) == {"Settlement", "Test base camp"}
-    assert income(setup["gang"]) == 35
+    assert income(setup["gang"]) == 45
     remove(assignment)
     assert names(setup["gang"]) == ["Settlement"]
 
@@ -465,13 +465,13 @@ def test_cancelling_the_replacement_source_restores_default_assets(
     join_both(setup)
     assignment = assign(cancellation, gang=setup["gang"])
     assert names(setup["gang"]) == ["Settlement"]
-    assert income(setup["gang"]) == 10
+    assert income(setup["gang"]) == 20
     remove(assignment)
     expected = (
         {"Test base camp", "Settlement"} if also_grant_default else {"Test base camp"}
     )
     assert set(names(setup["gang"])) == expected
-    assert income(setup["gang"]) == (35 if also_grant_default else 25)
+    assert income(setup["gang"]) == (45 if also_grant_default else 35)
 
 
 def test_exclusion_preserves_a_default_with_money_behind_it(setup):
@@ -490,7 +490,7 @@ def test_exclusion_preserves_a_default_with_money_behind_it(setup):
             for line in counter_readings(card, computed)
             if line.name == "Income"
         )
-        == 35
+        == 45
     )
     assert any("Settlement" in step.refused for step in computed.plan)
 
@@ -519,10 +519,10 @@ def test_cancelling_one_exclusion_leaves_another_exclusion_in_force(
     assign(independent, gang=setup["gang"])
     cancelled = assign(cancellation, gang=setup["gang"])
     assert names(setup["gang"]) == []
-    assert income(setup["gang"]) == 0
+    assert income(setup["gang"]) == 10
     remove(cancelled)
     assert names(setup["gang"]) == ["Test base camp"]
-    assert income(setup["gang"]) == 25
+    assert income(setup["gang"]) == 35
 
 
 def test_a_later_round_cancellation_restores_campaign_defaults(setup):
@@ -556,7 +556,7 @@ def test_a_later_round_cancellation_restores_campaign_defaults(setup):
     assert cancellation_step.ran_in > exclusion_step.ran_in
     assert exclusion_step.outcome == "retracted"
     assert names(setup["gang"]) == ["Settlement"]
-    assert income(setup["gang"]) == 10
+    assert income(setup["gang"]) == 20
 
 
 @pytest.mark.parametrize("cancel_remover", [False, True])
@@ -588,11 +588,11 @@ def test_a_named_removal_cancels_and_restores_a_granted_camp(
         return [entry.name for entry in computed.rules]
 
     assert names(setup["gang"]) == ["Test base camp"]
-    assert income(setup["gang"]) == 25
+    assert income(setup["gang"]) == 35
     assert fighter_rules() == ["Camp fighter boon"]
     assignment = assign(cancellation, gang=setup["gang"])
     assert names(setup["gang"]) == []
-    assert income(setup["gang"]) == 0
+    assert income(setup["gang"]) == 10
     assert fighter_rules() == []
     if cancel_remover:
         restore = create_rule("Cancel camp removal")
@@ -606,5 +606,5 @@ def test_a_named_removal_cancels_and_restores_a_granted_camp(
     else:
         remove(assignment)
     assert names(setup["gang"]) == ["Test base camp"]
-    assert income(setup["gang"]) == 25
+    assert income(setup["gang"]) == 35
     assert fighter_rules() == ["Camp fighter boon"]

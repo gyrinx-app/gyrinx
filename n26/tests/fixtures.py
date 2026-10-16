@@ -158,7 +158,7 @@ def gang_type(default_pack):
 def campaign_type(default_pack):
     """A bare campaign type in the system pack, for a campaign to be
     founded on. Nothing built in: a suite that wants the Territory campaign shape —
-    Reputation at 0, a Settlement — seeds it with ``seed_core_campaign``."""
+    Reputation at 1, a Settlement — seeds it with ``seed_core_campaign``."""
     from n26.library.authoring import create_campaign_type
 
     return create_campaign_type("Territory campaign")

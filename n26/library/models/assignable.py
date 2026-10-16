@@ -1110,6 +1110,11 @@ class Counter(Content, Assignable):
     #: in "Starting XP 61" — so that is what attaching one asks for.
     ATTACHMENT_ASKS = {"built-in": ("amount",)}
 
+    minimum = models.PositiveIntegerField(
+        default=0,
+        help_text="The lowest recorded value for this counter.",
+    )
+
     drawn = models.BooleanField(
         default=True,
         help_text=(

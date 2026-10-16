@@ -160,3 +160,17 @@ class TestHeldCounters:
 
     def test_a_qualified_income_counter_is_an_ordinary_counter(self):
         assert changeable(node(Counter(name="Income", qualifier="Guild")))
+
+
+@pytest.mark.parametrize("bonus", [0, 2])
+def test_a_legacy_balance_preview_applies_the_change_before_adding_contributions(bonus):
+    counter = HeldCounter(
+        assignment=SimpleNamespace(pk=uuid4()),
+        name="Reputation",
+        reading=1 + bonus,
+        stored=0,
+        minimum=1,
+    )
+    (change,), errors = plan_changes([counter], {counter.id: 1}, {})
+    assert errors == []
+    assert change.after == 1 + bonus

@@ -982,3 +982,11 @@ operation preserves a dismissed unresolved choice instead of selecting Income.
 Resolve the alternative's recruitment discount or equipment reward manually at
 cycle end. Its summary states the eligibility and amount. Selecting an option
 does not grant a persistent reward immediately.
+
+### Income from reputation
+
+Set the Reputation counter’s minimum to 1. Build it into the campaign type
+with an opening value of 1. Attach an “Adds to a counter” modifier to that
+campaign type: counter Income, amount 10, per counter Reputation. Its income
+contribution follows the gang’s current reputation, including territory boons.
+Collect credits manually.

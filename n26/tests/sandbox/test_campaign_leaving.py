@@ -203,7 +203,7 @@ class TestLeaving:
         join_campaign(gang, campaign)
 
         assert live(gang).filter(asset__name="Settlement").count() == 1
-        assert reputation_counter(gang).counter_value.value == 0
+        assert reputation_counter(gang).counter_value.value == 1
         (choice,) = render_gang(gang).campaign.choices
         assert not choice.chosen
         assert_reconciled(gang)
@@ -283,7 +283,7 @@ class TestTheConfirmationPage:
         removed = removed.partition("Removed from The Ashen Choir")[2]
         for label, value in (
             ("Settlement", "Settlement"),
-            ("Reputation", "4"),
+            ("Reputation", "5"),
             ("Alignment", "Outlaw"),
         ):
             assert re.search(

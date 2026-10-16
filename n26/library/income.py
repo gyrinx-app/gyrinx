@@ -3,10 +3,9 @@
 An asset's income is a modifier carried directly or by its Income option:
 a ``TargetsGang`` scope with a
 ``ContributesToCounter`` effect aimed at the system pack's **Income**
-counter, so a gang's Income *reading* is the sum of what it holds —
-its Settlement, every Territory it has this cycle — read the way any
-counter is read, and drawn wherever counters are drawn. Credit
-collection is manual.
+counter. A gang's Income reading includes its assets and other standing
+contributions, such as income per Reputation point. It is drawn wherever
+counters are drawn. Credit collection is manual.
 
 The authoring forms keep a plain Income box. ``authoring.set_income``
 writes the modifier behind it; the readers here take the figure back
@@ -72,7 +71,9 @@ def is_income_contribution(modifier):
         return False
     if modifier.targets_gang.is_conditional:
         return False
-    return is_income_counter(modifier.contributes_to_counter.counter)
+    return getattr(
+        modifier.contributes_to_counter, "per_counter_id", None
+    ) is None and is_income_counter(modifier.contributes_to_counter.counter)
 
 
 def _modifiers(asset, modifiers):

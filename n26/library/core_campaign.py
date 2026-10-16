@@ -8,7 +8,7 @@ campaign type in the books tracks, so it ships in the system pack. The
 Territory campaign type declares the two asset types that campaign deals
 in — a Settlement every gang has its own of, and Territories one gang
 holds at a time — with one Settlement asset under the Settlement type, and
-gives every member gang Reputation at 0, Income at 0 and that Settlement
+gives every member gang Reputation at 1, Income at 0 and that Settlement
 through its built-ins. The two counters are built in here; the Settlement
 is built in by the rule every possession follows
 (``n26/library/possessions.py``), applied to the type once the asset
@@ -66,7 +66,7 @@ LIBRARY_AUTHOR_HELP = (
     "every gang has its own. Territory is a holding: one gang "
     "holds it at a time. Add each Territory as an asset under that asset "
     "type, with its income in the Income box. "
-    "Reputation at 0, Income at 0 and the Settlement are built in, so every "
+    "Reputation at 1, Income at 0 and the Settlement are built in, so every "
     "gang that joins starts with all three."
 )
 
@@ -179,10 +179,10 @@ def seed_core_campaign(apps):
                 pack=pack,
                 default_set=built_ins,
                 counter=counter,
-                amount=0,
+                amount=1 if counter_name == REPUTATION else 0,
                 position=position,
             )
-            lines.append(f"built {counter_name} at 0 into {CAMPAIGN_TYPE}")
+            lines.append(f"built {counter_name} into {CAMPAIGN_TYPE}")
 
     # Reputation, then the type's possessions, then Income: the order the
     # type's page lists them in. The Settlement is not built in by name —
@@ -193,6 +193,8 @@ def seed_core_campaign(apps):
     for member in build_in_missing(apps, campaign_type):
         lines.append(f"built the {member.asset.name} into {CAMPAIGN_TYPE}")
     build_in_counter(INCOME, 2)
+    if any(field.name == "minimum" for field in Counter._meta.get_fields()):
+        lines.extend(seed_reputation_rules(apps))
     return lines
 
 
@@ -263,3 +265,66 @@ def _words_for(CampaignType):
         "library_author_help": LIBRARY_AUTHOR_HELP,
     }
     return {name: text for name, text in words.items() if name in names}
+
+
+REPUTATION_INCOME = "Reputation income"
+
+
+def seed_reputation_rules(apps):
+    """Configure the system campaign without changing recorded gang values."""
+    Counter = apps.get_model("library", "Counter")
+    CampaignType = apps.get_model("library", "CampaignType")
+    Modifier = apps.get_model("library", "Modifier")
+    TargetsGang = apps.get_model("library", "TargetsGang")
+    ContributesToCounter = apps.get_model("library", "ContributesToCounter")
+    system = dict(pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG, qualifier="")
+    reputation = Counter.objects.filter(**system, name__iexact=REPUTATION).first()
+    income = Counter.objects.filter(**system, name__iexact=INCOME).first()
+    campaign_type = CampaignType.objects.filter(
+        **system, name__iexact=CAMPAIGN_TYPE
+    ).first()
+    if reputation is None or income is None or campaign_type is None:
+        return []
+    lines = []
+    former_help = LIBRARY_AUTHOR_HELP.replace("Reputation at 1", "Reputation at 0")
+    if campaign_type.library_author_help == former_help:
+        campaign_type.library_author_help = LIBRARY_AUTHOR_HELP
+        campaign_type.save(update_fields=["library_author_help"])
+        lines.append("updated the Territory campaign authoring help")
+    if reputation.minimum == 0:
+        reputation.minimum = 1
+        reputation.save(update_fields=["minimum"])
+        lines.append("set the Reputation minimum to 1")
+    if campaign_type.built_ins_id:
+        changed = campaign_type.built_ins.members.filter(
+            counter=reputation, amount=0
+        ).update(amount=1)
+        if changed:
+            lines.append("set opening Reputation to 1")
+    rule = Modifier.objects.filter(
+        pack_id=reputation.pack_id, name__iexact=REPUTATION_INCOME
+    ).first()
+    if rule is None:
+        scope = TargetsGang.objects.create(echoes=False)
+        effect = ContributesToCounter.objects.create(
+            counter=income, amount=10, per_counter=reputation
+        )
+        rule = Modifier.objects.create(
+            pack_id=reputation.pack_id,
+            name=REPUTATION_INCOME,
+            targets_gang=scope,
+            contributes_to_counter=effect,
+        )
+        lines.append("created Reputation income")
+    elif (
+        rule.contributes_to_counter_id is None
+        or rule.contributes_to_counter.counter_id != income.pk
+        or rule.contributes_to_counter.per_counter_id != reputation.pk
+        or rule.contributes_to_counter.amount != 10
+        or rule.targets_gang_id is None
+    ):
+        raise ValueError("Reputation income conflicts with existing content.")
+    if not campaign_type.modifiers.filter(pk=rule.pk).exists():
+        campaign_type.modifiers.add(rule)
+        lines.append("added Reputation income to the Territory campaign")
+    return lines

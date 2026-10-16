@@ -1452,10 +1452,8 @@ def _shown_counter_value(assignment, gang, miniature, recorded):
 def tally_counter(request, pk):
     """Move one counter up or down.
 
-    ``change`` is signed and the value floors at zero, both of which are
-    ``Operation.tally``'s — so a stale control that offers a subtraction
-    a later reader has already made impossible takes the value to zero
-    rather than below it.
+    ``change`` is signed and the value floors at the counter's minimum,
+    as enforced by ``Operation.tally``.
 
     The same address serves a model's counter and the gang's own: what
     is being changed is the assignment, and who is carrying it is its
@@ -1525,12 +1523,14 @@ def tally_counter(request, pk):
                 CounterValue.objects.filter(assignment=assignment)
                 .values_list("value", flat=True)
                 .first()
-                or 0
             )
+            if value is None:
+                value = assignment.assignable.minimum
             total = _shown_counter_value(assignment, gang, miniature, value)
             preview = {
                 "value": total,
                 "recorded": value,
+                "minimum": assignment.assignable.minimum,
                 "change": "" if setting_income else str(form["change"].value() or ""),
                 "inputValue": str(form["value"].value() or "")
                 if setting_income and form.is_bound
@@ -1593,26 +1593,29 @@ def tally_counter(request, pk):
                     CounterValue.objects.filter(assignment=assignment)
                     .values_list("value", flat=True)
                     .first()
-                    or 0
                 )
+                if value is None:
+                    value = assignment.assignable.minimum
                 if setting_income:
-                    contributions = (
-                        _shown_counter_value(assignment, gang, miniature, value) - value
-                    )
+                    contributions = _shown_counter_value(
+                        assignment, gang, miniature, value
+                    ) - max(assignment.assignable.minimum, value)
                     adjustment = form.cleaned_data["value"] - contributions
-                    if adjustment < 0:
+                    if adjustment < assignment.assignable.minimum:
                         raise Refusal(
-                            f"Income cannot be lower than the total contributions of {contributions}¢."
+                            f"Income cannot be lower than {contributions + assignment.assignable.minimum}¢ from contributions and the counter minimum."
+                            if assignment.assignable.minimum
+                            else f"Income cannot be lower than the total contributions of {contributions}¢."
                         )
                     if adjustment > 2147483647:
                         raise Refusal("The adjustment cannot exceed 2147483647¢.")
                     change = adjustment - value
-                elif value == 0:
+                elif value == 0 and assignment.assignable.minimum == 0:
                     raise Refusal(
                         "This counter is already 0. Enter a positive amount to increase it."
                     )
                 if resetting:
-                    change = -value
+                    change = assignment.assignable.minimum - value
             standing = op.tally(assignment, change) if change else value
     except Refusal as refusal:
         if adjusting:

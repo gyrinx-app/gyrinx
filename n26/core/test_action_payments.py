@@ -112,3 +112,21 @@ def test_quote_snapshot_records_exact_balance_and_review_values():
 def test_price_component_amount_must_be_positive(amount):
     with pytest.raises(ValueError, match="amount must be positive"):
         QuotedLine(counter_balance(), amount=amount, available=5)
+
+
+def test_repeated_price_components_preserve_the_counter_minimum():
+    quote = Quote.coalesce(
+        [
+            QuotedLine(counter_balance(), amount=2, available=5, minimum=1),
+            QuotedLine(counter_balance(), amount=3, available=5, minimum=1),
+        ]
+    )
+    assert not quote.affordable
+    assert quote.snapshot()[0]["minimum"] == 1
+    with pytest.raises(ValueError, match="disagree"):
+        Quote.coalesce(
+            [
+                QuotedLine(counter_balance(), amount=2, available=5, minimum=1),
+                QuotedLine(counter_balance(), amount=3, available=5, minimum=0),
+            ]
+        )
