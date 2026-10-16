@@ -442,3 +442,16 @@ def test_income_editor_and_reset_respect_an_authored_minimum(client, dashboard):
     assert (income(gang).value, income(gang).tallied) == (34, 4)
     assert client.post(href, {"adjust": 1, "reset": 1}).status_code == 302
     assert (income(gang).value, income(gang).tallied) == (33, 3)
+
+
+def test_income_reset_restores_the_minimum_from_a_legacy_zero(client, dashboard):
+    from n26.library.authoring import revise
+
+    _, gang, _, _, _ = dashboard
+    assignment = gang.assignments.get(counter__name="Income")
+    revise(assignment.counter, minimum=3)
+    assert CounterValue.objects.get(assignment=assignment).value == 0
+    href = reverse("n26-tally", args=[assignment.pk])
+    assert client.post(href, {"adjust": 1, "reset": 1}).status_code == 302
+    assert CounterValue.objects.get(assignment=assignment).value == 3
+    assert (income(gang).value, income(gang).tallied) == (33, 3)

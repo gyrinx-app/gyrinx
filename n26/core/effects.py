@@ -1593,7 +1593,11 @@ def _scale_counter_contributions(computed):
 
     recorded = {}
     for node in computed.card.all_nodes():
-        if isinstance(node.assignable, Counter) and not node.suppressed:
+        if (
+            isinstance(node.assignable, Counter)
+            and not node.suppressed
+            and not node.broadcast
+        ):
             key = ModifierIndex.key(node.assignable)
             held = (
                 getattr(node.assignment, "counter_value", None)

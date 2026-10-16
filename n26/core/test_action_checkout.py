@@ -948,3 +948,19 @@ def test_action_outcome_preview_and_saved_counter_share_the_minimum(
         )
     held.counter_value.refresh_from_db()
     assert held.counter_value.value == 1
+
+
+def test_displayed_action_quote_preserves_the_checkout_minimum(user, gang, fighter):
+    from n26.core.action_flow import _action_quote
+
+    action, _, _, held = configured_action(user, gang, fighter, counter_value=3)
+    authoring.revise(held.counter, minimum=1)
+    quote, problem = _action_quote(
+        action,
+        balances={("fighter", held.counter_id): [held]},
+        credits=gang.credits,
+        gang_id=gang.pk,
+    )
+    assert quote.snapshot() == quote_for(fighter, action, gang=gang).snapshot()
+    assert not quote.affordable
+    assert problem == "This flow needs 1 more Glitches."

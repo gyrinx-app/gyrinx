@@ -133,7 +133,7 @@ def held_counters(nodes, readings):
                 assignment=node.assignment,
                 name=str(node.assignable),
                 reading=reading.value,
-                stored=value.value if value else 0,
+                stored=value.value if value else node.assignable.minimum,
                 minimum=node.assignable.minimum,
             )
         )
@@ -202,7 +202,10 @@ def plan_changes(
         manual = entered.get(counter.id, 0)
         was = recorded.get(counter.id, 0)
         effect = effects.get(counter.id, 0)
-        after = counter.reading + manual - was + effect
+        contributions = counter.reading - max(counter.minimum, counter.stored)
+        after = (
+            max(counter.minimum, counter.stored + manual - was + effect) + contributions
+        )
         if counter.stored + manual - was + effect < counter.minimum:
             errors.append(f"{counter.name} cannot go below {counter.minimum}.")
         changes.append(

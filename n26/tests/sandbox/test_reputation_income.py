@@ -327,3 +327,62 @@ def test_legacy_balance_minimum_applies_before_standing_contributions(gang):
     assert counters(gang)["Income"] == 30
     apply_one(gang.pk)
     assert counters(gang)["Income"] == 30
+
+
+def test_a_fighter_does_not_use_the_gangs_counter_as_a_scaled_source(
+    gang, make_profile
+):
+    from n26.core.card import build_card
+    from n26.core.effects import compute, counter_readings
+    from n26.library.authoring import targets_model
+    from n26.tests.sandbox.actions import hire
+
+    fighter = hire(gang, make_profile("Ganger", price=0), "Cinder")
+    rep = Counter.objects.get(name="Reputation")
+    target = create_counter("Personal rewards")
+    assign(
+        create_hidden(
+            "Personal reward rule",
+            effects=[
+                (
+                    targets_model(),
+                    ef_contributes_to_counter(target, 2, per_counter=rep),
+                ),
+            ],
+        ),
+        miniature=fighter,
+    )
+    card = build_card(fighter)
+    computed = compute(card, build_modifier_index(carriers(card)))
+    readings = {line.name: line.value for line in counter_readings(card, computed)}
+    assert readings["Personal rewards"] == 0
+
+
+@pytest.mark.parametrize(
+    "mode,amount,expected",
+    [("set", 3, 3), ("set", 0, 1), ("subtract", 3, 1), ("add", 3, 4)],
+)
+@pytest.mark.parametrize("already_assigned", [False, True])
+def test_stored_counter_effects_open_at_the_minimum(
+    gang, make_profile, mode, amount, expected, already_assigned
+):
+    from n26.library.authoring import op_changes_counter, targets_model
+    from n26.tests.sandbox.actions import hire
+
+    fighter = hire(gang, make_profile("Ganger", price=0), "Cinder")
+    counter = create_counter("Personal influence", minimum=1)
+    if already_assigned:
+        assign(counter, miniature=fighter)
+    bonus = create_hidden(
+        "Personal influence rule",
+        effects=[
+            (targets_model(), op_changes_counter(counter, mode=mode, amount=amount)),
+        ],
+    )
+    assign(bonus, miniature=fighter)
+    assert (
+        CounterValue.objects.get(
+            assignment__miniature=fighter, assignment__counter=counter
+        ).value
+        == expected
+    )

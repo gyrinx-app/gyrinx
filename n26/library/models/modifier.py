@@ -1945,7 +1945,9 @@ class OpChangesCounter(models.Model):
             change = -self.amount
         else:
             held = getattr(row, "counter_value", None)
-            change = self.amount - (held.value if held else 0)
+            if held is None:
+                held = operation.open_counter(row, 0)
+            change = self.amount - held.value
         operation.tally(row, change, note=str(assignment.assignable))
 
 

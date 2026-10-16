@@ -1608,7 +1608,7 @@ def tally_counter(request, pk):
                     if adjustment > 2147483647:
                         raise Refusal("The adjustment cannot exceed 2147483647¢.")
                     change = adjustment - value
-                elif value == 0:
+                elif value == 0 and assignment.assignable.minimum == 0:
                     raise Refusal(
                         "This counter is already 0. Enter a positive amount to increase it."
                     )

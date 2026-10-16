@@ -800,7 +800,7 @@ def _project_counters(card, index, plan, result, facts, manual=None):
         ):
             value = getattr(node.assignment, "counter_value", None)
             held = [
-                value.value if value else 0,
+                value.value if value else node.assignable.minimum,
                 str(node.assignment.pk),
                 node.assignable,
             ]
@@ -845,17 +845,17 @@ def _project_counters(card, index, plan, result, facts, manual=None):
                 continue
             if not matches:
                 counter = effect.counter
-                matches = [[0, None, counter]]
+                matches = [[counter.minimum, None, counter]]
                 counters[effect.counter_id] = matches
                 created[effect.counter_id] = matches[0]
             held = matches[0]
             before = held[0]
             if effect.mode == OpChangesCounter.Mode.ADD:
-                held[0] += effect.amount
+                held[0] = max(held[2].minimum, held[0] + effect.amount)
             elif effect.mode == OpChangesCounter.Mode.SUBTRACT:
-                held[0] = max(0, held[0] - effect.amount)
+                held[0] = max(held[2].minimum, held[0] - effect.amount)
             else:
-                held[0] = effect.amount
+                held[0] = max(held[2].minimum, effect.amount)
             facts.append(
                 ["stored-counter", result.id, str(effect.pk), held[1], held[0] - before]
             )

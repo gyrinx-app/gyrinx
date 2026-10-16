@@ -1629,6 +1629,47 @@ class TestModelCounters:
         assert event.counter_delta == 1
         assert event.note.endswith("Post-battle results")
 
+    @pytest.mark.parametrize(
+        "mode,amount,expected",
+        [("set", 3, 3), ("set", 0, 1), ("subtract", 3, 1), ("add", 3, 4)],
+    )
+    def test_a_result_creating_a_counter_previews_its_authored_minimum(
+        self,
+        report,
+        owner,
+        model,
+        content,
+        mode,
+        amount,
+        expected,
+    ):
+        counter = create_counter("Personal influence", minimum=1)
+        result = create_pickable(
+            "Influential",
+            content["kind"],
+            effects=[
+                (
+                    targets_model(),
+                    op_changes_counter(counter, mode=mode, amount=amount),
+                ),
+            ],
+        )
+        add_picklist_member(content["table"], result)
+        payload = with_model(model)
+        payload["models"][0]["effects"] = [effect_for(report, owner, result)]
+        report = save(report, owner, payload)
+        plan = preview_report(report, actor=owner)
+        assert plan.valid, plan.errors
+        (change,) = plan.models[0].counters
+        assert change.after == expected
+        apply(report, owner)
+        assert (
+            CounterValue.objects.get(
+                assignment__miniature=model, assignment__counter=counter
+            ).value
+            == expected
+        )
+
     def test_xp_is_not_offered_and_every_held_counter_is(
         self, report, owner, model, kill_count, glitches
     ):
