@@ -28,6 +28,7 @@ from n26.core.counter_changes import (
     entries,
     held_counters,
     plan_changes,
+    projection_sources,
     read_changes,
 )
 from n26.core.counter_tracking import is_active
@@ -825,10 +826,13 @@ def _project_counters(card, index, plan, result, facts, manual=None):
     for key, delta in manual.items():
         if key in by_assignment:
             by_assignment[key][0] += delta
-    # A counter changed by hand has its own line saying it cannot go below 0.
-    if any(held[0] < 0 for key, held in by_assignment.items() if key not in manual):
+    if any(held[0] < 0 for held in by_assignment.values()):
         result.errors.append(
             "These corrections would take a counter below zero. Correct its later changes first."
+        )
+    elif any(held[0] < held[2].minimum for held in by_assignment.values()):
+        result.errors.append(
+            "These corrections would take a counter below its minimum. Correct its later changes first."
         )
     for _, _, _, _, _, thing, miniature, _ in plan._writes:
         if str(miniature.pk) != result.id:
@@ -864,7 +868,22 @@ def _project_counters(card, index, plan, result, facts, manual=None):
             elif held[1] is not None:
                 effect_deltas[held[1]] += held[0] - before
     result.xp_after += xp_effect_delta
-    return effect_deltas, created
+    local_sources = {
+        node.assignable.pk
+        for node in card.all_nodes()
+        if isinstance(node.assignable, Counter)
+        and not node.broadcast
+        and not node.suppressed
+    }
+    return (
+        effect_deltas,
+        created,
+        {
+            key: max(values[0][2].minimum, values[0][0])
+            for key, values in counters.items()
+            if key in local_sources or key in created
+        },
+    )
 
 
 def _recorded_notes(report):
@@ -1135,6 +1154,7 @@ def preview_report(report, *, actor, payload=None):
         held_counters(gang_card.all_nodes(), gang_computed.counters),
         entered,
         recorded,
+        readings=projection_sources(gang_card.all_nodes(), gang_computed.counters),
         names={
             line["assignment_id"]: line["name"]
             for line in (previous.receipt if previous else {}).get("gang_counters", [])
@@ -1625,7 +1645,8 @@ def preview_report(report, *, actor, payload=None):
                     exclusions,
                 ]
             )
-        held = held_counters(card.all_nodes(), counter_readings(card, computed))
+        readings = counter_readings(card, computed)
+        held = held_counters(card.all_nodes(), readings)
         entered = read_changes(raw.get("counters"), model_errors)
         recorded = before.get("counters") or {}
         held_ids = {counter.id for counter in held}
@@ -1636,7 +1657,7 @@ def preview_report(report, *, actor, payload=None):
             - recorded.get(key, 0)
             for key, value in {**recorded, **entered}.items()
         }
-        effect_deltas, created = _project_counters(
+        effect_deltas, created, projected = _project_counters(
             card, index, plan, result, facts, manual
         )
         result.counters, counter_errors = plan_changes(
@@ -1644,6 +1665,8 @@ def preview_report(report, *, actor, payload=None):
             entered,
             recorded,
             effects=effect_deltas,
+            readings=projection_sources(card.all_nodes(), readings),
+            projected=projected,
             names=recorded_counter_names.get(model_id, {}),
             change_on=f"{miniature.name}'s card",
             earlier=earlier_results.get(model_id, {}),

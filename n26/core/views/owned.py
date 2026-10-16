@@ -1523,8 +1523,9 @@ def tally_counter(request, pk):
                 CounterValue.objects.filter(assignment=assignment)
                 .values_list("value", flat=True)
                 .first()
-                or 0
             )
+            if value is None:
+                value = assignment.assignable.minimum
             total = _shown_counter_value(assignment, gang, miniature, value)
             preview = {
                 "value": total,
@@ -1592,8 +1593,9 @@ def tally_counter(request, pk):
                     CounterValue.objects.filter(assignment=assignment)
                     .values_list("value", flat=True)
                     .first()
-                    or 0
                 )
+                if value is None:
+                    value = assignment.assignable.minimum
                 if setting_income:
                     contributions = _shown_counter_value(
                         assignment, gang, miniature, value

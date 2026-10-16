@@ -1670,6 +1670,127 @@ class TestModelCounters:
             == expected
         )
 
+    def test_dependent_counter_previews_follow_simultaneous_changes_and_corrections(
+        self,
+        report,
+        owner,
+        model,
+    ):
+        from n26.library.authoring import create_hidden, ef_contributes_to_counter
+
+        source = assign(create_counter("Influence", minimum=1), miniature=model)
+        target = assign(create_counter("Personal rewards"), miniature=model)
+        tally(source, 0)
+        tally(target, 0)
+        assign(
+            create_hidden(
+                "Influence rewards",
+                effects=[
+                    (
+                        targets_model(),
+                        ef_contributes_to_counter(
+                            target.counter, 2, per_counter=source.counter
+                        ),
+                    ),
+                ],
+            ),
+            miniature=model,
+        )
+        for amount, expected in [(1, 5), (2, 8)]:
+            payload = with_model(
+                model, counters={str(source.pk): amount, str(target.pk): amount}
+            )
+            report = save(report, owner, payload)
+            plan = preview_report(report, actor=owner)
+            assert plan.valid, plan.errors
+            change = next(
+                line
+                for line in plan.models[0].counters
+                if line.name == "Personal rewards"
+            )
+            assert change.after == expected
+            saved = apply(report, owner)
+            receipt = next(
+                line
+                for line in saved.receipt["models"][0]["counters"]
+                if line["name"] == "Personal rewards"
+            )
+            assert receipt["after"] == change.after
+            report = start_correction(report, actor=owner)
+
+    def test_a_result_cannot_hide_a_manual_subtraction_below_the_minimum(
+        self,
+        report,
+        owner,
+        model,
+        glitches,
+        glitch,
+    ):
+        from n26.library.authoring import revise
+
+        revise(glitches.counter, minimum=1)
+        tally(glitches, 0)
+        effect = effect_for(report, owner, glitch)
+        payload = with_model(model, counters={str(glitches.pk): -1})
+        payload["models"][0]["effects"] = [effect]
+        report = save(report, owner, payload)
+        plan = preview_report(report, actor=owner)
+        assert not plan.valid
+        assert "below its minimum" in " ".join(plan.errors)
+        with pytest.raises(Refusal, match="below its minimum"):
+            apply_report(
+                report,
+                actor=owner,
+                generation=report.generation,
+                revision=report.draft_revision,
+                submission_key=uuid4(),
+                review=plan.review,
+            )
+        assert counter_value(glitches) == 1
+        payload["models"][0]["counters"] = {}
+        report = save(report, owner, payload)
+        apply(report, owner)
+        assert counter_value(glitches) == 2
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, with_model(model, counters={str(glitches.pk): -1}))
+        assert not preview_report(report, actor=owner).valid
+        assert counter_value(glitches) == 2
+
+    def test_a_broadcast_source_counter_contributes_nothing_to_the_model_preview(
+        self,
+        report,
+        owner,
+        model,
+        gang,
+    ):
+        from n26.library.authoring import create_hidden, ef_contributes_to_counter
+
+        source = assign(create_counter("Influence"), gang=gang)
+        tally(source, 3)
+        target = assign(create_counter("Personal rewards"), miniature=model)
+        tally(target, 0)
+        assign(
+            create_hidden(
+                "Influence rewards",
+                effects=[
+                    (
+                        targets_model(),
+                        ef_contributes_to_counter(
+                            target.counter, 2, per_counter=source.counter
+                        ),
+                    ),
+                ],
+            ),
+            miniature=model,
+        )
+        report = save(report, owner, with_model(model, counters={str(target.pk): 1}))
+        plan = preview_report(report, actor=owner)
+        assert plan.valid, plan.errors
+        (change,) = plan.models[0].counters
+        assert change.after == 1
+        saved = apply(report, owner)
+        assert saved.receipt["models"][0]["counters"][0]["after"] == change.after
+
     def test_xp_is_not_offered_and_every_held_counter_is(
         self, report, owner, model, kill_count, glitches
     ):

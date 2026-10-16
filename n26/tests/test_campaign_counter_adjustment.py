@@ -464,3 +464,22 @@ def test_amount_preview_and_saved_value_respect_the_authored_minimum(client, set
     assert page.context["counter_preview"]["recorded"] == 2
     assert client.post(address(held), {"adjust": 1, "change": -99}).status_code == 302
     assert (reading(gang).value, reading(gang).tallied) == (4, 1)
+
+
+@pytest.mark.parametrize("missing", [True, False])
+def test_first_adjustment_distinguishes_a_missing_balance_from_legacy_zero(
+    client, setup, missing
+):
+    from n26.core.models import CounterValue
+    from n26.library.authoring import revise
+
+    _, _, _, gang, held = setup
+    revise(held.counter, minimum=1)
+    if missing:
+        CounterValue.objects.filter(assignment=held).delete()
+    else:
+        CounterValue.objects.filter(assignment=held).update(value=0)
+    page = client.get(address(held))
+    assert page.context["counter_preview"]["recorded"] == (1 if missing else 0)
+    assert client.post(address(held), {"adjust": 1, "change": 1}).status_code == 302
+    assert CounterValue.objects.get(assignment=held).value == (2 if missing else 1)
