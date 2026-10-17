@@ -107,6 +107,10 @@ def trade_points_href(gang, user):
 
     if user is None or not user.is_authenticated or gang.owner_id != user.pk:
         return ""
+    from n26.core.built_in_actions import trading_post_visit_relevant
+
+    if not trading_post_visit_relevant(gang) and not gang.visiting_trading_post:
+        return ""
     return reverse("n26-gang-trade-points", args=[gang.pk])
 
 

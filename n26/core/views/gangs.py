@@ -597,6 +597,7 @@ def more_actions(gang, *, yours, signed_in):
     if yours:
         return [
             link("History", "n26-gang-history"),
+            link("Other actions", "n26-gang-other-actions"),
             link("Notes", "n26-gang-notes"),
             link("Lore", "n26-gang-lore"),
             link("Clone gang", "n26-clone-gang"),
@@ -1768,7 +1769,7 @@ def _edit_tabs(gang, current):
     answers them all.
     """
     at = reverse("n26-edit-gang", args=[gang.pk])
-    return [
+    tabs = [
         {"label": "General", "href": at, "current": current == "general"},
         {
             "label": "Notes and Lore",
@@ -1786,6 +1787,31 @@ def _edit_tabs(gang, current):
             "current": current == "dismissed",
         },
     ]
+
+    from n26.core.built_in_actions import trading_post_visit_relevant
+
+    if (
+        current != "trade-points"
+        and not trading_post_visit_relevant(gang)
+        and not gang.visiting_trading_post
+    ):
+        tabs = [tab for tab in tabs if tab["label"] != "Trade Points"]
+    return tabs
+
+
+@login_required
+def gang_other_actions(request, pk):
+    from n26.core.built_in_actions import trading_post_visit_relevant
+
+    gang = _own_gang_or_404(request, pk)
+    return render(
+        request,
+        "n26/other_actions.html",
+        {
+            "gang": gang,
+            "visit_excluded": not trading_post_visit_relevant(gang),
+        },
+    )
 
 
 @login_required
@@ -1829,6 +1855,9 @@ def gang_trade_points(request, pk):
     )
 
     gang = _own_gang_or_404(request, pk)
+    from n26.core.built_in_actions import trading_post_visit_relevant
+
+    visit_excluded = not trading_post_visit_relevant(gang)
     at = reverse("n26-gang-trade-points", args=[gang.pk])
 
     if request.method == "POST" and request.POST.get("act") == "finish":
@@ -1926,6 +1955,7 @@ def gang_trade_points(request, pk):
         request,
         "n26/trade_points.html",
         {
+            "visit_excluded": visit_excluded,
             "gang": gang,
             "action": at,
             # Each fighter on the receipt gets a way to their own equip

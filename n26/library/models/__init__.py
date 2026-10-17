@@ -37,6 +37,7 @@ from n26.library.models.assignable import (
     slots_of,
 )
 from n26.library.models.base import Content, ContentManager, ContentQuerySet
+from n26.library.models.built_in_action import BuiltInAction
 from n26.library.models.campaign_type import (
     Asset,
     AssetTable,
@@ -118,6 +119,7 @@ from n26.library.models.statline import (
 __all__ = [
     "AdvancementPromotion",
     "Action",
+    "BuiltInAction",
     "ActionOutcome",
     "ActionPriceComponent",
     "ApplyChange",

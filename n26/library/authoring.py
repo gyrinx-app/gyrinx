@@ -3106,3 +3106,21 @@ def detach_modifier(assignable, modifier):
     it may hang on other carriers, or wait as a reusable."""
     assignable.modifiers.remove(modifier)
     return assignable
+
+
+@guarded_write
+@transaction.atomic
+def configure_trading_post_visit(excluded_gang_types=()):
+    """Replace the gang types whose usual Trading Post setup links are hidden."""
+    from n26.library.models import BuiltInAction
+
+    types = list(excluded_gang_types)
+    if GangType.objects.filter(
+        pk__in=[gang_type.pk for gang_type in types], pack__campaign__isnull=False
+    ).exists():
+        raise ValidationError("Choose gang types from the content library.")
+    action, _ = BuiltInAction.objects.get_or_create(
+        key=BuiltInAction.Key.TRADING_POST_VISIT
+    )
+    action.excluded_gang_types.set(types)
+    return action

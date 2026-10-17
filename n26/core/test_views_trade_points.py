@@ -412,14 +412,15 @@ class TestWhatThePageCosts:
     #: repeats per model. The modifier index batches status conditions too.
     #: Two reads check the founding flag and owner group, including for gangs
     #: with no TP grant that need to record founding completion.
-    BUDGET = 42
+    #: One read checks the built-in action's default visibility.
+    BUDGET = 43
 
     #: The same page with a visit open, which is the state it is for.
     #: There is a receipt to draw then, and it costs two readings of the
     #: log: who performed the action, and what the visit has spent. Both
     #: are one query however many fighters went and however much the gang
     #: has bought, so this is a second fixed price and not a second rate.
-    WITH_A_VISIT = 44
+    WITH_A_VISIT = 45
 
     @pytest.fixture
     def bigger(self, tester, gang, ranks, make_profile, make_statline):
