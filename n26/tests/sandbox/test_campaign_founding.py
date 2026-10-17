@@ -263,18 +263,6 @@ class TestTheGangSheet:
         assert "Reputation" in body
         assert "Add one to Reputation" not in body
 
-    def test_a_reader_outside_the_campaigns_feature_gets_the_name_alone(
-        self, client, membership, gang, campaign
-    ):
-        """The campaign pages answer a reader outside the feature with a
-        404, so the sheet names the campaign rather than linking to it."""
-        client.force_login(gang.owner)
-
-        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
-
-        assert "Dust Falls" in body
-        assert reverse("n26-campaign", args=[campaign.pk]) not in body
-
     def test_the_campaigns_counter_is_drawn_once(self, membership, gang):
         sheet = render_gang(gang)
         assert [reading.name for reading in sheet.counters] == []
@@ -400,16 +388,8 @@ class TestEditingTheTypeReachesMemberGangs:
 class TestTheLeaveRoute:
     """Taking a gang out gives back everything its carriers brought."""
 
-    @pytest.fixture
-    def open_to_everyone(self):
-        from n26.flags import CAMPAIGNS
-
-        return FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
-
     def test_it_removes_what_the_carriers_brought(
-        self, client, membership, gang, campaign, arbitrator, open_to_everyone
+        self, client, membership, gang, campaign, arbitrator
     ):
         client.force_login(arbitrator)
         address = reverse("n26-campaign-remove-gang", args=[campaign.pk, gang.pk])

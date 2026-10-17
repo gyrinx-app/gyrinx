@@ -15,7 +15,7 @@ from n26.core.campaigns import campaign_operation
 from n26.core.models import CounterValue, LedgerEvent
 from n26.core.operations import operation
 from n26.core.render import render_campaign, render_gang
-from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
+from n26.flags import BUILT_IN_PROPAGATION
 from n26.library.authoring import (
     create_asset,
     ef_contributes_to_counter,
@@ -39,9 +39,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def dashboard(client, gang_type, default_pack):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     seed_core_campaign(apps)
     kind = CampaignType.objects.get(name="Territory campaign")
     arb = User.objects.create_user("dashboard-arbitrator")

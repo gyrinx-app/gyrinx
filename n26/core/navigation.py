@@ -112,7 +112,7 @@ def source_url(source, **params):
     return f"{url}?{urlencode(params)}" if params else url
 
 
-def places_switcher(request, here="", *, campaigns_open=False):
+def places_switcher(request, here=""):
     """The app's places, as the bar's switcher on pages that are no one thing.
 
     Every screen keeps a switcher in the bar so the keyboard way into it
@@ -136,10 +136,9 @@ def places_switcher(request, here="", *, campaigns_open=False):
     places = [
         ("home", "Home", reverse("n26-dashboard")),
         ("gangs", "Gangs", reverse("n26-gangs")),
+        ("campaigns", "Campaigns", reverse("n26-campaigns")),
+        ("help", "Help", "/help/n26/"),
     ]
-    if campaigns_open:
-        places.append(("campaigns", "Campaigns", reverse("n26-campaigns")))
-    places.append(("help", "Help", "/help/n26/"))
     user = getattr(request, "user", None)
     if user is not None and user.is_staff:
         places += [
@@ -453,12 +452,6 @@ def _gang_source(request, params):
 
 
 def _campaign_source(request, params):
-    from django.http import Http404
-
-    from n26.flags import CAMPAIGNS, enabled
-
-    if not enabled(CAMPAIGNS, request.user):
-        raise Http404("No such list")
     return campaign_rows(request.user), campaign_item, by_name
 
 

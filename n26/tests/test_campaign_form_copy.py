@@ -5,9 +5,7 @@ from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.forms import AddAssetTypeForm, AddCounterForm, AddLabelForm
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import add_asset_type
 from n26.library.models import AssetType
 from n26.tests.sandbox.actions import found_campaign
@@ -19,9 +17,6 @@ pytestmark = pytest.mark.django_db
 def campaign(client, campaign_type):
     owner = User.objects.create_user("arbitrator")
     client.force_login(owner)
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     return found_campaign("Dust Falls", campaign_type, owner=owner)
 
 

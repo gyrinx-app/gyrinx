@@ -17,10 +17,8 @@ from n26.core.views.permissions import (
     _own_campaign_or_404,
     _recording_campaign_or_404,
 )
-from n26.flags import CAMPAIGNS, requires_flag
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def record_campaign_roll(request, pk):
     campaign = _recording_campaign_or_404(request, pk)
@@ -93,7 +91,6 @@ def record_campaign_roll(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaign_roll(request, pk, roll_pk):
     campaign = _any_campaign_or_404(request, pk)
@@ -147,7 +144,6 @@ def campaign_roll(request, pk, roll_pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 @require_GET
 def preview_pool_roll(request, pk):

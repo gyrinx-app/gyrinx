@@ -4,10 +4,9 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag, Notification
+from gyrinx.site.models import Notification
 from n26.core.campaigns import campaign_operation
 from n26.core.models import CampaignEvent, CampaignParticipant
-from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import found_campaign
 
 pytestmark = pytest.mark.django_db
@@ -15,9 +14,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def invitation(client, campaign_type):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     owner = User.objects.create_user("inviting-arbitrator")
     user = User.objects.create_user("invited-player")
     campaign = found_campaign("Invitation review", campaign_type, owner=owner)

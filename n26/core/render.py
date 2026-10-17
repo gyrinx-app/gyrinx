@@ -1704,8 +1704,8 @@ class CampaignBlock:
     #: Where the campaign's name and its holdings lead — the campaign
     #: page, and its assets section — filled in by whoever knows both the
     #: URL space and who may open them, as a counter's own href is. Empty
-    #: draws plain text, which is what a reader outside the campaigns
-    #: feature gets: the page behind these answers them with a 404.
+    #: draws plain text, which is what a visitor who is not signed in gets:
+    #: the page behind these would only send them to sign in.
     href: str = ""
     assets_href: str = ""
     #: Available types remain visible even when this gang holds none.

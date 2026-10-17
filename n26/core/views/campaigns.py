@@ -1,10 +1,6 @@
 """Setting a campaign up, and the arbitrator's pages for one.
 
-Every view here is gated twice: ``requires_flag`` outside, so a reader
-without the campaigns feature is told the address does not exist, and
-``login_required`` inside, so the ones who do have it are still asked to
-sign in. The order matters — a login redirect on a gated address would
-itself say that something is there.
+Every view here asks the reader to sign in.
 """
 
 from django.contrib import messages
@@ -22,7 +18,6 @@ from n26.core.views.permissions import (
     _own_campaign_or_404,
     _recording_campaign_or_404,
 )
-from n26.flags import CAMPAIGNS, requires_flag
 from n26.library.staged import sees_staged
 
 #: Campaigns per page in the searchable listing.
@@ -46,7 +41,6 @@ LOG_ON_THE_PAGE = 10
 LOG_PER_PAGE = 50
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaigns(request):
     """Every campaign this reader is in, narrowed by ``?q=``.
@@ -140,7 +134,6 @@ def campaign_rows(listed):
     return rows
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def create_campaign(request):
     """Set a campaign up on a type. POST founds it and lands on its page.
@@ -188,7 +181,6 @@ def create_campaign(request):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaign(request, pk):
     """One campaign, whoever is reading it.
@@ -198,9 +190,8 @@ def campaign(request, pk):
     same battles, the same log. Accepted players can record battles and
     dice rolls. Campaign management remains with the arbitrator.
 
-    Who the address reaches is the decorators' answer rather than this
-    one's: signed in, and inside the campaigns feature. A reader outside
-    either is told there is nothing here.
+    Who the address reaches is the decorator's answer rather than this
+    one's: anybody signed in.
 
     The log reads newest first and is cut to the most recent acts: the page
     is a campaign, not its history, and a log that grew without bound would
@@ -732,7 +723,6 @@ def _campaign_update(request, campaign):
     return with_toasts(request, response)
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def roll_asset(request, pk):
     """Roll from one of the campaign's tables to add an unclaimed asset:
@@ -855,7 +845,6 @@ def _roll_made(request, campaign):
     return redirect(_campaign_page(campaign))
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def roll_starting_asset(request, pk, gang_pk):
     """Roll one gang's starting asset from a table it holds: the act
@@ -976,7 +965,6 @@ def _first_error(form):
     return "Check the form and try again."
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaign_log(request, pk):
     """The whole of a campaign's log, newest first, a screenful at a time.
@@ -1025,7 +1013,6 @@ def campaign_log(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def edit_campaign(request, pk):
     """The facts an arbitrator may change after setting up."""
@@ -1197,7 +1184,6 @@ def edit_campaign(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def archive_campaign(request, pk):
     """The question at its own address, then the act.
@@ -1280,7 +1266,6 @@ def _addable_gangs(campaign, reader, arbitrating):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_gang(request, pk):
     """Put a gang into this campaign, chosen from the ones at its table.
@@ -1419,7 +1404,6 @@ def add_gang(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def remove_gang(request, pk, gang_pk):
     """The question at its own address, then the act.
@@ -1527,7 +1511,6 @@ def _playing(campaign):
     ).order_by("name")
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_battle(request, pk):
     """Add a battle before it is fought; its outcome is recorded by editing it."""
@@ -1562,7 +1545,6 @@ def add_battle(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def remove_battle(request, pk, battle_pk):
     """The question at its own address, then the act."""
@@ -1725,7 +1707,6 @@ def _asset_type_asked_for(campaign, value):
         return None
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_asset(request, pk):
     """Add an asset the campaign deals in, held by nobody.
@@ -1873,7 +1854,6 @@ def add_asset(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def assign_asset(request, pk, asset_pk):
     """Give an asset to a gang playing the campaign, picked from the roll."""
@@ -1939,7 +1919,6 @@ def assign_asset(request, pk, asset_pk):
     return response
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def unassign_asset(request, pk, asset_pk):
     """The question at its own address, then the act.
@@ -2005,7 +1984,6 @@ def unassign_asset(request, pk, asset_pk):
     return response
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def transfer_asset(request, pk, asset_pk):
     """Hand a held asset to another gang playing the campaign.
@@ -2100,7 +2078,6 @@ def transfer_asset(request, pk, asset_pk):
     return response
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def remove_asset(request, pk, asset_pk):
     """The question at its own address, then the act."""
@@ -2204,7 +2181,6 @@ def _addition_page(request, campaign, form, template, act, back, **context):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_asset_type(request, pk):
     """Declare a new asset type for this campaign alone."""
@@ -2259,7 +2235,6 @@ def _ownership_cards(chosen):
     ]
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def edit_asset_type(request, pk, asset_type_pk):
     """Change the labels or ownership of one of the campaign's own asset
@@ -2320,7 +2295,6 @@ def edit_asset_type(request, pk, asset_type_pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def new_asset(request, pk):
     """Write a new asset under one of the campaign's asset types.
@@ -2400,7 +2374,6 @@ def _campaign_settings_url(campaign):
     return reverse("n26-edit-campaign", args=[campaign.pk]) + "?tab=counters-and-labels"
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_counter(request, pk):
     """Give every gang in the campaign a counter, opening at a value."""
@@ -2418,7 +2391,6 @@ def add_counter(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_label(request, pk):
     """Ask every gang in the campaign one question with fixed options."""
@@ -2436,7 +2408,6 @@ def add_label(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def archive_addition(request, pk, member_pk, kind):
     """The question at its own address, then the act: archive a counter or
@@ -2548,7 +2519,6 @@ def _what_each_gang_has(campaign, member):
     ]
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def unarchive_addition(request, pk, member_pk, kind):
     """The question at its own address, then the act: give an archived
@@ -2705,7 +2675,6 @@ def _tables_lead(asset_types):
     return "These are roll options. Generate unclaimed assets separately on the campaign page."
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaign_tables(request, pk):
     """The tables every gang in the campaign may roll on, by asset type,
@@ -2830,7 +2799,6 @@ def _table_href(campaign, table):
     return reverse("n26-campaign-table", args=[campaign.pk, table.pk])
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def new_table(request, pk):
     """Write a new asset table for this campaign, then go and fill it."""
@@ -2910,7 +2878,6 @@ def _own_table_or_404(campaign, table_pk):
         raise Http404("No such table in this campaign") from None
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaign_table(request, pk, table_pk):
     """One of the campaign's own tables: its entries, whether its bands
@@ -2998,7 +2965,6 @@ def campaign_table(request, pk, table_pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def remove_table_entry(request, pk, table_pk, entry_pk):
     """Take one entry off one of the campaign's own tables. POST is the
@@ -3103,7 +3069,6 @@ def _players(campaign):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_player(request, pk):
     """Find somebody by name, and ask them into the campaign.
@@ -3169,7 +3134,6 @@ def add_player(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def remove_player(request, pk, user_pk):
     """The question at its own address, then the act."""
@@ -3200,7 +3164,6 @@ def remove_player(request, pk, user_pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def answer_invitation(request, pk):
     """Accept or decline an invitation, as the person who was asked.
@@ -3272,7 +3235,6 @@ def answer_invitation(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaign_grouping(request, pk):
     """Only the arbitrator sets shared grouping and colours."""

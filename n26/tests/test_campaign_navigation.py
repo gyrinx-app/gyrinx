@@ -1,4 +1,4 @@
-"""The app menu honours the platform campaign feature gate."""
+"""The app menu offers campaigns."""
 
 import json
 
@@ -7,21 +7,10 @@ from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
-from n26.flags import CAMPAIGNS
-
 pytestmark = pytest.mark.django_db
 
 
-@pytest.mark.parametrize(
-    "availability,offered", [(Availability.EVERYONE, True), (Availability.OFF, False)]
-)
-def test_the_home_menu_offers_campaigns_only_when_available(
-    client, availability, offered
-):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=availability
-    )
+def test_the_home_menu_offers_campaigns(client):
     client.force_login(User.objects.create_user("menu-reviewer"))
     response = client.get(reverse("n26-dashboard"))
     assert response.status_code == 200
@@ -37,8 +26,4 @@ def test_the_home_menu_offers_campaigns_only_when_available(
     hrefs = {item["label"]: item["href"] for item in places["items"]}
     assert hrefs["Home"] == reverse("n26-dashboard")
     assert hrefs["Gangs"] == reverse("n26-gangs")
-    assert ("Campaigns" in hrefs) is offered
-    if offered:
-        assert hrefs["Campaigns"] == reverse("n26-campaigns")
-    else:
-        assert client.get(reverse("n26-campaigns")).status_code == 404
+    assert hrefs["Campaigns"] == reverse("n26-campaigns")

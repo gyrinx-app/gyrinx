@@ -31,8 +31,6 @@ urlpatterns = [
         views.n26_changelog_entry,
         name="n26-changelog-entry",
     ),
-    # Every campaign route is gated by the campaigns feature flag, so all
-    # of them answer 404 to a reader who is not let in.
     path("campaigns/", views.campaigns, name="n26-campaigns"),
     path("campaigns/new/", views.create_campaign, name="n26-create-campaign"),
     # After campaigns/new/, which would otherwise resolve "new" as an id.

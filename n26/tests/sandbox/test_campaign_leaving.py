@@ -261,17 +261,8 @@ class TestTheConfirmationPage:
     """The page says what the gang loses and what goes back to the campaign,
     each under its own heading."""
 
-    @pytest.fixture
-    def open_to_everyone(self, db):
-        from gyrinx.site.models import Availability, FeatureFlag
-        from n26.flags import CAMPAIGNS
-
-        return FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
-
     def test_each_thing_is_under_the_right_heading(
-        self, client, gang, campaign, alignment, old_ruins, open_to_everyone
+        self, client, gang, campaign, alignment, old_ruins
     ):
         played(gang, alignment, old_ruins)
         client.force_login(campaign.owner)
