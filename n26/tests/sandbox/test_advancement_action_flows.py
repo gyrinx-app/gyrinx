@@ -1378,6 +1378,8 @@ class TestAdvancementHoldsAndUndo:
                 "rolled": "2",
             },
         )
+        assert client.get(reviewed.url).context["skill_resolved"]
+        reviewed = client.post(skill_url, {})
         token = client.get(reviewed.url).context["form"]["review"].value()
         assert client.post(reviewed.url, {"review": token}).status_code == 302
         record.refresh_from_db()

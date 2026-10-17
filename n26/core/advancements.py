@@ -144,6 +144,9 @@ def advancement_undo_snapshot(record):
         )
     if record.payment_id is not None:
         raise Refusal("You cannot undo a paid action here.")
+    selection, skill = _correction_result(record)
+    if selection is None:
+        raise Refusal("This action has no advancement result to undo.")
     if (
         ActionRecord.objects.filter(
             fighter=record.fighter,
@@ -157,9 +160,6 @@ def advancement_undo_snapshot(record):
             "You cannot undo this while another flow for this action is started. "
             "Finish that flow, or mark it as applied by hand, first."
         )
-    selection, skill = _correction_result(record)
-    if selection is None:
-        raise Refusal("This action has no advancement result to undo.")
     return {
         "record": str(record.pk),
         "completed": str(record.completed_event_id),
