@@ -827,7 +827,7 @@ class TestTheNamesOnACampaign:
             return reverse("n26-campaign-remove-player", args=[table.pk, person.pk])
 
         body = client.get(remove(badged)).content.decode()
-        question = body[body.index("Their gangs stay where they are") :]
+        question = body[body.index("Choose what happens to their gang") :]
         assert "vex" in question
         assert badge_svg(GUILDER).strip() in question
         badged_queries = self._queries(client, remove(badged))
