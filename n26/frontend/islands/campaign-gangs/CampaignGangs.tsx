@@ -1,11 +1,4 @@
-import {
-    Fragment,
-    useEffect,
-    useId,
-    useRef,
-    useState,
-    type MouseEvent,
-} from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent } from "react";
 import {
     ActionMenu,
     Artwork,
@@ -15,9 +8,10 @@ import {
     Icon,
     IncomeTooltip,
     Link,
-    NativeSelect,
+    SortableTable,
     NameList,
-    Table,
+    runCampaignDialog,
+    useCampaignDialogRequests,
     UserLink,
 } from "../../ui";
 import {
@@ -53,8 +47,8 @@ export function CampaignGangs(
     });
     const [error, setError] = useState("");
     const [pending, setPending] = useState("");
-    const [externalPending, setExternalPending] = useState(false);
-    const externalRequests = useRef(new Set<unknown>());
+    const { pending: externalPending, requests: externalRequests } =
+        useCampaignDialogRequests();
     const opening = useRef(false);
     const alive = useRef(true);
     const initialised = useRef(false);
@@ -69,25 +63,6 @@ export function CampaignGangs(
     const back = viewHref(props.href, view, "gangs");
     const busy = Boolean(pending) || externalPending;
     useEffect(() => {
-        function dialogRequest(event: Event) {
-            const { request, pending } = (
-                event as CustomEvent<{
-                    request: unknown;
-                    pending: boolean;
-                }>
-            ).detail;
-            if (pending) externalRequests.current.add(request);
-            else externalRequests.current.delete(request);
-            setExternalPending(externalRequests.current.size > 0);
-        }
-        window.addEventListener("n26:campaign-dialog-request", dialogRequest);
-        return () =>
-            window.removeEventListener(
-                "n26:campaign-dialog-request",
-                dialogRequest,
-            );
-    }, []);
-    useEffect(() => {
         if (props.focusCounter)
             counterLinks.current
                 .get(props.focusCounter)
@@ -96,6 +71,7 @@ export function CampaignGangs(
     useEffect(() => {
         const restore = () => setView(readView(props, window.location.search));
         window.addEventListener("popstate", restore);
+        window.addEventListener("n26:location-changed", restore);
         const query = new URLSearchParams(window.location.search);
         if (
             !initialised.current &&
@@ -129,6 +105,7 @@ export function CampaignGangs(
         return () => {
             alive.current = false;
             window.removeEventListener("popstate", restore);
+            window.removeEventListener("n26:location-changed", restore);
         };
     }, [props]);
     function change(next: View) {
@@ -152,7 +129,7 @@ export function CampaignGangs(
         setPending(href);
         setError("");
         try {
-            await props.onOpenDialog(href);
+            await runCampaignDialog(() => props.onOpenDialog(href));
         } catch {
             if (alive.current)
                 setError(
@@ -418,189 +395,36 @@ export function CampaignGangs(
         );
     }
     return (
-        <>
-            <div className="flex flex-wrap items-end gap-3 border-b border-box-border px-4 py-3">
-                <label className="flex min-w-0 max-w-full flex-col gap-1 text-xs text-muted">
-                    Sort by
-                    <NativeSelect
-                        controlSize="sm"
-                        disabled={busy}
-                        value={view.sort}
-                        onChange={(event) =>
-                            change({ ...view, sort: event.target.value })
-                        }
-                    >
-                        {sorts.flatMap((column) => [
-                            <option key={column.token} value={column.token}>
-                                {column.label} (ascending)
-                            </option>,
-                            <option
-                                key={`-${column.token}`}
-                                value={`-${column.token}`}
-                            >
-                                {column.label} (descending)
-                            </option>,
-                        ])}
-                    </NativeSelect>
-                </label>
-                {props.labels.length > 0 && (
-                    <label className="flex min-w-0 max-w-full flex-col gap-1 text-xs text-muted">
-                        View groups by
-                        <NativeSelect
-                            controlSize="sm"
-                            disabled={busy}
-                            value={view.group}
-                            onChange={(event) =>
-                                change({ ...view, group: event.target.value })
-                            }
-                        >
-                            <option value="">No grouping</option>
-                            {props.labels.map((column) => (
-                                <option key={column.token} value={column.token}>
-                                    {column.label}
-                                </option>
-                            ))}
-                        </NativeSelect>
-                    </label>
-                )}
-            </div>
-            {error && (
-                <p
-                    role="alert"
-                    className="px-4 py-3 text-sm text-red-600 dark:text-red-400"
-                >
-                    {error}
-                </p>
-            )}
-            {props.gangs.length === 0 ? (
-                <p className="p-4 text-sm text-muted">
-                    No gangs in this campaign yet.
-                </p>
-            ) : (
-                <Table className="max-md:block">
-                    <thead className="max-md:hidden">
-                        <tr>
-                            {columns.map((column, index) => {
-                                const selected =
-                                    view.sort.replace(/^-/, "") ===
-                                    column.token;
-                                const descending =
-                                    selected && view.sort.startsWith("-");
-                                const next = {
-                                    ...view,
-                                    sort:
-                                        view.sort === column.token
-                                            ? `-${column.token}`
-                                            : column.token,
-                                };
-                                return (
-                                    <th
-                                        key={column.token}
-                                        id={`${id}-col-${index}`}
-                                        scope="col"
-                                        aria-sort={
-                                            selected
-                                                ? descending
-                                                    ? "descending"
-                                                    : "ascending"
-                                                : "none"
-                                        }
-                                    >
-                                        <a
-                                            href={viewHref(
-                                                props.href,
-                                                next,
-                                                "gangs",
-                                            )}
-                                            className="inline-flex items-center gap-1 text-current focus-ring"
-                                            aria-disabled={busy}
-                                            onClick={(event) => {
-                                                if (ordinaryClick(event)) {
-                                                    event.preventDefault();
-                                                    change(next);
-                                                }
-                                            }}
-                                        >
-                                            {column.label}
-                                            {selected && (
-                                                <Icon
-                                                    name={
-                                                        descending
-                                                            ? "arrow-down"
-                                                            : "arrow-up"
-                                                    }
-                                                    className="size-3"
-                                                />
-                                            )}
-                                        </a>
-                                    </th>
-                                );
-                            })}
-                            <th
-                                id={`${id}-col-actions`}
-                                scope="col"
-                                className="w-0"
-                            >
-                                <span className="sr-only">Actions</span>
-                            </th>
-                        </tr>
-                    </thead>
-                    {groups.map((group) => {
-                        const groupId = `${id}-group-${encodeURIComponent(group.id)}`;
-                        return (
-                            <Fragment key={group.id}>
-                                {group.label && (
-                                    <tbody className="max-md:block">
-                                        <tr className="max-md:block">
-                                            <th
-                                                id={groupId}
-                                                colSpan={columns.length + 1}
-                                                className="bg-ink-500/5 py-2! text-sm [overflow-wrap:anywhere] max-md:block max-md:w-full max-md:whitespace-normal!"
-                                                style={
-                                                    group.colour
-                                                        ? {
-                                                              borderLeft: `3px solid ${group.colour}`,
-                                                          }
-                                                        : undefined
-                                                }
-                                            >
-                                                <ColorSwatch
-                                                    color={group.colour}
-                                                />
-                                                {group.label}{" "}
-                                                <span className="font-normal text-muted">
-                                                    · {group.gangs.length} gang
-                                                    {group.gangs.length !== 1 &&
-                                                        "s"}
-                                                </span>
-                                            </th>
-                                        </tr>
-                                    </tbody>
-                                )}
-                                {group.gangs.map((gang) =>
-                                    gangRows(
-                                        gang,
-                                        group.label ? groupId : undefined,
-                                    ),
-                                )}
-                            </Fragment>
-                        );
-                    })}
-                </Table>
-            )}
-            <p className="sr-only" role="status" aria-live="polite">
-                Sorted by{" "}
+        <SortableTable
+            id={id}
+            label="Campaign gangs"
+            view={view}
+            columns={[
+                ...columns,
                 {
-                    sorts.find(
-                        (column) =>
-                            column.token === view.sort.replace(/^-/, ""),
-                    )?.label
-                }
-                , {view.sort.startsWith("-") ? "descending" : "ascending"}.
-                {view.group
-                    ? ` Grouped by ${props.labels.find((column) => column.token === view.group)?.label}.`
-                    : " No grouping."}
-            </p>
-        </>
+                    token: "actions",
+                    label: "Actions",
+                    sortable: false,
+                    hiddenLabel: true,
+                    className: "w-0",
+                },
+            ]}
+            sortOptions={sorts}
+            groupOptions={props.labels}
+            groups={groups.map((group) => ({
+                ...group,
+                rows: group.gangs,
+                countLabel: `${group.gangs.length} gang${group.gangs.length === 1 ? "" : "s"}`,
+            }))}
+            onViewChange={change}
+            viewHref={(next) => viewHref(props.href, next, "gangs")}
+            renderRows={(gangs, groupId) =>
+                gangs.map((gang) => gangRows(gang, groupId))
+            }
+            disabled={busy}
+            mobileCards
+            error={error}
+            empty="No gangs in this campaign yet."
+        />
     );
 }

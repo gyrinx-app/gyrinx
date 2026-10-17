@@ -1,0 +1,10 @@
+{% comment %}
+<c-n26.sortable-table> — A sortable, grouped table of text and numeric cells.
+
+Pass JSON-safe columns and rows through table. Each row has an id, values by column token and optional group labels.
+React's SortableTable adapter also accepts custom row renderers, as the campaign gang and territory tables use.
+This wrapper keeps its view local; pages with shareable state control the React adapter from their URL.
+{% endcomment %}
+{% load react %}
+<c-vars :table="None" class="" />
+<div class="{{ class }}">{% react_island "sortable-table" table %}</div>

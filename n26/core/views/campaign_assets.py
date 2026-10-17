@@ -12,6 +12,7 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
+from n26.core.campaign_table import table_view_href
 from n26.core.history import asset_ownership_history
 from n26.core.income import holding_income_sources, unclaimed_income_source
 from n26.core.models import Battle
@@ -39,13 +40,20 @@ def _asset_detail_update(request, pk, asset_pk):
     from n26.core.views.htmx import with_toasts
 
     context = _asset_context(
-        request, pk, asset_pk, back=reverse("n26-campaign-asset", args=[pk, asset_pk])
+        request,
+        pk,
+        asset_pk,
+        back=table_view_href(
+            request, reverse("n26-campaign-asset", args=[pk, asset_pk])
+        ),
     )
     context["redrawn"] = True
     response = with_toasts(
         request, render(request, "n26/includes/campaign_asset_update.html", context)
     )
-    response["HX-Replace-Url"] = reverse("n26-campaign-asset", args=[pk, asset_pk])
+    response["HX-Replace-Url"] = table_view_href(
+        request, reverse("n26-campaign-asset", args=[pk, asset_pk])
+    )
     return response
 
 
@@ -58,10 +66,10 @@ def _asset_context(request, pk, asset_pk, *, back=None):
     actions = []
 
     def action(label, route, danger=False):
-        href = reverse(route, args=[campaign.pk, holding.pk])
+        href = table_view_href(request, reverse(route, args=[campaign.pk, holding.pk]))
         attrs = {}
         if not danger:
-            href += "?from=detail"
+            href += ("&" if "?" in href else "?") + "from=detail"
             attrs = {"hx-get": href, "hx-swap": "none"}
         actions.append(
             CampaignAssetAction(
@@ -152,8 +160,12 @@ def _asset_context(request, pk, asset_pk, *, back=None):
                             dict(name=effect.name, text=effect.text)
                             for effect in boon.effects
                         ],
-                        "saveUrl": reverse(
-                            "n26-campaign-asset-boons", args=[campaign.pk, holding.pk]
+                        "saveUrl": table_view_href(
+                            request,
+                            reverse(
+                                "n26-campaign-asset-boons",
+                                args=[campaign.pk, holding.pk],
+                            ),
                         ),
                         "csrfToken": get_token(request),
                         "snapshot": signing.dumps(
@@ -178,6 +190,10 @@ def _asset_context(request, pk, asset_pk, *, back=None):
         income = income_source.value
     return {
         "campaign": campaign,
+        "campaign_href": table_view_href(
+            request, reverse("n26-campaign", args=[campaign.pk])
+        )
+        + "#assets",
         "details": CampaignAssetDetails(
             name=str(holding),
             library_name=holding.asset.name if holding.name else "",
@@ -398,7 +414,9 @@ def save_asset_boons(request, pk, asset_pk):
         messages.success(request, "Boons saved.")
     return JsonResponse(
         {
-            "redirectUrl": reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
+            "redirectUrl": table_view_href(
+                request, reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
+            )
             + "#n26-territory-boons"
         }
     )

@@ -963,6 +963,59 @@ def context():
         # Somebody for a demo to name who is not the reader: a fixed name,
         # so the gallery reads the same whoever opens it.
         "sample_user": SampleUser("kesh"),
+        "sortable_table": {
+            "label": "Example territory inventory",
+            "columns": [
+                {
+                    "token": column,
+                    "label": label,
+                    "className": "text-right" if column == "income" else "",
+                }
+                for column, label in (
+                    ("name", "Territory"),
+                    ("income", "Income"),
+                    ("holder", "Held by"),
+                )
+            ],
+            "rows": [
+                {
+                    "id": "ruins-one",
+                    "values": {
+                        "name": "Old Ruins",
+                        "income": 20,
+                        "holder": "Unclaimed",
+                    },
+                    "groups": {"status": "Unclaimed", "holder": "Unclaimed"},
+                },
+                {
+                    "id": "ruins-two",
+                    "values": {
+                        "name": "Old Ruins",
+                        "income": 30,
+                        "holder": "Cinder Crew",
+                    },
+                    "groups": {"status": "Held", "holder": "Cinder Crew"},
+                },
+                {
+                    "id": "workshop",
+                    "values": {
+                        "name": "Workshop",
+                        "income": 25,
+                        "holder": "Rust Kings",
+                    },
+                    "groups": {"status": "Held", "holder": "Rust Kings"},
+                },
+            ],
+            "groupOptions": [
+                {"token": column, "label": label}
+                for column, label in (
+                    ("status", "Held or unclaimed"),
+                    ("holder", "Holding gang"),
+                )
+            ],
+            "sort": "name",
+            "group": "status",
+        },
         "campaign_sheet": campaign_sheet(),
         "sample_miniature": sample_miniature(),
         "sample_roster_summary": roster_summary(),

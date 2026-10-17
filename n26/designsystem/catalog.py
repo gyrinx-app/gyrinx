@@ -1499,6 +1499,25 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="sortable-table",
+                tag="c-n26.sortable-table",
+                template="n26/sortable_table.html",
+                summary="A table with clickable sort headers, group controls and distinct group headings.",
+                parts=(
+                    Part(
+                        "c-n26.sortable-table.group",
+                        "n26/sortable_table/group.html",
+                        "The shaded group heading shared by Cotton and React tables.",
+                    ),
+                ),
+                notes=(
+                    "The React SortableTable adapter in n26/frontend/ui owns the controls, headers and group headings. "
+                    "Callers supply prepared rows, grouping, permitted URLs and a row renderer; campaign gangs and territories share it. "
+                    "Use this Cotton wrapper for plain text and numeric cells with local view state. "
+                    "Use the controlled React adapter when a page owns URL state, richer cells or server actions."
+                ),
+            ),
+            Component(
                 slug="section",
                 tag="c-n26.section",
                 template="n26/section.html",
@@ -2302,16 +2321,12 @@ GROUPS: list[Group] = [
                 ),
                 needs=(KIT_JS,),
                 notes=(
-                    "Call it once per transferable asset type. Asset actions open "
-                    "in a native popover outside the scrolling table. Tab moves "
-                    "through its links and Escape closes it. A control is drawn "
-                    "only where the structure carries its address, "
-                    "so a viewer without permission sees no controls, not "
-                    "disabled ones; n26.core.views.campaigns fills them for the "
-                    "arbitrator and the holding gang's owner. Roll is the primary "
-                    "control because it begins a form, and it fetches with "
-                    'hx-swap="none" so the response opens a dialog; without '
-                    "JavaScript it is a plain link."
+                    "Call it once per transferable asset type. The shared SortableTable React adapter draws the "
+                    "clickable column headers, view controls and group headings used by the campaign gangs table. "
+                    "Income, boon text and permitted action links remain attached to each separate holding. "
+                    "Inventory preferences use asset_sort and asset_group in the URL and support Back/Forward. "
+                    "React owns the table and its action menus; existing Django dialogs stay outside it. "
+                    "The setup summary sits below the title in the section header."
                 ),
             ),
             Component(

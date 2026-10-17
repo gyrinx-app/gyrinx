@@ -8,6 +8,7 @@ import {
     openCampaignDialog,
 } from "./entry";
 import {
+    actionHref,
     readView,
     tableGroups,
     type CampaignGangsProps,
@@ -175,12 +176,12 @@ test("picker changes apply immediately and Back/Forward restore the URL view", a
     );
     expect(
         screen
-            .getByRole("columnheader", { name: "Upper · 1 gang" })
+            .getByRole("rowheader", { name: "Upper · 1 gang" })
             .getAttribute("style"),
     ).toContain("rgb(238, 0, 0)");
     expect(gangNames()).toEqual(["Beta", "Alpha", "Gamma"]);
     expect(
-        screen.getByRole("columnheader", { name: "Not set · 1 gang" }),
+        screen.getByRole("rowheader", { name: "Not set · 1 gang" }),
     ).toBeTruthy();
     act(() => {
         window.history.replaceState(null, "", "/campaign/?sort=-rating&group=");
@@ -463,4 +464,51 @@ test("the outside dialog bridge keeps all swaps out of the React children and re
         "Dialog unavailable",
     );
     source.remove();
+});
+
+test("gang actions retain the independent inventory preferences", () => {
+    window.history.replaceState(
+        null,
+        "",
+        "/campaign/?asset_sort=-income&asset_group=",
+    );
+    expect(
+        actionHref("/campaign/?starting=one", { sort: "-rating", group: "" }),
+    ).toBe(
+        "/campaign/?starting=one&asset_sort=-income&asset_group=&sort=-rating&group=",
+    );
+});
+
+test("cancelled inventory dialogs keep modified gang header navigation on the campaign", () => {
+    const returnUrl =
+        "/campaign/?sort=name&group=&asset_sort=-income&asset_group=status";
+    window.history.replaceState({}, "", returnUrl);
+    render(<CampaignGangs {...props()} onOpenDialog={vi.fn()} />);
+    const request = {};
+    act(() => {
+        window.history.replaceState(
+            {},
+            "",
+            "/asset/one/assign/?sort=name&group=&asset_sort=-income&asset_group=status",
+        );
+        window.dispatchEvent(
+            new CustomEvent("n26:campaign-dialog-request", {
+                detail: { request, pending: true },
+            }),
+        );
+    });
+    act(() => {
+        window.dispatchEvent(
+            new CustomEvent("n26:campaign-dialog-request", {
+                detail: { request, pending: false },
+            }),
+        );
+    });
+    window.history.replaceState({}, "", returnUrl);
+    const header = screen.getByRole("link", { name: "Rating" });
+    expect(header.getAttribute("href")).toBe(
+        "/campaign/?sort=rating&group=&asset_sort=-income&asset_group=status#gangs",
+    );
+    fireEvent.click(header, { metaKey: true });
+    expect(window.location.pathname + window.location.search).toBe(returnUrl);
 });

@@ -52,6 +52,21 @@ def checked_classes(attrs):
     return {"checked": match[1], "unchecked": match[2]}
 
 
+def sortable_group_recipe():
+    return {
+        name: classes(
+            '<c-n26.sortable-table.group label="Held" count="2 territories" '
+            + attrs
+            + " />",
+            "tbody",
+            "tr",
+            "th",
+            "span",
+        )
+        for name, attrs in (("default", ""), ("mobile", ':mobile_cards="True"'))
+    }
+
+
 def native_select_recipe(size=""):
     size_attribute = f'size="{size}"' if size else ""
     (select,) = attributes(
@@ -1139,6 +1154,7 @@ def recipes():
         ),
         "card": classes('<c-ui.card padding="sm" />', "div")[0],
         "table": classes("<c-ui.table />", "div", "table"),
+        "sortableGroup": sortable_group_recipe(),
         "link": classes('<c-n26.link href="/">Name</c-n26.link>', "a", "span"),
         "linkCurrent": classes(
             '<c-n26.link href="/" tone="current">Name</c-n26.link>', "a", "span"

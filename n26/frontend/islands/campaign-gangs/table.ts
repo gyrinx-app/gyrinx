@@ -1,3 +1,4 @@
+import { campaignViewHref, compareTableValues as compare } from "../../ui";
 import type {
     BadgeMark,
     CountedName,
@@ -86,7 +87,7 @@ export function readView(props: CampaignGangsProps, search: string): View {
     };
 }
 export function viewHref(href: string, view: View, hash?: string) {
-    const url = new URL(href, window.location.href);
+    const url = new URL(campaignViewHref(href), window.location.href);
     url.searchParams.set("sort", view.sort);
     url.searchParams.set("group", view.group);
     if (hash !== undefined) url.hash = hash;
@@ -94,25 +95,17 @@ export function viewHref(href: string, view: View, hash?: string) {
 }
 export function actionHref(href: string, view: View, back?: string) {
     const url = new URL(href, window.location.href);
+    const current = new URLSearchParams(window.location.search);
+    for (const key of ["asset_sort", "asset_group"]) {
+        if (current.has(key)) url.searchParams.set(key, current.get(key)!);
+        else url.searchParams.delete(key);
+    }
     if (back !== undefined) url.searchParams.set("back", back);
     else {
         url.searchParams.set("sort", view.sort);
         url.searchParams.set("group", view.group);
     }
     return url.pathname + url.search + url.hash;
-}
-function compare(a: string | number, b: string | number) {
-    if (typeof a === "string" && typeof b === "string") {
-        const left = Array.from(a),
-            right = Array.from(b);
-        for (let i = 0; i < Math.min(left.length, right.length); i++) {
-            const difference =
-                left[i].codePointAt(0)! - right[i].codePointAt(0)!;
-            if (difference) return difference;
-        }
-        return left.length - right.length;
-    }
-    return a < b ? -1 : a > b ? 1 : 0;
 }
 export function tableGroups(props: CampaignGangsProps, view: View) {
     const key = view.sort.replace(/^-/, "");

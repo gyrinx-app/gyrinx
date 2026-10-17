@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { mount as mountRoot } from "../../runtime/mount";
-import { ButtonLink, type ButtonLinkVariant } from "../../ui";
+import {
+    ButtonLink,
+    campaignViewHref,
+    openCampaignDialog,
+    registerCampaignDialogLifecycle,
+    runCampaignDialog,
+    type ButtonLinkVariant,
+} from "../../ui";
 
 type Props = {
     href: string;
@@ -26,13 +33,7 @@ export function CampaignViewLink(
             window.removeEventListener("n26:location-changed", update);
         };
     }, []);
-    const url = new URL(props.href, window.location.href);
-    const query = new URLSearchParams(search);
-    for (const key of ["sort", "group"]) {
-        if (query.has(key)) url.searchParams.set(key, query.get(key)!);
-        else url.searchParams.delete(key);
-    }
-    const href = url.pathname + url.search + url.hash;
+    const href = campaignViewHref(props.href, search);
     async function open(event: MouseEvent<HTMLAnchorElement>) {
         if (
             !props.dialog ||
@@ -46,22 +47,13 @@ export function CampaignViewLink(
         event.preventDefault();
         if (opening.current) return;
         opening.current = true;
-        const request = {};
-        const notify = (pending: boolean) =>
-            window.dispatchEvent(
-                new CustomEvent("n26:campaign-dialog-request", {
-                    detail: { request, pending },
-                }),
-            );
-        notify(true);
         setError(false);
         try {
-            await props.onOpenDialog?.(href);
+            await runCampaignDialog(() => props.onOpenDialog?.(href));
         } catch {
             setError(true);
         } finally {
             opening.current = false;
-            notify(false);
         }
     }
     return (
@@ -85,44 +77,13 @@ export function CampaignViewLink(
 }
 export function mount(element: HTMLElement, props: Props) {
     const source = element.closest<HTMLElement>("#n26-campaign-assets");
-    return mountRoot(element, CampaignViewLink, {
+    const releaseDialogs = registerCampaignDialogLifecycle();
+    const dispose = mountRoot(element, CampaignViewLink, {
         ...props,
-        onOpenDialog: async (href: string) => {
-            const htmx = (
-                window as Window & {
-                    htmx?: {
-                        ajax: (
-                            method: string,
-                            href: string,
-                            options: { source: HTMLElement; swap: string },
-                        ) => Promise<unknown>;
-                    };
-                }
-            ).htmx;
-            if (!source || !htmx) throw new Error("Dialog unavailable");
-            let answered = false;
-            const view = window.location.pathname + window.location.search;
-            function received(event: Event) {
-                if (
-                    window.location.pathname + window.location.search !==
-                    view
-                ) {
-                    event.preventDefault();
-                    return;
-                }
-                const xhr = (event as CustomEvent<{ xhr: XMLHttpRequest }>)
-                    .detail.xhr;
-                answered =
-                    xhr.status === 200 &&
-                    xhr.getResponseHeader("HX-Replace-Url") !== null;
-            }
-            source.addEventListener("htmx:beforeOnLoad", received);
-            try {
-                await htmx.ajax("GET", href, { source, swap: "none" });
-                if (!answered) throw new Error("Dialog unavailable");
-            } finally {
-                source.removeEventListener("htmx:beforeOnLoad", received);
-            }
-        },
+        onOpenDialog: (href: string) => openCampaignDialog(source, href),
     });
+    return () => {
+        releaseDialogs();
+        dispose();
+    };
 }

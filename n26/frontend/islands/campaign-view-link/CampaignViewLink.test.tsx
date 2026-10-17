@@ -67,3 +67,28 @@ test("asset dialog hrefs and ordinary clicks use the live view after a local cha
     await user.click(link);
     expect(open).toHaveBeenCalledWith("/assets/assign/?sort=-rating&group=");
 });
+
+test("territory details and actions preserve the independent inventory view", () => {
+    window.history.replaceState(
+        null,
+        "",
+        "/campaign/?sort=-rating&group=&asset_sort=-income&asset_group=holder",
+    );
+    render(
+        <CampaignViewLink
+            href="/assets/one/"
+            label="Old Ruins"
+            variant="default"
+            className="font-semibold"
+        />,
+    );
+    const link = screen.getByRole("link", { name: "Old Ruins" });
+    expect(link.getAttribute("href")).toBe(
+        "/assets/one/?sort=-rating&group=&asset_sort=-income&asset_group=holder",
+    );
+    act(() => {
+        window.history.replaceState(null, "", "/campaign/?asset_group=");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(link.getAttribute("href")).toBe("/assets/one/?asset_group=");
+});

@@ -22,6 +22,7 @@ def sheet():
         )
 
     return SimpleNamespace(
+        assets=[],
         gangs=[
             gang("Beta", 200, None, "Lower", None),
             gang("Alpha", 100, 10, "Upper", 3),
