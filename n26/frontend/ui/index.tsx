@@ -1318,3 +1318,19 @@ export {
     useDismiss,
     type AnchoredPlacementOptions,
 } from "./anchoredPanel";
+
+export {
+    SortableTable,
+    compareTableValues,
+    type TableView,
+    type TableColumn,
+    type TableGroup,
+} from "./SortableTable";
+
+export {
+    campaignViewHref,
+    openCampaignDialog,
+    runCampaignDialog,
+    guardDialogSubmission,
+    useCampaignDialogRequests,
+} from "./campaignNavigation";

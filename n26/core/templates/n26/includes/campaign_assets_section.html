@@ -16,7 +16,7 @@ rolls, including headings and counts. Possessions remain on their gang.
             {{ assets_actions }}
         </div>
     {% endif %}
-    <div id="assets" class="flex flex-col gap-4">
+    <div id="assets" class="scroll-mt-20 flex flex-col gap-4">
         {% for table in sheet.assets %}
             <c-n26.campaign-assets :table="table" />
         {% empty %}

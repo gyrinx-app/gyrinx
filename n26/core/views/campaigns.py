@@ -462,6 +462,7 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url
                 )
             if preferences:
                 for field in (
+                    "href",
                     "assign_href",
                     "unassign_href",
                     "transfer_href",
@@ -1646,16 +1647,16 @@ def _table_action_href(request, here=""):
     """Carry the visible table's state into a dialog opened from an older link."""
     from urllib.parse import parse_qsl, urlencode, urlsplit
 
-    from n26.core.campaign_table import table_query
+    from n26.core.campaign_table import CAMPAIGN_VIEW_KEYS, table_query
     from n26.core.views.htmx import is_htmx
 
     query = table_query(request)
     url = urlsplit(here or request.get_full_path())
     parameters = dict(parse_qsl(url.query, keep_blank_values=True))
     if is_htmx(request) and request.headers.get("HX-Current-URL"):
-        for key in ("sort", "group"):
+        for key in CAMPAIGN_VIEW_KEYS:
             parameters.pop(key, None)
-    parameters.update({key: query[key] for key in ("sort", "group") if key in query})
+    parameters.update({key: query[key] for key in CAMPAIGN_VIEW_KEYS if key in query})
     return url.path + ("?" + urlencode(parameters) if parameters else "")
 
 
@@ -1696,9 +1697,12 @@ def _campaign_asset_or_404(campaign, asset_pk):
 def _asset_back(request, campaign, holding):
     from django.urls import reverse
 
-    if request.GET.get("from") == "detail":
-        return reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
     from n26.core.campaign_table import table_view_href
+
+    if request.GET.get("from") == "detail":
+        return table_view_href(
+            request, reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
+        )
 
     return table_view_href(request, _campaign_page(campaign)) + "#assets"
 

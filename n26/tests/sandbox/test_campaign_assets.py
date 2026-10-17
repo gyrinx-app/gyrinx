@@ -35,6 +35,7 @@ from n26.library.authoring import (
 )
 from n26.library.core_campaign import seed_core_campaign
 from n26.library.models import Asset, CampaignType, Counter
+from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import (
     add_asset,
     assign_asset,
@@ -422,7 +423,9 @@ class TestTheAssetsOnTheCampaignPage:
         assert entry.income == 30
         client.force_login(arbitrator)
         html = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
-        assert "30¢" in html
+        assert (
+            island_props(html, "campaign-assets")["entries"][0]["income"]["value"] == 30
+        )
         assert "Boons" not in html
 
     def test_the_page_lists_held_and_unclaimed_by_asset_type(
@@ -434,9 +437,10 @@ class TestTheAssetsOnTheCampaignPage:
         body = body.decode()
         assert "Territories" in body
         assert "The Ashen Choir" in body
-        assert "Unclaimed" in body
+        entries = island_props(body, "campaign-assets")["entries"]
+        assert any(not entry["held"] for entry in entries)
         assert "Old Ruins by the sump" in body
-        assert "30¢" in body
+        assert all(entry["income"]["value"] == 30 for entry in entries)
         assert (
             reverse(
                 "n26-campaign-asset-unassign", args=[campaign.pk, campaign_assets[0].pk]
@@ -458,7 +462,8 @@ class TestTheAssetsOnTheCampaignPage:
         client.force_login(player)
         body = client.get(reverse("n26-campaign", args=[campaign.pk])).content
         body = body.decode()
-        assert "Unclaimed" in body
+        entries = island_props(body, "campaign-assets")["entries"]
+        assert any(not entry["held"] for entry in entries)
         assert (
             reverse(
                 "n26-campaign-asset-assign", args=[campaign.pk, campaign_assets[1].pk]
@@ -587,7 +592,7 @@ class TestTheAssetsOnTheCampaignPage:
             op.set_gang_grouping(str(label.pk), {})
         client.force_login(arbitrator)
         page = reverse("n26-campaign", args=[campaign.pk])
-        current = page + "?sort=-rating&group="
+        current = page + "?sort=-rating&group=&asset_sort=-income&asset_group=holder"
         sheet = client.get(current).context["sheet"]
         entry = next(
             entry
@@ -619,6 +624,8 @@ class TestTheAssetsOnTheCampaignPage:
         assert response["HX-Replace-Url"] == current
         assert response.context["sheet"].table_sort == "-rating"
         assert response.context["sheet"].table_group == ""
+        assert response.context["sheet"].inventory_view["sort"] == "-income"
+        assert response.context["sheet"].inventory_view["group"] == "holder"
         campaign_assets[0].refresh_from_db()
         assert campaign_assets[0].holder_id == (
             None
@@ -946,3 +953,131 @@ class TestCampaignSuppression:
         assert Assignment.objects.filter(
             gang=first_gang, rule=shared_rule, archived=False
         ).exists()
+
+
+class TestInventoryViews:
+    @pytest.fixture(autouse=True)
+    def campaigns_enabled(self):
+        return FeatureFlag.objects.create(
+            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
+        )
+
+    def test_sorted_holdings_keep_their_details_actions_and_return_view(
+        self, client, campaign_assets, campaign, gang, arbitrator
+    ):
+        from bs4 import BeautifulSoup
+
+        from n26.core.campaigns import campaign_operation
+
+        assign_asset(campaign_assets[0], gang)
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            from uuid import uuid4
+
+            op.add_assets(
+                [campaign_assets[0].asset],
+                name="High ruins",
+                income=45,
+                request_key=uuid4(),
+            )
+        client.force_login(arbitrator)
+        page = reverse("n26-campaign", args=[campaign.pk])
+        query = {
+            "sort": "-rating",
+            "group": "",
+            "asset_sort": "-income",
+            "asset_group": "",
+        }
+        response = client.get(page, query)
+        table = next(
+            table for table in response.context["sheet"].assets if table.entries
+        )
+        from n26.core.campaign_table import asset_table_props
+
+        props = asset_table_props(table)
+        assert sorted(entry["sortValues"]["income"] for entry in props["entries"]) == [
+            30,
+            30,
+            45,
+        ]
+        assert (props["sort"], props["group"]) == ("-income", "")
+        assert len({entry.campaign_asset_id for entry in table.entries}) == 3
+        soup = BeautifulSoup(response.content, "html.parser")
+        assert soup.select('[data-react-name="campaign-assets"]')
+        held = next(entry for entry in table.entries if entry.held)
+        detail = client.get(held.href)
+        assert "asset_sort=-income" in detail.context["campaign_href"]
+        assert "asset_group=" in detail.context["campaign_href"]
+        assert held.unassign_href and held.transfer_href and not held.assign_href
+        assert "asset_sort=-income" in held.unassign_href
+
+    def test_viewers_can_organise_inventory_without_receiving_arbitrator_actions(
+        self, client, campaign_assets, campaign, gang, player
+    ):
+        assign_asset(campaign_assets[0], gang)
+        client.force_login(player)
+        response = client.get(
+            reverse("n26-campaign", args=[campaign.pk]), {"asset_group": "holder"}
+        )
+        table = next(
+            table for table in response.context["sheet"].assets if table.entries
+        )
+        from n26.core.campaign_table import asset_table_props
+
+        props = asset_table_props(table)
+        assert props["group"] == "holder"
+        assert {entry["holder"] for entry in props["entries"]} == {"", gang.name}
+        assert all(
+            not entry.assign_href and not entry.remove_href for entry in table.entries
+        )
+        assert 'data-react-name="campaign-assets"' in response.content.decode()
+
+    def test_more_repeated_holdings_add_no_queries_for_sorting_or_grouping(
+        self, client, campaign_assets, campaign, gang, arbitrator, old_ruins
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        assign_asset(campaign_assets[0], gang)
+        client.force_login(arbitrator)
+        page = reverse("n26-campaign", args=[campaign.pk])
+        variants = [
+            {"asset_sort": "-income", "asset_group": "holder"},
+            {"asset_sort": "name", "asset_group": "status"},
+        ]
+
+        def counts():
+            sizes = []
+            for query in variants:
+                client.get(page, query)
+                with CaptureQueriesContext(connection) as queries:
+                    assert client.get(page, query).status_code == 200
+                sizes.append(len(queries))
+            return sizes
+
+        small = counts()
+        for _ in range(8):
+            assign_asset(add_asset(campaign, old_ruins), gang)
+        assert counts() == small
+
+    def test_removing_an_unclaimed_copy_returns_to_the_selected_inventory(
+        self, client, campaign_assets, campaign, arbitrator
+    ):
+        from urllib.parse import parse_qs, urlsplit
+
+        client.force_login(arbitrator)
+        query = {
+            "sort": "-rating",
+            "group": "",
+            "asset_sort": "-income",
+            "asset_group": "holder",
+        }
+        page = client.get(reverse("n26-campaign", args=[campaign.pk]), query)
+        entry = next(
+            entry for table in page.context["sheet"].assets for entry in table.entries
+        )
+        response = client.post(entry.remove_href)
+        assert response.status_code == 302
+        assert parse_qs(urlsplit(response.url).query, keep_blank_values=True) == {
+            key: [value] for key, value in query.items()
+        }
+        assert campaign.campaign_assets.count() == 1

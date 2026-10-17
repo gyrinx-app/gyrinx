@@ -31,6 +31,7 @@ from n26.library.authoring import (
 )
 from n26.library.income import ensure_income_counter, income_modifiers
 from n26.library.models import AssetType
+from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import found_campaign, found_gang
 
 pytestmark = pytest.mark.django_db
@@ -93,16 +94,13 @@ def test_asset_row_and_holding_log_link_to_the_exact_holding(client, setup):
         client.get(reverse("n26-campaign", args=[campaign.pk])).content, "html.parser"
     )
     links = soup.find_all("a", href=address(campaign, holding))
-    assert len(links) >= 2
+    assert links
     assert all("Ruins by the sump" in link.get_text() for link in links)
-    table = soup.find(id="n26-campaign-assets").find("table")
-    assert [heading.get_text(strip=True) for heading in table.thead.find_all("th")] == [
-        "Territory",
-        "Income",
-        "Held by",
-        "Boon",
-        "Actions",
-    ]
+    table = island_props(str(soup), "campaign-assets")
+    entry = next(entry for entry in table["entries"] if entry["id"] == str(holding.pk))
+    assert entry["href"] == address(campaign, holding)
+    assert entry["name"] == "Ruins by the sump"
+    assert table["label"] == "Territory"
 
 
 @pytest.mark.parametrize(
@@ -144,8 +142,8 @@ def test_asset_dropdown_keeps_permission_gated_links_and_dialog_fetches(
         client.get(reverse("n26-campaign", args=[campaign.pk])).content,
         "html.parser",
     )
-    panel_id = f"asset-actions-{holding.pk}"
-    panel = soup.find(id=panel_id)
+    props = island_props(str(soup), "campaign-assets")
+    entry = next(entry for entry in props["entries"] if entry["id"] == str(holding.pk))
     labels = (
         {"Transfer", "Unassign"}
         if held and person == "arbitrator"
@@ -155,19 +153,11 @@ def test_asset_dropdown_keeps_permission_gated_links_and_dialog_fetches(
         if not held and person == "arbitrator"
         else set()
     )
-    if not labels:
-        assert panel is None
-        assert soup.find("button", popovertarget=panel_id) is None
-        return
-    assert panel["popover"] == "auto"
-    trigger = soup.find("button", popovertarget=panel_id)
-    assert trigger["aria-label"] == f"Actions for {holding.name}"
-    links = panel.find_all("a")
-    assert {link.get_text(strip=True) for link in links} == labels
-    for link in links:
-        if link.get_text(strip=True) != "Remove":
-            assert link["hx-get"] == link["href"]
-            assert link["hx-swap"] == "none"
+    assert {action["label"] for action in entry["actions"]} == labels
+    for action in entry["actions"]:
+        assert str(campaign.pk) in action["href"]
+        assert str(holding.pk) in action["href"]
+        assert action["dialog"] == (action["label"] != "Remove")
 
 
 def test_unclaimed_asset_offers_assign_remove_only_to_arbitrator(client, setup):
@@ -581,7 +571,12 @@ def test_more_distinct_selectable_holdings_do_not_add_roster_or_campaign_page_qu
             assert len(entries) == 8
             assert all(entry.income == 17 for entry in entries)
             assert all(entry.boon == "Income" for entry in entries)
-        assert len(soup.select('[data-react-name="income-tooltip"]')) >= 1
+        if path == paths[0]:
+            assert len(soup.select('[data-react-name="income-tooltip"]')) >= 1
+        else:
+            props = island_props(response.content, "campaign-assets")
+            assert all(entry["income"]["value"] >= 0 for entry in props["entries"])
+            assert any(entry["income"]["sources"] for entry in props["entries"])
 
 
 @pytest.mark.parametrize("person", ["arbitrator", "player", "reader"])
@@ -622,12 +617,10 @@ def test_campaign_shows_each_holdings_current_boon_to_every_viewer(
             for entry in table.entries
         }
         soup = BeautifulSoup(response.content, "html.parser")
-        table = soup.find(id="n26-campaign-assets").find("table")
+        props = island_props(response.content, "campaign-assets")
+        rendered = {entry["id"]: entry for entry in props["entries"]}
         for entry in entries.values():
-            row = table.find("a", href=entry.href).find_parent("tr")
-            cell = row.find_all("td")[3]
-            assert cell.get_text(strip=True) == (entry.boon or "—")
-            assert cell.find("a") is None and cell.find("button") is None
+            assert rendered[entry.campaign_asset_id]["boon"] == entry.boon
         assert "Apply boons" not in soup.get_text()
         return entries
 

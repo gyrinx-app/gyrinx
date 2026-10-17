@@ -2074,6 +2074,11 @@ class CampaignAssetTable:
     #: where there is no rolled table to roll on.
     roll_href: str = ""
     setup_hint: str = ""
+    inventory_view: dict = field(default_factory=dict)
+
+    @property
+    def header_description(self):
+        return self.setup_hint if self.roll_href else ""
 
     @property
     def held(self):
@@ -2146,6 +2151,7 @@ class CampaignSheet:
     table_group: str = ""
     table_href: str = ""
     table_focus_counter: str = ""
+    inventory_view: dict = field(default_factory=dict)
 
     def __post_init__(self):
         for table in self.assets:

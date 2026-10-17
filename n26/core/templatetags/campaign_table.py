@@ -2,10 +2,11 @@
 
 from django import template
 
-from n26.core.campaign_table import gang_table_props
+from n26.core.campaign_table import asset_table_props, gang_table_props
 
 register = template.Library()
 register.simple_tag(gang_table_props)
+register.simple_tag(asset_table_props)
 
 
 @register.simple_tag
