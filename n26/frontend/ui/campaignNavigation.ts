@@ -106,3 +106,54 @@ export async function runCampaignDialog(
         notify(false);
     }
 }
+
+const DIALOG_HOSTS = [
+    "n26-campaign-state-dialog-host",
+    "n26-asset-dialog-host",
+    "n26-roll-dialog-host",
+];
+let dialogUsers = 0;
+
+function restoreCampaignDialogs() {
+    for (const id of DIALOG_HOSTS) {
+        document
+            .querySelector<HTMLDialogElement>(`#${id} dialog[open]`)
+            ?.close("n26-history");
+    }
+}
+
+function campaignDialogSubmitting(event: Event) {
+    const form = event.target;
+    const verb = (event as CustomEvent<{ requestConfig: { verb: string } }>)
+        .detail.requestConfig.verb;
+    if (
+        verb.toLowerCase() !== "post" ||
+        !(form instanceof HTMLFormElement) ||
+        !form.closest(DIALOG_HOSTS.map((id) => `#${id}`).join(", "))
+    )
+        return;
+    guardDialogSubmission(form, () => window.location.reload());
+}
+
+/** Share one set of page-dialog listeners across independently mounted islands. */
+export function registerCampaignDialogLifecycle() {
+    if (dialogUsers++ === 0) {
+        window.addEventListener("popstate", restoreCampaignDialogs);
+        document.addEventListener(
+            "htmx:beforeRequest",
+            campaignDialogSubmitting,
+        );
+    }
+    let disposed = false;
+    return () => {
+        if (disposed) return;
+        disposed = true;
+        if (--dialogUsers === 0) {
+            window.removeEventListener("popstate", restoreCampaignDialogs);
+            document.removeEventListener(
+                "htmx:beforeRequest",
+                campaignDialogSubmitting,
+            );
+        }
+    };
+}

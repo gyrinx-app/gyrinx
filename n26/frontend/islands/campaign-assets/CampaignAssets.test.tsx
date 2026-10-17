@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { CampaignAssets } from "./CampaignAssets";
+import { mount as mountAssets } from "./entry";
 import {
     assetGroups,
     type AssetEntry,
@@ -231,4 +232,48 @@ test("external gang views refresh every inventory action link and pending dialog
             .getByRole("columnheader", { name: "Income" })
             .getAttribute("aria-sort"),
     ).toBe("ascending");
+});
+
+test("Back dismisses a roll dialog and restores inventory preferences with no gang island", async () => {
+    const user = userEvent.setup();
+    const host = document.createElement("div");
+    host.id = "n26-campaign-assets";
+    const root = document.createElement("div");
+    host.append(root);
+    const outside = document.createElement("div");
+    outside.id = "n26-roll-dialog-host";
+    document.body.append(host, outside);
+    const initialUrl = window.location.pathname + window.location.search;
+    let dispose = () => {};
+    act(() => {
+        dispose = mountAssets(root, props());
+    });
+    try {
+        await user.selectOptions(screen.getByLabelText("Sort by"), "-income");
+        const dialogUrl = window.location.pathname + window.location.search;
+        const dialog = document.createElement("dialog");
+        dialog.setAttribute("open", "");
+        dialog.close = vi.fn((reason?: string) => {
+            dialog.removeAttribute("open");
+            if (reason !== "n26-history")
+                window.history.replaceState({}, "", dialogUrl);
+        });
+        outside.append(dialog);
+        act(() => {
+            window.history.replaceState({ htmx: false }, "", initialUrl);
+            window.dispatchEvent(new PopStateEvent("popstate"));
+        });
+        expect(dialog.close).toHaveBeenCalledWith("n26-history");
+        expect(dialog.hasAttribute("open")).toBe(false);
+        expect(
+            (screen.getByLabelText("Sort by") as HTMLSelectElement).value,
+        ).toBe("name");
+        expect(window.location.pathname + window.location.search).toBe(
+            initialUrl,
+        );
+    } finally {
+        act(() => dispose());
+        host.remove();
+        outside.remove();
+    }
 });

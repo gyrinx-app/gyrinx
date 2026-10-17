@@ -4,6 +4,7 @@ import {
     ButtonLink,
     campaignViewHref,
     openCampaignDialog,
+    registerCampaignDialogLifecycle,
     runCampaignDialog,
     type ButtonLinkVariant,
 } from "../../ui";
@@ -76,8 +77,13 @@ export function CampaignViewLink(
 }
 export function mount(element: HTMLElement, props: Props) {
     const source = element.closest<HTMLElement>("#n26-campaign-assets");
-    return mountRoot(element, CampaignViewLink, {
+    const releaseDialogs = registerCampaignDialogLifecycle();
+    const dispose = mountRoot(element, CampaignViewLink, {
         ...props,
         onOpenDialog: (href: string) => openCampaignDialog(source, href),
     });
+    return () => {
+        releaseDialogs();
+        dispose();
+    };
 }

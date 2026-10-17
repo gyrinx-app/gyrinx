@@ -1,12 +1,17 @@
 import { mount as mountRoot } from "../../runtime/mount";
-import { openCampaignDialog } from "../../ui";
+import { openCampaignDialog, registerCampaignDialogLifecycle } from "../../ui";
 import { CampaignAssets } from "./CampaignAssets";
 import type { CampaignAssetsProps } from "./table";
 
 export function mount(element: HTMLElement, props: CampaignAssetsProps) {
     const source = element.closest<HTMLElement>("#n26-campaign-assets");
-    return mountRoot(element, CampaignAssets, {
+    const releaseDialogs = registerCampaignDialogLifecycle();
+    const dispose = mountRoot(element, CampaignAssets, {
         ...props,
         onOpenDialog: (href: string) => openCampaignDialog(source, href),
     });
+    return () => {
+        releaseDialogs();
+        dispose();
+    };
 }

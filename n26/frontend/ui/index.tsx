@@ -1329,6 +1329,7 @@ export {
 
 export {
     campaignViewHref,
+    registerCampaignDialogLifecycle,
     openCampaignDialog,
     runCampaignDialog,
     guardDialogSubmission,
