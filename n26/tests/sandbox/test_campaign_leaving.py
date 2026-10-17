@@ -481,9 +481,14 @@ class TestTheLeavePage:
         drawn = client.get(address).content.decode()
 
         assert "Your gangs will be removed from Dust Falls" in drawn
-        ashen, grey = BeautifulSoup(drawn, "html.parser").select("[data-leaving-gang]")
-        assert ashen.h2.get_text(strip=True) == "The Ashen Choir"
-        assert grey.h2.get_text(strip=True) == "The Grey Hounds"
+        sections = {
+            section.h2.get_text(strip=True): section
+            for section in BeautifulSoup(drawn, "html.parser").select(
+                "[data-leaving-gang]"
+            )
+        }
+        assert sections.keys() == {"The Ashen Choir", "The Grey Hounds"}
+        ashen, grey = sections["The Ashen Choir"], sections["The Grey Hounds"]
         assert re.search(
             r"<dt[^>]*>Territory</dt>\s*<dd[^>]*>\s*Old Ruins\s*</dd>", str(ashen)
         )
@@ -557,6 +562,69 @@ class TestTheLeavePage:
         assert client.post(address).status_code == 404
         assert CampaignMembership.objects.get(gang=gang).playing
 
+    @pytest.mark.parametrize("answer", [None, False], ids=["invited", "declined"])
+    def test_somebody_invited_or_who_declined_cannot_leave(
+        self, client, campaign, open_to_everyone, address, answer
+    ):
+        asked = User.objects.create_user("asked")
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.invite(asked)
+        if answer is not None:
+            with campaign_operation(campaign, actor=asked) as act:
+                act.answer_invitation(asked, accepted=answer)
+        client.force_login(asked)
+
+        assert client.get(address).status_code == 404
+        assert client.post(address).status_code == 404
+        assert CampaignParticipant.objects.filter(user=asked).exists()
+
+    def test_a_player_removed_since_the_page_opened_is_told_so(
+        self, client, player, gang, campaign, address, monkeypatch
+    ):
+        from n26.core.campaigns import CampaignOperation
+
+        original = CampaignOperation.leave
+
+        def removed_then_leave(op):
+            op.remove_player(
+                CampaignParticipant.objects.get(campaign=op.campaign, user=op.actor)
+            )
+            return original(op)
+
+        monkeypatch.setattr(CampaignOperation, "leave", removed_then_leave)
+        response = client.post(address, follow=True)
+
+        assert "You are no longer a player in Dust Falls." in (
+            response.content.decode()
+        )
+        assert CampaignMembership.objects.get(gang=gang).playing
+        assert not campaign.events.filter(kind=CampaignEvent.Kind.PLAYER_LEFT).exists()
+
+    def test_the_page_costs_the_same_however_many_gangs(
+        self, client, player, gang, gang_type, rival, campaign, address
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def cost():
+            with CaptureQueriesContext(connection) as queries:
+                assert client.get(address).status_code == 200
+            return len(queries)
+
+        def with_a_draft(member):
+            battle = fight(campaign, member, rival)
+            start_report(member, actor=player, battle=battle, request_key=uuid4())
+
+        with_a_draft(gang)
+        client.get(address)
+        one = cost()
+
+        other = found_gang("The Grey Hounds", gang_type, owner=player)
+        join_campaign(other, campaign)
+        with_a_draft(other)
+
+        assert cost() == one
+
 
 class TestTheRemovePlayerPage:
     @pytest.fixture
@@ -596,3 +664,23 @@ class TestTheRemovePlayerPage:
         )
         for member in (gang, second):
             assert not CampaignMembership.objects.get(gang=member).playing
+
+    def test_a_player_who_left_since_the_page_opened_is_not_removed_again(
+        self, client, gang, campaign, address, monkeypatch
+    ):
+        from n26.core.campaigns import CampaignOperation
+
+        original = CampaignOperation.remove_player
+
+        def left_then_remove(op, player, **kwargs):
+            CampaignOperation(op.campaign, actor=player.user).leave()
+            return original(op, player, **kwargs)
+
+        monkeypatch.setattr(CampaignOperation, "remove_player", left_then_remove)
+        response = client.post(address, {"gangs": "remove"}, follow=True)
+
+        assert "player is no longer in Dust Falls." in response.content.decode()
+        assert not campaign.events.filter(
+            kind=CampaignEvent.Kind.PLAYER_REMOVED
+        ).exists()
+        assert campaign.events.filter(kind=CampaignEvent.Kind.PLAYER_LEFT).count() == 1

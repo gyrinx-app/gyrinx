@@ -51,7 +51,7 @@ page that removes one gang.
         {% endif %}
         {% for loss in losses %}
             <section class="mt-4" data-leaving-gang>
-                <h2 class="text-sm font-semibold">{{ loss.gang.name }}</h2>
+                <h2 class="text-sm font-semibold">{{ loss.name }}</h2>
                 {% if loss.losing %}
                     <h3 class="mt-2 text-sm text-muted">Removed from the gang</h3>
                     <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">

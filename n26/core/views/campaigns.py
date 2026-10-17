@@ -1501,21 +1501,24 @@ def may_remove_gang(campaign, gang, user):
     return reading is not None and reading in (campaign.owner_id, gang.owner_id)
 
 
-def _what_the_gang_loses(campaign, gang, sheet=None):
+def _what_the_gang_loses(campaign, gang):
     """What taking the gang out removes from it, and which of the
     campaign's assets it holds go back unheld.
 
     Read off the gangs table's line for the gang, so the page lists the
     same facts the campaign page shows: each counter with its value, each
     label with its pick, each possession. Empty values are left out,
-    since nothing is lost there. A page listing several gangs passes the
-    campaign's ``sheet`` it has already rendered.
+    since nothing is lost there.
     """
     from n26.core.render import render_campaign
 
-    if sheet is None:
-        sheet = render_campaign(campaign, with_owner_badges=False)
+    sheet = render_campaign(campaign, with_owner_badges=False)
     line = next(line for line in sheet.gangs if line.gang_id == str(gang.pk))
+    return _what_the_line_loses(sheet, line)
+
+
+def _what_the_line_loses(sheet, line):
+    """``_what_the_gang_loses`` for a line of a sheet already rendered."""
     losing = []
     returning = []
     for column, names in zip(sheet.asset_types, line.assets, strict=True):
@@ -3206,7 +3209,9 @@ def remove_player(request, pk, user_pk):
         with_gangs = request.POST.get("gangs") == "remove"
         with campaign_operation(found, actor=request.user) as act:
             removed = act.remove_player(player, with_gangs=with_gangs)
-        if removed:
+        if removed is None:
+            messages.info(request, f"{name} is no longer in {found.name}.")
+        elif removed:
             gangs = "gangs" if len(removed) > 1 else "gang"
             messages.success(
                 request, f"Removed {name} and their {gangs} from {found.name}."
@@ -3251,7 +3256,7 @@ def leave_campaign(request, pk):
         with campaign_operation(found, actor=request.user) as act:
             left = act.leave()
         if left is None:
-            messages.error(request, f"You are not a player in {found.name}.")
+            messages.info(request, f"You are no longer a player in {found.name}.")
         elif left:
             gangs = "gangs" if len(left) > 1 else "gang"
             messages.success(request, f"You and your {gangs} left {found.name}.")
@@ -3260,12 +3265,18 @@ def leave_campaign(request, pk):
         # The top of the page, not the gangs table, so the message is in view.
         return redirect(back)
 
-    gangs = list(_gangs_of(found, request.user))
-    sheet = render_campaign(found, with_owner_badges=False) if gangs else None
-    losses = [
-        GangLosses(gang, *_what_the_gang_loses(found, gang, sheet)) for gang in gangs
+    sheet = render_campaign(found, with_owner_badges=False)
+    # The player's gangs are read off the sheet, so every gang listed has a
+    # line to read its losses from.
+    lines = [
+        line
+        for line in sheet.gangs
+        if line.owner is not None and line.owner.pk == request.user.pk
     ]
-    drafts, unrecorded = _unfinished_battles(found, gangs)
+    losses = [
+        GangLosses(line.name, *_what_the_line_loses(sheet, line)) for line in lines
+    ]
+    drafts, unrecorded = _unfinished_battles(found, [line.gang_id for line in lines])
     return render(
         request,
         "n26/leave_campaign.html",
@@ -3295,7 +3306,7 @@ class GangLosses:
     """One gang on the leave page: what it loses, and which assets it
     holds go back to the campaign. Each list is (column, value) pairs."""
 
-    gang: object
+    name: str
     losing: list
     returning: list
 
@@ -3308,7 +3319,7 @@ class UnfinishedBattle:
     href: str
 
 
-def _unfinished_battles(campaign, gangs):
+def _unfinished_battles(campaign, gang_ids):
     """The leaving player's post-battle reports still in draft, and the
     battles their gangs fought that have no result yet.
 
@@ -3318,7 +3329,7 @@ def _unfinished_battles(campaign, gangs):
     """
     from n26.core.models import Battle, PostBattleReport
 
-    if not gangs:
+    if not gang_ids:
         return [], []
     drafts = [
         UnfinishedBattle(
@@ -3326,7 +3337,7 @@ def _unfinished_battles(campaign, gangs):
             reverse("n26-post-battle-editor", args=[report.pk]),
         )
         for report in PostBattleReport.objects.filter(
-            gang__in=gangs,
+            gang__in=gang_ids,
             battle__campaign=campaign,
             state=PostBattleReport.State.DRAFT,
         )
@@ -3339,7 +3350,7 @@ def _unfinished_battles(campaign, gangs):
             reverse("n26-battle", args=[campaign.pk, battle.pk]),
         )
         for battle in campaign.battles.filter(
-            gangs__in=gangs, result=Battle.Result.NOT_RECORDED
+            gangs__in=gang_ids, result=Battle.Result.NOT_RECORDED
         )
         .distinct()
         .order_by("date")

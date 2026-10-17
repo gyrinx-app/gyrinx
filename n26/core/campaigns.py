@@ -348,8 +348,18 @@ class CampaignOperation:
 
         Their gangs keep playing unless the arbitrator asks for them to be
         taken out too (``with_gangs``), each as ``remove_gang`` takes one.
-        Returns the gangs taken out.
+        Returns the gangs taken out. Somebody who left or was removed since
+        the page was read changes nothing, and the caller gets None back.
         """
+        from n26.core.models import CampaignParticipant
+
+        player = (
+            CampaignParticipant.objects.select_related("user")
+            .filter(pk=player.pk, campaign=self.campaign)
+            .first()
+        )
+        if player is None:
+            return None
         user = player.user
         gangs = self._remove_gangs_of(user) if with_gangs else []
         player.delete()
