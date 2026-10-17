@@ -94,9 +94,7 @@ page that removes one gang.
         {% if unrecorded %}
             <section class="mt-4">
                 <h2 class="text-sm font-semibold">Battles with no result</h2>
-                <p class="mt-1 text-sm text-muted">
-                    After you leave, only the arbitrator and the other players can record results for these battles.
-                </p>
+                <p class="mt-1 text-sm text-muted">Only the arbitrator can record results for these battles.</p>
                 <ul class="mt-2 space-y-1 text-sm">
                     {% for battle in unrecorded %}
                         <li>

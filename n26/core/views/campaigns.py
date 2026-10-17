@@ -3323,9 +3323,9 @@ def _unfinished_battles(campaign, gang_ids):
     """The leaving player's post-battle reports still in draft, and the
     battles their gangs fought that have no result yet.
 
-    Drafts stay the owner's to finish once they have left. Results are
-    recorded by the campaign's arbitrator and players, so the player who
-    leaves can no longer record one.
+    Drafts stay the owner's to finish once they have left. A battle's
+    result is the arbitrator's to record. Gangs taken out earlier are not
+    listed: leaving changes nothing about them.
     """
     from n26.core.models import Battle, PostBattleReport
 
