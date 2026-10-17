@@ -93,6 +93,12 @@ class TestTheGangSheetHeader:
 
         assert entries(props) == [
             ("History", gang_url("n26-gang-history", gang), "default", False),
+            (
+                "Other actions",
+                gang_url("n26-gang-other-actions", gang),
+                "default",
+                False,
+            ),
             ("Notes", gang_url("n26-gang-notes", gang), "default", False),
             ("Lore", gang_url("n26-gang-lore", gang), "default", False),
             ("Clone gang", gang_url("n26-clone-gang", gang), "default", False),
@@ -189,12 +195,13 @@ def test_the_menu_comes_back_when_a_label_choice_redraws_the_sheet(
     _, props, listed = the_menu(html)
     assert [item["label"] for item in props["items"]] == [
         "History",
+        "Other actions",
         "Notes",
         "Lore",
         "Clone gang",
         "Delete gang",
     ]
-    assert len(listed) == 5
+    assert len(listed) == 6
 
 
 class TestTheCampaignHeader:

@@ -3118,6 +3118,7 @@ def _imported(pack=None):
         Category,
         DefaultAssignmentSet,
         GangType,
+        HasSubtypes,
         Modifier,
         Profile,
         Rule,
@@ -3173,6 +3174,11 @@ def _imported(pack=None):
     # rewards work.  They are foundations too, and deleting their typed scope
     # or effect rows makes the seed incomplete even though its table survives.
     spared |= fighter_advancement_modifiers()
+    # Conditions on retained modifiers must keep the subtype identities they name.
+    kept_subtypes = HasSubtypes.objects.filter(
+        scope__modifier__in=Modifier.objects.filter(spared),
+        subtypes__isnull=False,
+    ).values("subtypes")
     doomed = list(
         Modifier.objects.filter(**scope).exclude(spared).values_list("pk", flat=True)
     )
@@ -3221,10 +3227,16 @@ def _imported(pack=None):
         (
             "subtypes",
             Subtype.objects.filter(**scope).exclude(
-                name__in=FIGHTER_SUBTYPES + VEHICLE_SUBTYPES
+                Q(name__in=FIGHTER_SUBTYPES + VEHICLE_SUBTYPES)
+                | Q(pk__in=kept_subtypes)
             ),
         ),
-        ("gang types", GangType.objects.filter(**scope).exclude(name__in=GANG_TYPES)),
+        (
+            "gang types",
+            GangType.objects.filter(**scope).exclude(
+                Q(name__in=GANG_TYPES) | Q(excluded_built_in_actions__isnull=False)
+            ),
+        ),
         (
             "categories",
             Category.objects.filter(**scope).exclude(

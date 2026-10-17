@@ -1702,3 +1702,17 @@ def statline_form_for(statline_type):
     form_class.base_fields = fields
     form_class.declared_fields = fields
     return form_class
+
+
+def trading_post_visit_settings_form(*args, **kwargs):
+    """A global configuration has no owning pack to constrain its references."""
+
+    class TradingPostVisitSettingsForm(
+        generate_form(specs()["configure_trading_post_visit"])
+    ):
+        def clean(self):
+            # Field validation enforces the library-only queryset. Global settings
+            # can reference owned library packs as well as system packs.
+            return forms.Form.clean(self)
+
+    return TradingPostVisitSettingsForm(*args, **kwargs)

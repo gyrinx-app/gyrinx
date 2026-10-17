@@ -32,6 +32,11 @@ their own endpoint and return to this tab through a validated return URL.
         </c-n26.page-header>
         <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
         {% include "n26/includes/messages.html" %}
+        {% if visit_excluded %}
+            <c-ui.alert variant="info" title="Other action">
+                Visit Trading Post is not normally used by {{ gang.gang_type }} gangs. You can still use it for house rules or an exception.
+            </c-ui.alert>
+        {% endif %}
         {% if visit_card %}
             <c-n26.activity-card :card="visit_card">
                 {% if roster and post %}

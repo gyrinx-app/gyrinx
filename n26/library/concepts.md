@@ -486,3 +486,18 @@ A model is a membership assignment naming a profile, plus everything attached to
 Fields: none of its own beyond its link to the gang and its pinned worth. Created at founding.
 
 A host like any other: things can be assigned to it. Its worth is repinned by every operation. Counts towards wealth.
+
+## Built-in actions
+
+A built-in action has a dedicated screen for carrying it out. Under
+**Actions → Built-in actions**, **Visit Trading Post** lets you choose the
+**Gang types excluded by default** from the content library.
+
+Excluded gang types lose the usual setup links. Their owners can still find
+the action under **More actions → Other actions**, and open visits always
+remain manageable. Unselected and newly added gang types show the action
+normally. These settings do not grant Trade Points or change equipment access;
+subtype modifiers still determine what each visitor contributes.
+
+Clearing an import preserves the gang types selected here and the subtype
+conditions used by the standard contribution rules.
