@@ -94,6 +94,9 @@ def form_fields(table, **changes):
         "gangs": [str(table.choir.pk), str(table.kings.pk)],
         "winners": [str(table.kings.pk)],
         "revision": table.battle.revision,
+        "stake_versions": BattleForm(
+            playing=Gang.objects.all(), battle=table.battle
+        ).initial.get("stake_versions", ""),
         "stake": str(table.ruins.pk),
         "stake_awarded_to": str(table.kings.pk),
     } | changes
@@ -213,17 +216,19 @@ class TestSavingTheStake:
 
 
 class TestWhatCanBeStaked:
-    def test_only_assets_participants_hold_are_offered(self, table, default_pack):
+    def test_unclaimed_assets_and_assets_participants_hold_are_offered(
+        self, table, default_pack
+    ):
         territory = table.ruins.asset.asset_type
         held_elsewhere = add_asset(
             table.campaign, create_asset("Sump Market", territory)
         )
         assign_asset(held_elsewhere, table.bystanders)
-        add_asset(table.campaign, create_asset("Bone Shrine", territory))
+        unclaimed = add_asset(table.campaign, create_asset("Bone Shrine", territory))
 
         form = BattleForm(playing=Gang.objects.all(), battle=table.battle)
 
-        assert list(form.fields["stake"].queryset) == [table.ruins]
+        assert set(form.fields["stake"].queryset) == {table.ruins, unclaimed}
         assert form.fields["stake"].label == "Territory staked"
         assert set(form.fields["stake_awarded_to"].queryset) == {
             table.choir,
@@ -239,6 +244,8 @@ class TestWhatCanBeStaked:
 
     def test_nothing_to_stake_leaves_the_fields_out(self, table):
         unassign_asset(table.ruins)
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            act.remove_asset(table.ruins)
 
         form = BattleForm(playing=Gang.objects.all(), battle=table.battle)
 
@@ -275,7 +282,10 @@ class TestWhatCanBeStaked:
         )
 
         assert response.status_code == 200
-        assert "Select a territory a participant holds." in response.content.decode()
+        assert (
+            "Select a territory that is unclaimed or held by a participant."
+            in response.content.decode()
+        )
         foreign.refresh_from_db()
         assert foreign.holder.gang == outsiders
         assert Battle.objects.get(pk=table.battle.pk).stake is None
@@ -290,7 +300,7 @@ class TestWhereItCanGo:
 
     def test_before_a_stake_is_set_the_empty_choice_says_what_it_does(self, table):
         assert self.options(table) == [
-            "Stays with the gang that held it before the battle",
+            "Not awarded",
             "Ashen Choir",
             "Rust Kings",
         ]
@@ -298,14 +308,12 @@ class TestWhereItCanGo:
     def test_the_gang_that_held_it_is_offered_once(self, table):
         stake_as(table, None)
 
-        assert self.options(table) == ["Stays with Ashen Choir", "Rust Kings"]
+        assert self.options(table) == ["Not awarded", "Ashen Choir", "Rust Kings"]
 
-    def test_after_the_award_the_empty_choice_still_names_the_first_holder(
-        self, client, table
-    ):
+    def test_clearing_the_award_returns_it_to_the_first_holder(self, client, table):
         client.post(edit_url(table), form_fields(table))
 
-        assert self.options(table) == ["Stays with Ashen Choir", "Rust Kings"]
+        assert self.options(table) == ["Not awarded", "Ashen Choir", "Rust Kings"]
         client.post(edit_url(table), form_fields(table, stake_awarded_to=""))
         assert holder(table) == table.choir
 
@@ -390,7 +398,7 @@ class TestWhoMovesTheStake:
         )
         text = " ".join(stake.get_text().split())
         assert "Territory staked" in text
-        assert "Old Ruins · Goes to Rust Kings" in text
+        assert f"Old Ruins [{str(table.ruins.pk)[-6:]}] · Goes to Rust Kings" in text
         # It is where it went, so the holder is not named twice.
         assert "Held by" not in text
         assert "Only the campaign's arbitrator can change this on Edit battle." in text
@@ -404,7 +412,7 @@ class TestWhoMovesTheStake:
         )
 
         text = stake_text(page)
-        assert "Old Ruins · Goes to Rust Kings" in text
+        assert f"Old Ruins [{str(table.ruins.pk)[-6:]}] · Goes to Rust Kings" in text
         assert "arbitrator" not in text
 
 
@@ -551,3 +559,212 @@ class TestGangHistory:
         assert self.told(table.kings) == [
             ("arbitrator", "gained the territory Old Ruins")
         ]
+
+
+class TestUnclaimedStakes:
+    def test_recording_a_stake_before_the_battle_awards_nothing(self, client, table):
+        unassign_asset(table.ruins)
+        before = LedgerEvent.objects.count()
+        response = client.post(
+            edit_url(table),
+            form_fields(
+                table,
+                result="not_recorded",
+                winners=[],
+                stake_awarded_to="",
+            ),
+        )
+        assert response.status_code == 302
+        table.battle.refresh_from_db()
+        assert table.battle.stake == table.ruins
+        assert table.battle.stake_awarded_to is None
+        assert table.battle.stake_transfer_mark is None
+        assert holder(table) is None
+        assert LedgerEvent.objects.count() == before
+        assert "Old Ruins" in stake_text(
+            client.get(
+                reverse(
+                    "n26-battle",
+                    args=[table.campaign.pk, table.battle.pk],
+                )
+            )
+        )
+
+    def test_equal_named_unclaimed_copies_can_be_selected_independently(
+        self, client, table
+    ):
+        unassign_asset(table.ruins)
+        other = add_asset(table.campaign, table.ruins.asset)
+        form = BattleForm(playing=Gang.objects.all(), battle=table.battle)
+        labels = {str(value): label for value, label in form.fields["stake"].choices}
+        assert labels[str(table.ruins.pk)] != labels[str(other.pk)]
+        response = client.post(
+            edit_url(table),
+            form_fields(
+                table,
+                stake=str(other.pk),
+                stake_awarded_to="",
+            ),
+        )
+        assert response.status_code == 302
+        table.battle.refresh_from_db()
+        assert table.battle.stake_id == other.pk
+        assert holder(table) is None
+        other.refresh_from_db()
+        assert other.holder is None
+
+    def test_explicitly_awarding_an_unclaimed_stake_is_journalled_once(
+        self, client, table
+    ):
+        unassign_asset(table.ruins)
+        data = form_fields(table)
+        assert client.post(edit_url(table), data).status_code == 302
+        assert holder(table) == table.kings
+        assert len(moves(table)) == 1
+        table.battle.refresh_from_db()
+        gained = LedgerEvent.objects.get(
+            battle=table.battle,
+            campaign_asset=table.ruins,
+        )
+        assert gained.kind == LedgerEvent.Kind.GAINED
+        assert gained.batch == table.battle.stake_transfer_mark
+        assert client.post(edit_url(table), data).status_code == 200
+        assert len(moves(table)) == 1
+        assert (
+            client.post(
+                edit_url(table), form_fields(table, scenario="Renamed")
+            ).status_code
+            == 302
+        )
+        assert len(moves(table)) == 1
+
+    def test_clearing_an_award_returns_the_stake_to_the_unclaimed_pool(self, table):
+        unassign_asset(table.ruins)
+        stake_as(table, table.kings)
+        gained = LedgerEvent.objects.get(
+            battle=table.battle,
+            kind=LedgerEvent.Kind.GAINED,
+        )
+        stake_as(table, None)
+        assert holder(table) is None
+        returned = LedgerEvent.objects.get(reversal_of=gained)
+        assert returned.kind == LedgerEvent.Kind.LOST
+        assert returned.battle_id == table.battle.pk
+        table.battle.refresh_from_db()
+        assert table.battle.stake_transfer_mark is None
+
+    def test_correcting_the_winner_reverses_the_unclaimed_award(self, table):
+        unassign_asset(table.ruins)
+        stake_as(table, table.kings)
+        stake_as(table, table.choir)
+        assert holder(table) == table.choir
+        assert [kind for _, kind, _ in moves(table)] == [
+            LedgerEvent.Kind.GAINED,
+            LedgerEvent.Kind.LOST,
+            LedgerEvent.Kind.GAINED,
+        ]
+
+    def test_a_stale_unclaimed_choice_cannot_take_a_participants_new_holding(
+        self, client, table
+    ):
+        unassign_asset(table.ruins)
+        data = form_fields(table)
+        assign_asset(table.ruins, table.choir)
+        response = client.post(edit_url(table), data)
+        assert response.status_code == 200
+        assert "This stake changed hands" in response.content.decode()
+        assert holder(table) == table.choir
+        assert not moves(table)
+
+    def test_moving_an_awarded_stake_away_and_back_blocks_a_correction(self, table):
+        unassign_asset(table.ruins)
+        stake_as(table, table.kings)
+        transfer_asset(table.ruins, table.choir)
+        transfer_asset(table.ruins, table.kings)
+        with pytest.raises(Refusal, match="cannot move back"):
+            stake_as(table, None)
+        assert holder(table) == table.kings
+
+    def test_another_campaigns_unclaimed_stake_is_refused(self, client, table):
+        other = found_campaign(
+            "Elsewhere", table.campaign.campaign_type, owner=table.arbitrator
+        )
+        foreign = add_asset(other, table.ruins.asset)
+        response = client.post(
+            edit_url(table), form_fields(table, stake=str(foreign.pk))
+        )
+        assert response.status_code == 200
+        foreign.refresh_from_db()
+        assert foreign.holder is None
+        assert not moves(table)
+
+    def test_a_stale_choice_claimed_by_a_bystander_is_not_silently_ignored(
+        self, client, table
+    ):
+        unassign_asset(table.ruins)
+        data = form_fields(table)
+        assign_asset(table.ruins, table.bystanders)
+        response = client.post(edit_url(table), data)
+        assert response.status_code == 200
+        assert "The available stakes changed" in response.content.decode()
+        assert holder(table) == table.bystanders
+        assert not moves(table)
+
+    def test_more_unclaimed_stakes_do_not_add_per_choice_queries(self, client, table):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def count():
+            client.get(edit_url(table))
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(edit_url(table))
+                assert response.status_code == 200
+            return len(queries)
+
+        before = count()
+        for _ in range(5):
+            add_asset(table.campaign, table.ruins.asset)
+        assert count() <= before
+
+    def test_a_tampered_ownership_snapshot_cannot_award_a_stake(self, client, table):
+        unassign_asset(table.ruins)
+        data = form_fields(table, stake_versions="tampered")
+        response = client.post(edit_url(table), data)
+        assert response.status_code == 200
+        assert "The available stakes changed" in response.content.decode()
+        assert holder(table) is None
+        assert not moves(table)
+
+    def test_an_unclaimed_award_and_correction_remain_in_gang_history(self, table):
+        unassign_asset(table.ruins)
+        stake_as(table, table.kings)
+        stake_as(table, None)
+        lines = [
+            text
+            for act in build(table.kings)
+            if "Old Ruins" in (text := "".join(span.text for span in act.spans))
+        ]
+        assert lines == [
+            "Won Old Ruins in Stand-off",
+            "Returned Old Ruins after Stand-off was corrected",
+        ]
+
+    def test_changing_from_a_held_stake_can_award_an_unclaimed_copy_to_that_holder(
+        self, client, table
+    ):
+        stake_as(table, None)
+        other = add_asset(table.campaign, table.ruins.asset)
+        response = client.post(
+            edit_url(table),
+            form_fields(
+                table,
+                stake=str(other.pk),
+                stake_awarded_to=str(table.choir.pk),
+            ),
+        )
+        assert response.status_code == 302
+        table.battle.refresh_from_db()
+        other.refresh_from_db()
+        assert table.battle.stake_id == other.pk
+        assert other.holder.gang_id == table.choir.pk
+        assert holder(table) == table.choir

@@ -21,6 +21,9 @@ server's copy (see post_battle_refresh.html), so the id must stay put.
                 </c-ui.badge>
             </h3>
             {% if model.profile_name %}<p class="mt-1 text-sm text-muted">{{ model.profile_name }}</p>{% endif %}
+            {% if model.result.owned_by %}
+                <p class="mt-1 text-sm text-muted">Owned by {{ model.result.owned_by }}</p>
+            {% endif %}
         </div>
         <label class="flex min-h-11 items-center gap-3 text-sm font-medium"
                for="{{ model.prefix }}-participated">

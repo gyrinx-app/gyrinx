@@ -493,7 +493,15 @@ def editor_models(plan, payload, refresh_url=""):
                 note=str(values.get("note") or ""),
             )
         )
-    return models
+    positions = {model.id: index for index, model in enumerate(models)}
+    return sorted(
+        models,
+        key=lambda model: (
+            positions.get(model.result.owned_by_id, positions[model.id]),
+            bool(model.result.owned_by_id),
+            positions[model.id],
+        ),
+    )
 
 
 def _model_counter_rows(model, entered):

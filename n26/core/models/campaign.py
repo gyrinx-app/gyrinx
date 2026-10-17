@@ -469,7 +469,7 @@ class Battle(Base):
         blank=True,
     )
     winners = models.ManyToManyField("n26.Gang", related_name="battles_won", blank=True)
-    #: A campaign asset a participant put up for this battle. Only the
+    #: A campaign asset staked for this battle. Only the
     #: arbitrator sets it, and the holder is always read from the asset.
     stake = models.ForeignKey(
         "n26.CampaignAsset",
@@ -478,8 +478,8 @@ class Battle(Base):
         blank=True,
         related_name="staked_in",
     )
-    #: The participant the stake goes to. Blank means it stays with whoever
-    #: held it.
+    #: The participant the stake goes to. Blank leaves it with its holder
+    #: or in the unclaimed pool.
     stake_awarded_to = models.ForeignKey(
         "n26.Gang",
         on_delete=models.SET_NULL,
@@ -487,8 +487,8 @@ class Battle(Base):
         blank=True,
         related_name="stakes_awarded",
     )
-    #: The ledger batch shared by the LOST and GAINED events of this
-    #: battle's stake transfer. When set, the stake has moved, so saving
+    #: The ledger batch recording this battle's stake award. An unclaimed
+    #: stake has only a GAINED event. When set, the stake has moved, so saving
     #: again does not move it twice; a correction reverses the transfer
     #: first.
     stake_transfer_mark = models.UUIDField(null=True, blank=True, editable=False)

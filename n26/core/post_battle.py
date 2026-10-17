@@ -123,6 +123,8 @@ class ModelResult:
     xp_recorded: int = 0
     is_vehicle: bool = False
     profile_name: str = ""
+    owned_by: str = ""
+    owned_by_id: str = ""
     effect_slots: list[EffectSlot] = field(default_factory=list)
     effects: list[EffectResult] = field(default_factory=list)
     final_status: str = ""
@@ -1133,7 +1135,7 @@ def preview_report(report, *, actor, payload=None):
         m.pk: m
         for m in Miniature.objects.filter(
             membership__gang=report.gang, membership__archived=False
-        ).select_related("membership")
+        ).select_related("membership__caused_by__miniature_root")
     }
     gang_card.members = {
         pk: card for pk, card in gang_card.members.items() if pk in miniatures
@@ -1294,6 +1296,7 @@ def preview_report(report, *, actor, payload=None):
     for model_id, card in gang_card.members.items():
         model_id = str(model_id)
         miniature = card.miniature
+        owner = miniature.owned_by
         raw = submitted.get(model_id, {})
         before = old_models.get(model_id, {})
         model_errors = []
@@ -1396,6 +1399,8 @@ def preview_report(report, *, actor, payload=None):
             xp_recorded=before.get("xp", 0),
             is_vehicle=vehicle,
             profile_name=str(primary) if primary else "",
+            owned_by=owner.name if owner else "",
+            owned_by_id=str(owner.pk) if owner else "",
             errors=model_errors,
             participated=raw.get("participated") is True,
         )

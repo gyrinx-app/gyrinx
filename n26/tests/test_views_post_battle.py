@@ -3001,3 +3001,123 @@ class TestLivePreview:
         assert "arbitrator records" in territory["note"]
         assert "Already applied." not in mission(page).get_text()
         assert "territory" not in page.context["preview"]
+
+
+@pytest.fixture
+def report_pet(table, make_profile):
+    profile = make_profile("Cyber-mastiff")
+    slot = create_slot(
+        "Pet lasting injury",
+        table.injury_kind,
+        table.injury_table,
+        min_picks=0,
+        max_picks=100,
+    )
+    add_built_in(profile, table.xp)
+    add_built_in(profile, slot)
+    wargear = create_wargear("Cyber-mastiff (pet)")
+    modifier(
+        "Cyber-mastiff wargear brings a pet",
+        targets_the_model(),
+        op_adds_model(profile),
+        carried_by=wargear,
+    )
+    assign(wargear, miniature=table.models[0])
+    return Miniature.objects.get(name="Cyber-mastiff", membership__gang=table.gang)
+
+
+class TestPetResults:
+    def test_the_pet_is_visible_immediately_after_its_owner(
+        self, client, table, feature, report_pet
+    ):
+        report = start(client, table)
+        response = client.get(editor_url(report))
+        models = response.context["models"]
+        assert [model.id for model in models] == [
+            str(table.models[0].pk),
+            str(report_pet.pk),
+            str(table.models[1].pk),
+        ]
+        document = BeautifulSoup(response.content, "html.parser")
+        pet = document.select_one(f"#result-{report_pet.pk}")
+        assert f"Owned by {table.models[0].name}" in pet.get_text()
+        assert pet.select_one(f"input[name='model-{report_pet.pk}-xp'][type=number]")
+        assert pet.select_one(f"button[value='add-effect:{report_pet.pk}']")
+        from n26.core.crews import crew_roster
+
+        assert report_pet.pk not in {
+            item.miniature.pk for item in crew_roster(table.gang)
+        }
+
+    def test_a_fighter_and_pet_receive_xp_and_a_pet_injury_once(
+        self, client, table, feature, report_pet
+    ):
+        report = start(client, table)
+        response = client.post(
+            editor_url(report),
+            awards(
+                client.get(editor_url(report)),
+                table,
+                intent=f"add-effect:{report_pet.pk}",
+                **{
+                    f"model-{report_pet.pk}-xp": "3",
+                    f"model-{report_pet.pk}-participated": "on",
+                },
+            ),
+        )
+        pet = next(
+            model
+            for model in response.context["models"]
+            if model.id == str(report_pet.pk)
+        )
+        effect = pet.effects[0]
+        choice = next(
+            value
+            for value, _ in pet.effect_options
+            if value.endswith(f"|{table.wound.pk}")
+        )
+        checked = client.post(
+            editor_url(report),
+            html_fields(
+                response,
+                intent="check",
+                participation_confirmed="on",
+                **{f"effect-{effect.id}-pick": choice},
+            ),
+        )
+        assert checked.status_code == 200
+        data = html_fields(checked, intent="apply", participation_confirmed="on")
+        applied = client.post(editor_url(report), data)
+        assert applied.status_code == 302
+        assert client.post(editor_url(report), data).status_code == 302
+        assert xp_value(table.models[0]) == 2
+        assert xp_value(report_pet) == 3
+        report_pet.refresh_from_db()
+        assert report_pet.status == Status.RECOVERY
+        assert report_pet.owned_by.pk == table.models[0].pk
+        assert (
+            Assignment.objects.filter(
+                miniature_root=report_pet, pickable=table.wound, archived=False
+            ).count()
+            == 1
+        )
+        assert PostBattleRevision.objects.filter(report=report).count() == 1
+        assert_books(table)
+
+    def test_more_pets_do_not_add_per_model_queries(
+        self, client, table, feature, report_pet
+    ):
+        report = start(client, table)
+
+        def count():
+            client.get(editor_url(report))
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(editor_url(report))
+                assert response.status_code == 200
+            return len(queries)
+
+        before = count()
+        wargear = report_pet.membership.caused_by.wargear
+        for _ in range(3):
+            assign(wargear, miniature=table.models[1])
+        assert count() <= before

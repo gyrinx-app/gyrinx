@@ -24,7 +24,8 @@ CREW_HELP = {
         "After the battle, you can say which reinforcements took part.",
         (
             "A pet that belongs to a model is not listed. It joins the crew "
-            "with its owner and does not count towards the crew size."
+            "with its owner and does not count towards the crew size. "
+            "After the battle, use Record results to add its XP and lasting injuries."
         ),
     ],
 }
