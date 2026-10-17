@@ -43,8 +43,8 @@
     "@github/markdownlint-github": "^0.8.4",
     "@tailwindcss/cli": "^4.3.3",
     "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.7",
-    "@types/node": "^26.6.4",
+    "@testing-library/user-event": "^14.6.8",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.6.1",
@@ -54,16 +54,16 @@
     "markdownlint-cli2-formatter-pretty": "^0.0.10",
     "nodemon": "^3.1.14",
     "npm-run-all2": "^9.0.3",
-    "postcss": "^8.5.29",
+    "postcss": "^8.5.30",
     "postcss-cli": "^12.0.0",
-    "prettier": "^3.9.9",
+    "prettier": "^3.9.10",
     "sass": "^1.105.1",
     "sirv-cli": "^3.0.1",
     "stylelint": "^16.26.1",
     "stylelint-config-twbs-bootstrap": "^16.1.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^8.3.3",
-    "vitest": "^5.0.3"
+    "vite": "^8.3.4",
+    "vitest": "^5.0.4"
   }
 }
