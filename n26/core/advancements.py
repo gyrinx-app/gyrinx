@@ -1001,6 +1001,7 @@ def record_skill_roll(
                     "That request was already used for a different skill roll."
                 )
             return attempt
+    selection.mode = SkillSelection.Mode.RANDOM
     options = skill_options(record, configured, pickable_id)
     category = next((row for row in options if str(row.pk) == str(skill_set_id)), None)
     if category is None:

@@ -266,7 +266,7 @@ def _page(
         flow_url(fighter, record, "outcome")
         if _can_cancel(record)
         and not correction
-        and stage not in {"start", "done", "cancel", "by-hand"}
+        and stage not in {"start", "done", "cancel", "by-hand", "on-hold"}
         else ""
     )
     done_href = ""

@@ -1218,6 +1218,11 @@ class TestAdvancementHoldsAndUndo:
                 )
             )
             assert "On hold" in resumed.content.decode()
+            assert resumed.context["back_href"] == reverse(
+                "n26-edit-fighter", args=[advancement.fighter.pk]
+            )
+            assert not resumed.context["outcome_href"]
+            assert client.get(resumed.context["back_href"]).status_code == 200
         if reviewed:
             blocked = client.post(reviewed.url, {"review": token})
             assert "On hold" in blocked.content.decode()
@@ -1427,6 +1432,63 @@ class TestAdvancementHoldsAndUndo:
         assert record.skill_selection.random_attempts == attempts
         assert record.skill_selection.selected == advancement.skills["primary"]
         assert record.advancement_selection.roll_event.roll == 12
+        assert record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED).count() == 2
+
+    @pytest.mark.parametrize("earlier_random_attempt", [False, True])
+    def test_a_selected_skill_can_switch_to_random_after_undo(
+        self, client, monkeypatch, advancement, earlier_random_attempt
+    ):
+        def roll_random_skill(url):
+            page = client.get(url)
+            skill_set = page.context["skill_roll"]["choices"]["options"][0]["value"]
+            response = client.post(
+                url,
+                {
+                    "request_key": page.context["form"]["request_key"].value(),
+                    "skill_set_id": skill_set,
+                    "roll_mode": "record",
+                    "rolled": "2",
+                },
+            )
+            assert response.status_code == 302
+            assert client.get(response.url).context["skill_resolved"]
+
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        if earlier_random_attempt:
+            random_url = _choose_result(
+                client, advancement, record, advancement.results["random"]
+            )
+            roll_random_skill(random_url)
+        selected_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        reviewed = client.post(
+            selected_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        )
+        token = client.get(reviewed.url).context["form"]["review"].value()
+        assert client.post(reviewed.url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.skill_selection.mode == SkillSelection.Mode.SELECT
+        original_roll = record.advancement_selection.roll_event_id
+        undo = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        token = client.get(undo).context["form"]["review"].value()
+        assert client.post(undo, {"review": token}).status_code == 302
+        random_url = _choose_result(
+            client, advancement, record, advancement.results["random"]
+        )
+        roll_random_skill(random_url)
+        reviewed = client.post(random_url, {"review_skill": "1"})
+        token = client.get(reviewed.url).context["form"]["review"].value()
+        assert client.post(reviewed.url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        assert record.skill_selection.mode == SkillSelection.Mode.RANDOM
+        assert len(record.skill_selection.random_attempts) == 1
+        assert record.advancement_selection.roll_event_id == original_roll
         assert record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED).count() == 2
 
     def test_undo_accepts_long_authored_pick_and_skill_names(
