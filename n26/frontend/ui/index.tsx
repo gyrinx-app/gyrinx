@@ -1313,6 +1313,7 @@ export {
 } from "./QuickSwitcher";
 export { HelpPopover } from "./HelpPopover";
 export { IncomeTooltip, type IncomeTooltipProps } from "./IncomeTooltip";
+export { NameList, type CountedName } from "./NameList";
 export {
     useAnchoredPlacement,
     useDismiss,

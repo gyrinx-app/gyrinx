@@ -36,7 +36,12 @@ function gang(
         removeHref: `/remove/${name}/`,
         overBudget: name === "Beta",
         labels: [label],
-        assets: [{ label: "Territories", text: "Settlement" }],
+        assets: [
+            {
+                label: "Territories",
+                names: [{ name: "Settlement", count: 1, text: "Settlement" }],
+            },
+        ],
         rolls: [
             {
                 label: "Roll starting territory",
@@ -99,6 +104,47 @@ beforeEach(() => {
     window.history.replaceState(null, "", "/campaign/");
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+});
+
+test("keeps comma-containing asset names and repeated names as separate list items", () => {
+    const data = props();
+    data.gangs = [data.gangs[0]];
+    data.gangs[0].assets = [
+        {
+            label: "Territories",
+            names: [
+                { name: "Ruins, North", count: 1, text: "Ruins, North" },
+                { name: "Shop", count: 2, text: "Shop (x2)" },
+            ],
+        },
+    ];
+    render(<CampaignGangs {...data} onOpenDialog={vi.fn()} />);
+    const names = screen.getByRole("list", { name: "Territories" });
+    expect(
+        within(names)
+            .getAllByRole("listitem")
+            .map(
+                (item) =>
+                    within(item).getByText(/Ruins, North|Shop \(x2\)/)
+                        .textContent,
+            ),
+    ).toEqual(["Ruins, North", "Shop (x2)"]);
+    expect(
+        within(names)
+            .getAllByText("·")
+            .every((dot) => dot.getAttribute("aria-hidden") === "true"),
+    ).toBe(true);
+});
+
+test("empty asset groups keep the existing dash without an empty list", () => {
+    const data = props();
+    data.gangs = [data.gangs[0]];
+    data.gangs[0].assets = [{ label: "Territories", names: [] }];
+    render(<CampaignGangs {...data} onOpenDialog={vi.fn()} />);
+    expect(screen.queryByRole("list", { name: "Territories" })).toBeNull();
+    expect(
+        screen.getByText("Territories").parentElement?.textContent,
+    ).toContain("—");
 });
 
 test("sorts in place, writes the URL and keeps keyboard focus on the same heading", async () => {

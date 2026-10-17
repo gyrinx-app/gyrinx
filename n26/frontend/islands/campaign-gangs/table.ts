@@ -1,4 +1,9 @@
-import type { BadgeMark, IncomeTooltipProps, SvgNode } from "../../ui";
+import type {
+    BadgeMark,
+    CountedName,
+    IncomeTooltipProps,
+    SvgNode,
+} from "../../ui";
 
 export type Column = { token: string; label: string };
 export type LabelColumn = Column & { colours: Record<string, string> };
@@ -18,7 +23,7 @@ export type Gang = {
     overBudget: boolean;
     sortValues: Record<string, string | number | null>;
     labels: string[];
-    assets: { label: string; text: string }[];
+    assets: { label: string; names: CountedName[] }[];
     rolls: { label: string; href: string }[];
     counters: ({
         id: string;

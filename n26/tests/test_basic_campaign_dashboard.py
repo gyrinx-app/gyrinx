@@ -12,6 +12,7 @@ from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
+from n26.core.effects import StackedName
 from n26.core.models import CounterValue, LedgerEvent
 from n26.core.operations import operation
 from n26.core.render import render_campaign, render_gang
@@ -24,6 +25,7 @@ from n26.library.authoring import (
 )
 from n26.library.core_campaign import seed_core_campaign
 from n26.library.models import CampaignType, Counter, Modifier
+from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import (
     add_asset,
     assign_asset,
@@ -206,8 +208,8 @@ def test_settlement_is_first_in_one_territories_detail_without_changing_types(
         for detail in line.details
         if detail.label in {"Settlements", "Territories"}
     ]
-    assert [(detail.label, detail.text) for detail in assets] == [
-        ("Territories", "Settlement, Old Ruins")
+    assert [(detail.label, detail.names) for detail in assets] == [
+        ("Territories", [StackedName("Settlement"), StackedName("Old Ruins")])
     ]
     settlement = gang.assignments.get(asset__name="Settlement")
     assert not settlement.asset.asset_type.is_holding
@@ -235,14 +237,26 @@ def test_named_settlements_share_the_territories_detail_without_an_added_suffix(
         for detail in line.details
         if detail.label in {"Settlements", "Territories"}
     ]
-    assert [(detail.label, detail.text) for detail in assets] == [
-        ("Territories", "Settlement, Home, Old Ruins")
+    assert [(detail.label, detail.names) for detail in assets] == [
+        (
+            "Territories",
+            [StackedName("Settlement"), StackedName("Home"), StackedName("Old Ruins")],
+        )
     ]
     assert gang.assignments.filter(asset__name="Home", archived=False).exists()
     assert gang.assignments.filter(asset__name="Settlement", archived=False).exists()
-    body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
-    assert "Settlement, Home, Old Ruins" in body
-    assert "Home (settlement)" not in body
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+    props = island_props(response.content, "campaign-gangs")
+    shown = next(item for item in props["gangs"] if item["id"] == str(gang.pk))
+    territories = next(
+        item for item in shown["assets"] if item["label"] == "Territories"
+    )
+    assert [item["name"] for item in territories["names"]] == [
+        "Settlement",
+        "Home",
+        "Old Ruins",
+    ]
+    assert "Home (settlement)" not in response.content.decode()
 
 
 @pytest.mark.parametrize("override", [0, 7])

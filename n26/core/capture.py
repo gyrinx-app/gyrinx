@@ -69,7 +69,7 @@ def _asset_groups(block):
         ),
     )
     return sorted(
-        (group.label, group.names)
+        (group.label, tuple((str(item.name), item.count) for item in group.names))
         for group in group_campaign_assets(ordered, types=block.asset_types)
     )
 

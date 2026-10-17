@@ -37,9 +37,19 @@ Assets retain their authored groups and links. This component draws its own card
                 </div>
             {% endfor %}
             {% for group in campaign.asset_groups %}
-                <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-baseline gap-3 py-2.5">
+                <div class="grid grid-cols-1 items-baseline gap-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:gap-3">
                     <dt class="min-w-0 break-words text-sm text-muted">{{ group.label }}</dt>
-                    <dd class="min-w-0 break-words text-right text-sm">{% if group.held %}<c-n26.link href="{{ campaign.assets_href }}" tone="current">{{ group.names }}</c-n26.link>{% else %}{{ group.names }}{% endif %}</dd>
+                    <dd class="min-w-0 text-sm">
+                        {% if group.names %}
+                            {% if group.held %}
+                                <c-n26.name-list :names="group.names" label="{{ group.label }}" href="{{ campaign.assets_href }}" class="sm:justify-end" />
+                            {% else %}
+                                <c-n26.name-list :names="group.names" label="{{ group.label }}" class="sm:justify-end" />
+                            {% endif %}
+                        {% else %}
+                            <span class="sm:block sm:text-right">None</span>
+                        {% endif %}
+                    </dd>
                 </div>
             {% endfor %}
         </dl>

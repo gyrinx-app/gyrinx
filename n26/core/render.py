@@ -18,11 +18,13 @@ from django.utils.text import capfirst
 from n26.core.card import build_card
 from n26.core.effects import (
     ModifierIndex,
+    StackedName,
     choice_notes,
     count_mark,
     counter_totals,
     kind_of,
     limit_notes,
+    stacked_name_items,
     stacked_names,
 )
 from n26.core.income import (
@@ -1500,7 +1502,7 @@ class CampaignAssetGroup:
     """Named holdings and possessions sharing one authored display line."""
 
     label: str
-    names: str
+    names: list[StackedName]
     held: bool
     provenance: Provenance = field(default_factory=Provenance)
 
@@ -1517,14 +1519,13 @@ def group_campaign_assets(lines, *, types=()):
     return [
         CampaignAssetGroup(
             label=labels[key],
-            names=", ".join(
-                stacked_names(
+            names=[
+                item
+                for kind in dict.fromkeys(line.asset_type_id for line in members)
+                for item in stacked_name_items(
                     line.name for line in members if line.asset_type_id == kind
                 )
-                for kind in dict.fromkeys(line.asset_type_id for line in members)
-            )
-            if members
-            else "None",
+            ],
             held=any(line.campaign_asset_id for line in members),
             provenance=members[0].provenance
             if members
@@ -1919,7 +1920,7 @@ class CampaignGangLine:
                 self.grouped_assets
                 if self.grouped_assets is not None
                 else (
-                    GangDetail(label=plural, text=", ".join(names))
+                    GangDetail(label=plural, names=stacked_name_items(names))
                     for plural, names in zip(self.asset_names, self.assets, strict=True)
                 )
             ),
@@ -1939,11 +1940,12 @@ class CampaignGangLine:
 
 @dataclass(frozen=True)
 class GangDetail:
-    """A labelled gang detail: a choice, asset group or permitted actions.
-    Empty text without actions is drawn as a dash."""
+    """A labelled choice, counted asset names or permitted actions.
+    A detail without any values is drawn as a dash."""
 
     label: str
     text: str = ""
+    names: list[StackedName] = field(default_factory=list)
     rolls: list[StartingRoll] = field(default_factory=list)
 
 
@@ -2181,12 +2183,9 @@ class CampaignSheet:
             for kind, names in zip(self.asset_types, line.assets, strict=True):
                 key = kind.display_group or kind.asset_type_id
                 label = kind.display_group or kind.plural
-                groups.setdefault(key, [label, []])[1].extend(
-                    [stacked_names(names)] if names else []
-                )
+                groups.setdefault(key, [label, []])[1].extend(stacked_name_items(names))
             line.grouped_assets = [
-                GangDetail(label=label, text=", ".join(names))
-                for label, names in groups.values()
+                GangDetail(label=label, names=names) for label, names in groups.values()
             ]
 
     @property
