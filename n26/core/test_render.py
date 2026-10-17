@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from n26.core.card import Card, Node
-from n26.core.effects import StatChange
+from n26.core.effects import StackedName, StatChange
 from n26.core.render import (
     AssignableLine,
     CampaignGangLine,
@@ -397,11 +397,11 @@ def test_campaign_gang_details_group_only_permitted_rolls_into_one_actions_row()
         "Territories",
         "Actions",
     ]
-    assert [detail.text for detail in details[:3]] == [
+    assert [detail.text for detail in details[:2]] == [
         "Outlaw",
         "Control the eastern sump routes",
-        "Old Ruins, Toll Crossing",
     ]
+    assert details[2].names == [StackedName("Old Ruins"), StackedName("Toll Crossing")]
     assert details[-1].rolls == [territory, racket]
     gang.starting_rolls = [hidden]
     assert all(detail.label != "Actions" for detail in gang.details)
