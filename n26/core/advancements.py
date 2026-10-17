@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 
 from n26.core.card import Node, build_card, build_modifier_index, carriers
 from n26.core.effects import compute
@@ -119,21 +119,110 @@ def _correction_result(record, *, lock=False):
     if selection.promotion_assignment_id:
         permitted.add(selection.promotion_assignment_id)
         permitted.add(selection.promotion_assignment.caused_by_id)
-    if (
-        selection.promotion_id
-        and record.fighter.action_records.filter(
-            action=record.action,
-            created__gt=record.created,
-            state__in=RESERVING_STATES,
-        ).exists()
-    ):
-        raise Refusal("A later advancement depends on this promotion.")
+    if selection.promotion_id:
+        applied_at = (
+            record.completed_event.created
+            if record.completed_event_id
+            else record.created
+        )
+        if (
+            record.fighter.action_records.filter(
+                action=record.action,
+                state__in=RESERVING_STATES,
+            )
+            .exclude(pk=record.pk)
+            .filter(
+                Q(created__gt=record.created)
+                | Q(
+                    ledger_events__created__gt=applied_at,
+                    ledger_events__kind__in=[
+                        LedgerEvent.Kind.ACTION_USE_COMPLETED,
+                        LedgerEvent.Kind.ACTION_USE_CORRECTED,
+                        LedgerEvent.Kind.ACTION_USE_APPLIED_BY_HAND,
+                    ],
+                )
+            )
+            .exists()
+        ):
+            raise Refusal("A later advancement depends on this promotion.")
     if any(
         not descendant.archived and descendant.pk not in permitted
         for descendant in subtree(old_pick)
     ):
         raise Refusal("Later changes depend on this advancement.")
     return selection, skill_selection
+
+
+def advancement_undo_snapshot(record):
+    """Fingerprint the applied result a confirmed Undo would remove."""
+    from n26.library.models import ResolveAdvancement
+
+    if (
+        record.state != ActionRecord.State.COMPLETED
+        or record.allowance_id is None
+        or record.outcome_id is None
+        or not isinstance(record.outcome.operation, ResolveAdvancement)
+    ):
+        raise Refusal(
+            "You cannot undo this action. Only completed earned advancements can be undone."
+        )
+    if record.payment_id is not None:
+        raise Refusal("You cannot undo a paid action here.")
+    selection, skill = _correction_result(record)
+    if selection is None:
+        raise Refusal("This action has no advancement result to undo.")
+    if (
+        ActionRecord.objects.filter(
+            fighter=record.fighter,
+            action=record.action,
+            state=ActionRecord.State.STARTED,
+        )
+        .exclude(pk=record.pk)
+        .exists()
+    ):
+        raise Refusal(
+            "You cannot undo this while another flow for this action is started. "
+            "Finish that flow, or mark it as applied by hand, first."
+        )
+    advancement_options(record, record.outcome.operation)
+    return {
+        "record": str(record.pk),
+        "completed": str(record.completed_event_id),
+        "revision": record.revision,
+        "pick": [
+            str(selection.pick_assignment_id),
+            selection.pick_assignment.modified.isoformat(),
+        ],
+        "skill": [
+            str(skill.skill_assignment_id),
+            skill.skill_assignment.modified.isoformat(),
+        ]
+        if skill and skill.skill_assignment_id
+        else None,
+        "promotion": str(selection.promotion_assignment_id),
+    }
+
+
+def undo_advancement_result(op, record):
+    """Remove an independent result while keeping the flow's rolls and choices."""
+    selection, skill = _correction_result(record, lock=True)
+    detail = str(selection.intended_pick)
+    if skill and skill.skill_assignment_id:
+        detail += f": {skill.selected}"
+    op.remove(
+        selection.pick_assignment,
+        action_record=record,
+        before_pick=selection.pick_assignment,
+    )
+    selection.pick_assignment = None
+    selection.promotion_assignment = None
+    selection.save(
+        update_fields=["pick_assignment", "promotion_assignment", "modified"]
+    )
+    if skill is not None:
+        skill.skill_assignment = None
+        skill.save(update_fields=["skill_assignment", "modified"])
+    return detail
 
 
 def _counterfactual_card(record):
@@ -504,6 +593,8 @@ def record_action_roll(
             request_key
         ):
             return selection
+        if record.completed_event_id:
+            raise Refusal("You cannot change the roll after undoing an advancement.")
         if str(selection.roll_event_id) != str(previous_roll):
             raise Refusal("This roll has changed. Reload this page before changing it.")
         if rolled == selection.roll_event.roll:
@@ -935,6 +1026,7 @@ def record_skill_roll(
                     "That request was already used for a different skill roll."
                 )
             return attempt
+    selection.mode = SkillSelection.Mode.RANDOM
     options = skill_options(record, configured, pickable_id)
     category = next((row for row in options if str(row.pk) == str(skill_set_id)), None)
     if category is None:

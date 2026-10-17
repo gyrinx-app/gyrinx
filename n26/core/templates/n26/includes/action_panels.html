@@ -35,10 +35,10 @@
                                 {% if panel.drafts|length == 1 %}
                                     {% for draft in panel.drafts %}
                                         <c-ui.button href="{{ draft.href }}"
-                                                     variant="primary"
+                                                     variant="{{ draft.variant }}"
                                                      size="sm"
                                                      aria-label="{{ draft.label }}">
-                                            Resume <span aria-hidden="true">→</span>
+                                            {% if draft.problem %}View{% else %}Resume{% endif %} <span aria-hidden="true">→</span>
                                         </c-ui.button>
                                     {% endfor %}
                                 {% endif %}
@@ -52,6 +52,7 @@
                                     <span>Price <span class="font-semibold text-ink-900 dark:text-ink-100 tabular-nums">{{ figures.price }}</span>{% if figures.label %} {{ figures.label }}{% endif %}</span>
                                 {% endfor %}
                             </p>
+                            {% if panel.hold_reason %}<p class="text-sm text-muted">{{ panel.hold_reason }}</p>{% endif %}
                             {% if panel.problem %}<p class="text-sm text-muted">{{ panel.problem }}</p>{% endif %}
                             {% if panel.drafts|length > 1 %}
                                 <div class="space-y-2">
@@ -61,10 +62,10 @@
                                                   title="{{ draft.when }}"
                                                   class="text-muted">Started {{ draft.when|naturaltime }}</time>
                                             <c-ui.button href="{{ draft.href }}"
-                                                         variant="primary"
+                                                         variant="{{ draft.variant }}"
                                                          size="sm"
                                                          aria-label="{{ draft.label }} {{ forloop.counter }}">
-                                                Resume {{ forloop.counter }} <span aria-hidden="true">→</span>
+                                                {% if draft.problem %}View{% else %}Resume{% endif %} {{ forloop.counter }} <span aria-hidden="true">→</span>
                                             </c-ui.button>
                                         </div>
                                     {% endfor %}

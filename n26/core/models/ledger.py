@@ -233,6 +233,7 @@ class LedgerEvent(Base):
         ACTION_USE_CORRECTED = "use_corrected", "Action use corrected"
         ACTION_USE_APPLIED_BY_HAND = "use_by_hand", "Action use applied by hand"
         ACTION_USE_REOPENED = "use_reopened", "Action use reopened"
+        ACTION_USE_UNDONE = "use_undone", "Action use undone"
 
         # A gang joining or leaving a campaign. Recorded on the gang; the
         # campaign's log reads the same events.

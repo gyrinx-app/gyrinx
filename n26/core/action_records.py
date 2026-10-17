@@ -115,6 +115,7 @@ def action_changes(record):
             in {
                 LedgerEvent.Kind.ACTION_USE_COMPLETED,
                 LedgerEvent.Kind.ACTION_USE_CORRECTED,
+                LedgerEvent.Kind.ACTION_USE_UNDONE,
             }
         ),
         counters=counters,
@@ -427,7 +428,9 @@ def start_action(op, fighter, action, request_key, allowance=None, *, by_hand=Fa
     rule = action.allowance_rule
     source_kind = _allowance_source_kind(action)
     if allowance is not None:
-        allowance = ActionAllowance.objects.select_for_update().get(pk=allowance.pk)
+        allowance = ActionAllowance.objects.select_for_update(of=("self",)).get(
+            pk=allowance.pk
+        )
         if (
             rule is None
             or allowance.fighter_id != fighter.pk
@@ -445,13 +448,17 @@ def start_action(op, fighter, action, request_key, allowance=None, *, by_hand=Fa
                 "This model has a started flow for that action. "
                 "Resume it, or mark that flow as applied by hand."
             )
+        if existing.allowance_id:
+            from n26.core.allowances import require_allowance_available
+
+            require_allowance_available(existing.allowance)
         return existing
     if allowance is not None:
         if not ActionAllowance.objects.filter(pk=allowance.pk).unused().exists():
             raise Refusal("That allowance is already being used.")
     elif rule is not None:
         allowance = (
-            ActionAllowance.objects.select_for_update()
+            ActionAllowance.objects.select_for_update(of=("self",))
             .filter(
                 action=action,
                 fighter=fighter,
@@ -459,6 +466,7 @@ def start_action(op, fighter, action, request_key, allowance=None, *, by_hand=Fa
                 source_kind=source_kind,
             )
             .unused()
+            .eligible()
             .order_by("threshold", "created", "pk")
             .first()
         )
@@ -467,8 +475,11 @@ def start_action(op, fighter, action, request_key, allowance=None, *, by_hand=Fa
     elif not _has_access(fighter, action):
         raise Refusal("That fighter can no longer use this action.")
 
+    from n26.core.allowances import require_allowance_available
     from n26.core.promotions import require_earliest_allowance
 
+    if allowance is not None:
+        require_allowance_available(allowance)
     require_earliest_allowance(fighter, action, allowance)
     source_assignment = _source_assignment(fighter, action)
     record = ActionRecord.objects.create(
@@ -539,6 +550,9 @@ def _validate_draft_definition(record):
         or allowance.source_id != record.fighter.membership_id
     ):
         raise Refusal("That allowance belongs to another action use.")
+    from n26.core.allowances import require_allowance_available
+
+    require_allowance_available(allowance)
 
 
 def _validate_recorded_outcome(record, outcome):
@@ -928,6 +942,7 @@ def apply_action_by_hand(op, record):
         raise Refusal("That action use is no longer waiting.")
     if record.allowance_id is None:
         raise Refusal("Only an earned use can be marked as applied by hand.")
+    _validate_draft_definition(record)
     _retire_unfinished_slot(op, record)
     record.state = ActionRecord.State.APPLIED_BY_HAND
     op.event(
@@ -1059,6 +1074,44 @@ def reopen_action(op, record):
         note=str(record.action),
     )
     record.save(update_fields=["state", "review", "revision", "modified"])
+    return record
+
+
+def undo_action(op, record, *, expected):
+    """Reopen one completed earned advancement after a checked confirmation."""
+    from n26.core.advancements import advancement_undo_snapshot, undo_advancement_result
+    from n26.library.models import ResolveAdvancement
+
+    record = _locked(op, record)
+    _refuse_unless_owned(op, record.fighter)
+    if (
+        record.state == ActionRecord.State.STARTED
+        and str(record.completed_event_id) == expected.get("completed")
+        and record.revision == expected.get("revision", -2) + 1
+    ):
+        return record
+    if record.outcome_id is None or not isinstance(
+        record.outcome.operation, ResolveAdvancement
+    ):
+        raise Refusal(
+            "You cannot undo this action. Only completed earned advancements can be undone."
+        )
+    if expected != advancement_undo_snapshot(record):
+        raise Refusal("The advancement changed. Review it again before undoing it.")
+    rating_before = record.fighter.recompute_rating()
+    detail = undo_advancement_result(op, record)
+    rating_after = record.fighter.recompute_rating()
+    record.state = ActionRecord.State.STARTED
+    record.review = {}
+    record.revision += 1
+    record.save(update_fields=["state", "review", "revision", "modified"])
+    op.event(
+        record.fighter,
+        LedgerEvent.Kind.ACTION_USE_UNDONE,
+        action_record=record,
+        rating_delta=rating_after - rating_before,
+        note=detail[:255],
+    )
     return record
 
 

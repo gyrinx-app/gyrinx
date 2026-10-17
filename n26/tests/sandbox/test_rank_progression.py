@@ -309,3 +309,38 @@ class TestRankedCardSurfaces:
                 counter = op.assign(setup.counter.counter, miniature=fighter)
                 op.open_counter(counter, 0)
         assert measure() == one
+
+
+def test_held_earned_uses_do_not_add_queries_as_the_roster_grows(
+    client, fighter_with_ranks
+):
+    setup = fighter_with_ranks
+
+    def grant_and_hold(fighter, counter):
+        with operation(setup.gang, actor=setup.owner) as op:
+            op.tally(counter, 4)
+            op.start_action(fighter, setup.action, uuid4())
+            op.tally(counter, -1)
+
+    client.force_login(setup.owner)
+    url = reverse("n26-gang", args=[setup.gang.pk])
+
+    def measure():
+        with CaptureQueriesContext(connection) as queries:
+            response = client.get(url)
+        assert response.status_code == 200
+        assert all(not card.action_names for card in response.context["sheet"].models)
+        return len(queries)
+
+    grant_and_hold(setup.fighter, setup.counter)
+    measure()
+    one = measure()
+    for number in range(3):
+        fighter = hire(setup.gang, setup.profile, f"Held prospect {number}", paid=100)
+        with operation(setup.gang, actor=setup.owner) as op:
+            op.assign(setup.action, miniature=fighter)
+            op.assign(setup.table, miniature=fighter)
+            counter = op.assign(setup.counter.counter, miniature=fighter)
+            op.open_counter(counter, 0)
+        grant_and_hold(fighter, counter)
+    assert measure() == one
