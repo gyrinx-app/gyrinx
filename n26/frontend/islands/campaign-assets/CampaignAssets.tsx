@@ -81,6 +81,9 @@ export function CampaignAssets(
         if (!action) return;
         event.preventDefault();
         if (openingRef.current || requests.current.size) return;
+        event.currentTarget
+            .querySelector<HTMLButtonElement>("button[aria-haspopup]")
+            ?.focus({ preventScroll: true });
         openingRef.current = true;
         setOpening(true);
         setError("");
@@ -119,7 +122,7 @@ export function CampaignAssets(
             groups={assetGroups(props, view)}
             onViewChange={change}
             viewHref={(next) =>
-                props.href ? viewHref(window.location.href, next) : "#"
+                props.href ? viewHref(props.href, next, search) : "#"
             }
             disabled={pending || opening}
             error={error}

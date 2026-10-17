@@ -478,3 +478,37 @@ test("gang actions retain the independent inventory preferences", () => {
         "/campaign/?starting=one&asset_sort=-income&asset_group=&sort=-rating&group=",
     );
 });
+
+test("cancelled inventory dialogs keep modified gang header navigation on the campaign", () => {
+    const returnUrl =
+        "/campaign/?sort=name&group=&asset_sort=-income&asset_group=status";
+    window.history.replaceState({}, "", returnUrl);
+    render(<CampaignGangs {...props()} onOpenDialog={vi.fn()} />);
+    const request = {};
+    act(() => {
+        window.history.replaceState(
+            {},
+            "",
+            "/asset/one/assign/?sort=name&group=&asset_sort=-income&asset_group=status",
+        );
+        window.dispatchEvent(
+            new CustomEvent("n26:campaign-dialog-request", {
+                detail: { request, pending: true },
+            }),
+        );
+    });
+    act(() => {
+        window.dispatchEvent(
+            new CustomEvent("n26:campaign-dialog-request", {
+                detail: { request, pending: false },
+            }),
+        );
+    });
+    window.history.replaceState({}, "", returnUrl);
+    const header = screen.getByRole("link", { name: "Rating" });
+    expect(header.getAttribute("href")).toBe(
+        "/campaign/?sort=rating&group=&asset_sort=-income&asset_group=status#gangs",
+    );
+    fireEvent.click(header, { metaKey: true });
+    expect(window.location.pathname + window.location.search).toBe(returnUrl);
+});

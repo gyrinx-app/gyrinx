@@ -417,7 +417,7 @@ export function CampaignGangs(
                 countLabel: `${group.gangs.length} gang${group.gangs.length === 1 ? "" : "s"}`,
             }))}
             onViewChange={change}
-            viewHref={(next) => viewHref(window.location.href, next, "gangs")}
+            viewHref={(next) => viewHref(props.href, next, "gangs")}
             renderRows={(gangs, groupId) =>
                 gangs.map((gang) => gangRows(gang, groupId))
             }

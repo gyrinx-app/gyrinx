@@ -277,3 +277,46 @@ test("Back dismisses a roll dialog and restores inventory preferences with no ga
         outside.remove();
     }
 });
+
+test("cancelled dialogs keep modified header navigation on the campaign", async () => {
+    const user = userEvent.setup();
+    const returnUrl = window.location.pathname + window.location.search;
+    const open = vi.fn(async (href: string) => {
+        window.history.replaceState({}, "", href);
+    });
+    render(<CampaignAssets {...props()} onOpenDialog={open} />);
+    await user.click(
+        screen.getByRole("button", { name: "Actions for Workshop" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Assign" }));
+    window.history.replaceState({}, "", returnUrl);
+    const header = screen.getByRole("link", { name: "Income" });
+    expect(header.getAttribute("href")).toBe(
+        "/campaign/?sort=-rating&group=&asset_sort=income&asset_group=status",
+    );
+    fireEvent.click(header, { ctrlKey: true });
+    expect(window.location.pathname + window.location.search).toBe(returnUrl);
+});
+
+test("keyboard dialog requests retain the actions button as their focus return target", async () => {
+    const user = userEvent.setup();
+    let focusAtRequest: Element | null = null;
+    const open = vi.fn(async () => {
+        focusAtRequest = document.activeElement;
+        throw new Error("offline");
+    });
+    render(<CampaignAssets {...props()} onOpenDialog={open} />);
+    const button = screen.getByRole("button", { name: "Actions for Workshop" });
+    button.focus();
+    await user.keyboard("{Enter}");
+    expect(document.activeElement).toBe(
+        screen.getByRole("menuitem", { name: "Assign" }),
+    );
+    await user.keyboard("{Enter}");
+    expect(open).toHaveBeenCalledOnce();
+    expect(focusAtRequest).toBe(button);
+    expect(document.activeElement).toBe(button);
+    expect(screen.getByRole("alert").textContent).toContain(
+        "The form could not load.",
+    );
+});
