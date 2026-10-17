@@ -247,7 +247,7 @@ class TestTheCampaignHeader:
         assert listed is None
         assert "n26-button-group" in host.parent.parent["class"]
 
-    def test_a_player_gets_only_the_log(self, client, campaign):
+    def test_a_player_gets_the_log_and_leaving(self, client, campaign):
         player = User.objects.create_user("seated")
         CampaignParticipant.objects.create(
             campaign=campaign,
@@ -259,5 +259,18 @@ class TestTheCampaignHeader:
 
         _, props, _ = the_menu(html)
 
-        assert [item["label"] for item in props["items"]] == ["View log"]
+        assert entries(props) == [
+            (
+                "View log",
+                reverse("n26-campaign-log", args=[campaign.pk]),
+                "default",
+                False,
+            ),
+            (
+                "Leave campaign",
+                reverse("n26-leave-campaign", args=[campaign.pk]),
+                "danger",
+                False,
+            ),
+        ]
         assert reverse("n26-archive-campaign", args=[campaign.pk]) not in html

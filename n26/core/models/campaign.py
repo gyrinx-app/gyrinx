@@ -175,6 +175,7 @@ class CampaignEvent(Base):
         INVITE_ACCEPTED = "invite_accepted", "Invitation accepted"
         INVITE_DECLINED = "invite_declined", "Invitation declined"
         PLAYER_REMOVED = "player_removed", "Player removed"
+        PLAYER_LEFT = "player_left", "Player left"
         # The campaign's assets changing with no gang touched. An asset
         # assigned to a gang or unassigned from one changes the gang, and
         # is that gang's ledger event instead.

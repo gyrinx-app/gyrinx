@@ -338,17 +338,60 @@ class CampaignOperation:
         )
         return player
 
-    def remove_player(self, player):
+    def remove_player(self, player, *, with_gangs=False):
         """Take somebody out of the campaign.
 
         The row goes rather than being marked: a person who is not in a
         campaign has no standing in it, and keeping a row saying so would
         make them look like somebody who declined. What happened stays in
         the log, which is where it belongs.
+
+        Their gangs keep playing unless the arbitrator asks for them to be
+        taken out too (``with_gangs``), each as ``remove_gang`` takes one.
+        Returns the gangs taken out.
         """
         user = player.user
+        gangs = self._remove_gangs_of(user) if with_gangs else []
         player.delete()
         self.event(CampaignEvent.Kind.PLAYER_REMOVED, about_user=user)
+        return gangs
+
+    def leave(self):
+        """Take the actor out of the campaign as a player, and every gang of
+        theirs with them. Returns the gangs taken out.
+
+        The arbitrator is never a player, so has nothing to leave. Somebody
+        who is not an accepted player, or who left before this transaction
+        began, changes nothing, and the caller gets None back.
+        """
+        from n26.core.models import CampaignParticipant
+
+        player = CampaignParticipant.objects.filter(
+            campaign=self.campaign,
+            user=self.actor,
+            state=CampaignParticipant.State.ACCEPTED,
+        ).first()
+        if player is None:
+            return None
+        gangs = self._remove_gangs_of(self.actor)
+        player.delete()
+        self.event(CampaignEvent.Kind.PLAYER_LEFT, about_user=self.actor)
+        return gangs
+
+    def _remove_gangs_of(self, user):
+        """Take every gang this person owns out of the campaign, in key
+        order, and return them."""
+        removed = []
+        # Each gang's line stays held until the transaction commits, so they
+        # are taken in key order, the order every multi-gang operation uses.
+        for membership in (
+            self.campaign.memberships.filter(left__isnull=True, gang__owner=user)
+            .select_related("gang")
+            .order_by("gang_id")
+        ):
+            if self.remove_gang(membership) is not None:
+                removed.append(membership.gang)
+        return removed
 
     def _battle_details(self, *, scenario, result, gangs, winners, battle=None):
         """Validate shared metadata without changing any gang."""

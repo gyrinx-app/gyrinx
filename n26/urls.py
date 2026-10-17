@@ -65,6 +65,11 @@ urlpatterns = [
         name="n26-archive-campaign",
     ),
     path(
+        "campaigns/<str:pk>/leave/",
+        views.leave_campaign,
+        name="n26-leave-campaign",
+    ),
+    path(
         "campaigns/<str:pk>/gangs/add/",
         views.add_gang,
         name="n26-campaign-add-gang",
