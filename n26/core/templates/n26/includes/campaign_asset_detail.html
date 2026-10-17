@@ -6,7 +6,9 @@
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}#assets">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ campaign_href }}">
+                    {{ campaign.name }}
+                </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
                     {{ details.name }}
                 </c-ui.breadcrumbs.item>

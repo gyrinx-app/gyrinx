@@ -1,53 +1,48 @@
 {% comment %}
-<c-n26.section> — a titled block with an optional count and actions.
+<c-n26.section> — A titled block with an optional count, description and actions.
 
 id is the fragment target. Omit it and the section cannot be linked to.
 Use h2, as form-section does, so detail sections and form groups sit at the same outline level.
 Keep the count inside the heading so a reader scanning headings hears the title and the count together.
+description sits below the title and count, outside the heading.
 heading_class changes the plain heading style without changing its h2 rank.
 subsection uses h3 when this section sits under another titled section.
 boxed uses the same compact card header as the gang roster.
 flush removes card body padding when its contents supply their own, such as table cells.
 {% endcomment %}
 
-<c-vars title="" count="" actions="" id="" class="" heading_class="text-lg font-semibold text-ink-900 dark:text-ink-100" :boxed="False" :flush="False" :subsection="False" />
+<c-vars title="" count="" description="" actions="" id="" class="" heading_class="text-lg font-semibold text-ink-900 dark:text-ink-100" :boxed="False" :flush="False" :subsection="False" />
 
 <section {% if id %}id="{{ id }}"{% endif %} class="min-w-0 flex flex-col gap-3 {% if boxed %}h-full{% endif %} {{ class }}">
     {% if boxed %}
         <c-ui.card padding="none" class="h-full">
             <c-slot name="header">
                 <div class="-mx-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                    {% if subsection %}
-                    <h3 class="text-sm font-semibold">
-                        {{ title }}
-                        {% if count %}<span class="ml-1 text-xs font-normal text-muted">{{ count }}</span>{% endif %}
-                    </h3>
-                    {% else %}
-                    <h2 class="text-sm font-semibold">
-                        {{ title }}
-                        {% if count %}<span class="ml-1 text-xs font-normal text-muted">{{ count }}</span>{% endif %}
-                    </h2>
-                    {% endif %}
+                    <div class="min-w-0 flex-1 {% if description %}basis-full sm:basis-0{% endif %}">
+                        {% if subsection %}
+                            <h3 class="text-sm font-semibold">{{ title }} {% if count %}<span class="ml-1 text-xs font-normal text-muted">{{ count }}</span>{% endif %}</h3>
+                        {% else %}
+                            <h2 class="text-sm font-semibold">{{ title }} {% if count %}<span class="ml-1 text-xs font-normal text-muted">{{ count }}</span>{% endif %}</h2>
+                        {% endif %}
+                        {% if description %}<p class="mt-1 text-sm font-normal text-muted">{{ description }}</p>{% endif %}
+                    </div>
                     {% if actions.strip %}<div class="flex flex-wrap items-center gap-2">{{ actions }}</div>{% endif %}
                 </div>
             </c-slot>
             <div class="min-w-0 {% if not flush %}p-4{% endif %}">{{ slot }}</div>
         </c-ui.card>
     {% else %}
-    <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        {% if subsection %}
-        <h3 class="{{ heading_class }}">
-            {{ title }}
-            {% if count %}<span class="ml-1 text-sm font-normal text-muted">{{ count }}</span>{% endif %}
-        </h3>
-        {% else %}
-        <h2 class="{{ heading_class }}">
-            {{ title }}
-            {% if count %}<span class="ml-1 text-sm font-normal text-muted">{{ count }}</span>{% endif %}
-        </h2>
-        {% endif %}
-        {% if actions.strip %}<div class="flex flex-wrap items-center gap-2">{{ actions }}</div>{% endif %}
-    </div>
-    {{ slot }}
+        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div class="min-w-0 flex-1 {% if description %}basis-full sm:basis-0{% endif %}">
+                {% if subsection %}
+                    <h3 class="{{ heading_class }}">{{ title }} {% if count %}<span class="ml-1 text-sm font-normal text-muted">{{ count }}</span>{% endif %}</h3>
+                {% else %}
+                    <h2 class="{{ heading_class }}">{{ title }} {% if count %}<span class="ml-1 text-sm font-normal text-muted">{{ count }}</span>{% endif %}</h2>
+                {% endif %}
+                {% if description %}<p class="mt-1 text-sm font-normal text-muted">{{ description }}</p>{% endif %}
+            </div>
+            {% if actions.strip %}<div class="flex flex-wrap items-center gap-2">{{ actions }}</div>{% endif %}
+        </div>
+        {{ slot }}
     {% endif %}
 </section>

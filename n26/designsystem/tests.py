@@ -727,7 +727,10 @@ class TestTheShellStillDraws:
         assert ">You</span>" in page
         assert "Old Ruins by the sump" in page
         assert "Reputation" in page
-        assert "Unclaimed" in page
+        assert any(
+            not entry["held"]
+            for entry in island_props(page, "campaign-assets")["entries"]
+        )
         assert "Record a battle" in page
         assert "Old Ruins went to The Ashen Choir" in page
 

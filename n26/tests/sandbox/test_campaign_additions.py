@@ -1037,7 +1037,15 @@ class TestTheArbitratorsControlsOnThePage:
         assert entry.income == 15
         html = client.get(response["Location"]).content.decode()
         assert "Sump Hole (flooded)" in html
-        assert "15¢" in html
+        from n26.tests.fixtures import island_props
+
+        drawn = next(
+            entry
+            for entry in island_props(html, "campaign-assets")["entries"]
+            if entry["name"] == "Sump Hole (flooded)"
+        )
+        assert drawn["income"]["value"] == 15
+        assert drawn["income"]["currency"] is True
 
     def test_add_remains_available_for_custom_holdings_when_catalogue_is_empty(
         self, client, arbitrator

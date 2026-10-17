@@ -1,0 +1,16 @@
+{% comment %}
+<c-n26.sortable-table.group> — A shaded table group heading with an optional count.
+
+Place it directly inside a table; it supplies its own tbody and spans columns.
+mobile_cards makes the heading follow the block layout used by compact tables on phones.
+The React table's group presentation is extracted from this component at build time.
+{% endcomment %}
+<c-vars label="" count="" columns="1" id="" :mobile_cards="False" class="" />
+<tbody class="{% if mobile_cards %}max-md:block{% endif %}">
+    <tr class="{% if mobile_cards %}max-md:block{% endif %}">
+        <th {% if id %}id="{{ id }}"{% endif %} colspan="{{ columns }}" scope="rowgroup"
+            class="bg-ink-500/10 py-2! whitespace-normal! text-left text-sm font-semibold! text-ink-900! dark:text-ink-100! [overflow-wrap:anywhere] {% if mobile_cards %}max-md:block max-md:w-full{% endif %} {{ class }}">
+            {{ label }}{% if count %} <span class="font-normal text-muted">· {{ count }}</span>{% endif %}
+        </th>
+    </tr>
+</tbody>

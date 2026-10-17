@@ -1,6 +1,8 @@
-"""URL-based ordering and label groups for the campaign's prepared gang lines."""
+"""URL-based ordering and grouping for campaign gangs and inventory."""
 
 from urllib.parse import parse_qs, urlencode, urlsplit
+
+CAMPAIGN_VIEW_KEYS = ("sort", "group", "asset_sort", "asset_group")
 
 
 def table_query(request, *, current_url=""):
@@ -23,7 +25,7 @@ def table_query(request, *, current_url=""):
 def table_view_href(request, here):
     """Keep only table preferences when returning to the campaign page."""
     query = table_query(request)
-    preferences = {key: query.get(key) for key in ("sort", "group") if key in query}
+    preferences = {key: query.get(key) for key in CAMPAIGN_VIEW_KEYS if key in query}
     return here + ("?" + urlencode(preferences) if preferences else "")
 
 
@@ -50,6 +52,7 @@ def gang_sort_values(sheet, line):
 
 def prepare_gang_table(sheet, request, here, *, current_url=""):
     query = table_query(request, current_url=current_url)
+    prepare_inventory(sheet, query, here)
     columns = [
         ("name", "Gang"),
         ("rating", "Rating"),
@@ -100,8 +103,14 @@ def prepare_gang_table(sheet, request, here, *, current_url=""):
     sheet.table_sort = sort
     sheet.table_group = group
     sheet.table_href = here
-    if "sort" in query or "group" in query:
-        sheet.table_href += "?" + urlencode({"sort": sort, "group": group})
+    if any(key in query for key in CAMPAIGN_VIEW_KEYS):
+        preferences = {"sort": sort, "group": group}
+        if "asset_sort" in query or "asset_group" in query:
+            preferences.update(
+                asset_sort=sheet.inventory_view["sort"],
+                asset_group=sheet.inventory_view["group"],
+            )
+        sheet.table_href += "?" + urlencode(preferences)
     sheet.table_sort_options = [
         {
             "value": prefix + token,
@@ -127,6 +136,14 @@ def prepare_gang_table(sheet, request, here, *, current_url=""):
                 {
                     "sort": ("-" + token) if sort == token else token,
                     "group": group,
+                    **{
+                        field: sheet.inventory_view[value]
+                        for field, value in (
+                            ("asset_sort", "sort"),
+                            ("asset_group", "group"),
+                        )
+                        if "asset_sort" in query or "asset_group" in query
+                    },
                 }
             )
             + "#gangs",
@@ -283,4 +300,65 @@ def gang_table_props(sheet):
         "badges": badges,
         "artwork": artwork,
         "focusCounter": getattr(sheet, "table_focus_counter", ""),
+    }
+
+
+def prepare_inventory(sheet, query, here):
+    """Validate the independent inventory view without loading more data."""
+    sort = query.get("asset_sort", "name")
+    if sort.removeprefix("-") not in {"name", "holder", "income"}:
+        sort = "name"
+    group = query.get("asset_group", "status")
+    if group not in {"", "status", "holder"}:
+        group = "status"
+    sheet.inventory_view = {"href": here, "sort": sort, "group": group}
+    for table in sheet.assets:
+        table.inventory_view = sheet.inventory_view
+
+
+def asset_table_props(table):
+    """The inventory's prepared holdings and permitted actions, as display data."""
+    return {
+        "label": table.label,
+        "plural": table.plural,
+        "typeId": table.asset_type_id,
+        "href": table.inventory_view.get("href", ""),
+        "sort": table.inventory_view.get("sort", "name"),
+        "group": table.inventory_view.get("group", "status"),
+        "entries": [
+            {
+                "id": entry.campaign_asset_id,
+                "name": entry.name,
+                "assetName": entry.asset_name,
+                "boon": entry.boon,
+                "income": entry.income_explanation,
+                "held": entry.held,
+                "holder": entry.holder,
+                "holderId": entry.holder_gang_id,
+                "holderHref": entry.holder_href,
+                "href": entry.href,
+                "sortValues": {
+                    "name": entry.name.casefold(),
+                    "holder": entry.holder.casefold(),
+                    "income": entry.income,
+                },
+                "actions": [
+                    {
+                        "label": label,
+                        "href": href,
+                        "dialog": dialog,
+                        "tone": tone,
+                        "separatorBefore": False,
+                    }
+                    for label, href, dialog, tone in (
+                        (entry.transfer_label, entry.transfer_href, True, "default"),
+                        ("Unassign", entry.unassign_href, True, "default"),
+                        ("Assign", entry.assign_href, True, "default"),
+                        ("Remove", entry.remove_href, False, "danger"),
+                    )
+                    if href
+                ],
+            }
+            for entry in table.entries
+        ],
     }

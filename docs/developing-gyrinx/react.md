@@ -137,6 +137,19 @@ dark-mode class and CSS tokens. Tailwind scans the React source and generated
 recipes. No new theme provider or CSS reset is introduced. The loader currently
 supports JavaScript-only entries; do not import per-island stylesheets.
 
+### Sortable tables
+
+`SortableTable` in `n26/frontend/ui/` is the controlled table used by campaign
+gangs and territory inventories. It renders sort and group controls, clickable
+column headers, accessible sort direction, group headings and a live status.
+Callers prepare the rows and groups, supply a row renderer, and handle view
+changes and URLs. Keep permissions and domain calculations on the server.
+
+`<c-n26.sortable-table :table="props" />` wraps the same component for plain
+text and numeric cells with local selections. Its gallery example documents
+the JSON shape. Richer tables mount their own island and import `SortableTable`
+from the public `ui` boundary; they do not import another island.
+
 ### Server interactions
 
 The PoC needs no API: its links and GET form use existing Django views. This is
