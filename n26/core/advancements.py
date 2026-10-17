@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 
 from n26.core.card import Node, build_card, build_modifier_index, carriers
 from n26.core.effects import compute
@@ -119,15 +119,32 @@ def _correction_result(record, *, lock=False):
     if selection.promotion_assignment_id:
         permitted.add(selection.promotion_assignment_id)
         permitted.add(selection.promotion_assignment.caused_by_id)
-    if (
-        selection.promotion_id
-        and record.fighter.action_records.filter(
-            action=record.action,
-            created__gt=record.created,
-            state__in=RESERVING_STATES,
-        ).exists()
-    ):
-        raise Refusal("A later advancement depends on this promotion.")
+    if selection.promotion_id:
+        applied_at = (
+            record.completed_event.created
+            if record.completed_event_id
+            else record.created
+        )
+        if (
+            record.fighter.action_records.filter(
+                action=record.action,
+                state__in=RESERVING_STATES,
+            )
+            .exclude(pk=record.pk)
+            .filter(
+                Q(created__gt=record.created)
+                | Q(
+                    ledger_events__created__gt=applied_at,
+                    ledger_events__kind__in=[
+                        LedgerEvent.Kind.ACTION_USE_COMPLETED,
+                        LedgerEvent.Kind.ACTION_USE_CORRECTED,
+                        LedgerEvent.Kind.ACTION_USE_APPLIED_BY_HAND,
+                    ],
+                )
+            )
+            .exists()
+        ):
+            raise Refusal("A later advancement depends on this promotion.")
     if any(
         not descendant.archived and descendant.pk not in permitted
         for descendant in subtree(old_pick)
@@ -138,7 +155,14 @@ def _correction_result(record, *, lock=False):
 
 def advancement_undo_snapshot(record):
     """Fingerprint the applied result a confirmed Undo would remove."""
-    if record.state != ActionRecord.State.COMPLETED or record.allowance_id is None:
+    from n26.library.models import ResolveAdvancement
+
+    if (
+        record.state != ActionRecord.State.COMPLETED
+        or record.allowance_id is None
+        or record.outcome_id is None
+        or not isinstance(record.outcome.operation, ResolveAdvancement)
+    ):
         raise Refusal(
             "You cannot undo this action. Only completed earned advancements can be undone."
         )
@@ -160,6 +184,7 @@ def advancement_undo_snapshot(record):
             "You cannot undo this while another flow for this action is started. "
             "Finish that flow, or mark it as applied by hand, first."
         )
+    advancement_options(record, record.outcome.operation)
     return {
         "record": str(record.pk),
         "completed": str(record.completed_event_id),

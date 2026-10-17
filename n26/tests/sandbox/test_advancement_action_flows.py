@@ -1494,13 +1494,14 @@ class TestAdvancementHoldsAndUndo:
     def test_undo_accepts_long_authored_pick_and_skill_names(
         self, client, monkeypatch, advancement
     ):
-        record = self._complete(client, monkeypatch, advancement)
         pick = advancement.results["primary"]
         skill = advancement.skills["primary"]
         pick.name = "P" * 200
         skill.name = "S" * 200
         pick.save(update_fields=["name", "modified"])
         skill.save(update_fields=["name", "modified"])
+        record = self._complete(client, monkeypatch, advancement)
+        original_roll = record.advancement_selection.roll_event_id
         url = reverse(
             "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
         )
@@ -1511,6 +1512,39 @@ class TestAdvancementHoldsAndUndo:
         event = record.ledger_events.get(kind=LedgerEvent.Kind.ACTION_USE_UNDONE)
         assert event.note == f"{pick}: {skill}"[:255]
         assert len(event.note) == 255
+        reviewed = client.post(
+            reverse(
+                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "skill"]
+            ),
+            {"skill_id": str(skill.pk)},
+        )
+        token = client.get(reviewed.url).context["form"]["review"].value()
+        assert client.post(reviewed.url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        assert record.advancement_selection.roll_event_id == original_roll
+
+    def test_changed_content_refuses_undo_before_removing_the_applied_result(
+        self, client, monkeypatch, advancement
+    ):
+        record = self._complete(client, monkeypatch, advancement)
+        rating = advancement.fighter.recompute_rating()
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        token = client.get(url).context["form"]["review"].value()
+        pick = advancement.results["primary"]
+        pick.name = "Renamed skill result"
+        pick.save(update_fields=["name", "modified"])
+        for response in (client.get(url), client.post(url, {"review": token})):
+            assert "table changed after the roll" in response.content.decode()
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        assert not record.advancement_selection.pick_assignment.archived
+        assert advancement.fighter.recompute_rating() == rating
+        assert not record.ledger_events.filter(
+            kind=LedgerEvent.Kind.ACTION_USE_UNDONE
+        ).exists()
 
     def test_completed_results_survive_lower_xp_until_undo_then_wait_on_hold(
         self, client, monkeypatch, advancement
