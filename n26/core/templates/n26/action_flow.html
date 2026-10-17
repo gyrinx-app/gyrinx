@@ -38,6 +38,13 @@ The roll controls submit through the surrounding form.
                     Cancel
                 </c-ui.button>
             {% endif %}
+            {% if undo_href %}
+                <c-ui.button href="{{ undo_href }}"
+                             variant="ghost"
+                             class="text-red-600! dark:text-red-400!">
+                    Undo advancement
+                </c-ui.button>
+            {% endif %}
             {% if done_href %}
                 <c-ui.button href="{{ done_href }}" variant="primary">
                     Done
@@ -199,6 +206,19 @@ The roll controls submit through the surrounding form.
                         <c-n26.tally :facts="receipt" />
                     </div>
                 {% endif %}
+            </c-n26.form-section>
+        {% elif stage == "on-hold" %}
+            <c-n26.form-section title="On hold">
+                <p>{{ hold_reason }}</p>
+                <p class="mt-1 text-sm text-muted">Recorded rolls and choices are kept. Reach the rank threshold to continue.</p>
+            </c-n26.form-section>
+        {% elif stage == "undo" %}
+            <c-n26.form-section title="Undo advancement">
+                <p class="font-semibold text-ink-900 dark:text-ink-100">Undo this advancement for {{ miniature.name }}?</p>
+                {% if selection_summary %}<p class="mt-2">{{ selection_summary }}</p>{% endif %}
+                <p class="mt-1 text-sm text-muted">Its result, rating increase and any promotion will be removed. The earned use will be waiting again, with its recorded rolls and choices kept.</p>
+                {% if record.allowance.threshold %}<p class="mt-1 text-sm text-muted">The earned use is available only while its rank threshold is met.</p>{% endif %}
+                {% if keeps_stashed_weapons %}<p class="mt-1 text-sm text-muted">Weapons moved to the stash stay there.</p>{% endif %}
             </c-n26.form-section>
         {% elif stage == "by-hand" %}
             <c-n26.form-section title="Mark as applied">

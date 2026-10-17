@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from django.db.models import Prefetch
 
 from n26.core.access import rank_tables_for
+from n26.core.allowances import allowance_hold_reason
 from n26.core.card import build_card, build_modifier_index, carriers
 from n26.core.effects import compute
 from n26.core.models import ActionAllowance, ActionRecord
@@ -218,6 +219,7 @@ def progression_for(fighter, *, card=None, computed=None):
         ActionAllowance.objects.filter(
             fighter=fighter, source_kind=ActionAllowance.Source.RANK
         )
+        .with_progression_value()
         .select_related("rank_table__counter", "action")
         .prefetch_related(Prefetch("records", queryset=active_records))
         .order_by("created", "pk")
@@ -240,6 +242,9 @@ def progression_for(fighter, *, card=None, computed=None):
     history = []
     for allowance in allowances:
         record = next(iter(allowance.records.all()), None)
+        on_hold = (
+            record is None or record.state == ActionRecord.State.STARTED
+        ) and bool(allowance_hold_reason(allowance))
         history.append(
             RankHistory(
                 table_id=allowance.rank_table_id,
@@ -248,9 +253,17 @@ def progression_for(fighter, *, card=None, computed=None):
                 threshold=allowance.threshold,
                 title=titles.get((allowance.rank_table_id, allowance.threshold), ""),
                 action_name=str(allowance.action),
-                state=record.state if record is not None else "available",
+                state="on_hold"
+                if on_hold
+                else record.state
+                if record is not None
+                else "available",
                 state_label=(
-                    record.get_state_display() if record is not None else "Available"
+                    "On hold"
+                    if on_hold
+                    else record.get_state_display()
+                    if record is not None
+                    else "Available"
                 ),
                 result=_result_for(record),
                 record_id=record.pk if record is not None else None,

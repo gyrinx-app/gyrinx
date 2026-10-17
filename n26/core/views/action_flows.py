@@ -31,7 +31,7 @@ from n26.core.action_records import (
 )
 from n26.core.counter_tracking import is_active as counter_tracking_is_active
 from n26.core.flow import FlowStep
-from n26.core.models import ActionAllowance, ActionRecord
+from n26.core.models import ActionAllowance, ActionRecord, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.core.views.permissions import _own_miniature_or_404
 from n26.library.models import (
@@ -42,6 +42,7 @@ from n26.library.models import (
 )
 
 REVIEW_SALT = "n26.fighter-action-review"
+UNDO_SALT = "n26.fighter-action-undo"
 
 
 def flow_url(fighter, record, step):
@@ -78,7 +79,7 @@ def link_action_panels(fighter, panels):
                 "href": flow_url_for(fighter, draft.key, "by-hand"),
             }
             for number, draft in enumerate(panel.drafts, start=1)
-            if draft.earned
+            if draft.earned and not draft.problem
         ]
         panel.drafts = [
             replace(draft, href=flow_url_for(fighter, draft.key, "resume"))
@@ -89,7 +90,13 @@ def link_action_panels(fighter, panels):
                 completed, reopen_href=flow_url_for(fighter, completed.key, "reopen")
             )
             if completed.applied_by_hand
-            else replace(completed, href=flow_url_for(fighter, completed.key, "done"))
+            else replace(
+                completed,
+                href=flow_url_for(fighter, completed.key, "done"),
+                undo_href=flow_url_for(fighter, completed.key, "undo")
+                if completed.undoable
+                else "",
+            )
             for completed in panel.completed
         ]
     return panels
@@ -99,7 +106,11 @@ def split_action_panels(panels):
     """Separate actions the model can use now from completed results."""
 
     return (
-        [panel for panel in panels if panel.start_href or panel.drafts],
+        [
+            panel
+            for panel in panels
+            if panel.start_href or panel.drafts or panel.held_uses
+        ],
         [panel for panel in panels if panel.completed],
     )
 
@@ -131,6 +142,8 @@ def _steps(record=None, *, action=None, stage="start", correction=False):
     the numbers do not shift part-way through. A stage the list does not
     name, such as a cancel or unavailable page, marks no step current.
     """
+    if stage in {"undo", "on-hold"}:
+        return []
     configured = record.outcome.operation if record and record.outcome_id else None
     if record is None and action:
         outcomes = _outcomes(action)
@@ -280,7 +293,12 @@ def _page(
         else:
             back_href = context["change_href"]
         back_label = "← Back"
-    elif stage == "advancement" and not correction and context.get("roll_value"):
+    elif (
+        stage == "advancement"
+        and not correction
+        and context.get("roll_value")
+        and not record.completed_event_id
+    ):
         back_href = flow_url(fighter, record, "roll")
         back_label = "← Back"
     elif outcome_href:
@@ -352,7 +370,7 @@ def _selection_summary(record, stage):
                 if target.get("skill")
                 else target["result"]
             )
-    if stage == "done":
+    if stage in {"done", "undo"}:
         selection = getattr(record, "slot_selection", None)
         if selection and selection.item_assignment and selection.intended_pick:
             return f"{selection.item_assignment.assignable}: {selection.intended_pick}."
@@ -442,6 +460,8 @@ def action_start(request, pk, action_id):
     allowances = list(
         ActionAllowance.objects.filter(fighter=fighter, action=action)
         .unused()
+        .with_progression_value()
+        .select_related("rank_table__counter")
         .order_by("threshold", "created", "pk")
     )
     if not allowances and action.pk not in {
@@ -469,6 +489,12 @@ def action_start(request, pk, action_id):
             submit_label="",
             submit_variant="primary",
         )
+    from n26.core.allowances import allowance_hold_reason
+
+    held = [row for row in allowances if allowance_hold_reason(row)]
+    allowances = [row for row in allowances if not allowance_hold_reason(row)]
+    if not allowances and held:
+        return _held_page(request, fighter, action, allowance_hold_reason(held[0]))
     outcomes = _outcomes(action)
     initial = {
         "request_key": uuid4(),
@@ -593,6 +619,21 @@ def action_flow(request, pk, record_id, step):
     if record.state == ActionRecord.State.CANCELLED:
         messages.info(request, "This flow was cancelled.")
         return redirect("n26-edit-fighter", pk=fighter.pk)
+    if step == "undo":
+        return _undo(request, fighter, record)
+    if (
+        record.state == ActionRecord.State.STARTED
+        and record.allowance_id
+        and step not in {"cancel", "reopen"}
+    ):
+        from n26.core.allowances import require_allowance_available
+
+        try:
+            require_allowance_available(record.allowance)
+        except Refusal as refusal:
+            return _held_page(
+                request, fighter, record.action, str(refusal), record=record
+            )
     if step == "by-hand" and record.state == ActionRecord.State.STARTED:
         form = EmptyActionForm(request.POST or None)
         if request.method == "POST":
@@ -671,6 +712,10 @@ def action_flow(request, pk, record_id, step):
             stage="done",
             receipt=receipt_lines(record),
             correct_href=flow_url(fighter, record, "correct") if can_correct else "",
+            undo_href=flow_url(fighter, record, "undo")
+            if record.allowance_id
+            and isinstance(record.outcome.operation, ResolveAdvancement)
+            else "",
         )
     correction = record.state == ActionRecord.State.COMPLETED
     if step == "outcome" and not correction:
@@ -887,4 +932,67 @@ def _review(request, fighter, record, *, correction):
         else flow_url(fighter, record, "outcome"),
         submit_label="Save correction" if correction else "Confirm",
         submit_variant="success",
+    )
+
+
+def _undo(request, fighter, record):
+    from n26.core.advancements import advancement_undo_snapshot
+
+    if request.method == "POST":
+        form = ConfirmActionForm(request.POST)
+        if form.is_valid():
+            try:
+                try:
+                    expected = signing.loads(
+                        form.cleaned_data["review"], salt=UNDO_SALT
+                    )
+                except signing.BadSignature:
+                    raise Refusal(
+                        "Review this advancement again before undoing it."
+                    ) from None
+                if expected.get("record") != str(record.pk):
+                    raise Refusal("That confirmation belongs to another advancement.")
+                with operation(fighter.gang, actor=request.user) as op:
+                    op.undo_action(record, expected=expected)
+                messages.success(
+                    request, "Advancement undone. Its earned use is waiting again."
+                )
+                return redirect("n26-edit-fighter", pk=fighter.pk)
+            except Refusal as refusal:
+                form.add_error(None, str(refusal))
+    else:
+        try:
+            expected = advancement_undo_snapshot(record)
+        except Refusal as refusal:
+            return _refusal_page(
+                request, fighter, record.action, refusal, record=record
+            )
+        form = ConfirmActionForm(
+            initial={"review": signing.dumps(expected, salt=UNDO_SALT, compress=True)}
+        )
+    return _page(
+        request,
+        fighter,
+        record.action,
+        record=record,
+        stage="undo",
+        form=form,
+        submit_label="Undo advancement",
+        submit_variant="danger",
+        keeps_stashed_weapons=record.ledger_events.filter(
+            kind=LedgerEvent.Kind.MOVED, note="Promotion"
+        ).exists(),
+    )
+
+
+def _held_page(request, fighter, action, reason, *, record=None):
+    return _page(
+        request,
+        fighter,
+        action,
+        record=record,
+        stage="on-hold",
+        form=EmptyActionForm(),
+        hold_reason=reason,
+        submit_label="",
     )

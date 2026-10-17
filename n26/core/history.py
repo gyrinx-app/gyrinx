@@ -828,6 +828,8 @@ def _tell(e, row, alive):
             return _tell_action_use(e, "applied", alive, after=" by hand"), "model"
         case Kind.ACTION_USE_REOPENED:
             return _tell_action_use(e, "reopened", alive), "model"
+        case Kind.ACTION_USE_UNDONE:
+            return _tell_action_use(e, "undid", alive, result=True), "model"
         case Kind.ACTION_USE_CORRECTED:
             return _tell_action_use(e, "corrected", alive, result=True), "model"
         case Kind.PURCHASED:
@@ -1239,6 +1241,7 @@ _NOTE_IS_MACHINERY = {
     Kind.ACTION_USE_CORRECTED,
     Kind.ACTION_USE_APPLIED_BY_HAND,
     Kind.ACTION_USE_REOPENED,
+    Kind.ACTION_USE_UNDONE,
 }
 
 

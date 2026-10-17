@@ -20,6 +20,32 @@ SETTLED_STATES = ["completed", "applied_by_hand"]
 
 
 class ActionAllowanceQuerySet(models.QuerySet):
+    def with_progression_value(self):
+        """Read the original rank counter in the same query as its earned use."""
+        from n26.core.models import CounterValue
+
+        values = (
+            CounterValue.objects.filter(
+                assignment__miniature_root_id=models.OuterRef("fighter_id"),
+                assignment__counter_id=models.OuterRef("rank_table__counter_id"),
+                assignment__archived=False,
+                assignment__removes=False,
+            )
+            .order_by()
+            .values("assignment__miniature_root_id", "assignment__counter_id")
+            .annotate(matches=models.Count("pk"), held=models.Min("value"))
+            .filter(matches=1)
+            .values("held")
+        )
+        return self.annotate(progression_value=models.Subquery(values))
+
+    def eligible(self):
+        """Earned uses whose original rank threshold is still met."""
+        return self.with_progression_value().filter(
+            ~models.Q(source_kind="rank")
+            | models.Q(progression_value__gte=models.F("threshold"))
+        )
+
     def unused(self):
         """Allowances with no record holding them, free to start a flow."""
         return self.exclude(records__state__in=RESERVING_STATES)

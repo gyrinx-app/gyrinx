@@ -42,6 +42,11 @@
                                     {% elif result.detail %}
                                         <p class="mt-0.5 text-muted">{{ result.detail }}</p>
                                     {% endif %}
+                                    {% if result.undo_href %}
+                                        <c-n26.link href="{{ result.undo_href }}" class="mt-0.5 inline-block text-xs">
+                                            Undo
+                                        </c-n26.link>
+                                    {% endif %}
                                 </li>
                             {% endfor %}
                         </ul>

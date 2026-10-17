@@ -3396,6 +3396,12 @@ class Operation:
 
         return reopen_action(self, record)
 
+    def undo_action(self, record, *, expected):
+        """Undo an earned advancement and resume its original flow."""
+        from n26.core.action_records import undo_action
+
+        return undo_action(self, record, expected=expected)
+
     def review_action_correction(self, record, *, terms):
         """Capture exact completed-result state before a safe correction."""
         from n26.core.action_records import review_action_correction

@@ -136,6 +136,70 @@ def _correction_result(record, *, lock=False):
     return selection, skill_selection
 
 
+def advancement_undo_snapshot(record):
+    """Fingerprint the applied result a confirmed Undo would remove."""
+    if record.state != ActionRecord.State.COMPLETED or record.allowance_id is None:
+        raise Refusal(
+            "You cannot undo this action. Only completed earned advancements can be undone."
+        )
+    if record.payment_id is not None:
+        raise Refusal("You cannot undo a paid action here.")
+    if (
+        ActionRecord.objects.filter(
+            fighter=record.fighter,
+            action=record.action,
+            state=ActionRecord.State.STARTED,
+        )
+        .exclude(pk=record.pk)
+        .exists()
+    ):
+        raise Refusal(
+            "You cannot undo this while another flow for this action is started. "
+            "Finish that flow, or mark it as applied by hand, first."
+        )
+    selection, skill = _correction_result(record)
+    if selection is None:
+        raise Refusal("This action has no advancement result to undo.")
+    return {
+        "record": str(record.pk),
+        "completed": str(record.completed_event_id),
+        "revision": record.revision,
+        "pick": [
+            str(selection.pick_assignment_id),
+            selection.pick_assignment.modified.isoformat(),
+        ],
+        "skill": [
+            str(skill.skill_assignment_id),
+            skill.skill_assignment.modified.isoformat(),
+        ]
+        if skill and skill.skill_assignment_id
+        else None,
+        "promotion": str(selection.promotion_assignment_id),
+    }
+
+
+def undo_advancement_result(op, record):
+    """Remove an independent result while keeping the flow's rolls and choices."""
+    selection, skill = _correction_result(record, lock=True)
+    detail = str(selection.intended_pick)
+    if skill and skill.skill_assignment_id:
+        detail += f": {skill.selected}"
+    op.remove(
+        selection.pick_assignment,
+        action_record=record,
+        before_pick=selection.pick_assignment,
+    )
+    selection.pick_assignment = None
+    selection.promotion_assignment = None
+    selection.save(
+        update_fields=["pick_assignment", "promotion_assignment", "modified"]
+    )
+    if skill is not None:
+        skill.skill_assignment = None
+        skill.save(update_fields=["skill_assignment", "modified"])
+    return detail
+
+
 def _counterfactual_card(record):
     card = build_card(record.fighter, with_statlines=True)
     selection, skill_selection = _correction_result(record)
@@ -504,6 +568,8 @@ def record_action_roll(
             request_key
         ):
             return selection
+        if record.completed_event_id:
+            raise Refusal("You cannot change the roll after undoing an advancement.")
         if str(selection.roll_event_id) != str(previous_roll):
             raise Refusal("This roll has changed. Reload this page before changing it.")
         if rolled == selection.roll_event.roll:
