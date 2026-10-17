@@ -161,9 +161,10 @@
     margin-bottom: 0;
 }
 
-/* Cotton's subtle button colours and shape, with text-sized inline geometry. */
+/* Cotton's subtle button surface and shape, with standard authored-text colour. */
 .rich-text .interface-label {
     display: inline;
+    color: inherit;
     padding: 0.05em 0.35em;
     font-family: inherit;
     font-size: 0.875em;
