@@ -200,6 +200,7 @@ def gang_table_props(sheet):
 
     from n26.badges import svg_tree
     from n26.core.people import person_link
+    from n26.core.templatetags.artwork import safe_artwork
     from n26.core.templatetags.theme import css_color
 
     counter_keys = sheet.counter_keys or sheet.counter_columns
@@ -212,7 +213,7 @@ def gang_table_props(sheet):
             sha256(line.type_icon.encode()).hexdigest() if line.type_icon else ""
         )
         if artwork_key and artwork_key not in artwork:
-            artwork[artwork_key] = svg_tree(line.type_icon)
+            artwork[artwork_key] = svg_tree(safe_artwork(line.type_icon))
         gangs.append(
             {
                 "id": line.gang_id,
