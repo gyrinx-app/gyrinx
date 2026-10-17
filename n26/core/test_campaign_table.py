@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import pytest
 from django.test import RequestFactory
 
 from n26.core.campaign_table import prepare_gang_table
@@ -224,7 +225,7 @@ def test_artwork_is_safe_and_shared_by_content_not_a_gang_types_display_name():
         0,
         0,
         0,
-        type_icon='<svg onload="bad()"><circle r="1" /><script>bad()</script></svg>',
+        type_icon='<svg viewBox="0 0 24 24" onload="bad()"><circle r="1" /><script>bad()</script></svg>',
     )
     second = CampaignGangLine(
         "second",
@@ -234,7 +235,7 @@ def test_artwork_is_safe_and_shared_by_content_not_a_gang_types_display_name():
         0,
         0,
         0,
-        type_icon='<svg><path d="M0 0h1" /></svg>',
+        type_icon='<svg viewBox="0 0 24 24"><path d="M0 0h1" /></svg>',
     )
     third = CampaignGangLine(
         "third", "Third", "Another type", None, 0, 0, 0, type_icon=first.type_icon
@@ -248,3 +249,44 @@ def test_artwork_is_safe_and_shared_by_content_not_a_gang_types_display_name():
     tree = data["artwork"][keys[0]]
     assert "onload" not in tree["props"]
     assert [child["tag"] for child in tree["children"]] == ["circle"]
+
+
+@pytest.mark.parametrize(
+    "markup, child_props",
+    [
+        (
+            '<svg viewBox="0 0 24 24"><rect width="24" height="24" /></svg>',
+            {"width": "24", "height": "24"},
+        ),
+        (
+            '<svg viewBox="0 0 24 24"><path d="M0 0h24" fill="#000000" '
+            'stroke="#ffffff" /><path fill="none" /></svg>',
+            {"d": "M0 0h24", "fill": "currentColor", "stroke": "currentColor"},
+        ),
+        (
+            '<svg width="24" height="24" shape-rendering="crispEdges">'
+            '<rect x="11" y="0" width="2" height="1" fill="#000000" /></svg>',
+            {"x": "11", "y": "0", "width": "2", "height": "1", "fill": "currentColor"},
+        ),
+    ],
+    ids=["inherited-colour", "explicit-colours", "intrinsic-dimensions"],
+)
+def test_gang_artwork_scales_and_matches_the_surrounding_text(markup, child_props):
+    from n26.core.campaign_table import gang_table_props
+    from n26.core.render import CampaignGangLine, CampaignSheet
+
+    line = CampaignGangLine(
+        "gang", "Acid Cats", "Escher", None, 0, 0, 0, type_icon=markup
+    )
+    data = gang_table_props(
+        CampaignSheet("Campaign", "campaign", "Type", "", gangs=[line])
+    )
+    tree = data["artwork"][data["gangs"][0]["artwork"]]
+    assert tree["props"]["viewBox"] == "0 0 24 24"
+    assert tree["props"]["fill"] == "currentColor"
+    assert "width" not in tree["props"] and "height" not in tree["props"]
+    assert tree["children"][0]["props"] == child_props
+    if len(tree["children"]) > 1:
+        assert tree["children"][1]["props"]["fill"] == "none"
+    if "crispEdges" in markup:
+        assert tree["props"]["shapeRendering"] == "crispEdges"
