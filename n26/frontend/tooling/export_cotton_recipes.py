@@ -108,6 +108,17 @@ def input_recipe():
     return {"root": root, "control": control}
 
 
+def name_list_recipe():
+    root, item, separator, text = classes(
+        "<c-n26.name-list :names=\"[{'text': 'Old Ruins'}]\" />",
+        "ul",
+        "li",
+        "span",
+        "span",
+    )
+    return dict(root=root, item=item, separator=separator, text=text)
+
+
 def _switch_face(size="md", checked=False, accent=True, disabled=False):
     parts = ['<c-ui.switch.face name="example"', f' size="{size}"']
     if checked:
@@ -1117,6 +1128,7 @@ def recipes():
         "radioCards": radio_cards_recipe(),
         "radioOption": radio_option_recipe(),
         "input": input_recipe(),
+        "nameList": name_list_recipe(),
         "nativeSelect": native_select_recipe(),
         "nativeSelectSmall": native_select_recipe("sm"),
         "field": {

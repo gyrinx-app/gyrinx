@@ -1,7 +1,7 @@
 {% load react %}
 <div id="n26-campaign-asset-detail"
      {% if redrawn %}hx-swap-oob="true"{% endif %}
-     class="max-w-3xl space-y-8">
+     class="min-w-0 max-w-3xl space-y-8 [overflow-wrap:anywhere]">
     <c-n26.page-header title="{{ details.name }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>

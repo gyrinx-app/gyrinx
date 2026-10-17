@@ -249,7 +249,13 @@ def gang_table_props(sheet):
                 "sortValues": gang_sort_values(sheet, line),
                 "labels": line.labels,
                 "assets": [
-                    {"label": detail.label, "text": detail.text}
+                    {
+                        "label": detail.label,
+                        "names": [
+                            {"name": item.name, "count": item.count, "text": item.text}
+                            for item in detail.names
+                        ],
+                    }
                     for detail in line.grouped_assets or []
                 ],
                 "rolls": [

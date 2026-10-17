@@ -874,9 +874,13 @@ def _sample_account_menu(*, unread=0, theme=True):
 
 def context():
     from n26.core.checkbox_card import CheckboxCardItem
+    from n26.core.effects import stacked_name_items
     from n26.core.rating import RatingContribution, RatingReceipt
 
     return {
+        "name_list_items": stacked_name_items(
+            ["Ruins, North", "Shop", "Shop", "Settlement"]
+        ),
         "checkbox_card_weapons": (
             CheckboxCardItem("demo-weapons", "lasgun", "Lasgun", True, "15¢"),
             CheckboxCardItem(

@@ -1,0 +1,18 @@
+{% comment %}
+<c-n26.name-list> — A wrapping list that keeps punctuation inside each name.
+
+    <c-n26.name-list :names="group.names" label="Territories" />
+
+Pass counted names with a text property. Each item wraps independently.
+An optional href links each name to the same destination. Separators are decorative.
+The caller supplies the empty state when names is empty.
+{% endcomment %}
+<c-vars :names="None" label="" href="" class="" />
+<ul role="list" aria-label="{{ label }}" class="n26-name-list m-0 flex min-w-0 flex-wrap items-baseline gap-x-1 gap-y-1 p-0 [&>li:first-child>span:first-child]:hidden {{ class }}">
+    {% for name in names %}
+        <li class="inline-flex min-w-0 max-w-full items-baseline gap-x-1">
+            <span aria-hidden="true" class="text-muted">·</span>
+            <c-n26.link href="{{ href }}" tone="current" class="min-w-0 [overflow-wrap:anywhere]">{{ name.text }}</c-n26.link>
+        </li>
+    {% endfor %}
+</ul>

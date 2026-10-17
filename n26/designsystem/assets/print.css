@@ -54,6 +54,35 @@
  * template can only express it as arithmetic it cannot do.
  * =========================================================================== */
 
+/* Each name stays together at a line break; the list remains block flow so it
+ * can participate in page fragmentation. Long names may wrap inside an item. */
+.n26-print-sheet .n26-name-list {
+    display: block;
+}
+
+.n26-print-sheet .n26-name-list > li {
+    display: inline-block;
+    position: relative;
+    margin-inline-end: 0.25em;
+    padding-inline-start: 0.75em;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+}
+
+.n26-print-sheet .n26-name-list > li:first-child {
+    padding-inline-start: 0;
+}
+
+.n26-print-sheet .n26-name-list > li > span[aria-hidden] {
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0;
+}
+
+.n26-print-sheet .n26-name-list > li > span:last-child {
+    display: block;
+}
+
 .n26-print-sheet {
     --print-page-w: 210mm;
     --print-page-h: 297mm;

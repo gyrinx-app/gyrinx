@@ -10,6 +10,7 @@ from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.capture import gang_state
+from n26.core.effects import StackedName
 from n26.core.render import render_gang
 from n26.core.render_text import gang_to_text
 from n26.flags import CAMPAIGNS
@@ -41,7 +42,7 @@ def grouped(client, default_pack, gang_type):
     join_campaign(gang, campaign)
     territory = kind.asset_types.get(label_singular="Territory")
     shop = create_asset("Shop", territory, income=10)
-    ruins = create_asset("Old Ruins", territory, income=30)
+    ruins = create_asset("Ruins, North", territory, income=30)
     tokens = []
     for asset, name in [(shop, ""), (shop, ""), (shop, "Sump shop"), (ruins, "")]:
         token = add_asset(campaign, asset, name=name)
@@ -55,7 +56,12 @@ def test_named_groups_keep_multiples_and_renamed_copies(grouped):
     gang, _, _, _ = grouped
     block = render_gang(gang).campaign
     groups = {group.label: group for group in block.asset_groups}
-    assert groups["Territories"].names == "Settlement, Old Ruins, Shop (x2), Sump shop"
+    assert groups["Territories"].names == [
+        StackedName("Settlement"),
+        StackedName("Ruins, North"),
+        StackedName("Shop", 2),
+        StackedName("Sump shop"),
+    ]
     assert groups["Territories"].held
     assert "Settlements" not in groups
     assert (
@@ -92,9 +98,13 @@ def test_screen_uses_one_row_and_links_the_named_list(client, grouped):
     label = soup.find("dt", string="Territories")
     assert label is not None
     names = label.find_next_sibling("dd")
-    assert "Settlement, Old Ruins, Shop (x2), Sump shop" in names.get_text(
-        " ", strip=True
-    )
+    items = names.find("ul", attrs={"aria-label": "Territories"}).find_all("li")
+    assert [item.find("a").get_text(strip=True) for item in items] == [
+        "Settlement",
+        "Ruins, North",
+        "Shop (x2)",
+        "Sump shop",
+    ]
     assert (
         names.find("a")["href"]
         == reverse("n26-campaign", args=[campaign.pk]) + "#assets"
@@ -107,12 +117,42 @@ def test_print_and_text_follow_the_same_groups(client, grouped):
     gang, _, _, _ = grouped
     html = client.get(reverse("n26-print", args=[gang.pk])).content.decode()
     assert "Territories" in html
-    assert "Settlement, Old Ruins, Shop (x2), Sump shop" in html
+    soup = BeautifulSoup(html, "html.parser")
+    items = soup.find("ul", attrs={"aria-label": "Territories"}).find_all("li")
+    assert [item.find_all("span")[-1].get_text(strip=True) for item in items] == [
+        "Settlement",
+        "Ruins, North",
+        "Shop (x2)",
+        "Sump shop",
+    ]
     text = gang_to_text(gang)
     assert "Campaign: Dust Falls" in text
-    assert "Territories: Settlement, Old Ruins, Shop (x2), Sump shop" in text
+    assert (
+        "Territories:\n    - Settlement\n    - Ruins, North\n    - Shop (x2)\n    - Sump shop"
+        in text
+    )
     assert "Settlements:" not in text
     assert "Income: 70" in text
+
+
+def test_campaign_table_receives_separate_counted_names(client, grouped):
+    from n26.tests.fixtures import island_props
+
+    gang, campaign, _, _ = grouped
+    props = island_props(
+        client.get(reverse("n26-campaign", args=[campaign.pk])).content,
+        "campaign-gangs",
+    )
+    displayed = next(item for item in props["gangs"] if item["id"] == str(gang.pk))
+    territories = next(
+        item for item in displayed["assets"] if item["label"] == "Territories"
+    )
+    assert territories["names"] == [
+        {"name": "Settlement", "count": 1, "text": "Settlement"},
+        {"name": "Ruins, North", "count": 1, "text": "Ruins, North"},
+        {"name": "Shop", "count": 2, "text": "Shop (x2)"},
+        {"name": "Sump shop", "count": 1, "text": "Sump shop"},
+    ]
 
 
 def test_capture_keeps_the_group_and_detects_a_lost_copy(grouped, monkeypatch):
@@ -120,9 +160,10 @@ def test_capture_keeps_the_group_and_detects_a_lost_copy(grouped, monkeypatch):
 
     gang, _, _, tokens = grouped
     before = gang_state(gang)
-    assert ("Territories", "Settlement, Old Ruins, Shop (x2), Sump shop") in before[
-        "campaign"
-    ]["assets"]
+    assert (
+        "Territories",
+        (("Settlement", 1), ("Ruins, North", 1), ("Shop", 2), ("Sump shop", 1)),
+    ) in before["campaign"]["assets"]
     reordered = render_gang(gang)
     reordered.campaign.lines.reverse()
     reordered.campaign.holdings.reverse()
@@ -133,9 +174,10 @@ def test_capture_keeps_the_group_and_detects_a_lost_copy(grouped, monkeypatch):
     unassign_asset(tokens[0])
     after = gang_state(gang)
     assert before != after
-    assert ("Territories", "Settlement, Old Ruins, Shop, Sump shop") in after[
-        "campaign"
-    ]["assets"]
+    assert (
+        "Territories",
+        (("Settlement", 1), ("Ruins, North", 1), ("Shop", 1), ("Sump shop", 1)),
+    ) in after["campaign"]["assets"]
     assert ("Income", "60") in after["campaign"]["counters"]
 
 
@@ -226,7 +268,12 @@ def test_repeated_campaign_possessions_are_grouped_too(grouped):
         for group in render_gang(gang).campaign.asset_groups
         if group.label == "Territories"
     )
-    assert group.names == "Settlement (x2), Old Ruins, Shop (x2), Sump shop"
+    assert group.names == [
+        StackedName("Settlement", 2),
+        StackedName("Ruins, North"),
+        StackedName("Shop", 2),
+        StackedName("Sump shop"),
+    ]
 
 
 def test_table_tokens_keep_the_selected_columns_when_earlier_additions_are_archived(
@@ -328,10 +375,10 @@ def test_authored_display_groups_combine_arbitrary_types_on_both_sheets(grouped)
         assign_asset(add_asset(campaign, asset), gang)
     block = render_gang(gang).campaign
     group = next(group for group in block.asset_groups if group.label == "Supply sites")
-    assert group.names == "Workshop East, Depot East"
+    assert group.names == [StackedName("Workshop East"), StackedName("Depot East")]
     line = render_campaign(campaign).gangs[0]
     group = next(detail for detail in line.details if detail.label == "Supply sites")
-    assert group.text == "Workshop East, Depot East"
+    assert group.names == [StackedName("Workshop East"), StackedName("Depot East")]
     assert campaign.campaign_type.asset_types.get(label_singular="Workshop").is_holding
 
 

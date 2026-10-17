@@ -225,6 +225,26 @@ def count_mark(count):
     return f" (x{count})" if count > 1 else ""
 
 
+@dataclass(frozen=True)
+class StackedName:
+    """A distinct name and the number of copies it represents."""
+
+    name: str
+    count: int = 1
+
+    @property
+    def text(self):
+        return f"{self.name}{count_mark(self.count)}"
+
+
+def stacked_name_items(names):
+    """Count identical names, retaining their first-seen order."""
+    counts = {}
+    for name in names:
+        counts[name] = counts.get(name, 0) + 1
+    return [StackedName(name, count) for name, count in counts.items()]
+
+
 def stacked_names(names):
     """Collapse repeated names to ``Name (xn)``.
 
@@ -234,14 +254,7 @@ def stacked_names(names):
     picks themselves stay as they were written — this is only how
     the line reads.
     """
-    counts = {}
-    order = []
-    for name in names:
-        if name not in counts:
-            order.append(name)
-            counts[name] = 0
-        counts[name] += 1
-    return ", ".join(f"{name}{count_mark(counts[name])}" for name in order)
+    return ", ".join(item.text for item in stacked_name_items(names))
 
 
 @dataclass

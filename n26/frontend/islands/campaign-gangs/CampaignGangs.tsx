@@ -9,6 +9,7 @@ import {
     IncomeTooltip,
     Link,
     SortableTable,
+    NameList,
     runCampaignDialog,
     useCampaignDialogRequests,
     UserLink,
@@ -149,7 +150,13 @@ export function CampaignGangs(
             ...props.labels.flatMap((label, index) =>
                 index === groupedIndex
                     ? []
-                    : [{ label: label.label, text: gang.labels[index] }],
+                    : [
+                          {
+                              label: label.label,
+                              text: gang.labels[index],
+                              names: undefined,
+                          },
+                      ],
             ),
             ...gang.assets,
         ];
@@ -332,21 +339,29 @@ export function CampaignGangs(
                             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5 text-xs">
                                 {gang.overBudget && <Badge>Over budget</Badge>}
                                 {details.map((detail, index) => (
-                                    <span
+                                    <div
                                         key={index}
                                         className="inline-flex min-w-0 max-w-full flex-wrap gap-x-2 [overflow-wrap:anywhere]"
                                     >
                                         <span className="text-muted">
                                             {detail.label}
                                         </span>
-                                        <span className="min-w-0 break-words">
-                                            {detail.text || (
-                                                <span className="text-muted">
-                                                    —
-                                                </span>
-                                            )}
-                                        </span>
-                                    </span>
+                                        {detail.names?.length ? (
+                                            <NameList
+                                                names={detail.names}
+                                                label={detail.label}
+                                            />
+                                        ) : (
+                                            <span className="min-w-0 break-words">
+                                                {("text" in detail &&
+                                                    detail.text) || (
+                                                    <span className="text-muted">
+                                                        —
+                                                    </span>
+                                                )}
+                                            </span>
+                                        )}
+                                    </div>
                                 ))}
                                 {gang.rolls.map((roll) => {
                                     const href = actionHref(roll.href, view);
