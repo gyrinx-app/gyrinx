@@ -416,9 +416,7 @@ def test_campaign_state_names_available_asset_types_even_without_holdings(
     assert label.find_next_sibling("dd").get_text(strip=True) == "None"
     assert not label.find_next_sibling("dd").find("a")
     groups = render_gang(gang).campaign.asset_groups
-    assert any(
-        group.label == asset_type.plural and group.names == "None" for group in groups
-    )
+    assert any(group.label == asset_type.plural and not group.names for group in groups)
 
 
 def test_a_counter_edit_reorders_its_campaign_table_and_keeps_no_grouping(

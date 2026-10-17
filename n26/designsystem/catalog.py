@@ -1923,6 +1923,13 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="name-list",
+                tag="c-n26.name-list",
+                template="n26/name_list.html",
+                summary="A compact list of names that wrap independently.",
+                notes="Pass counted names and an accessible label. Punctuation stays inside each item; an optional href links each name to the same page.",
+            ),
+            Component(
                 slug="statline",
                 tag="c-n26.statline",
                 template="n26/statline/index.html",
