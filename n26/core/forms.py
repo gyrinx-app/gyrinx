@@ -661,10 +661,9 @@ class BattleForm(forms.Form):
         empty_label="Not awarded",
     )
     revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
-    stake_versions = forms.CharField(widget=forms.HiddenInput)
+    stake_versions = forms.CharField(required=False, widget=forms.HiddenInput)
 
     def __init__(self, *args, playing, battle=None, **kwargs):
-        from n26.core.campaigns import stake_came_from
         from n26.core.models import Battle
 
         super().__init__(*args, **kwargs)
@@ -706,9 +705,6 @@ class BattleForm(forms.Form):
             salt=self._stake_salt,
             compress=True,
         )
-        came_from = stake_came_from(battle)
-        if came_from is not None and battle.stake_awarded_to_id == came_from.pk:
-            self.initial["stake_awarded_to"] = None
         # Every participant remains selectable when the stake changes to an
         # unclaimed asset in the same form submission.
         self.fields["stake_awarded_to"].queryset = self._awardable(playing, battle)
@@ -745,7 +741,11 @@ class BattleForm(forms.Form):
             )
         versions = cleaned.pop("stake_versions", None)
         stake = cleaned.get("stake")
-        if stake is not None and versions:
+        if "stake_versions" in self.fields and not versions:
+            self.add_error(
+                None, "The available stakes changed. Reload the battle before saving."
+            )
+        elif stake is not None and versions:
             try:
                 expected = signing.loads(versions, salt=self._stake_salt)
                 cleaned["stake_revision"] = expected[str(stake.pk)]

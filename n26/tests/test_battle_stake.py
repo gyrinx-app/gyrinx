@@ -317,13 +317,30 @@ class TestWhereItCanGo:
         client.post(edit_url(table), form_fields(table, stake_awarded_to=""))
         assert holder(table) == table.choir
 
-    def test_a_stake_awarded_to_its_first_holder_shows_as_staying(self, table):
+    def test_an_explicit_award_to_the_first_holder_stays_selected(self, table):
         stake_as(table, table.choir)
         table.battle.refresh_from_db()
 
         form = BattleForm(playing=Gang.objects.all(), battle=table.battle)
 
-        assert form.initial["stake_awarded_to"] is None
+        assert form.initial["stake_awarded_to"] == table.choir.pk
+
+    def test_editing_the_scenario_preserves_an_award_to_the_first_holder(
+        self, client, table
+    ):
+        stake_as(table, table.choir)
+        response = client.get(edit_url(table))
+        document = BeautifulSoup(response.content, "html.parser")
+        assert document.select_one("#battle-stake-awarded-to option[selected]")[
+            "value"
+        ] == str(table.choir.pk)
+        data = html_fields(response, scenario="Stand-off at dusk")
+        assert client.post(edit_url(table), data).status_code == 302
+        table.battle.refresh_from_db()
+        assert table.battle.scenario == "Stand-off at dusk"
+        assert table.battle.stake_awarded_to_id == table.choir.pk
+        assert holder(table) == table.choir
+        assert not moves(table)
 
 
 class TestRemovingTheBattle:
@@ -732,6 +749,53 @@ class TestUnclaimedStakes:
         response = client.post(edit_url(table), data)
         assert response.status_code == 200
         assert "The available stakes changed" in response.content.decode()
+        assert holder(table) is None
+        assert not moves(table)
+
+    @pytest.mark.parametrize("select_stake", [False, True])
+    def test_a_missing_ownership_snapshot_shows_a_reload_message(
+        self, client, table, select_stake
+    ):
+        data = form_fields(table)
+        del data["stake_versions"]
+        if not select_stake:
+            data.update(stake="", stake_awarded_to="")
+        response = client.post(edit_url(table), data)
+        assert response.status_code == 200
+        message = "The available stakes changed. Reload the battle before saving."
+        assert message in response.context["form"].non_field_errors()
+        assert message in BeautifulSoup(response.content, "html.parser").get_text()
+        assert holder(table) == table.choir
+        assert not moves(table)
+
+    def test_a_newly_available_stake_requires_a_visible_reload_before_saving(
+        self, client, table
+    ):
+        transfer_asset(table.ruins, table.bystanders)
+        response = client.get(edit_url(table))
+        assert "stake_versions" not in response.context["form"].fields
+        data = html_fields(response, scenario="Stand-off at dusk")
+        assert "stake_versions" not in data
+        unassign_asset(table.ruins)
+        response = client.post(edit_url(table), data)
+        message = "The available stakes changed. Reload the battle before saving."
+        assert response.status_code == 200
+        assert message in response.context["form"].non_field_errors()
+        assert message in BeautifulSoup(response.content, "html.parser").get_text()
+        table.battle.refresh_from_db()
+        assert table.battle.scenario == "Stand-off"
+        assert holder(table) is None
+        assert not moves(table)
+        refreshed = client.get(edit_url(table))
+        assert (
+            client.post(
+                edit_url(table), html_fields(refreshed, scenario="Stand-off at dusk")
+            ).status_code
+            == 302
+        )
+        table.battle.refresh_from_db()
+        assert table.battle.scenario == "Stand-off at dusk"
+        assert table.battle.stake_id is None
         assert holder(table) is None
         assert not moves(table)
 
