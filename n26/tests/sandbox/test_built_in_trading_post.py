@@ -17,6 +17,7 @@ from n26.core.trading import visitors
 from n26.library.authoring import (
     configure_trading_post_visit,
     create_gang_type,
+    create_pack,
     create_subtype,
     revise,
 )
@@ -73,6 +74,15 @@ class TestAuthoring:
         assert client.post(settings_url(), {}).status_code == 302
         assert not action.excluded_gang_types.exists()
         assert BuiltInAction.objects.count() == 1
+
+    def test_a_type_from_an_owned_library_pack_can_be_selected(self, client, author):
+        pack = create_pack("Owned library", owner=author)
+        added = create_gang_type("Authored list", pack=pack)
+        response = client.get(settings_url())
+        assert added in response.context["form"].fields["excluded_gang_types"].queryset
+        response = client.post(settings_url(), {"excluded_gang_types": [str(added.pk)]})
+        assert response.status_code == 302
+        assert list(BuiltInAction.objects.get().excluded_gang_types.all()) == [added]
 
     def test_a_selected_archived_type_remains_editable(self, client, author):
         selected = create_gang_type("Archived list")

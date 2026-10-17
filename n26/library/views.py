@@ -6130,8 +6130,7 @@ def trading_post_visit_settings(request):
     """Configure the built-in visit without offering a second action definition."""
     from django.db.models import Q
 
-    from n26.library.authoring import configure_trading_post_visit
-    from n26.library.forms import generate_form
+    from n26.library.forms import trading_post_visit_settings_form
     from n26.library.models import BuiltInAction, GangType
 
     action = BuiltInAction.objects.filter(
@@ -6140,7 +6139,7 @@ def trading_post_visit_settings(request):
     selected = (
         list(action.excluded_gang_types.values_list("pk", flat=True)) if action else []
     )
-    form = generate_form(specs()[configure_trading_post_visit.__name__])(
+    form = trading_post_visit_settings_form(
         request.POST if request.method == "POST" else None,
         initial={"excluded_gang_types": selected},
     )
