@@ -832,3 +832,93 @@ class TestUnclaimedStakes:
         assert table.battle.stake_id == other.pk
         assert other.holder.gang_id == table.choir.pk
         assert holder(table) == table.choir
+
+
+@pytest.mark.django_db(transaction=True)
+def test_correcting_an_unclaimed_award_can_finish_beside_a_ransom_payment(
+    table, monkeypatch
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from queue import Queue
+    from threading import Event, local
+    from time import monotonic, sleep
+
+    from django.db import close_old_connections, connection
+
+    from n26.core import operations
+    from n26.core.reconcile import assert_reconciled
+
+    earlier, later = sorted([table.choir, table.kings], key=lambda gang: gang.pk)
+    for gang in (earlier, later):
+        with operations.operation(gang, actor=table.arbitrator) as op:
+            op.set_budget(100)
+    unassign_asset(table.ruins)
+    stake_as(table, later)
+    held = Event()
+    proceed = Event()
+    payment_pid = Queue()
+    worker = local()
+    original_hold = operations._hold
+
+    def pause_after_first_correction_lock(*gangs):
+        original_hold(*gangs)
+        if getattr(worker, "correcting", False) and not getattr(
+            worker, "paused", False
+        ):
+            worker.paused = True
+            held.set()
+            assert proceed.wait(10), "The payment did not reach its gang locks."
+
+    monkeypatch.setattr(operations, "_hold", pause_after_first_correction_lock)
+
+    def correct():
+        close_old_connections()
+        worker.correcting = True
+        try:
+            stake_as(table, earlier)
+        finally:
+            close_old_connections()
+
+    def pay():
+        close_old_connections()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_backend_pid()")
+                payment_pid.put(cursor.fetchone()[0])
+            with operations.operation(
+                earlier, actor=table.arbitrator, also=[later]
+            ) as op:
+                op.transfer(later, 10, note="ransom")
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        correction = pool.submit(correct)
+        try:
+            assert held.wait(10), "The correction did not reach its gang locks."
+            payment = pool.submit(pay)
+            pid = payment_pid.get(timeout=10)
+            deadline = monotonic() + 10
+            while monotonic() < deadline:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT cardinality(pg_blocking_pids(%s))", [pid])
+                    if cursor.fetchone()[0]:
+                        break
+                sleep(0.01)
+            else:
+                pytest.fail("The payment did not wait for the correction's gang lock.")
+        finally:
+            proceed.set()
+        correction.result(timeout=10)
+        payment.result(timeout=10)
+
+    table.battle.refresh_from_db()
+    assert table.battle.stake_awarded_to_id == earlier.pk
+    assert holder(table) == earlier
+    earlier.refresh_from_db()
+    later.refresh_from_db()
+    assert earlier.credits == 90
+    assert later.credits == 110
+    assert LedgerEvent.objects.filter(kind=LedgerEvent.Kind.TRANSFERRED).count() == 2
+    assert_reconciled(earlier)
+    assert_reconciled(later)

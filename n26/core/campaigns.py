@@ -683,8 +683,23 @@ class CampaignOperation:
         gang it goes to, and its mark is kept on the battle so saving again
         moves nothing.
         """
-        from n26.core.operations import Refusal
+        from n26.core.operations import Refusal, _hold
 
+        # A correction retains its reversal locks until commit. Take every
+        # involved gang together, in the same order as a payment.
+        gangs = [awarded_to]
+        for asset in (battle.stake, stake):
+            if asset is not None and asset.held:
+                gangs.append(asset.holder.gang)
+        if battle.stake_transfer_mark is not None:
+            gangs.extend(
+                event.gang
+                for event in LedgerEvent.objects.filter(
+                    batch=battle.stake_transfer_mark,
+                    campaign_asset_id=battle.stake_id,
+                ).select_related("gang")
+            )
+        _hold(*gangs)
         if battle.stake_transfer_mark is not None:
             self._reverse_stake(battle)
         battle.stake, battle.stake_awarded_to = stake, awarded_to
