@@ -3049,6 +3049,38 @@ class TestPetResults:
             item.miniature.pk for item in crew_roster(table.gang)
         }
 
+    def test_nested_pets_stay_with_their_owners_and_keep_sibling_order(
+        self, client, table, feature, report_pet, make_profile
+    ):
+        wargear = report_pet.membership.caused_by.wargear
+        sibling_token = assign(wargear, miniature=table.models[0])
+        sibling = Miniature.objects.get(membership__caused_by=sibling_token)
+        profile = make_profile("Giant rat")
+        collar = create_wargear("Brood collar")
+        modifier(
+            "The collar brings a Giant rat",
+            targets_the_model(),
+            op_adds_model(profile),
+            carried_by=collar,
+        )
+        token = assign(collar, miniature=report_pet)
+        rat = Miniature.objects.get(membership__caused_by=token)
+        report = start(client, table)
+        response = client.get(editor_url(report))
+        assert [model.id for model in response.context["models"]] == [
+            str(table.models[0].pk),
+            str(report_pet.pk),
+            str(rat.pk),
+            str(sibling.pk),
+            str(table.models[1].pk),
+        ]
+        document = BeautifulSoup(response.content, "html.parser")
+        assert (
+            f"Owned by {report_pet.name}"
+            in document.select_one(f"#result-{rat.pk}").get_text()
+        )
+        assert_books(table)
+
     def test_a_fighter_and_pet_receive_xp_and_a_pet_injury_once(
         self, client, table, feature, report_pet
     ):
@@ -3104,8 +3136,9 @@ class TestPetResults:
         assert PostBattleRevision.objects.filter(report=report).count() == 1
         assert_books(table)
 
+    @pytest.mark.parametrize("nested", [False, True])
     def test_more_pets_do_not_add_per_model_queries(
-        self, client, table, feature, report_pet
+        self, client, table, feature, report_pet, nested
     ):
         report = start(client, table)
 
@@ -3118,6 +3151,7 @@ class TestPetResults:
 
         before = count()
         wargear = report_pet.membership.caused_by.wargear
+        owner = report_pet if nested else table.models[1]
         for _ in range(3):
-            assign(wargear, miniature=table.models[1])
+            assign(wargear, miniature=owner)
         assert count() <= before
