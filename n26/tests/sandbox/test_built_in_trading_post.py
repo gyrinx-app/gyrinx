@@ -243,3 +243,22 @@ class TestStandardContent:
         )
         assert HasSubtypes.objects.filter(negate=True, subtypes=spyrer).count() == 2
         assert not BuiltInAction.objects.get().excluded_gang_types.exists()
+
+    @pytest.mark.parametrize("qualified_only", [False, True])
+    def test_migration_resolves_case_and_qualified_variants(
+        self, default_pack, qualified_only
+    ):
+        spyre = create_gang_type(
+            "SPYRE HUNTERS", qualifier="A" if qualified_only else ""
+        )
+        spyrer = create_subtype("SPYRER", qualifier="A" if qualified_only else "")
+        create_gang_type("Spyre Hunters", qualifier="Other list")
+        create_subtype("Spyrer", qualifier="Other rules")
+        migrate = import_module(
+            "n26.library.migrations.0126_built_in_trading_post_action"
+        ).configure_visits
+        migrate(apps, SimpleNamespace(connection=connection))
+        action = BuiltInAction.objects.get()
+        assert list(action.excluded_gang_types.all()) == [spyre]
+        assert Subtype.objects.filter(name__iexact="Spyrer").count() == 2
+        assert Subtype.objects.get(pk=spyrer.pk).name == "SPYRER"

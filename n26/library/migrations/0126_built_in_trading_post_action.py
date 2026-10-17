@@ -21,20 +21,34 @@ def configure_visits(apps, schema_editor):
         slug=settings.DEFAULT_CONTENT_PACK_SLUG,
         defaults={"name": settings.DEFAULT_CONTENT_PACK_NAME},
     )
-    spyre, _ = GangType.objects.using(alias).get_or_create(
-        pack=pack, name="Spyre Hunters"
-    )
+
+    def named_content(model, name):
+        # Unqualified content is canonical; qualified variants may share its name.
+        existing = (
+            model.objects.using(alias)
+            .filter(pack=pack, name__iexact=name)
+            .order_by("qualifier", "pk")
+            .first()
+        )
+        return (
+            existing
+            if existing is not None
+            else model.objects.using(alias).create(pack=pack, name=name)
+        )
+
+    spyre = named_content(GangType, "Spyre Hunters")
     action, created = BuiltInAction.objects.using(alias).get_or_create(
         key="trading_post_visit"
     )
     if created:
         action.excluded_gang_types.add(spyre)
 
-    spyrer, _ = Subtype.objects.using(alias).get_or_create(pack=pack, name="Spyrer")
+    spyrer = named_content(Subtype, "Spyrer")
     for rank_name in ("Leader", "Champion"):
         rank = (
             Subtype.objects.using(alias)
             .filter(pack=pack, name__iexact=rank_name)
+            .order_by("qualifier", "pk")
             .first()
         )
         if rank is None:
