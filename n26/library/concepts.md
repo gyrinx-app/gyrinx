@@ -498,3 +498,6 @@ the action under **More actions → Other actions**, and open visits always
 remain manageable. Unselected and newly added gang types show the action
 normally. These settings do not grant Trade Points or change equipment access;
 subtype modifiers still determine what each visitor contributes.
+
+Clearing an import preserves the gang types selected here and the subtype
+conditions used by the standard contribution rules.

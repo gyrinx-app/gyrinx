@@ -1006,7 +1006,8 @@ default visibility separately from the actions you grant to fighter entries.
 4. Save changes.
 
 The choices come from the library's gang types. When you add a new gang type,
-return here if it should be excluded. An unselected type shows the visit setup
+return here if it should be excluded. Clearing an import keeps the selected
+gang types. An unselected type shows the visit setup
 links normally. Renaming a selected type preserves its selection. To restore
 the usual links, remove the type from the selection and save.
 

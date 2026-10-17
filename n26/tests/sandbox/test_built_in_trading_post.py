@@ -272,3 +272,27 @@ class TestStandardContent:
         assert list(action.excluded_gang_types.all()) == [spyre]
         assert Subtype.objects.filter(name__iexact="Spyrer").count() == 2
         assert Subtype.objects.get(pk=spyrer.pk).name == "SPYRER"
+
+    def test_clearing_imports_preserves_settings_and_condition_references(
+        self, default_pack
+    ):
+        from n26.library.ingest import clear_imported
+        from n26.library.models import GangType
+
+        STANDARD_CONTENT["visit-contribution"].create()
+        spyrer = Subtype.objects.get(name="Spyrer")
+        revise(spyrer, name="Renamed subtype")
+        configured = create_gang_type("Configured library type")
+        configure_trading_post_visit([configured])
+        imported_type = create_gang_type("Imported type")
+        imported_subtype = create_subtype("Imported subtype")
+
+        clear_imported()
+
+        assert Subtype.objects.filter(pk=spyrer.pk).exists()
+        assert HasSubtypes.objects.filter(negate=True, subtypes=spyrer).count() == 2
+        assert list(BuiltInAction.objects.get().excluded_gang_types.all()) == [
+            configured
+        ]
+        assert not GangType.objects.filter(pk=imported_type.pk).exists()
+        assert not Subtype.objects.filter(pk=imported_subtype.pk).exists()

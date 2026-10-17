@@ -38,7 +38,9 @@ purchase accounting and historical visit balances retain their existing rules.
    to the standard Leader/Champion contribution modifiers in a data migration.
    Preserve all existing conditions, including Champion's Leader exclusion.
    Fresh Foundations creation must produce the same defaults, while rerunning
-   Foundations must preserve an author's visibility settings.
+   Foundations must preserve an author's visibility settings. Import clearing
+   preserves configured gang types and subtype references held by retained
+   contribution modifiers.
 5. Add an author-facing recipe covering configuration, new gang types,
    exceptions, existing visits and contribution modifiers. Describe the
    built-in action configuration in Core Concepts.
