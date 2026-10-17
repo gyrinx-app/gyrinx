@@ -11,13 +11,25 @@ See design/campaign-assets.md.
 """
 
 import re
+from datetime import date
+from uuid import uuid4
 
 import pytest
+from bs4 import BeautifulSoup
 from django.apps import apps
 from django.contrib.auth.models import User
+from django.urls import reverse
 
+from n26.core.campaigns import campaign_operation
 from n26.core.history import build, campaign_history
-from n26.core.models import CampaignEvent, CampaignMembership, LedgerEvent
+from n26.core.models import (
+    CampaignEvent,
+    CampaignMembership,
+    CampaignParticipant,
+    LedgerEvent,
+    PostBattleReport,
+)
+from n26.core.post_battle import can_edit_report, start_report
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
 from n26.library.authoring import create_asset
@@ -257,18 +269,19 @@ class TestArchivingACampaign:
         assert not CampaignMembership.objects.filter(gang=late).exists()
 
 
+@pytest.fixture
+def open_to_everyone(db):
+    from gyrinx.site.models import Availability, FeatureFlag
+    from n26.flags import CAMPAIGNS
+
+    return FeatureFlag.objects.create(
+        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
+    )
+
+
 class TestTheConfirmationPage:
     """The page says what the gang loses and what goes back to the campaign,
     each under its own heading."""
-
-    @pytest.fixture
-    def open_to_everyone(self, db):
-        from gyrinx.site.models import Availability, FeatureFlag
-        from n26.flags import CAMPAIGNS
-
-        return FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
 
     def test_each_thing_is_under_the_right_heading(
         self, client, gang, campaign, alignment, old_ruins, open_to_everyone
@@ -294,3 +307,380 @@ class TestTheConfirmationPage:
             r"<dt[^>]*>Territory</dt>\s*<dd[^>]*>\s*Old Ruins\s*</dd>", returned
         )
         assert "These will be unassigned." in returned
+
+
+def seat(campaign, user):
+    """An accepted player, as answering an invitation leaves one."""
+    with campaign_operation(campaign, actor=campaign.owner) as act:
+        act.invite(user)
+    with campaign_operation(campaign, actor=user) as act:
+        act.answer_invitation(user, accepted=True)
+
+
+def leave(campaign, user):
+    with campaign_operation(campaign, actor=user) as act:
+        return act.leave()
+
+
+def fight(campaign, *gangs):
+    """A battle with no result recorded yet."""
+    with campaign_operation(campaign, actor=campaign.owner) as act:
+        return act.record_battle(date(2026, 10, 1), gangs, scenario="Ambush")
+
+
+@pytest.fixture
+def second(gang, gang_type, campaign):
+    """Another gang of the same player's, in the same campaign."""
+    other = found_gang("The Grey Hounds", gang_type, owner=gang.owner)
+    join_campaign(other, campaign)
+    return other
+
+
+class TestAPlayerLeaving:
+    """A player who leaves takes every gang of theirs out, each as removing
+    it would, and stops being a player. Nobody else's gang is touched."""
+
+    def test_every_gang_of_theirs_gives_back_what_the_campaign_gave(
+        self, gang, second, rival, campaign, alignment, old_ruins
+    ):
+        played(gang, alignment, old_ruins)
+        seat(campaign, gang.owner)
+
+        left = leave(campaign, gang.owner)
+
+        assert {g.pk for g in left} == {gang.pk, second.pk}
+        for member in (gang, second):
+            assert not CampaignMembership.objects.get(gang=member).playing
+            assert not live(member).filter(asset__name="Settlement").exists()
+            assert not live(member).filter(campaign_type__isnull=False).exists()
+            assert_reconciled(member)
+        old_ruins.refresh_from_db()
+        assert old_ruins.holder is None
+        assert CampaignMembership.objects.get(gang=rival).playing
+        assert live(rival).filter(asset__name="Settlement").exists()
+
+    def test_they_stop_being_a_player_and_the_log_says_they_left(self, gang, campaign):
+        seat(campaign, gang.owner)
+        leave(campaign, gang.owner)
+
+        assert not CampaignParticipant.objects.filter(campaign=campaign).exists()
+        event = campaign.events.get(kind=CampaignEvent.Kind.PLAYER_LEFT)
+        assert (event.actor, event.about_user) == (gang.owner, gang.owner)
+        assert "left the campaign" in sentences(campaign_history(campaign))
+        # The gang's own history says it was taken out, as removing it does.
+        assert "took the gang out of Dust Falls" in sentences(build(gang))
+
+    def test_leaving_twice_changes_nothing(self, gang, campaign):
+        seat(campaign, gang.owner)
+        leave(campaign, gang.owner)
+        before = (LedgerEvent.objects.count(), CampaignEvent.objects.count())
+
+        assert leave(campaign, gang.owner) is None
+        assert (LedgerEvent.objects.count(), CampaignEvent.objects.count()) == before
+
+    def test_the_arbitrator_has_nothing_to_leave(self, gang_type, campaign):
+        theirs = found_gang("The Overseers", gang_type, owner=campaign.owner)
+        join_campaign(theirs, campaign)
+
+        assert leave(campaign, campaign.owner) is None
+        assert CampaignMembership.objects.get(gang=theirs).playing
+        assert not campaign.events.filter(kind=CampaignEvent.Kind.PLAYER_LEFT).exists()
+
+    def test_somebody_only_invited_has_nothing_to_leave(self, campaign):
+        invited = User.objects.create_user("invited")
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.invite(invited)
+
+        assert leave(campaign, invited) is None
+        assert CampaignParticipant.objects.get(user=invited).state == (
+            CampaignParticipant.State.INVITED
+        )
+
+    def test_asked_back_their_gang_may_join_again(self, gang, campaign):
+        seat(campaign, gang.owner)
+        leave(campaign, gang.owner)
+
+        seat(campaign, gang.owner)
+        join_campaign(gang, campaign)
+
+        assert CampaignMembership.objects.filter(gang=gang, left__isnull=True).exists()
+        assert live(gang).filter(asset__name="Settlement").count() == 1
+
+    def test_a_draft_report_stays_theirs_to_finish(self, gang, rival, campaign):
+        seat(campaign, gang.owner)
+        battle = fight(campaign, gang, rival)
+        report = start_report(
+            gang, actor=gang.owner, battle=battle, request_key=uuid4()
+        )
+
+        leave(campaign, gang.owner)
+
+        report.refresh_from_db()
+        assert report.state == PostBattleReport.State.DRAFT
+        assert can_edit_report(report, gang.owner)
+        assert not can_edit_report(report, campaign.owner)
+
+
+class TestTheArbitratorRemovingAPlayer:
+    """The arbitrator chooses whether a removed player's gangs keep playing
+    or leave with them. Keeping them is the default."""
+
+    def test_their_gangs_keep_playing_unless_asked(self, gang, second, campaign):
+        seat(campaign, gang.owner)
+        player = CampaignParticipant.objects.get(user=gang.owner)
+
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            assert act.remove_player(player) == []
+
+        assert not CampaignParticipant.objects.exists()
+        for member in (gang, second):
+            assert CampaignMembership.objects.get(gang=member).playing
+
+    def test_asked_to_their_gangs_leave_with_them(
+        self, gang, second, rival, campaign, alignment, old_ruins
+    ):
+        played(gang, alignment, old_ruins)
+        seat(campaign, gang.owner)
+        player = CampaignParticipant.objects.get(user=gang.owner)
+
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            removed = act.remove_player(player, with_gangs=True)
+
+        assert {g.pk for g in removed} == {gang.pk, second.pk}
+        for member in (gang, second):
+            assert not CampaignMembership.objects.get(gang=member).playing
+            assert_reconciled(member)
+        old_ruins.refresh_from_db()
+        assert old_ruins.holder is None
+        assert CampaignMembership.objects.get(gang=rival).playing
+        assert "removed player from the campaign" in sentences(
+            campaign_history(campaign)
+        )
+
+
+class TestTheLeavePage:
+    """The question at its own address. It names every gang the player has
+    in the campaign and what each loses, and leaving happens only on the
+    POST."""
+
+    @pytest.fixture
+    def player(self, client, gang, campaign, open_to_everyone):
+        seat(campaign, gang.owner)
+        client.force_login(gang.owner)
+        return gang.owner
+
+    @pytest.fixture
+    def address(self, campaign):
+        return f"/n26/campaigns/{campaign.pk}/leave/"
+
+    def test_the_page_names_each_gang_and_what_it_loses(
+        self, client, player, gang, second, campaign, alignment, old_ruins, address
+    ):
+        played(gang, alignment, old_ruins)
+
+        drawn = client.get(address).content.decode()
+
+        assert "Your gangs will be removed from Dust Falls" in drawn
+        sections = {
+            section.h2.get_text(strip=True): section
+            for section in BeautifulSoup(drawn, "html.parser").select(
+                "[data-leaving-gang]"
+            )
+        }
+        assert sections.keys() == {"The Ashen Choir", "The Grey Hounds"}
+        ashen, grey = sections["The Ashen Choir"], sections["The Grey Hounds"]
+        assert re.search(
+            r"<dt[^>]*>Territory</dt>\s*<dd[^>]*>\s*Old Ruins\s*</dd>", str(ashen)
+        )
+        assert "Old Ruins" not in str(grey)
+        assert re.search(
+            r"<dt[^>]*>Settlement</dt>\s*<dd[^>]*>\s*Settlement\s*</dd>", str(grey)
+        )
+
+    def test_unfinished_battles_are_listed(
+        self, client, player, gang, rival, campaign, address
+    ):
+        drafted = fight(campaign, gang, rival)
+        report = start_report(gang, actor=player, battle=drafted, request_key=uuid4())
+
+        drawn = client.get(address).content.decode()
+
+        assert "Post-battle reports in draft" in drawn
+        assert reverse("n26-post-battle-editor", args=[report.pk]) in drawn
+        assert "Battles with no result" in drawn
+        assert reverse("n26-battle", args=[campaign.pk, drafted.pk]) in drawn
+
+    def test_opening_the_page_changes_nothing(
+        self, client, player, gang, campaign, address
+    ):
+        before = (LedgerEvent.objects.count(), CampaignEvent.objects.count())
+
+        drawn = client.get(address).content.decode()
+
+        assert (LedgerEvent.objects.count(), CampaignEvent.objects.count()) == before
+        assert CampaignMembership.objects.get(gang=gang).playing
+        # Cancel goes back to the campaign without submitting anything.
+        (cancel,) = [
+            link
+            for link in BeautifulSoup(drawn, "html.parser").find_all("a")
+            if link.get_text(strip=True) == "Cancel"
+        ]
+        assert cancel["href"] == f"/n26/campaigns/{campaign.pk}/"
+
+    def test_leaving_takes_the_gangs_out_and_says_so(
+        self, client, player, gang, campaign, address
+    ):
+        response = client.post(address, follow=True)
+
+        assert response.redirect_chain[-1][0] == f"/n26/campaigns/{campaign.pk}/"
+        assert "You and your gang left Dust Falls." in response.content.decode()
+        assert not CampaignMembership.objects.get(gang=gang).playing
+        assert not CampaignParticipant.objects.filter(user=player).exists()
+
+    def test_a_second_post_finds_nothing_and_changes_nothing(
+        self, client, player, campaign, address
+    ):
+        client.post(address)
+        before = (LedgerEvent.objects.count(), CampaignEvent.objects.count())
+
+        assert client.post(address).status_code == 404
+        assert (LedgerEvent.objects.count(), CampaignEvent.objects.count()) == before
+
+    def test_the_arbitrator_cannot_leave(
+        self, client, gang, campaign, open_to_everyone, address
+    ):
+        client.force_login(campaign.owner)
+        assert client.get(address).status_code == 404
+        assert client.post(address).status_code == 404
+        assert CampaignMembership.objects.get(gang=gang).playing
+
+    def test_somebody_not_playing_cannot_leave(
+        self, client, gang, campaign, open_to_everyone, address
+    ):
+        client.force_login(User.objects.create_user("onlooker"))
+        assert client.get(address).status_code == 404
+        assert client.post(address).status_code == 404
+        assert CampaignMembership.objects.get(gang=gang).playing
+
+    @pytest.mark.parametrize("answer", [None, False], ids=["invited", "declined"])
+    def test_somebody_invited_or_who_declined_cannot_leave(
+        self, client, campaign, open_to_everyone, address, answer
+    ):
+        asked = User.objects.create_user("asked")
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.invite(asked)
+        if answer is not None:
+            with campaign_operation(campaign, actor=asked) as act:
+                act.answer_invitation(asked, accepted=answer)
+        client.force_login(asked)
+
+        assert client.get(address).status_code == 404
+        assert client.post(address).status_code == 404
+        assert CampaignParticipant.objects.filter(user=asked).exists()
+
+    def test_a_player_removed_since_the_page_opened_is_told_so(
+        self, client, player, gang, campaign, address, monkeypatch
+    ):
+        from n26.core.campaigns import CampaignOperation
+
+        original = CampaignOperation.leave
+
+        def removed_then_leave(op):
+            op.remove_player(
+                CampaignParticipant.objects.get(campaign=op.campaign, user=op.actor)
+            )
+            return original(op)
+
+        monkeypatch.setattr(CampaignOperation, "leave", removed_then_leave)
+        response = client.post(address, follow=True)
+
+        assert "You are no longer a player in Dust Falls." in (
+            response.content.decode()
+        )
+        assert CampaignMembership.objects.get(gang=gang).playing
+        assert not campaign.events.filter(kind=CampaignEvent.Kind.PLAYER_LEFT).exists()
+
+    def test_the_page_costs_the_same_however_many_gangs(
+        self, client, player, gang, gang_type, rival, campaign, address
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def cost():
+            with CaptureQueriesContext(connection) as queries:
+                assert client.get(address).status_code == 200
+            return len(queries)
+
+        def with_a_draft(member):
+            battle = fight(campaign, member, rival)
+            start_report(member, actor=player, battle=battle, request_key=uuid4())
+
+        with_a_draft(gang)
+        client.get(address)
+        one = cost()
+
+        other = found_gang("The Grey Hounds", gang_type, owner=player)
+        join_campaign(other, campaign)
+        with_a_draft(other)
+
+        assert cost() == one
+
+
+class TestTheRemovePlayerPage:
+    @pytest.fixture
+    def address(self, client, gang, campaign, open_to_everyone):
+        seat(campaign, gang.owner)
+        client.force_login(campaign.owner)
+        return f"/n26/campaigns/{campaign.pk}/players/{gang.owner.pk}/remove/"
+
+    def test_the_page_names_their_gangs_and_offers_the_choice(
+        self, client, gang, second, address
+    ):
+        drawn = client.get(address).content.decode()
+
+        assert "The Ashen Choir" in drawn
+        assert "The Grey Hounds" in drawn
+        assert re.search(r'value="keep"\s+checked', drawn)
+        assert 'value="remove"' in drawn
+
+    def test_with_no_gangs_there_is_no_choice(self, client, gang, campaign, address):
+        remove_from_campaign(gang, campaign)
+
+        drawn = client.get(address).content.decode()
+
+        assert 'name="gangs"' not in drawn
+
+    def test_by_default_their_gangs_stay(self, client, gang, address):
+        client.post(address, {"gangs": "keep"})
+
+        assert CampaignMembership.objects.get(gang=gang).playing
+        assert not CampaignParticipant.objects.exists()
+
+    def test_chosen_their_gangs_leave_with_them(self, client, gang, second, address):
+        response = client.post(address, {"gangs": "remove"}, follow=True)
+
+        assert "Removed player and their gangs from Dust Falls." in (
+            response.content.decode()
+        )
+        for member in (gang, second):
+            assert not CampaignMembership.objects.get(gang=member).playing
+
+    def test_a_player_who_left_since_the_page_opened_is_not_removed_again(
+        self, client, gang, campaign, address, monkeypatch
+    ):
+        from n26.core.campaigns import CampaignOperation
+
+        original = CampaignOperation.remove_player
+
+        def left_then_remove(op, player, **kwargs):
+            CampaignOperation(op.campaign, actor=player.user).leave()
+            return original(op, player, **kwargs)
+
+        monkeypatch.setattr(CampaignOperation, "remove_player", left_then_remove)
+        response = client.post(address, {"gangs": "remove"}, follow=True)
+
+        assert "player is no longer in Dust Falls." in response.content.decode()
+        assert not campaign.events.filter(
+            kind=CampaignEvent.Kind.PLAYER_REMOVED
+        ).exists()
+        assert campaign.events.filter(kind=CampaignEvent.Kind.PLAYER_LEFT).count() == 1

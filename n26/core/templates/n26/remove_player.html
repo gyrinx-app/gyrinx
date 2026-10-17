@@ -32,12 +32,36 @@ the act.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-ui.alert variant="warning" title="Their gangs stay where they are">
-            <c-n26.user-link :user="player.user" tone="current" />
-            stops being a player in
-            {{ campaign.name }}. Any gang of theirs already playing keeps playing —
-            a gang is in a campaign on its own account, and taking somebody off
-            this list does not take their gangs out. They can be asked again.
-        </c-ui.alert>
+        {% if gangs %}
+            <c-ui.alert variant="warning"
+                        title="Choose what happens to their gang{{ gangs|length|pluralize }}">
+                <c-n26.user-link :user="player.user" tone="current" />
+                will stop being a player in
+                {{ campaign.name }}. They can be invited again.
+            </c-ui.alert>
+            <fieldset class="mt-4">
+                <legend class="text-sm font-semibold">Their gang{{ gangs|length|pluralize }} in {{ campaign.name }}</legend>
+                <ul class="mt-1 text-sm">
+                    {% for gang in gangs %}<li>{{ gang.name }}</li>{% endfor %}
+                </ul>
+                <div class="mt-2">
+                    <c-n26.radio-option name="gangs"
+                                        value="keep"
+                                        label="Keep their gang{{ gangs|length|pluralize }} in the campaign"
+                                        description="Each gang keeps playing, and you can still record battles for it."
+                                        :checked="True" />
+                    <c-n26.radio-option name="gangs"
+                                        value="remove"
+                                        label="Remove their gang{{ gangs|length|pluralize }} from the campaign"
+                                        description="Each gang loses its campaign data, and any assets it holds are returned to {{ campaign.name }}. Its models, gear and credits stay." />
+                </div>
+            </fieldset>
+        {% else %}
+            <c-ui.alert variant="warning" title="They have no gangs in {{ campaign.name }}">
+                <c-n26.user-link :user="player.user" tone="current" />
+                will stop being a player in
+                {{ campaign.name }}. They can be invited again.
+            </c-ui.alert>
+        {% endif %}
     </c-n26.form-page>
 {% endblock content %}

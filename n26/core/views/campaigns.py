@@ -7,6 +7,8 @@ sign in. The order matters — a login redirect on a gated address would
 itself say that something is there.
 """
 
+from dataclasses import dataclass
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -16,7 +18,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from n26.core.listing import LINK, SECONDARY, Action
+from n26.core.listing import DANGER, LINK, SECONDARY, Action
 from n26.core.views.permissions import (
     _any_campaign_or_404,
     _own_campaign_or_404,
@@ -290,7 +292,7 @@ def campaign(request, pk):
             "sheet": sheet,
             "yours": yours,
             "log_href": reverse("n26-campaign-log", args=[found.pk]),
-            "more_actions": more_actions(found, yours=yours),
+            "more_actions": more_actions(found, yours=yours, playing=at_the_table),
             # A player at the table brings their own gangs; the arbitrator
             # brings anybody's. Both reach the same screen.
             "may_add_gang": yours or at_the_table,
@@ -310,12 +312,12 @@ def campaign(request, pk):
     )
 
 
-def more_actions(campaign, *, yours):
+def more_actions(campaign, *, yours, playing=False):
     """The links in the campaign header's More actions menu.
 
     Every player at the table may read the log. Only the arbitrator manages
-    the campaign's counters, labels and asset types, or archives it. No
-    separators.
+    the campaign's counters, labels and asset types, or archives it. Only a
+    player may leave: the arbitrator is never one. No separators.
     """
     actions = [
         Action(
@@ -353,6 +355,15 @@ def more_actions(campaign, *, yours):
                 SECONDARY,
             ),
         ]
+    if playing:
+        actions.append(
+            Action(
+                "Leave campaign",
+                LINK,
+                reverse("n26-leave-campaign", args=[campaign.pk]),
+                DANGER,
+            )
+        )
     return actions
 
 
@@ -1503,6 +1514,11 @@ def _what_the_gang_loses(campaign, gang):
 
     sheet = render_campaign(campaign, with_owner_badges=False)
     line = next(line for line in sheet.gangs if line.gang_id == str(gang.pk))
+    return _what_the_line_loses(sheet, line)
+
+
+def _what_the_line_loses(sheet, line):
+    """``_what_the_gang_loses`` for a line of a sheet already rendered."""
     losing = []
     returning = []
     for column, names in zip(sheet.asset_types, line.assets, strict=True):
@@ -3188,16 +3204,158 @@ def remove_player(request, pk, user_pk):
 
     if request.method == "POST":
         name = player.user.username
+        # Their gangs stay unless the arbitrator chose to remove them. A
+        # player with no gangs is offered no choice and posts none.
+        with_gangs = request.POST.get("gangs") == "remove"
         with campaign_operation(found, actor=request.user) as act:
-            act.remove_player(player)
-        messages.success(request, f"Removed {name}.")
+            removed = act.remove_player(player, with_gangs=with_gangs)
+        if removed is None:
+            messages.info(request, f"{name} is no longer in {found.name}.")
+        elif removed:
+            gangs = "gangs" if len(removed) > 1 else "gang"
+            messages.success(
+                request, f"Removed {name} and their {gangs} from {found.name}."
+            )
+        else:
+            messages.success(request, f"Removed {name}.")
         return redirect("n26-campaign-add-player", pk=found.pk)
 
     return render(
         request,
         "n26/remove_player.html",
-        {"campaign": found, "player": player},
+        {
+            "campaign": found,
+            "player": player,
+            "gangs": list(_gangs_of(found, player.user)),
+        },
     )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def leave_campaign(request, pk):
+    """The question at its own address, then the act.
+
+    Only an accepted player may leave. The arbitrator is never one, and
+    anybody else is told there is nothing here. Leaving takes every gang
+    of theirs out as removing it would (``CampaignOperation.leave``), so
+    the page lists what each gang loses, gang by gang, and the battles of
+    theirs that are still unfinished. Leaving does not wait for those.
+    """
+    from django.http import Http404
+
+    from n26.core.campaigns import campaign_operation
+    from n26.core.render import render_campaign
+
+    found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    if not _plays_in(found, request.user):
+        raise Http404("You are not a player in this campaign")
+    back = _campaign_page(found)
+
+    if request.method == "POST":
+        with campaign_operation(found, actor=request.user) as act:
+            left = act.leave()
+        if left is None:
+            messages.info(request, f"You are no longer a player in {found.name}.")
+        elif left:
+            gangs = "gangs" if len(left) > 1 else "gang"
+            messages.success(request, f"You and your {gangs} left {found.name}.")
+        else:
+            messages.success(request, f"You left {found.name}.")
+        # The top of the page, not the gangs table, so the message is in view.
+        return redirect(back)
+
+    sheet = render_campaign(found, with_owner_badges=False)
+    # The player's gangs are read off the sheet, so every gang listed has a
+    # line to read its losses from.
+    lines = [
+        line
+        for line in sheet.gangs
+        if line.owner is not None and line.owner.pk == request.user.pk
+    ]
+    losses = [
+        GangLosses(line.name, *_what_the_line_loses(sheet, line)) for line in lines
+    ]
+    drafts, unrecorded = _unfinished_battles(found, [line.gang_id for line in lines])
+    return render(
+        request,
+        "n26/leave_campaign.html",
+        {
+            "campaign": found,
+            "losses": losses,
+            "drafts": drafts,
+            "unrecorded": unrecorded,
+            "back": back,
+        },
+    )
+
+
+def _gangs_of(campaign, user):
+    """The gangs this person owns that are playing this campaign, by name."""
+    from n26.core.models import Gang
+
+    return Gang.objects.filter(
+        owner=user,
+        campaign_memberships__campaign=campaign,
+        campaign_memberships__left__isnull=True,
+    ).order_by("name")
+
+
+@dataclass(frozen=True)
+class GangLosses:
+    """One gang on the leave page: what it loses, and which assets it
+    holds go back to the campaign. Each list is (column, value) pairs."""
+
+    name: str
+    losing: list
+    returning: list
+
+
+@dataclass(frozen=True)
+class UnfinishedBattle:
+    """A battle the leave page points at: what to call it, and where to go."""
+
+    label: str
+    href: str
+
+
+def _unfinished_battles(campaign, gang_ids):
+    """The leaving player's post-battle reports still in draft, and the
+    battles their gangs fought that have no result yet.
+
+    Drafts stay the owner's to finish once they have left. A battle's
+    result is the arbitrator's to record. Gangs taken out earlier are not
+    listed: leaving changes nothing about them.
+    """
+    from n26.core.models import Battle, PostBattleReport
+
+    if not gang_ids:
+        return [], []
+    drafts = [
+        UnfinishedBattle(
+            f"{report.gang.name}: {report.battle.title}",
+            reverse("n26-post-battle-editor", args=[report.pk]),
+        )
+        for report in PostBattleReport.objects.filter(
+            gang__in=gang_ids,
+            battle__campaign=campaign,
+            state=PostBattleReport.State.DRAFT,
+        )
+        .select_related("gang", "battle")
+        .order_by("battle__date", "gang__name")
+    ]
+    unrecorded = [
+        UnfinishedBattle(
+            battle.title,
+            reverse("n26-battle", args=[campaign.pk, battle.pk]),
+        )
+        for battle in campaign.battles.filter(
+            gangs__in=gang_ids, result=Battle.Result.NOT_RECORDED
+        )
+        .distinct()
+        .order_by("date")
+    ]
+    return drafts, unrecorded
 
 
 @requires_flag(CAMPAIGNS)

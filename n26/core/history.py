@@ -1684,11 +1684,12 @@ def _tell_campaign(e):
             | kinds.INVITE_ACCEPTED
             | kinds.INVITE_DECLINED
             | kinds.PLAYER_REMOVED
+            | kinds.PLAYER_LEFT
         ):
-            # An answer is the invited person's own act, so the actor's name
-            # already leads the sentence and naming them again would say it
-            # twice. Asking and removing are the arbitrator's, and there the
-            # sentence has to say who it was about.
+            # An answer or a leaving is the player's own act, so the actor's
+            # name already leads the sentence and naming them again would say
+            # it twice. Asking and removing are the arbitrator's, and there
+            # the sentence has to say who it was about.
             who = e.about_user.username if e.about_user_id else "somebody"
             match e.kind:
                 case kinds.INVITED:
@@ -1697,6 +1698,8 @@ def _tell_campaign(e):
                     return (Span("accepted the invitation"),), "campaign"
                 case kinds.INVITE_DECLINED:
                     return (Span("declined the invitation"),), "campaign"
+                case kinds.PLAYER_LEFT:
+                    return (Span("left the campaign"),), "campaign"
             return (Span(f"removed {who} from the campaign"),), "campaign"
         case kinds.DICE_ROLLED | kinds.DICE_ROLL_NOTED:
             if not e.roll_id:

@@ -403,6 +403,7 @@ def _build_registry():
         AssetTableEntry,
         AssetType,
         AugmentCarriedItem,
+        BuiltInAction,
         CampaignType,
         Category,
         ChangesCategory,
@@ -1200,6 +1201,16 @@ def _build_registry():
                     source=(RankTable, "library_author_help"), long=True
                 ),
             },
+        ),
+        Spec(
+            authoring.configure_trading_post_visit,
+            {
+                "excluded_gang_types": Many(
+                    model=GangType,
+                    source=(BuiltInAction, "excluded_gang_types"),
+                ),
+            },
+            model=BuiltInAction,
         ),
         Spec(
             authoring.create_action,

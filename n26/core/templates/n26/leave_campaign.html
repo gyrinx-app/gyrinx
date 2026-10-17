@@ -1,0 +1,110 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+The question asked before a player leaves a campaign, at an address of its
+own. Following the link that leads here changes nothing; the POST is the act.
+Each gang's lists are the gangs table's own facts for that gang, as on the
+page that removes one gang.
+{% endcomment %}
+{% block head_title %}Leave {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-leave-campaign' campaign.pk %}"
+                     title="Leave {{ campaign.name }}?"
+                     submit_label="Leave campaign"
+                     submit_variant="danger"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner" tone="current" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Leave
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% if losses %}
+            <c-ui.alert variant="warning"
+                        title="Your gang{{ losses|length|pluralize }} will be removed from {{ campaign.name }}">
+                You will stop being a player in {{ campaign.name }}. Each gang below will lose
+                its campaign data. Its models, gear and credits stay, and its history will still
+                show what it did as part of {{ campaign.name }}. If it is added again, it will
+                reset to its initial values. To play again, you need a new invitation from the
+                arbitrator.
+            </c-ui.alert>
+        {% else %}
+            <c-ui.alert variant="warning"
+                        title="You will stop being a player in {{ campaign.name }}">
+                You have no gangs in this campaign. To play again, you need a new invitation
+                from the arbitrator.
+            </c-ui.alert>
+        {% endif %}
+        {% for loss in losses %}
+            <section class="mt-4" data-leaving-gang>
+                <h2 class="text-sm font-semibold">{{ loss.name }}</h2>
+                {% if loss.losing %}
+                    <h3 class="mt-2 text-sm text-muted">Removed from the gang</h3>
+                    <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                        {% for name, value in loss.losing %}
+                            <dt class="text-muted">{{ name }}</dt>
+                            <dd class="break-words">
+                                {{ value }}
+                            </dd>
+                        {% endfor %}
+                    </dl>
+                {% endif %}
+                {% if loss.returning %}
+                    <h3 class="mt-2 text-sm text-muted">Returned to {{ campaign.name }}</h3>
+                    <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                        {% for name, value in loss.returning %}
+                            <dt class="text-muted">{{ name }}</dt>
+                            <dd class="break-words">
+                                {{ value }}
+                            </dd>
+                        {% endfor %}
+                    </dl>
+                {% endif %}
+            </section>
+        {% endfor %}
+        {% if drafts %}
+            <section class="mt-4">
+                <h2 class="text-sm font-semibold">Post-battle reports in draft</h2>
+                <p class="mt-1 text-sm text-muted">You can still finish these after you leave.</p>
+                <ul class="mt-2 space-y-1 text-sm">
+                    {% for draft in drafts %}
+                        <li>
+                            <c-n26.link href="{{ draft.href }}">
+                                {{ draft.label }}
+                            </c-n26.link>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+        {% endif %}
+        {% if unrecorded %}
+            <section class="mt-4">
+                <h2 class="text-sm font-semibold">Battles with no result</h2>
+                <p class="mt-1 text-sm text-muted">Only the arbitrator can record results for these battles.</p>
+                <ul class="mt-2 space-y-1 text-sm">
+                    {% for battle in unrecorded %}
+                        <li>
+                            <c-n26.link href="{{ battle.href }}">
+                                {{ battle.label }}
+                            </c-n26.link>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+        {% endif %}
+    </c-n26.form-page>
+{% endblock content %}

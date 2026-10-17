@@ -65,6 +65,11 @@ urlpatterns = [
         name="n26-archive-campaign",
     ),
     path(
+        "campaigns/<str:pk>/leave/",
+        views.leave_campaign,
+        name="n26-leave-campaign",
+    ),
+    path(
         "campaigns/<str:pk>/gangs/add/",
         views.add_gang,
         name="n26-campaign-add-gang",
@@ -458,6 +463,16 @@ urlpatterns = [
     ),
     path("design/", include("n26.designsystem.urls")),
     path("authoring/", authoring_views.index, name="authoring-index"),
+    path(
+        "authoring/built-in-actions/trading-post-visit/",
+        authoring_views.trading_post_visit_settings,
+        name="authoring-trading-post-visit",
+    ),
+    path(
+        "gangs/<str:pk>/other-actions/",
+        views.gang_other_actions,
+        name="n26-gang-other-actions",
+    ),
     path(
         "authoring/action/<str:pk>/grant/",
         action_builder_views.grant_action,
