@@ -1244,6 +1244,27 @@ class TestAdvancementHoldsAndUndo:
         advancement.gang.refresh_from_db()
         assert_reconciled(advancement.gang)
 
+    def test_a_later_unused_rank_does_not_mask_the_started_flows_hold_reason(
+        self, client, advancement
+    ):
+        a.add_rank_threshold(advancement.allowance.rank_table, 8)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 4)
+        _start(client, advancement)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, -5)
+        response = client.get(
+            reverse("n26-edit-fighter", args=[advancement.fighter.pk])
+        )
+        panel = next(
+            panel
+            for panel in response.context["action_panels"]
+            if panel.action_id == str(advancement.action.pk)
+        )
+        assert panel.held_uses == 2
+        assert panel.hold_reason == "On hold until 4 XP."
+        assert panel.drafts[0].problem == panel.hold_reason
+
     def _complete(self, client, monkeypatch, advancement):
         _load_rolls(monkeypatch, 12)
         record = _start(client, advancement)
@@ -1407,6 +1428,27 @@ class TestAdvancementHoldsAndUndo:
         assert record.skill_selection.selected == advancement.skills["primary"]
         assert record.advancement_selection.roll_event.roll == 12
         assert record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED).count() == 2
+
+    def test_undo_accepts_long_authored_pick_and_skill_names(
+        self, client, monkeypatch, advancement
+    ):
+        record = self._complete(client, monkeypatch, advancement)
+        pick = advancement.results["primary"]
+        skill = advancement.skills["primary"]
+        pick.name = "P" * 200
+        skill.name = "S" * 200
+        pick.save(update_fields=["name", "modified"])
+        skill.save(update_fields=["name", "modified"])
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        token = client.get(url).context["form"]["review"].value()
+        assert client.post(url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        event = record.ledger_events.get(kind=LedgerEvent.Kind.ACTION_USE_UNDONE)
+        assert event.note == f"{pick}: {skill}"[:255]
+        assert len(event.note) == 255
 
     def test_completed_results_survive_lower_xp_until_undo_then_wait_on_hold(
         self, client, monkeypatch, advancement

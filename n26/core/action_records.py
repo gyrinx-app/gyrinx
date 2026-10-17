@@ -1110,7 +1110,7 @@ def undo_action(op, record, *, expected):
         LedgerEvent.Kind.ACTION_USE_UNDONE,
         action_record=record,
         rating_delta=rating_after - rating_before,
-        note=detail,
+        note=detail[:255],
     )
     return record
 

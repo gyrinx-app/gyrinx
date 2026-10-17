@@ -376,7 +376,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                 )
                 if problem:
                     panel.held_uses += 1
-                    panel.hold_reason = panel.hold_reason or problem
+                    panel.hold_reason = problem
                 panel.drafts.append(
                     ActionUseLink(
                         str(record.pk),
