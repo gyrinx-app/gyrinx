@@ -1,0 +1,63 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Naming a generated scenario and saving it to the campaign's log. The
+scenario rides the form as hidden fields, so an error comes back with
+the name and the scenario as they were.
+{% endcomment %}
+{% block head_title %}Save scenario{% endblock %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    {% url 'n26-save-scenario' campaign.pk as action_url %}
+    <c-n26.form-page :action="action_url"
+                     title="Save scenario"
+                     lead="Give this scenario a name and save it to the {{ campaign.name }} campaign log."
+                     :form="form"
+                     submit_label="Save scenario"
+                     :cancel_url="cancel_url">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Save scenario
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% for field in form %}
+            {% if field.name in form.scenario_keys %}{{ field }}{% endif %}
+        {% endfor %}
+        <c-n26.form-section title="Scenario">
+            {% if scenario %}
+                {% include "n26/includes/scenario_summary.html" with results=scenario %}
+            {% elif scenario_wrong %}
+                <p class="text-sm text-red-600 dark:text-red-400">
+                    This link names a scenario component that is not on its table. Generate the scenario again.
+                </p>
+            {% else %}
+                <p class="text-sm text-muted">No scenario is attached. Generate one first.</p>
+            {% endif %}
+        </c-n26.form-section>
+        <c-n26.form-section>
+            <c-ui.field label="Scenario name *"
+                        description="{{ form.name.help_text }}"
+                        error="x"
+                        :form="form"
+                        name="name"
+                        for="scenario-name">
+                <c-ui.input id="scenario-name"
+                            name="name"
+                            maxlength="200"
+                            required
+                            value="{{ form.name.value|default:'' }}" />
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

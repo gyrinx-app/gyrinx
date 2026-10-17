@@ -50,6 +50,16 @@ urlpatterns = [
     ),
     path("campaigns/<str:pk>/log/", views.campaign_log, name="n26-campaign-log"),
     path(
+        "campaigns/<str:pk>/scenario/",
+        views.scenario_generator,
+        name="n26-scenario-generator",
+    ),
+    path(
+        "campaigns/<str:pk>/scenario/save/",
+        views.save_scenario,
+        name="n26-save-scenario",
+    ),
+    path(
         "campaigns/<str:pk>/edit/",
         views.edit_campaign,
         name="n26-edit-campaign",

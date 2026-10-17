@@ -1642,6 +1642,14 @@ def _one_campaign_act(e, viewer):
     )
 
 
+def _scenario_href(campaign_id, rolls):
+    """The generator's address for a saved scenario."""
+    from urllib.parse import urlencode
+
+    path = reverse("n26-scenario-generator", args=[campaign_id])
+    return f"{path}?{urlencode(rolls)}#scenario"
+
+
 def _tell_campaign(e):
     """One campaign event as a sentence, lowercase because the actor's name
     comes first. Money is never mentioned: nothing here moves any."""
@@ -1726,6 +1734,22 @@ def _tell_campaign(e):
                     )
                 )
             return tuple(spans), "campaign"
+        case kinds.SCENARIO_SAVED:
+            # The note holds each table's roll and the scenario's name. The
+            # entries are named from the tables as they are now, and the
+            # line links to the generator showing the same scenario.
+            from n26.core.scenarios import describe, read_history_note, results
+
+            rolls, name = read_history_note(e.note)
+            found = results(rolls)
+            what = f"saved the scenario {name}" if name else "saved a scenario"
+            if not found:
+                return (Span(what),), "campaign"
+            return (
+                Span(
+                    f"{what}: {describe(found)}", _scenario_href(e.campaign_id, rolls)
+                ),
+            ), "campaign"
         case kinds.BATTLE_RECORDED:
             href = (
                 reverse("n26-battle", args=[e.campaign_id, e.battle_id])

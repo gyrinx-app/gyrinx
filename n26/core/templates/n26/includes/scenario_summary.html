@@ -1,0 +1,16 @@
+{% comment %}
+A scenario in brief: each table and the entry it landed on, one per
+row. The save page and the battle form show it above the details.
+
+results is a list of n26.core.scenarios.ScenarioResult.
+{% endcomment %}
+<dl class="divide-y divide-box-border text-sm">
+    {% for result in results %}
+        <div class="flex items-baseline justify-between gap-4 py-2">
+            <dt class="text-muted">{{ result.table.name }}</dt>
+            <dd class="text-right font-medium">
+                {{ result.entry.label }}
+            </dd>
+        </div>
+    {% endfor %}
+</dl>
