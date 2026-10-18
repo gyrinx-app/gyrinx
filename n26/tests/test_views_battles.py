@@ -524,7 +524,7 @@ class TestBattlePages:
         self, client, campaign, battle, gang, arbitrator, record
     ):
         if record == "crew":
-            saved = save_crew(
+            save_crew(
                 battle=battle, gang=gang, actor=arbitrator, revision=0, selections=[]
             )
             saved = battle.crews.get()
