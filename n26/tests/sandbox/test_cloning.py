@@ -1,11 +1,17 @@
+from uuid import uuid4
+
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from n26.core.card import build_card, build_modifier_index
 from n26.core.cloning import clone_event_details
 from n26.core.effects import compute
 from n26.core.history import build, campaign_history, campaign_history_size
 from n26.core.models import (
+    ActionRecord,
     Activity,
+    AdvancementSelection,
     Assignment,
     AssignmentSet,
     CampaignMembership,
@@ -18,13 +24,17 @@ from n26.core.models import (
     StatOverride,
 )
 from n26.core.operations import NotEnoughCredits, Refusal, clone_gang, operation
+from n26.core.rating import read_rating_receipt
 from n26.core.reconcile import (
     assert_reconciled,
     trade_points_spent_by,
     trade_points_spent_for,
 )
+from n26.library.authoring import create_action
+from n26.library.models import Action
 from n26.tests.sandbox.actions import (
     add_built_in,
+    add_picklist_member,
     assign,
     buy,
     create_affiliation,
@@ -1619,3 +1629,155 @@ class TestCloningAGang:
         clone.refresh_from_db()
         assert_reconciled(source)
         assert_reconciled(clone)
+
+
+@pytest.fixture
+def advance():
+    """Record an advancement whose result and bonus promotion each add rating."""
+    kind = create_slot_type("Advancement")
+    action = create_action("Advance", Action.Timing.POST_CYCLE)
+    slots = {}
+    for name in ("Advancement result", "Promotion"):
+        picklist = create_picklist(f"{name}s", kind)
+        pickable = create_pickable(name, kind)
+        add_picklist_member(picklist, pickable)
+        slots[name] = (create_slot(name, kind, picklist), pickable)
+
+    def record(miniature, *, result=5, promotion=10):
+        gang = miniature.membership.gang
+        with operation(gang, actor=gang.owner) as op:
+            used = ActionRecord.objects.create(
+                gang=gang,
+                fighter=miniature,
+                action=action,
+                request_key=uuid4(),
+                state=ActionRecord.State.COMPLETED,
+            )
+            picks = {}
+            for (name, (slot, pickable)), rating in zip(
+                slots.items(), (result, promotion), strict=True
+            ):
+                anchor = op.assign(slot, miniature=miniature, action_record=used)
+                picks[name] = op.assign(
+                    pickable,
+                    miniature=miniature,
+                    chosen_for=anchor,
+                    chosen_for_slot=slot,
+                    rating=rating,
+                    action_record=used,
+                )
+            AdvancementSelection.objects.create(
+                action_record=used,
+                slot_assignment=anchor,
+                pick_assignment=picks["Advancement result"],
+                promotion_assignment=picks["Promotion"],
+            )
+        return used
+
+    return record
+
+
+def _receipt_lines(miniature):
+    receipt = read_rating_receipt(miniature)
+    return [(line.label, line.rating) for line in receipt.contributions], receipt.total
+
+
+def _clone(miniature, whole_gang):
+    gang = miniature.membership.gang
+    if whole_gang:
+        copy = clone_gang(gang, name=f"{gang.name} copy", owner=gang.owner)
+        return Miniature.objects.get(membership__gang=copy, name=miniature.name)
+    with operation(gang, actor=gang.owner) as op:
+        return op.clone_miniature(miniature)
+
+
+class TestCloningAnAdvancedModel:
+    @pytest.fixture
+    def advanced(self, gang, ganger_profile, make_statline, advance):
+        make_statline(ganger_profile)
+        fighter = hire_with_option(gang, ganger_profile, model_name="Vex")
+        buy(fighter, thing=create_wargear("Armour", price=20))
+        advance(fighter)
+        fighter.refresh_from_db()
+        return fighter
+
+    @pytest.mark.parametrize("whole_gang", [False, True], ids=["model", "gang"])
+    def test_the_clone_lists_the_result_and_promotion_under_advancements(
+        self, advanced, whole_gang
+    ):
+        records = ActionRecord.objects.count()
+        selections = AdvancementSelection.objects.count()
+        lines, total = _receipt_lines(advanced)
+        assert lines == [("Gear", 20), ("Advancements", 15)]
+
+        clone = _clone(advanced, whole_gang)
+
+        assert _receipt_lines(clone) == (lines, total)
+        assert clone.rating == advanced.rating == total
+        flagged = LedgerEntry.objects.filter(
+            assignment__miniature_root=clone, cloned_from_advancement=True
+        )
+        assert sorted(entry.rating_contribution for entry in flagged) == [5, 10]
+        assert not LedgerEntry.objects.filter(
+            assignment__miniature_root=advanced, cloned_from_advancement=True
+        ).exists()
+        # The copy keeps its contributions without the act that added them.
+        assert ActionRecord.objects.count() == records
+        assert AdvancementSelection.objects.count() == selections
+        assert not ActionRecord.objects.filter(fighter=clone).exists()
+        assert_reconciled(advanced.membership.gang)
+        assert_reconciled(clone.membership.gang)
+
+    @pytest.mark.parametrize("whole_gang", [False, True], ids=["model", "gang"])
+    def test_a_clone_of_a_clone_still_lists_advancements(self, advanced, whole_gang):
+        lines = _receipt_lines(advanced)
+        clone = _clone(_clone(advanced, whole_gang), whole_gang)
+        assert _receipt_lines(clone) == lines
+        assert_reconciled(clone.membership.gang)
+
+    @pytest.mark.parametrize("whole_gang", [False, True], ids=["model", "gang"])
+    def test_the_override_baseline_and_reset_keep_the_advancements_line(
+        self, advanced, whole_gang
+    ):
+        gang = advanced.membership.gang
+        with operation(gang, actor=gang.owner) as op:
+            op.set_base_rating(advanced, 80)
+        clone = _clone(advanced, whole_gang)
+        receipt = read_rating_receipt(clone)
+        assert receipt.default_rating == 50
+        assert receipt.override_delta == 30
+        assert ("Advancements", 15) in [
+            (line.label, line.rating) for line in receipt.contributions
+        ]
+        destination = clone.membership.gang
+        with operation(destination, actor=destination.owner) as op:
+            op.set_base_rating(clone, None)
+        clone.refresh_from_db()
+        assert _receipt_lines(clone) == (
+            [("Gear", 20), ("Advancements", 15)],
+            50 + 20 + 15,
+        )
+        assert clone.rating == 85
+        assert_reconciled(destination)
+
+    @pytest.mark.parametrize("whole_gang", [False, True], ids=["model", "gang"])
+    def test_classifying_more_advancements_adds_no_queries(
+        self, advanced, advance, whole_gang
+    ):
+        def measure():
+            with CaptureQueriesContext(connection) as cloning:
+                clone = _clone(advanced, whole_gang)
+            with CaptureQueriesContext(connection) as reading:
+                read_rating_receipt(clone)
+            asked = [
+                query
+                for query in cloning.captured_queries
+                if "advancementselection" in query["sql"]
+            ]
+            return len(asked), len(reading)
+
+        before = measure()
+        for _ in range(3):
+            advance(advanced)
+        assert measure() == before
+        assert before[0] == 1

@@ -113,6 +113,15 @@ class LedgerEntry(Base):
             "stash."
         ),
     )
+    #: A clone copies an advancement's contribution but not the advancement
+    #: record that names it, so the copy's entry keeps that fact itself.
+    cloned_from_advancement = models.BooleanField(
+        default=False,
+        help_text=(
+            "Copied from a contribution an advancement added. The rating "
+            "breakdown lists it under Advancements."
+        ),
+    )
     note = models.CharField(max_length=255, blank=True)
 
     class Meta:

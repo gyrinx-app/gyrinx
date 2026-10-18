@@ -493,6 +493,24 @@ class GangCard:
         )
 
 
+def advancement_rated():
+    """Whether an advancement added an assignment's rating contribution.
+
+    An advancement records the assignments it made. A clone has no such
+    record, so its ledger entry carries the answer copied from the source.
+    """
+    from django.db.models import Exists, OuterRef, Q
+
+    from n26.core.models import AdvancementSelection
+
+    return Q(ledger_entry__cloned_from_advancement=True) | Exists(
+        AdvancementSelection.objects.filter(
+            Q(pick_assignment_id=OuterRef("pk"))
+            | Q(promotion_assignment_id=OuterRef("pk"))
+        )
+    )
+
+
 def _flat_rows(*, with_status=False, **filters):
     """The bare assignment fetch a card build starts from — one query.
 
@@ -501,10 +519,10 @@ def _flat_rows(*, with_status=False, **filters):
     facts. The assignable an assignment
     names is loaded afterwards, in narrow passes — see ``hydrate_rows``.
     """
-    from django.db.models import Case, Exists, F, OuterRef, Q, Subquery, Sum, When
+    from django.db.models import Case, F, OuterRef, Subquery, Sum, When
     from django.db.models.functions import Coalesce
 
-    from n26.core.models import AdvancementSelection, LedgerEvent
+    from n26.core.models import LedgerEvent
 
     overrides = (
         LedgerEvent.objects.filter(
@@ -526,12 +544,7 @@ def _flat_rows(*, with_status=False, **filters):
         )
     return list(
         rows.select_related("ledger_entry").annotate(
-            rating_from_advancement=Exists(
-                AdvancementSelection.objects.filter(
-                    Q(pick_assignment_id=OuterRef("pk"))
-                    | Q(promotion_assignment_id=OuterRef("pk"))
-                )
-            ),
+            rating_from_advancement=advancement_rated(),
             base_rating_override_delta=Case(
                 When(
                     gang__isnull=False,
