@@ -55,7 +55,7 @@ In the menu layout, a type with no artwork still holds its slot on the wide layo
         <div class="col-start-1 row-start-2 flex min-w-0 items-center gap-3 justify-self-start
                     @2xl:col-start-2 @2xl:row-start-1">
             {% with artwork=type_icon|safe_artwork %}
-                <span class="n26-icon-inline n26-pixel-art [--n26-icon-size:2.25rem] text-ink-800 dark:text-ink-200 {% if not artwork %}hidden @2xl:inline-flex{% endif %}"
+                <span class="n26-icon-inline [--n26-icon-size:2.25rem] text-ink-800 dark:text-ink-200 {% if not artwork %}hidden @2xl:inline-flex{% endif %}"
                       aria-hidden="true">{{ artwork }}</span>
             {% endwith %}
             <c-n26.wealth :sheet="sheet" lead="models" class="min-w-0" />
