@@ -247,9 +247,8 @@
         font-variant-ligatures: none;
     }
 
-    /* Smooth unspecified icons at fractional em sizes. Keep authored rendering
-     * hints: pixel artwork uses crispEdges to prevent seams between its squares. */
-    svg:not([shape-rendering]) {
+    /* Small inline icons need smooth edges at fractional em sizes. */
+    svg {
         shape-rendering: geometricPrecision;
     }
 }
@@ -928,6 +927,11 @@
     .n26-icon-inline > svg {
         width: var(--n26-icon-size);
         height: var(--n26-icon-size);
+    }
+
+    /* Large pixel artwork keeps its square edges without antialiasing seams. */
+    .n26-pixel-art > svg[shape-rendering="crispEdges"] {
+        shape-rendering: crispEdges;
     }
 
     /* The sidebar's current item.
