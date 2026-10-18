@@ -344,25 +344,27 @@ class TestWhereItCanGo:
 
 
 class TestRemovingTheBattle:
-    def test_a_battle_that_moved_its_stake_cannot_be_removed(self, client, table):
+    def test_archiving_a_battle_keeps_its_stake_transfer(self, client, table):
         client.post(edit_url(table), form_fields(table))
         table.battle.refresh_from_db()
-
+        before = moves(table)
+        mark = table.battle.stake_transfer_mark
         response = client.post(
             reverse(
-                "n26-campaign-remove-battle",
-                args=[table.campaign.pk, table.battle.pk],
+                "n26-campaign-remove-battle", args=[table.campaign.pk, table.battle.pk]
             ),
             {"revision": table.battle.revision},
-            follow=True,
         )
-
-        assert (
-            "cannot remove a battle with recorded gang history"
-            in response.content.decode()
-        )
-        assert Battle.objects.filter(pk=table.battle.pk).exists()
+        assert response.status_code == 302
+        archived = Battle.objects.get(pk=table.battle.pk)
+        assert archived.archived
+        assert archived.stake_transfer_mark == mark
         assert holder(table) == table.kings
+        assert moves(table) == before
+        with campaign_operation(table.campaign, actor=table.campaign.owner) as act:
+            act.restore_battle(archived, revision=archived.revision)
+        assert holder(table) == table.kings
+        assert moves(table) == before
 
 
 class TestCorrectingTheStake:

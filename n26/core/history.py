@@ -1753,10 +1753,24 @@ def _tell_campaign(e):
                 else ""
             )
             return (Span(f"edited the battle: {e.note}", href),), "campaign"
+        case kinds.BATTLE_ARCHIVED:
+            href = (
+                reverse("n26-battle", args=[e.campaign_id, e.battle_id])
+                if e.battle_id
+                else ""
+            )
+            return (Span(f"archived the battle: {e.note}", href),), "campaign"
         case kinds.BATTLE_REMOVED:
             if e.note:
                 return (Span(f"removed the battle of {e.note}"),), "campaign"
             return (Span("removed a battle"),), "campaign"
+        case kinds.BATTLE_RESTORED:
+            href = (
+                reverse("n26-battle", args=[e.campaign_id, e.battle_id])
+                if e.battle_id
+                else ""
+            )
+            return (Span(f"restored the battle: {e.note}", href),), "campaign"
         case kinds.ASSET_ADDED:
             # The note is the asset's name at the time. One removed since is
             # still named, which is what a log is for.

@@ -3155,3 +3155,48 @@ class TestPetResults:
         for _ in range(3):
             assign(wargear, miniature=owner)
         assert count() <= before
+
+
+class TestArchivedBattleReceipts:
+    def test_saved_results_and_crews_remain_readable_without_edit_actions(
+        self, client, table, feature
+    ):
+        report = start_through_page(client, table)
+        assert (
+            client.post(
+                editor_url(report), awards(client.get(editor_url(report)), table)
+            ).status_code
+            == 302
+        )
+        save_crew(
+            battle=table.battle,
+            gang=table.gang,
+            actor=table.owner,
+            revision=0,
+            selections=[CrewSelection(str(table.models[0].pk), "starting")],
+            confirm=True,
+        )
+        before = report.revisions.get(sequence=1).receipt
+        client.force_login(table.arbitrator)
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            act.remove_battle(table.battle, revision=table.battle.revision)
+        client.force_login(table.owner)
+        response = client.get(receipt_url(report))
+        assert response.status_code == 200
+        assert not response.context["may_edit"]
+        assert response.context["receipt"] == before
+        assert client.get(receipt_url(report, 1)).status_code == 200
+        sheet = client.get(
+            reverse(
+                "n26-battle-crew-sheet",
+                args=[table.campaign.pk, table.battle.pk, table.gang.pk],
+            )
+        )
+        assert sheet.status_code == 200
+        assert not sheet.context["editable"]
+        detail = client.get(
+            reverse("n26-battle", args=[table.campaign.pk, table.battle.pk])
+        )
+        assert "View results" in detail.content.decode()
+        assert "Edit crew" not in detail.content.decode()
+        assert_books(table)

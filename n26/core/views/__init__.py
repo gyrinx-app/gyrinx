@@ -20,7 +20,7 @@ from n26.core.views.assignment_sets import (
     model_cards,
     remove_model_card,
 )
-from n26.core.views.battles import battle, edit_battle
+from n26.core.views.battles import archived_battles, battle, edit_battle, restore_battle
 from n26.core.views.campaign_assets import asset_detail, save_asset_boons
 from n26.core.views.campaign_rolls import (
     campaign_roll,
@@ -192,6 +192,8 @@ __all__ = [
     "edit_campaign",
     "campaign_grouping",
     "remove_battle",
+    "archived_battles",
+    "restore_battle",
     "remove_gang",
     "remove_player",
     "leave_campaign",

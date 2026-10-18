@@ -124,7 +124,7 @@ def campaign_rows(listed):
         .values("count")
     )
     battles = (
-        Battle.objects.filter(campaign=OuterRef("pk"))
+        Battle.objects.filter(campaign=OuterRef("pk"), archived=False)
         .order_by()
         .values("campaign")
         .annotate(count=Count("pk"))
@@ -254,7 +254,9 @@ def campaign(request, pk):
         # question — so the whole page is served, and it names everybody.
         load_owner_badges(found.owner, *(line.owner for line in sheet.gangs))
     acts, more_acts = _recent_acts(found, request.user)
-    battles = found.battles.prefetch_related("gangs", "winners")[:BATTLES_ON_THE_PAGE]
+    battles = found.battles.filter(archived=False).prefetch_related("gangs", "winners")[
+        :BATTLES_ON_THE_PAGE
+    ]
     # Read once and asked twice: the page draws the players, and whether
     # this reader is one of them decides what it offers them.
     players = list(_players(found))
@@ -1584,7 +1586,6 @@ def add_battle(request, pk):
 def remove_battle(request, pk, battle_pk):
     """The question at its own address, then the act."""
     from n26.core.campaigns import campaign_operation
-    from n26.core.models import CampaignRoll
     from n26.core.operations import Refusal
     from n26.core.views.battles import battle_or_404
 
@@ -1597,7 +1598,7 @@ def remove_battle(request, pk, battle_pk):
         except TypeError, ValueError:
             messages.error(
                 request,
-                "The battle version is missing or invalid. Reload it before removing it.",
+                "The battle version is missing or invalid. Reload it before archiving it.",
             )
             return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
         try:
@@ -1607,7 +1608,7 @@ def remove_battle(request, pk, battle_pk):
             messages.error(request, str(exc))
             return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
         else:
-            messages.success(request, "Battle removed.")
+            messages.success(request, "Battle archived.")
             return redirect("n26-campaign", pk=found.pk)
 
     return render(
@@ -1616,12 +1617,6 @@ def remove_battle(request, pk, battle_pk):
         {
             "campaign": found,
             "battle": battle,
-            "has_history": (
-                battle.gang_events.exists()
-                or battle.crews.exists()
-                or battle.reports.exists()
-                or CampaignRoll.objects.filter(battle=battle).exists()
-            ),
         },
     )
 
@@ -3343,6 +3338,7 @@ def _unfinished_battles(campaign, gang_ids):
         for report in PostBattleReport.objects.filter(
             gang__in=gang_ids,
             battle__campaign=campaign,
+            battle__archived=False,
             state=PostBattleReport.State.DRAFT,
         )
         .select_related("gang", "battle")
@@ -3354,7 +3350,7 @@ def _unfinished_battles(campaign, gang_ids):
             reverse("n26-battle", args=[campaign.pk, battle.pk]),
         )
         for battle in campaign.battles.filter(
-            gangs__in=gang_ids, result=Battle.Result.NOT_RECORDED
+            gangs__in=gang_ids, result=Battle.Result.NOT_RECORDED, archived=False
         )
         .distinct()
         .order_by("date")
