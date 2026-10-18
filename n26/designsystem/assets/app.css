@@ -247,16 +247,9 @@
         font-variant-ligatures: none;
     }
 
-    /* Icons are sized in em, so they land on fractional pixel widths far more
-     * often than not. geometricPrecision antialiases those edges instead of
-     * snapping them, which is what keeps a 24px-grid icon legible at 14px.
-     *
-     * Note this also wins over shape-rendering="crispEdges" on the staff badge:
-     * a CSS declaration beats a presentation attribute, which have the lowest
-     * priority of anything. That is the wanted outcome — crisp pixels only look
-     * crisp at whole multiples of the source grid, and downscaled to ~16px they
-     * came out with some columns a pixel wide and some two. */
-    svg {
+    /* Smooth unspecified icons at fractional em sizes. Keep authored rendering
+     * hints: pixel artwork uses crispEdges to prevent seams between its squares. */
+    svg:not([shape-rendering]) {
         shape-rendering: geometricPrecision;
     }
 }
