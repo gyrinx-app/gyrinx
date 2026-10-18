@@ -1734,7 +1734,8 @@ class Operation:
         )
         planned = {assignment.pk for assignment in plan.assignments}
         # A clone copies no advancement records, which would count towards
-        # eligibility and allow undo. Its ledger entries keep the category.
+        # eligibility and allow undo. Its ledger entries keep the receipt's
+        # Advancements line instead.
         from_advancement = set(
             Assignment.objects.filter(advancement_rated(), pk__in=planned).values_list(
                 "pk", flat=True

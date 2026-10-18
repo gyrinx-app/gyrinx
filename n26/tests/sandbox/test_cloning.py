@@ -1653,22 +1653,22 @@ def advance():
                 request_key=uuid4(),
                 state=ActionRecord.State.COMPLETED,
             )
-            picks = {}
+            anchors, picks = {}, {}
             for (name, (slot, pickable)), rating in zip(
                 slots.items(), (result, promotion), strict=True
             ):
-                anchor = op.assign(slot, miniature=miniature, action_record=used)
+                anchors[name] = op.assign(slot, miniature=miniature, action_record=used)
                 picks[name] = op.assign(
                     pickable,
                     miniature=miniature,
-                    chosen_for=anchor,
+                    chosen_for=anchors[name],
                     chosen_for_slot=slot,
                     rating=rating,
                     action_record=used,
                 )
             AdvancementSelection.objects.create(
                 action_record=used,
-                slot_assignment=anchor,
+                slot_assignment=anchors["Advancement result"],
                 pick_assignment=picks["Advancement result"],
                 promotion_assignment=picks["Promotion"],
             )
@@ -1692,6 +1692,12 @@ def _clone(miniature, whole_gang):
 
 
 class TestCloningAnAdvancedModel:
+    """A clone lists copied advancement rating under Advancements.
+
+    It copies no advancement records, so the clone gains no eligibility,
+    Undo or extra rating.
+    """
+
     @pytest.fixture
     def advanced(self, gang, ganger_profile, make_statline, advance):
         make_statline(ganger_profile)
