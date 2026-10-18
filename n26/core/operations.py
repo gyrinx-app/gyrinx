@@ -1712,6 +1712,7 @@ class Operation:
 
     def _materialise_clone_plan(self, plan, *, primary_name=None):
         """Write a read-side clone plan without replaying stored effects."""
+        from n26.core.card import advancement_rated
         from n26.core.models import (
             AssignmentSet,
             ChosenProfileOption,
@@ -1732,6 +1733,14 @@ class Operation:
             .values_list("assignment_id", "total")
         )
         planned = {assignment.pk for assignment in plan.assignments}
+        # A clone copies no advancement records, which would count towards
+        # eligibility and allow undo. Its ledger entries keep the receipt's
+        # Advancements line instead.
+        from_advancement = set(
+            Assignment.objects.filter(advancement_rated(), pk__in=planned).values_list(
+                "pk", flat=True
+            )
+        )
         preserving_external_anchors = plan.source_gang.pk == self.gang.pk
 
         # Memberships are gang-hosted, so they can be written before the
@@ -1853,6 +1862,7 @@ class Operation:
                 clone,
                 neutral=source.pk in plan.neutral,
                 rating_override=rating_overrides.get(source.pk, 0),
+                from_advancement=source.pk in from_advancement,
             )
 
             role = getattr(source, "profile_role", None)
@@ -1961,7 +1971,9 @@ class Operation:
             archived_at=_now() if is_archived else None,
         )
 
-    def _clone_ledger(self, source, clone, *, neutral=False, rating_override=0):
+    def _clone_ledger(
+        self, source, clone, *, neutral=False, rating_override=0, from_advancement=False
+    ):
         """Give a cloned assignment a fresh opening and its rating override."""
         from n26.core.cloning import CLONED_RATING_NOTE_PREFIX
 
@@ -1999,7 +2011,9 @@ class Operation:
                 "You cannot clone this model. Its base rating without an override "
                 "is outside the supported range."
             )
-        LedgerEntry.objects.create(assignment=clone, **values)
+        LedgerEntry.objects.create(
+            assignment=clone, cloned_from_advancement=from_advancement, **values
+        )
         self.event(
             clone,
             LedgerEvent.Kind.CLONED,
