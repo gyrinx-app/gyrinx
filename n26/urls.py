@@ -98,6 +98,11 @@ urlpatterns = [
         name="n26-campaign-add-battle",
     ),
     path(
+        "campaigns/<str:pk>/battles/archived/",
+        views.archived_battles,
+        name="n26-campaign-archived-battles",
+    ),
+    path(
         "campaigns/<str:pk>/battles/<str:battle_pk>/",
         views.battle,
         name="n26-battle",
@@ -121,6 +126,11 @@ urlpatterns = [
         "campaigns/<str:pk>/battles/<str:battle_pk>/gangs/<str:gang_pk>/results/",
         views.battle_report,
         name="n26-battle-report",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/restore/",
+        views.restore_battle,
+        name="n26-campaign-restore-battle",
     ),
     path(
         "campaigns/<str:pk>/battles/<str:battle_pk>/remove/",

@@ -1,0 +1,53 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% block head_title %}Archived battles · {{ campaign.name }}{% endblock %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <div class="flex w-full flex-col gap-8">
+        <c-n26.page-header title="Archived battles" lead="{{ campaign.name }}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Archived battles
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        <p class="text-sm text-muted">Open a battle to view its saved records or restore it.</p>
+        <ul class="divide-y divide-box-border border border-box-border bg-surface">
+            {% for battle in page %}
+                <li class="p-4">
+                    <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        <c-n26.link href="{% url 'n26-battle' campaign.pk battle.pk %}"
+                                    class="font-semibold">{{ battle.title }}</c-n26.link>
+                        <time class="text-sm text-muted"
+                              datetime="{{ battle.date|date:'Y-m-d' }}">{{ battle.date|date:'j M Y' }}</time>
+                    </div>
+                    <p class="mt-1 text-sm text-muted">{{ battle.result_label }}</p>
+                    <p class="mt-1 text-sm">{% for gang in battle.gangs.all %}{{ gang.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+                </li>
+            {% empty %}
+                <li class="p-4 text-sm text-muted">No archived battles.</li>
+            {% endfor %}
+        </ul>
+        {% if page.has_other_pages %}
+            <c-ui.pagination>
+                {% if page.has_previous %}
+                    <c-ui.pagination.prev href="{% querystring page=page.previous_page_number %}" />
+                {% endif %}
+                <li class="px-2 text-sm text-muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</li>
+                {% if page.has_next %}
+                    <c-ui.pagination.next href="{% querystring page=page.next_page_number %}" />
+                {% endif %}
+            </c-ui.pagination>
+        {% endif %}
+    </div>
+{% endblock %}

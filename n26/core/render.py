@@ -4832,7 +4832,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
             for asset_type in asset_types
         ],
         assets=list(tables.values()),
-        battles_fought=campaign.battles.count(),
+        battles_fought=campaign.battles.filter(archived=False).count(),
         territories_to_generate=TERRITORIES_PER_GANG * len(memberships),
     )
 

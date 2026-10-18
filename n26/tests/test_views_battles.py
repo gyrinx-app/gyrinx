@@ -460,25 +460,23 @@ class TestBattlePages:
         )
         assert response.status_code == 302
 
-    def test_attributed_history_blocks_remove_get_and_post(
+    def test_attributed_history_is_preserved_when_archiving(
         self, client, campaign, battle, gang
     ):
-        LedgerEvent.objects.create(
+        event = LedgerEvent.objects.create(
             gang=gang, campaign=campaign, battle=battle, kind=LedgerEvent.Kind.ADDED
         )
         url = address(campaign, battle, "remove/")
-        detail = client.get(address(campaign, battle)).content.decode()
-        assert url not in detail
-        assert "This battle cannot be removed because" not in detail
+        assert url in client.get(address(campaign, battle)).content.decode()
         question = client.get(url).content.decode()
-        assert 'type="submit"' not in question
-        assert "cannot remove it" in question
+        assert 'type="submit"' in question
+        assert "stake transfers will stay in effect" in question
         response = client.post(url, {"revision": battle.revision}, follow=True)
-        assert (
-            "cannot remove a battle with recorded gang history"
-            in response.content.decode()
-        )
-        assert Battle.objects.filter(pk=battle.pk).exists()
+        assert response.status_code == 200
+        battle.refresh_from_db()
+        event.refresh_from_db()
+        assert battle.archived
+        assert event.battle_id == battle.pk
 
     def test_remove_confirmation_posts_its_reviewed_version(
         self, client, campaign, battle
@@ -488,7 +486,7 @@ class TestBattlePages:
         revision = confirmation.select_one('input[name="revision"]')["value"]
         assert revision == str(battle.revision)
         assert client.post(url, {"revision": revision}).status_code == 302
-        assert not Battle.objects.filter(pk=battle.pk).exists()
+        assert Battle.objects.get(pk=battle.pk).archived
 
     def test_an_old_removal_form_cannot_delete_newer_battle_details(
         self, client, campaign, battle, gang
@@ -505,12 +503,12 @@ class TestBattlePages:
         )
         response = client.post(url, {"revision": revision}, follow=True)
         assert "This battle changed." in response.content.decode()
-        assert "before removing it" in response.content.decode()
+        assert "before archiving it" in response.content.decode()
         battle.refresh_from_db()
         assert battle.scenario == "Ambush"
         assert battle.revision == int(revision) + 1
         assert not campaign.events.filter(
-            kind=CampaignEvent.Kind.BATTLE_REMOVED
+            kind=CampaignEvent.Kind.BATTLE_ARCHIVED
         ).exists()
 
     @pytest.mark.parametrize("data", [{}, {"revision": ""}, {"revision": "bad"}])
@@ -522,28 +520,25 @@ class TestBattlePages:
         assert Battle.objects.filter(pk=battle.pk).exists()
 
     @pytest.mark.parametrize("record", ["crew", "report"])
-    def test_saved_crews_and_reports_block_both_the_question_and_removal(
+    def test_saved_crews_and_reports_are_preserved_when_archiving(
         self, client, campaign, battle, gang, arbitrator, record
     ):
         if record == "crew":
             save_crew(
-                battle=battle,
-                gang=gang,
-                actor=arbitrator,
-                revision=0,
-                selections=[],
+                battle=battle, gang=gang, actor=arbitrator, revision=0, selections=[]
             )
+            saved = battle.crews.get()
         else:
-            start_report(gang, battle=battle, actor=arbitrator, request_key=uuid4())
+            saved = start_report(
+                gang, battle=battle, actor=arbitrator, request_key=uuid4()
+            )
         url = address(campaign, battle, "remove/")
-        response = client.get(url)
-        assert response.status_code == 200
-        assert 'type="submit"' not in response.content.decode()
-        assert "This battle has saved records" in response.content.decode()
-        assert "cannot remove it" in response.content.decode()
-        response = client.post(url, {"revision": battle.revision}, follow=True)
-        assert "cannot remove a battle with a saved crew" in response.content.decode()
-        assert Battle.objects.filter(pk=battle.pk).exists()
+        assert 'type="submit"' in client.get(url).content.decode()
+        assert client.post(url, {"revision": battle.revision}).status_code == 302
+        battle.refresh_from_db()
+        saved.refresh_from_db()
+        assert battle.archived
+        assert saved.battle_id == battle.pk
 
 
 class TestBattlePermissions:
@@ -557,6 +552,7 @@ class TestBattlePermissions:
         drawn = page.content.decode()
         assert "Edit battle" not in drawn
         assert "Remove battle" not in drawn
+        assert "Archive battle" not in drawn
         assert f"/n26/gangs/{gang.pk}/history/" not in drawn
         for url in (
             address(campaign, battle, "edit/"),
@@ -694,3 +690,239 @@ class TestBattleQueryGrowth:
         with CaptureQueriesContext(connection) as many:
             assert client.get(url).status_code == 200
         assert len(many) == len(few)
+
+
+class TestArchivedBattles:
+    def test_archived_list_paginates_without_listing_active_battles(
+        self, client, campaign, battle, arbitrator
+    ):
+        from django.urls import reverse
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            for i in range(31):
+                archived = act.record_battle(
+                    battle.date, scenario=f"Cancelled battle {i}"
+                )
+                act.remove_battle(archived, revision=0)
+        url = reverse("n26-campaign-archived-battles", args=[campaign.pk])
+        first = client.get(url)
+        assert first.context["page"].paginator.count == 31
+        assert len(first.context["page"]) == 30
+        second = client.get(url, {"page": 2})
+        assert len(second.context["page"]) == 1
+        assert "Page 2 of 2" in second.content.decode()
+        assert "pagination.label" not in second.content.decode()
+        assert battle not in first.context["page"]
+        assert battle not in second.context["page"]
+
+    def test_archive_hides_the_battle_and_restore_returns_it(
+        self, client, campaign, battle, gang, arbitrator
+    ):
+        from django.urls import reverse
+
+        from n26.core.models import Campaign
+        from n26.core.views.campaigns import _unfinished_battles, campaign_rows
+
+        draft = start_report(gang, battle=battle, actor=arbitrator, request_key=uuid4())
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            archived = act.remove_battle(battle, revision=battle.revision)
+        campaign_url = reverse("n26-campaign", args=[campaign.pk])
+        assert not client.get(campaign_url).context["battles"]
+        assert client.get(campaign_url).context["sheet"].battles_fought == 0
+        assert (
+            campaign_rows(Campaign.objects.filter(pk=campaign.pk))[0].battle_count == 0
+        )
+        reports = client.get(reverse("n26-gang-post-battle", args=[gang.pk]))
+        assert not reports.context["campaign_entries"]
+        assert _unfinished_battles(campaign, [gang.pk]) == ([], [])
+        archive_url = reverse("n26-campaign-archived-battles", args=[campaign.pk])
+        assert list(client.get(archive_url).context["page"]) == [archived]
+        detail = client.get(address(campaign, battle))
+        assert "This battle is archived" in detail.content.decode()
+        assert "Edit battle" not in detail.content.decode()
+        assert "Continue draft" not in detail.content.decode()
+        assert (
+            client.get(reverse("n26-post-battle-editor", args=[draft.pk])).status_code
+            == 404
+        )
+        restore = reverse("n26-campaign-restore-battle", args=[campaign.pk, battle.pk])
+        assert client.get(restore).status_code == 405
+        assert client.post(restore, {"revision": archived.revision}).status_code == 302
+        restored = Battle.objects.get(pk=battle.pk)
+        assert not restored.archived
+        assert restored.archived_at is None
+        assert restored.revision == archived.revision + 1
+        assert list(client.get(campaign_url).context["battles"]) == [restored]
+        assert not client.get(archive_url).context["page"]
+        assert (
+            client.get(reverse("n26-post-battle-editor", args=[draft.pk])).status_code
+            == 200
+        )
+        assert draft.battle_id == restored.pk
+
+    def test_archive_and_restore_are_idempotent_and_invalidate_old_forms(
+        self, campaign, battle, arbitrator, gang
+    ):
+        from n26.core.operations import Refusal
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            archived = act.remove_battle(battle, revision=0)
+            retried = act.remove_battle(battle, revision=0)
+        assert retried.archived_at == archived.archived_at
+        assert (
+            campaign.events.filter(kind=CampaignEvent.Kind.BATTLE_ARCHIVED).count() == 1
+        )
+        with pytest.raises(Refusal, match="changed.*restoring"):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                act.restore_battle(battle, revision=0)
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            restored = act.restore_battle(archived, revision=archived.revision)
+            retried = act.restore_battle(archived, revision=archived.revision)
+        assert restored.revision == retried.revision == 2
+        assert (
+            campaign.events.filter(kind=CampaignEvent.Kind.BATTLE_RESTORED).count() == 1
+        )
+        with pytest.raises(Refusal, match="changed"):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                act.edit_battle(
+                    battle,
+                    scenario="Ambush",
+                    date=battle.date,
+                    gangs=[gang],
+                    result="draw",
+                    winners=[],
+                    revision=0,
+                )
+        with pytest.raises(Refusal, match="changed"):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                act.remove_battle(battle, revision=0)
+
+    def test_open_forms_cannot_change_an_archived_battle(
+        self, client, campaign, battle, gang, arbitrator
+    ):
+        from django.urls import reverse
+
+        from n26.core.operations import Refusal
+        from n26.core.post_battle import apply_report, save_draft, start_correction
+
+        draft = start_report(gang, battle=battle, actor=arbitrator, request_key=uuid4())
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.remove_battle(battle, revision=battle.revision)
+        # Call with objects read before archiving, as a form opened in another tab would.
+        with pytest.raises(Refusal, match="archived"):
+            save_crew(
+                battle=battle, gang=gang, actor=arbitrator, revision=0, selections=[]
+            )
+        with pytest.raises(Refusal, match="archived"):
+            start_report(gang, battle=battle, actor=arbitrator, request_key=uuid4())
+        with pytest.raises(Refusal, match="archived"):
+            save_draft(
+                draft,
+                actor=arbitrator,
+                generation=draft.generation,
+                revision=0,
+                payload={},
+            )
+        with pytest.raises(Refusal, match="archived"):
+            start_correction(draft, actor=arbitrator)
+        with pytest.raises(Refusal, match="archived"):
+            apply_report(
+                draft,
+                actor=arbitrator,
+                generation=draft.generation,
+                revision=0,
+                submission_key=uuid4(),
+                review="",
+            )
+        assert (
+            client.post(address(campaign, battle, "edit/"), fields(gang)).status_code
+            == 404
+        )
+        assert (
+            client.post(
+                reverse("n26-battle-crew", args=[campaign.pk, battle.pk, gang.pk]), {}
+            ).status_code
+            == 404
+        )
+        assert (
+            client.post(
+                reverse("n26-battle-report", args=[campaign.pk, battle.pk, gang.pk]),
+                {"request_key": uuid4()},
+            ).status_code
+            == 404
+        )
+        assert (
+            client.post(
+                reverse("n26-post-battle-editor", args=[draft.pk]), {}
+            ).status_code
+            == 404
+        )
+        assert (
+            client.post(
+                reverse("n26-post-battle-correct", args=[draft.pk]), {}
+            ).status_code
+            == 404
+        )
+
+    def test_only_the_arbitrator_can_archive_restore_or_list_archived_battles(
+        self, client, campaign, battle, arbitrator
+    ):
+        from django.urls import reverse
+
+        from n26.core.operations import Refusal
+
+        stranger = User.objects.create_user("stranger")
+        client.force_login(stranger)
+        for suffix in ["remove/", "restore/"]:
+            assert (
+                client.post(
+                    address(campaign, battle, suffix), {"revision": 0}
+                ).status_code
+                == 404
+            )
+        assert (
+            client.get(
+                reverse("n26-campaign-archived-battles", args=[campaign.pk])
+            ).status_code
+            == 404
+        )
+        for action in ["remove_battle", "restore_battle"]:
+            with pytest.raises(Refusal, match="Only the arbitrator"):
+                with campaign_operation(campaign, actor=stranger) as act:
+                    getattr(act, action)(battle, revision=0)
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.remove_battle(battle, revision=0)
+        assert client.get(address(campaign, battle)).status_code == 200
+        assert (
+            "Restore battle"
+            not in client.get(address(campaign, battle)).content.decode()
+        )
+
+    def test_archived_list_has_no_query_growth_per_battle(
+        self, client, campaign, battle, gang, arbitrator
+    ):
+        from django.urls import reverse
+
+        def count():
+            with CaptureQueriesContext(connection) as captured:
+                response = client.get(url)
+            assert response.status_code == 200
+            return len(captured)
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.remove_battle(battle, revision=battle.revision)
+        url = reverse("n26-campaign-archived-battles", args=[campaign.pk])
+        count()
+        before = count()
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            for i in range(4):
+                extra = act.record_battle(
+                    battle.date,
+                    [gang],
+                    scenario=f"Archived battle {i}",
+                    result="winners",
+                    winners=[gang],
+                )
+                act.remove_battle(extra, revision=extra.revision)
+        assert count() <= before
+        assert client.get(url).context["page"].paginator.count == 5

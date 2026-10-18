@@ -1055,10 +1055,10 @@ class TestBattlesOnTheCampaignsPage:
             {"revision": battle.revision},
         )
 
-        assert not Battle.objects.exists()
+        assert Battle.objects.get().archived
         drawn = self.page(client, campaign)
         assert "No battles yet." in drawn
-        assert "removed the battle of 2026-08-03" in drawn
+        assert "archived the battle: Stand-off" in drawn
 
     def test_another_campaigns_battle_is_not_reachable(
         self, client, campaign, arbitrator, campaign_type

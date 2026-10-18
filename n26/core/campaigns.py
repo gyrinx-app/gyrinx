@@ -540,7 +540,9 @@ class CampaignOperation:
                 raise Refusal("Select a model currently in the related gang.")
         if (
             battle is not None
-            and not Battle.objects.filter(pk=battle.pk, campaign=self.campaign).exists()
+            and not Battle.objects.filter(
+                pk=battle.pk, campaign=self.campaign, archived=False
+            ).exists()
         ):
             raise Refusal("Select a battle from this campaign.")
         results = []
@@ -577,11 +579,17 @@ class CampaignOperation:
         from n26.core.operations import Refusal
 
         self._require_recorder()
-        roll = CampaignRoll.objects.filter(
-            pk=roll.pk, campaign=self.campaign, actor=self.actor
-        ).first()
+        roll = (
+            CampaignRoll.objects.select_related("battle")
+            .filter(pk=roll.pk, campaign=self.campaign, actor=self.actor)
+            .first()
+        )
         if roll is None:
             raise Refusal("You can only add notes to your own dice rolls.")
+        if roll.battle_id and roll.battle.archived:
+            raise Refusal(
+                "This battle is archived. Restore it before changing its rolls."
+            )
         outcome = outcome.strip()
         if len(outcome) > CampaignEvent.NOTE_LENGTH:
             raise Refusal("Enter an outcome note of up to 512 characters.")
@@ -837,35 +845,55 @@ class CampaignOperation:
         return membership
 
     def remove_battle(self, battle, *, revision):
-        """Remove an unused battle; attributed gang history keeps its occasion."""
-        from n26.core.models import CampaignRoll
+        """Archive the occasion, retaining its records and applied gang changes."""
         from n26.core.operations import Refusal
 
-        battle = self._locked_battle(battle)
+        self._require_battle_admin()
+        battle = self._locked_battle(battle, include_archived=True)
+        if battle.archived:
+            return battle
         if battle.revision != revision:
-            raise Refusal("This battle changed. Reload it before removing it.")
-        if battle.gang_events.exists():
-            raise Refusal("You cannot remove a battle with recorded gang history.")
-        if CampaignRoll.objects.filter(battle=battle).exists():
-            raise Refusal("You cannot remove a battle with recorded dice rolls.")
-        if battle.reports.exists() or battle.crews.exists():
-            raise Refusal(
-                "You cannot remove a battle with a saved crew or post-battle report."
-            )
-        self.event(CampaignEvent.Kind.BATTLE_REMOVED, note=str(battle.date))
-        battle.delete()
+            raise Refusal("This battle changed. Reload it before archiving it.")
+        battle.revision += 1
+        battle.archive()
+        self.event(CampaignEvent.Kind.BATTLE_ARCHIVED, battle=battle, note=battle.title)
+        return battle
 
-    def _locked_battle(self, battle):
+    def restore_battle(self, battle, *, revision):
+        """Return an archived battle to the campaign with all records intact."""
+        from n26.core.operations import Refusal
+
+        self._require_battle_admin()
+        battle = self._locked_battle(battle, include_archived=True)
+        if not battle.archived:
+            return battle
+        if battle.revision != revision:
+            raise Refusal("This battle changed. Reload it before restoring it.")
+        battle.revision += 1
+        battle.unarchive()
+        self.event(CampaignEvent.Kind.BATTLE_RESTORED, battle=battle, note=battle.title)
+        return battle
+
+    def _require_battle_admin(self):
+        from n26.core.operations import Refusal
+
+        if self.actor is None or self.actor.pk != self.campaign.owner_id:
+            raise Refusal("Only the arbitrator can archive or restore a battle.")
+
+    def _locked_battle(self, battle, *, include_archived=False):
         from n26.core.models import Battle
         from n26.core.operations import Refusal
 
         # The full lock also excludes concurrent inserts naming this battle.
         try:
-            return Battle.objects.select_for_update().get(
+            found = Battle.objects.select_for_update().get(
                 pk=battle.pk, campaign=self.campaign
             )
         except Battle.DoesNotExist:
             raise Refusal("This battle is no longer available.") from None
+        if found.archived and not include_archived:
+            raise Refusal("This battle is archived. Restore it before making changes.")
+        return found
 
     def add_asset(self, asset, name="", *, income_override=None):
         """Add one of an asset to the campaign, held by nobody.

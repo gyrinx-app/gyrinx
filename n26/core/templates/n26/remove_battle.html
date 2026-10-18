@@ -5,7 +5,7 @@ The question asked before a battle is taken off a campaign, at an address of
 its own. Following the link that leads here changes nothing; the POST is the
 act.
 {% endcomment %}
-{% block head_title %}Remove {{ battle.title }}{% endblock head_title %}
+{% block head_title %}Archive {{ battle.title }}{% endblock head_title %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
     <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
@@ -15,8 +15,8 @@ act.
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
-                     title="Remove {{ battle.title }}?"
-                     submit_label="{% if not has_history %}Remove battle{% endif %}"
+                     title="Archive {{ battle.title }}?"
+                     submit_label="Archive battle"
                      submit_variant="danger"
                      cancel_url="{% url 'n26-battle' campaign.pk battle.pk %}">
         <c-slot name="breadcrumb">
@@ -27,20 +27,15 @@ act.
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Remove a battle
+                    Archive a battle
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
         <input type="hidden" name="revision" value="{{ battle.revision }}">
-        {% if has_history %}
-            <c-ui.alert variant="warning" title="This battle has saved records">
-                You can edit its details, but cannot remove it. Saved crews, post-battle reports, dice rolls and recorded gang history keep their link to this battle.
-            </c-ui.alert>
-        {% else %}
-            <c-ui.alert variant="warning" title="Remove this battle from {{ campaign.name }}">
-                The battle page will no longer be available. The campaign log will keep a record that it was added and removed.
-            </c-ui.alert>
-        {% endif %}
+        <c-ui.alert variant="warning" title="Archive this battle in {{ campaign.name }}">
+            The battle will be hidden from battle lists. You can restore it from Archived battles.
+        </c-ui.alert>
+        <p class="text-sm text-muted">Saved crews, post-battle reports, dice rolls and gang history will be kept. Applied rewards, injuries and stake transfers will stay in effect. Restore the battle before changing its records.</p>
     </c-n26.form-page>
 {% endblock content %}

@@ -168,6 +168,8 @@ def save_crew(
     battle = Battle.objects.select_for_update().filter(pk=battle.pk).first()
     if battle is None:
         raise Refusal("This battle has been removed. Return to the campaign.")
+    if battle.archived:
+        raise Refusal("This battle is archived. Restore it before changing its crew.")
     if not may_edit_crew(campaign=campaign, gang=gang, actor=actor):
         raise Refusal(
             "You cannot edit this crew. Only its owner or the gang’s current campaign arbitrator can."

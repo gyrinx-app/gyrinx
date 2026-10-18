@@ -102,8 +102,10 @@ def campaign_roll(request, pk, roll_pk):
         )
     except ValidationError:
         raise Http404("No such dice roll") from None
-    may_note = roll.actor_id == request.user.pk and may_record_campaign(
-        campaign, request.user
+    may_note = (
+        (not roll.battle_id or not roll.battle.archived)
+        and roll.actor_id == request.user.pk
+        and may_record_campaign(campaign, request.user)
     )
     if request.method == "POST" and not may_note:
         raise Http404("No such dice roll")

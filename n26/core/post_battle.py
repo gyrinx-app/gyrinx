@@ -371,6 +371,8 @@ def _credit_events(lines, recorded):
 
 
 def can_edit_report(report, actor):
+    if report.battle_id and report.battle.archived:
+        return False
     return may_record_gang(
         gang=report.gang,
         actor=actor,
@@ -400,6 +402,10 @@ def _locked(gang, battle=None, report=None):
                 .select_related("campaign")
                 .get(pk=battle.pk)
             )
+            if battle.archived:
+                raise Refusal(
+                    "This battle is archived. Restore it before changing its results."
+                )
         if report is not None:
             report = PostBattleReport.objects.select_for_update().get(pk=report.pk)
             report.gang = gang

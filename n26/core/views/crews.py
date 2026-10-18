@@ -55,7 +55,9 @@ def _context(request, pk, battle_pk, gang_pk):
         gang = get_object_or_404(battle.gangs.select_related("gang_type"), pk=gang_pk)
     except ValidationError:
         raise Http404("No such gang") from None
-    editable = may_edit_crew(campaign=campaign, gang=gang, actor=request.user)
+    editable = not battle.archived and may_edit_crew(
+        campaign=campaign, gang=gang, actor=request.user
+    )
     crew = BattleCrew.objects.filter(battle=battle, gang=gang).first()
     return campaign, battle, gang, editable, crew
 

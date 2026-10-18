@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
+{% load navigation action_menu %}
 {% block head_title %}{{ battle.title }}{% endblock %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
@@ -21,12 +21,36 @@
                     </c-ui.breadcrumbs.item>
                 </c-ui.breadcrumbs>
             </c-slot>
-            {% if yours %}
+            {% if yours and not battle.archived %}
                 <c-slot name="actions">
-                    <c-ui.button href="{% url 'n26-campaign-edit-battle' campaign.pk battle.pk %}">Edit battle</c-ui.button>
+                    <c-n26.button-group>
+                        <c-ui.button size="sm"
+                                     href="{% url 'n26-campaign-edit-battle' campaign.pk battle.pk %}">Edit battle</c-ui.button>
+                        {% url 'n26-campaign-remove-battle' campaign.pk battle.pk as archive_battle_url %}
+                        {% link_actions "Archive battle" archive_battle_url as battle_actions %}
+                        <c-n26.action-menu :items="battle_actions"
+                                           label="Battle actions"
+                                           variant="ghost"
+                                           align="end" />
+                    </c-n26.button-group>
                 </c-slot>
             {% endif %}
         </c-n26.page-header>
+        {% if battle.archived %}
+            <c-ui.alert title="This battle is archived">
+                Its saved records are read-only. Applied rewards, injuries and stake transfers stay in effect.
+            </c-ui.alert>
+            {% if yours %}
+                <form method="post"
+                      action="{% url 'n26-campaign-restore-battle' campaign.pk battle.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="revision" value="{{ battle.revision }}">
+                    <c-ui.button type="submit" variant="success">
+                        Restore battle
+                    </c-ui.button>
+                </form>
+            {% endif %}
+        {% endif %}
         {% if not battle.scenario %}<p class="text-sm text-muted">Scenario not recorded.</p>{% endif %}
         <section class="border border-box-border bg-surface p-4 sm:p-5"
                  aria-labelledby="battle-outcome-heading">
@@ -35,7 +59,7 @@
             {% if stake %}
                 <div class="mt-4 border-t border-box-border pt-3">{% include "n26/includes/battle_stake.html" %}</div>
             {% endif %}
-            {% if battle.result == "not_recorded" and yours %}
+            {% if battle.result == "not_recorded" and yours and not battle.archived %}
                 <c-ui.button size="sm"
                              class="mt-3"
                              href="{% url 'n26-campaign-edit-battle' campaign.pk battle.pk %}#outcome">
@@ -118,10 +142,6 @@
         </section>
         <div class="border-t border-box-border pt-4 text-sm text-muted">
             {% if recorded %}<p>Recorded{% if recorded.actor %} by <c-n26.user-link :user="recorded.actor" tone="current" />{% endif %} on {{ recorded.created|date:'j F Y' }}.</p>{% endif %}
-            {% if yours and not has_history %}
-                <c-n26.link href="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
-                            class="mt-3 inline-block">Remove battle</c-n26.link>
-            {% endif %}
         </div>
     </div>
 {% endblock %}

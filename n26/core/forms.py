@@ -1259,7 +1259,9 @@ class CampaignRollForm(forms.Form):
             .select_related("membership")
             .order_by("name", "pk")
         )
-        self.fields["battle"].queryset = campaign.battles.order_by("-date", "-created")
+        self.fields["battle"].queryset = campaign.battles.filter(
+            archived=False
+        ).order_by("-date", "-created")
 
     def clean(self):
         from n26.core.models import CampaignRoll

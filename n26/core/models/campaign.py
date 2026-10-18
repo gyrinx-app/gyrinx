@@ -171,6 +171,8 @@ class CampaignEvent(Base):
         BATTLE_RECORDED = "battle_recorded", "Battle recorded"
         BATTLE_EDITED = "battle_edited", "Battle edited"
         BATTLE_REMOVED = "battle_removed", "Battle removed"
+        BATTLE_ARCHIVED = "battle_archived", "Battle archived"
+        BATTLE_RESTORED = "battle_restored", "Battle restored"
         INVITED = "invited", "Invited a player"
         INVITE_ACCEPTED = "invite_accepted", "Invitation accepted"
         INVITE_DECLINED = "invite_declined", "Invitation declined"
@@ -442,7 +444,7 @@ class CampaignAsset(Base):
         return self.asset.asset_type.label_singular.lower()
 
 
-class Battle(Base):
+class Battle(Base, Archived):
     """A campaign battle and its result, separate from changes to the gangs."""
 
     class Result(models.TextChoices):

@@ -258,12 +258,12 @@ class TestRemovingABattle:
         with campaign_operation(campaign, actor=arbitrator) as act:
             updated = edit(act, battle, **changes)
         assert updated.revision == revision + 1
-        with pytest.raises(Refusal, match="changed.*before removing"):
+        with pytest.raises(Refusal, match="changed.*before archiving"):
             with campaign_operation(campaign, actor=arbitrator) as act:
                 act.remove_battle(battle, revision=revision)
         assert Battle.objects.filter(pk=battle.pk, revision=revision + 1).exists()
         assert not campaign.events.filter(
-            kind=CampaignEvent.Kind.BATTLE_REMOVED
+            kind=CampaignEvent.Kind.BATTLE_ARCHIVED
         ).exists()
 
     def test_log_retains_scenario_when_removed(self, campaign, arbitrator):
@@ -273,25 +273,27 @@ class TestRemovingABattle:
             act.remove_battle(battle, revision=battle.revision)
         assert told(campaign)[-2:] == [
             "recorded Stand-off on 2026-08-03",
-            "removed the battle of 2026-08-03",
+            "archived the battle: Stand-off",
         ]
-        assert not campaign.battles.exists()
+        assert not campaign.battles.filter(archived=False).exists()
+        assert campaign.battles.get().archived_at is not None
 
-    def test_recorded_gang_history_keeps_its_battle(
+    def test_archiving_retains_recorded_gang_history(
         self, battle, campaign, arbitrator, gang
     ):
         event = LedgerEvent.objects.create(
             gang=gang, campaign=campaign, battle=battle, kind=LedgerEvent.Kind.ADDED
         )
-        with pytest.raises(Refusal, match="recorded gang history"):
-            with campaign_operation(campaign, actor=arbitrator) as act:
-                act.remove_battle(battle, revision=battle.revision)
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            archived = act.remove_battle(battle, revision=battle.revision)
         event.refresh_from_db()
         assert event.battle_id == battle.pk
-        assert Battle.objects.filter(pk=battle.pk).exists()
-        assert not campaign.events.filter(
-            kind=CampaignEvent.Kind.BATTLE_REMOVED
-        ).exists()
+        assert archived.archived
+        assert archived.archived_at is not None
+        assert (
+            campaign.events.get(kind=CampaignEvent.Kind.BATTLE_ARCHIVED).battle_id
+            == battle.pk
+        )
 
     def test_foreign_battle_refused(self, battle, arbitrator, campaign_type):
         foreign = found_campaign("Elsewhere", campaign_type, owner=arbitrator)

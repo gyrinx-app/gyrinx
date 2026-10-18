@@ -2096,3 +2096,55 @@ def test_report_refuses_below_minimum_and_zero_correction_adds_no_reputation(
     report = save(report, owner, with_lines(model, counters={key: 0}))
     apply(report, owner)
     assert counter_value(reputation) == 1
+
+
+@pytest.mark.usefixtures("counter_tracking")
+class TestArchivingTheBattle:
+    def test_applied_results_keep_their_receipt_and_gang_effects(
+        self, battle, gang, owner, arbitrator, model, content
+    ):
+        from n26.core.models import Battle, PostBattleReport
+
+        report = start_report(gang, battle=battle, actor=owner, request_key=uuid4())
+        report = save(
+            report,
+            owner,
+            payload_for(
+                model,
+                xp=3,
+                credits=20,
+                effects=[effect_for(report, owner, content["wound"])],
+                status=Status.RECOVERY,
+            ),
+        )
+        revision = apply(report, owner)
+        before = {
+            "events": list(gang.ledger_events.order_by("pk").values()),
+            "assignments": list(
+                Assignment.objects.filter(gang_root=gang).order_by("pk").values()
+            ),
+            "receipt": revision.receipt,
+        }
+        with campaign_operation(battle.campaign, actor=arbitrator) as act:
+            archived = act.remove_battle(battle, revision=battle.revision)
+        report = PostBattleReport.objects.get(pk=report.pk)
+        revision.refresh_from_db()
+        gang.refresh_from_db()
+        model.refresh_from_db()
+        assert not can_edit_report(report, owner)
+        assert model.status == Status.RECOVERY
+        assert revision.receipt == before["receipt"]
+        assert list(gang.ledger_events.order_by("pk").values()) == before["events"]
+        assert (
+            list(Assignment.objects.filter(gang_root=gang).order_by("pk").values())
+            == before["assignments"]
+        )
+        assert report.battle_id == battle.pk
+        with pytest.raises(Refusal, match="archived"):
+            start_correction(report, actor=owner)
+        with campaign_operation(battle.campaign, actor=arbitrator) as act:
+            act.restore_battle(archived, revision=archived.revision)
+        report.battle = Battle.objects.get(pk=battle.pk)
+        assert can_edit_report(report, owner)
+        assert list(gang.ledger_events.order_by("pk").values()) == before["events"]
+        assert_reconciled(gang)

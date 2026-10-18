@@ -174,7 +174,8 @@ def gang_post_battle(request, pk):
 
     reports = gang.post_battle_reports.defer("draft")
     battles = (
-        Battle.objects.annotate(
+        Battle.objects.filter(archived=False)
+        .annotate(
             is_participant=Exists(
                 Battle.gangs.through.objects.filter(battle_id=OuterRef("pk"), gang=gang)
             )

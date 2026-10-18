@@ -88,8 +88,10 @@ def _asset_context(request, pk, asset_pk, *, back=None):
         action("Remove", "n26-campaign-asset-remove", danger=True)
 
     battles = []
-    for battle in holding.staked_in.select_related("stake_awarded_to").prefetch_related(
-        "gangs", "winners"
+    for battle in (
+        holding.staked_in.filter(archived=False)
+        .select_related("stake_awarded_to")
+        .prefetch_related("gangs", "winners")
     ):
         if battle.result == Battle.Result.NOT_RECORDED:
             outcome = "Result not recorded"
