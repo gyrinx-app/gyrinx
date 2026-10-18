@@ -4,6 +4,6 @@
 The platform tag draws only the SVG. Sizing, tooltip, and accessible name belong to the wrapper.
 The artwork comes from the platform badge registry. Do not copy the SVG here, or the two editions will drift.
 This keeps a fixed palette, not currentColor, whatever the surrounding text does.
-The inline wrapper honours the SVG's crispEdges hint.
+The SVG uses smooth scaling and joined colour paths to keep its outline even at small sizes.
 To draw a person's badge, use c-n26.user-link. It picks which badge that person shows.
 {% endcomment %}{% load badge_tags %}{% badge_svg "staff" %}
