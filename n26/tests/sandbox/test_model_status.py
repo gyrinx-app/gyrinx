@@ -24,7 +24,6 @@ from n26.core.render import render_gang
 from n26.core.status import Status
 from n26.library.models import Modifier, Picklist, Slot
 from n26.library.standard_content import STANDARD_CONTENT
-from n26.tests.fixtures import admit_to_founding
 from n26.tests.sandbox.actions import (
     create_profile,
     create_weapon,
@@ -312,12 +311,6 @@ class TestTheHistoryTellsIt:
 
 
 class TestThePage:
-    @pytest.fixture(autouse=True)
-    def admitted(self, owner):
-        """Clean House and the ransom prompts are drawn in the Actions
-        square, which the founding flag opens."""
-        admit_to_founding(owner)
-
     @pytest.fixture
     def sheet(self, gang):
         return reverse("n26-gang", args=[gang.pk])
@@ -488,24 +481,6 @@ class TestThePage:
         assert "Pay ransom" in page
         assert f"?ransom={krago.pk}" in page
 
-    def test_the_square_stops_saying_nothing_is_open(
-        self, client, owner, gang, krago, sheet
-    ):
-        """A reader with something to do is not told there is nothing."""
-        from n26.core.models import Activity
-
-        client.force_login(owner)
-        # A gang founded a moment ago still has that action open, and an
-        # open action says so on its own; this is about the other half.
-        with operation(gang, actor=owner) as op:
-            op.close_activity(gang.open_activity(Activity.Kind.FOUNDING))
-        assert "No action is open." in client.get(sheet).content.decode()
-        with operation(gang, actor=owner) as op:
-            op.set_status(krago, Status.RECOVERY)
-        page = client.get(sheet).content.decode()
-        assert "No action is open." not in page
-        assert "1 model In Recovery until the cycle ends." in page
-
     def test_the_recovery_step_counts_the_models(
         self, client, owner, gang, krago, nix, sheet
     ):
@@ -527,46 +502,6 @@ class TestThePage:
         page = client.get(sheet).content.decode()
         assert f"?status={krago.pk}" in page
         assert ">Active</a>" in page.replace("\n", "").replace("  ", "")
-
-    def test_an_owner_outside_the_founding_flag_still_sets_a_status(
-        self, client, gang, krago, nix
-    ):
-        """Setting a status by hand belongs to every owner, whatever the
-        founding flag says: the badge, Mark as…, the dialog, Clean House
-        and the acts all reach an owner it does not admit."""
-        outsider = User.objects.create_user("outsider")
-        gang.owner = outsider
-        gang.save(update_fields=["owner"])
-        with operation(gang, actor=outsider) as op:
-            op.set_status(krago, Status.RECOVERY)
-            op.set_status(nix, Status.RECOVERY)
-        client.force_login(outsider)
-        sheet = reverse("n26-gang", args=[gang.pk])
-        clean_house = reverse("n26-clean-house", args=[gang.pk])
-        page = client.get(sheet).content.decode()
-        assert f"?status={krago.pk}" in page
-        assert f'action="{clean_house}"' in page
-        edit = client.get(reverse("n26-edit-fighter", args=[krago.pk])).content.decode()
-        assert "Mark as…" in edit
-        assert (
-            "Mark Krago as" in client.get(f"{sheet}?status={krago.pk}").content.decode()
-        )
-        client.post(reverse("n26-mark-fighter", args=[krago.pk]), {"status": "active"})
-        assert fresh(krago).status == Status.ACTIVE
-        client.post(clean_house)
-        assert fresh(nix).status == Status.ACTIVE
-
-    def test_an_owner_outside_both_flags_with_nothing_waiting_has_no_square(
-        self, client, gang, krago
-    ):
-        """The Actions square comes to an owner on neither flag only for a
-        model In Recovery or held for ransom."""
-        outsider = User.objects.create_user("outsider")
-        gang.owner = outsider
-        gang.save(update_fields=["owner"])
-        client.force_login(outsider)
-        response = client.get(reverse("n26-gang", args=[gang.pk]))
-        assert response.context["activities_square"] is None
 
     def test_a_reader_who_does_not_own_the_gang_reads_the_status_as_words(
         self, client, gang, krago

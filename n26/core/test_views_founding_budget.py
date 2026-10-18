@@ -24,7 +24,6 @@ from n26.library.authoring import (
     create_trading_post,
     create_wargear,
 )
-from n26.tests.fixtures import admit_to_founding
 
 pytestmark = pytest.mark.django_db
 
@@ -113,11 +112,7 @@ def outcasts(library):
 
 @pytest.fixture
 def tester(db):
-    # On the founding flag's allowlist, because the budgets reach the
-    # owners it admits; the owner it does not has a class of their own.
-    person = User.objects.create_user("player")
-    admit_to_founding(person)
-    return person
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -585,45 +580,6 @@ class TestBothPotsAtOnce:
         assert len(own) == 1
 
 
-class TestAnOwnerTheBudgetsDoNotReachYet:
-    """The founding budgets reach the owners the founding flag admits, the
-    same readers as the Actions square that completes the founding. Every
-    other owner's screens are read exactly as they were before budgets
-    existed: no tally, list lines counting nothing, the
-    post-is-shut note in its old place, and a purchase naming no action."""
-
-    @pytest.fixture(autouse=True)
-    def signed_in_as_a_plain_owner(self, client, gang):
-        plain = User.objects.create_user("plain-owner")
-        gang.owner = plain
-        gang.save(update_fields=["owner"])
-        client.force_login(plain)
-
-    def test_the_tally_is_not_drawn(self, client, leader, legacy_list):
-        response = client.get(equip_url(leader, legacy_list))
-
-        assert response.context["founding_budget"] is None
-        assert "Founding Trade Points" not in response.content.decode()
-
-    def test_the_post_is_still_said_to_be_shut(self, client, leader, post):
-        response = client.get(equip_url(leader, post))
-
-        assert response.context["post_is_shut"] is True
-        assert "Not tracking TP" in response.content.decode()
-
-    def test_a_list_purchase_counts_nothing_and_names_no_action(
-        self, client, gang, leader, legacy_list
-    ):
-        client.post(
-            equip_url(leader, legacy_list), {"thing": key_of(wargear("Flak plate"))}
-        )
-
-        entry = bought(gang, "Flak plate").ledger_entry
-        assert entry.trade_points == 0
-        assert entry.activity is None
-        assert entry.spent_by is None
-
-
 def queries_for(client, url):
     """Every query a page makes, measured after one warm request — the
     first request of a session writes its own row."""
@@ -687,26 +643,6 @@ class TestTheWayIntoAVisitFromTheRail:
         # The reason again, off screen: a tooltip that only opens
         # under a pointer leaves everybody else a dead button.
         assert 'aria-describedby="n26-visit-shut-rail"' in control
-
-    def test_an_owner_the_founding_does_not_reach_keeps_the_way_in(
-        self, client, gang, ganger, post
-    ):
-        """Every gang carries an open founding action, and an owner the
-        feature has not reached is given no way to close one. Shutting the
-        button for them would take visits away with nothing in their
-        place."""
-        plain = User.objects.create_user("plain-owner")
-        gang.owner = plain
-        gang.save(update_fields=["owner"])
-        client.force_login(plain)
-
-        response = client.get(equip_url(ganger, post))
-        body = response.content.decode()
-
-        assert response.context["founding_blocks_visit"] is False
-        assert "disabled" not in visit_control(body)
-        assert reverse("n26-gang-trade-points", args=[gang.pk]) in visit_control(body)
-        assert "You can have only one of these actions open at a time." not in body
 
     def test_completing_the_founding_opens_the_way(
         self, client, gang, tester, ganger, post

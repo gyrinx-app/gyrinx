@@ -11,13 +11,11 @@ from django.apps import apps
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.history import campaign_history
 from n26.core.models import CampaignEvent
 from n26.core.operations import Refusal
 from n26.core.views.campaigns import more_actions
-from n26.flags import CAMPAIGNS
 from n26.library.core_campaign import seed_core_campaign
 from n26.library.models import AssetType, CampaignType, DefaultAssignment
 from n26.tests.sandbox.actions import (
@@ -33,13 +31,6 @@ pytestmark = pytest.mark.django_db
 
 HOLDING = AssetType.Ownership.HOLDING
 POSSESSION = AssetType.Ownership.POSSESSION
-
-
-@pytest.fixture(autouse=True)
-def open_to_everyone(db):
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture

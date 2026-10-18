@@ -625,10 +625,6 @@ def choose(request, pk, slot):
         here = with_query(here, **{"return": returning})
     campaign_dialog = request.GET.get("dialog") == "campaign"
     if campaign_dialog:
-        from n26.flags import CAMPAIGNS, enabled
-
-        if not enabled(CAMPAIGNS, request.user):
-            raise Http404("No such campaign label")
         _campaign_label_or_404(gang, found)
         here = with_query(here, dialog="campaign")
 

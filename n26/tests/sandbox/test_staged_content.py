@@ -675,15 +675,7 @@ class TestCampaigns:
     offered on the same terms as everything else."""
 
     @pytest.fixture
-    def campaigns_open(self, db):
-        from n26.flags import CAMPAIGNS
-
-        FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
-
-    @pytest.fixture
-    def types(self, default_pack, campaigns_open):
+    def types(self, default_pack):
         from n26.library.authoring import create_campaign_type
 
         return {

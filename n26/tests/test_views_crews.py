@@ -11,14 +11,13 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag, WritePause
+from gyrinx.site.models import WritePause
 from n26.core.campaigns import campaign_operation
 from n26.core.crews import CrewSelection, save_crew
 from n26.core.models import BattleCrew, Miniature, PrintConfig
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.status import Status
-from n26.flags import CAMPAIGNS
 from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
     assign,
@@ -45,13 +44,6 @@ from n26.tests.sandbox.actions import (
 from n26.write_pause import WritesPaused
 
 pytestmark = pytest.mark.django_db
-
-
-@pytest.fixture
-def feature():
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture
@@ -104,14 +96,14 @@ def fields(table, **changes):
 
 
 class TestCrewForms:
-    def test_get_does_not_create_or_draw_a_crew(self, client, table, feature):
+    def test_get_does_not_create_or_draw_a_crew(self, client, table):
         response = client.get(address(table))
         assert response.status_code == 200
         assert "Choose crew" in response.content.decode()
         assert not BattleCrew.objects.exists()
 
     def test_plain_post_saves_the_whole_crew_and_draws_real_model_cards(
-        self, client, table, feature
+        self, client, table
     ):
         response = client.post(address(table), fields(table))
         assert response.status_code == 302
@@ -128,7 +120,7 @@ class TestCrewForms:
         assert "Reinforcements" in body
 
     def test_sheet_links_the_battle_in_its_header_and_matches_action_buttons(
-        self, client, table, feature
+        self, client, table
     ):
         give_weapon(table.models[0], create_weapon("Bolt pistol"), paid=10)
         give_weapon(table.models[1], create_weapon("Knife"), paid=5)
@@ -168,7 +160,7 @@ class TestCrewForms:
 
     @pytest.mark.parametrize("surface", ["battle", "sheet", "print"])
     def test_selected_equipment_rating_is_frozen_on_reads_and_updated_on_resave(
-        self, client, table, feature, surface
+        self, client, table, surface
     ):
         starting = table.models[0]
         selected = give_weapon(starting, create_weapon("Selected pistol"), paid=15)
@@ -222,7 +214,7 @@ class TestCrewForms:
         assert_reconciled(table.gang)
 
     def test_picker_props_preserve_saved_choices_and_use_one_react_owner(
-        self, client, table, feature
+        self, client, table
     ):
         client.post(address(table), fields(table))
         response = client.get(address(table))
@@ -252,9 +244,7 @@ class TestCrewForms:
         assert not form.select("[x-data], [x-model], [x-show]")
         assert not form.select('script[src$="battle-actions.js"]')
 
-    def test_the_longer_explanations_sit_behind_help_icons(
-        self, client, table, feature
-    ):
+    def test_the_longer_explanations_sit_behind_help_icons(self, client, table):
         response = client.get(address(table))
         document = BeautifulSoup(response.content, "html.parser")
         hosts = document.select("[data-react-module*='/help-']")
@@ -268,9 +258,7 @@ class TestCrewForms:
         assert "Select the starting crew and any reinforcements." in page_text
         assert "Each drawn model gets a random equipment set" not in page_text
 
-    def test_invalid_post_preserves_picker_values_and_field_errors(
-        self, client, table, feature
-    ):
+    def test_invalid_post_preserves_picker_values_and_field_errors(self, client, table):
         model = table.models[0]
         model.status = Status.RECOVERY
         model.save(update_fields=["status"])
@@ -287,7 +275,7 @@ class TestCrewForms:
         ]
         assert not BattleCrew.objects.exists()
 
-    def test_picker_json_escapes_model_names(self, client, table, feature):
+    def test_picker_json_escapes_model_names(self, client, table):
         model = table.models[0]
         model.name = '</script><script>alert("model")</script>'
         model.save(update_fields=["name"])
@@ -299,9 +287,7 @@ class TestCrewForms:
         assert selected["name"] == model.name
         assert model.name not in response.content.decode()
 
-    def test_crew_cards_show_injuries_without_editing_prompts(
-        self, client, table, feature
-    ):
+    def test_crew_cards_show_injuries_without_editing_prompts(self, client, table):
         kind = create_slot_type("Lasting injury", is_lasting_effect=True)
         wound = create_pickable("Grievous Wound", kind)
         choices = create_picklist("Injuries", kind, members=[wound])
@@ -326,7 +312,7 @@ class TestCrewForms:
             )
         assert not document.select('[aria-label="Model cards"]')
 
-    def test_saved_draft_reopens_with_selections(self, client, table, feature):
+    def test_saved_draft_reopens_with_selections(self, client, table):
         response = client.post(address(table), fields(table, action="draft"))
         assert response.url == address(table)
         crew = BattleCrew.objects.get()
@@ -345,7 +331,7 @@ class TestCrewForms:
         )
 
     def test_a_card_edited_since_it_was_saved_keeps_its_saved_entry(
-        self, client, table, feature
+        self, client, table
     ):
         client.post(address(table), fields(table, action="draft"))
         table.card.assignments.clear()
@@ -358,7 +344,7 @@ class TestCrewForms:
         assert mara["card"]["value"].startswith("saved:")
         assert mara["card"]["choices"][0]["label"] == "Long range — saved selection"
 
-    def test_refusal_keeps_submitted_values_and_revision(self, client, table, feature):
+    def test_refusal_keeps_submitted_values_and_revision(self, client, table):
         client.post(address(table), fields(table))
         response = client.post(
             address(table), fields(table, **{f"role_{table.models[0].pk}": "reserve"})
@@ -374,7 +360,7 @@ class TestCrewForms:
             == "starting"
         )
 
-    def test_random_draw_posts_once_and_gets_never_redraw(self, client, table, feature):
+    def test_random_draw_posts_once_and_gets_never_redraw(self, client, table):
         payload = fields(
             table, action="draw", **{f"role_{m.pk}": "out" for m in table.models}
         )
@@ -395,9 +381,7 @@ class TestCrewForms:
         assert crew.draw_number == 1
         assert crew.last_draw == snapshot
 
-    def test_resaving_a_drawn_card_keeps_it_marked_as_drawn(
-        self, client, table, feature
-    ):
+    def test_resaving_a_drawn_card_keeps_it_marked_as_drawn(self, client, table):
         client.post(
             address(table),
             fields(table, action="draw", random_count="2")
@@ -413,7 +397,7 @@ class TestCrewForms:
         crew = BattleCrew.objects.get()
         assert set(crew.members.values_list("card_source", flat=True)) == {"random"}
 
-    def test_recovery_override_is_visible_and_required(self, client, table, feature):
+    def test_recovery_override_is_visible_and_required(self, client, table):
         with operation(table.gang, actor=table.owner) as act:
             act.set_status(table.models[0], Status.RECOVERY)
         response = client.post(address(table), fields(table))
@@ -429,9 +413,7 @@ class TestCrewForms:
             .eligibility_override
         )
 
-    def test_missing_model_fields_cannot_silently_clear_the_crew(
-        self, client, table, feature
-    ):
+    def test_missing_model_fields_cannot_silently_clear_the_crew(self, client, table):
         payload = fields(table)
         del payload[f"role_{table.models[1].pk}"]
         response = client.post(address(table), payload)
@@ -439,7 +421,7 @@ class TestCrewForms:
         assert f"role_{table.models[1].pk}" in response.context["form"].errors
         assert not BattleCrew.objects.exists()
 
-    def test_invalid_card_and_action_are_refused(self, client, table, feature):
+    def test_invalid_card_and_action_are_refused(self, client, table):
         response = client.post(
             address(table),
             fields(table, **{f"card_{table.models[1].pk}": str(table.card.pk)}),
@@ -471,7 +453,7 @@ def pet(table, person_type, gang_type):
 
 
 class TestCrewPets:
-    def test_a_pet_is_not_offered_or_drawn(self, client, table, pet, feature):
+    def test_a_pet_is_not_offered_or_drawn(self, client, table, pet):
         response = client.get(address(table))
         ids = {model["id"] for model in response.context["crew_picker"]["models"]}
         assert ids == {str(model.pk) for model in table.models}
@@ -485,7 +467,7 @@ class TestCrewPets:
         assert not BattleCrew.objects.exists()
 
     def test_a_pet_bought_into_the_stash_is_listed(
-        self, client, table, person_type, gang_type, feature
+        self, client, table, person_type, gang_type
     ):
         profile = Profile.objects.create(
             name="Phyrr Cat", profile_type=person_type, gang_type=gang_type, price=0
@@ -504,7 +486,7 @@ class TestCrewPets:
         ids = {model["id"] for model in response.context["crew_picker"]["models"]}
         assert str(stashed.pk) in ids
 
-    def test_a_saved_pet_leaves_the_crew_on_resave(self, client, table, pet, feature):
+    def test_a_saved_pet_leaves_the_crew_on_resave(self, client, table, pet):
         crew = BattleCrew.objects.create(battle=table.battle, gang=table.gang)
         crew.members.create(
             miniature=pet,
@@ -517,7 +499,7 @@ class TestCrewPets:
         assert not crew.members.filter(miniature=pet).exists()
 
     def test_the_sheet_draws_a_pet_after_its_owner_and_does_not_count_it(
-        self, client, table, pet, feature
+        self, client, table, pet
     ):
         client.post(address(table), fields(table))
         sheet = client.get(address(table, sheet=True))
@@ -535,7 +517,7 @@ class TestCrewPets:
         assert titles.index("Cyber-mastiff") == titles.index("Mara") + 1
 
     def test_a_pet_saved_as_a_member_is_drawn_once_with_its_owner(
-        self, client, table, pet, feature
+        self, client, table, pet
     ):
         owner = table.models[0]
         crew = BattleCrew.objects.create(
@@ -555,7 +537,7 @@ class TestCrewPets:
         assert sheet.starting_rating == 10
 
     def test_a_pet_whose_owner_is_not_in_the_crew_is_not_drawn(
-        self, client, table, pet, feature
+        self, client, table, pet
     ):
         client.post(
             address(table), fields(table, **{f"role_{table.models[0].pk}": "out"})
@@ -582,18 +564,15 @@ class TestCrewPagePermissions:
             )
         assert not BattleCrew.objects.exists()
 
-    def test_feature_flag_and_login_guard_both_pages(self, client, table, feature):
-        feature.availability = Availability.OFF
-        feature.save()
-        assert client.get(address(table)).status_code == 404
-        assert client.get(address(table, sheet=True)).status_code == 404
-        feature.availability = Availability.EVERYONE
-        feature.save()
+    def test_login_guards_both_pages(self, client, table):
         client.logout()
-        assert client.get(address(table)).status_code == 404
+        for url in (address(table), address(table, sheet=True)):
+            response = client.get(url)
+            assert response.status_code == 302
+            assert "/accounts/login/" in response["Location"]
 
     def test_other_readers_see_saved_cards_but_not_drafts_or_management(
-        self, client, table, feature
+        self, client, table
     ):
         crew = save_crew(
             battle=table.battle,
@@ -616,13 +595,13 @@ class TestCrewPagePermissions:
         assert 'aria-label="Model cards"' not in response.content.decode()
         assert client.post(address(table), fields(table)).status_code == 404
 
-    def test_current_arbitrator_can_edit_the_crew(self, client, table, feature):
+    def test_current_arbitrator_can_edit_the_crew(self, client, table):
         client.force_login(table.arbitrator)
         assert client.get(address(table)).status_code == 200
         assert client.post(address(table), fields(table)).status_code == 302
 
     def test_print_opens_the_paper_layout_without_configuration_or_writes(
-        self, client, table, feature
+        self, client, table
     ):
         give_weapon(table.models[0], create_weapon("Bolt pistol"), paid=10)
         give_weapon(table.models[1], create_weapon("Knife"), paid=5)
@@ -663,7 +642,7 @@ class TestCrewPagePermissions:
         assert PrintConfig.objects.count() == config_count
 
     def test_print_keeps_saved_weapons_and_wargear_after_named_card_changes(
-        self, client, table, feature
+        self, client, table
     ):
         model = table.models[0]
         goggles = buy(model, thing=create_wargear("Photo-goggles"))
@@ -682,9 +661,7 @@ class TestCrewPagePermissions:
         assert [weapon.name for weapon in card.weapons] == ["Autogun"]
         assert [gear.name for gear in card.equipment] == ["Photo-goggles"]
 
-    def test_print_keeps_a_missing_model_in_its_saved_crew_role(
-        self, client, table, feature
-    ):
+    def test_print_keeps_a_missing_model_in_its_saved_crew_role(self, client, table):
         client.post(address(table), fields(table))
         BattleCrew.objects.get().members.filter(miniature=table.models[0]).update(
             miniature=None
@@ -697,15 +674,13 @@ class TestCrewPagePermissions:
         assert "Starting crew · Long range" in printed_cards[0].get_text()
         assert "This model is no longer on the roster." in printed_cards[0].get_text()
 
-    def test_bad_addresses_are_not_server_errors(self, client, table, feature):
+    def test_bad_addresses_are_not_server_errors(self, client, table):
         path = address(table).replace(str(table.gang.pk), "not-an-id")
         assert client.get(path).status_code == 404
 
 
 class TestCrewPageQueryGrowth:
-    def test_more_models_add_no_per_model_query_to_the_picker(
-        self, client, table, feature
-    ):
+    def test_more_models_add_no_per_model_query_to_the_picker(self, client, table):
         client.get(address(table))
         with CaptureQueriesContext(connection) as small:
             assert client.get(address(table)).status_code == 200
@@ -721,7 +696,7 @@ class TestCrewPageQueryGrowth:
 
     @pytest.mark.parametrize("print_view", [False, True])
     def test_more_models_add_no_per_card_query_to_the_sheet(
-        self, client, table, feature, print_view
+        self, client, table, print_view
     ):
         client.post(
             address(table), fields(table, **{f"role_{table.models[1].pk}": "out"})

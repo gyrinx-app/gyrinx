@@ -17,25 +17,13 @@ from django.urls import reverse
 from n26.core.models import Gang, LedgerEvent
 from n26.core.operations import operation
 from n26.library.models import Subtype
-from n26.tests.fixtures import admit_to_founding
 
 pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
 def tester(db):
-    # On the founding flag's allowlist, because the Actions square reaches
-    # the owners it admits. The Trade Points page itself is every owner's.
-    person = User.objects.create_user("player")
-    admit_to_founding(person)
-    return person
-
-
-@pytest.fixture
-def player(db):
-    """An owner the founding flag does not admit: sees the stash line, never
-    the square."""
-    return User.objects.create_user("plain-player")
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -237,26 +225,10 @@ class TestTheActivitiesSquare:
         assert body.count("Trading Post visit open") == 1
         assert body.index("Trading Post visit open") < body.index(">Stash</span>")
 
-    def test_an_owner_the_flag_does_not_admit_gets_the_stash_line_and_no_square(
-        self, client, player, roster, gang
-    ):
-        gang.owner = player
-        gang.save(update_fields=["owner"])
-        client.force_login(player)
-        start(client, gang, roster["Vex"])
-
-        body = self.sheet(client, gang)
-        assert body.count("Trading Post visit open") == 1
-        assert body.index(">Stash</span>") < body.index("Trading Post visit open")
-        assert "No action is open." not in body
-        assert "Spend founding TP" not in body
-        # The Trade Points page itself stays theirs.
-        assert f'href="{page(gang)}"' in body
-
     def test_it_leads_the_grid_ahead_of_the_stash(self, client, tester, gang):
         client.force_login(tester)
         body = self.sheet(client, gang)
-        assert body.index("No action is open.") < body.index(
+        assert body.index('aria-label="Actions"') < body.index(
             "Nothing in the stash yet."
         )
 
@@ -410,17 +382,15 @@ class TestWhatThePageCosts:
     #: the gang has open, and the standard Trading Post the receipt links
     #: to. One scope-state read supplies the write-pause notice. None of it
     #: repeats per model. The modifier index batches status conditions too.
-    #: Two reads check the founding flag and owner group, including for gangs
-    #: with no TP grant that need to record founding completion.
     #: One read checks the built-in action's default visibility.
-    BUDGET = 43
+    BUDGET = 40
 
     #: The same page with a visit open, which is the state it is for.
     #: There is a receipt to draw then, and it costs two readings of the
     #: log: who performed the action, and what the visit has spent. Both
     #: are one query however many fighters went and however much the gang
     #: has bought, so this is a second fixed price and not a second rate.
-    WITH_A_VISIT = 45
+    WITH_A_VISIT = 42
 
     @pytest.fixture
     def bigger(self, tester, gang, ranks, make_profile, make_statline):

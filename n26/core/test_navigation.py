@@ -147,6 +147,7 @@ class TestThePlaces:
         assert [item.label for item in switcher.items] == [
             "Home",
             "Gangs",
+            "Campaigns",
             "Help",
             "Content library",
             "Modifiers",
@@ -154,13 +155,9 @@ class TestThePlaces:
             "Ingest",
         ]
 
-    def test_campaigns_are_listed_when_the_feature_is_open(
-        self, tester, django_assert_num_queries
-    ):
+    def test_campaigns_are_one_of_the_places(self, tester, django_assert_num_queries):
         with django_assert_num_queries(0):
-            switcher = places_switcher(
-                request_for(tester), here="campaigns", campaigns_open=True
-            )
+            switcher = places_switcher(request_for(tester), here="campaigns")
         assert [item.label for item in switcher.items] == [
             "Home",
             "Gangs",
@@ -176,7 +173,7 @@ class TestThePlaces:
         flatpages, addressed by the URL they are stored under."""
         switcher = places_switcher(request_for(tester))
         labels = [item.label for item in switcher.items]
-        assert labels.index("Help") == labels.index("Gangs") + 1
+        assert labels.index("Help") == labels.index("Campaigns") + 1
         assert [item.href for item in switcher.items if item.label == "Help"] == [
             "/help/n26/"
         ]
@@ -186,7 +183,12 @@ class TestThePlaces:
         switcher that named those pages for everyone would be the drawer
         disagreeing with itself."""
         switcher = places_switcher(request_for(stranger))
-        assert [item.label for item in switcher.items] == ["Home", "Gangs", "Help"]
+        assert [item.label for item in switcher.items] == [
+            "Home",
+            "Gangs",
+            "Campaigns",
+            "Help",
+        ]
 
     def test_naming_the_place_turns_the_leading_link_on(self, tester):
         """The linked shape: a page that is one of the places names itself
@@ -614,23 +616,12 @@ class TestWhoseCampaignsAreListed:
             campaign_switcher(request, here)
             campaign_switcher(request, here)
 
-    def test_the_rest_of_the_list_needs_the_campaigns_feature(
+    def test_the_rest_of_the_list_is_the_readers_campaigns(
         self, client, tester, make_campaign
     ):
-        from gyrinx.site.models import Availability, FeatureFlag
-        from n26.flags import CAMPAIGNS
-
         make_campaign("Ashfall")
         client.force_login(tester)
         url = reverse("n26-switcher-rows", args=["campaigns"])
-        FeatureFlag.objects.update_or_create(
-            slug=CAMPAIGNS,
-            defaults={"name": "Campaigns", "availability": Availability.OFF},
-        )
-        assert client.get(url).status_code == 404
-        FeatureFlag.objects.filter(slug=CAMPAIGNS).update(
-            availability=Availability.EVERYONE
-        )
         assert [item["label"] for item in client.get(url).json()["items"]] == [
             "Ashfall"
         ]

@@ -40,7 +40,7 @@ from n26.library.models import (
     Subtype,
     get_default_pack,
 )
-from n26.tests.fixtures import admit_to_founding, library_setup
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_entry,
     assign,
@@ -85,11 +85,7 @@ def hold_as_affiliation(gang, pickable, slot_type):
 
 @pytest.fixture
 def player():
-    # On the founding flag's allowlist, because the budgets reach the
-    # owners it admits; the owner it does not has tests of their own.
-    person = User.objects.create_user("tom")
-    admit_to_founding(person)
-    return person
+    return User.objects.create_user("tom")
 
 
 #: The entries each gang list holds, as ``(entry, the subtype naming its
@@ -1331,20 +1327,6 @@ class TestTheFigureOnTheGangPage:
 
         assert self.HOVER not in self.body(client, gang, reader=stranger)
 
-    def test_an_owner_the_flag_does_not_admit_is_not_shown_it(
-        self, client, gang, leader
-    ):
-        """The budgets reach the owners the founding flag admits, the same
-        readers as the Actions square that completes the founding. Every
-        other owner reads their roster as it was before budgets."""
-        plain = User.objects.create_user("plain-owner")
-        gang.owner = plain
-        gang.save(update_fields=["owner"])
-
-        body = self.body(client, gang, reader=plain)
-        assert self.HOVER not in body
-        assert " TP<span" not in body
-
 
 class TestHireTimeTradePoints:
     """First completion separates founding models from later recruits.
@@ -1632,7 +1614,6 @@ class TestHireTimeTradePoints:
 
     def test_another_player_cannot_open_it(self, client, recruit):
         stranger = User.objects.create_user("stranger")
-        admit_to_founding(stranger)
         client.force_login(stranger)
         assert (
             client.post(self.action_url(recruit), {"act": "start"}).status_code == 404
@@ -1692,25 +1673,6 @@ class TestHireTimeTradePoints:
         with pytest.raises(Refusal, match="spending action has changed"):
             buy(leader, line_for(browse(post), "Flak plate"), activity=activity)
         assert_reconciled(gang)
-
-    def test_the_same_feature_flag_gates_personal_controls(
-        self, client, gang, recruit, player, monkeypatch
-    ):
-        from django.urls import reverse
-
-        from n26.tests.fixtures import FOUNDING_GROUP_NAME
-
-        monkeypatch.setattr(
-            "n26.core.views.edit.may_mark_status", lambda gang, user: True
-        )
-
-        player.groups.remove(*player.groups.filter(name=FOUNDING_GROUP_NAME))
-        client.force_login(player)
-        assert (
-            client.post(self.action_url(recruit), {"act": "start"}).status_code == 404
-        )
-        edit = reverse("n26-edit-fighter", args=[recruit.pk])
-        assert "Spend hire-time TP" not in client.get(edit).content.decode()
 
     def test_founding_offers_start_once_and_explicit_correction_after_completion(
         self, client, venators, player, hire_into
@@ -2045,26 +2007,13 @@ class TestHireTimeTradePoints:
         STANDARD_CONTENT["founding-budgets"].create()
         assert reading(recruit) == 6
 
-    @pytest.mark.parametrize(
-        "admitted, item_name",
-        [(True, "Mesh armour"), (True, "Flak plate"), (False, "Mesh armour")],
-    )
+    @pytest.mark.parametrize("item_name", ["Mesh armour", "Flak plate"])
     def test_purchase_rechecks_a_restored_grant_before_charging_a_visit(
-        self,
-        client,
-        gang,
-        leader,
-        hire_into,
-        player,
-        post,
-        monkeypatch,
-        admitted,
-        item_name,
+        self, client, gang, leader, hire_into, player, post, monkeypatch, item_name
     ):
         from django.urls import reverse
 
         from n26.core.owned import thing_key
-        from n26.tests.fixtures import FOUNDING_GROUP_NAME
         from n26.tests.sandbox.actions import remove
 
         complete_action(gang, FOUNDING_KIND)
@@ -2075,8 +2024,6 @@ class TestHireTimeTradePoints:
         remove(extra)
         assert budget(recruit) is None
         visit_trading_post(gang, brought=5)
-        if not admitted:
-            player.groups.remove(*player.groups.filter(name=FOUNDING_GROUP_NAME))
         client.force_login(player)
         line = line_for(browse(post), item_name)
         at = reverse("n26-equip", args=[recruit.pk]) + f"?list={post.pk}"
@@ -2085,7 +2032,7 @@ class TestHireTimeTradePoints:
 
         response = client.post(at, payload)
 
-        if admitted and item_name == "Flak plate":
+        if item_name == "Flak plate":
             assert response.status_code == 200
             assert "Kel has 2." in response.content.decode()
             assert not recruit.assignments.filter(wargear=line.thing).exists()
@@ -2106,8 +2053,8 @@ class TestHireTimeTradePoints:
             response = client.post(form["action"], confirmed)
         assert response.status_code == 302
         gang.refresh_from_db()
-        assert budget(recruit).remaining == (2 - line.trade_points if admitted else 2)
-        assert gang.trade_points_left == (5 if admitted else 5 - line.trade_points)
+        assert budget(recruit).remaining == 2 - line.trade_points
+        assert gang.trade_points_left == 5
         assert_reconciled(gang)
 
     @pytest.mark.parametrize("when", ["before_request", "before_lock"])

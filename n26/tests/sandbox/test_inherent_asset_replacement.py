@@ -402,12 +402,7 @@ def test_authoring_pickers_offer_only_inherent_assets_and_types(setup):
 def test_campaign_page_queries_stay_flat_with_more_gangs_holding_granted_assets(
     setup, client
 ):
-    from gyrinx.site.models import Availability, FeatureFlag
-    from n26.flags import CAMPAIGNS
 
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     join_both(setup)
     client.force_login(setup["campaign"].owner)
     url = reverse("n26-campaign", args=[setup["campaign"].pk])

@@ -35,7 +35,7 @@ from n26.library.authoring import (
     targets_every_model,
     targets_model,
 )
-from n26.tests.fixtures import admit_to_founding, library_setup
+from n26.tests.fixtures import library_setup
 from n26.tests.sandbox import test_post_battle as report_tests
 from n26.tests.sandbox.actions import hire
 
@@ -279,7 +279,6 @@ def test_a_carried_choice_can_be_corrected_and_removed(
 def test_roster_queries_do_not_grow_with_status_choices(
     client, owner, model, gang, content, follow_up
 ):
-    admit_to_founding(owner)
     client.force_login(owner)
     mark(model, Status.CAPTURED)
     url = reverse("n26-gang", args=[gang.pk])
@@ -340,7 +339,6 @@ def test_model_edit_keeps_result_history_and_persistent_injuries(
     client, owner, model, content, follow_up
 ):
     captured, slot, released, _ = follow_up
-    admit_to_founding(owner)
     client.force_login(owner)
     choose(model, content["slot"], content["wound"])
     choose(model, content["slot"], captured)
@@ -359,7 +357,6 @@ def test_stale_status_choice_post_does_not_change_a_later_capture(
     client, owner, model, follow_up
 ):
     _, slot, released, _ = follow_up
-    admit_to_founding(owner)
     client.force_login(owner)
     mark(model, Status.CAPTURED)
     question = next(q for q in computed(model).choices if q.slot.pk == slot.pk)
@@ -386,7 +383,6 @@ def test_follow_up_controls_are_only_available_to_the_owner(
     question = next(q for q in computed(model).choices if q.slot.pk == slot.pk)
     url = reverse("n26-choose", args=[model.gang.pk, slot_key(question, str(model.pk))])
     visitor = User.objects.create_user("other-player")
-    admit_to_founding(visitor)
     client.force_login(visitor)
     assert client.get(url).status_code == 404
     roster = client.get(reverse("n26-gang", args=[model.gang.pk]))
@@ -443,7 +439,6 @@ def test_a_roll_from_an_earlier_capture_cannot_settle_the_current_choice(
     client, owner, model, follow_up
 ):
     _, slot, released, _ = follow_up
-    admit_to_founding(owner)
     client.force_login(owner)
     mark(model, Status.CAPTURED)
     with operation(model.gang, actor=owner) as op:
