@@ -29,7 +29,7 @@ from n26.core.models import CampaignAsset, CampaignEvent, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
-from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
+from n26.flags import BUILT_IN_PROPAGATION
 from n26.library.authoring import (
     add_asset_type,
     add_built_in,
@@ -118,13 +118,6 @@ def rival(gang_type, campaign):
 def campaign_asset(campaign, old_ruins, gang):
     """Old Ruins in the campaign, held by the player's gang."""
     return assign_asset(add_asset(campaign, old_ruins), gang)
-
-
-@pytest.fixture
-def open_to_everyone(db):
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture
@@ -273,7 +266,7 @@ class TestActingForAHolderThatChanged:
         assert unassign_asset(campaign_asset).holder is None
 
     def test_the_page_refuses_the_owners_stale_post(
-        self, client, campaign_asset, gang, rival, open_to_everyone
+        self, client, campaign_asset, gang, rival
     ):
         client.force_login(gang.owner)
         address = reverse(
@@ -291,10 +284,6 @@ class TestActingForAHolderThatChanged:
 class TestTransferOnThePage:
     """The arbitrator transfers; the holding gang's owner hands over;
     nobody else is offered either."""
-
-    @pytest.fixture(autouse=True)
-    def flag(self, open_to_everyone):
-        return open_to_everyone
 
     def address(self, campaign_asset):
         return reverse(
@@ -456,7 +445,7 @@ class TestAnAsset:
             create_campaign_asset(campaign, territory, "sump hole")
 
     def test_another_campaign_on_the_same_type_never_sees_it(
-        self, client, campaign, core, open_to_everyone
+        self, client, campaign, core
     ):
         """An asset written under the shared Territory type belongs to the
         campaign whose pack it is in. A second campaign founded on the same
@@ -935,10 +924,6 @@ class TestTheArbitratorsControlsOnThePage:
     """Four small pages, the arbitrator's alone, each landing back on the
     part of the campaign page where what it added shows."""
 
-    @pytest.fixture(autouse=True)
-    def flag(self, open_to_everyone):
-        return open_to_everyone
-
     def test_the_arbitrator_sees_the_controls_and_a_player_does_not(
         self, client, campaign, gang
     ):
@@ -1127,10 +1112,6 @@ class TestTheCampaignsOwnTypeIsInvisible:
     campaign's name and is nobody's to found on or author against, so no
     staff listing names it and the founding form never offers it."""
 
-    @pytest.fixture(autouse=True)
-    def flag(self, open_to_everyone):
-        return open_to_everyone
-
     def test_the_authoring_listing_and_menu_leave_it_out(self, client, campaign, core):
         staff = User.objects.create_user("staff", is_staff=True)
         client.force_login(staff)
@@ -1159,10 +1140,6 @@ class TestTheCampaignsOwnTypeIsInvisible:
 
 class TestCampaignContentIsOutsideAuthoring:
     """A campaign's pack stays with its campaign, outside staff authoring."""
-
-    @pytest.fixture(autouse=True)
-    def flag(self, open_to_everyone):
-        return open_to_everyone
 
     def test_a_labels_four_kinds_are_absent_from_their_listings(
         self, admin_client, campaign
@@ -1331,10 +1308,6 @@ class TestCampaignContentIsOutsideAuthoring:
 class TestTheArbitratorTallies:
     """The one act on a gang that is not its owner's: the arbitrator moving
     a campaign counter on any gang at the table, from the campaign page."""
-
-    @pytest.fixture(autouse=True)
-    def flag(self, open_to_everyone):
-        return open_to_everyone
 
     def reputation_of(self, gang):
         (line,) = [

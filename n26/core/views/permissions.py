@@ -56,17 +56,10 @@ def may_mark_status(gang, user):
 
 
 def link_model_cards(gang, cards, user):
-    """Owner-only card management links, with one feature check per page."""
+    """Owner-only card management links."""
     from django.urls import reverse
 
-    from n26.flags import CAMPAIGNS, enabled
-
-    available = (
-        user is not None
-        and user.is_authenticated
-        and gang.owner_id == user.pk
-        and enabled(CAMPAIGNS, user)
-    )
+    available = user is not None and user.is_authenticated and gang.owner_id == user.pk
     if available:
         for card in cards:
             card.model_cards_href = reverse("n26-model-cards", args=[gang.pk, card.id])
@@ -123,7 +116,6 @@ def credits_campaign(gang, user):
     """
     from n26.core.battle_permissions import may_record_gang
     from n26.core.models import CampaignMembership
-    from n26.flags import CAMPAIGNS, enabled
 
     if user is None or not user.is_authenticated or gang.owner_id == user.pk:
         return None
@@ -134,7 +126,7 @@ def credits_campaign(gang, user):
         .select_related("campaign")
         .first()
     )
-    if membership is None or not enabled(CAMPAIGNS, user):
+    if membership is None:
         return None
     campaign = membership.campaign
     if not may_record_gang(
@@ -165,36 +157,25 @@ def link_campaign(block, user):
     or at nothing for a reader who cannot open them.
 
     A roster opens for whoever holds its address, and the campaign pages
-    behind these two links are signed-in-only and inside the campaigns
-    feature. A name somebody cannot open is a name, not a link: offering
-    the door and refusing them at it is worse than never offering.
-
-    One query, and only for a gang playing a campaign.
+    behind these two links are signed-in-only. A name somebody cannot open
+    is a name, not a link: offering the door and refusing them at it is
+    worse than never offering.
     """
     from django.urls import reverse
 
-    from n26.flags import CAMPAIGNS, enabled
-
     if block is None:
         return
-    if user is None or not user.is_authenticated or not enabled(CAMPAIGNS, user):
+    if user is None or not user.is_authenticated:
         return
     block.href = reverse("n26-campaign", args=[block.campaign_id])
     block.assets_href = block.href + "#assets"
 
 
 def may_see_founding(gang, user):
-    """Whether this owner may use founding controls and Trade Point budgets.
-
-    Other features can appear in Actions without granting this permission.
-    Check ownership before reading the flag, and share the result across
-    a page's cards, budgets and founding controls.
+    """Whether this reader may use the gang's founding controls and Trade
+    Point budgets: its owner may, and nobody else.
     """
-    from n26.flags import FOUNDING, enabled
-
-    if user is None or not user.is_authenticated or gang.owner_id != user.pk:
-        return False
-    return enabled(FOUNDING, user)
+    return user is not None and user.is_authenticated and gang.owner_id == user.pk
 
 
 def _own_gang_or_404(request, pk):
@@ -265,10 +246,8 @@ def _any_campaign_or_404(request, pk, *, with_owner_badge=True):
     decides that by asking who is reading, never by hiding the campaign.
 
     How far the address reaches is decided above this, not here: the view
-    is gated on the campaigns feature and on being signed in, so a reader
-    outside either gets a 404 whatever this returns. A roster reaches
-    further — anybody at all may read one — and the difference is the
-    gate, not the guard.
+    asks the reader to sign in. A roster reaches further — anybody at all
+    may read one.
 
     Archived campaigns stay out, as archived rosters do: one its arbitrator
     has put away is not something a link should keep alive. A pk that is

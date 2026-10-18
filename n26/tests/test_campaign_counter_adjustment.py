@@ -9,11 +9,9 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.models import Assignment, CampaignParticipant, LedgerEvent
 from n26.core.render import render_gang
-from n26.flags import CAMPAIGNS
 from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import (
     assign,
@@ -30,9 +28,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def setup(client, campaign_type, gang_type):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     arbitrator = User.objects.create_user("arbitrator")
     player = User.objects.create_user("player")
     campaign = found_campaign("Dust Falls", campaign_type, owner=arbitrator)

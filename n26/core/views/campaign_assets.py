@@ -24,10 +24,8 @@ from n26.core.render import (
 from n26.core.views.campaigns import _campaign_asset_or_404, _holding_owner
 from n26.core.views.gangs import _pages
 from n26.core.views.permissions import _any_campaign_or_404
-from n26.flags import CAMPAIGNS, requires_flag
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 @require_GET
 def asset_detail(request, pk, asset_pk):
@@ -320,7 +318,6 @@ def _boon_snapshot(holding, groups):
     }
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 @require_POST
 def save_asset_boons(request, pk, asset_pk):

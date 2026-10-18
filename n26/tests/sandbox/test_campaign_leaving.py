@@ -269,22 +269,12 @@ class TestArchivingACampaign:
         assert not CampaignMembership.objects.filter(gang=late).exists()
 
 
-@pytest.fixture
-def open_to_everyone(db):
-    from gyrinx.site.models import Availability, FeatureFlag
-    from n26.flags import CAMPAIGNS
-
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
-
-
 class TestTheConfirmationPage:
     """The page says what the gang loses and what goes back to the campaign,
     each under its own heading."""
 
     def test_each_thing_is_under_the_right_heading(
-        self, client, gang, campaign, alignment, old_ruins, open_to_everyone
+        self, client, gang, campaign, alignment, old_ruins
     ):
         played(gang, alignment, old_ruins)
         client.force_login(campaign.owner)
@@ -464,7 +454,12 @@ class TestTheLeavePage:
     POST."""
 
     @pytest.fixture
-    def player(self, client, gang, campaign, open_to_everyone):
+    def player(
+        self,
+        client,
+        gang,
+        campaign,
+    ):
         seat(campaign, gang.owner)
         client.force_login(gang.owner)
         return gang.owner
@@ -546,17 +541,13 @@ class TestTheLeavePage:
         assert client.post(address).status_code == 404
         assert (LedgerEvent.objects.count(), CampaignEvent.objects.count()) == before
 
-    def test_the_arbitrator_cannot_leave(
-        self, client, gang, campaign, open_to_everyone, address
-    ):
+    def test_the_arbitrator_cannot_leave(self, client, gang, campaign, address):
         client.force_login(campaign.owner)
         assert client.get(address).status_code == 404
         assert client.post(address).status_code == 404
         assert CampaignMembership.objects.get(gang=gang).playing
 
-    def test_somebody_not_playing_cannot_leave(
-        self, client, gang, campaign, open_to_everyone, address
-    ):
+    def test_somebody_not_playing_cannot_leave(self, client, gang, campaign, address):
         client.force_login(User.objects.create_user("onlooker"))
         assert client.get(address).status_code == 404
         assert client.post(address).status_code == 404
@@ -564,7 +555,7 @@ class TestTheLeavePage:
 
     @pytest.mark.parametrize("answer", [None, False], ids=["invited", "declined"])
     def test_somebody_invited_or_who_declined_cannot_leave(
-        self, client, campaign, open_to_everyone, address, answer
+        self, client, campaign, address, answer
     ):
         asked = User.objects.create_user("asked")
         with campaign_operation(campaign, actor=campaign.owner) as act:
@@ -628,7 +619,12 @@ class TestTheLeavePage:
 
 class TestTheRemovePlayerPage:
     @pytest.fixture
-    def address(self, client, gang, campaign, open_to_everyone):
+    def address(
+        self,
+        client,
+        gang,
+        campaign,
+    ):
         seat(campaign, gang.owner)
         client.force_login(campaign.owner)
         return f"/n26/campaigns/{campaign.pk}/players/{gang.owner.pk}/remove/"

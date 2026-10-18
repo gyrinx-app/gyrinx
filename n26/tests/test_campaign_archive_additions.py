@@ -24,7 +24,7 @@ from n26.core.models import (
 from n26.core.operations import Refusal
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign
-from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
+from n26.flags import BUILT_IN_PROPAGATION
 from n26.library.authoring import add_built_in, create_counter
 from n26.library.models import DefaultAssignment, Pickable
 from n26.tests.sandbox.actions import (
@@ -53,9 +53,6 @@ def table(campaign_type, gang_type):
     """A campaign with a counter and a label of its own, and two gangs in
     it: Rust Kings with Faith at 4 and Lawful picked, Ash Wolves with
     Faith at its opening 1 and nothing picked yet."""
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     add_built_in(campaign_type, create_counter("Reputation"), amount=2)
     arbitrator = User.objects.create_user("arbitrator")
     player = User.objects.create_user("player")

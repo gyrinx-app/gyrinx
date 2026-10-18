@@ -16,10 +16,8 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.models import CampaignParticipant
-from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import (
     assign,
     create_wargear,
@@ -135,19 +133,12 @@ class TestTheGangSheetStash:
 
 
 @pytest.fixture
-def campaigns_open(db):
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
-
-
-@pytest.fixture
 def arbitrator():
     return User.objects.create_user("arbitrator")
 
 
 @pytest.fixture
-def campaign(campaigns_open, campaign_type, arbitrator, gang, player):
+def campaign(campaign_type, arbitrator, gang, player):
     campaign = found_campaign("Dust Falls", campaign_type, owner=arbitrator)
     CampaignParticipant.objects.create(
         campaign=campaign, user=player, state=CampaignParticipant.State.ACCEPTED

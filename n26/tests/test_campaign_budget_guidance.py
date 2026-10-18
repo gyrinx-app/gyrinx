@@ -9,12 +9,10 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.models import CampaignParticipant, LedgerEvent
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
-from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import (
     buy,
     create_wargear,
@@ -28,9 +26,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def table(client, campaign_type):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     owner = User.objects.create_user("arbitrator")
     campaign = found_campaign("Dust Falls", campaign_type, owner=owner, budget=1000)
     client.force_login(owner)
@@ -171,8 +166,6 @@ def test_public_gang_index_does_not_disclose_other_peoples_campaigns(
         state=CampaignParticipant.State.ACCEPTED
     )
     assert campaign.name in client.get(path).content.decode()
-    FeatureFlag.objects.filter(slug=CAMPAIGNS).update(availability=Availability.OFF)
-    assert campaign.name not in client.get(path).content.decode()
 
 
 def test_more_participating_gangs_do_not_add_index_queries(client, table, gang_type):
@@ -481,7 +474,7 @@ def test_a_stale_dismissal_does_not_hide_a_new_budget_notice(
 @pytest.mark.parametrize(
     "route", ["n26-use-campaign-budget", "n26-dismiss-campaign-budget"]
 )
-@pytest.mark.parametrize("unavailable", ["absent", "left", "archived", "flag"])
+@pytest.mark.parametrize("unavailable", ["absent", "left", "archived"])
 def test_budget_actions_need_an_active_available_campaign(
     client, table, gang_type, route, unavailable
 ):
@@ -495,8 +488,6 @@ def test_budget_actions_need_an_active_available_campaign(
     elif unavailable == "archived":
         with campaign_operation(campaign, actor=owner) as op:
             op.archive()
-    elif unavailable == "flag":
-        FeatureFlag.objects.filter(slug=CAMPAIGNS).update(availability=Availability.OFF)
     assert (
         "Use a custom budget"
         not in client.get(reverse("n26-gang", args=[gang.pk])).content.decode()

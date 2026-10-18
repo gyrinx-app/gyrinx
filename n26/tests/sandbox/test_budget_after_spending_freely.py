@@ -16,12 +16,10 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core import history
 from n26.core.campaigns import campaign_operation
 from n26.core.models import Gang, LedgerEvent
 from n26.core.reconcile import assert_reconciled
-from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import (
     create_weapon,
     found_campaign,
@@ -162,9 +160,6 @@ class TestWhatTheGangStillHoldsCounts:
 class TestTheCampaignBudget:
     @pytest.fixture
     def campaign(self, campaign_type, owner):
-        FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
         return found_campaign("Dust Falls", campaign_type, owner=owner, budget=1000)
 
     def test_adopting_it_opens_from_what_the_gang_holds(

@@ -12,10 +12,8 @@ from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.models import CampaignParticipant, Gang
-from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import found_campaign
 
 pytestmark = pytest.mark.django_db
@@ -33,14 +31,7 @@ def gang(owner, gang_type):
 
 
 @pytest.fixture
-def campaigns_open(db):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
-
-
-@pytest.fixture
-def campaign(campaigns_open, campaign_type):
+def campaign(db, campaign_type):
     arbitrator = User.objects.create_user("arbitrator")
     return found_campaign("Dust Falls", campaign_type, owner=arbitrator)
 

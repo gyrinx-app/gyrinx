@@ -1,7 +1,7 @@
 """What a campaign's log records, and how it reads.
 
 The write side and the prose, with no page in the way. The screens that reach
-these are covered where the feature flag can be opened.
+these are covered by the view tests.
 """
 
 import pytest

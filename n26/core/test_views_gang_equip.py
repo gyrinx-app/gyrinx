@@ -604,15 +604,13 @@ class TestTheQueryBudget:
         # campaign's assets it holds — the roster behind the header's count,
         # which of its lists hold gear, and
         # the browse of the one chosen with its entries, their use lists and
-        # their offers. The drawer asks once whether campaigns are open to
-        # this reader, so it draws that place as a link or as a plain word.
-        # The page's own furniture answers for the rest, including one
+        # their offers. The page's own furniture answers for the rest, including one
         # write-pause state read for its notice and one built-in action visibility read.
         #
         # No Visit Trading Post action is open here, which is a column read
         # and no query: what a visit has left is only asked of the ledger
         # where there is a visit to ask about.
-        assert self.measure(client, equip_url(gang, house_list)) == 40
+        assert self.measure(client, equip_url(gang, house_list)) == 39
 
     def test_the_library_costs_a_fixed_number(self, client, tester, gang, house_list):
         create_wargear("Mesh Armour", price=15)
@@ -624,10 +622,9 @@ class TestTheQueryBudget:
         # per gear kind, plus the guns' paid rounds and the wargear's
         # offers — never one per item, and no use lists, because a gang has
         # nothing to test a restriction against — and the browse of each
-        # list held, which prices the library's lines. Plus the drawer's
-        # one question about whether campaigns are open, and the one
+        # list held, which prices the library's lines. Plus the one
         # write-pause state read shared by every n26 page.
-        assert self.measure(client, equip_url(gang, scope="all")) == 45
+        assert self.measure(client, equip_url(gang, scope="all")) == 44
 
     def test_the_library_costs_the_same_however_much_it_holds(
         self, client, tester, gang, house_list

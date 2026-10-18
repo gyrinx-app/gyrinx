@@ -9,7 +9,6 @@ from django.contrib.auth.models import User
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.crews import CrewSelection, save_crew
 from n26.core.forms import BattleForm
@@ -17,7 +16,6 @@ from n26.core.models import Battle, CampaignEvent, Gang, LedgerEvent, Miniature
 from n26.core.operations import operation
 from n26.core.post_battle import start_report
 from n26.core.reconcile import assert_reconciled
-from n26.flags import CAMPAIGNS
 from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
     assign,
@@ -34,13 +32,6 @@ from n26.tests.sandbox.actions import (
 )
 
 pytestmark = pytest.mark.django_db
-
-
-@pytest.fixture
-def flag():
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture
@@ -91,7 +82,7 @@ def fields(gang=None, **changes):
     ],
 )
 def test_campaign_lists_battle_result_above_participating_gangs(
-    client, campaign, battle, gang, flag, result, expected
+    client, campaign, battle, gang, result, expected
 ):
     battle.result = result
     battle.save(update_fields=["result"])
@@ -174,7 +165,6 @@ class TestBattlePages:
         battle,
         gang,
         arbitrator,
-        flag,
         default_pack,
         make_profile,
         person_type,
@@ -221,7 +211,6 @@ class TestBattlePages:
         battle,
         gang,
         arbitrator,
-        flag,
         default_pack,
         make_profile,
         reader,
@@ -259,15 +248,7 @@ class TestBattlePages:
         assert_reconciled(gang)
 
     def test_zero_rating_is_shown_for_a_confirmed_crew(
-        self,
-        client,
-        campaign,
-        battle,
-        gang,
-        arbitrator,
-        flag,
-        default_pack,
-        make_profile,
+        self, client, campaign, battle, gang, arbitrator, default_pack, make_profile
     ):
         model = hire(gang, make_profile("Gunner"), "Mara")
         save_crew(
@@ -283,15 +264,7 @@ class TestBattlePages:
         assert "Reinforcements rating:" not in drawn
 
     def test_draft_crew_rating_is_not_published(
-        self,
-        client,
-        campaign,
-        battle,
-        gang,
-        arbitrator,
-        flag,
-        default_pack,
-        make_profile,
+        self, client, campaign, battle, gang, arbitrator, default_pack, make_profile
     ):
         model = hire(gang, make_profile("Gunner"), "Mara", paid=65)
         save_crew(
@@ -309,7 +282,7 @@ class TestBattlePages:
         assert_reconciled(gang)
 
     def test_participant_actions_and_recorded_by_have_no_extra_footer_explanation(
-        self, client, campaign, battle, flag
+        self, client, campaign, battle
     ):
         response = client.get(address(campaign, battle))
         soup = BeautifulSoup(response.content, "html.parser")
@@ -325,7 +298,7 @@ class TestBattlePages:
         assert address(campaign, battle, "remove/") in drawn
 
     def test_own_gang_first_with_shared_colour_and_type_flair(
-        self, client, campaign, battle, gang, gang_type, flag, arbitrator, monkeypatch
+        self, client, campaign, battle, gang, gang_type, arbitrator, monkeypatch
     ):
         opponent = found_gang(
             "A rival gang", gang_type, owner=User.objects.create_user("rival")
@@ -356,13 +329,11 @@ class TestBattlePages:
         assert first.select_one(".n26-icon-inline svg") is not None
         assert "--color-amber-500" in first.select_one("[style]")["style"]
 
-    def test_full_campaign_log_links_to_older_battle(
-        self, client, campaign, battle, flag
-    ):
+    def test_full_campaign_log_links_to_older_battle(self, client, campaign, battle):
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/log/").content.decode()
         assert f'href="{address(campaign, battle)}"' in drawn
 
-    def test_create_redirects_to_permanent_detail(self, client, campaign, gang, flag):
+    def test_create_redirects_to_permanent_detail(self, client, campaign, gang):
         response = client.post(
             f"/n26/campaigns/{campaign.pk}/battles/new/", fields(gang)
         )
@@ -377,7 +348,7 @@ class TestBattlePages:
             response.content.decode()
         )
 
-    def test_create_ignores_an_outcome_sent_with_it(self, client, campaign, gang, flag):
+    def test_create_ignores_an_outcome_sent_with_it(self, client, campaign, gang):
         client.post(
             f"/n26/campaigns/{campaign.pk}/battles/new/",
             fields(gang, result="winners", winners=[str(gang.pk)]),
@@ -386,15 +357,13 @@ class TestBattlePages:
         assert battle.result == Battle.Result.NOT_RECORDED
         assert not battle.winners.exists()
 
-    def test_the_add_page_offers_no_outcome(self, client, campaign, flag):
+    def test_the_add_page_offers_no_outcome(self, client, campaign):
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/battles/new/")
         assert drawn.status_code == 200
         assert 'name="result"' not in drawn.content.decode()
         assert 'name="winners"' not in drawn.content.decode()
 
-    def test_legacy_detail_and_campaign_do_not_invent_results(
-        self, client, campaign, flag
-    ):
+    def test_legacy_detail_and_campaign_do_not_invent_results(self, client, campaign):
         legacy = Battle.objects.create(campaign=campaign, date=date(2026, 8, 3))
         detail = client.get(address(campaign, legacy)).content.decode()
         assert "Battle on 3 Aug 2026" in detail
@@ -406,7 +375,7 @@ class TestBattlePages:
         assert ">Draw<" not in campaign_page
 
     def test_campaign_battles_mark_winners_and_draws(
-        self, client, campaign, arbitrator, gang, flag
+        self, client, campaign, arbitrator, gang
     ):
         with campaign_operation(campaign, actor=arbitrator) as act:
             won = act.record_battle(
@@ -426,7 +395,7 @@ class TestBattlePages:
         assert "n26-row-link" in campaign_page
 
     def test_edit_records_result_without_gang_changes(
-        self, client, campaign, battle, gang, flag
+        self, client, campaign, battle, gang
     ):
         before = LedgerEvent.objects.count()
         response = client.post(
@@ -447,7 +416,7 @@ class TestBattlePages:
         assert LedgerEvent.objects.count() == before
         assert "Won by The Ashen Choir" in client.get(response.url).content.decode()
 
-    def test_invalid_form_preserves_choices(self, client, campaign, battle, gang, flag):
+    def test_invalid_form_preserves_choices(self, client, campaign, battle, gang):
         response = client.post(
             address(campaign, battle, "edit/"),
             fields(gang, result="draw", winners=[str(gang.pk)], revision=0),
@@ -462,7 +431,7 @@ class TestBattlePages:
         assert battle.result == "not_recorded"
 
     def test_stale_edit_is_explained_without_overwriting(
-        self, client, campaign, battle, gang, flag
+        self, client, campaign, battle, gang
     ):
         url = address(campaign, battle, "edit/")
         assert (
@@ -479,7 +448,7 @@ class TestBattlePages:
         )
 
     def test_edit_keeps_departed_participant_selectable(
-        self, client, campaign, battle, gang, arbitrator, flag
+        self, client, campaign, battle, gang, arbitrator
     ):
         with operation(gang, actor=arbitrator) as op:
             op.leave_campaign()
@@ -492,7 +461,7 @@ class TestBattlePages:
         assert response.status_code == 302
 
     def test_attributed_history_is_preserved_when_archiving(
-        self, client, campaign, battle, gang, flag
+        self, client, campaign, battle, gang
     ):
         event = LedgerEvent.objects.create(
             gang=gang, campaign=campaign, battle=battle, kind=LedgerEvent.Kind.ADDED
@@ -510,7 +479,7 @@ class TestBattlePages:
         assert event.battle_id == battle.pk
 
     def test_remove_confirmation_posts_its_reviewed_version(
-        self, client, campaign, battle, flag
+        self, client, campaign, battle
     ):
         url = address(campaign, battle, "remove/")
         confirmation = BeautifulSoup(client.get(url).content, "html.parser")
@@ -520,7 +489,7 @@ class TestBattlePages:
         assert Battle.objects.get(pk=battle.pk).archived
 
     def test_an_old_removal_form_cannot_delete_newer_battle_details(
-        self, client, campaign, battle, gang, flag
+        self, client, campaign, battle, gang
     ):
         url = address(campaign, battle, "remove/")
         confirmation = BeautifulSoup(client.get(url).content, "html.parser")
@@ -544,7 +513,7 @@ class TestBattlePages:
 
     @pytest.mark.parametrize("data", [{}, {"revision": ""}, {"revision": "bad"}])
     def test_removal_requires_a_valid_confirmation_version(
-        self, client, campaign, battle, flag, data
+        self, client, campaign, battle, data
     ):
         response = client.post(address(campaign, battle, "remove/"), data, follow=True)
         assert "version is missing or invalid" in response.content.decode()
@@ -552,7 +521,7 @@ class TestBattlePages:
 
     @pytest.mark.parametrize("record", ["crew", "report"])
     def test_saved_crews_and_reports_are_preserved_when_archiving(
-        self, client, campaign, battle, gang, arbitrator, flag, record
+        self, client, campaign, battle, gang, arbitrator, record
     ):
         if record == "crew":
             saved = save_crew(
@@ -573,17 +542,8 @@ class TestBattlePages:
 
 
 class TestBattlePermissions:
-    @pytest.mark.parametrize("suffix", ["", "edit/", "remove/", "restore/"])
-    def test_flag_off_blocks_get_and_post(self, client, campaign, battle, flag, suffix):
-        flag.availability = Availability.OFF
-        flag.save()
-        url = address(campaign, battle, suffix)
-        assert client.get(url).status_code == 404
-        assert client.post(url, fields()).status_code == 404
-        assert Battle.objects.filter(pk=battle.pk).exists()
-
     def test_non_owner_can_read_but_cannot_administer(
-        self, client, campaign, battle, gang, flag
+        self, client, campaign, battle, gang
     ):
         player = User.objects.create_user("player")
         client.force_login(player)
@@ -603,14 +563,14 @@ class TestBattlePermissions:
             assert client.post(url, fields(gang, revision=0)).status_code == 404
 
     def test_gang_history_link_is_omitted_for_its_owner_too(
-        self, client, campaign, battle, gang, flag
+        self, client, campaign, battle, gang
     ):
         drawn = client.get(address(campaign, battle)).content.decode()
         assert f"/n26/gangs/{gang.pk}/history/" not in drawn
 
     @pytest.mark.parametrize("suffix", ["", "edit/", "remove/"])
     def test_foreign_or_invalid_battle_is_404(
-        self, client, campaign, battle, campaign_type, arbitrator, flag, suffix
+        self, client, campaign, battle, campaign_type, arbitrator, suffix
     ):
         foreign = found_campaign("Elsewhere", campaign_type, owner=arbitrator)
         for url in (
@@ -620,20 +580,11 @@ class TestBattlePermissions:
             assert client.get(url).status_code == 404
             assert client.post(url, fields(revision=0)).status_code == 404
 
-    def test_anonymous_reader_does_not_reach_the_feature(
-        self, client, campaign, battle, flag
-    ):
+    def test_anonymous_reader_is_asked_to_sign_in(self, client, campaign, battle):
         client.logout()
         response = client.get(address(campaign, battle))
-        assert response.status_code == 404
-
-    def test_flag_off_blocks_creation_get_and_post(self, client, campaign, flag):
-        flag.availability = Availability.OFF
-        flag.save()
-        url = f"/n26/campaigns/{campaign.pk}/battles/new/"
-        assert client.get(url).status_code == 404
-        assert client.post(url, fields()).status_code == 404
-        assert not Battle.objects.exists()
+        assert response.status_code == 302
+        assert "/accounts/login/" in response["Location"]
 
 
 class TestBattleQueryGrowth:
@@ -645,7 +596,6 @@ class TestBattleQueryGrowth:
         gang,
         gang_type,
         arbitrator,
-        flag,
         default_pack,
         make_profile,
     ):
@@ -697,7 +647,7 @@ class TestBattleQueryGrowth:
 
     @pytest.mark.parametrize("screen", ["detail", "edit", "create", "campaign"])
     def test_participants_and_winners_add_no_queries(
-        self, client, campaign, battle, gang, gang_type, arbitrator, flag, screen
+        self, client, campaign, battle, gang, gang_type, arbitrator, screen
     ):
         urls = {
             "detail": address(campaign, battle),
@@ -722,7 +672,7 @@ class TestBattleQueryGrowth:
         assert len(many) == len(few)
 
     def test_campaign_battle_rows_add_no_queries(
-        self, client, campaign, battle, gang, arbitrator, flag
+        self, client, campaign, battle, gang, arbitrator
     ):
         url = f"/n26/campaigns/{campaign.pk}/"
         client.get(url)
@@ -744,7 +694,7 @@ class TestBattleQueryGrowth:
 
 class TestArchivedBattles:
     def test_archived_list_paginates_without_listing_active_battles(
-        self, client, campaign, battle, arbitrator, flag
+        self, client, campaign, battle, arbitrator
     ):
         from django.urls import reverse
 
@@ -766,7 +716,7 @@ class TestArchivedBattles:
         assert battle not in second.context["page"]
 
     def test_archive_hides_the_battle_and_restore_returns_it(
-        self, client, campaign, battle, gang, arbitrator, flag
+        self, client, campaign, battle, gang, arbitrator
     ):
         from django.urls import reverse
 
@@ -848,7 +798,7 @@ class TestArchivedBattles:
                 act.remove_battle(battle, revision=0)
 
     def test_open_forms_cannot_change_an_archived_battle(
-        self, client, campaign, battle, gang, arbitrator, flag
+        self, client, campaign, battle, gang, arbitrator
     ):
         from django.urls import reverse
 
@@ -915,7 +865,7 @@ class TestArchivedBattles:
         )
 
     def test_only_the_arbitrator_can_archive_restore_or_list_archived_battles(
-        self, client, campaign, battle, arbitrator, flag
+        self, client, campaign, battle, arbitrator
     ):
         from django.urls import reverse
 
@@ -949,7 +899,7 @@ class TestArchivedBattles:
         )
 
     def test_archived_list_has_no_query_growth_per_battle(
-        self, client, campaign, battle, gang, arbitrator, flag
+        self, client, campaign, battle, gang, arbitrator
     ):
         from django.urls import reverse
 
