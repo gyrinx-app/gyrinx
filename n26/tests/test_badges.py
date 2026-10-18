@@ -906,12 +906,12 @@ class TestTheBadgeAsData:
         svg = mark["svg"]
         assert svg["tag"] == "svg"
         assert svg["props"]["viewBox"] == "0 0 24 24"
-        assert svg["props"]["shapeRendering"] == "crispEdges"
+        assert svg["props"]["shapeRendering"] == "geometricPrecision"
         # The wrapper names the badge; the island hides the drawing itself.
         assert "aria-hidden" not in svg["props"]
-        rects = [child for child in svg["children"] if child["tag"] == "rect"]
-        assert rects
-        assert set(rects[0]["props"]) <= {"x", "y", "width", "height", "fill"}
+        paths = [child for child in svg["children"] if child["tag"] == "path"]
+        assert paths
+        assert all(path["props"]["d"] and path["props"]["fill"] for path in paths)
 
     def test_anything_that_could_run_or_fetch_is_left_behind(self):
         from n26.badges import svg_tree

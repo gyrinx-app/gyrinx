@@ -247,7 +247,7 @@
         font-variant-ligatures: none;
     }
 
-    /* Small inline icons need smooth edges at fractional em sizes. */
+    /* General-purpose icons use smooth edges at fractional em sizes. */
     svg {
         shape-rendering: geometricPrecision;
     }
@@ -929,8 +929,8 @@
         height: var(--n26-icon-size);
     }
 
-    /* Large pixel artwork keeps its square edges without antialiasing seams. */
-    .n26-pixel-art > svg[shape-rendering="crispEdges"] {
+    /* Inline pixel artwork keeps its square edges without antialiasing seams. */
+    .n26-icon-inline > svg[shape-rendering="crispEdges"] {
         shape-rendering: crispEdges;
     }
 
