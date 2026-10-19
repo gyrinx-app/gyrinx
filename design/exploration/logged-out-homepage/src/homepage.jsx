@@ -263,7 +263,7 @@ function LoginPreview() {
                     <a href={`${live}/accounts/signup/`}>Create an account</a>
                     <span aria-hidden="true">·</span>
                     <a href={`${live}/about/`} className="home-about-link">
-                        About Gyrinx
+                        About Gyrinx<span aria-hidden="true">&nbsp;→</span>
                     </a>
                 </nav>
             </div>
