@@ -1296,7 +1296,11 @@ export {
     type ActionMenuItem,
     type ActionMenuProps,
 } from "./ActionMenu";
-export { FilterMenu, type FilterOption } from "./FilterMenu";
+export {
+    FilterMenu,
+    type FilterMenuSize,
+    type FilterOption,
+} from "./FilterMenu";
 export { RangeMenu } from "./RangeMenu";
 export {
     MenuButton,

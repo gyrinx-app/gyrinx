@@ -455,7 +455,45 @@ def filter_menu_recipe():
     a structural change fails this build instead of silently drifting the
     adapter.
     """
-    source = '<c-n26.filter-menu label="Filter" name="filter" :options="options" />'
+    # The live component is a React island, so the class strings come from this
+    # face: the same kit pieces the menu used to draw, with one option.
+    source = """
+<c-ui.checkbox.group name="filter" :values="[]" class="contents">
+    <div class="inline-block">
+        <c-ui.dropdown align="start" position="bottom" min_width="20rem">
+            <c-slot name="trigger">
+                <c-ui.button size="sm" variant="default">
+                    <span class="flex items-center justify-center gap-1.5">
+                        Filter
+                        <span class="rounded-full bg-ink-500/15 px-1.5 text-xs tabular-nums"></span>
+                        <c-n26.icon name="chevron-down" class="size-4" stroke_width="2" />
+                    </span>
+                </c-ui.button>
+            </c-slot>
+            <div class="p-3">
+                <div class="pb-2 text-sm">
+                    <button type="button" class="rounded text-accent-text hover:underline focus-ring">All</button>
+                    <span class="px-1 text-muted">/</span>
+                    <button type="button" class="rounded text-accent-text hover:underline focus-ring">None</button>
+                </div>
+                <div class="max-h-72 space-y-2 overflow-y-auto py-1">
+                    {% for option in options %}
+                        <div class="flex items-center gap-2">
+                            <c-ui.checkbox value="{{ option.value }}" label="{{ option.label }}" />
+                            <span class="text-muted">·</span>
+                            <button type="button" class="shrink-0 rounded text-sm text-accent-text hover:underline focus-ring">only</button>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-3 flex items-center gap-2 border-t border-box-border pt-3">
+                    <c-ui.button size="sm" variant="primary">OK</c-ui.button>
+                    <c-ui.button size="sm" variant="text">Cancel</c-ui.button>
+                </div>
+            </div>
+        </c-ui.dropdown>
+    </div>
+</c-ui.checkbox.group>
+"""
     rendered = Template(CottonCompiler().process(source)).render(
         Context({"options": [{"value": "one", "label": "One"}]})
     )
@@ -553,6 +591,10 @@ def filter_menu_recipe():
         "actions": at(28),
         "apply": at(29),
         "cancel": at(30),
+        "triggerXs": classes(
+            '<c-ui.button size="xs" variant="default">Filter</c-ui.button>',
+            "button",
+        )[0],
     }
 
 

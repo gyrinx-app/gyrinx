@@ -1072,16 +1072,17 @@ GROUPS: list[Group] = [
                 summary=(
                     "A dropdown of checkboxes that applies a named set of values."
                 ),
-                needs=(ALPINE, KIT_JS, FOCUS),
+                needs=(ALPINE,),
                 notes=(
-                    "OK dispatches filter-apply on the window with name and values, "
-                    "and a parent must listen or the ticks do nothing; name must "
-                    "match that listener and any filter-reset. With :select_all, an "
-                    "empty :selected becomes every option on init, so the menu "
-                    "cannot open on none. Cancel restores the snapshot taken when "
-                    "the panel opened, not the last applied set. The checkbox group "
-                    "wraps the whole dropdown rather than sitting in the panel, so "
-                    "the closed trigger can show a count."
+                    "React draws the menu. OK dispatches filter-apply with name and "
+                    "values, and the event bubbles, so a listener on the component "
+                    "or on the window both hear it. A parent must listen or the "
+                    "ticks do nothing. name must match that listener and any "
+                    "filter-reset. With :select_all, an empty :selected becomes "
+                    "every option on init, so the menu cannot open on none. Cancel "
+                    "restores the snapshot taken when the panel opened, not the "
+                    "last applied set. Ticked values post under name, including "
+                    "while the panel is closed."
                 ),
             ),
             Component(
