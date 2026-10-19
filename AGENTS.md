@@ -58,7 +58,9 @@ artifacts when the IDE Canvas surface is unavailable.
   `.codex/run.sh pytest`. After a rebase that changes `package-lock.json`,
   `n26/frontend`, Cotton templates, or icon sources, `.codex/run.sh` runs
   `npm ci` and rebuilds the ignored React manifest when they are missing or
-  stale. `npm run js` needs the worktree venv on PATH. Package discovery
+  stale. If those sources contain Git conflict markers, `.codex/run.sh`
+  skips that rebuild, names the file, and the command you asked for still
+  runs. `npm run js` needs the worktree venv on PATH. Package discovery
   excludes that manifest tree, `n26/frontend/generated`, `node_modules`,
   `staticfiles`, and `logs`, so `uv sync` does not record them on the
   editable install. Do not run

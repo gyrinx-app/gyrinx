@@ -687,6 +687,40 @@ _frontend_inputs_newer() {
   return 1
 }
 
+# _frontend_conflict_file <worktree_root>
+#   Prints the first npm run js input that still has Git conflict markers.
+#   Prints nothing when those inputs are clean. Generated output is ignored:
+#   a rebuild replaces it, and markers there must not block the build.
+_frontend_conflict_file() {
+  local wt_root="$1"
+  local roots=()
+  local file
+  if [ -d "${wt_root}/n26/frontend" ]; then
+    roots+=("${wt_root}/n26/frontend")
+  fi
+  if [ -d "${wt_root}/n26/core/templates/cotton" ]; then
+    roots+=("${wt_root}/n26/core/templates/cotton")
+  fi
+  if [ "${#roots[@]}" -gt 0 ]; then
+    while IFS= read -r -d '' file; do
+      if grep -q -E '^(<<<<<<< |>>>>>>> )' "$file"; then
+        printf '%s\n' "$file"
+        return 0
+      fi
+    done < <(find "${roots[@]}" -type f ! -path '*/generated/*' -print0 2>/dev/null)
+  fi
+  for file in \
+    "${wt_root}/n26/core/icons.py" \
+    "${wt_root}/n26/core/brand_icons.py"
+  do
+    if [ -f "$file" ] && grep -q -E '^(<<<<<<< |>>>>>>> )' "$file"; then
+      printf '%s\n' "$file"
+      return 0
+    fi
+  done
+  return 0
+}
+
 # _frontend_repair_plan <worktree_root>
 #   Prints "install", "js", or "install js" when node_modules or the React
 #   manifest needs recovery. Prints nothing when both are current.
@@ -726,6 +760,9 @@ _frontend_repair_plan() {
 #   when the install is stale, then `npm run js` when the manifest is missing
 #   or stale. Both commands put the worktree venv first on PATH because
 #   `npm run js` starts with `python -m n26.frontend.tooling.export_cotton_recipes`.
+#   Conflict markers in those inputs make the build fail. The js step is
+#   skipped, the conflicted file is named, and the caller's command still runs
+#   so it can resolve the markers.
 #
 #   The freshness check and the install/build share one lock, matching
 #   provision_worktree_venv, so two Codex commands cannot npm ci at once.
@@ -812,19 +849,24 @@ provision_worktree_frontend() {
     esac
     case " $plan " in
       *" js "*)
-        if ! command -v python >/dev/null 2>&1; then
+        conflict=$(_frontend_conflict_file "$wt_root")
+        if [ -n "$conflict" ]; then
+          echo "[gyrinx] Skipping npm run js: ${conflict} contains Git conflict markers." >&2
+          echo "[gyrinx] Resolve those markers, then run the command again. The command you asked for will run now." >&2
+        elif ! command -v python >/dev/null 2>&1; then
           echo "[gyrinx] python is not on PATH; npm run js needs the worktree venv." >&2
           echo "[gyrinx]   PATH=\"${wt_root}/.venv/bin:\$PATH\" npm run js" >&2
           echo "[gyrinx] or: .codex/run.sh npm run js" >&2
           return 1
-        fi
-        echo "[gyrinx] Building React islands (manifest missing or out of date)..." >&2
-        if ! (cd "$wt_root" && npm run js); then
-          echo "[gyrinx] npm run js failed. Rebuild with the worktree venv on PATH:" >&2
-          echo "[gyrinx]   PATH=\"${wt_root}/.venv/bin:\$PATH\" npm run js" >&2
-          echo "[gyrinx] or: .codex/run.sh npm run js" >&2
-          echo "[gyrinx] Do not run npm audit fix unless the task is the audit itself." >&2
-          return 1
+        else
+          echo "[gyrinx] Building React islands (manifest missing or out of date)..." >&2
+          if ! (cd "$wt_root" && npm run js); then
+            echo "[gyrinx] npm run js failed. Rebuild with the worktree venv on PATH:" >&2
+            echo "[gyrinx]   PATH=\"${wt_root}/.venv/bin:\$PATH\" npm run js" >&2
+            echo "[gyrinx] or: .codex/run.sh npm run js" >&2
+            echo "[gyrinx] Do not run npm audit fix unless the task is the audit itself." >&2
+            return 1
+          fi
         fi
         ;;
     esac
