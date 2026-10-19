@@ -1,61 +1,61 @@
 /* Callout geometry and reader interactions adapted from the approved Gyrinx callout reference. */
 .callout-card,
 .callout-carousel {
-  --stroke: 0.08125rem;
+    --stroke: 0.08125rem;
 }
 .callout-card {
-  --theme: var(--color-box-border);
-  --glow: transparent;
-  --header-height: 1rem;
-  --chrome-gap: 0.3rem;
+    --theme: var(--color-box-border);
+    --glow: transparent;
+    --header-height: 1rem;
+    --chrome-gap: 0.3rem;
 
-  position: relative;
-  width: min(36rem, calc(100vw - 3rem));
-  margin: 1.5rem;
-  padding: calc(0.75rem + var(--header-height)) 1rem 0.75rem;
-  overflow: hidden;
-  border: var(--stroke) solid var(--theme);
-  border-radius: 0 0.5rem 1rem 0;
-  corner-shape: bevel;
-  box-shadow:
-    0 0 0.7rem var(--glow),
-    inset 0 0 0.7rem var(--glow);
-  transition: transform 180ms ease;
+    position: relative;
+    width: min(36rem, calc(100vw - 3rem));
+    margin: 1.5rem;
+    padding: calc(0.75rem + var(--header-height)) 1rem 0.75rem;
+    overflow: hidden;
+    border: var(--stroke) solid var(--theme);
+    border-radius: 0 0.5rem 1rem 0;
+    corner-shape: bevel;
+    box-shadow:
+        0 0 0.7rem var(--glow),
+        inset 0 0 0.7rem var(--glow);
+    transition: transform 180ms ease;
 }
 
 .callout-card::before {
-  position: absolute;
-  inset: 0 0 auto;
-  height: var(--header-height);
-  border-bottom: var(--stroke) solid var(--theme);
-  background: color-mix(in srgb, var(--theme) 25%, transparent);
-  content: "";
-  pointer-events: none;
+    position: absolute;
+    inset: 0 0 auto;
+    height: var(--header-height);
+    border-bottom: var(--stroke) solid var(--theme);
+    background: color-mix(in srgb, var(--theme) 25%, transparent);
+    content: "";
+    pointer-events: none;
 }
 
 .callout-card[data-striped]::before {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    transparent 0 0.3125rem,
-    var(--theme) 0.3125rem 0.625rem
-  );
+    background-image: repeating-linear-gradient(
+        -45deg,
+        transparent 0 0.3125rem,
+        var(--theme) 0.3125rem 0.625rem
+    );
 }
 
 .dark .callout-card[data-glow],
 .dark .callout-carousel[data-glow] {
-  --glow: color-mix(in srgb, var(--theme) 76%, transparent);
+    --glow: color-mix(in srgb, var(--theme) 76%, transparent);
 }
 
 .callout-card:hover {
-  transform: scale(1.025);
+    transform: scale(1.025);
 }
 
 .callout-card[data-colour="default"] {
-  background: var(--color-surface);
+    background: var(--color-surface);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .callout-card {
-    transition: none;
-  }
+    .callout-card {
+        transition: none;
+    }
 }
