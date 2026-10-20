@@ -112,6 +112,18 @@ def _campaign_budget_notice(request, gang):
     return None
 
 
+def _campaign_tactics_notice(gang):
+    """The sentence saying this gang holds too many Gang Tactics for the
+    campaign it is joining, or empty. Asked as the campaign gang list asks
+    it (``n26.core.tactics.too_many_for``)."""
+    from n26.core.tactics import too_many_for, too_many_tactics_sentence
+
+    membership = _active_campaign_membership(gang)
+    if membership is None or not too_many_for(membership.campaign, gang):
+        return ""
+    return too_many_tactics_sentence(gang)
+
+
 @login_required
 def dashboard(request):
     """The edition's front page: your gangs, and what changed lately.
@@ -546,6 +558,11 @@ def gang_sheet(request, pk):
             ),
             "dialog": dialog,
             "budget_notice": budget_notice,
+            "tactics_notice": (
+                _campaign_tactics_notice(gang)
+                if signed_in_owner and sheet.campaign is not None
+                else ""
+            ),
         },
     )
 
@@ -555,7 +572,7 @@ def more_actions(gang, *, yours, signed_in):
 
     The owner gets every whole-gang detour, Delete gang last. A signed-in
     reader who does not own the gang gets only the pages that change
-    nothing of the owner's: Notes, Lore and Clone gang. A visitor who has
+    nothing of the owner's: Notes, Lore, Gang Tactics and Clone gang. A visitor who has
     not signed in gets no menu; the sheet draws Notes and Lore as buttons.
     No separators, in either menu.
     """
@@ -569,6 +586,7 @@ def more_actions(gang, *, yours, signed_in):
             link("Other actions", "n26-gang-other-actions"),
             link("Notes", "n26-gang-notes"),
             link("Lore", "n26-gang-lore"),
+            link("Gang Tactics", "n26-gang-tactics"),
             link("Clone gang", "n26-clone-gang"),
             # A page that asks, not the act: following this link deletes
             # nothing. The POST it leads to does, behind a second click,
@@ -579,6 +597,7 @@ def more_actions(gang, *, yours, signed_in):
         return [
             link("Notes", "n26-gang-notes"),
             link("Lore", "n26-gang-lore"),
+            link("Gang Tactics", "n26-gang-tactics"),
             link("Clone gang", "n26-clone-gang"),
         ]
     return []

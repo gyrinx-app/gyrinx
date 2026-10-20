@@ -1422,6 +1422,7 @@ def add_gang(request, pk):
     from n26.core.forms import BringGangForm
     from n26.core.operations import Refusal
     from n26.core.people import person_link
+    from n26.core.tactics import too_many_for, too_many_tactics_sentence
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     arbitrating = found.owner_id == getattr(request.user, "id", None)
@@ -1461,6 +1462,8 @@ def add_gang(request, pk):
                         f"credits {gang.credits:,}¢ add up to "
                         f"{gang.wealth:,}¢. The budget is {found.budget:,}¢.",
                     )
+                if too_many_for(found, gang):
+                    messages.warning(request, too_many_tactics_sentence(gang))
                 return redirect("n26-campaign", pk=found.pk)
     else:
         form = BringGangForm(gangs=offering)

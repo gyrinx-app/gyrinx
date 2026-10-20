@@ -328,6 +328,7 @@ export function CampaignGangs(
                     </td>
                 </tr>
                 {(gang.overBudget ||
+                    gang.tooManyTactics ||
                     details.length > 0 ||
                     gang.rolls.length > 0) && (
                     <tr className="border-b-0! max-md:hover:bg-transparent! max-md:block">
@@ -338,6 +339,9 @@ export function CampaignGangs(
                         >
                             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5 text-xs">
                                 {gang.overBudget && <Badge>Over budget</Badge>}
+                                {gang.tooManyTactics && (
+                                    <Badge>Too many tactics</Badge>
+                                )}
                                 {details.map((detail, index) => (
                                     <div
                                         key={index}

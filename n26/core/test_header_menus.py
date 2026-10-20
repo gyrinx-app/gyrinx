@@ -92,6 +92,7 @@ class TestTheGangSheetHeader:
             ),
             ("Notes", gang_url("n26-gang-notes", gang), "default", False),
             ("Lore", gang_url("n26-gang-lore", gang), "default", False),
+            ("Gang Tactics", gang_url("n26-gang-tactics", gang), "default", False),
             ("Clone gang", gang_url("n26-clone-gang", gang), "default", False),
             ("Delete gang", gang_url("n26-delete-gang", gang), "danger", False),
         ]
@@ -108,7 +109,7 @@ class TestTheGangSheetHeader:
         assert "n26-button-group" in wrapper.parent["class"]
         assert wrapper.parent.find("a", string=lambda s: s and "Print" in s)
 
-    def test_a_signed_in_reader_gets_notes_lore_and_clone(self, client, gang):
+    def test_a_signed_in_reader_gets_notes_lore_tactics_and_clone(self, client, gang):
         client.force_login(User.objects.create_user("someone-else"))
         html = client.get(gang_url("n26-gang", gang)).content.decode()
 
@@ -117,6 +118,7 @@ class TestTheGangSheetHeader:
         assert entries(props) == [
             ("Notes", gang_url("n26-gang-notes", gang), "default", False),
             ("Lore", gang_url("n26-gang-lore", gang), "default", False),
+            ("Gang Tactics", gang_url("n26-gang-tactics", gang), "default", False),
             ("Clone gang", gang_url("n26-clone-gang", gang), "default", False),
         ]
         assert listed == [(item["label"], item["href"]) for item in props["items"]]
@@ -189,10 +191,11 @@ def test_the_menu_comes_back_when_a_label_choice_redraws_the_sheet(
         "Other actions",
         "Notes",
         "Lore",
+        "Gang Tactics",
         "Clone gang",
         "Delete gang",
     ]
-    assert len(listed) == 6
+    assert len(listed) == 7
 
 
 class TestTheCampaignHeader:

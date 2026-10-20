@@ -1563,3 +1563,62 @@ class CampaignGroupingForm(forms.Form):
             if selected:
                 colours[group["slot"]] = selected
         return colours
+
+
+class RollTacticsForm(forms.Form):
+    """Which table to roll Gang Tactics on, and how many to roll.
+
+    Two submit buttons share the form: "all" rolls every tactic the gang
+    has to roll for, "some" rolls the number typed. The number is only
+    read for "some", and never more than the gang has to roll for.
+    """
+
+    table = forms.ChoiceField(error_messages={"required": "Choose a table to roll on."})
+    how = forms.ChoiceField(choices=[("all", "Roll all"), ("some", "Roll")])
+    count = forms.IntegerField(
+        required=False,
+        min_value=1,
+        error_messages={
+            "min_value": "Roll at least one tactic.",
+            "invalid": "Enter a whole number.",
+        },
+    )
+
+    def __init__(self, *args, table_choices=(), to_generate=0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["table"].choices = [
+            (choice.value, choice.label) for choice in table_choices if not choice.full
+        ]
+        self.to_generate = to_generate
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.to_generate < 1:
+            raise forms.ValidationError("This gang has no tactics to roll for.")
+        if cleaned.get("how") == "all":
+            cleaned["count"] = self.to_generate
+            return cleaned
+        count = cleaned.get("count")
+        if count is None:
+            if "count" not in self.errors:
+                self.add_error("count", "Enter how many tactics to roll.")
+        elif count > self.to_generate:
+            self.add_error(
+                "count",
+                f"This gang has {self.to_generate} "
+                f"tactic{'' if self.to_generate == 1 else 's'} to roll for.",
+            )
+        return cleaned
+
+
+class RerollTacticForm(forms.Form):
+    """Which table a re-rolled Gang Tactic is rolled on. A table whose
+    every result the gang holds is not offered."""
+
+    table = forms.ChoiceField(error_messages={"required": "Choose a table to roll on."})
+
+    def __init__(self, *args, table_choices=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["table"].choices = [
+            (choice.value, choice.label) for choice in table_choices if not choice.full
+        ]

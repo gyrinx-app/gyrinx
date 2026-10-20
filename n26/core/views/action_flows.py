@@ -43,6 +43,7 @@ from n26.library.models import (
     Action,
     ApplyChanges,
     AugmentCarriedItem,
+    GenerateGangTactic,
     ResolveAdvancement,
 )
 
@@ -127,6 +128,7 @@ def _outcomes(action):
             "outcome__augment_carried_item__slot_type",
             "outcome__resolve_advancement__slot",
             "outcome__apply_changes",
+            "outcome__generate_gang_tactic",
         )
     ]
 
@@ -137,6 +139,8 @@ def _description(outcome):
         return "Raise the level of one carried item by one tier."
     if isinstance(configured, ApplyChanges):
         return ""
+    if isinstance(configured, GenerateGangTactic):
+        return "Roll a new Gang Tactic and add it to the gang."
     return "Gain an advancement."
 
 
@@ -183,11 +187,12 @@ def _steps(record=None, *, action=None, stage="start", correction=False):
         if stage in {"review", "done"} and not takes_a_skill:
             skipped.add("skill")
     else:
-        middle = (
-            [("choose", "Item and tier")]
-            if isinstance(configured, AugmentCarriedItem)
-            else ([("choose", "Selection")] if configured is None else [])
-        )
+        if isinstance(configured, AugmentCarriedItem):
+            middle = [("choose", "Item and tier")]
+        elif isinstance(configured, GenerateGangTactic):
+            middle = [("choose", "Table")]
+        else:
+            middle = [("choose", "Selection")] if configured is None else []
         stages = (
             [("correct", "Choose tier")]
             if correction
@@ -412,6 +417,16 @@ def _review_choice(record):
     target = record.review.get("target", {})
     if not isinstance(target, dict):
         return None
+    if target.get("table_name"):
+        from n26.library.models.slots import Dice
+
+        return {
+            "label": "Table",
+            "title": f"{target['table_name']} ({Dice.label_for(target['dice'])})",
+            "description": "The tactic is rolled when you confirm. "
+            "A result the gang already holds is rolled again.",
+            "meta": "",
+        }
     selected = target.get("selection")
     if selected:
         return {
@@ -741,7 +756,16 @@ def action_flow(request, pk, record_id, step):
     if step == "done":
         if record.state != ActionRecord.State.COMPLETED:
             return redirect(flow_url(fighter, record, "resume"))
-        can_correct = not isinstance(record.outcome.operation, ApplyChanges)
+        # A Gang Tactic is put right from its card, by Delete or Re-roll,
+        # rather than by correcting the action.
+        can_correct = not isinstance(
+            record.outcome.operation, ApplyChanges | GenerateGangTactic
+        )
+        developed = None
+        if isinstance(record.outcome.operation, GenerateGangTactic):
+            from n26.core.tactics import developed_tactic
+
+            developed = developed_tactic(record)
         return _page(
             request,
             fighter,
@@ -750,6 +774,10 @@ def action_flow(request, pk, record_id, step):
             stage="done",
             receipt=receipt_lines(record),
             correct_href=flow_url(fighter, record, "correct") if can_correct else "",
+            developed=developed,
+            tactics_href=reverse("n26-gang-tactics", args=[fighter.gang.pk])
+            if isinstance(record.outcome.operation, GenerateGangTactic)
+            else "",
             undo_href=flow_url(fighter, record, "undo")
             if record.allowance_id
             and isinstance(record.outcome.operation, ResolveAdvancement)
@@ -767,6 +795,10 @@ def action_flow(request, pk, record_id, step):
     configured = record.outcome.operation if record.outcome_id else None
     if step == "roll" and not isinstance(configured, ResolveAdvancement):
         return redirect(flow_url(fighter, record, "choose"))
+    if isinstance(configured, GenerateGangTactic):
+        if correction:
+            return redirect(flow_url(fighter, record, "done"))
+        return _choose_tactics_table(request, fighter, record)
     if isinstance(configured, AugmentCarriedItem):
         try:
             return _choose_augmentation(
@@ -845,6 +877,42 @@ def _choose_outcome(request, fighter, record):
             for item in outcomes
         ],
         submit_label="Continue",
+        submit_variant="primary",
+    )
+
+
+def _choose_tactics_table(request, fighter, record):
+    """The Develop Tactics action's one choice: which table to roll on."""
+    from n26.core.forms import RerollTacticForm
+    from n26.core.tactics import held, table_choices
+
+    gang = fighter.gang
+    choices = table_choices(
+        gang, held(gang), request.POST.get("table", "") or record.terms.get("table", "")
+    )
+    form = RerollTacticForm(request.POST or None, table_choices=choices)
+    if request.method == "POST" and form.is_valid():
+        terms = {"table": form.cleaned_data["table"]}
+        try:
+            with operation(gang, actor=request.user) as op:
+                record = op.save_action_choices(
+                    record, outcome=record.outcome, terms=terms
+                )
+                record = op.review_action(
+                    record, outcome=record.outcome, terms=record.terms
+                )
+            return redirect(flow_url(fighter, record, "review"))
+        except Refusal as refusal:
+            form.add_error(None, str(refusal))
+    return _page(
+        request,
+        fighter,
+        record.action,
+        record=record,
+        stage="choose",
+        form=form,
+        table_choices=choices,
+        submit_label="Review" if any(not one.full for one in choices) else "",
         submit_variant="primary",
     )
 

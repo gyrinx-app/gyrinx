@@ -246,6 +246,7 @@ def gang_table_props(sheet):
                 "creditsHref": line.credits_href,
                 "removeHref": line.remove_href,
                 "overBudget": line.over_budget,
+                "tooManyTactics": line.too_many_tactics,
                 "sortValues": gang_sort_values(sheet, line),
                 "labels": line.labels,
                 "assets": [

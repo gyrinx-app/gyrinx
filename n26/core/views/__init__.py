@@ -131,6 +131,11 @@ from n26.core.views.profiles import (
 )
 from n26.core.views.skills import skills
 from n26.core.views.switchers import switcher_page
+from n26.core.views.tactics import (
+    delete_gang_tactic,
+    gang_tactics,
+    reroll_gang_tactic,
+)
 from n26.core.views.trade_points import fighter_hire_time_action
 
 __all__ = [
@@ -221,6 +226,9 @@ __all__ = [
     "gang_history",
     "gang_lore",
     "gang_notes",
+    "gang_tactics",
+    "delete_gang_tactic",
+    "reroll_gang_tactic",
     "gang_sheet",
     "mark_fighter",
     "pay_ransom",
