@@ -3141,8 +3141,11 @@ def _imported(pack=None):
         SKILLS_SECTION,
         TRADING_POST_COLLECTION,
         VEHICLE_SUBTYPES,
+        develop_tactics_action,
         fighter_advancement_modifiers,
+        gang_tactics_modifiers,
         lasting_effect_status_modifiers,
+        tactics_contribution_counter,
         visit_contribution_counter,
     )
 
@@ -3167,6 +3170,14 @@ def _imported(pack=None):
     visit_counter = visit_contribution_counter()
     if visit_counter is not None:
         spared = Q(contributes_to_counter__counter=visit_counter)
+    # The Gang Tactics contributions are spared for the same reason.
+    tactics_counter = tactics_contribution_counter()
+    if tactics_counter is not None:
+        spared |= Q(contributes_to_counter__counter=tactics_counter)
+    develop_tactics = develop_tactics_action()
+    if develop_tactics is not None:
+        spared |= Q(adds_assignable__action=develop_tactics)
+    spared |= gang_tactics_modifiers()
     # The lasting-effect tables' own status effects are standard content
     # too, and they hold nothing an import made.
     spared |= lasting_effect_status_modifiers()

@@ -227,6 +227,13 @@ class LedgerEvent(Base):
         # name of the subtype that set their figure, or the figure itself
         # when several did.
         VISITED_TRADING_POST = "visited_post", "Visited the trading post"
+        # Journal-only: a Gang Tactic rolled and added to the roster. The
+        # note holds the tactic's name and the roll that found it.
+        TACTIC_GAINED = "tactic_gained", "Gang Tactic gained"
+        # Journal-only: a held Gang Tactic discarded, or swapped for a new
+        # roll. The note names the tactic, and for a re-roll what replaced it.
+        TACTIC_DISCARDED = "tactic_discarded", "Gang Tactic discarded"
+        TACTIC_REROLLED = "tactic_rerolled", "Gang Tactic re-rolled"
 
         # An activity opening and closing (``n26.core.models.activity``).
         # Neither carries deltas; what the activity did is the events
