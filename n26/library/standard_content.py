@@ -147,6 +147,33 @@ VISIT_CONTRIBUTION_MODIFIERS = [
     for rank, amount in VISIT_CONTRIBUTIONS
 ]
 
+#: The counter a model's share of the gang's Gang Tactics is read off.
+#: Undrawn, as the visit's is: the Gang Tactics page is the only reader.
+#: A modifier on each rank raises it, so a fighter promoted into a rank
+#: brings the gang its tactics and one who has lost it brings none.
+TACTICS_CONTRIBUTION_COUNTER = "Gang Tactics contribution"
+
+#: What each rank brings the gang in Gang Tactics (core rules), as
+#: ``(subtype, amount)``, biggest first. A model holding both ranks brings
+#: the better figure, as for a Trading Post visit.
+TACTICS_CONTRIBUTIONS = [("Leader", 2), ("Champion", 1)]
+
+TACTICS_CONTRIBUTION_MODIFIERS = [
+    f"{rank} adds {amount} Gang Tactic{'' if amount == 1 else 's'}"
+    for rank, amount in TACTICS_CONTRIBUTIONS
+]
+
+#: The Develop Tactics post-cycle action (core rules), its one result,
+#: and the ranks that may perform it. Each rank gives it to the models
+#: holding it, so a fighter promoted into a rank gains the action and one
+#: who has lost the rank no longer has it.
+DEVELOP_TACTICS_ACTION = "Develop Tactics"
+DEVELOP_TACTICS_OUTCOME = "Generate a Gang Tactic"
+DEVELOP_TACTICS_RANKS = ["Leader", "Champion"]
+DEVELOP_TACTICS_MODIFIERS = [
+    f"{rank} may perform Develop Tactics" for rank in DEVELOP_TACTICS_RANKS
+]
+
 #: The heading a gang's own fighter entries are filed under. Everything
 #: else a gang may hire — allies, hired guns, hangers-on — is filed
 #: under a heading of its own, which is what tells the two apart.
@@ -519,7 +546,7 @@ def _create_visit_contribution():
         subtype = _by_name(Subtype, rank)
         if subtype is None:
             subtype = Subtype.objects.create(name=rank)
-        if not _raises_visit_counter(subtype, counter).exists():
+        if not _raises_counter(subtype, counter).exists():
             subtype.modifiers.add(
                 modifier(
                     name,
@@ -553,7 +580,7 @@ def _check_built_in_actions():
     ).count(), 1
 
 
-def _raises_visit_counter(subtype, counter):
+def _raises_counter(subtype, counter):
     """The modifiers this rank carries that raise this counter."""
     return subtype.modifiers.filter(contributes_to_counter__counter=counter)
 
@@ -570,9 +597,308 @@ def _check_visit_contribution():
     present = 1
     for rank, _ in VISIT_CONTRIBUTIONS:
         subtype = _by_name(Subtype, rank)
-        if subtype is not None and _raises_visit_counter(subtype, counter).exists():
+        if subtype is not None and _raises_counter(subtype, counter).exists():
             present += 1
     return present, 1 + len(VISIT_CONTRIBUTIONS)
+
+
+def tactics_contribution_counter():
+    """The standard Gang Tactics counter, or None where the library has
+    none. Pinned to the default pack, as ``visit_contribution_counter``
+    is, and for the same reason."""
+    from django.conf import settings
+
+    from n26.library.models import Counter
+
+    return Counter.objects.filter(
+        name__iexact=TACTICS_CONTRIBUTION_COUNTER,
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+    ).first()
+
+
+def _create_tactics_contribution():
+    """The Gang Tactics counter, and one modifier per rank that raises it.
+
+    Built exactly as ``_create_visit_contribution`` builds the visit's:
+    ranks biggest first, each later rank narrowed to models holding none
+    of the ranks above it, so a Leader who is also a Champion brings 2.
+    """
+    from n26.library.authoring import (
+        ef_contributes_to_counter,
+        has_subtypes,
+        modifier,
+        targets_model,
+    )
+    from n26.library.models import Counter, Subtype
+
+    counter = tactics_contribution_counter()
+    if counter is None:
+        counter = Counter.objects.create(name=TACTICS_CONTRIBUTION_COUNTER, drawn=False)
+    better = []
+    for (rank, amount), name in zip(
+        TACTICS_CONTRIBUTIONS, TACTICS_CONTRIBUTION_MODIFIERS, strict=True
+    ):
+        subtype = _by_name(Subtype, rank)
+        if subtype is None:
+            subtype = Subtype.objects.create(name=rank)
+        if not _raises_counter(subtype, counter).exists():
+            subtype.modifiers.add(
+                modifier(
+                    name,
+                    targets_model(
+                        *([has_subtypes(*better, negate=True)] if better else [])
+                    ),
+                    ef_contributes_to_counter(counter, amount),
+                )
+            )
+        better.append(subtype)
+
+
+def _check_tactics_contribution():
+    """Asked exactly as the create asks it."""
+    from n26.library.models import Subtype
+
+    counter = tactics_contribution_counter()
+    if counter is None:
+        return 0, 1 + len(TACTICS_CONTRIBUTIONS)
+    present = 1
+    for rank, _ in TACTICS_CONTRIBUTIONS:
+        subtype = _by_name(Subtype, rank)
+        if subtype is not None and _raises_counter(subtype, counter).exists():
+            present += 1
+    return present, 1 + len(TACTICS_CONTRIBUTIONS)
+
+
+def develop_tactics_action():
+    """The standard Develop Tactics action, or None where the library has
+    none. Pinned to the default pack, as the counters are."""
+    from django.conf import settings
+
+    from n26.library.models import Action
+
+    return Action.objects.filter(
+        name__iexact=DEVELOP_TACTICS_ACTION,
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+    ).first()
+
+
+def _develop_tactics_outcome():
+    from django.conf import settings
+
+    from n26.library.models import Outcome
+
+    return Outcome.objects.filter(
+        name__iexact=DEVELOP_TACTICS_OUTCOME,
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+        generate_gang_tactic__isnull=False,
+    ).first()
+
+
+def _gives_action(subtype, action):
+    """The modifiers this rank carries that give this action."""
+    return subtype.modifiers.filter(adds_assignable__action=action)
+
+
+def _create_develop_tactics():
+    """The Develop Tactics action, its result, and a modifier on each rank
+    that may perform it.
+
+    Free to use and with no earned-use rule: the rules let a Leader or
+    Champion take it as their post-cycle action, and nothing here counts
+    cycles. A model holding both ranks has the action once.
+    """
+    from n26.library import authoring
+    from n26.library.models import Subtype
+
+    outcome = _develop_tactics_outcome()
+    if outcome is None:
+        outcome = authoring.create_outcome(
+            DEVELOP_TACTICS_OUTCOME,
+            generate_gang_tactic=authoring.generate_gang_tactic(),
+        )
+    action = develop_tactics_action()
+    if action is None:
+        action = authoring.create_action(
+            DEVELOP_TACTICS_ACTION,
+            "post_cycle",
+            outcomes=[outcome],
+        )
+    for rank, name in zip(
+        DEVELOP_TACTICS_RANKS, DEVELOP_TACTICS_MODIFIERS, strict=True
+    ):
+        subtype = _by_name(Subtype, rank)
+        if subtype is None:
+            subtype = Subtype.objects.create(name=rank)
+        if not _gives_action(subtype, action).exists():
+            subtype.modifiers.add(
+                authoring.modifier(
+                    name, authoring.targets_model(), authoring.ef_adds(action)
+                )
+            )
+
+
+def _check_develop_tactics():
+    """Asked exactly as the create asks it."""
+    from n26.library.models import Subtype
+
+    total = 2 + len(DEVELOP_TACTICS_RANKS)
+    present = int(_develop_tactics_outcome() is not None)
+    action = develop_tactics_action()
+    if action is None:
+        return present, total
+    present += 1
+    for rank in DEVELOP_TACTICS_RANKS:
+        subtype = _by_name(Subtype, rank)
+        if subtype is not None and _gives_action(subtype, action).exists():
+            present += 1
+    return present, total
+
+
+def _gang_tactics_grant(slot):
+    """The modifier that gives a gang one Gang Tactics table, matched by
+    what it does rather than by its name."""
+    from django.conf import settings
+
+    from n26.library.models import Modifier
+
+    return Modifier.objects.filter(
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG, adds_assignable__slot=slot
+    ).first()
+
+
+def gang_tactics_modifiers():
+    """The seeded modifiers that give gangs their Gang Tactics tables, as a
+    query: a clear of imported content leaves them standing."""
+    from django.db.models import Q
+
+    from n26.library.gang_tactics import SLOT_TYPE
+
+    return Q(adds_assignable__slot__slot_type__name__iexact=SLOT_TYPE)
+
+
+def _create_gang_tactics_tables():
+    """The Gang Tactics tables (``n26.library.gang_tactics``) as roll tables.
+
+    For each table: its pickables, a picklist with every band, a hidden
+    gang-held slot, and the modifier giving that slot to the gang. Each
+    tactic's summary says where it is printed. Matched rather than made
+    again, so the seed may run as often as it likes.
+    """
+    from django.conf import settings
+
+    from n26.library.authoring import ef_adds, modifier, targets_gang_alone
+    from n26.library.gang_tactics import SEED_TABLES, SLOT_TYPE, SLOT_TYPE_PLURAL
+    from n26.library.models import Pickable, Picklist, PicklistMember, Slot, SlotType
+
+    slot_type = SlotType.objects.filter(
+        name__iexact=SLOT_TYPE, pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+    ).first() or SlotType.objects.create(
+        name=SLOT_TYPE, plural_name=SLOT_TYPE_PLURAL, allows_repeats=False
+    )
+    for index, table in enumerate(SEED_TABLES):
+        picklist = Picklist.objects.filter(
+            slot_type=slot_type, name__iexact=table.name
+        ).first() or Picklist.objects.create(
+            name=table.name,
+            slot_type=slot_type,
+            dice=table.dice,
+            roll_selects="band",
+        )
+        for position, (low, high, name) in enumerate(table.rows):
+            pickable = _table_row(
+                Pickable, name, "", slot_type, {"summary": table.reference}
+            )
+            PicklistMember.objects.get_or_create(
+                picklist=picklist,
+                pickable=pickable,
+                defaults={"roll_low": low, "roll_high": high, "position": position},
+            )
+        slot = _table_row(
+            Slot,
+            table.slot_name,
+            "",
+            slot_type,
+            {
+                "picklist": picklist,
+                "label": SLOT_TYPE_PLURAL,
+                "assigned_to": "gang",
+                "hidden": True,
+                "min_picks": 0,
+                "max_picks": len(table.rows),
+                "position": index,
+            },
+        )
+        if _gang_tactics_grant(slot) is None:
+            modifier(table.modifier_name, targets_gang_alone(), ef_adds(slot))
+    _attach_gang_tactics_tables()
+
+
+def _attach_gang_tactics_tables():
+    """Give each standard gang type its tables. Either this seed or the
+    gang types' may run first, so both call this."""
+    from django.conf import settings
+
+    from n26.library.gang_tactics import SEED_TABLES
+    from n26.library.models import GangType, Slot
+
+    gang_types = GangType.objects.filter(
+        pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG, name__in=GANG_TYPES, qualifier=""
+    )
+    for table in SEED_TABLES:
+        slot = Slot.objects.filter(
+            pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG, name__iexact=table.slot_name
+        ).first()
+        grant = _gang_tactics_grant(slot) if slot else None
+        if grant is None:
+            continue
+        for gang_type in gang_types:
+            if not table.gang_types or gang_type.name in table.gang_types:
+                gang_type.modifiers.add(grant)
+
+
+def _check_gang_tactics_tables():
+    """Asked as the create asks it: the slot type, then each table's
+    members, slot and grant, then each standard gang type's link."""
+    from django.conf import settings
+
+    from n26.library.gang_tactics import SEED_TABLES, SLOT_TYPE
+    from n26.library.models import GangType, PicklistMember, Slot, SlotType
+
+    total = 1 + sum(len(table.rows) + 2 for table in SEED_TABLES)
+    slot_type = SlotType.objects.filter(
+        name__iexact=SLOT_TYPE, pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG
+    ).first()
+    if slot_type is None:
+        return 0, total
+    present = 1
+    gang_types = list(
+        GangType.objects.filter(
+            pack__slug=settings.DEFAULT_CONTENT_PACK_SLUG,
+            name__in=GANG_TYPES,
+            qualifier="",
+        )
+    )
+    for table in SEED_TABLES:
+        present += PicklistMember.objects.filter(
+            picklist__slot_type=slot_type, picklist__name__iexact=table.name
+        ).count()
+        slot = Slot.objects.filter(
+            slot_type=slot_type, name__iexact=table.slot_name
+        ).first()
+        if slot is None:
+            continue
+        present += 1
+        grant = _gang_tactics_grant(slot)
+        wanted = [
+            one
+            for one in gang_types
+            if not table.gang_types or one.name in table.gang_types
+        ]
+        if grant is not None and all(
+            one.modifiers.filter(pk=grant.pk).exists() for one in wanted
+        ):
+            present += 1
+    return present, total
 
 
 def founding_budget_counter():
@@ -1195,6 +1521,7 @@ def _create_gang_types():
     if grant is not None:
         slot = Slot.objects.filter(pack=pack, name="Escape", qualifier="").first()
         _create_escape_status_modifier(slot)
+    _attach_gang_tactics_tables()
 
 
 def _check_gang_types():
@@ -2688,6 +3015,44 @@ STANDARD_CONTENT = {
             ),
             check=_check_visit_contribution,
             create=_create_visit_contribution,
+        ),
+        StandardContent(
+            key="tactics-contribution",
+            name="Gang Tactics contribution",
+            help=(
+                "The counter for how many Gang Tactics each model brings "
+                "the gang, and the modifiers that raise it: 2 on the "
+                "Leader subtype, 1 on Champion. The counter is not drawn "
+                "on any card. A model holding both ranks brings 2, not 3."
+            ),
+            check=_check_tactics_contribution,
+            create=_create_tactics_contribution,
+        ),
+        StandardContent(
+            key="gang-tactics-tables",
+            name="Gang Tactics tables",
+            help=(
+                "The Universal, Escher and Goliath Gang Tactics tables as roll "
+                "tables: a Gang Tactic slot type, a pickable per tactic with "
+                "where it is printed as its summary, a picklist per table, and "
+                "a hidden gang slot given to the gang types by a modifier. The "
+                "Universal table goes to every standard gang type. Names, "
+                "bands and page references only."
+            ),
+            check=_check_gang_tactics_tables,
+            create=_create_gang_tactics_tables,
+        ),
+        StandardContent(
+            key="develop-tactics",
+            name="Develop Tactics",
+            help=(
+                "The Develop Tactics post-cycle action, which rolls a new "
+                "Gang Tactic for the gang on a table the player picks, and "
+                "the modifiers that give it to the Leader and Champion "
+                "subtypes. Free to use."
+            ),
+            check=_check_develop_tactics,
+            create=_create_develop_tactics,
         ),
         StandardContent(
             key="built-in-actions",

@@ -22,6 +22,8 @@ export type Gang = {
     creditsHref: string;
     removeHref: string;
     overBudget: boolean;
+    /** Holds more Gang Tactics than its ranks allow, before the start. */
+    tooManyTactics?: boolean;
     sortValues: Record<string, string | number | null>;
     labels: string[];
     assets: { label: string; names: CountedName[] }[];

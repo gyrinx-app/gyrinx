@@ -420,6 +420,7 @@ def _build_registry():
         ExcludesCampaignAssets,
         GangHasPickable,
         GangType,
+        GenerateGangTactic,
         HasPickable,
         HasStatus,
         HasSubtypes,
@@ -1318,6 +1319,12 @@ def _build_registry():
         ),
         Spec(authoring.apply_changes, {}, model=ApplyChanges, identity=None),
         Spec(
+            authoring.generate_gang_tactic,
+            {},
+            model=GenerateGangTactic,
+            identity=None,
+        ),
+        Spec(
             authoring.add_apply_change,
             {
                 "change": Union(
@@ -1374,6 +1381,11 @@ def _build_registry():
                 ),
                 "apply_changes": One(
                     model=ApplyChanges, source=(Outcome, "apply_changes"), optional=True
+                ),
+                "generate_gang_tactic": One(
+                    model=GenerateGangTactic,
+                    source=(Outcome, "generate_gang_tactic"),
+                    optional=True,
                 ),
             },
         ),
