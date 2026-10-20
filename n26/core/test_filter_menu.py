@@ -4,7 +4,7 @@ import json
 
 from bs4 import BeautifulSoup
 from django.template import Context, Template
-from django.utils.safestring import mark_safe
+from django.utils.safestring import SafeString
 from django_cotton.compiler_regex import CottonCompiler
 
 from n26.core.templatetags.filter_menu import filter_menu_props
@@ -38,8 +38,8 @@ def test_an_empty_selection_with_select_all_stays_empty_in_the_props():
 
 def test_a_cotton_label_is_unescaped_once_and_the_width_is_pixels():
     props = filter_menu_props(
-        label=mark_safe("Kit &amp; gear"),
-        options=[{"value": "a", "label": mark_safe("A &amp; B")}],
+        label=SafeString("Kit &amp; gear"),
+        options=[{"value": "a", "label": SafeString("A &amp; B")}],
         min_width="20rem",
         size="xs",
         align="end",

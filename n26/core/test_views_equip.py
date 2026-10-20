@@ -471,6 +471,10 @@ def test_a_category_named_with_an_ampersand_still_matches_the_filter(
     category counts zero, hides itself, and takes its rows off the page
     with it. So the name the picker reads must be the name the view sent,
     character for character."""
+    import json
+
+    from bs4 import BeautifulSoup
+
     from n26.library.models import Category, Section, Wargear
 
     section = Section.objects.create(name="Kit & gear", position=0)
@@ -485,12 +489,21 @@ def test_a_category_named_with_an_ampersand_still_matches_the_filter(
     response = client.get(equip_url(fighter, house_list))
     body = response.content.decode()
     assert "Armour & shields" in response.context["categories"]
-    # Both sides write the name into an attribute, so both are escaped once
-    # and the browser hands Alpine the same two strings. Escaped twice, the
-    # category's copy would arrive with a literal "&amp;" in it and compare
-    # equal to nothing.
-    assert '"Armour &amp; shields"' in body
+    # The rows still hand Alpine the name inside an attribute. The browser
+    # decodes &amp; once, so Alpine's category is "Armour & shields".
+    # Escaped twice, that copy would contain a literal "&amp;" and match
+    # nothing.
+    assert "Armour &amp; shields" in body
     assert "&amp;amp;" not in body
+    # The filter menu's ticks are JSON, not attributes. They must be the
+    # same string Alpine decoded, or a tick matches no category and the
+    # rows vanish.
+    soup = BeautifulSoup(body, "html.parser")
+    host = soup.select_one("[data-react-name='filter-menu']")
+    props = json.loads(soup.find(id=host["data-react-props"]).string)
+    assert {"value": "Armour & shields", "label": "Armour & shields"} in props[
+        "options"
+    ]
 
 
 def test_every_registration_name_is_a_known_category(
