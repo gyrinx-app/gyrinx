@@ -26,7 +26,8 @@ def port_in_use(port: int) -> bool:
     with socket.socket() as probe:
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            probe.bind(("0.0.0.0", port))
+            # Probe only. The socket closes immediately and nothing listens.
+            probe.bind(("0.0.0.0", port))  # nosec B104
         except OSError as exc:
             return exc.errno == errno.EADDRINUSE
     return False
