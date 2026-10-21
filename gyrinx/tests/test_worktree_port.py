@@ -5,6 +5,8 @@ this file when a pull request changes it, and the full suite runs it on
 every push.
 """
 
+import errno
+import importlib.util
 import socket
 import subprocess
 import sys
@@ -14,6 +16,13 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKTREE_SH = REPO_ROOT / "scripts" / "lib" / "worktree.sh"
+_PORT_SPEC = importlib.util.spec_from_file_location(
+    "gyrinx_port_in_use",
+    REPO_ROOT / "scripts" / "lib" / "port_in_use.py",
+)
+port_in_use = importlib.util.module_from_spec(_PORT_SPEC)
+assert _PORT_SPEC.loader is not None
+_PORT_SPEC.loader.exec_module(port_in_use)
 
 
 def _free_port() -> int:
@@ -279,6 +288,51 @@ def test_a_sibling_whose_name_starts_with_ours_is_not_ours(tmp_path):
         )
     assert result.returncode == 0, result.stderr
     assert int(result.stdout.strip()) != port
+
+
+def test_a_refused_bind_is_not_a_listener(monkeypatch):
+    """A sandbox that blocks bind must not make an unused port look busy."""
+
+    class Refused(socket.socket):
+        def connect_ex(self, _address):
+            return errno.ECONNREFUSED
+
+        def bind(self, _address):
+            raise OSError(errno.EPERM, "Operation not permitted")
+
+    monkeypatch.setattr(port_in_use.socket, "socket", Refused)
+    assert port_in_use.port_in_use(8482) is False
+
+    class Denied(Refused):
+        def bind(self, _address):
+            raise OSError(errno.EACCES, "Permission denied")
+
+    monkeypatch.setattr(port_in_use.socket, "socket", Denied)
+    assert port_in_use.port_in_use(8482) is False
+
+
+def test_address_already_in_use_is_a_listener(monkeypatch):
+    class Taken(socket.socket):
+        def connect_ex(self, _address):
+            return errno.ECONNREFUSED
+
+        def bind(self, _address):
+            raise OSError(errno.EADDRINUSE, "Address already in use")
+
+    monkeypatch.setattr(port_in_use.socket, "socket", Taken)
+    assert port_in_use.port_in_use(8482) is True
+
+
+def test_a_successful_connect_does_not_need_the_bind_probe(monkeypatch):
+    class Listening(socket.socket):
+        def connect_ex(self, _address):
+            return 0
+
+        def bind(self, _address):
+            raise AssertionError("bind should not run after a successful connect")
+
+    monkeypatch.setattr(port_in_use.socket, "socket", Listening)
+    assert port_in_use.port_in_use(8482) is True
 
 
 def test_a_port_bound_on_the_wildcard_address_counts_as_in_use():
