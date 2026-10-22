@@ -1,0 +1,80 @@
+{% comment %}
+The Edit campaign page's Feeds tab: the campaign's live feeds, and the form
+that makes one. Each feed's address is printed in full, because the
+arbitrator pastes it into another site rather than following it here.
+Website builders get embed code, social sites a link, and RSS readers the
+RSS link; n26.core.feeds holds each place's steps.
+{% endcomment %}
+<c-n26.section title="Make a feed">
+    <p class="mb-4 text-sm text-muted">
+        A feed shows one section of this campaign on another website, and stays up to date. Anyone with the feed's link can see that section, without signing in. An RSS feed can only follow Battles.
+    </p>
+    <form method="post"
+          action="{% url 'n26-campaign-add-feed' campaign.pk %}"
+          class="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        {% csrf_token %}
+        <div>
+            <c-ui.label for="feed-section">
+                Section
+            </c-ui.label>
+            <c-ui.select.native name="section" id="feed-section" placeholder="" :required="True">
+                {% for value, label in feed_section_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </c-ui.select.native>
+        </div>
+        <div>
+            <c-ui.label for="feed-target">
+                Show it on
+            </c-ui.label>
+            <c-ui.select.native name="target" id="feed-target" placeholder="" :required="True">
+                {% for value, label in feed_target_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </c-ui.select.native>
+        </div>
+        <c-ui.button type="submit" variant="success">
+            Make feed
+        </c-ui.button>
+    </form>
+</c-n26.section>
+<c-n26.section title="Feeds">
+    {% if feeds %}
+        <ul class="divide-y divide-box-border">
+            {% for feed in feeds %}
+                <li class="flex flex-col gap-2 py-3">
+                    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                        <span class="font-semibold">{{ feed.section }} <span class="font-normal text-muted">on {{ feed.target }}</span></span>
+                        <form method="post" action="{{ feed.turn_off_href }}">
+                            {% csrf_token %}
+                            <c-ui.button type="submit"
+                                         size="sm"
+                                         variant="ghost"
+                                         aria-label="Turn off the {{ feed.section }} feed">
+                                Turn off
+                            </c-ui.button>
+                        </form>
+                    </div>
+                    <label class="text-sm font-semibold"
+                           for="feed-copy-{{ forloop.counter }}">{{ feed.copy_label }}</label>
+                    {% if feed.multiline %}
+                        <textarea id="feed-copy-{{ forloop.counter }}"
+                                  readonly
+                                  rows="3"
+                                  class="w-full rounded-control border border-box-border bg-surface px-3 py-2 font-mono text-xs">{{ feed.copy_text }}</textarea>
+                    {% else %}
+                        <input id="feed-copy-{{ forloop.counter }}"
+                               type="text"
+                               readonly
+                               value="{{ feed.copy_text }}"
+                               class="w-full rounded-control border border-box-border bg-surface px-3 py-2 font-mono text-xs">
+                    {% endif %}
+                    <p class="text-sm text-muted">
+                        {{ feed.steps }}
+                        <c-n26.link href="{{ feed.preview_url }}" target="_blank">
+                            Preview the feed
+                        </c-n26.link>
+                    </p>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="text-sm text-muted">No feeds yet.</p>
+    {% endif %}
+</c-n26.section>
