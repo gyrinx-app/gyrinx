@@ -1,4 +1,4 @@
-import { createElement, useId, useRef, useState } from "react";
+import { createElement, useEffect, useId, useRef, useState } from "react";
 import cotton from "../generated/cotton.json";
 import { useAnchoredPlacement, useDismiss } from "./anchoredPanel";
 
@@ -6,6 +6,17 @@ export type FilterOption = {
     value: string;
     label: string;
 };
+
+export type FilterMenuSize = "sm" | "xs";
+
+function openingValues(
+    options: FilterOption[],
+    selected: string[] | undefined,
+    selectAll: boolean,
+) {
+    if (selected && selected.length > 0) return selected.slice();
+    return selectAll ? options.map((option) => option.value) : [];
+}
 
 function ChevronDown() {
     return (
@@ -30,10 +41,27 @@ export function FilterMenu({
     label,
     options,
     onApply,
+    name,
+    selected,
+    selectAll = true,
+    applyLabel = "OK",
+    cancelLabel = "Cancel",
+    size = "sm",
+    align = "start",
+    width = 320,
 }: {
     label: string;
     options: FilterOption[];
     onApply: (values: string[]) => void;
+    /** When set, ticked values post under this name and a matching filter-reset restores every option. */
+    name?: string;
+    selected?: string[];
+    selectAll?: boolean;
+    applyLabel?: string;
+    cancelLabel?: string;
+    size?: FilterMenuSize;
+    align?: "start" | "end";
+    width?: number;
 }) {
     const panelId = useId();
     const root = useRef<HTMLDivElement>(null);
@@ -42,15 +70,27 @@ export function FilterMenu({
     const snapshot = useRef<string[]>([]);
     const [open, setOpen] = useState(false);
     const [values, setValues] = useState(() =>
-        options.map((option) => option.value),
+        openingValues(options, selected, selectAll),
     );
+
+    useEffect(() => {
+        if (name === undefined) return;
+        function onReset(event: Event) {
+            const detail = (event as CustomEvent<{ name?: string }>).detail;
+            if (!detail || detail.name !== name) return;
+            setValues(options.map((option) => option.value));
+        }
+        window.addEventListener("filter-reset", onReset);
+        return () => window.removeEventListener("filter-reset", onReset);
+    }, [name, options]);
 
     useDismiss(root, trigger, open, () => setOpen(false));
     const panelStyle = useAnchoredPlacement({
         open,
         trigger,
         panel,
-        width: 320,
+        align,
+        width,
         gap: 4,
         clampHeight: true,
     });
@@ -81,10 +121,24 @@ export function FilterMenu({
 
     return (
         <div ref={root} className={cotton.filterMenu.root}>
+            {name
+                ? values.map((value) => (
+                      <input
+                          key={value}
+                          type="hidden"
+                          name={name}
+                          value={value}
+                      />
+                  ))
+                : null}
             <button
                 ref={trigger}
                 type="button"
-                className={cotton.filterMenu.trigger}
+                className={
+                    size === "xs"
+                        ? cotton.filterMenu.triggerXs
+                        : cotton.filterMenu.trigger
+                }
                 aria-expanded={open}
                 aria-controls={panelId}
                 onClick={() => (open ? setOpen(false) : show())}
@@ -262,7 +316,7 @@ export function FilterMenu({
                                     closeAndFocus();
                                 }}
                             >
-                                OK
+                                {applyLabel}
                             </button>
                             <button
                                 type="button"
@@ -272,7 +326,7 @@ export function FilterMenu({
                                     closeAndFocus();
                                 }}
                             >
-                                Cancel
+                                {cancelLabel}
                             </button>
                         </div>
                     </div>

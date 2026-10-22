@@ -47,6 +47,7 @@ class TestTheReactMarks:
             "filter-select",
             "pick-list",
             "quick-switcher",
+            "filter-menu",
             "share",
             "switch",
         } <= react
@@ -175,6 +176,27 @@ class TestTheQuickSwitchersPage:
         assert "The chevron on its own" in page
         assert "A long list, narrowed" in page
         assert "#the-rust-sermon" in page
+
+
+class TestTheFilterMenuPage:
+    """The menu is a React island, and the apply demo still hears the event."""
+
+    def test_the_demos_render_the_island_outside_the_listener(self, reader):
+        import json
+
+        page = reader.get("/n26/design/c/filter-menu/").content.decode()
+        assert "Basic" in page
+        assert "Apply and cancel" in page
+        soup = BeautifulSoup(page, "html.parser")
+        hosts = soup.select("[data-react-name='filter-menu']")
+        assert len(hosts) >= 4
+        for host in hosts:
+            assert host.select("[x-data], [x-show], [x-model]") == []
+            props = json.loads(soup.find(id=host["data-react-props"]).string)
+            assert props["options"]
+        apply = soup.find(attrs={"@filter-apply": True})
+        assert apply is not None
+        assert apply.select_one("[data-react-name='filter-menu']") is not None
 
 
 class TestTheSharePage:

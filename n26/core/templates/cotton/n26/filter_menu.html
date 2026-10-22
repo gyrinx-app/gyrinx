@@ -1,13 +1,17 @@
 {% comment %}
-<c-n26.filter-menu> — A checkbox dropdown that applies a named set of values through a window event.
+<c-n26.filter-menu> — A dropdown of checkboxes that applies a named set of values.
 
-OK dispatches filter-apply with name and values. A parent must listen or the ticks do nothing.
-name must match the listener and any filter-reset. Collection-picker listens for category.
+OK dispatches filter-apply with name and values. The event bubbles, so a listener on this component or on the window both hear it.
+A parent must listen or the ticks do nothing.
+name must match that listener and any filter-reset.
 With select_all, an empty selected list becomes every option on init. You cannot open on none.
 Cancel restores the snapshot taken when the panel opened, not the last applied set.
-The checkbox group wraps the whole dropdown, not just the panel, so the shut trigger can show a count.
+Ticked values post under name, including while the panel is closed.
+The panel opens from the trigger and flips to stay on screen.
+Without script the trigger is a button that does not open.
 {% endcomment %}
 
+{% load filter_menu react %}
 <c-vars
     label="Filter"
     name=""
@@ -21,66 +25,14 @@ The checkbox group wraps the whole dropdown, not just the panel, so the shut tri
     position="bottom"
     min_width="20rem"
 />
-
-<c-ui.checkbox.group name="{{ name }}" :values="selected" class="contents">
-    {# values comes from the checkbox group wrapper. Unwrap this and the ticks stop sharing state. #}
-    <div
-        x-data="{ allValues: {{ options|json_dumps }}.map(o => o.value), snapshot: [] }"
-        {% if select_all %}x-init="if (!values.length) values = allValues.slice()"{% endif %}
-
-        @filter-reset.window="if ($event.detail.name === {{ name|json_dumps }}) values = allValues.slice()"
-        class="inline-block"
-        {{ attrs }}>
-
-        <c-ui.dropdown align="{{ align }}" position="{{ position }}" min_width="{{ min_width }}">
-            <c-slot name="trigger">
-
-                <c-ui.button size="{{ size }}" variant="default">
-                    <span class="flex items-center justify-center gap-1.5">
-                        {{ label }}
-                        <span x-show="values.length !== allValues.length"
-                              x-text="values.length"
-                              x-cloak
-                              class="rounded-full bg-ink-500/15 px-1.5 text-xs tabular-nums"></span>
-                        <c-n26.icon name="chevron-down" class="size-4" stroke_width="2" />
-                    </span>
-                </c-ui.button>
-            </c-slot>
-
-            <div class="p-3"
-                 x-init="$watch('dropdownMenu', open => { if (open) snapshot = values.slice() })">
-
-                <div class="pb-2 text-sm">
-                    <button type="button" @click="values = allValues.slice()"
-                            class="rounded text-accent-text hover:underline focus-ring">All</button>
-                    <span class="px-1 text-muted">/</span>
-                    <button type="button" @click="values = []"
-                            class="rounded text-accent-text hover:underline focus-ring">None</button>
-                </div>
-
-                <div class="max-h-72 space-y-2 overflow-y-auto py-1">
-                    {% for option in options %}
-                        <div class="flex items-center gap-2">
-                            <c-ui.checkbox value="{{ option.value }}" label="{{ option.label }}" />
-                            <span class="text-muted">·</span>
-                            <button type="button"
-                                    @click="values = [{{ option.value|json_dumps }}]"
-                                    class="shrink-0 rounded text-sm text-accent-text hover:underline focus-ring">only</button>
-                        </div>
-                    {% endfor %}
-                </div>
-
-                <div class="mt-3 flex items-center gap-2 border-t border-box-border pt-3">
-                    <c-ui.button size="sm" variant="primary"
-                                 @click="$dispatch('filter-apply', { name: {{ name|json_dumps }}, values: values.slice() }); close()">
-                        {{ apply_label }}
-                    </c-ui.button>
-                    <c-ui.button size="sm" variant="text"
-                                 @click="values = snapshot.slice(); close()">
-                        {{ cancel_label }}
-                    </c-ui.button>
-                </div>
-            </div>
-        </c-ui.dropdown>
-    </div>
-</c-ui.checkbox.group>
+{% filter_menu_props label=label name=name options=options selected=selected select_all=select_all apply_label=apply_label cancel_label=cancel_label size=size align=align min_width=min_width as props_ %}
+<div {{ attrs }} class="inline-block">
+    {% react_host "filter-menu" props_ class="inline-block" %}
+        <c-ui.button size="{{ size }}" variant="default" aria-expanded="false">
+            <span class="flex items-center justify-center gap-1.5">
+                {{ label }}
+                <c-n26.icon name="chevron-down" class="size-4" stroke_width="2" />
+            </span>
+        </c-ui.button>
+    {% endreact_host %}
+</div>
