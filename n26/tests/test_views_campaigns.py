@@ -77,6 +77,7 @@ def addresses(campaign):
         f"/n26/campaigns/{campaign.pk}/gangs/add/",
         f"/n26/campaigns/{campaign.pk}/players/add/",
         f"/n26/campaigns/{campaign.pk}/battles/new/",
+        f"/n26/campaigns/{campaign.pk}/battles/matchmaker/",
         f"/n26/campaigns/{campaign.pk}/rolls/new/",
     ]
 
