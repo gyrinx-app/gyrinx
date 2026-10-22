@@ -22,6 +22,7 @@ from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_o
 
 __all__ = [
     "BUILT_IN_PROPAGATION",
+    "CAMPAIGN_FEEDS",
     "STAGED_CONTENT",
     "enabled",
     "requires_flag",
@@ -32,9 +33,13 @@ __all__ = [
 #: edits still file their passes; nothing runs them until it opens.
 BUILT_IN_PROPAGATION = "built-in-propagation"
 
+#: Feeds: one section of a campaign, shown live on another website. Shut,
+#: the Edit campaign page has no Feeds tab and no feed's page opens.
+CAMPAIGN_FEEDS = "campaign-feeds"
+
 #: Seeing content an author has staged but not yet put live, everywhere a
 #: player adds to a gang. Staff see it by right; this is how anyone else
 #: does, so a release can be rehearsed with a group before it is made.
 STAGED_CONTENT = "staged-content"
 
-register_flags(BUILT_IN_PROPAGATION, STAGED_CONTENT)
+register_flags(BUILT_IN_PROPAGATION, CAMPAIGN_FEEDS, STAGED_CONTENT)

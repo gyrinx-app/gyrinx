@@ -2,7 +2,7 @@
 {% load navigation %}
 {% load static %}
 {% comment %}
-The URL selects General, Counters and labels, or Asset types. General edits
+The URL selects General, Counters and labels, Asset types, or Feeds. General edits
 the same fields as campaign setup; the other tabs list the campaign's own
 definitions.
 {% endcomment %}
@@ -83,6 +83,8 @@ django-tinymce reads its config.
                     {% endif %}
                     {% if shared_asset_types %}<p class="mt-3 text-sm text-muted">{{ shared_asset_types }}</p>{% endif %}
                 </c-n26.section>
+            {% elif tab == "feeds" %}
+                {% include "n26/includes/campaign_feeds_tab.html" %}
             {% else %}
                 <c-n26.section title="Counters">
                     <c-slot name="actions">

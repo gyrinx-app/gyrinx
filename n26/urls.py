@@ -63,6 +63,21 @@ urlpatterns = [
         name="n26-edit-campaign",
     ),
     path(
+        "campaigns/<str:pk>/feeds/new/",
+        views.add_campaign_feed,
+        name="n26-campaign-add-feed",
+    ),
+    path(
+        "campaigns/<str:pk>/feeds/<str:feed_pk>/turn-off/",
+        views.turn_off_campaign_feed,
+        name="n26-campaign-turn-off-feed",
+    ),
+    # Public: the token is the permission. Framed by other websites.
+    path("feeds/<str:token>/", views.campaign_feed, name="n26-campaign-feed"),
+    path(
+        "feeds/<str:token>/rss/", views.campaign_feed_rss, name="n26-campaign-feed-rss"
+    ),
+    path(
         "campaigns/<str:pk>/grouping/",
         views.campaign_grouping,
         name="n26-campaign-grouping",
