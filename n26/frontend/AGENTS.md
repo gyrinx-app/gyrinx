@@ -57,5 +57,8 @@ development build. Production and CI use `npm run js`, which selects React's
 production runtime, minifies code, and omits source maps. Both scripts start
 with a Python exporter, so put the worktree venv on PATH (`PATH=$PWD/.venv/bin:$PATH
 npm run js`, or `.codex/run.sh npm run js`). After a rebase, `.codex/run.sh`
-runs `npm ci` and `npm run js` when the install or manifest is stale. Do not
+runs `npm ci` and `npm run js` when the install or manifest is stale. Package
+discovery excludes the gitignored Vite output, `generated/`, `node_modules`,
+`staticfiles`, and `logs`, so an editable install does not keep those
+directories. Do not
 run `npm audit fix` unless the task is the audit itself.
