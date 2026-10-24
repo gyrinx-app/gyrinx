@@ -199,6 +199,13 @@ class Outcome(Content):
         blank=True,
         related_name="outcome",
     )
+    generate_gang_tactic = models.OneToOneField(
+        "library.GenerateGangTactic",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="outcome",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -208,7 +215,12 @@ class Outcome(Content):
             ),
             models.CheckConstraint(
                 condition=exactly_one_of(
-                    ("augment_carried_item", "resolve_advancement", "apply_changes")
+                    (
+                        "augment_carried_item",
+                        "resolve_advancement",
+                        "apply_changes",
+                        "generate_gang_tactic",
+                    )
                 ),
                 name="outcome_exactly_one_operation",
             ),
@@ -220,7 +232,10 @@ class Outcome(Content):
     @property
     def operation(self):
         return (
-            self.augment_carried_item or self.resolve_advancement or self.apply_changes
+            self.augment_carried_item
+            or self.resolve_advancement
+            or self.apply_changes
+            or self.generate_gang_tactic
         )
 
 
@@ -415,6 +430,13 @@ class AdvancementPromotion(Content):
 
 class ApplyChanges(Content):
     """Apply each configured change in order as one outcome."""
+
+    family = Family.FOUNDATION
+
+
+class GenerateGangTactic(Content):
+    """Roll one Gang Tactic for the fighter's gang, on a table the player
+    picks, and add it to the gang (``n26.core.tactics``)."""
 
     family = Family.FOUNDATION
 

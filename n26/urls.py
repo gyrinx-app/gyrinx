@@ -298,6 +298,17 @@ urlpatterns = [
     path("gangs/<str:pk>/credits/", views.gang_credits, name="n26-gang-credits"),
     path("gangs/<str:pk>/lore/", views.gang_lore, name="n26-gang-lore"),
     path("gangs/<str:pk>/notes/", views.gang_notes, name="n26-gang-notes"),
+    path("gangs/<str:pk>/tactics/", views.gang_tactics, name="n26-gang-tactics"),
+    path(
+        "gangs/<str:pk>/tactics/<str:tactic_pk>/delete/",
+        views.delete_gang_tactic,
+        name="n26-delete-gang-tactic",
+    ),
+    path(
+        "gangs/<str:pk>/tactics/<str:tactic_pk>/reroll/",
+        views.reroll_gang_tactic,
+        name="n26-reroll-gang-tactic",
+    ),
     # What the gang takes to a trading post. Its own page rather than a
     # field on the edit form: the allowance is minted for a trip and
     # spent within it, which is a different act from settling the gang's

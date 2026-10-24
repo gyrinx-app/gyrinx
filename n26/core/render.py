@@ -1876,6 +1876,9 @@ class CampaignGangLine:
     type_icon: str = ""
     credits_unlimited: bool = False
     over_budget: bool = False
+    #: Holds more Gang Tactics than its ranks allow, before the start
+    #: (``n26.core.tactics.too_many_among``).
+    too_many_tactics: bool = False
     #: One line per ``CampaignSheet.counter_columns``, or None.
     counters: list[CounterLine | None] = field(default_factory=list)
     #: One entry per ``CampaignSheet.label_columns``: what this gang picked
@@ -4565,6 +4568,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
     from n26.core.effects import asset_origins, compute, counter_readings
     from n26.core.models import CampaignAsset, CampaignMembership
+    from n26.core.tactics import too_many_among
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.references import reading_sentences
     from n26.library.staged import sees_staged
@@ -4722,6 +4726,9 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
 
     received = starting_asset_types_received(campaign, memberships)
     lines = []
+    too_many_tactics = too_many_among(
+        campaign, [membership.gang for membership in memberships]
+    )
     for membership in memberships:
         gang = membership.gang
         possessions, counters = parts[membership.pk]
@@ -4750,6 +4757,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
                 colour=gang.colour,
                 type_icon=gang.gang_type.artwork,
                 over_budget=over_budget(campaign, gang),
+                too_many_tactics=gang.pk in too_many_tactics,
                 counters=[readings_by_name.get(name) for name in counter_columns],
                 labels=[picks[membership.pk].get(slot.pk, "") for slot in label_slots],
                 assets=assets,

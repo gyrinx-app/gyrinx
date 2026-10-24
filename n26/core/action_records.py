@@ -224,6 +224,7 @@ def _content_snapshot(action):
         "outcome__augment_carried_item",
         "outcome__resolve_advancement",
         "outcome__apply_changes",
+        "outcome__generate_gang_tactic",
     ):
         configured = member.outcome.operation
         if configured is None:
@@ -258,8 +259,15 @@ def _content_snapshot(action):
 
 
 def _operation_snapshot(configured):
-    from n26.library.models import ApplyChanges, AugmentCarriedItem, ResolveAdvancement
+    from n26.library.models import (
+        ApplyChanges,
+        AugmentCarriedItem,
+        GenerateGangTactic,
+        ResolveAdvancement,
+    )
 
+    if isinstance(configured, GenerateGangTactic):
+        return {}
     if isinstance(configured, AugmentCarriedItem):
         return {"slot_type": str(configured.slot_type_id)}
     if isinstance(configured, ResolveAdvancement):
@@ -304,8 +312,17 @@ def post_payment_counters(quote):
 
 def _target_snapshot(record, configured, terms, *, quote=None):
     """Exact player state a typed outcome will read when it writes."""
-    from n26.library.models import ApplyChanges, AugmentCarriedItem, ResolveAdvancement
+    from n26.library.models import (
+        ApplyChanges,
+        AugmentCarriedItem,
+        GenerateGangTactic,
+        ResolveAdvancement,
+    )
 
+    if isinstance(configured, GenerateGangTactic):
+        from n26.core.tactics import preview_develop
+
+        return preview_develop(record, terms)
     if isinstance(configured, ApplyChanges):
         values = []
         simulated = {}
@@ -753,8 +770,18 @@ def _counter_change_delta(configured, before):
 
 def _prepare_outcome(op, record, configured, quote):
     """Validate one typed outcome and return its transactional writer."""
-    from n26.library.models import ApplyChanges, AugmentCarriedItem, ResolveAdvancement
+    from n26.library.models import (
+        ApplyChanges,
+        AugmentCarriedItem,
+        GenerateGangTactic,
+        ResolveAdvancement,
+    )
 
+    if isinstance(configured, GenerateGangTactic):
+        from n26.core.tactics import apply_develop, preview_develop
+
+        preview_develop(record, record.terms)
+        return lambda: apply_develop(op, record, deepcopy(record.terms))
     if isinstance(configured, ApplyChanges):
         planned = _plan_apply_changes(op, record, configured, quote)
         return lambda: _apply_changes(op, record, planned)
@@ -849,6 +876,7 @@ def complete_action(op, record, *, revision, review, outcome):
             "outcome__augment_carried_item",
             "outcome__resolve_advancement",
             "outcome__apply_changes",
+            "outcome__generate_gang_tactic",
         )
         .filter(outcome_id=outcome.pk)
         .first()

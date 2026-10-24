@@ -1,0 +1,50 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Re-rolling one Gang Tactic: pick the table, then Re-roll. The page is the
+question, so there is no second confirmation. The replacement is never the
+tactic being re-rolled, nor any other the gang holds.
+{% endcomment %}
+{% block head_title %}Re-roll {{ name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="gangs" %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page :action="action"
+                     title="Re-roll {{ name }}"
+                     lead="Roll a new Gang Tactic to replace this one. The gang's log records the re-roll."
+                     :form="form"
+                     submit_label="Re-roll"
+                     :cancel_url="cancel_url">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="gang.owner" tone="current" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ cancel_url }}">
+                    Gang Tactics
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Re-roll
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.radio-cards label="Roll on" :form="form" name="table" min="12rem">
+            {% for choice in table_choices %}
+                <c-n26.radio-cards.card name="table"
+                                        value="{{ choice.value }}"
+                                        label="{{ choice.label }}"
+                                        description="{{ choice.description }}"
+                                        :checked="choice.checked"
+                                        :disabled="choice.full"
+                                        reason="{{ choice.description }}" />
+            {% endfor %}
+        </c-n26.radio-cards>
+    </c-n26.form-page>
+{% endblock content %}

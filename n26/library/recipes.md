@@ -850,6 +850,32 @@ history, whether or not the first was used. The result the roll landed on
 is shown, never enforced: a rule that says a result counts as Out Cold is
 followed by adding Out Cold, and the history shows the roll beside it.
 
+## A House's Gang Tactics table
+
+The foundations page creates the Universal, Escher and Goliath Gang Tactics
+tables. Each House that gets its own table in a later book needs one more,
+built from the same parts. For a House whose journal prints a D6 table:
+
+1. Use the existing **Gang Tactic** slot type. Add a **pickable** for each
+   tactic, named as the book names it. In each one's **summary**, say where it
+   is printed, such as "Page 42 - Journals of the Underhive: Cawdor". The
+   card shows this when it does not show the tactic's words.
+2. Create a **picklist** for the Gang Tactic slot type, named after the
+   House, such as **Cawdor**. Set its dice to **D6** and its rolls to
+   **band**. Open its table page and give each pickable its roll.
+3. Create a **slot** using that picklist and the Gang Tactic slot type. Name
+   it **Gang Tactics: Cawdor**. Set **Assigned to** to **The gang**, tick
+   **Hidden**, allow no picks to be required and six to be held, and give it a
+   position after the Universal table's.
+4. On the Cawdor **gang type**, add a **modifier** targeting **The gang
+   carrying it**, with **Gives something**: the new slot.
+5. Open a Cawdor gang's Gang Tactics page. Rolling now offers the Universal
+   table and the Cawdor table. Roll one tactic on each to check the bands.
+
+A gang type created later needs the Universal table too: attach the
+**Gang Tactics: Universal table** modifier to it from the gang types page.
+Do not put a tactic's timing or effect anywhere in the library.
+
 ## Replace a campaign settlement with a base camp
 
 A base camp can be a separate asset under the campaign type’s inherent

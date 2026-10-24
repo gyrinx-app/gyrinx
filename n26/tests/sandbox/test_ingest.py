@@ -2155,13 +2155,18 @@ class TestClearing:
 
         assert Trait.objects.count() == 0
         # Every modifier goes with them, bar standard content's own,
-        # which name nothing an import wrote: the visit contributions,
+        # which name nothing an import wrote: the visit and Gang Tactics
+        # contributions, the ranks' Develop Tactics action, the Gang
+        # Tactics tables' grants,
         # the lasting-effect tables' status effects, and the fighter
         # advancement results. The
         # founding-budget ones are not among those: each names the
         # fighter entries it reaches, so they belong to the import and go
         # with it.
+        from n26.library.gang_tactics import SEED_TABLES
         from n26.library.standard_content import (
+            DEVELOP_TACTICS_MODIFIERS,
+            TACTICS_CONTRIBUTION_MODIFIERS,
             VISIT_CONTRIBUTION_MODIFIERS,
             fighter_advancement_modifiers,
             lasting_effect_status_modifiers,
@@ -2172,7 +2177,12 @@ class TestClearing:
             standing.exclude(
                 lasting_effect_status_modifiers() | fighter_advancement_modifiers()
             ).values_list("name", flat=True)
-        ) == sorted(VISIT_CONTRIBUTION_MODIFIERS)
+        ) == sorted(
+            VISIT_CONTRIBUTION_MODIFIERS
+            + TACTICS_CONTRIBUTION_MODIFIERS
+            + DEVELOP_TACTICS_MODIFIERS
+            + [table.modifier_name for table in SEED_TABLES]
+        )
         assert standing.filter(lasting_effect_status_modifiers()).exists()
 
     def test_a_reworded_seed_modifier_still_stands_after_a_clear(
