@@ -95,6 +95,13 @@ on `test`, which waits for its companion to succeed in the same workflow
 attempt and verifies that their manifests cover every collected case exactly
 once. Core and changed tests are included in that complete collection.
 
+The two-shard layout moves five expensive modules to shard zero to balance
+execution time. The assignments live in `gyrinx/suite_shards.py` and are shared
+by pytest and the manifest verifier. Other modules, including new files, keep
+using the hash of their path. Other shard counts use the original hash layout.
+The comments beside the assignments link to the CI timing evidence used to
+choose the moves; no timing download is needed to run or verify a shard.
+
 Missing or stale artifacts, mismatched revisions or collections, failed
 workers and incomplete execution fail the required check. Rerun all jobs when
 retrying a shard or verification failure; artifacts from a previous attempt

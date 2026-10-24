@@ -5,6 +5,7 @@ database setup, or this repository's pytest configuration.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -81,6 +82,23 @@ def _manifests():
         _recount(manifest)
         manifests.append(manifest)
     return manifests
+
+
+@pytest.mark.parametrize("count", [1, 2, 3])
+def test_rebalance_keeps_new_modules_and_other_shard_counts_hash_assigned(count):
+    modules = (
+        "n23/core/tests/test_crew.py",
+        "n26/tests/sandbox/test_advancement_action_flows.py",
+        "n26/tests/sandbox/test_fighter_progression_setup.py",
+        "n26/tests/sandbox/test_power_advancements.py",
+        "n26/tests/test_views_post_battle.py",
+        "new_app/test_new_feature.py",
+    )
+    for module in modules:
+        hashed = int.from_bytes(hashlib.sha256(module.encode()).digest(), "big") % count
+        expected = 0 if count == 2 and module != modules[-1] else hashed
+        for case in ("test_one", "TestGroup::test_two[value]"):
+            assert module_shard(f"{module}::{case}", count) == expected
 
 
 def test_complete_union_includes_skips_xfails_and_aggregate_elapsed():
@@ -189,7 +207,15 @@ def shard_project(tmp_path):
     (project / "pytest.ini").write_text("[pytest]\n")
     # Both shards have modules; one module has multiple cases to prove co-location.
     for index in range(6):
-        (project / f"test_{index}.py").write_text(
+        # Exercise a rebalanced real module through both serial and xdist hooks.
+        relative = (
+            "n26/tests/sandbox/test_fighter_progression_setup.py"
+            if index == 5
+            else f"test_{index}.py"
+        )
+        path = project / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
             "import pytest\n"
             "def test_pass(): pass\n"
             "@pytest.mark.skip(reason='skip')\n"
@@ -278,6 +304,12 @@ def test_real_serial_and_xdist_shards_certify_identical_full_collection(
         manifest = json.loads(path.read_text())
         assert len(manifest["workers"]) == workers
         manifests.append(manifest)
+    moved = {
+        "n26/tests/sandbox/test_fighter_progression_setup.py::" + name
+        for name in ("test_pass", "test_skip", "test_xfail")
+    }
+    assert moved <= set(manifests[0]["selected"])
+    assert not moved & set(manifests[1]["selected"])
     verified = verify_manifests(manifests, revision, run_id="123", run_attempt="2")
     assert verified["executed"] == 18
     assert verified["statuses"] == {"passed": 6, "skipped": 6, "xfailed": 6}
