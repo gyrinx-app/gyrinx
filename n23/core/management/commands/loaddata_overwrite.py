@@ -79,6 +79,12 @@ class Command(BaseCommand):
         # Process regular models
         self._process_models(regular_models, dry_run, verbose)
 
+        # loaddata's M2M set() only sees links the related manager returns.
+        # A link whose target was removed while foreign keys were off stays
+        # in the automatic through table and is invisible to that manager.
+        if not dry_run:
+            self._drop_dangling_auto_m2m(regular_models)
+
         # Then process historical models if needed
         if historical_models:
             self.stdout.write(
@@ -188,6 +194,62 @@ class Command(BaseCommand):
                         self.stdout.write(
                             self.style.WARNING(f"Could not clear {model_label}: {e2}")
                         )
+
+    def _drop_dangling_auto_m2m(self, models_dict):
+        """Delete automatic many-to-many links whose source or target is gone.
+
+        Only through tables that touch a model in this fixture are scanned.
+        A link with both records still present is kept, including on a model
+        the fixture does not name.
+        """
+        present = set()
+        for model_label in models_dict:
+            try:
+                present.add(apps.get_model(model_label))
+            except ValueError, LookupError:
+                continue
+
+        removed = 0
+        seen = set()
+        quote = connection.ops.quote_name
+        for model in apps.get_models():
+            if model._meta.model_name.startswith("historical"):
+                continue
+            for field in model._meta.many_to_many:
+                through = field.remote_field.through
+                if not through._meta.auto_created:
+                    continue
+                target = field.remote_field.model
+                if model not in present and target not in present:
+                    continue
+                table = through._meta.db_table
+                if table in seen:
+                    continue
+                seen.add(table)
+                source_col = field.m2m_column_name()
+                target_col = field.m2m_reverse_name()
+                source_pk = model._meta.pk.column
+                target_pk = target._meta.pk.column
+                sql = (
+                    f"DELETE FROM {quote(table)} "  # nosec B608
+                    f"WHERE NOT EXISTS ("
+                    f"SELECT 1 FROM {quote(model._meta.db_table)} AS src "
+                    f"WHERE src.{quote(source_pk)} = "
+                    f"{quote(table)}.{quote(source_col)}"
+                    f") OR NOT EXISTS ("
+                    f"SELECT 1 FROM {quote(target._meta.db_table)} AS tgt "
+                    f"WHERE tgt.{quote(target_pk)} = "
+                    f"{quote(table)}.{quote(target_col)}"
+                    f")"
+                )
+                with connection.cursor() as cursor:
+                    cursor.execute(sql)
+                    removed += cursor.rowcount
+
+        if removed:
+            self.stdout.write(
+                f"Removed {removed} many-to-many links that pointed at a missing record."
+            )
 
     def _extract_unique_fields(self, error, model):
         """Try to extract field names from unique constraint error message."""
