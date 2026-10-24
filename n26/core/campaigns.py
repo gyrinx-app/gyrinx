@@ -430,7 +430,14 @@ class CampaignOperation:
         return scenario, gangs, winners
 
     def record_battle(
-        self, date, gangs=(), *, scenario, result="not_recorded", winners=()
+        self,
+        date,
+        gangs=(),
+        *,
+        scenario,
+        result="not_recorded",
+        winners=(),
+        note_suffix="",
     ):
         """Record a battle without applying rewards or changing any gang."""
         from n26.core.models import Battle
@@ -447,9 +454,45 @@ class CampaignOperation:
         self.event(
             CampaignEvent.Kind.BATTLE_RECORDED,
             battle=battle,
-            note=f"{scenario} on {date.isoformat()}",
+            note=f"{scenario} on {date.isoformat()}{note_suffix}",
         )
         return battle
+
+    def pre_record_matchups(self, matchups, *, today):
+        """Record the matchmaker's battles a week ahead, with no result yet.
+
+        `matchups` holds (scenario, gangs) pairs. Every gang must still be
+        free to play, because another battle may have been recorded since
+        the matchups were drawn.
+        """
+        from datetime import timedelta
+
+        from n26.core.matchmaking import campaign_entrants
+        from n26.core.operations import Refusal
+
+        if self.actor is None or self.actor.pk != self.campaign.owner_id:
+            raise Refusal("Only the arbitrator can pre-record matchups.")
+        entrants = {
+            entrant.id: entrant for entrant in campaign_entrants(self.campaign, today)
+        }
+        seen = set()
+        for _, gangs in matchups:
+            for gang in gangs:
+                entrant = entrants.get(str(gang.pk))
+                if entrant is None or not entrant.available or gang.pk in seen:
+                    raise Refusal(
+                        f"{gang.name} can no longer be matched. Make the matchup again."
+                    )
+                seen.add(gang.pk)
+        return [
+            self.record_battle(
+                today + timedelta(days=7),
+                gangs,
+                scenario=scenario,
+                note_suffix=" - created from Matchmaker",
+            )
+            for scenario, gangs in matchups
+        ]
 
     def _require_recorder(self):
         from n26.core.campaign_permissions import may_record_campaign

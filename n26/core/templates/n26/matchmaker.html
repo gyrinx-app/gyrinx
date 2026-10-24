@@ -1,0 +1,196 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% block head_title %}Matchmaker · {{ campaign.name }}{% endblock %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    {% url 'n26-campaign-matchmaker' campaign.pk as action_url %}
+    {% url 'n26-campaign' campaign.pk as cancel_url %}
+    <div class="flex w-full flex-col gap-10">
+        <c-n26.form-page :action="action_url"
+                         method="get"
+                         title="Matchmaker"
+                         lead="Tick the gangs to match, then draw random matchups. Nothing is saved until you pre-record the battles."
+                         :form="form"
+                         submit_label="Make matchup"
+                         submit_variant="primary"
+                         :cancel_url="cancel_url">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{{ cancel_url }}">
+                        {{ campaign.name }}
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Matchmaker
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+            <c-slot name="actions">
+                <label class="flex items-center gap-2 text-sm" for="matchmaker-matchups">
+                    Matchups
+                    <span class="w-20">
+                        <c-ui.input id="matchmaker-matchups"
+                                    name="matchups"
+                                    type="number"
+                                    min="1"
+                                    max="10"
+                                    step="1"
+                                    inputmode="numeric"
+                                    required
+                                    value="{{ form.matchups.value|default:1 }}" />
+                    </span>
+                </label>
+                <c-ui.error :form="form" name="matchups" class="basis-full text-right" />
+            </c-slot>
+            <c-n26.form-section title="Matchup">
+                <c-n26.radio-cards label="Type of matchup"
+                                   :form="form"
+                                   name="mode"
+                                   min="min(100%, 16rem)">
+                    <c-n26.radio-cards.card name="mode"
+                                            value="pairs"
+                                            label="Match pairs"
+                                            description="Two gangs in each battle."
+                                            :checked="mode_pairs" />
+                    <c-n26.radio-cards.card name="mode"
+                                            value="more"
+                                            label="Match more"
+                                            description="More than two gangs in each battle."
+                                            :checked="mode_more">
+                        <span class="flex items-center gap-2">
+                            <span class="w-20">
+                                <c-ui.input id="matchmaker-ways"
+                                            name="ways"
+                                            type="number"
+                                            min="2"
+                                            max="8"
+                                            step="1"
+                                            inputmode="numeric"
+                                            aria-label="Gangs in each battle"
+                                            value="{{ form.ways.value|default:3 }}" />
+                            </span>
+                            gangs in each battle
+                        </span>
+                    </c-n26.radio-cards.card>
+                </c-n26.radio-cards>
+                <c-ui.error :form="form" name="ways" />
+                <div class="flex flex-col gap-1">
+                    <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
+                        <input type="checkbox"
+                               name="allow_rematches"
+                               {% if form.allow_rematches.value %}checked{% endif %}
+                               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                        <span class="text-sm text-ink-900 dark:text-ink-100">Allow rematches</span>
+                    </label>
+                    <p class="text-sm text-muted">Two gangs whose latest battle was against each other can meet again in a battle of the same size or smaller. They can always meet in a larger battle.</p>
+                    <label class="mt-2 flex min-h-9 cursor-pointer items-center gap-2.5">
+                        <input type="checkbox"
+                               name="allow_uneven"
+                               {% if form.allow_uneven.value %}checked{% endif %}
+                               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                        <span class="text-sm text-ink-900 dark:text-ink-100">Allow uneven sides</span>
+                    </label>
+                    <p class="text-sm text-muted">One spare gang can join the matchup with the highest-rated gang.</p>
+                </div>
+            </c-n26.form-section>
+            <c-n26.form-section title="Gangs"
+                                description="A gang in a battle with no result yet, or in a battle dated after today, cannot be matched.">
+                <c-ui.field label="Gangs to match" error="x" :form="form" name="gangs">
+                    <ul class="divide-y divide-box-border rounded-box border border-box-border">
+                        {% for entrant in entrants %}
+                            <li>
+                                {% if entrant.available %}
+                                    <label class="flex min-h-11 cursor-pointer items-center gap-3 px-3 text-base"
+                                           for="matchmaker-gang-{{ forloop.counter }}">
+                                        <input type="checkbox"
+                                               id="matchmaker-gang-{{ forloop.counter }}"
+                                               name="gangs"
+                                               value="{{ entrant.id }}"
+                                               {% if entrant.id in chosen %}checked{% endif %}
+                                               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                        <span class="mr-auto">{{ entrant.name }}</span>
+                                        <span class="text-sm text-muted">Rating {{ entrant.rating }}</span>
+                                    </label>
+                                {% else %}
+                                    <div class="flex min-h-11 flex-wrap items-center gap-x-3 px-3 py-2 text-base text-muted opacity-60">
+                                        <span class="mr-auto">{{ entrant.name }}</span>
+                                        <span class="text-sm">{{ entrant.unavailable }}</span>
+                                    </div>
+                                {% endif %}
+                            </li>
+                        {% empty %}
+                            <li class="p-3 text-sm text-muted">No gangs in this campaign yet.</li>
+                        {% endfor %}
+                    </ul>
+                </c-ui.field>
+            </c-n26.form-section>
+        </c-n26.form-page>
+        {% if results_error and not proposals %}
+            <div class="max-w-3xl">
+                <c-ui.error message="{{ results_error }}" />
+            </div>
+        {% endif %}
+        {% if proposals %}
+            {# The buttons stay dim until a result is ticked; the server refuses an empty selection too. The ticked opacity is important because opacity-50 is emitted later in the stylesheet. #}
+            <form method="post"
+                  action="{{ results_url }}"
+                  class="group/results max-w-3xl space-y-4"
+                  aria-labelledby="matchmaker-results">
+                {% csrf_token %}
+                <input type="hidden" name="draw" value="{{ draw_token }}">
+                <div class="space-y-1">
+                    <h2 id="matchmaker-results"
+                        class="text-lg font-semibold text-ink-900 dark:text-ink-100">Proposed matchups</h2>
+                    <p class="text-muted">
+                        Tick the matchups to keep. Pre-recording creates each battle dated a week from today, with no result yet.
+                    </p>
+                </div>
+                <c-ui.error message="{{ results_error }}" />
+                <ul class="divide-y divide-box-border rounded-box border border-box-border">
+                    {% for number, title, matchup in proposals %}
+                        <li>
+                            <label class="flex cursor-pointer items-start gap-3 p-4"
+                                   for="matchmaker-result-{{ number }}">
+                                <input type="checkbox"
+                                       id="matchmaker-result-{{ number }}"
+                                       name="selected"
+                                       value="{{ number }}"
+                                       {% if number|stringformat:'s' in selected %}checked{% endif %}
+                                       class="mt-1 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                <span class="min-w-0">
+                                    <span class="block font-semibold">{{ title }}</span>
+                                    <span class="mt-1 block text-sm text-muted">
+                                        {% for gang in matchup.gangs %}
+                                            {{ gang.name }} ({{ gang.rating }}){% if not forloop.last %} vs {% endif %}
+                                        {% endfor %}
+                                    </span>
+                                </span>
+                            </label>
+                        </li>
+                    {% endfor %}
+                </ul>
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                    <c-ui.button type="submit"
+                                 name="action"
+                                 value="rematch"
+                                 class="pointer-events-none opacity-50 group-has-[:checked]/results:pointer-events-auto group-has-[:checked]/results:!opacity-100">
+                        Rematch selected
+                    </c-ui.button>
+                    <c-ui.button type="submit"
+                                 name="action"
+                                 value="record"
+                                 variant="success"
+                                 class="pointer-events-none opacity-50 group-has-[:checked]/results:pointer-events-auto group-has-[:checked]/results:!opacity-100">
+                        Pre-record battles
+                    </c-ui.button>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+{% endblock %}

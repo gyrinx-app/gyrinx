@@ -103,6 +103,11 @@ urlpatterns = [
         name="n26-campaign-archived-battles",
     ),
     path(
+        "campaigns/<str:pk>/battles/matchmaker/",
+        views.matchmaker,
+        name="n26-campaign-matchmaker",
+    ),
+    path(
         "campaigns/<str:pk>/battles/<str:battle_pk>/",
         views.battle,
         name="n26-battle",
