@@ -29,7 +29,7 @@ dependencies = [
     "djlint==1.46.4",
     "docutils==0.23",
     "fido2==2.2.1",
-    "filelock==4.1.1",
+    "filelock==4.2.1",
     "google-cloud-logging==3.17.0",
     "google-cloud-pubsub==2.42.0",
     "google-cloud-scheduler==2.21.0",
