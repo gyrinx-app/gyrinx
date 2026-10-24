@@ -120,29 +120,17 @@ worktree_port() {
 }
 
 # port_is_listening <port>
-#   True when the port is in use: something accepts on 127.0.0.1, or the
-#   wildcard address cannot be bound. runserver binds 0.0.0.0, so a
-#   listener on another local address still blocks it.
+#   True when the port is in use. The probe connects to 127.0.0.1, reads
+#   the IPv4 listener table, and binds 127.0.0.1 only. It does not open a
+#   socket on every interface. A listener on another local address still
+#   counts, because runserver binds every interface and that would fail.
+#   A sandbox that refuses the loopback bind (EPERM or EACCES) is not a
+#   listener. Dev ports sit above 1024, so that refusal is not a
+#   privileged-port check.
 port_is_listening() {
-  python3 -c 'import socket, sys
-port = int(sys.argv[1])
-s = socket.socket()
-s.settimeout(0.2)
-try:
-    rc = s.connect_ex(("127.0.0.1", port))
-finally:
-    s.close()
-if rc == 0:
-    sys.exit(0)
-b = socket.socket()
-b.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-try:
-    b.bind(("0.0.0.0", port))
-except OSError:
-    sys.exit(0)
-finally:
-    b.close()
-sys.exit(1)' "$1"
+  local lib_dir
+  lib_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+  python3 "${lib_dir}/port_in_use.py" "$1"
 }
 
 # listening_pid <port>
