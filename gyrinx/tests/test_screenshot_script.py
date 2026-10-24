@@ -188,6 +188,18 @@ def test_check_server_running_treats_permission_error_as_blocked(monkeypatch):
     assert screenshot.check_server_running(port=8322) == screenshot.SERVER_PROBE_BLOCKED
 
 
+@pytest.mark.parametrize("code", [errno.EPERM, errno.EACCES])
+def test_check_server_running_treats_socket_creation_refusal_as_blocked(
+    monkeypatch, code
+):
+    def refuse(*args, **kwargs):
+        raise PermissionError(code, "Operation not permitted")
+
+    monkeypatch.setattr(screenshot.socket, "socket", refuse)
+
+    assert screenshot.check_server_running(port=8322) == screenshot.SERVER_PROBE_BLOCKED
+
+
 def test_check_server_running_treats_other_oserror_as_absent(monkeypatch):
     _patch_probe_socket(monkeypatch, error=ConnectionRefusedError())
 

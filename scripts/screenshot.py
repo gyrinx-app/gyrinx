@@ -126,9 +126,10 @@ def check_server_running(host="localhost", port=None):
     """
     if port is None:
         port = get_server_port()
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(1)
+    sock = None
     try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
         result = sock.connect_ex((host, port))
     except OSError as exc:
         if exc.errno in _PROBE_BLOCKED:
@@ -137,7 +138,8 @@ def check_server_running(host="localhost", port=None):
     except Exception:
         return SERVER_ABSENT
     finally:
-        sock.close()
+        if sock is not None:
+            sock.close()
     if result == 0:
         return SERVER_LISTENING
     if result in _PROBE_BLOCKED:
