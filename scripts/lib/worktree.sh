@@ -120,11 +120,13 @@ worktree_port() {
 }
 
 # port_is_listening <port>
-#   True when the port is in use: something accepts on 127.0.0.1, or
-#   binding 0.0.0.0 fails because the address is already taken. runserver
-#   binds 0.0.0.0, so a listener on another local address still blocks it.
-#   A sandbox that refuses the bind (EPERM or EACCES) is not a listener.
-#   Dev ports sit above 1024, so that refusal is not a privileged-port check.
+#   True when the port is in use. The probe connects to 127.0.0.1, reads
+#   the IPv4 listener table, and binds 127.0.0.1 only. It does not open a
+#   socket on every interface. A listener on another local address still
+#   counts, because runserver binds every interface and that would fail.
+#   A sandbox that refuses the loopback bind (EPERM or EACCES) is not a
+#   listener. Dev ports sit above 1024, so that refusal is not a
+#   privileged-port check.
 port_is_listening() {
   local lib_dir
   lib_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

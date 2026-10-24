@@ -301,6 +301,7 @@ def test_a_refused_bind_is_not_a_listener(monkeypatch):
             raise OSError(errno.EPERM, "Operation not permitted")
 
     monkeypatch.setattr(port_in_use.socket, "socket", Refused)
+    monkeypatch.setattr(port_in_use, "_ipv4_listener", lambda _port: False)
     assert port_in_use.port_in_use(8482) is False
 
     class Denied(Refused):
@@ -320,7 +321,25 @@ def test_address_already_in_use_is_a_listener(monkeypatch):
             raise OSError(errno.EADDRINUSE, "Address already in use")
 
     monkeypatch.setattr(port_in_use.socket, "socket", Taken)
+    monkeypatch.setattr(port_in_use, "_ipv4_listener", lambda _port: False)
     assert port_in_use.port_in_use(8482) is True
+
+
+def test_the_probe_binds_only_the_loopback_address(monkeypatch):
+    bound = []
+
+    class Recorder(socket.socket):
+        def connect_ex(self, _address):
+            return errno.ECONNREFUSED
+
+        def bind(self, address):
+            bound.append(address)
+            raise OSError(errno.EADDRINUSE, "Address already in use")
+
+    monkeypatch.setattr(port_in_use.socket, "socket", Recorder)
+    monkeypatch.setattr(port_in_use, "_ipv4_listener", lambda _port: False)
+    assert port_in_use.port_in_use(8482) is True
+    assert bound == [("127.0.0.1", 8482)]
 
 
 def test_a_successful_connect_does_not_need_the_bind_probe(monkeypatch):
@@ -333,6 +352,33 @@ def test_a_successful_connect_does_not_need_the_bind_probe(monkeypatch):
 
     monkeypatch.setattr(port_in_use.socket, "socket", Listening)
     assert port_in_use.port_in_use(8482) is True
+
+
+def _non_loopback_ipv4() -> str | None:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        try:
+            sock.connect(("192.0.2.1", 9))
+        except OSError:
+            return None
+        addr = sock.getsockname()[0]
+    if addr.startswith("127."):
+        return None
+    return addr
+
+
+def test_a_listener_on_another_local_address_counts_as_in_use():
+    """runserver binds every interface, so a listener on the LAN address
+    still occupies the port. Nothing accepts on 127.0.0.1 in that case."""
+    if not Path("/proc/net/tcp").is_file():
+        return
+    addr = _non_loopback_ipv4()
+    if addr is None:
+        return
+    with socket.socket() as holder:
+        holder.bind((addr, 0))
+        holder.listen(1)
+        port = holder.getsockname()[1]
+        assert port_in_use.port_in_use(port) is True
 
 
 def test_a_port_bound_on_the_wildcard_address_counts_as_in_use():
