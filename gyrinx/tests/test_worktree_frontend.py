@@ -170,6 +170,92 @@ def test_frontend_provision_rebuilds_when_island_sources_change(tmp_path):
     ]
 
 
+def test_frontend_provision_skips_js_when_an_island_has_conflict_markers(tmp_path):
+    worktree = _islands_worktree(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_fake_npm(bin_dir)
+    island = worktree / "n26/frontend/islands/list.tsx"
+    island.write_text("<<<<<<< HEAD\nexport {}\n>>>>>>>\n")
+
+    result = _provision(worktree, bin_dir)
+
+    assert result.returncode == 0, result.stderr
+    assert (bin_dir / "npm-calls").read_text().splitlines() == [
+        "ci --no-audit --no-fund",
+    ]
+    assert "Skipping npm run js" in result.stderr
+    assert str(island) in result.stderr
+    assert "will run now" in result.stderr
+    assert not (worktree / "n26/core/static/n26/react/manifest.json").exists()
+
+
+def test_frontend_provision_rebuilds_after_conflict_markers_are_resolved(tmp_path):
+    worktree = _islands_worktree(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_fake_npm(bin_dir)
+    island = worktree / "n26/frontend/islands/list.tsx"
+    island.write_text("<<<<<<< HEAD\nexport {}\n>>>>>>> main\n")
+    assert _provision(worktree, bin_dir).returncode == 0
+    island.write_text("export const resolved = 1\n")
+    _touch_later(island)
+
+    resolved = _provision(worktree, bin_dir)
+
+    assert resolved.returncode == 0, resolved.stderr
+    assert (bin_dir / "npm-calls").read_text().splitlines() == [
+        "ci --no-audit --no-fund",
+        "run js",
+    ]
+    assert "Skipping npm run js" not in resolved.stderr
+
+
+def test_frontend_provision_skips_js_for_icon_conflict_markers(tmp_path):
+    worktree = _islands_worktree(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_fake_npm(bin_dir)
+    assert _provision(worktree, bin_dir).returncode == 0
+    icons = worktree / "n26/core/icons.py"
+    icons.write_text(
+        "<<<<<<< HEAD\ndef resolve(name):\n    return name\n>>>>>>> main\n"
+    )
+    _touch_later(icons)
+
+    changed = _provision(worktree, bin_dir)
+
+    assert changed.returncode == 0, changed.stderr
+    assert (bin_dir / "npm-calls").read_text().splitlines() == [
+        "ci --no-audit --no-fund",
+        "run js",
+    ]
+    assert "Skipping npm run js" in changed.stderr
+    assert str(icons) in changed.stderr
+
+
+def test_frontend_provision_builds_when_only_generated_output_has_markers(
+    tmp_path,
+):
+    worktree = _islands_worktree(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_fake_npm(bin_dir)
+    assert _provision(worktree, bin_dir).returncode == 0
+    generated = worktree / "n26/frontend/generated/cotton.json"
+    generated.parent.mkdir(parents=True)
+    generated.write_text("<<<<<<< HEAD\n{}\n>>>>>>> main\n")
+    island = worktree / "n26/frontend/islands/list.tsx"
+    island.write_text('const label = "<<<<<<< not a conflict"\n')
+    _touch_later(generated, island)
+
+    result = _provision(worktree, bin_dir)
+
+    assert result.returncode == 0, result.stderr
+    assert (bin_dir / "npm-calls").read_text().splitlines()[-1] == "run js"
+    assert "Skipping npm run js" not in result.stderr
+
+
 def test_frontend_provision_ignores_generated_frontend_output(tmp_path):
     worktree = _islands_worktree(tmp_path)
     bin_dir = tmp_path / "bin"

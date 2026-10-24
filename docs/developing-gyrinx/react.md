@@ -193,7 +193,9 @@ PATH="$PWD/.venv/bin:$PATH" npm run js
 ```
 
 `.codex/run.sh` does both when `node_modules` or the manifest is missing or
-stale. `npm run js` starts a Python exporter, so a bare `npm run js` without the
+stale. If island, Cotton, or icon sources contain Git conflict markers,
+`.codex/run.sh` skips that rebuild and the command you asked for still runs.
+`npm run js` starts a Python exporter, so a bare `npm run js` without the
 venv fails. Do not run `npm audit fix` unless the task is the audit itself.
 
 Vite owns the content-hashed filenames under `n26/react/assets/`. That output
