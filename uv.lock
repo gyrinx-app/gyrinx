@@ -286,27 +286,27 @@ wheels = [
 
 [[package]]
 name = "django-allauth"
-version = "65.19.7"
+version = "65.20.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asgiref" },
     { name = "django" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/33/7c8f8fc85f4ee644ee3acb20c1fe4d04516298ab5903f812e1556b65f947/django_allauth-65.19.7.tar.gz", hash = "sha256:c7749551b659ca954e483f6f634cd0c262d65dd8144f5219b3a31cba0426e981", size = 2296178, upload-time = "2026-10-01T12:35:24.152Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8a/98/a343df4b6230e483cd0437a9265f9acd365e4639d8750c17021455f94a2c/django_allauth-65.20.1.tar.gz", hash = "sha256:954cf5cb39e7793e25420f0352b77c74c9a68ab36ae2c8b9d783c2d710650f19", size = 2304239, upload-time = "2026-10-20T19:59:25.752Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/c4/a42cc4439b18b8d2767f8c54999e011b9f620a478806ed265baed7c3dc01/django_allauth-65.19.7-py3-none-any.whl", hash = "sha256:8899377f38afabf10445c9ee2f808a730304ca8aecc540657d51a8b3928283d6", size = 2076429, upload-time = "2026-10-01T12:35:20.844Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/9f/0ea3886dd6310ddfb44d20a20152c04b7dbf6380c911171662d4d766119a/django_allauth-65.20.1-py3-none-any.whl", hash = "sha256:39f4b66d113b6f6df6805d22d577b8f06aa54e251425de1699fb6a3d7f8d1e45", size = 2077848, upload-time = "2026-10-20T19:57:49.207Z" },
 ]
 
 [[package]]
 name = "django-cotton"
-version = "2.7.2"
+version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/02/cd/5c467a1495b756f56246a6d8d36425517cd01bd3aa4bc6209a821f83ec74/django_cotton-2.7.2.tar.gz", hash = "sha256:7e050042873f724beaa5824e86d5034ced2f7de1c5478c3a9d8c053e05caa8ac", size = 33171, upload-time = "2026-06-01T22:52:00.314Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1f/8f/ca91ebdea636c0466ef517d0d8fc9f7d08290e4614bbc9a48aa0bb5a0141/django_cotton-2.8.0.tar.gz", hash = "sha256:fe60182f143e89296db2384da9818da4662a1b3aa8dd86f1b4eeb5e884015ea8", size = 35534, upload-time = "2026-10-14T10:59:16.235Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8b/9b/d75158f6280906befada54f9cb17c10d5e0eac078d8d2e189e2f90da0fc1/django_cotton-2.7.2-py3-none-any.whl", hash = "sha256:1b293037ead54ab228362654da00ededc5ca52b2ff407b6087a81cfd9390850e", size = 32084, upload-time = "2026-06-01T22:52:01.238Z" },
+    { url = "https://files.pythonhosted.org/packages/27/52/18a6523f88b642691282e4eac97bc76df2a53af8ca69fd028f11662b9c77/django_cotton-2.8.0-py3-none-any.whl", hash = "sha256:f6142988ba957812a7272270bc06eedf8df27bbf76e7b7f22ea694fa9b9c9505", size = 34107, upload-time = "2026-10-14T10:59:17.11Z" },
 ]
 
 [[package]]
@@ -555,11 +555,11 @@ wheels = [
 
 [[package]]
 name = "filelock"
-version = "4.2.1"
+version = "4.2.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d5/98/771d8ca889f220d7d7e352addf500666368f0fd081c6080a83767580c6e4/filelock-4.2.1.tar.gz", hash = "sha256:c4c937ccac2a813cee448e662a56366cfb374c0f8702e75f295c412cc1c5d5a3", size = 650997, upload-time = "2026-10-17T16:48:14.435Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d8/28/3893324bcadf8f89b1616637468d766af3f625008c0735bf704fdfa86617/filelock-4.2.4.tar.gz", hash = "sha256:c6d8663535e1650ee430507b4ffbac7b464dd64b7647ea0112a9f406499d163d", size = 652444, upload-time = "2026-10-19T01:57:51.001Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/28/00/db89d339bc4ecdc8087fa7b8607ba22ffc27bf96286f340c9620bea428b3/filelock-4.2.1-py3-none-any.whl", hash = "sha256:7be2662e9e826b9bba28afc0f843a123280d799a2ea44bb5d35ccec67905ae44", size = 162455, upload-time = "2026-10-17T16:48:12.937Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/1b/5e74289a1878e666bb4b65fe5805a04cafcac2aa5f519ef1ead67ef91c56/filelock-4.2.4-py3-none-any.whl", hash = "sha256:301241438c57936ef93f4243a94f2559022268bfcf9b375a9a72eb0f8db8358e", size = 162475, upload-time = "2026-10-19T01:57:49.419Z" },
 ]
 
 [[package]]
@@ -662,7 +662,7 @@ wheels = [
 
 [[package]]
 name = "google-cloud-pubsub"
-version = "2.42.0"
+version = "2.43.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-api-core", extra = ["grpc"] },
@@ -675,9 +675,9 @@ dependencies = [
     { name = "proto-plus" },
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/41/60/21e7de2ae629d8a025838b4e53f197aea2b45d878c6e37f222187b2ecf84/google_cloud_pubsub-2.42.0.tar.gz", hash = "sha256:92ed998c41ce7d4f6b5b7c950df8291abd27c4d50116714e5c46fac47313e74d", size = 397642, upload-time = "2026-10-01T18:17:44.845Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/25/ce/210febb5edd160e9490f1a7a8190fd870f0997fa8be558b2c902461a27d7/google_cloud_pubsub-2.43.0.tar.gz", hash = "sha256:9a0e01876024ecd5e101a3c41cd67fa50ef0c4e39aa56f53b81524599f90e346", size = 398611, upload-time = "2026-10-15T17:49:51.415Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/7d/a3db64849bc41a52b9c8625f5c76fbdbba02ad2d89b91d38c80a304ade51/google_cloud_pubsub-2.42.0-py3-none-any.whl", hash = "sha256:6eff5d2155b5f6967885b0e7f3da6fda91d2cfb15227fffeaef39b7339044a3d", size = 322310, upload-time = "2026-10-01T18:11:47.708Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/fe/05daee3bd9ca21bf90ce7cf0f62b95bae07c397e107dc1b6762a809a0098/google_cloud_pubsub-2.43.0-py3-none-any.whl", hash = "sha256:db5436dd2d99774171d13c1bf1fb960b6bf3aa23c15694c50090aa569316d19a", size = 323338, upload-time = "2026-10-15T17:49:22.528Z" },
 ]
 
 [[package]]
@@ -962,8 +962,8 @@ requires-dist = [
     { name = "click", specifier = "==8.5.0" },
     { name = "defusedxml", specifier = "==0.7.1" },
     { name = "django", specifier = "==6.0.7" },
-    { name = "django-allauth", specifier = "==65.19.7" },
-    { name = "django-cotton", specifier = "==2.7.2" },
+    { name = "django-allauth", specifier = "==65.20.1" },
+    { name = "django-cotton", specifier = "==2.8.0" },
     { name = "django-cotton-ui", specifier = "==0.3.4" },
     { name = "django-csp", specifier = "==4.0" },
     { name = "django-debug-toolbar", specifier = "==8.0.0" },
@@ -977,9 +977,9 @@ requires-dist = [
     { name = "djlint", specifier = "==1.46.6" },
     { name = "docutils", specifier = "==0.23" },
     { name = "fido2", specifier = "==2.2.1" },
-    { name = "filelock", specifier = "==4.2.1" },
+    { name = "filelock", specifier = "==4.2.4" },
     { name = "google-cloud-logging", specifier = "==3.17.0" },
-    { name = "google-cloud-pubsub", specifier = "==2.42.0" },
+    { name = "google-cloud-pubsub", specifier = "==2.43.0" },
     { name = "google-cloud-scheduler", specifier = "==2.21.0" },
     { name = "google-cloud-sqlcommenter", specifier = "==2.0.0" },
     { name = "gunicorn", specifier = "==26.2.0" },
