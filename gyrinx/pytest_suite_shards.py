@@ -5,7 +5,6 @@ Workers send collection and execution evidence through xdist's workeroutput;
 only the controller writes the manifest. There is no persistent read cache.
 """
 
-import hashlib
 import json
 import os
 import shutil
@@ -18,14 +17,10 @@ from pathlib import Path
 
 import pytest
 
+from gyrinx.suite_shards import module_shard
+
 FORMAT_VERSION = 1
 _WORKER_KEY = "suite_shards"
-
-
-def module_shard(nodeid: str, count: int) -> int:
-    """Assign every case in a file to the same shard, independent of ordering."""
-    module = nodeid.split("::", 1)[0]
-    return int.from_bytes(hashlib.sha256(module.encode()).digest(), "big") % count
 
 
 def pytest_addoption(parser):
