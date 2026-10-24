@@ -20,6 +20,7 @@ from n26.core.views.permissions import (
     _own_campaign_or_404,
     _recording_campaign_or_404,
 )
+from n26.flags import CAMPAIGN_FEEDS, enabled
 from n26.library.staged import sees_staged
 
 #: Campaigns per page in the searchable listing.
@@ -1039,8 +1040,10 @@ def edit_campaign(request, pk):
     from n26.library.models import DefaultAssignment
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    feeds_open = enabled(CAMPAIGN_FEEDS, request.user)
+    tabs = ("counters-and-labels", "asset-types") + (("feeds",) if feeds_open else ())
     tab = request.GET.get("tab", "general")
-    if tab not in ("counters-and-labels", "asset-types") or request.method == "POST":
+    if tab not in tabs or request.method == "POST":
         tab = "general"
     edit_url = reverse("n26-edit-campaign", args=[found.pk])
     counters = []
@@ -1050,6 +1053,9 @@ def edit_campaign(request, pk):
     shared_definitions = ""
     archived_counters = []
     archived_labels = []
+    feeds = []
+    feed_section_choices = []
+    feed_target_choices = []
 
     if request.method == "POST":
         form = EditCampaignForm(request.POST)
@@ -1075,6 +1081,14 @@ def edit_campaign(request, pk):
             }
         )
 
+    elif tab == "feeds":
+        from n26.core.models import CampaignFeed
+        from n26.core.views.campaign_feeds import feed_choices, feed_rows
+
+        form = None
+        feeds = feed_rows(found, request)
+        feed_section_choices = feed_choices(found)
+        feed_target_choices = CampaignFeed.Target.choices
     elif tab == "asset-types":
         form = None
         own, shared = [], []
@@ -1186,7 +1200,21 @@ def edit_campaign(request, pk):
                     "href": f"{edit_url}?tab=asset-types",
                     "current": tab == "asset-types",
                 },
-            ],
+            ]
+            + (
+                [
+                    {
+                        "label": "Feeds",
+                        "href": f"{edit_url}?tab=feeds",
+                        "current": tab == "feeds",
+                    }
+                ]
+                if feeds_open
+                else []
+            ),
+            "feeds": feeds,
+            "feed_section_choices": feed_section_choices,
+            "feed_target_choices": feed_target_choices,
             "counters": counters,
             "labels": labels,
             "asset_types": asset_types,

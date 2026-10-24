@@ -22,6 +22,12 @@ from n26.core.views.assignment_sets import (
 )
 from n26.core.views.battles import archived_battles, battle, edit_battle, restore_battle
 from n26.core.views.campaign_assets import asset_detail, save_asset_boons
+from n26.core.views.campaign_feeds import (
+    add_campaign_feed,
+    campaign_feed,
+    campaign_feed_rss,
+    turn_off_campaign_feed,
+)
 from n26.core.views.campaign_rolls import (
     campaign_roll,
     preview_pool_roll,
@@ -146,6 +152,9 @@ __all__ = [
     "asset_detail",
     "save_asset_boons",
     "campaign",
+    "campaign_feed",
+    "campaign_feed_rss",
+    "turn_off_campaign_feed",
     "campaign_log",
     "campaign_roll",
     "record_campaign_roll",
@@ -168,6 +177,7 @@ __all__ = [
     "answer_invitation",
     "add_gang",
     "add_asset",
+    "add_campaign_feed",
     "add_counter",
     "add_asset_type",
     "edit_asset_type",
