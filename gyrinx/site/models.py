@@ -718,10 +718,37 @@ class ChangelogEntryTag(Base):
     would delete shared tags with the staff account that created them.
     """
 
+    class Colour(models.TextChoices):
+        DEFAULT = "default", "Gyrinx default"
+        INK = "ink", "Ink"
+        RED = "red", "Red"
+        ORANGE = "orange", "Orange"
+        AMBER = "amber", "Amber"
+        YELLOW = "yellow", "Yellow"
+        LIME = "lime", "Lime"
+        GREEN = "green", "Green"
+        EMERALD = "emerald", "Emerald"
+        TEAL = "teal", "Teal"
+        CYAN = "cyan", "Cyan"
+        SKY = "sky", "Sky"
+        BLUE = "blue", "Blue"
+        INDIGO = "indigo", "Indigo"
+        VIOLET = "violet", "Violet"
+        PURPLE = "purple", "Purple"
+        FUCHSIA = "fuchsia", "Fuchsia"
+        PINK = "pink", "Pink"
+        ROSE = "rose", "Rose"
+
     name = models.CharField(
         max_length=100,
         unique=True,
         help_text="The tag as shown, e.g. 'N26'.",
+    )
+    colour = models.CharField(
+        max_length=20,
+        choices=Colour,
+        default=Colour.DEFAULT,
+        help_text="The tag colour. Gyrinx default follows light and dark mode.",
     )
 
     history = HistoricalRecords()
