@@ -76,7 +76,7 @@ dependencies = [
     "sqlparse==0.6.0",
     # Security: minimum versions for vulnerable transitive dependencies
     "urllib3>=2.8.0",
-    "virtualenv>=21.14.7",
+    "virtualenv>=21.14.13",
     "whitenoise==6.12.0",
     "markdown-it-py>=4.2.0",
 ]
