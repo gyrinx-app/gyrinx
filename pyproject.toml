@@ -122,8 +122,19 @@ markers = [
     "core: the required CI job runs these (pytest -m core); see docs/developing-gyrinx/testing.md",
 ]
 
-[tool.setuptools.packages]
-find = {}
+# Namespace discovery treats every directory as a package, and the editable
+# install records each one. That pulled in the gitignored Vite tree: after a
+# rebase removed n26/core/static/n26/react/assets, the next `uv sync` still
+# named that directory and failed before the frontend rebuild. node_modules
+# alone is more than a thousand extra packages on the import path.
+[tool.setuptools.packages.find]
+exclude = [
+    "logs*",
+    "node_modules*",
+    "staticfiles*",
+    "n26.core.static.n26.react*",
+    "n26.frontend.generated*",
+]
 
 [tool.setuptools_scm]
 

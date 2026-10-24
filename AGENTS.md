@@ -58,7 +58,10 @@ artifacts when the IDE Canvas surface is unavailable.
   `.codex/run.sh pytest`. After a rebase that changes `package-lock.json`,
   `n26/frontend`, Cotton templates, or icon sources, `.codex/run.sh` runs
   `npm ci` and rebuilds the ignored React manifest when they are missing or
-  stale. `npm run js` needs the worktree venv on PATH. Do not run
+  stale. `npm run js` needs the worktree venv on PATH. Package discovery
+  excludes that manifest tree, `n26/frontend/generated`, `node_modules`,
+  `staticfiles`, and `logs`, so `uv sync` does not record them on the
+  editable install. Do not run
   `npm audit fix` unless the task is the audit itself. `scripts/dev.sh` and
   `scripts/fmt.sh` activate the worktree environment themselves. Pre-commit
   hook scripts find `.venv/bin/python` themselves, so a plain `git commit`
