@@ -71,7 +71,11 @@ Two worktrees can hash to the same port. When `./scripts/dev.sh` finds that port
 taken by another process, it listens on the next free port and writes
 `logs/dev-port`. Later commands see that file. Delete `logs/dev-port` to return
 to the hashed port once it is free. If this worktree's own `runserver` is already
-listening, `dev.sh` prints that URL and does not start a second server.
+listening, `dev.sh` prints that URL and does not start a second server. That
+process restarts on the next request when an imported Python file has changed
+since it started, including after a checkout the file watcher missed. Reload
+the page if that request fails. A server started with `--noreload` does not
+do this.
 
 ## Finding the URL
 
@@ -104,6 +108,20 @@ source scripts/lib/worktree.sh
 PORT=$(worktree_port)
 lsof -i :$PORT -sTCP:LISTEN
 ```
+
+## Checkout while the server is running
+
+Templates can update while the process keeps the Python it imported at startup.
+A git checkout replaces files. Watchman keeps the inodes it opened, so it never
+sees the replacements. Template directories still change, and the dev server
+drops its compiled templates on the next request. The page can then mix new
+templates with old view code.
+
+On that request the serving process stats the project modules it has imported.
+A file whose modification time changed, or that is gone, exits the process.
+runserver's autoreloader starts it again. Reload once if the request fails.
+`./scripts/dev.sh` does not start a second server when this one is already up,
+so leave it running and load the page.
 
 ## When the Server Restarts or Stops by Itself
 

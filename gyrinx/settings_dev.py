@@ -91,6 +91,11 @@ CACHE_TEMPLATES = _UNDER_PYTEST or os.getenv("GYRINX_CACHE_TEMPLATES") != "False
 # creates templates mid-run.
 WATCH_TEMPLATE_DIRECTORIES = not _UNDER_PYTEST
 
+# A checkout can replace Python files without the file watcher noticing, while
+# those template directories still reset. The serving process stats imported
+# project modules on each request and restarts when one changed. See
+# gyrinx/devserver/python_watch.py.
+
 # Start the debug toolbar hidden. The toolbar remembers open/closed in the
 # browser's localStorage, so a fresh browser profile (every agent-driven session
 # and every new worktree port) otherwise opens with the panel expanded over the
