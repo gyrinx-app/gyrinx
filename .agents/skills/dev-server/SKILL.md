@@ -118,7 +118,10 @@ drops its compiled templates on the next request. The page can then mix new
 templates with old view code.
 
 On that request the serving process stats the project modules it has imported.
-A file whose modification time changed, or that is gone, exits the process.
+The baseline for each module is its modification time when it was loaded,
+including a module first imported while the server is already running. A file
+whose modification time has changed since that load, or that is gone, exits
+the process.
 runserver's autoreloader starts it again. Reload once if the request fails.
 `./scripts/dev.sh` does not start a second server when this one is already up,
 so leave it running and load the page.

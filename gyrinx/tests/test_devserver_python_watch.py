@@ -1,12 +1,13 @@
 """The dev server restarts when an imported project module changes on disk."""
 
+import importlib
 import os
+import sys
 from types import SimpleNamespace
 
 from django.core.signals import request_started
 
 from gyrinx.devserver.python_watch import (
-    DISPATCH_UID,
     RESTART,
     ImportedSourceWatch,
     install,
@@ -48,7 +49,7 @@ def test_a_removed_module_is_reported(tmp_path):
     assert watch.changed() == source.resolve()
 
 
-def test_a_module_imported_later_is_not_a_change(tmp_path):
+def test_a_module_imported_later_is_not_a_change_until_it_is_edited(tmp_path):
     source = tmp_path / "views.py"
     source.write_text("x = 1\n")
     modules = {"app.views": _module(source)}
@@ -56,8 +57,11 @@ def test_a_module_imported_later_is_not_a_change(tmp_path):
     added = tmp_path / "new.py"
     added.write_text("y = 1\n")
     modules["app.new"] = _module(added)
+    watch.note(str(added))
     assert watch.changed() is None
-    assert watch.changed() is None
+    added.write_text("y = 2\n")
+    os.utime(added, (added.stat().st_atime, added.stat().st_mtime + 5))
+    assert watch.changed() == added.resolve()
 
 
 def test_a_module_outside_the_checkout_is_ignored(tmp_path):
@@ -105,8 +109,24 @@ def test_the_request_signal_restarts_when_a_module_changed(tmp_path):
         request_started.send(sender=None)
         assert restarted == [source.resolve()]
     finally:
-        request_started.disconnect(dispatch_uid=DISPATCH_UID)
-        assert watch is not None
+        watch.close()
+
+
+def test_an_edit_between_import_and_the_next_request_restarts(tmp_path, monkeypatch):
+    source = tmp_path / "gyrinx_python_watch_probe.py"
+    source.write_text("VALUE = 1\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    restarted = []
+    watch = install(tmp_path, restart=restarted.append)
+    try:
+        importlib.import_module("gyrinx_python_watch_probe")
+        source.write_text("VALUE = 2\n")
+        os.utime(source, (source.stat().st_atime, source.stat().st_mtime + 5))
+        request_started.send(sender=None)
+        assert restarted == [source.resolve()]
+    finally:
+        watch.close()
+        sys.modules.pop("gyrinx_python_watch_probe", None)
 
 
 def test_restart_process_exits_with_the_autoreloader_code(monkeypatch, tmp_path):
