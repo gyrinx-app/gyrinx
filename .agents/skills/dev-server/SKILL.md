@@ -202,6 +202,11 @@ minted local staff session:
 Keep captures under the gitignored `screenshots/` directory until the
 `pr-screenshots` workflow uploads them to the pull request.
 
+If the helper says it could not open a socket, the development server can
+still be running. Rerun the same command through `.codex/run.sh` from a shell
+that can connect to localhost. "Django development server is not running"
+means the port refused the connection.
+
 ## Logging in for browser testing
 
 Do **not** submit `/accounts/login/` from an agent session. The form always includes

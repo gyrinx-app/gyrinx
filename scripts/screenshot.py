@@ -22,7 +22,9 @@ Examples:
 
 import argparse
 import asyncio
+import errno
 import os
+import shlex
 import socket
 import subprocess
 import sys
@@ -108,18 +110,68 @@ def get_server_url():
     return f"http://localhost:{get_server_port()}"
 
 
+SERVER_LISTENING = "listening"
+SERVER_ABSENT = "absent"
+SERVER_PROBE_BLOCKED = "blocked"
+_PROBE_BLOCKED = {errno.EPERM, errno.EACCES}
+
+
 def check_server_running(host="localhost", port=None):
-    """Check if the Django development server is running."""
+    """Classify a connection attempt to the development server.
+
+    ``listening`` means the port accepted the connection. ``absent`` means
+    the port refused it, or the probe failed for another reason.
+    ``blocked`` means the process was not allowed to open the socket
+    (EPERM or EACCES). A sandbox reports that while the server is still up.
+    """
     if port is None:
         port = get_server_port()
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(1)
+    sock = None
     try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
         result = sock.connect_ex((host, port))
-        sock.close()
-        return result == 0
+    except OSError as exc:
+        if exc.errno in _PROBE_BLOCKED:
+            return SERVER_PROBE_BLOCKED
+        return SERVER_ABSENT
     except Exception:
-        return False
+        return SERVER_ABSENT
+    finally:
+        if sock is not None:
+            sock.close()
+    if result == 0:
+        return SERVER_LISTENING
+    if result in _PROBE_BLOCKED:
+        return SERVER_PROBE_BLOCKED
+    return SERVER_ABSENT
+
+
+def _screenshot_rerun_command():
+    command = [".codex/run.sh", "python", "scripts/screenshot.py", *sys.argv[1:]]
+    return " ".join(shlex.quote(part) for part in command)
+
+
+def exit_unless_server_reachable():
+    """Stop when this process cannot confirm the development server is up."""
+    state = check_server_running()
+    if state == SERVER_LISTENING:
+        return
+    url = get_server_url()
+    if state == SERVER_PROBE_BLOCKED:
+        print(f"\n✗ Error: Could not open a socket to {url}.")
+        print(
+            "The socket check was refused. The development server can still be running."
+        )
+        print("Rerun from a shell that can connect to localhost:")
+        print(f"  {_screenshot_rerun_command()}")
+        sys.exit(1)
+    print("\n✗ Error: Django development server is not running")
+    print(f"Nothing accepted a connection on {url}.")
+    print("Please start the server with:")
+    print("  ./scripts/dev.sh --no-watch")
+    print("\nThen run this command again.")
+    sys.exit(1)
 
 
 def ensure_browser_installed():
@@ -502,13 +554,7 @@ def main():
             print(f"Valid viewports: {', '.join(VIEWPORTS.keys())}")
             sys.exit(1)
 
-    # Check if server is running
-    if not check_server_running():
-        print("\n✗ Error: Django development server is not running")
-        print("Please start the server with:")
-        print("  ./scripts/dev.sh --no-watch")
-        print("\nThen run this command again.")
-        sys.exit(1)
+    exit_unless_server_reachable()
 
     # Ensure browser is installed before attempting to capture
     if not ensure_browser_installed():
