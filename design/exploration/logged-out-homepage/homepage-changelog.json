@@ -1,0 +1,36 @@
+{
+  "source": "https://gyrinx.app/changelog/?tag=N26",
+  "retrieved": "2026-10-18",
+  "entries": [
+    {
+      "title": "N26 campaigns are live 🎉",
+      "href": "https://gyrinx.app/changelog/395b6fb3-c21d-4549-8e61-96136435db16/?tag=N26",
+      "date": "15 Oct",
+      "body": "Campaign management for N26 is here. You can now create campaigns, invite players, track territories, record battles, create custom assets and log dice rolls."
+    },
+    {
+      "title": "Advancements have arrived",
+      "href": "https://gyrinx.app/changelog/3bd1dd86-2d11-479c-b943-7a096da77c76/?tag=N26",
+      "date": "6 Oct",
+      "body": "We’re continuing to drop progression features as we prepare to launch campaigns. Advancements just landed — here’s what’s new."
+    },
+    {
+      "title": "Spyrer augmentations, founding TP budgets, credit management and more",
+      "href": "https://gyrinx.app/changelog/eab033fd-4923-4a0b-8a3c-d9d9b5a99773/?tag=N26",
+      "date": "26 Sep",
+      "body": "We’ve released a tonne of new features today as we tie up the loose ends on gang-building, debut our powerful new Action flow tools and clear the ground for campaigns to launch."
+    },
+    {
+      "title": "Necromunda Roleplay revealed",
+      "href": "https://gyrinx.app/changelog/c5d6caad-2f54-42bd-a1ca-0f353b234813/?tag=N26",
+      "date": "18 Sep",
+      "body": "Games Workshop has announced a new underhive game system, Necromunda Roleplay. While there’s not much information yet, here’s what it means for Gyrinx:"
+    },
+    {
+      "title": "House of Blades and House of Chains are live",
+      "href": "https://gyrinx.app/changelog/70bfbb10-cc03-401b-b472-f95fcac7d315/?tag=N26",
+      "date": "11 Sep",
+      "body": "Gyrinx now supports both House of Blades and House of Chains content, ready for when the journals drop next week."
+    }
+  ]
+}
