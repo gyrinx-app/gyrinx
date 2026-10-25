@@ -1104,7 +1104,7 @@ def edit_fighter(request, pk):
         try:
             may_refund = departure_for(miniature).refund[1] > 0
         except Refusal:
-            pass
+            may_refund = False
     from n26.core.allowances import missing_progression_counters
     from n26.core.views.trade_points import hire_time_context
 

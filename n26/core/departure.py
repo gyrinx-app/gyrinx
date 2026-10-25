@@ -100,9 +100,18 @@ def departure_for(miniature):
         for held in roots
         if held.pk != anchor.pk and refund_of(walk(held.pk))[0] > 0
     )
-    after_stash = walk(
-        anchor.pk, with_kit=True, keeping={held.pk for held in stashable}
-    )
+    # Moving kit also moves grants hosted beside it. They no longer
+    # belong to the departing model's kit after the purchase is stashed.
+    relocated = {
+        pk
+        for held in stashable
+        for pk in walk(held.pk)
+        if (part := assignments[pk]).parent_id is None
+        and part.gang_id is None
+        and (part.miniature_id, part.stash_id)
+        == (held.miniature_root_id, held.stash_root_id)
+    }
+    after_stash = walk(anchor.pk, with_kit=True, keeping=relocated)
     return Departure(
         anchor=anchor,
         models=tuple(model for pk, model in members.items() if pk in covered),

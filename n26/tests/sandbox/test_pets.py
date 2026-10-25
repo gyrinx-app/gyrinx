@@ -548,6 +548,41 @@ class TestRemovingThroughThePetsCard:
         assert gang.credits == credits
         assert_reconciled(gang)
 
+    def test_stashing_a_hidden_pet_grant_quotes_only_the_refund_that_returns(
+        self, client, gang, yolanda, mastiff_profile
+    ):
+        tag = create_hidden("Mastiff tag")
+        modifier(
+            "The tag brings a mastiff",
+            targets_model(),
+            op_adds_model(mastiff_profile),
+            carried_by=tag,
+        )
+        purchase = assign(create_wargear("Mastiff collar"), miniature=yolanda, paid=100)
+        with operation(gang, actor=gang.owner) as op:
+            hidden = op.assign(tag, miniature=yolanda, caused_by=purchase)
+        pet = pet_of(gang)
+        kit = assign(create_wargear("Pet gear"), miniature=pet, paid=0, trade_points=2)
+        client.force_login(gang.owner)
+        url = reverse("n26-gang", args=[gang.pk])
+
+        leaving = client.get(f"{url}?refund={yolanda.pk}").context["leaving"]
+        assert leaving["full_returned"] == "155¢ and 2 Trade Points"
+        assert leaving["stash_label"] == "Stash kit, refund 55¢"
+        client.post(reverse("n26-refund-fighter", args=[yolanda.pk]), {"kit": "stash"})
+
+        purchase.refresh_from_db()
+        hidden.refresh_from_db()
+        pet.refresh_from_db()
+        kit.refresh_from_db()
+        gang.refresh_from_db()
+        assert purchase.stash_id == hidden.stash_id == gang.stash.pk
+        assert pet.membership.archived is False
+        assert kit.miniature_id == pet.pk
+        assert kit.ledger_entry.trade_points == 2
+        assert gang.credits == 900
+        assert_reconciled(gang)
+
 
 class TestGuards:
     def test_stored_effects_do_not_run_at_read_time(self, gang, bought):
