@@ -97,7 +97,7 @@ class TestTheDialogs:
         client.force_login(owner)
         url = reverse("n26-gang", args=[gang.pk])
         body = client.get(f"{url}?refund={armed.pk}").content.decode()
-        assert f"Refund everything — {HIRE_PRICE + GUN_PRICE}¢" in body
+        assert f"Refund {HIRE_PRICE + GUN_PRICE}¢" in body
         assert f"Stash kit, refund {HIRE_PRICE}¢" in body
 
     def test_a_fighter_with_nothing_bought_gets_no_stash_button(
