@@ -23,6 +23,7 @@ from n26.core.models import (
     PostBattleReport,
 )
 from n26.core.operations import Refusal
+from n26.core.scenarios import results
 from n26.core.views.campaigns import _badge_a_redrawn_page
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
 
@@ -129,6 +130,7 @@ def battle(request, pk, battle_pk):
             "recorded": recorded,
             "stake": battle_stake(found, request.user),
             "yours": campaign.owner_id == request.user.pk,
+            "scenario_results": results(found.scenario_rolls or {}),
         },
     )
 

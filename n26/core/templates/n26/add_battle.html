@@ -32,6 +32,9 @@
         </c-slot>
         {% csrf_token %}
         {% if battle %}{{ form.revision }}{{ form.stake_versions }}{% endif %}
+        {% for field in form %}
+            {% if field.name in form.scenario_keys %}{{ field }}{% endif %}
+        {% endfor %}
         <c-n26.form-section title="The battle">
             <c-ui.field label="Scenario *"
                         error="x"
@@ -44,6 +47,27 @@
                             required
                             value="{{ form.scenario.value|default:'' }}" />
             </c-ui.field>
+            {% if scenario_results %}
+                {% comment %}
+                The generated scenario, saved with the battle. Its rolls ride as
+                hidden fields, so a form that comes back with an error keeps
+                them; the view checks each one again on save.
+                {% endcomment %}
+                <section aria-labelledby="battle-scenario-components"
+                         class="flex flex-col gap-3 rounded-box border border-box-border p-4">
+                    <h3 id="battle-scenario-components" class="font-semibold">Scenario components</h3>
+                    {% include "n26/includes/scenario_summary.html" with results=scenario_results %}
+                    <details>
+                        <summary class="cursor-pointer text-sm font-medium">View scenario details</summary>
+                        <div class="mt-3">{% include "n26/includes/scenario_results.html" with results=scenario_results %}</div>
+                    </details>
+                </section>
+            {% endif %}
+            {% if scenario_wrong %}
+                <p class="text-sm text-red-600 dark:text-red-400">
+                    This link names a scenario component that is not on its table, so no scenario is attached. Generate the scenario again.
+                </p>
+            {% endif %}
             <c-ui.field label="Date *" error="x" :form="form" name="date" for="battle-date">
                 <c-ui.input id="battle-date"
                             name="date"

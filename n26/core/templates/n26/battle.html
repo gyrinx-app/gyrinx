@@ -52,6 +52,13 @@
             {% endif %}
         {% endif %}
         {% if not battle.scenario %}<p class="text-sm text-muted">Scenario not recorded.</p>{% endif %}
+        {% if scenario_results %}
+            <section class="border border-box-border bg-surface p-4 sm:p-5"
+                     aria-labelledby="battle-scenario-heading">
+                <h2 id="battle-scenario-heading" class="mb-3 text-lg font-semibold">Scenario</h2>
+                {% include "n26/includes/scenario_results.html" with results=scenario_results %}
+            </section>
+        {% endif %}
         <section class="border border-box-border bg-surface p-4 sm:p-5"
                  aria-labelledby="battle-outcome-heading">
             <h2 id="battle-outcome-heading" class="text-sm font-medium text-muted">Outcome</h2>

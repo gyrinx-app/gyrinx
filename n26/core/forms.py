@@ -623,12 +623,59 @@ def stake_noun(stakes):
     return label[:1].upper() + label[1:]
 
 
-class BattleForm(forms.Form):
+class ScenarioComponentsMixin:
+    """A generated scenario carried through a form as hidden fields, one
+    per scenario table and named by its key, the same shape as the
+    generator's own address.
+
+    The fields are hidden, so a value that is not on its table is said as
+    one error on the form rather than lost on a field nobody sees. The
+    components reach ``cleaned_data`` as one ``scenario_rolls`` mapping.
+    """
+
+    def add_scenario_fields(self):
+        from n26.library.scenario_tables import TABLES
+
+        self.scenario_keys = []
+        for table in TABLES:
+            self.scenario_keys.append(table.key)
+            self.fields[table.key] = forms.TypedChoiceField(
+                required=False,
+                coerce=int,
+                empty_value=None,
+                choices=[(entry.roll, entry.name) for entry in table.entries],
+                widget=forms.HiddenInput,
+            )
+
+    def gather_scenario(self, cleaned):
+        if any(key in self.errors for key in self.scenario_keys):
+            for key in self.scenario_keys:
+                self.errors.pop(key, None)
+            self.add_error(
+                None,
+                "A scenario component is not on its table. Generate the scenario again.",
+            )
+        cleaned["scenario_rolls"] = {
+            key: cleaned[key]
+            for key in self.scenario_keys
+            if cleaned.get(key) is not None
+        }
+        for key in self.scenario_keys:
+            cleaned.pop(key, None)
+        return cleaned
+
+
+class BattleForm(ScenarioComponentsMixin, forms.Form):
     """A battle's identity and participants, and on edit its outcome.
 
     A new battle carries no outcome fields: players add it before the
     game, choose crews from its page, and record the outcome afterwards
     by editing it.
+
+    A new battle may also carry a scenario from the generator, as one
+    hidden field per scenario table named by the table's key, the same
+    shape as the generator's own address. They arrive in cleaned_data
+    as one ``scenario_rolls`` mapping.
     """
 
     scenario = forms.CharField(max_length=200, label="Scenario")
@@ -675,9 +722,11 @@ class BattleForm(forms.Form):
             )
         self.fields["result"].choices = Battle.Result.choices
         self.fields["result"].initial = Battle.Result.NOT_RECORDED
+        self.scenario_keys = []
         if battle is None:
             for name in ("revision", "result", "winners"):
                 del self.fields[name]
+            self.add_scenario_fields()
         else:
             self.initial.update(
                 scenario=battle.scenario,
@@ -754,6 +803,8 @@ class BattleForm(forms.Form):
                     "stake",
                     "The available stakes changed. Reload the battle before saving.",
                 )
+        if self.scenario_keys:
+            cleaned = self.gather_scenario(cleaned)
         if all(field in cleaned for field in ("result", "gangs", "winners")):
             try:
                 Battle.validate_outcome(
@@ -1078,6 +1129,107 @@ class PoolRollForm(RollAssetForm):
         if (data.get("count") or 0) > 1 and data.get("rolled") is not None:
             self.add_error("rolled", "Set the number to 1 to use your own roll.")
         return data
+
+
+class ScenarioGeneratorForm(forms.Form):
+    """What to do with each scenario table: roll it, leave it out, or use
+    a named entry. Every table rolls unless the reader says otherwise.
+
+    Read from the query string, since generating saves nothing. A pick's
+    field is ``<key>_pick``, so the table's own key stays free for the
+    result it landed on and a link carries both.
+    """
+
+    ROLL = "roll"
+    LEAVE_OUT = "leave"
+
+    def __init__(self, *args, **kwargs):
+        from n26.library.scenario_tables import TABLES
+
+        super().__init__(*args, **kwargs)
+        self.tables = TABLES
+        for table in TABLES:
+            self.fields[self.pick_name(table)] = forms.ChoiceField(
+                required=False,
+                label=table.name,
+                choices=[(self.ROLL, "Roll a D6"), (self.LEAVE_OUT, "Leave out")]
+                + [
+                    (str(entry.roll), f"{entry.roll}. {entry.label}")
+                    for entry in table.entries
+                ],
+                error_messages={
+                    "invalid_choice": f"Select an option for {table.name}."
+                },
+            )
+
+    @staticmethod
+    def pick_name(table):
+        return f"{table.key}_pick"
+
+    def picks(self):
+        """Each table's pick as ``{key: pick}``, rolling where none is given."""
+        return {
+            table.key: self.cleaned_data.get(self.pick_name(table)) or self.ROLL
+            for table in self.tables
+        }
+
+    def generate(self, rng=None):
+        """``{key: roll}`` for the tables not left out: a D6 for the ones to
+        roll, the named entry for the rest."""
+        from n26.core.scenarios import roll
+
+        picks = self.picks()
+        rolled = roll(
+            [key for key, pick in picks.items() if pick == self.ROLL], rng=rng
+        )
+        return {
+            key: rolled[key] if pick == self.ROLL else int(pick)
+            for key, pick in picks.items()
+            if pick != self.LEAVE_OUT
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        if not self.errors and all(
+            pick == self.LEAVE_OUT for pick in self.picks().values()
+        ):
+            raise forms.ValidationError(
+                "Select at least one component to roll or include."
+            )
+        return cleaned
+
+    def chosen_picks(self):
+        """The picks that are not the default, for a link to carry."""
+        picks = self.picks()
+        return {
+            self.pick_name(table): picks[table.key]
+            for table in self.tables
+            if picks[table.key] != self.ROLL
+        }
+
+
+class SaveScenarioForm(ScenarioComponentsMixin, forms.Form):
+    """A generated scenario to save to the campaign's log, and its name."""
+
+    name = forms.CharField(
+        max_length=200,
+        label="Scenario name",
+        help_text="Use a name you and the other players will recognise.",
+        error_messages={
+            "required": "Enter a scenario name of up to 200 characters.",
+            "max_length": "Enter a scenario name of up to 200 characters.",
+        },
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.add_scenario_fields()
+
+    def clean(self):
+        cleaned = self.gather_scenario(super().clean())
+        if not self.errors and not cleaned["scenario_rolls"]:
+            self.add_error(None, "There is no scenario to save. Generate one first.")
+        return cleaned
 
 
 class OpenTablesForm(forms.Form):

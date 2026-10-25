@@ -430,17 +430,40 @@ class CampaignOperation:
         return scenario, gangs, winners
 
     def record_battle(
-        self, date, gangs=(), *, scenario, result="not_recorded", winners=()
+        self,
+        date,
+        gangs=(),
+        *,
+        scenario,
+        result="not_recorded",
+        winners=(),
+        scenario_rolls=None,
     ):
-        """Record a battle without applying rewards or changing any gang."""
+        """Record a battle without applying rewards or changing any gang.
+
+        ``scenario_rolls`` is what each scenario generator table landed on,
+        as ``{key: roll}``. A table left out is not named; a roll that is not
+        on its table refuses the battle rather than dropping that part.
+        """
         from n26.core.models import Battle
+        from n26.core.operations import Refusal
+        from n26.core.scenarios import parse, rolls_of
 
         self._require_recorder()
+        scenario_found, wrong = parse(scenario_rolls or {})
+        if wrong:
+            raise Refusal(
+                "A scenario component is not on its table. Generate the scenario again."
+            )
         scenario, gangs, winners = self._battle_details(
             scenario=scenario, result=result, gangs=gangs, winners=winners
         )
         battle = Battle.objects.create(
-            campaign=self.campaign, date=date, scenario=scenario, result=result
+            campaign=self.campaign,
+            date=date,
+            scenario=scenario,
+            result=result,
+            scenario_rolls=rolls_of(scenario_found),
         )
         battle.gangs.set(gangs)
         battle.winners.set(winners)
@@ -604,6 +627,33 @@ class CampaignOperation:
             note=outcome,
         )
         return roll
+
+    def save_scenario(self, rolls, *, name):
+        """Save a scenario from the generator for the arbitrator to see.
+
+        ``rolls`` is ``{key: roll}`` for each table it uses. ``name`` is
+        what the reader calls it, held to a battle scenario's rule so the
+        log reads the same for both. Whoever may record battles may save
+        one. One line says the whole scenario.
+        """
+        from n26.core.operations import Refusal
+        from n26.core.scenarios import history_note, parse, rolls_of
+
+        self._require_recorder()
+        name = (name or "").strip()
+        if not name or len(name) > 200:
+            raise Refusal("Enter a scenario name of up to 200 characters.")
+        found, wrong = parse(rolls)
+        if wrong:
+            raise Refusal(
+                "A scenario component is not on its table. Generate the scenario again."
+            )
+        if not found:
+            raise Refusal("There is no scenario to save. Generate one first.")
+        return self.event(
+            CampaignEvent.Kind.SCENARIO_SAVED,
+            note=history_note(rolls_of(found), name),
+        )
 
     def edit_battle(
         self,
