@@ -5,6 +5,8 @@ from urllib.parse import urlencode
 
 import pytest
 from django.core.exceptions import ValidationError
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from n23.content.models import ContentPromotionPath
@@ -50,6 +52,33 @@ def roll_action(user, rolled_fighter):
         dice_results=[3, 4],
         dice_total=7,
     )
+
+
+@pytest.fixture
+def rolled_promotion(rolled_fighter, make_content_fighter, make_content_skill):
+    targets = [
+        make_content_fighter(
+            type=name,
+            category=FighterCategoryChoices.SPECIALIST,
+            house=rolled_fighter.list.content_house,
+            base_cost=125,
+        )
+        for name in ("First specialist", "Second specialist")
+    ]
+    path = ContentPromotionPath.objects.create(
+        name="Choose specialist type",
+        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
+        from_category=FighterCategoryChoices.GANGER,
+        to_category=FighterCategoryChoices.SPECIALIST,
+        xp_cost=15,
+        cost_increase=35,
+        rolls=[7],
+        grants_skill="none",
+    )
+    path.targets.set(targets)
+    skill = make_content_skill("Iron Jaw", category="Combat")
+    rolled_fighter.content_fighter.primary_skill_categories.add(skill.category)
+    return path, targets, skill
 
 
 def flow_url(fighter, step, **params):
@@ -348,34 +377,15 @@ def test_rolled_promotion_collects_target_before_application(
     user,
     rolled_fighter,
     roll_action,
-    make_content_fighter,
-    make_content_skill,
+    rolled_promotion,
     total,
     grants_skill,
     target_index,
 ):
-    targets = [
-        make_content_fighter(
-            type=name,
-            category=FighterCategoryChoices.SPECIALIST,
-            house=rolled_fighter.list.content_house,
-            base_cost=125,
-        )
-        for name in ("First specialist", "Second specialist")
-    ]
-    path = ContentPromotionPath.objects.create(
-        name="Choose specialist type",
-        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
-        from_category=FighterCategoryChoices.GANGER,
-        to_category=FighterCategoryChoices.SPECIALIST,
-        xp_cost=15,
-        cost_increase=35,
-        rolls=[total],
-        grants_skill=grants_skill,
-    )
-    path.targets.set(targets)
-    skill = make_content_skill("Iron Jaw", category="Combat")
-    rolled_fighter.content_fighter.primary_skill_categories.add(skill.category)
+    path, targets, skill = rolled_promotion
+    path.rolls = [total]
+    path.grants_skill = grants_skill
+    path.save()
     roll_action.dice_results = [max(1, total - 6), min(6, total - 1)]
     roll_action.dice_total = total
     roll_action.save()
@@ -417,6 +427,41 @@ def test_rolled_promotion_collects_target_before_application(
     assert (advancement.xp_cost, advancement.cost_increase) == (6, 35)
     assert rolled_fighter.xp_current == 24
     assert rolled_fighter.promoted_content_fighter == targets[target_index]
+
+
+@pytest.mark.django_db
+def test_rolled_promotion_target_queries_do_not_grow(
+    client, user, rolled_fighter, roll_action, rolled_promotion, make_content_fighter
+):
+    path, targets, skill = rolled_promotion
+    client.force_login(user)
+    url = flow_url(
+        rolled_fighter,
+        "select",
+        campaign_action_id=roll_action.id,
+        advancement_choice=f"promotion_{path.id}",
+        xp_cost=6,
+        cost_increase=35,
+    )
+
+    def query_count():
+        client.get(url)
+        with CaptureQueriesContext(connection) as queries:
+            response = client.get(url)
+        assert response.status_code == 200
+        return len(queries)
+
+    small_count = query_count()
+    for index in range(10):
+        path.targets.add(
+            make_content_fighter(
+                type=f"Additional specialist {index}",
+                category=FighterCategoryChoices.SPECIALIST,
+                house=rolled_fighter.list.content_house,
+                base_cost=125,
+            )
+        )
+    assert query_count() <= small_count
 
 
 @pytest.mark.django_db

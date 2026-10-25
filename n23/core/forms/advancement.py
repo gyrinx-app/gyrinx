@@ -718,7 +718,7 @@ class PromotionTargetSelectionForm(forms.Form):
             path.resolve_targets(fighter)
             if path and fighter
             else ContentFighter.objects.none()
-        )
+        ).select_related("house")
 
 
 class EquipmentAssignmentSelectionForm(forms.Form):
