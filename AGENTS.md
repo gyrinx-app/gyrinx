@@ -123,8 +123,8 @@ Before pushing:
 4. For database-backed pages, use the `sql-performance` skill and check query
    growth with representative repeated data.
 5. For changed user-facing text, use the `microcopy` skill.
-6. For meaningful UI changes, use `pr-screenshots` and add useful evidence to
-   the PR when it helps reviewers.
+6. For changes you can see, use `pr-screenshots` and attach visual evidence
+   to the PR. Follow the visual evidence guidance below.
 
 See [`docs/developing-gyrinx/testing.md`](docs/developing-gyrinx/testing.md) for
 the checks required by CI. Fix failures in the source; do not bypass static
@@ -205,3 +205,36 @@ behaviour, name the affected page, model or command, and explain internal terms
 once. Include concrete verification or steps to try the change. Keep PR
 descriptions factual and update screenshots when later changes make them
 inaccurate.
+
+### Visual evidence
+
+Attach visual evidence to PRs that change rendered UI, including N23 pages,
+N26 pages and React islands, authoring screens, and design-system components.
+This applies to local and cloud agents. Capture a screenshot for a static change
+or a short video (about 5–15 seconds) for an interaction. Small and copy-only UI
+changes still need evidence; automated tests do not replace it. If the change
+cannot be rendered with the available data, login or services, explain the
+limitation in the PR.
+
+Use the [`pr-screenshots`](.agents/skills/pr-screenshots/SKILL.md) skill for local
+capture and GitHub attachments. Use synthetic or local data and never commit
+generated screenshots or videos.
+
+For comparisons, match the viewport, zoom, theme and crop so both images have
+the same pixel size. Crop to the changed area while keeping enough context to
+understand it. Use a side-by-side Markdown table for narrow, matching captures
+(about 450px wide or less), such as a menu, card or mobile view:
+
+```markdown
+| Before | After |
+| --- | --- |
+| ![Equipment menu before](./screenshots/equipment/before.png) | ![Equipment menu after](./screenshots/equipment/after.png) |
+```
+
+Stack wider captures under separate `Before` and `After` headings, with a short
+line explaining what to look at. Wide images in a table shrink until the detail
+is hard to read. Keep videos outside tables so they play correctly.
+
+Keep evidence visible in the PR body. Only capture metadata or lengthy supporting
+notes belong in a collapsed `<details>` block. When editing the PR, preserve
+existing attachment URLs or replace evidence that no longer matches the UI.
