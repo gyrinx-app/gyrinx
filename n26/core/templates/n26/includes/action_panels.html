@@ -47,12 +47,30 @@
                         <div class="space-y-2 text-sm px-4 pb-4 pt-3">
                             <p class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-muted">
                                 <span>{{ panel.timing|capfirst }}</span>
-                                {% if panel.available_uses %}<span>{{ panel.available_uses }} use{{ panel.available_uses|pluralize }} available</span>{% endif %}
                                 {% for figures in panel.prices %}
                                     <span>Price <span class="font-semibold text-ink-900 dark:text-ink-100 tabular-nums">{{ figures.price }}</span>{% if figures.label %} {{ figures.label }}{% endif %}</span>
                                 {% endfor %}
                             </p>
-                            {% if panel.hold_reason %}<p class="text-sm text-muted">{{ panel.hold_reason }}</p>{% endif %}
+                            {% if panel.available_uses %}
+                                <div class="space-y-1">
+                                    <p class="font-medium">{{ panel.available_uses }} use{{ panel.available_uses|pluralize }} available</p>
+                                    {% if panel.earned_thresholds %}
+                                        <p class="text-muted">
+                                            Earned at {% for threshold in panel.earned_thresholds %}{{ threshold }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+                                            {% if panel.earned_thresholds|length > 1 %}The next use was earned at {{ panel.earned_thresholds.0 }}.{% endif %}
+                                        </p>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            {% if panel.drafts|length == 1 %}
+                                {% for draft in panel.drafts %}
+                                    <div class="space-y-1 border-t border-box-border pt-3">
+                                        <p class="font-medium">{% if draft.problem %}On hold{% else %}In progress{% endif %}</p>
+                                        {% if draft.earned_threshold %}<p class="text-muted">Earned at {{ draft.earned_threshold }}.</p>{% endif %}
+                                        {% if draft.problem %}<p class="text-muted">{{ draft.problem }}</p>{% endif %}
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
                             {% if panel.problem %}<p class="text-sm text-muted">{{ panel.problem }}</p>{% endif %}
                             {% if panel.drafts|length > 1 %}
                                 <div class="space-y-2">
@@ -61,6 +79,8 @@
                                             <time datetime="{{ draft.when|date:'c' }}"
                                                   title="{{ draft.when }}"
                                                   class="text-muted">Started {{ draft.when|naturaltime }}</time>
+                                            {% if draft.earned_threshold %}<span class="text-muted">Earned at {{ draft.earned_threshold }}.</span>{% endif %}
+                                            {% if draft.problem %}<p class="text-muted">{{ draft.problem }}</p>{% endif %}
                                             <c-ui.button href="{{ draft.href }}"
                                                          variant="{{ draft.variant }}"
                                                          size="sm"

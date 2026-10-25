@@ -4,7 +4,10 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from n26.core.models import (
@@ -317,6 +320,202 @@ class TestAnEarnedAdvancementStartsAndResumes:
             ).roll
             == 6
         )
+
+
+class TestEarnedThresholdLabels:
+    """The offer, saved flow and result keep the threshold that earned the use."""
+
+    def test_available_uses_name_their_thresholds_and_the_next_use(
+        self, client, advancement
+    ):
+        a.add_rank_threshold(advancement.allowance.rank_table, 8)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 4)
+        client.force_login(advancement.owner)
+        page = client.get(reverse("n26-edit-fighter", args=[advancement.fighter.pk]))
+        panel = next(p for p in page.context["action_panels"] if p.name == "Advance")
+        assert panel.earned_thresholds == ("4 XP", "8 XP")
+        text = (
+            BeautifulSoup(page.content, "html.parser")
+            .find(id="n26-action-panels")
+            .get_text(" ", strip=True)
+        )
+        assert "Earned at 4 XP, 8 XP." in text
+        assert "The next use was earned at 4 XP." in text
+        start = client.get(panel.start_href)
+        assert start.context["earned_threshold"] == "4 XP"
+        later = ActionAllowance.objects.get(fighter=advancement.fighter, threshold=8)
+        selected = client.get(
+            reverse(
+                "n26-action-start", args=[advancement.fighter.pk, advancement.action.pk]
+            ),
+            {"allowance": str(later.pk)},
+        )
+        assert selected.context["earned_threshold"] == "8 XP"
+
+    def test_an_unstarted_use_disappears_below_its_threshold_and_returns_once(
+        self, client, advancement
+    ):
+        from n26.core.progression import progression_for
+
+        a.add_rank_threshold(advancement.allowance.rank_table, 8)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 4)
+            op.tally(advancement.xp, -2)
+        later = ActionAllowance.objects.get(fighter=advancement.fighter, threshold=8)
+        client.force_login(advancement.owner)
+        page = client.get(reverse("n26-edit-fighter", args=[advancement.fighter.pk]))
+        panel = next(p for p in page.context["action_panels"] if p.name == "Advance")
+        assert (panel.available_uses, panel.held_uses) == (1, 0)
+        assert panel.earned_thresholds == ("4 XP",)
+        text = (
+            BeautifulSoup(page.content, "html.parser")
+            .find(id="n26-action-panels")
+            .get_text(" ", strip=True)
+        )
+        assert "Earned at 4 XP." in text
+        assert "8 XP" not in text
+        assert "On hold" not in text
+        assert [
+            (rank.threshold, rank.state)
+            for rank in progression_for(advancement.fighter).history
+        ] == [(4, "available")]
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 2)
+        restored = client.get(
+            reverse("n26-edit-fighter", args=[advancement.fighter.pk])
+        )
+        panel = next(
+            p for p in restored.context["action_panels"] if p.name == "Advance"
+        )
+        assert panel.earned_thresholds == ("4 XP", "8 XP")
+        assert (
+            ActionAllowance.objects.get(fighter=advancement.fighter, threshold=8).pk
+            == later.pk
+        )
+        assert ActionAllowance.objects.filter(fighter=advancement.fighter).count() == 2
+
+    def test_a_started_use_on_hold_is_separate_from_another_available_use(
+        self, client, advancement
+    ):
+        a.add_rank_threshold(advancement.allowance.rank_table, 8)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 4)
+            later = ActionAllowance.objects.get(
+                fighter=advancement.fighter, threshold=8
+            )
+            op.start_action(
+                advancement.fighter, advancement.action, uuid4(), allowance=later
+            )
+            op.tally(advancement.xp, -2)
+        client.force_login(advancement.owner)
+        page = client.get(reverse("n26-edit-fighter", args=[advancement.fighter.pk]))
+        panel = next(p for p in page.context["action_panels"] if p.name == "Advance")
+        assert (panel.available_uses, panel.held_uses) == (1, 1)
+        html = BeautifulSoup(page.content, "html.parser").find(id="n26-action-panels")
+        available = html.find("p", string="1 use available").parent.get_text(
+            " ", strip=True
+        )
+        held = html.find("p", string="On hold").parent.get_text(" ", strip=True)
+        assert "Earned at 4 XP." in available
+        assert "8 XP" not in available
+        assert "Earned at 8 XP." in held
+        assert "On hold until 8 XP." in held
+        assert "4 XP" not in held
+
+    def test_marking_as_applied_names_the_explicit_or_default_threshold(
+        self, client, advancement
+    ):
+        a.add_rank_threshold(advancement.allowance.rank_table, 8)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 4)
+        client.force_login(advancement.owner)
+        url = reverse(
+            "n26-action-by-hand", args=[advancement.fighter.pk, advancement.action.pk]
+        )
+        later = ActionAllowance.objects.get(fighter=advancement.fighter, threshold=8)
+        for params, expected in (({}, "4 XP"), ({"allowance": str(later.pk)}, "8 XP")):
+            page = client.get(url, params)
+            assert page.context["earned_threshold"] == expected
+            assert f"Earned at {expected}." in page.content.decode()
+        assert not ActionRecord.objects.filter(fighter=advancement.fighter).exists()
+
+    def test_the_original_threshold_remains_through_completion_and_undo(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        a.add_rank_threshold(advancement.allowance.rank_table, 8)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 5)
+        roll = client.get(
+            reverse(
+                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "choose"]
+            )
+        )
+        assert roll.context["earned_threshold"] == "4 XP"
+        edit = client.get(reverse("n26-edit-fighter", args=[advancement.fighter.pk]))
+        panel = next(p for p in edit.context["action_panels"] if p.name == "Advance")
+        assert panel.drafts[0].earned_threshold == "4 XP"
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        assert client.get(skill_url).context["earned_threshold"] == "4 XP"
+        review = client.post(
+            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        )
+        reviewed = client.get(review.url)
+        assert reviewed.context["earned_threshold"] == "4 XP"
+        done = client.post(
+            review.url, {"review": reviewed.context["form"]["review"].value()}
+        )
+        receipt = client.get(done.url, follow=True)
+        assert "Earned at 4 XP." in receipt.content.decode()
+        edit = client.get(reverse("n26-edit-fighter", args=[advancement.fighter.pk]))
+        history = BeautifulSoup(edit.content, "html.parser").find(
+            id="n26-action-history"
+        )
+        assert "Earned at 4 XP." in history.get_text(" ", strip=True)
+        undo = client.get(
+            reverse("n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"])
+        )
+        assert undo.context["earned_threshold"] == "4 XP"
+
+    def test_more_completed_thresholds_do_not_add_queries_to_the_edit_page(
+        self, client, advancement
+    ):
+        for threshold in (8, 12, 16):
+            a.add_rank_threshold(advancement.allowance.rank_table, threshold)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 12)
+            op.apply_allowance_by_hand(
+                advancement.fighter, advancement.action, uuid4(), advancement.allowance
+            )
+        client.force_login(advancement.owner)
+        url = reverse("n26-edit-fighter", args=[advancement.fighter.pk])
+
+        def measure(expected_count):
+            client.get(url)
+            with CaptureQueriesContext(connection) as queries:
+                page = client.get(url)
+            panel = next(
+                p for p in page.context["action_history_panels"] if p.name == "Advance"
+            )
+            assert len(panel.completed) == expected_count
+            assert all(result.earned_threshold for result in panel.completed)
+            return len(queries)
+
+        one = measure(1)
+        for threshold in (8, 12):
+            allowance = ActionAllowance.objects.get(
+                fighter=advancement.fighter, threshold=threshold
+            )
+            with operation(advancement.gang, actor=advancement.owner) as op:
+                op.apply_allowance_by_hand(
+                    advancement.fighter, advancement.action, uuid4(), allowance
+                )
+        assert measure(3) == one
 
 
 class TestChangingTheRoll:
@@ -1191,17 +1390,28 @@ class TestAdvancementHoldsAndUndo:
             token = page.context["form"]["review"].value()
         with operation(advancement.gang, actor=advancement.owner) as op:
             op.tally(advancement.xp, -1)
-        assert progression_for(advancement.fighter).history[0].state_label == "On hold"
+        rank_history = progression_for(advancement.fighter).history
+        if record:
+            assert rank_history[0].state_label == "On hold"
+        else:
+            assert rank_history == ()
         assert not _waiting(advancement)
         edit = client.get(reverse("n26-edit-fighter", args=[advancement.fighter.pk]))
         panel = next(
-            p
-            for p in edit.context["action_panels"]
-            if p.action_id == str(advancement.action.pk)
+            (
+                p
+                for p in edit.context["action_panels"]
+                if p.action_id == str(advancement.action.pk)
+            ),
+            None,
         )
-        assert not panel.flagged and not panel.start_href
-        assert panel.held_uses == 1
-        assert "On hold until 4 XP." in edit.content.decode()
+        if record:
+            assert not panel.flagged and not panel.start_href
+            assert panel.held_uses == 1
+            assert "On hold until 4 XP." in edit.content.decode()
+        else:
+            assert panel is None
+            assert "On hold until 4 XP." not in edit.content.decode()
         with pytest.raises(Refusal, match="On hold"):
             with operation(advancement.gang, actor=advancement.owner) as op:
                 op.start_action(
@@ -1266,7 +1476,7 @@ class TestAdvancementHoldsAndUndo:
             for panel in response.context["action_panels"]
             if panel.action_id == str(advancement.action.pk)
         )
-        assert panel.held_uses == 2
+        assert panel.held_uses == 1
         assert panel.hold_reason == "On hold until 4 XP."
         assert panel.drafts[0].problem == panel.hold_reason
 

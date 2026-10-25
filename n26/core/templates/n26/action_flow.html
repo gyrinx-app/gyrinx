@@ -51,6 +51,7 @@ The roll controls submit through the surrounding form.
                 </c-ui.button>
             {% endif %}
         </c-slot>
+        {% if earned_threshold %}<p class="text-sm text-muted">Earned at {{ earned_threshold }}.</p>{% endif %}
         <div class="max-w-3xl">
             <c-n26.flow-progress :steps="steps" />
         </div>
