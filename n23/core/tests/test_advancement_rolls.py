@@ -298,22 +298,25 @@ def test_recorded_roll_checks_fighter_category(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("total", [2, 12])
+@pytest.mark.parametrize("total", [2, 7, 12])
 @pytest.mark.parametrize("method", ["roll_auto", "roll_manual"])
 def test_promotion_roll_keeps_six_xp_through_skill_selection(
     client, user, rolled_fighter, default_promotions, make_content_skill, total, method
 ):
     skill = make_content_skill("Iron Jaw", category="Combat")
     rolled_fighter.content_fighter.primary_skill_categories.add(skill.category)
+    path = default_promotions[("GANGER", "SPECIALIST")]
+    if total == 7:
+        path.rolls = [7]
+        path.save()
     client.force_login(user)
-    dice = [1, 1] if total == 2 else [6, 6]
+    dice = [max(1, total - 6), min(6, total - 1)]
     with patch("n23.core.views.fighter.advancements.random.randint", side_effect=dice):
         response = client.post(
             flow_url(rolled_fighter, "dice-choice"),
             {"roll_action": method, "d6_1": dice[0], "d6_2": dice[1]},
             follow=True,
         )
-    path = default_promotions[("GANGER", "SPECIALIST")]
     type_url = response.redirect_chain[-1][0]
     response = client.post(
         type_url,
@@ -336,6 +339,30 @@ def test_promotion_roll_keeps_six_xp_through_skill_selection(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("total", [2, 12])
+@pytest.mark.parametrize("method", ["roll_auto", "roll_manual"])
+def test_beast_without_promotion_returns_to_manual_without_spending_xp(
+    client, user, rolled_fighter, default_promotions, total, method
+):
+    rolled_fighter.category_override = FighterCategoryChoices.EXOTIC_BEAST
+    rolled_fighter.save()
+    client.force_login(user)
+    dice = [1, 1] if total == 2 else [6, 6]
+    with patch("n23.core.views.fighter.advancements.random.randint", side_effect=dice):
+        response = client.post(
+            flow_url(rolled_fighter, "dice-choice"),
+            {"roll_action": method, "d6_1": dice[0], "d6_2": dice[1]},
+            follow=True,
+        )
+    assert response.status_code == 200
+    assert "No promotion is available for this roll." in response.content.decode()
+    assert response.context["campaign_action"] is None
+    rolled_fighter.refresh_from_db()
+    assert rolled_fighter.xp_current == 30
+    assert not rolled_fighter.advancements.exists()
+
+
+@pytest.mark.django_db
 def test_missing_promotion_does_not_fall_back_to_willpower(rolled_fighter):
     with pytest.raises(ValidationError, match="No promotion"):
         resolve_advancement_roll(12, rolled_fighter)
@@ -347,6 +374,7 @@ def test_manual_advancement_keeps_custom_choice_and_cost(client, user, rolled_fi
     response = client.post(
         flow_url(rolled_fighter, "type"),
         {
+            "campaign_action_id": "",
             "advancement_choice": "stat_strength",
             "xp_cost": 4,
             "cost_increase": 15,

@@ -626,9 +626,9 @@ def list_fighter_advancement_type(request, id, fighter_id):
     is_campaign_mode = lst.status == List.CAMPAIGN_MODE
 
     try:
-        params = AdvancementBaseParams.model_validate(
-            {**request.POST.dict(), **request.GET.dict()}
-        )
+        raw_params = {**request.POST.dict(), **request.GET.dict()}
+        raw_params["campaign_action_id"] = raw_params.get("campaign_action_id") or None
+        params = AdvancementBaseParams.model_validate(raw_params)
     except ValidationError:
         messages.error(request, "This advancement roll could not be found.")
         return HttpResponseRedirect(

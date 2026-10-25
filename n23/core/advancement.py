@@ -51,6 +51,20 @@ STAT_ROLL_BANDS = (
 
 
 def resolve_advancement_roll(total, fighter=None) -> AdvancementRoll:
+    paths = ContentPromotionPath.objects.filter(rolls__contains=total).prefetch_related(
+        "targets", "restricted_to_houses"
+    )
+    for path in paths:
+        if fighter and not path.is_available_to_fighter(fighter):
+            continue
+        targets = path.resolve_targets(fighter) if fighter else path.targets.all()
+        if len(targets) > 1:
+            continue
+        return AdvancementRoll(
+            choices=((promotion_choice_key(path), promotion_choice_label(path)),),
+            cost_increase=path.cost_increase,
+        )
+
     for totals, stats, cost_increase in STAT_ROLL_BANDS:
         if total in totals:
             return AdvancementRoll(
@@ -59,19 +73,6 @@ def resolve_advancement_roll(total, fighter=None) -> AdvancementRoll:
             )
 
     if total in (2, 12):
-        paths = ContentPromotionPath.objects.filter(
-            rolls__contains=total
-        ).prefetch_related("targets", "restricted_to_houses")
-        for path in paths:
-            if fighter and not path.is_available_to_fighter(fighter):
-                continue
-            targets = path.resolve_targets(fighter) if fighter else path.targets.all()
-            if len(targets) > 1:
-                continue
-            return AdvancementRoll(
-                choices=((promotion_choice_key(path), promotion_choice_label(path)),),
-                cost_increase=path.cost_increase,
-            )
         raise ValidationError("No promotion is available for this roll.")
 
     raise ValidationError("The advancement roll must total between 2 and 12.")
