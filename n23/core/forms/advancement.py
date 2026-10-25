@@ -15,26 +15,13 @@ from n23.content.models import (
     ContentSkillCategory,
     ContentStat,
 )
+from n23.core.advancement import (
+    promotion_choice_key,
+    promotion_choice_label,
+    resolve_advancement_roll,
+    validate_advancement_roll,
+)
 from n23.core.models.campaign import CampaignAction
-
-# Human-readable suffix for what a promotion bundles, mirroring the old hardcoded labels
-# ("Promote to Specialist (Random Primary Skill)").
-GRANTS_SKILL_LABELS = {
-    "primary_random": "Random Primary Skill",
-    "primary_chosen": "Chosen Primary Skill",
-    "secondary_random": "Random Secondary Skill",
-    "secondary_chosen": "Chosen Secondary Skill",
-    "any_random": "Random Skill (Any Set)",
-}
-
-
-def promotion_choice_key(path) -> str:
-    return f"promotion_{path.id}"
-
-
-def promotion_choice_label(path) -> str:
-    suffix = GRANTS_SKILL_LABELS.get(path.grants_skill)
-    return f"{path.name} ({suffix})" if suffix else path.name
 
 
 def available_promotion_paths(fighter):
@@ -63,7 +50,6 @@ class AdvancementConfig:
     display_name: str
     xp_cost: int
     cost_increase: int
-    roll: int | None = None  # For GANGER 2d6 rolls
     restricted_to_fighter_categories: list[str] | None = None
 
     def is_available_to_category(self, category: str) -> bool:
@@ -124,28 +110,24 @@ class AdvancementTypeForm(forms.Form):
             display_name="Willpower",
             xp_cost=3,
             cost_increase=5,
-            roll=8,
         ),
         "stat_intelligence": AdvancementConfig(
             name="stat_intelligence",
             display_name="Intelligence",
             xp_cost=3,
             cost_increase=5,
-            roll=9,
         ),
         "stat_leadership": AdvancementConfig(
             name="stat_leadership",
             display_name="Leadership",
             xp_cost=4,
             cost_increase=10,
-            roll=10,
         ),
         "stat_cool": AdvancementConfig(
             name="stat_cool",
             display_name="Cool",
             xp_cost=4,
             cost_increase=10,
-            roll=11,
         ),
         "stat_initiative": AdvancementConfig(
             name="stat_initiative",
@@ -158,35 +140,30 @@ class AdvancementTypeForm(forms.Form):
             display_name="Movement",
             xp_cost=5,
             cost_increase=10,
-            roll=7,
         ),
         "stat_weapon_skill": AdvancementConfig(
             name="stat_weapon_skill",
             display_name="Weapon Skill",
             xp_cost=6,
             cost_increase=20,
-            roll=3,
         ),
         "stat_ballistic_skill": AdvancementConfig(
             name="stat_ballistic_skill",
             display_name="Ballistic Skill",
             xp_cost=6,
             cost_increase=20,
-            roll=4,
         ),
         "stat_strength": AdvancementConfig(
             name="stat_strength",
             display_name="Strength",
             xp_cost=8,
             cost_increase=30,
-            roll=5,
         ),
         "stat_toughness": AdvancementConfig(
             name="stat_toughness",
             display_name="Toughness",
             xp_cost=8,
             cost_increase=30,
-            roll=6,
         ),
         "stat_wounds": AdvancementConfig(
             name="stat_wounds",
@@ -276,12 +253,30 @@ class AdvancementTypeForm(forms.Form):
         widget=forms.HiddenInput(),
     )
 
-    def __init__(self, *args, fighter=None, **kwargs):
+    def __init__(self, *args, fighter=None, campaign_action=None, roll=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fighter = fighter
         # Create instance-level copy of advancement configs to avoid modifying class-level dictionary
         # Start with a copy of the class-level configs
         self.advancement_configs = self.ADVANCEMENT_CONFIGS.copy()
+        if campaign_action:
+            roll = roll or validate_advancement_roll(campaign_action, fighter)
+            self.fields["advancement_choice"].widget = forms.RadioSelect(
+                attrs={"class": "form-check-input"}
+            )
+            self.fields["advancement_choice"].choices = roll.choices
+            self.fields[
+                "advancement_choice"
+            ].help_text = "Choose an advancement for this roll."
+            self.initial.update(
+                xp_cost=roll.xp_cost,
+                cost_increase=roll.cost_increase,
+                campaign_action_id=str(campaign_action.id),
+                advancement_choice=roll.choices[0][0] if len(roll.choices) == 1 else "",
+            )
+            for name in ("xp_cost", "cost_increase", "campaign_action_id"):
+                self.fields[name].disabled = True
+            return
 
         # Get fighter category for filtering
         fighter_category = fighter.get_category() if fighter else None
@@ -500,40 +495,11 @@ class AdvancementTypeForm(forms.Form):
                 "advancement_choice": "stat_willpower",
             }
 
-        # For GANGER dice rolls, find the config with matching roll number
-        advancement_choice = "stat_willpower"  # default
-        cost_increase = 5  # default
-
-        # Promotion rolls come from content: any path whose `rolls` list contains the 2d6
-        # total (the rulebook's Ganger table promotes on a 2 AND a 12). Checked before the
-        # stat configs, whose rolls (3–11) never overlap with promotion totals.
-        for path in ContentPromotionPath.objects.filter(
-            rolls__contains=campaign_action.dice_total
-        ).prefetch_related("targets", "restricted_to_houses"):
-            if fighter and not path.is_available_to_fighter(fighter):
-                continue
-            # Prefetched, so len() avoids a COUNT(*) per path. Multi-target paths can't
-            # be prefilled — the roll flow has no target-selection step. (Dynamic
-            # targets need the fighter to resolve; without one, only explicit targets
-            # can be counted.)
-            targets = path.resolve_targets(fighter) if fighter else path.targets.all()
-            if len(targets) > 1:
-                continue
-            advancement_choice = promotion_choice_key(path)
-            cost_increase = path.cost_increase
-            break
-        else:
-            for key, config in cls.ADVANCEMENT_CONFIGS.items():
-                if config.roll == campaign_action.dice_total:
-                    advancement_choice = key
-                    cost_increase = config.cost_increase
-                    break
-
-        # For GANGER dice rolls, always use 6 XP
+        roll = resolve_advancement_roll(campaign_action.dice_total, fighter)
         return {
-            "xp_cost": 6,
-            "cost_increase": cost_increase,
-            "advancement_choice": advancement_choice,
+            "xp_cost": roll.xp_cost,
+            "cost_increase": roll.cost_increase,
+            "advancement_choice": roll.choices[0][0] if len(roll.choices) == 1 else "",
             "campaign_action_id": str(campaign_action.id),
         }
 
@@ -553,7 +519,6 @@ class AdvancementTypeForm(forms.Form):
                 "display_name": config.display_name,
                 "xp_cost": config.xp_cost,
                 "cost_increase": config.cost_increase,
-                "roll": config.roll,
                 "restricted_to_fighter_categories": config.restricted_to_fighter_categories,
             }
         return configs

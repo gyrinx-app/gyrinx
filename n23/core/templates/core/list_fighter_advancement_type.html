@@ -1,25 +1,21 @@
 {% extends "core/layouts/base.html" %}
 {% block head_title %}
-    New Advancement - {{ fighter.name }}
+    New advancement - {{ fighter.name }}
 {% endblock head_title %}
 {% block content %}
     <div class="col-12 col-md-8 col-lg-6 vstack gap-4">
         <div class="vstack gap-1">
             {% include "core/includes/advancement_progress.html" with total_steps=steps %}
-            <h3 class="h5 mb-0">Select Advancement</h3>
+            <h3 class="h5 mb-0">Select advancement</h3>
         </div>
         {% if campaign_action %}
-            <div class="alert alert-info alert-icon mb-0" role="alert">
-                <i class="bi-dice-6"></i>
-                <div>
-                    <strong>Dice Roll:</strong>
-                    {% for result in campaign_action.dice_results %}
-                        {{ result }}
-                        {% if not forloop.last %}+{% endif %}
-                    {% endfor %}
-                    = <strong>{{ campaign_action.dice_total }}</strong>
-                </div>
-            </div>
+            <c-callout variant="info" icon="bi-dice-6" class="mb-0">
+                <strong>Dice roll:</strong>
+                {% for result in campaign_action.dice_results %}
+                    {{ result }}{% if not forloop.last %} + {% endif %}
+                {% endfor %}
+                = <strong>{{ campaign_action.dice_total }}</strong>
+            </c-callout>
         {% endif %}
         <form method="post"
               class="vstack gap-4"
@@ -27,65 +23,53 @@
             {% csrf_token %}
             {{ form.campaign_action_id }}
             {% if form.non_field_errors %}
-                <div class="alert alert-danger alert-icon mb-last-0 mb-0" role="alert">
-                    <i class="bi-exclamation-triangle"></i>
-                    <div>{{ form.non_field_errors }}</div>
-                </div>
+                <c-callout variant="danger" class="mb-0">
+                    {{ form.non_field_errors }}
+                </c-callout>
             {% endif %}
             <div class="vstack gap-3">
-                <div class="alert alert-secondary alert-icon mb-0" role="alert">
-                    <i class="bi-info-circle"></i>
-                    <div>
-                        Available XP: <span class="badge text-bg-primary">{{ fighter.xp_current }}</span>
-                    </div>
-                </div>
-                <div>
-                    <label class="form-label">Advancement</label>
-                    <div class="vstack gap-2">{{ form.advancement_choice }}</div>
-                    {% if form.advancement_choice.errors %}
-                        <div class="invalid-feedback d-block">{{ form.advancement_choice.errors.0 }}</div>
-                    {% endif %}
-                </div>
-                <div class="row">
-                    <div class="col-md-6">
-                        <label for="{{ form.xp_cost.id_for_label }}" class="form-label">XP Spend</label>
-                        {{ form.xp_cost }}
-                        <div class="form-text">{{ form.xp_cost.help_text }}</div>
-                        {% if form.xp_cost.errors %}
-                            <div class="invalid-feedback d-block">{{ form.xp_cost.errors.0 }}</div>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-6">
-                        <label for="{{ form.cost_increase.id_for_label }}"
-                               class="form-label">Fighter Rating Increase</label>
-                        {{ form.cost_increase }}
-                        <div class="form-text">{{ form.cost_increase.help_text }}</div>
-                        {% if form.cost_increase.errors %}
-                            <div class="invalid-feedback d-block">{{ form.cost_increase.errors.0 }}</div>
-                        {% endif %}
-                    </div>
+                <c-callout variant="secondary" class="mb-0">
+                    Available XP:
+                    <c-badge variant="primary">
+                        {{ fighter.xp_current }}
+                    </c-badge>
+                </c-callout>
+                {% if campaign_action %}
+                    <c-form.choices :field="form.advancement_choice" label="Advancement" />
+                {% else %}
+                    <c-form.field :field="form.advancement_choice" label="Advancement" />
+                {% endif %}
+                <div class="row g-3">
+                    <c-form.field :field="form.xp_cost" label="XP spend" class="col-md-6" />
+                    <c-form.field :field="form.cost_increase"
+                                  label="Fighter rating increase"
+                                  class="col-md-6" />
                 </div>
             </div>
             <nav class="vstack gap-3" aria-label="Form navigation">
                 <div class="hstack gap-3">
-                    {% if step > 1 %}
+                    {% if current_step > 1 %}
                         <a href="{% url 'core:list-fighter-advancement-dice-choice' list.id fighter.id %}"
                            class="icon-link">
                             <i class="bi-chevron-left"></i> Back
                         </a>
                     {% endif %}
-                    <button type="submit" class="btn btn-primary" aria-describedby="nav-help">
+                    <c-btn type="submit" variant="primary" aria-describedby="nav-help">
                         Next <i class="bi-arrow-right" aria-hidden="true"></i>
-                    </button>
+                    </c-btn>
                 </div>
+                {% if campaign_action %}
+                    <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}">Choose an advancement manually</a>
+                {% endif %}
                 <span id="nav-help" class="visually-hidden">Navigate to the next step of the advancement workflow</span>
             </nav>
         </form>
     </div>
 {% endblock content %}
 {% block extra_script %}
-    {{ advancement_configs|json_script:"advancement-configs" }}
-    <script>
+    {% if not campaign_action %}
+        {{ advancement_configs|json_script:"advancement-configs" }}
+        <script>
     // Advancement configurations passed from the server
     const advancementConfigs = JSON.parse(
         document.getElementById('advancement-configs').textContent
@@ -117,5 +101,6 @@
             updateCosts();
         }
     }
-    </script>
+        </script>
+    {% endif %}
 {% endblock extra_script %}

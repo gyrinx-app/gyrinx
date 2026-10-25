@@ -140,11 +140,12 @@ def test_roll_prefills_promotion(default_promotions, ganger_with_xp, dice_total)
 
 
 @pytest.mark.django_db
-def test_roll_still_prefills_stats(default_promotions, ganger_with_xp):
-    # A non-promotion roll keeps its stat mapping (10 → Leadership/Cool row).
+def test_stat_roll_requires_a_choice(default_promotions, ganger_with_xp):
     action = CampaignAction(dice_total=10)
     initial = AdvancementTypeForm.get_initial_for_action(action, ganger_with_xp)
-    assert initial["advancement_choice"] == "stat_leadership"
+    assert initial["advancement_choice"] == ""
+    assert initial["xp_cost"] == 6
+    assert initial["cost_increase"] == 10
 
 
 # --- rank-driven reversal across eras ---------------------------------------------------

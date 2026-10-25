@@ -14,6 +14,7 @@ from n23.content.models import (
     ContentPromotionPath,
     ContentSkill,
 )
+from n23.core.advancement import validate_advancement_roll
 from n23.core.cost.propagation import Delta, propagate_from_fighter
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
@@ -97,8 +98,18 @@ def handle_fighter_advancement(
     """
     lst = fighter.list
 
-    # Idempotency check: if campaign_action_id provided, check for existing advancement
+    campaign_action = None
     if campaign_action_id:
+        try:
+            campaign_action = CampaignAction.objects.select_for_update().get(
+                id=campaign_action_id, list=lst, campaign=lst.campaign, user=user
+            )
+        except CampaignAction.DoesNotExist:
+            raise ValidationError(
+                f"Campaign action {campaign_action_id} not found"
+            ) from None
+
+        # Lock the recorded action before checking whether it has already been used.
         existing_advancement = ListFighterAdvancement.objects.filter(
             campaign_action_id=campaign_action_id
         ).first()
@@ -111,6 +122,26 @@ def handle_fighter_advancement(
                 )
             # Return None to signal idempotent case (already applied)
             return None
+
+        if campaign_action.dice_count:
+            roll = validate_advancement_roll(campaign_action, fighter)
+            roll.validate_choice(advancement_choice)
+            if advancement_choice.startswith("stat_"):
+                if (
+                    advancement_type != ListFighterAdvancement.ADVANCEMENT_STAT
+                    or stat_increased != advancement_choice.removeprefix("stat_")
+                ):
+                    raise ValidationError("The selected stat does not match this roll.")
+            elif (
+                advancement_type != ListFighterAdvancement.ADVANCEMENT_PROMOTION
+                or promotion_path is None
+                or advancement_choice != f"promotion_{promotion_path.id}"
+            ):
+                raise ValidationError(
+                    "The selected promotion does not match this roll."
+                )
+            xp_cost = roll.xp_cost
+            cost_increase = roll.cost_increase
 
     # Validate fighter is not a direct stash fighter (stash fighters cannot advance)
     # Note: Child fighters linked to stash (vehicles/exotic beasts with source_assignment
@@ -191,15 +222,7 @@ def handle_fighter_advancement(
     )
 
     # Handle CampaignAction linking/creation
-    campaign_action = None
-    if campaign_action_id:
-        # Link to existing campaign action and update outcome
-        try:
-            campaign_action = CampaignAction.objects.get(id=campaign_action_id)
-        except CampaignAction.DoesNotExist:
-            raise ValidationError(
-                f"Campaign action {campaign_action_id} not found"
-            ) from None
+    if campaign_action:
         advancement.campaign_action = campaign_action
         campaign_action.outcome = outcome
         campaign_action.save()
