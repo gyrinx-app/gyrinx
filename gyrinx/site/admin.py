@@ -27,7 +27,6 @@ from gyrinx.site.models import (
     notify_many,
 )
 from gyrinx.site.registry import broadcast_audiences, get_broadcast_audience
-from gyrinx.site.widgets import ChangelogTagColourSelect
 from gyrinx.widgets import TinyMCEWithUpload
 
 User = get_user_model()
@@ -172,16 +171,8 @@ class NotificationAdmin(admin.ModelAdmin):
         return render(request, "admin/gyrinxsite/notification/broadcast.html", context)
 
 
-class ChangelogEntryTagForm(forms.ModelForm):
-    class Meta:
-        model = ChangelogEntryTag
-        fields = "__all__"
-        widgets = {"colour": ChangelogTagColourSelect}
-
-
 @admin.register(ChangelogEntryTag)
 class ChangelogEntryTagAdmin(admin.ModelAdmin):
-    form = ChangelogEntryTagForm
     list_display = ("name", "colour")
     search_fields = ("name",)
 

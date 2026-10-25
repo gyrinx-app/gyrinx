@@ -43,19 +43,16 @@ def test_changelog_tag_colour_rejects_unknown_values():
 
 
 @pytest.mark.django_db
-def test_changelog_tag_admin_form_saves_colour_and_rejects_unknown_values():
-    from gyrinx.site.admin import ChangelogEntryTagForm
-    from gyrinx.site.widgets import ChangelogTagColourSelect
+def test_changelog_tag_admin_form_saves_colour_and_rejects_unknown_values(rf):
+    from django.contrib import admin
 
-    form = ChangelogEntryTagForm(data={"name": "Release", "colour": "purple"})
-    assert isinstance(form.fields["colour"].widget, ChangelogTagColourSelect)
+    form_class = admin.site._registry[ChangelogEntryTag].get_form(rf.get("/admin/"))
+    form = form_class(data={"name": "Release", "colour": "purple"})
     assert form.is_valid(), form.errors
     tag = form.save()
     assert ChangelogEntryTag.objects.get(pk=tag.pk).colour == "purple"
 
-    invalid = ChangelogEntryTagForm(
-        data={"name": "Release", "colour": "custom"}, instance=tag
-    )
+    invalid = form_class(data={"name": "Release", "colour": "custom"}, instance=tag)
     assert not invalid.is_valid()
     assert "colour" in invalid.errors
 
@@ -68,14 +65,12 @@ def test_changelog_tag_palette_matches_the_core_colours():
 
 
 @pytest.mark.django_db
-def test_changelog_tag_admin_widget_keeps_a_native_select_for_fallback():
+def test_changelog_tag_admin_uses_a_native_colour_select(rf):
     from bs4 import BeautifulSoup
+    from django.contrib import admin
 
-    from gyrinx.site.admin import ChangelogEntryTagForm
-
-    form = ChangelogEntryTagForm(
-        instance=ChangelogEntryTag(name="Release", colour="teal")
-    )
+    form_class = admin.site._registry[ChangelogEntryTag].get_form(rf.get("/admin/"))
+    form = form_class(instance=ChangelogEntryTag(name="Release", colour="teal"))
     page = BeautifulSoup(str(form["colour"]), "html.parser")
     select = page.select_one('select[name="colour"]')
     assert select is not None
@@ -83,4 +78,3 @@ def test_changelog_tag_admin_widget_keeps_a_native_select_for_fallback():
     assert [option["value"] for option in select.select("option")] == list(
         ChangelogEntryTag.Colour.values
     )
-    assert page.select_one('template [role="listbox"]') is not None
