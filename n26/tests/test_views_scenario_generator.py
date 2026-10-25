@@ -1,17 +1,19 @@
 """The scenario generator page: rolling, choosing, and who may do what
 with a result."""
 
+import json
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.history import campaign_history
 from n26.core.models import Battle, CampaignEvent
-from n26.flags import CAMPAIGNS
 from n26.library.scenario_tables import table
 from n26.tests.sandbox.actions import found_campaign
 
@@ -24,9 +26,6 @@ def name_of(key, roll):
 
 @pytest.fixture
 def campaign(client, campaign_type):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     owner = User.objects.create_user("arb")
     client.force_login(owner)
     return found_campaign("Dust Falls", campaign_type, owner=owner)
@@ -88,9 +87,11 @@ def test_the_page_opens_with_the_four_components_set_to_roll(client, campaign):
     assert 'aria-label="Share"' not in body
 
 
-def test_a_signed_out_reader_is_told_nothing_is_there(client, campaign):
+def test_a_signed_out_reader_is_sent_to_sign_in(client, campaign):
     client.logout()
-    assert client.get(generator_url(campaign)).status_code == 404
+    response = client.get(generator_url(campaign))
+    assert response.status_code == 302
+    assert response.url == f"/accounts/login/?next={generator_url(campaign)}"
 
 
 def test_generating_rolls_every_table_by_default(client, campaign):
@@ -125,14 +126,38 @@ def test_a_pick_can_choose_an_entry_or_leave_a_table_out(client, campaign):
     assert form.picks()["side_job"] == "leave"
 
 
-def test_leaving_every_table_out_gives_an_empty_scenario(client, campaign):
+def test_sharing_keeps_query_separators_and_reproduces_the_complete_result(
+    client, campaign
+):
+    location, query = generated(
+        client, campaign, deployment_pick="3", side_job_pick="leave"
+    )
+    response = client.get(location)
+    soup = BeautifulSoup(response.content, "html.parser")
+    host = soup.select_one('[data-react-name="share"]')
+    props = json.loads(soup.find(id=host["data-react-props"]).string)
+    assert props["url"] == response.wsgi_request.get_full_path()
+    assert "&amp;" not in props["url"]
+    shared = client.get(props["url"])
+    assert [r.roll for r in shared.context["scenario"]] == [
+        int(query[key][0]) for key in ("deployment", "objective", "crew")
+    ]
+    assert shared.context["form"].picks()["deployment"] == "3"
+    assert shared.context["form"].picks()["side_job"] == "leave"
+
+
+def test_leaving_every_table_out_explains_that_a_component_is_needed(client, campaign):
     picks = {
         f"{each}_pick": "leave"
         for each in ("deployment", "objective", "side_job", "crew")
     }
-    location, query = generated(client, campaign, **picks)
-    assert not {"deployment", "objective", "side_job", "crew"} & set(query)
-    assert client.get(location).context["scenario"] == []
+    response = client.get(generator_url(campaign), {"generate": "1", **picks})
+    assert response.status_code == 200
+    assert response.context["scenario"] == []
+    assert (
+        "Select at least one component to roll or include." in response.content.decode()
+    )
+    assert set(response.context["form"].picks().values()) == {"leave"}
 
 
 def test_a_pick_that_is_not_an_option_is_refused(client, campaign):
@@ -149,6 +174,21 @@ def test_a_link_with_a_component_off_its_table_shows_no_scenario(client, campaig
     )
     assert response.context["scenario"] == []
     assert "not on its table" in response.content.decode()
+
+
+def test_rendering_more_components_does_not_add_database_queries(client, campaign):
+    one = {"deployment": "3"}
+    four = {"deployment": "3", "objective": "2", "side_job": "1", "crew": "6"}
+    for query in (one, four):
+        client.get(generator_url(campaign), query)
+    with CaptureQueriesContext(connection) as single:
+        response = client.get(generator_url(campaign), one)
+    assert response.status_code == 200
+    with CaptureQueriesContext(connection) as complete:
+        response = client.get(generator_url(campaign), four)
+    assert response.status_code == 200
+    assert len(response.context["scenario"]) == 4
+    assert len(complete) == len(single)
 
 
 class TestWhoGetsWhichButton:
@@ -181,6 +221,33 @@ def saved_events():
 
 
 class TestSaving:
+    def test_saving_and_cancelling_keep_chosen_and_omitted_components(
+        self, client, campaign
+    ):
+        location, query = generated(
+            client, campaign, deployment_pick="3", side_job_pick="leave"
+        )
+        page = client.get(location)
+        saving = client.get(page.context["save_href"])
+        expected = {key: value[0] for key, value in query.items()}
+        assert parse_qs(urlparse(saving.context["cancel_url"]).query) == query
+        action = saving.context["action_url"]
+        assert parse_qs(urlparse(action).query) == {
+            "deployment_pick": ["3"],
+            "side_job_pick": ["leave"],
+        }
+
+        invalid = client.post(action, {**expected, "name": " "})
+        assert invalid.status_code == 200
+        assert invalid.context["action_url"] == action
+        assert parse_qs(urlparse(invalid.context["cancel_url"]).query) == query
+        saved = client.post(action, {**expected, "name": "The sump crossing"})
+        assert saved.status_code == 302
+        assert parse_qs(urlparse(saved.url).query) == query
+        again = client.get(saved.url)
+        assert again.context["form"].picks()["deployment"] == "3"
+        assert again.context["form"].picks()["side_job"] == "leave"
+
     def test_the_save_page_shows_the_scenario_and_asks_for_a_name(
         self, client, campaign, player
     ):
@@ -335,12 +402,54 @@ class TestRecordingTheResult:
         assert 'value="Stand-off"' in body
         assert not Battle.objects.exists()
 
+    def test_an_invalid_component_cannot_disappear_on_a_second_submit(
+        self, client, campaign
+    ):
+        response = client.post(
+            self.add_url(campaign),
+            {
+                "scenario": "Stand-off",
+                "date": "2026-10-06",
+                "deployment": "9",
+                "crew": "2",
+            },
+        )
+        form = BeautifulSoup(response.content, "html.parser").select_one(
+            "form[method=post]"
+        )
+        hidden = {
+            field["name"]: field.get("value", "")
+            for field in form.select("input[type=hidden][name]")
+        }
+        assert hidden["deployment"] == "9"
+        assert hidden["crew"] == "2"
+        repeated = client.post(
+            self.add_url(campaign),
+            {**hidden, "scenario": "Stand-off", "date": "2026-10-06"},
+        )
+        assert repeated.status_code == 200
+        assert "not on its table" in repeated.content.decode()
+        assert not Battle.objects.exists()
+
     def test_a_link_with_a_component_off_its_table_attaches_nothing(
         self, client, campaign
     ):
         response = client.get(self.add_url(campaign), {"deployment": "7", "crew": "2"})
         assert response.context["scenario_results"] == []
         assert "not on its table" in response.content.decode()
+        soup = BeautifulSoup(response.content, "html.parser")
+        fields = {
+            field["name"]: field.get("value", "")
+            for field in soup.select("form[method=post] input[type=hidden][name]")
+        }
+        assert fields["deployment"] == "7"
+        assert fields["crew"] == "2"
+        submitted = client.post(
+            self.add_url(campaign),
+            {**fields, "scenario": "Stand-off", "date": "2026-10-06"},
+        )
+        assert submitted.status_code == 200
+        assert not Battle.objects.exists()
 
     def test_an_error_keeps_the_scenario_and_what_was_entered(self, client, campaign):
         response = client.post(
@@ -354,7 +463,8 @@ class TestRecordingTheResult:
         assert [r.roll for r in response.context["scenario_results"]] == [6, 2]
         assert not Battle.objects.exists()
 
-    def test_the_operation_refuses_a_roll_off_the_table(self, campaign):
+    @pytest.mark.parametrize("value", [7, 3.5, True])
+    def test_the_operation_refuses_a_roll_off_the_table(self, campaign, value):
         from datetime import date
 
         from n26.core.operations import Refusal
@@ -364,9 +474,33 @@ class TestRecordingTheResult:
                 act.record_battle(
                     date(2026, 10, 6),
                     scenario="Stand-off",
-                    scenario_rolls={"deployment": 7, "crew": 2},
+                    scenario_rolls={"deployment": value, "crew": 2},
                 )
         assert not Battle.objects.exists()
+
+    def test_archiving_and_restoring_a_battle_keeps_its_components(
+        self, client, campaign
+    ):
+        from datetime import date
+
+        components = {"deployment": 3, "crew": 2}
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            battle = act.record_battle(
+                date(2026, 10, 25),
+                scenario="The sump crossing",
+                scenario_rolls=components,
+            )
+            act.remove_battle(battle, revision=battle.revision)
+        battle.refresh_from_db()
+        assert battle.archived
+        assert battle.scenario_rolls == components
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.restore_battle(battle, revision=battle.revision)
+        battle.refresh_from_db()
+        assert not battle.archived
+        assert battle.scenario_rolls == components
+        page = client.get(reverse("n26-battle", args=[campaign.pk, battle.pk]))
+        assert [result.roll for result in page.context["scenario_results"]] == [3, 2]
 
     def test_a_battle_without_a_generated_scenario_stores_no_rolls(
         self, client, campaign

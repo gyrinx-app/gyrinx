@@ -136,26 +136,26 @@ reader's other campaigns — the same pattern a gang's screens use.
         {% endcomment %}
         <c-slot name="battles_actions">
             <c-n26.button-group>
-            {% if yours %}
-                {% url 'n26-campaign-archived-battles' campaign.pk as archived_battles_url %}
-                {% link_actions "Archived battles" archived_battles_url as battle_actions %}
-                <c-n26.action-menu :items="battle_actions"
-                                   label="Battle actions"
-                                   variant="ghost"
-                                   align="end" />
-            {% endif %}
-            <c-ui.button size="sm"
-                         variant="default"
-                         href="{% url 'n26-scenario-generator' campaign.pk %}">
-                Generate scenario
-            </c-ui.button>
-            {% if may_record %}
+                {% if yours %}
+                    {% url 'n26-campaign-archived-battles' campaign.pk as archived_battles_url %}
+                    {% link_actions "Archived battles" archived_battles_url as battle_actions %}
+                    <c-n26.action-menu :items="battle_actions"
+                                       label="Battle actions"
+                                       variant="ghost"
+                                       align="end" />
+                {% endif %}
                 <c-ui.button size="sm"
-                             variant="primary"
-                             href="{% url 'n26-campaign-add-battle' campaign.pk %}">
-                    Record a battle
+                             variant="default"
+                             href="{% url 'n26-scenario-generator' campaign.pk %}">
+                    Generate scenario
                 </c-ui.button>
-            {% endif %}
+                {% if may_record %}
+                    <c-ui.button size="sm"
+                                 variant="primary"
+                                 href="{% url 'n26-campaign-add-battle' campaign.pk %}">
+                        Record a battle
+                    </c-ui.button>
+                {% endif %}
             </c-n26.button-group>
         </c-slot>
         <c-slot name="players">

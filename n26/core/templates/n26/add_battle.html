@@ -32,6 +32,9 @@
         </c-slot>
         {% csrf_token %}
         {% if battle %}{{ form.revision }}{{ form.stake_versions }}{% endif %}
+        {% for field in form %}
+            {% if field.name in form.scenario_keys %}{{ field }}{% endif %}
+        {% endfor %}
         <c-n26.form-section title="The battle">
             <c-ui.field label="Scenario *"
                         error="x"
@@ -50,9 +53,6 @@
                 hidden fields, so a form that comes back with an error keeps
                 them; the view checks each one again on save.
                 {% endcomment %}
-                {% for field in form %}
-                    {% if field.name in form.scenario_keys %}{{ field }}{% endif %}
-                {% endfor %}
                 <section aria-labelledby="battle-scenario-components"
                          class="flex flex-col gap-3 rounded-box border border-box-border p-4">
                     <h3 id="battle-scenario-components" class="font-semibold">Scenario components</h3>

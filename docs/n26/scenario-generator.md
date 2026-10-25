@@ -38,6 +38,9 @@ name, its number, its full description and, for Deployment, its map. Your
 choices stay set, and the button changes to **Generate again**. Pressing it
 rolls again for every table still set to **Roll a D6**.
 
+Include at least one component. Saving or cancelling a save keeps your
+chosen and omitted components set for the next generation.
+
 On a wide screen the choices sit on the left and the scenario on the right.
 On a phone the choices come first.
 
@@ -55,7 +58,7 @@ and record the battle afterwards, or never record it.
 A saved scenario appears in the log like this:
 
 > **Alex** saved the scenario **Vent ambush**: Deployment 3 (Stand Off),
-> Objective 4 (Object Lesson), Crew 4 (Surprise Attack!)
+> Objective 4 (Object Lesson), Crew 4 (Surprise Attack)
 
 The line links back to the scenario. A recorded battle appears in the log in
 the usual way, for example "recorded Vent ambush on 2026-10-12".

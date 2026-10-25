@@ -14,7 +14,6 @@ the name and the scenario as they were.
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    {% url 'n26-save-scenario' campaign.pk as action_url %}
     <c-n26.form-page :action="action_url"
                      title="Save scenario"
                      lead="Give this scenario a name and save it to the {{ campaign.name }} campaign log."

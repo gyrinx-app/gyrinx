@@ -1188,6 +1188,16 @@ class ScenarioGeneratorForm(forms.Form):
             if pick != self.LEAVE_OUT
         }
 
+    def clean(self):
+        cleaned = super().clean()
+        if not self.errors and all(
+            pick == self.LEAVE_OUT for pick in self.picks().values()
+        ):
+            raise forms.ValidationError(
+                "Select at least one component to roll or include."
+            )
+        return cleaned
+
     def chosen_picks(self):
         """The picks that are not the default, for a link to carry."""
         picks = self.picks()

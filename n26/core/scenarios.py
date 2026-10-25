@@ -47,9 +47,13 @@ def parse(mapping):
         value = mapping.get(each.key)
         if value in (None, ""):
             continue
-        try:
+        if type(value) is int:
+            entry = each.entry(value)
+        elif isinstance(value, str) and value in {
+            str(entry.roll) for entry in each.entries
+        }:
             entry = each.entry(int(value))
-        except TypeError, ValueError:
+        else:
             entry = None
         if entry is None:
             wrong.append(each)

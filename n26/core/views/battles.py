@@ -131,11 +131,6 @@ def battle(request, pk, battle_pk):
             "stake": battle_stake(found, request.user),
             "yours": campaign.owner_id == request.user.pk,
             "scenario_results": results(found.scenario_rolls or {}),
-            "has_history": (
-                bool(crews or reports)
-                or found.gang_events.exists()
-                or CampaignRoll.objects.filter(battle=found).exists()
-            ),
         },
     )
 

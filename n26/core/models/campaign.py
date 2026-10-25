@@ -210,10 +210,8 @@ class CampaignEvent(Base):
         TABLE_OPENED = "table_opened", "Table opened"
         TABLE_CLOSED = "table_closed", "Table closed"
         TABLE_CREATED = "table_created", "Table created"
-        # A scenario from the generator, saved by a player for the
-        # arbitrator to check. The note says whether it was rolled and
-        # what each table landed on. Recording a battle with a scenario is
-        # BATTLE_RECORDED, as every battle is.
+        # The note stores the scenario name and component values.
+        # Recording a battle with a scenario is BATTLE_RECORDED.
         SCENARIO_SAVED = "scenario_saved", "Scenario saved"
 
     campaign = models.ForeignKey(

@@ -1052,8 +1052,9 @@ def scenario_generator(request, pk):
     found = _any_campaign_or_404(request, pk, with_owner_badge=True)
     here = reverse("n26-scenario-generator", args=[found.pk])
     form = ScenarioGeneratorForm(request.GET)
+    valid = form.is_valid()
 
-    if "generate" in request.GET and form.is_valid():
+    if "generate" in request.GET and valid:
         query = {**form.chosen_picks(), **form.generate()}
         return redirect(f"{here}?{urlencode(query)}#scenario")
 
@@ -1063,9 +1064,13 @@ def scenario_generator(request, pk):
     rolls = rolls_of(scenario)
     record_href = save_href = ""
     if scenario and may_record_campaign(found, request.user):
-        query = urlencode(rolls)
-        record_href = f"{reverse('n26-campaign-add-battle', args=[found.pk])}?{query}"
-        save_href = f"{reverse('n26-save-scenario', args=[found.pk])}?{query}"
+        record_href = (
+            f"{reverse('n26-campaign-add-battle', args=[found.pk])}?{urlencode(rolls)}"
+        )
+        query = {**(form.chosen_picks() if valid else {}), **rolls}
+        save_href = (
+            f"{reverse('n26-save-scenario', args=[found.pk])}?{urlencode(query)}"
+        )
     return render(
         request,
         "n26/scenario_generator.html",
@@ -1081,7 +1086,6 @@ def scenario_generator(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def save_scenario(request, pk):
     """Give a generated scenario a name and save it to the campaign's log.
@@ -1094,7 +1098,7 @@ def save_scenario(request, pk):
     from urllib.parse import urlencode
 
     from n26.core.campaigns import campaign_operation
-    from n26.core.forms import SaveScenarioForm
+    from n26.core.forms import SaveScenarioForm, ScenarioGeneratorForm
     from n26.core.operations import Refusal
     from n26.core.scenarios import parse, rolls_of
 
@@ -1106,6 +1110,11 @@ def save_scenario(request, pk):
     if wrong:
         scenario = []
     generator = reverse("n26-scenario-generator", args=[found.pk])
+    picks_form = ScenarioGeneratorForm(request.GET)
+    picks = picks_form.chosen_picks() if picks_form.is_valid() else {}
+    action_url = reverse("n26-save-scenario", args=[found.pk])
+    if picks:
+        action_url += f"?{urlencode(picks)}"
 
     if request.method == "POST":
         form = SaveScenarioForm(request.POST)
@@ -1120,9 +1129,8 @@ def save_scenario(request, pk):
                 form.add_error(None, str(refused))
             else:
                 messages.success(request, "Scenario saved to the campaign log.")
-                return redirect(
-                    f"{generator}?{urlencode(form.cleaned_data['scenario_rolls'])}#scenario"
-                )
+                query = {**picks, **form.cleaned_data["scenario_rolls"]}
+                return redirect(f"{generator}?{urlencode(query)}#scenario")
     else:
         form = SaveScenarioForm(initial=rolls_of(scenario))
 
@@ -1135,12 +1143,14 @@ def save_scenario(request, pk):
             "form": form,
             "scenario": scenario,
             "scenario_wrong": bool(wrong),
-            "cancel_url": f"{generator}?{urlencode(rolls_of(scenario))}#scenario",
+            "action_url": action_url,
+            "cancel_url": (
+                f"{generator}?{urlencode({**picks, **rolls_of(scenario)})}#scenario"
+            ),
         },
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def edit_campaign(request, pk):
     """The facts an arbitrator may change after setting up."""
@@ -1651,13 +1661,13 @@ def add_battle(request, pk):
     The generator's Record a battle opens this page with the scenario's
     rolls in the query string. They ride the form as hidden fields, are
     summarised under the scenario's name, and are saved with the battle.
-    The name is left for the reader to give. A link naming a component
-    that is not on its table attaches no scenario and says so.
+    The name is left for the reader to give. Invalid components stay in
+    the hidden fields so submitting cannot silently discard them.
     """
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import BattleForm
     from n26.core.operations import Refusal
-    from n26.core.scenarios import parse, rolls_of
+    from n26.core.scenarios import parse
 
     found = _recording_campaign_or_404(
         request, pk, with_owner_badge=request.method == "GET"
@@ -1679,7 +1689,10 @@ def add_battle(request, pk):
     if wrong:
         scenario = []
     if request.method != "POST":
-        form = BattleForm(playing=playing, initial=rolls_of(scenario))
+        form = BattleForm(playing=playing)
+        form.initial.update(
+            {key: request.GET[key] for key in form.scenario_keys if key in request.GET}
+        )
 
     _badge_a_redrawn_page(request, found)
     return render(

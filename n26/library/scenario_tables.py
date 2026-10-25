@@ -79,7 +79,7 @@ DEPLOYMENT = ScenarioTable(
         ),
         ScenarioEntry(
             roll=4,
-            name="Ambush!",
+            name="Ambush",
             text=(
                 'The Defender deploys anywhere on the battlefield within 6" from the centre point of the battlefield. The Attacker deploys anywhere in a ring around the Defender at least 12" from the centre of the board.'
             ),
@@ -212,7 +212,7 @@ CREW = ScenarioTable(
         ),
         ScenarioEntry(
             roll=2,
-            name="Hold Nothing Back!:",
+            name="Hold Nothing Back:",
             text=("Both players use Custom(10) to determine their Starting Crew."),
         ),
         ScenarioEntry(
@@ -222,7 +222,7 @@ CREW = ScenarioTable(
         ),
         ScenarioEntry(
             roll=4,
-            name="Surprise Attack!:",
+            name="Surprise Attack:",
             text=(
                 "The Attacker uses Hybrid(4+4) to determine their Starting Crew. Defender uses Custom(3). The Defender uses Reinforcements(7) rule – D3 Reinforcements arriving each round starting with the 1st."
             ),

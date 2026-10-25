@@ -36,7 +36,7 @@ may use it.
             </c-slot>
             {% if scenario %}
                 <c-slot name="breadcrumb_actions">
-                    <c-n26.share url="{{ share_url }}" />
+                    <c-n26.share :url="share_url" />
                 </c-slot>
             {% endif %}
         </c-n26.page-header>
@@ -65,9 +65,10 @@ may use it.
                         {% endfor %}
                     </div>
                 </c-n26.form-section>
+                <c-ui.error :form="form" name="__all__" />
                 <div class="flex flex-wrap items-center justify-end gap-2 border-t border-box-border pt-4">
                     <c-ui.button variant="ghost" href="{% url 'n26-campaign' campaign.pk %}">Cancel</c-ui.button>
-                    <c-ui.button type="submit" name="generate" value="1" variant="primary">
+                    <c-ui.button type="submit" name="generate" value="1" variant="success">
                         {% if scenario %}
                             Generate again
                         {% else %}

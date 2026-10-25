@@ -6,9 +6,9 @@ developer can maintain or extend it. For what the feature does, see
 
 ## Design in brief
 
-- **The pages are rendered by the server, with no React and no new
-  JavaScript.** The generator is a GET form of four native selects. The
-  battle form's details section is a native `<details>` element.
+- **Django renders the pages.** The generator uses four native selects and
+  the existing React Share island. The battle form's details section uses a
+  native `<details>` element. No new JavaScript is required.
 - **Roll, then redirect.** **Generate scenario** submits `?generate=1`. The
   view resolves every table once, rolling where asked, then redirects to an
   address that holds the result. A reload never rolls again, and the
@@ -67,7 +67,7 @@ developer can maintain or extend it. For what the feature does, see
 | `n26-scenario-generator` | `campaigns/<pk>/scenario/` | `scenario_generator` | Anyone who can read the campaign (`_any_campaign_or_404`). |
 | `n26-save-scenario` | `campaigns/<pk>/scenario/save/` | `save_scenario` (GET and POST) | `may_record_campaign`, through `_recording_campaign_or_404`: the arbitrator and accepted players, on a campaign that is not archived. |
 
-Both routes sit behind `requires_flag(CAMPAIGNS)` and `login_required`.
+Both routes require a signed-in user through `login_required`.
 Every redirect is built with `reverse(...)`.
 
 ## The content: `n26/library/scenario_tables.py`
@@ -105,6 +105,7 @@ Every redirect is built with `reverse(...)`.
 - Each table's field is `<key>_pick`. Its value is `roll`, `leave` or a roll
   from 1 to 6. A missing value means `roll`.
 - `generate()` resolves the scenario.
+- Leaving every component out produces a form error.
 - `chosen_picks()` returns only the choices that are not the default, so
   the link stays short.
 
@@ -113,10 +114,12 @@ shows an error and no scenario.
 
 ### Saving
 
-**Save to log** links to `n26-save-scenario?deployment=…`.
+**Save to log** carries the resolved components and non-default choices to
+`n26-save-scenario`.
 
 1. The GET shows the summary and a `SaveScenarioForm`. The components ride
-   as hidden fields, and **Cancel** returns to the same scenario.
+   as hidden fields. The form action keeps the choices in its query string,
+   and **Cancel** returns to the same scenario with those choices intact.
 2. The POST validates the form: a required name of up to 200 characters,
    every component on its table, and at least one component.
 3. If the form is valid, the view calls `CampaignOperation.save_scenario`.
@@ -124,7 +127,8 @@ shows an error and no scenario.
    checks the name and the components again, and writes one `SCENARIO_SAVED`
    event.
 4. Errors render the bound form, so the name and the scenario stay visible.
-5. On success the view redirects to the generator with the saved scenario.
+5. On success the view redirects to the generator with the saved scenario
+   and the same choices, so **Generate again** keeps chosen and omitted parts.
 
 ### Recording a battle
 
@@ -154,27 +158,23 @@ shows an error and no scenario.
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest -n 4 n26/library/test_scenario_tables.py n26/core/test_scenarios.py n26/tests/test_views_scenario_generator.py
+.codex/run.sh .venv/bin/python -m pytest -n 4 n26/library/test_scenario_tables.py n26/core/test_scenarios.py n26/tests/test_views_scenario_generator.py
 ```
 
-The full N26 suite also passes: `.venv/bin/python -m pytest -n 4 n26`. Check
+Run the full N26 suite with `.codex/run.sh .venv/bin/python -m pytest -n 4 n26`. Check
 migrations with `manage makemigrations --check`,
 `manage check_migration_conflicts` and
 `manage check_migration_overlap --base origin/main`.
 
 ## Local development
 
-- Use a dedicated worktree, for example `~/gyrinx-scenario-generator`, and
-  start it with `./scripts/dev.sh` from that worktree. The script prints the
-  worktree's own URL, which is a port from 8100 to 9599. Port 8000 belongs to
-  the main checkout. On this machine the worktree uses
-  http://localhost:8811.
-- `scripts/dev.sh` needs Node 22.12 or later, because Sass needs it. The CI
-  workflows use Node 24.
-- A database copied from a fresh `gyrinx_main` has no N26 library content
-  and the `campaigns` feature flag is off. Turn the flag on with
-  `FeatureFlag` in `manage shell`, and create a test gang type with
-  `n26.library.authoring.create_gang_type`.
+- Start `./scripts/dev.sh` from the dedicated worktree. Use the URL it
+  prints and confirm both CSS files are ready. Port 8000 belongs to the
+  main checkout.
+- Use Node 24, matching CI.
+- The worktree database is copied from `gyrinx_main`. If it has no N26
+  content, create a test campaign type and gang type with the library's
+  authoring functions. Campaigns do not require a feature flag.
 - Sign in through the dev-only link printed by
-  `manage agent_login_url /n26/campaigns/`, or with
-  `/_debug/login/?user=agent-<purpose>`.
+  `.codex/run.sh manage agent_login_url /n26/campaigns/`. Use dedicated
+  `agent` or `agent-<purpose>` accounts for local testing.

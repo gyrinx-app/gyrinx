@@ -2,6 +2,8 @@
 
 import random
 
+import pytest
+
 from n26.core.scenarios import (
     describe,
     history_note,
@@ -42,6 +44,13 @@ def test_a_table_left_out_is_not_an_error():
     found, wrong = parse({"objective": "2", "side_job": ""})
     assert wrong == []
     assert rolls_of(found) == {"objective": 2}
+
+
+@pytest.mark.parametrize("value", [3.5, 3.0, True, [3], {}, "3.0", "nan"])
+def test_a_component_must_be_an_integer_or_its_exact_form_value(value):
+    found, wrong = parse({"deployment": value, "crew": "2"})
+    assert [each.key for each in wrong] == ["deployment"]
+    assert results({"deployment": value, "crew": "2"}) == []
 
 
 def test_a_history_note_round_trips():
