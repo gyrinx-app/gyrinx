@@ -453,6 +453,30 @@ def pet(table, person_type, gang_type):
 
 
 class TestCrewPets:
+    @pytest.mark.parametrize(
+        "role, label",
+        [("starting", "Starting crew"), ("reserve", "Reinforcements")],
+    )
+    def test_a_pet_occupies_its_own_grid_cell_after_its_owner(
+        self, client, table, pet, role, label
+    ):
+        client.post(
+            address(table),
+            fields(table, **{f"role_{model.pk}": role for model in table.models}),
+        )
+        response = client.get(address(table, sheet=True))
+        document = BeautifulSoup(response.content, "html.parser")
+        section = document.find("section", attrs={"aria-label": label})
+        grid = section.find("div", class_="grid", recursive=False)
+        cells = grid.find_all("div", recursive=False)
+        assert [
+            [
+                name.get_text(strip=True)
+                for name in cell.select('[id^="n26-model-name-"]')
+            ]
+            for cell in cells
+        ] == [["Mara"], ["Cyber-mastiff"], ["Nell"]]
+
     def test_a_pet_is_not_offered_or_drawn(self, client, table, pet):
         response = client.get(address(table))
         ids = {model["id"] for model in response.context["crew_picker"]["models"]}
