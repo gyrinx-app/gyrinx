@@ -4,18 +4,16 @@ from urllib.parse import unquote
 
 import pytest
 from bs4 import BeautifulSoup
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.browse import browse
 from n26.core.campaigns import campaign_operation
 from n26.core.models import CampaignParticipant
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
-from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import (
     buy,
     create_collection,
@@ -30,9 +28,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def people(client):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     arbitrator = User.objects.create_user("arbitrator")
     player = User.objects.create_user(
         "public-player",
@@ -70,27 +65,6 @@ def test_public_profile_shows_gang_links_without_account_or_campaign_details(
         "Invite to campaign",
     ]:
         assert hidden not in html
-
-
-@pytest.mark.parametrize("tab", ["n23", "n26"])
-def test_profile_sections_actions_and_navigation_share_one_flag_check(
-    client, people, tab
-):
-    arbitrator, player, _ = people
-    group = Group.objects.create(name="Campaign readers")
-    arbitrator.groups.add(group)
-    flag = FeatureFlag.objects.get(slug=CAMPAIGNS)
-    flag.availability = Availability.ALLOWLIST
-    flag.group = group
-    flag.save()
-    url = reverse("user-profile", args=[player.username])
-    client.get(url, {"tab": tab})
-    with CaptureQueriesContext(connection) as queries:
-        response = client.get(url, {"tab": tab})
-    assert response.status_code == 200
-    table = FeatureFlag._meta.db_table
-    checks = [query for query in queries if f'FROM "{table}"' in query["sql"]]
-    assert len(checks) == 1
 
 
 def test_public_gang_wealth_includes_models_credits_and_stashed_equipment(
@@ -174,7 +148,7 @@ def test_campaign_invitation_entry_is_available_on_either_profile_tab(
     assert invitation.get_text(strip=True) == "Invite to campaign"
 
 
-@pytest.mark.parametrize("viewer", ["owner", "visitor", "anonymous", "blocked"])
+@pytest.mark.parametrize("viewer", ["owner", "visitor", "anonymous"])
 def test_profile_campaigns_follow_read_access_and_include_accepted_places(
     client, people, campaign_type, viewer
 ):
@@ -197,16 +171,12 @@ def test_profile_campaigns_follow_read_access_and_include_accepted_places(
         client.force_login(player)
     elif viewer == "anonymous":
         client.logout()
-    elif viewer == "blocked":
-        flag = FeatureFlag.objects.get(slug=CAMPAIGNS)
-        flag.availability = Availability.OFF
-        flag.save()
     response = client.get(
         reverse("user-profile", args=[player.username]), {"tab": "n26"}
     )
     assert response.status_code == 200
     sections = {section.title: section for section in response.context["sections"]}
-    if viewer in {"anonymous", "blocked"}:
+    if viewer == "anonymous":
         assert "Campaigns" not in sections
         html = response.content.decode()
         assert owned.name not in html
@@ -318,19 +288,12 @@ def test_a_forged_campaign_choice_cannot_open_somebody_elses_invitation(
     assert not other.participants.exists()
 
 
-def test_invitation_entry_respects_authentication_and_the_campaign_flag(client, people):
+def test_invitation_entry_asks_visitors_to_sign_in(client, people):
     _, player, _ = people
     client.logout()
     assert (
         client.get(reverse("n26-invite-user", args=[player.username])).status_code
-        == 404
-    )
-    flag = FeatureFlag.objects.get(slug=CAMPAIGNS)
-    flag.availability = Availability.OFF
-    flag.save()
-    assert (
-        client.get(reverse("n26-invite-user", args=[player.username])).status_code
-        == 404
+        == 302
     )
     assert (
         client.get(reverse("user-profile", args=[player.username])).status_code == 200

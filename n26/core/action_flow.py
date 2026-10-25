@@ -8,11 +8,12 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from django.db.models import Case, F, When, Window
+from django.db.models import Case, F, Q, When, Window
 from django.db.models.functions import RowNumber
 
 from n26.core.access import actions_for
 from n26.core.action_payments import Balance, Quote, QuotedLine, Resource
+from n26.core.allowances import allowance_hold_reason
 from n26.core.confirm import Fact
 from n26.core.flow import PaymentFigures
 from n26.core.models import ActionAllowance, ActionRecord, Assignment
@@ -31,6 +32,10 @@ class ActionUseLink:
     #: Settled outside Gyrinx: there is no receipt, only an undo.
     applied_by_hand: bool = False
     reopen_href: str = ""
+    undo_href: str = ""
+    undoable: bool = False
+    problem: str = ""
+    variant: str = "primary"
 
 
 @dataclass
@@ -41,6 +46,8 @@ class ActionPanel:
     prices: tuple[PaymentFigures, ...] = ()
     allowance_id: str = ""
     available_uses: int | None = None
+    held_uses: int = 0
+    hold_reason: str = ""
     problem: str = ""
     start_href: str = ""
     #: Links for the header's action menu, as the action-menu island reads them.
@@ -116,6 +123,7 @@ def _action_quote(action, *, balances, credits, gang_id):
             balance = Balance(Resource.CREDITS, str(gang_id))
             held = credits
             name = "Credits"
+            minimum = 0
         else:
             matches = balances.get((component.payer, component.counter_id), ())
             if len(matches) != 1:
@@ -124,16 +132,20 @@ def _action_quote(action, *, balances, credits, gang_id):
             balance = Balance(Resource.COUNTER, str(gang_id), str(assignment.pk))
             held = assignment.counter_value.value
             name = str(component.counter)
+            minimum = component.counter.minimum
         lines.append(
-            QuotedLine(balance, component.amount, held, component.position, name)
+            QuotedLine(
+                balance, component.amount, held, component.position, name, minimum
+            )
         )
     quote = Quote.coalesce(lines)
     problem = ""
     if not quote.affordable:
         shortfalls = [
-            f"{line.amount - line.available} more {line.name}"
+            f"{line.amount + line.minimum - line.available} more {line.name}"
             for line in quote.lines
-            if line.available is not None and line.amount > line.available
+            if line.available is not None
+            and line.amount + line.minimum > line.available
         ]
         problem = f"This flow needs {' and '.join(shortfalls)}."
     return quote, problem
@@ -151,14 +163,22 @@ def available_action_names(gang, cards, *, counter_tracking_active=True):
     if not fighter_ids:
         return {}
     flagged = defaultdict(set)
-    for fighter_id, action_id in ActionRecord.objects.filter(
-        fighter_id__in=fighter_ids, state=ActionRecord.State.STARTED
-    ).values_list("fighter_id", "action_id"):
+    for fighter_id, action_id in (
+        ActionRecord.objects.filter(
+            fighter_id__in=fighter_ids, state=ActionRecord.State.STARTED
+        )
+        .filter(
+            Q(allowance__isnull=True)
+            | Q(allowance__in=ActionAllowance.objects.eligible())
+        )
+        .values_list("fighter_id", "action_id")
+    ):
         flagged[str(fighter_id)].add(str(action_id))
     if counter_tracking_active:
         for fighter_id, action_id in (
             ActionAllowance.objects.filter(fighter_id__in=fighter_ids)
             .unused()
+            .eligible()
             .values_list("fighter_id", "action_id")
         ):
             flagged[str(fighter_id)].add(str(action_id))
@@ -239,11 +259,13 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
     allowances = list(
         ActionAllowance.objects.filter(fighter=fighter)
         .unused()
-        .order_by("created", "pk")
+        .with_progression_value()
+        .select_related("rank_table__counter")
+        .order_by("threshold", "created", "pk")
     )
     drafts = list(
         ActionRecord.objects.filter(fighter=fighter, state=ActionRecord.State.STARTED)
-        .select_related("outcome")
+        .select_related("outcome", "allowance__rank_table__counter")
         .order_by("-created", "-pk")
     )
     completed = list(
@@ -269,7 +291,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
         )
         .filter(action_position__lte=3)
         .select_related(
-            "outcome",
+            "outcome__resolve_advancement",
             "slot_selection__item_assignment__weapon",
             "slot_selection__item_assignment__wargear",
             "slot_selection__intended_pick",
@@ -281,11 +303,25 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
     )
     records = [*drafts, *completed]
     available = defaultdict(list)
+    held = defaultdict(list)
     for allowance in allowances:
-        available[allowance.action_id].append(allowance)
+        (held if allowance_hold_reason(allowance) else available)[
+            allowance.action_id
+        ].append(allowance)
+    draft_allowances = {
+        row.pk: row
+        for row in ActionAllowance.objects.filter(
+            pk__in=[record.allowance_id for record in drafts if record.allowance_id]
+        )
+        .with_progression_value()
+        .select_related("rank_table__counter")
+    }
     effective_ids = {found.action.pk for found in access}
     action_ids = (
-        effective_ids | set(available) | {record.action_id for record in records}
+        effective_ids
+        | set(available)
+        | set(held)
+        | {record.action_id for record in records}
     )
     if not action_ids:
         return []
@@ -317,6 +353,10 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
             timing=action.get_timing_display(),
             allowance_id=str(granted[0].pk) if granted else "",
             available_uses=len(granted) if action.allowance_rule else None,
+            held_uses=len(held[action.pk]),
+            hold_reason=allowance_hold_reason(held[action.pk][0])
+            if held[action.pk]
+            else "",
         )
         quote, panel.problem = _action_quote(
             action, balances=balances, credits=credits, gang_id=fighter.gang.pk
@@ -329,12 +369,22 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
             panel.problem = "This flow is temporarily unavailable."
         for record in by_action[action.pk]:
             if record.state == ActionRecord.State.STARTED:
+                problem = (
+                    allowance_hold_reason(draft_allowances[record.allowance_id])
+                    if record.allowance_id
+                    else ""
+                )
+                if problem:
+                    panel.held_uses += 1
+                    panel.hold_reason = problem
                 panel.drafts.append(
                     ActionUseLink(
                         str(record.pk),
-                        f"Resume {action} flow",
+                        f"View {action} flow" if problem else f"Resume {action} flow",
                         when=record.created,
                         earned=record.allowance_id is not None,
+                        problem=problem,
+                        variant="default" if problem else "primary",
                     )
                 )
             elif (
@@ -358,10 +408,13 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                         str(record.pk),
                         str(record.outcome or action),
                         detail=_completed_detail(record),
+                        undoable=record.allowance_id is not None
+                        and record.outcome_id is not None
+                        and record.outcome.resolve_advancement_id is not None,
                         when=record.created,
                     )
                 )
-        panel.flagged = bool(panel.drafts) or (
+        panel.flagged = any(not draft.problem for draft in panel.drafts) or (
             counter_tracking_active
             and (
                 bool(granted)

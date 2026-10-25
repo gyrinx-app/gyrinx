@@ -26,11 +26,6 @@ places — the same pattern a gang's screens use for their siblings.
 {% endblock %}
 {% block content %}
     {% comment %}
-    The campaigns controls are drawn only for a reader the feature is open to.
-    Everyone else keeps the "working on it" panel the tab has always shown —
-    a button leading somewhere that answers 404 is worse than no button.
-    {% endcomment %}
-    {% comment %}
     A mark on the tab rather than a count: what matters is that something is
     waiting, and a reader who opens the tab sees how many for themselves. The
     markup is the view's, so nothing here quotes HTML inside an attribute, and
@@ -39,7 +34,7 @@ places — the same pattern a gang's screens use for their siblings.
     <c-n26.view.dashboard new_gang_href="{% url 'n26-create-gang' %}"
                           :campaigns_mark="campaigns_mark"
                           default_tab="{{ dashboard_tab }}"
-                          new_campaign_href="{% if campaigns_open %}{% url 'n26-create-campaign' %}{% endif %}"
+                          new_campaign_href="{% url 'n26-create-campaign' %}"
                           new_campaign_label="Set up campaign">
         {% comment %}
         The greeting names the reader with the badge their account actually
@@ -78,13 +73,8 @@ places — the same pattern a gang's screens use for their siblings.
                 {% endfor %}
             </c-n26.record-table>
         </c-slot>
-        {% comment %}
-        Filled only where the feature is open: the slot left empty is what
-        makes the tab fall back to its "working on it" panel, so a reader
-        without campaigns sees exactly what they saw before.
-        {% endcomment %}
-        {% if campaigns_open %}
-            <c-slot name="campaigns">
+        <c-slot name="campaigns">
+            <div class="flex flex-col gap-8">
                 {% include "n26/includes/campaign_invitations.html" with back=request.get_full_path %}
                 <c-n26.record-table noun="campaigns"
                                     singular="campaign"
@@ -96,11 +86,14 @@ places — the same pattern a gang's screens use for their siblings.
                         <c-n26.record-table.campaign-row name="{{ row.name }}"
                                                          href="{% url 'n26-campaign' row.pk %}"
                                                          :owner="row.arbitrator"
-                                                         action_label="{{ row.action_label }}" />
+                                                         type="{{ row.campaign_type.name }}"
+                                                         status="{{ row.get_status_display }}"
+                                                         :gangs="row.active_gangs"
+                                                         :battles="row.battle_count" />
                     {% endfor %}
                 </c-n26.record-table>
-            </c-slot>
-        {% endif %}
+            </div>
+        </c-slot>
         <c-slot name="changelog">
             <c-n26.changelog href="{% url 'changelog' %}?tag={{ changelog_tag|urlencode }}"
                              empty="Nothing new yet.">

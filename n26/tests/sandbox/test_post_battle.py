@@ -1629,6 +1629,249 @@ class TestModelCounters:
         assert event.counter_delta == 1
         assert event.note.endswith("Post-battle results")
 
+    @pytest.mark.parametrize(
+        "mode,amount,expected",
+        [("set", 3, 3), ("set", 0, 1), ("subtract", 3, 1), ("add", 3, 4)],
+    )
+    def test_a_result_creating_a_counter_previews_its_authored_minimum(
+        self,
+        report,
+        owner,
+        model,
+        content,
+        mode,
+        amount,
+        expected,
+    ):
+        counter = create_counter("Personal influence", minimum=1)
+        result = create_pickable(
+            "Influential",
+            content["kind"],
+            effects=[
+                (
+                    targets_model(),
+                    op_changes_counter(counter, mode=mode, amount=amount),
+                ),
+            ],
+        )
+        add_picklist_member(content["table"], result)
+        payload = with_model(model)
+        payload["models"][0]["effects"] = [effect_for(report, owner, result)]
+        report = save(report, owner, payload)
+        plan = preview_report(report, actor=owner)
+        assert plan.valid, plan.errors
+        (change,) = plan.models[0].counters
+        assert change.after == expected
+        apply(report, owner)
+        assert (
+            CounterValue.objects.get(
+                assignment__miniature=model, assignment__counter=counter
+            ).value
+            == expected
+        )
+
+    def test_dependent_counter_previews_follow_simultaneous_changes_and_corrections(
+        self,
+        report,
+        owner,
+        model,
+    ):
+        from n26.library.authoring import create_hidden, ef_contributes_to_counter
+
+        source = assign(create_counter("Influence", minimum=1), miniature=model)
+        target = assign(create_counter("Personal rewards"), miniature=model)
+        tally(source, 0)
+        tally(target, 0)
+        assign(
+            create_hidden(
+                "Influence rewards",
+                effects=[
+                    (
+                        targets_model(),
+                        ef_contributes_to_counter(
+                            target.counter, 2, per_counter=source.counter
+                        ),
+                    ),
+                ],
+            ),
+            miniature=model,
+        )
+        for amount, expected in [(1, 5), (2, 8)]:
+            payload = with_model(
+                model, counters={str(source.pk): amount, str(target.pk): amount}
+            )
+            report = save(report, owner, payload)
+            plan = preview_report(report, actor=owner)
+            assert plan.valid, plan.errors
+            change = next(
+                line
+                for line in plan.models[0].counters
+                if line.name == "Personal rewards"
+            )
+            assert change.after == expected
+            saved = apply(report, owner)
+            receipt = next(
+                line
+                for line in saved.receipt["models"][0]["counters"]
+                if line["name"] == "Personal rewards"
+            )
+            assert receipt["after"] == change.after
+            report = start_correction(report, actor=owner)
+
+    def test_a_result_cannot_hide_a_manual_subtraction_below_the_minimum(
+        self,
+        report,
+        owner,
+        model,
+        glitches,
+        glitch,
+    ):
+        from n26.library.authoring import revise
+
+        revise(glitches.counter, minimum=1)
+        tally(glitches, 0)
+        effect = effect_for(report, owner, glitch)
+        payload = with_model(model, counters={str(glitches.pk): -1})
+        payload["models"][0]["effects"] = [effect]
+        report = save(report, owner, payload)
+        plan = preview_report(report, actor=owner)
+        assert not plan.valid
+        assert "below its minimum" in " ".join(plan.errors)
+        with pytest.raises(Refusal, match="below its minimum"):
+            apply_report(
+                report,
+                actor=owner,
+                generation=report.generation,
+                revision=report.draft_revision,
+                submission_key=uuid4(),
+                review=plan.review,
+            )
+        assert counter_value(glitches) == 1
+        payload["models"][0]["counters"] = {}
+        report = save(report, owner, payload)
+        apply(report, owner)
+        assert counter_value(glitches) == 2
+        report = start_correction(report, actor=owner)
+        report = save(report, owner, with_model(model, counters={str(glitches.pk): -1}))
+        assert not preview_report(report, actor=owner).valid
+        assert counter_value(glitches) == 2
+
+    def test_a_broadcast_source_counter_contributes_nothing_to_the_model_preview(
+        self,
+        report,
+        owner,
+        model,
+        gang,
+    ):
+        from n26.library.authoring import create_hidden, ef_contributes_to_counter
+
+        source = assign(create_counter("Influence"), gang=gang)
+        tally(source, 3)
+        target = assign(create_counter("Personal rewards"), miniature=model)
+        tally(target, 0)
+        assign(
+            create_hidden(
+                "Influence rewards",
+                effects=[
+                    (
+                        targets_model(),
+                        ef_contributes_to_counter(
+                            target.counter, 2, per_counter=source.counter
+                        ),
+                    ),
+                ],
+            ),
+            miniature=model,
+        )
+        report = save(report, owner, with_model(model, counters={str(target.pk): 1}))
+        plan = preview_report(report, actor=owner)
+        assert plan.valid, plan.errors
+        (change,) = plan.models[0].counters
+        assert change.after == 1
+        saved = apply(report, owner)
+        assert saved.receipt["models"][0]["counters"][0]["after"] == change.after
+
+    def test_xp_previews_recalculate_contributions_when_a_source_changes(
+        self,
+        report,
+        owner,
+        model,
+        content,
+    ):
+        from n26.library.authoring import create_hidden, ef_contributes_to_counter
+
+        source = assign(create_counter("Influence", minimum=1), miniature=model)
+        tally(source, 0)
+        assign(
+            create_hidden(
+                "Influence XP",
+                effects=[
+                    (
+                        targets_model(),
+                        ef_contributes_to_counter(
+                            content["xp"], 2, per_counter=source.counter
+                        ),
+                    ),
+                ],
+            ),
+            miniature=model,
+        )
+        for amount, expected in [(1, 4), (2, 6)]:
+            report = save(
+                report, owner, with_model(model, counters={str(source.pk): amount})
+            )
+            plan = preview_report(report, actor=owner)
+            assert plan.valid, plan.errors
+            assert plan.models[0].xp_after == expected
+            saved = apply(report, owner)
+            assert saved.receipt["models"][0]["xp_after"] == expected
+            report = start_correction(report, actor=owner)
+
+    def test_xp_preview_uses_the_recorded_legacy_balance_below_the_minimum(
+        self,
+        report,
+        owner,
+        model,
+        content,
+    ):
+        from n26.library.authoring import revise
+
+        assignment = Assignment.objects.get(miniature=model, counter=content["xp"])
+        tally(assignment, 0)
+        revise(content["xp"], minimum=1)
+        for award in [1, 2]:
+            report = save(report, owner, with_model(model, xp=award))
+            plan = preview_report(report, actor=owner)
+            assert plan.valid, plan.errors
+            assert plan.models[0].xp_after == award
+            saved = apply(report, owner)
+            assert saved.receipt["models"][0]["xp_after"] == award
+            assert counter_value(assignment) == award
+            report = start_correction(report, actor=owner)
+
+    def test_a_result_can_restore_an_untouched_legacy_counter_to_its_minimum(
+        self,
+        report,
+        owner,
+        model,
+        glitches,
+        glitch,
+    ):
+        from n26.library.authoring import revise
+
+        tally(glitches, 0)
+        revise(glitches.counter, minimum=1)
+        payload = with_model(model)
+        payload["models"][0]["effects"] = [effect_for(report, owner, glitch)]
+        report = save(report, owner, payload)
+        plan = preview_report(report, actor=owner)
+        assert plan.valid, plan.errors
+        (change,) = plan.models[0].counters
+        assert change.after == 1
+        saved = apply(report, owner)
+        assert counter_value(glitches) == 1
+        assert saved.receipt["models"][0]["counters"][0]["after"] == 1
+
     def test_xp_is_not_offered_and_every_held_counter_is(
         self, report, owner, model, kill_count, glitches
     ):
@@ -1823,3 +2066,85 @@ def test_a_correction_leaves_an_unchanged_gang_counter_off_the_receipt(
     )
     saved = apply(report, owner)
     assert saved.receipt["gang_counters"] == []
+
+
+@pytest.mark.usefixtures("counter_tracking")
+def test_report_refuses_below_minimum_and_zero_correction_adds_no_reputation(
+    report, owner, model, reputation
+):
+    from n26.library.authoring import revise
+
+    revise(reputation.counter, minimum=1)
+    tally(reputation, -4)
+    key = str(reputation.pk)
+    report = save(report, owner, with_lines(model, counters={key: -1}))
+    plan = preview_report(report, actor=owner)
+    assert "Reputation cannot go below 1." in plan.errors
+    with pytest.raises(Refusal, match="Reputation cannot go below 1"):
+        apply_report(
+            report,
+            actor=owner,
+            generation=report.generation,
+            revision=report.draft_revision,
+            submission_key=uuid4(),
+            review=plan.review,
+        )
+    assert counter_value(reputation) == 1
+    report = save(report, owner, with_lines(model, counters={key: 0}))
+    apply(report, owner)
+    report = start_correction(report, actor=owner)
+    report = save(report, owner, with_lines(model, counters={key: 0}))
+    apply(report, owner)
+    assert counter_value(reputation) == 1
+
+
+@pytest.mark.usefixtures("counter_tracking")
+class TestArchivingTheBattle:
+    def test_applied_results_keep_their_receipt_and_gang_effects(
+        self, battle, gang, owner, arbitrator, model, content
+    ):
+        from n26.core.models import Battle, PostBattleReport
+
+        report = start_report(gang, battle=battle, actor=owner, request_key=uuid4())
+        report = save(
+            report,
+            owner,
+            payload_for(
+                model,
+                xp=3,
+                credits=20,
+                effects=[effect_for(report, owner, content["wound"])],
+                status=Status.RECOVERY,
+            ),
+        )
+        revision = apply(report, owner)
+        before = {
+            "events": list(gang.ledger_events.order_by("pk").values()),
+            "assignments": list(
+                Assignment.objects.filter(gang_root=gang).order_by("pk").values()
+            ),
+            "receipt": revision.receipt,
+        }
+        with campaign_operation(battle.campaign, actor=arbitrator) as act:
+            archived = act.remove_battle(battle, revision=battle.revision)
+        report = PostBattleReport.objects.get(pk=report.pk)
+        revision.refresh_from_db()
+        gang.refresh_from_db()
+        model.refresh_from_db()
+        assert not can_edit_report(report, owner)
+        assert model.status == Status.RECOVERY
+        assert revision.receipt == before["receipt"]
+        assert list(gang.ledger_events.order_by("pk").values()) == before["events"]
+        assert (
+            list(Assignment.objects.filter(gang_root=gang).order_by("pk").values())
+            == before["assignments"]
+        )
+        assert report.battle_id == battle.pk
+        with pytest.raises(Refusal, match="archived"):
+            start_correction(report, actor=owner)
+        with campaign_operation(battle.campaign, actor=arbitrator) as act:
+            act.restore_battle(archived, revision=archived.revision)
+        report.battle = Battle.objects.get(pk=battle.pk)
+        assert can_edit_report(report, owner)
+        assert list(gang.ledger_events.order_by("pk").values()) == before["events"]
+        assert_reconciled(gang)

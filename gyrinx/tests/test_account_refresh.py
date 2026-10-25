@@ -1,7 +1,6 @@
 """Account navigation and allauth integration contracts for the N26 refresh."""
 
 import re
-import time
 
 import pytest
 from allauth.account.models import EmailAddress
@@ -466,12 +465,13 @@ def test_totp_setup_keeps_qr_code_and_native_activation_form(client, user):
         user=user, email=user.email, primary=True, verified=True
     )
     client.force_login(user)
-    session = client.session
-    session["account_authentication_methods"] = [
-        {"method": "password", "at": time.time()}
-    ]
-    session.save()
     response = client.get(reverse("mfa_activate_totp"))
+    assert response.status_code == 302
+    assert response.url.startswith(reverse("account_reauthenticate") + "?")
+    response = client.post(response.url, {"password": "password"})
+    assert response.status_code == 302
+    assert response.url == reverse("mfa_activate_totp")
+    response = client.get(response.url)
     assert response.status_code == 200
     assert response.context["totp_svg_data_uri"].startswith("data:image/svg+xml;")
     html = response.content.decode()

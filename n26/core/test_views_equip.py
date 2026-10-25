@@ -471,6 +471,10 @@ def test_a_category_named_with_an_ampersand_still_matches_the_filter(
     category counts zero, hides itself, and takes its rows off the page
     with it. So the name the picker reads must be the name the view sent,
     character for character."""
+    import json
+
+    from bs4 import BeautifulSoup
+
     from n26.library.models import Category, Section, Wargear
 
     section = Section.objects.create(name="Kit & gear", position=0)
@@ -485,12 +489,21 @@ def test_a_category_named_with_an_ampersand_still_matches_the_filter(
     response = client.get(equip_url(fighter, house_list))
     body = response.content.decode()
     assert "Armour & shields" in response.context["categories"]
-    # Both sides write the name into an attribute, so both are escaped once
-    # and the browser hands Alpine the same two strings. Escaped twice, the
-    # category's copy would arrive with a literal "&amp;" in it and compare
-    # equal to nothing.
-    assert '"Armour &amp; shields"' in body
+    # The rows still hand Alpine the name inside an attribute. The browser
+    # decodes &amp; once, so Alpine's category is "Armour & shields".
+    # Escaped twice, that copy would contain a literal "&amp;" and match
+    # nothing.
+    assert "Armour &amp; shields" in body
     assert "&amp;amp;" not in body
+    # The filter menu's ticks are JSON, not attributes. They must be the
+    # same string Alpine decoded, or a tick matches no category and the
+    # rows vanish.
+    soup = BeautifulSoup(body, "html.parser")
+    host = soup.select_one("[data-react-name='filter-menu']")
+    props = json.loads(soup.find(id=host["data-react-props"]).string)
+    assert {"value": "Armour & shields", "label": "Armour & shields"} in props[
+        "options"
+    ]
 
 
 def test_every_registration_name_is_a_known_category(
@@ -2345,12 +2358,6 @@ class TestTheLibraryTabsQueryBudget:
     def test_it_costs_a_fixed_number(
         self, client, tester, fighter, house_list, stocked
     ):
-        from n26.tests.fixtures import admit_to_founding
-
-        # The founding flag's row stands, on the allowlist, and this owner
-        # is not on it: what an owner pays once the feature is being
-        # tried out, which is the flag row and their group membership.
-        admit_to_founding()
         client.force_login(tester)
 
         # The reader and their session, the gang, the fighter's card with
@@ -2358,9 +2365,7 @@ class TestTheLibraryTabsQueryBudget:
         # its characteristics strip, which is the statline's own handful
         # of reads plus the owner's hand-set values, the roster behind
         # the header's count, which held lists hold gear, the campaign's
-        # assets the gang holds, the drawer's one question about
-        # campaigns, the founding flag's row and whether its group holds
-        # this owner — the library: one query per gear kind, plus the
+        # assets the gang holds — the library: one query per gear kind, plus the
         # guns' paid rounds, each kind's offers and each restricted
         # kind's use lists — and a browse of each list held, which is
         # what prices the library's lines. A fixed number per list,
@@ -2368,7 +2373,8 @@ class TestTheLibraryTabsQueryBudget:
         # and one reads the n26 write-pause state for the page notice.
         # Action controls read tracking state, earned uses, drafts and history
         # once for this model, independent of the number of library rows.
-        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 70
+        # One read checks the built-in visit's default visibility.
+        assert self.measure(client, f"{equip_url(fighter)}?list=all") == 68
 
     def test_it_costs_the_same_however_much_it_holds(
         self, client, tester, fighter, house_list, stocked

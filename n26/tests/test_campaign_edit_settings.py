@@ -6,9 +6,7 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import add_built_in, create_counter
 from n26.tests.sandbox.actions import found_campaign
 
@@ -17,9 +15,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def campaign(client, campaign_type):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     add_built_in(campaign_type, create_counter("Reputation"), amount=2)
     owner = User.objects.create_user("settings-arbitrator")
     found = found_campaign("Dust Falls", campaign_type, owner=owner)
@@ -47,7 +42,7 @@ def test_general_settings_and_definitions_have_separate_url_tabs(client, campaig
     assert {
         item["name"]: item["opening"] for item in definitions.context["counters"]
     } == {"Reputation": 2, "Meat": 3}
-    assert definitions.context["labels"] == [{"name": "Faction"}]
+    assert [label["name"] for label in definitions.context["labels"]] == ["Faction"]
     assert 'name="summary"' not in definitions.content.decode()
     assert "tinymce.min.js" not in definitions.content.decode()
     assert "Save campaign" not in definitions.content.decode()

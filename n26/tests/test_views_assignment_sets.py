@@ -9,12 +9,10 @@ from django.core.exceptions import ValidationError
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.assignment_sets import equipment_for, save_model_card
 from n26.core.models import Assignment, AssignmentSet, LedgerEvent
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
     add_rank_threshold,
     create_counter,
@@ -30,13 +28,6 @@ from n26.library.authoring import (
 from n26.tests.sandbox.actions import assign, found_gang, give_weapon, hire, sell
 
 pytestmark = pytest.mark.django_db
-
-
-@pytest.fixture
-def flag():
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture
@@ -93,7 +84,7 @@ def fields(name="Long range", assignments=(), revision=None):
 class TestManagingModelCards:
     """Named selections replace the standard option and leave the books alone."""
 
-    def test_the_all_equipment_card_shows_all_equipment(self, client, model, flag):
+    def test_the_all_equipment_card_shows_all_equipment(self, client, model):
         response = client.get(address(model))
         assert response.status_code == 200
         cards = response.context["cards"]
@@ -108,9 +99,7 @@ class TestManagingModelCards:
         assert cards[0].card.type_line == "Fighter (Mounted)"
         assert "Add model card" in response.content.decode()
 
-    def test_new_cards_start_with_all_equipment_selected(
-        self, client, model, kit, flag
-    ):
+    def test_new_cards_start_with_all_equipment_selected(self, client, model, kit):
         response = client.get(address(model, "new/"))
         form = response.context["form"]
         assert set(form.initial["assignments"]) == {row.pk for row in kit.values()}
@@ -118,7 +107,7 @@ class TestManagingModelCards:
         assert response.content.decode().count(" checked") == 3
 
     def test_saving_a_named_card_changes_no_equipment_or_history(
-        self, client, model, kit, flag
+        self, client, model, kit
     ):
         events = LedgerEvent.objects.count()
         equipment = list(Assignment.objects.values_list("pk", flat=True))
@@ -136,7 +125,7 @@ class TestManagingModelCards:
         assert_reconciled(model.gang)
 
     def test_all_equipment_comes_first_and_each_card_rates_its_equipment(
-        self, client, model, kit, named, flag
+        self, client, model, kit, named
     ):
         save_model_card(
             model,
@@ -167,7 +156,7 @@ class TestManagingModelCards:
         assert shooting.id == riding.id == ""
         assert shooting.model_cards_href == riding.model_cards_href == ""
 
-    def test_an_empty_equipment_selection_is_valid(self, client, model, flag):
+    def test_an_empty_equipment_selection_is_valid(self, client, model):
         response = client.post(address(model, "new/"), fields("No weapons"))
         assert response.status_code == 302
         card = client.get(response.url).context["cards"][1].card
@@ -175,9 +164,7 @@ class TestManagingModelCards:
         assert card.rating == 55
         assert [skill.name for skill in card.skills] == ["Nerves of Steel"]
 
-    def test_editing_changes_the_name_and_selection(
-        self, client, model, kit, named, flag
-    ):
+    def test_editing_changes_the_name_and_selection(self, client, model, kit, named):
         url = address(model, f"{named.pk}/edit/")
         initial = client.get(url).context["form"].initial
         assert initial["name"] == "Long range"
@@ -193,7 +180,7 @@ class TestManagingModelCards:
         assert named.modified.isoformat() != initial["revision"]
 
     def test_names_are_unique_ignoring_case_and_whitespace(
-        self, client, model, kit, named, flag
+        self, client, model, kit, named
     ):
         response = client.post(
             address(model, "new/"), fields(" LONG RANGE ", [kit["Stiletto knife"]])
@@ -204,15 +191,13 @@ class TestManagingModelCards:
         assert response.content.decode().count(" checked") == 1
         assert model.assignment_sets.count() == 1
 
-    def test_get_remove_only_asks_the_question(self, client, model, named, flag):
+    def test_get_remove_only_asks_the_question(self, client, model, named):
         response = client.get(address(model, f"{named.pk}/remove/"))
         assert response.status_code == 200
         assert AssignmentSet.objects.filter(pk=named.pk).exists()
         assert "have only its All equipment card" in response.content.decode()
 
-    def test_removing_the_last_card_leaves_all_equipment(
-        self, client, model, named, flag
-    ):
+    def test_removing_the_last_card_leaves_all_equipment(self, client, model, named):
         events = LedgerEvent.objects.count()
         response = client.post(
             address(model, f"{named.pk}/remove/"),
@@ -225,7 +210,7 @@ class TestManagingModelCards:
         assert LedgerEvent.objects.count() == events
         assert equipment_for(model).count() == 3
 
-    def test_removing_one_card_keeps_the_other_card(self, client, model, named, flag):
+    def test_removing_one_card_keeps_the_other_card(self, client, model, named):
         other = save_model_card(model, name="Close quarters", assignments=[])
         response = client.post(
             address(model, f"{named.pk}/remove/"),
@@ -238,7 +223,7 @@ class TestManagingModelCards:
         ]
 
     def test_more_than_three_weapons_get_a_note_on_all_equipment(
-        self, client, model, named, flag
+        self, client, model, named
     ):
         for name in ("Autogun", "Laspistol"):
             give_weapon(model, create_weapon(name))
@@ -262,13 +247,13 @@ class TestManagingModelCards:
     @pytest.mark.parametrize(
         "slots,warned", [((2, 2), True), ((0, 0, 0), False), ((1,), False)]
     )
-    def test_the_note_counts_weapon_slots(self, client, model, flag, slots, warned):
+    def test_the_note_counts_weapon_slots(self, client, model, slots, warned):
         for number, size in enumerate(slots):
             give_weapon(model, create_weapon(f"Extra {number}", slots=size))
         cards = client.get(address(model)).context["cards"]
         assert bool(cards[0].note) is warned
 
-    def test_a_card_name_is_escaped_in_the_page(self, client, model, flag):
+    def test_a_card_name_is_escaped_in_the_page(self, client, model):
         save_model_card(model, name="<script>alert(1)</script>", assignments=[])
         drawn = client.get(address(model)).content.decode()
         assert "&lt;script&gt;alert(1)&lt;/script&gt;" in drawn
@@ -280,7 +265,7 @@ class TestStaleAndInvalidSelections:
 
     @pytest.mark.parametrize("suffix", ["edit/", "remove/"])
     def test_a_stale_revision_does_not_overwrite_a_card(
-        self, client, model, named, flag, suffix
+        self, client, model, named, suffix
     ):
         revision = named.modified.isoformat()
         updated = save_model_card(
@@ -301,7 +286,7 @@ class TestStaleAndInvalidSelections:
         assert updated.assignments.count() == 0
 
     @pytest.mark.parametrize("suffix", ["edit/", "remove/"])
-    def test_the_revision_is_required(self, client, model, named, flag, suffix):
+    def test_the_revision_is_required(self, client, model, named, suffix):
         response = client.post(
             address(model, f"{named.pk}/{suffix}"), fields("No revision")
         )
@@ -312,7 +297,7 @@ class TestStaleAndInvalidSelections:
 
     @pytest.mark.parametrize("kind", ["profile", "skill", "weapon_profile"])
     def test_non_equipment_roots_and_weapon_children_are_not_selectable(
-        self, client, model, flag, kind
+        self, client, model, kind
     ):
         row = Assignment.objects.filter(
             miniature_root=model, **{f"{kind}__isnull": False}
@@ -324,7 +309,7 @@ class TestStaleAndInvalidSelections:
         assert not model.assignment_sets.exists()
 
     def test_another_models_equipment_is_not_selectable(
-        self, client, model, make_profile, flag
+        self, client, model, make_profile
     ):
         other = hire(model.gang, make_profile("Other profile"), "Donna")
         stolen = give_weapon(other, create_weapon("Stub gun", profiles=[("Shot", 0)]))
@@ -344,7 +329,7 @@ class TestStaleAndInvalidSelections:
         model.gang.refresh_from_db()
         assert_reconciled(model.gang)
 
-    def test_sold_equipment_is_not_offered(self, client, model, kit, flag):
+    def test_sold_equipment_is_not_offered(self, client, model, kit):
         shotgun = kit["Combat shotgun"]
         sell(shotgun)
         response = client.get(address(model, "new/"))
@@ -354,32 +339,25 @@ class TestStaleAndInvalidSelections:
 
 
 class TestModelCardPermissions:
-    """Every route requires this live model's owner and the campaigns flag."""
-
-    @pytest.mark.parametrize("suffix", ["", "new/", "edit/", "remove/"])
-    def test_flag_off_blocks_get_and_post(self, client, model, named, flag, suffix):
-        flag.availability = Availability.OFF
-        flag.save()
-        path = f"{named.pk}/{suffix}" if suffix in {"edit/", "remove/"} else suffix
-        for method in (client.get, client.post):
-            assert method(address(model, path)).status_code == 404
+    """Every route requires this live model's owner."""
 
     @pytest.mark.parametrize("suffix", ["", "new/", "edit/", "remove/"])
     def test_other_players_cannot_read_or_change_cards(
-        self, client, model, named, flag, suffix
+        self, client, model, named, suffix
     ):
         client.force_login(User.objects.create_user("other-player"))
         path = f"{named.pk}/{suffix}" if suffix in {"edit/", "remove/"} else suffix
         for method in (client.get, client.post):
             assert method(address(model, path)).status_code == 404
 
-    def test_anonymous_readers_cannot_reach_the_feature(self, client, model, flag):
+    def test_anonymous_readers_are_asked_to_sign_in(self, client, model):
         client.logout()
         response = client.get(address(model))
-        assert response.status_code == 404
+        assert response.status_code == 302
+        assert "/accounts/login/" in response["Location"]
 
     def test_the_model_must_belong_to_the_addressed_gang(
-        self, client, model, gang_type, flag
+        self, client, model, gang_type
     ):
         other = found_gang("Other gang", gang_type, owner=model.gang.owner)
         url = address(model).replace(str(model.gang.pk), str(other.pk))
@@ -387,7 +365,7 @@ class TestModelCardPermissions:
         assert client.post(f"{url}new/", fields()).status_code == 404
 
     def test_a_card_must_belong_to_the_addressed_model(
-        self, client, model, make_profile, named, flag
+        self, client, model, make_profile, named
     ):
         other = hire(model.gang, make_profile("Other profile"), "Donna")
         for suffix in ("edit/", "remove/"):
@@ -396,7 +374,7 @@ class TestModelCardPermissions:
             assert client.post(url, fields()).status_code == 404
 
     @pytest.mark.parametrize("target", ["gang", "model", "card"])
-    def test_malformed_ids_return_404(self, client, model, named, flag, target):
+    def test_malformed_ids_return_404(self, client, model, named, target):
         ids = {
             "gang": str(model.gang.pk),
             "model": str(model.pk),
@@ -405,20 +383,18 @@ class TestModelCardPermissions:
         url = address(model, f"{named.pk}/edit/").replace(ids[target], "bad-id")
         assert client.get(url).status_code == 404
 
-    def test_archived_models_cannot_be_managed(self, client, model, flag):
+    def test_archived_models_cannot_be_managed(self, client, model):
         model.membership.archive()
         assert client.get(address(model)).status_code == 404
         assert client.post(address(model, "new/"), fields()).status_code == 404
 
-    def test_archived_gangs_cannot_be_managed(self, client, model, flag):
+    def test_archived_gangs_cannot_be_managed(self, client, model):
         model.gang.archive()
         assert client.get(address(model)).status_code == 404
         assert client.post(address(model, "new/"), fields()).status_code == 404
 
     @pytest.mark.parametrize("screen", ["gang", "model"])
-    def test_only_flagged_owners_see_the_layers_action(
-        self, client, model, flag, screen
-    ):
+    def test_owners_see_the_layers_action(self, client, model, screen):
         url = (
             f"/n26/gangs/{model.gang.pk}/"
             if screen == "gang"
@@ -427,13 +403,8 @@ class TestModelCardPermissions:
         drawn = client.get(url).content.decode()
         assert f'href="{address(model)}"' in drawn
         assert 'aria-label="Model cards"' in drawn
-        flag.availability = Availability.OFF
-        flag.save()
-        drawn = client.get(url).content.decode()
-        assert f'href="{address(model)}"' not in drawn
-        assert 'aria-label="Model cards"' not in drawn
 
-    def test_other_readers_never_see_card_management(self, client, model, flag):
+    def test_other_readers_never_see_card_management(self, client, model):
         client.force_login(User.objects.create_user("visitor"))
         url = f"/n26/gangs/{model.gang.pk}/"
         response = client.get(url)
@@ -445,7 +416,7 @@ class TestModelCardPermissions:
 class TestModelCardQueryGrowth:
     """More named cards reuse the hydrated equipment and modifier index."""
 
-    def test_more_cards_do_not_add_queries(self, client, model, named, kit, flag):
+    def test_more_cards_do_not_add_queries(self, client, model, named, kit):
         xp = create_counter("XP")
         ranks = create_rank_table("Fighter ranks", xp, initial_title="Rookie")
         add_rank_threshold(ranks, 4, title="Rookie")

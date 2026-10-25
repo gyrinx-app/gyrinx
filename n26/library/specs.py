@@ -403,6 +403,7 @@ def _build_registry():
         AssetTableEntry,
         AssetType,
         AugmentCarriedItem,
+        BuiltInAction,
         CampaignType,
         Category,
         ChangesCategory,
@@ -747,6 +748,11 @@ def _build_registry():
             {
                 "counter": One(model=Counter, source=(ContributesToCounter, "counter")),
                 "amount": Int(source=(ContributesToCounter, "amount")),
+                "per_counter": One(
+                    model=Counter,
+                    optional=True,
+                    source=(ContributesToCounter, "per_counter"),
+                ),
             },
             label="Adds to a counter",
             blurb=(
@@ -1018,6 +1024,7 @@ def _build_registry():
             {
                 "name": Text(source=(Counter, "name")),
                 "drawn": Bool(source=(Counter, "drawn")),
+                "minimum": Int(source=(Counter, "minimum")),
                 "qualifier": Text(source=(Counter, "qualifier")),
                 "library_author_help": Text(
                     source=(Counter, "library_author_help"), long=True
@@ -1194,6 +1201,16 @@ def _build_registry():
                     source=(RankTable, "library_author_help"), long=True
                 ),
             },
+        ),
+        Spec(
+            authoring.configure_trading_post_visit,
+            {
+                "excluded_gang_types": Many(
+                    model=GangType,
+                    source=(BuiltInAction, "excluded_gang_types"),
+                ),
+            },
+            model=BuiltInAction,
         ),
         Spec(
             authoring.create_action,
@@ -1525,6 +1542,7 @@ def _build_registry():
             {
                 "label_singular": Text(source=(AssetType, "label_singular")),
                 "label_plural": Text(source=(AssetType, "label_plural")),
+                "display_group": Text(source=(AssetType, "display_group")),
                 "ownership": Choice(source=(AssetType, "ownership")),
                 "position": Int(source=(AssetType, "position")),
             },

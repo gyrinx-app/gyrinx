@@ -1,31 +1,28 @@
 """Setting a campaign up, and the arbitrator's pages for one.
 
-Every view here is gated twice: ``requires_flag`` outside, so a reader
-without the campaigns feature is told the address does not exist, and
-``login_required`` inside, so the ones who do have it are still asked to
-sign in. The order matters — a login redirect on a gated address would
-itself say that something is there.
+Every view here asks the reader to sign in.
 """
+
+from dataclasses import dataclass
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Count
+from django.db.models import Count, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from n26.core.listing import LINK, SECONDARY, Action
+from n26.core.listing import DANGER, LINK, SECONDARY, Action
 from n26.core.views.permissions import (
     _any_campaign_or_404,
     _own_campaign_or_404,
     _recording_campaign_or_404,
 )
-from n26.flags import CAMPAIGNS, requires_flag
 from n26.library.staged import sees_staged
 
-#: How many campaigns a page of the list holds. A row is a name, a budget
-#: and its controls — shorter than a gang's, so a page holds more of them.
+#: Campaigns per page in the searchable listing.
 CAMPAIGNS_PER_PAGE = 25
 
 #: How many accounts a search for somebody to invite offers at once. Enough
@@ -46,7 +43,6 @@ LOG_ON_THE_PAGE = 10
 LOG_PER_PAGE = 50
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaigns(request):
     """Every campaign this reader is in, narrowed by ``?q=``.
@@ -78,14 +74,14 @@ def campaigns(request):
         .filter(archived=False)
         # A row names its arbitrator with the badge they hold, which reads
         # their profile and their grants.
-        .select_related("owner", "owner__profile")
+        .select_related("owner", "owner__profile", "campaign_type")
         .prefetch_related("owner__badge_grants")
         .order_by("name", "pk")
     )
-    found = search_queryset(listed, query, ["name"])
+    found = search_queryset(listed, query, ["name", "campaign_type__name"])
 
     page = Paginator(found, CAMPAIGNS_PER_PAGE).get_page(request.GET.get("page"))
-    rows = campaign_rows(page.object_list, request.user)
+    rows = campaign_rows(page.object_list)
     return render(
         request,
         "n26/campaigns.html",
@@ -107,30 +103,39 @@ def campaigns(request):
     )
 
 
-def campaign_rows(listed, user):
-    """The listed campaigns, each carrying what its row has to draw.
+def campaign_rows(listed):
+    """Campaign facts shared by the dashboard and the campaigns list.
 
-    A list holding both the campaigns somebody runs and the ones they play
-    in has to say which is which: what an arbitrator may do to a campaign
-    is not what somebody playing in it may. The answer is settled here, as
-    the words the row draws rather than a flag it has to interpret, so the
-    campaigns list and the home page's tab cannot come to disagree about
-    what either sort of row looks like.
-
-    A campaign the reader runs names nobody — they know who runs it — and
-    offers the way in to change it. One they only play in names its
-    arbitrator and offers nothing: the whole row already opens it, and
-    there is nothing on the far side for them to change.
+    Count memberships and battles independently so their rows do not multiply.
     """
-    rows = list(listed)
+    from n26.core.models import Battle, CampaignMembership
+
+    memberships = (
+        CampaignMembership.objects.filter(campaign=OuterRef("pk"), left__isnull=True)
+        .order_by()
+        .values("campaign")
+        .annotate(count=Count("pk"))
+        .values("count")
+    )
+    battles = (
+        Battle.objects.filter(campaign=OuterRef("pk"), archived=False)
+        .order_by()
+        .values("campaign")
+        .annotate(count=Count("pk"))
+        .values("count")
+    )
+
+    rows = list(
+        listed.annotate(
+            active_gangs=Coalesce(Subquery(memberships), 0),
+            battle_count=Coalesce(Subquery(battles), 0),
+        )
+    )
     for row in rows:
-        arbitrated = row.owner_id == getattr(user, "id", None)
-        row.arbitrator = None if arbitrated else row.owner
-        row.action_label = "Edit" if arbitrated else ""
+        row.arbitrator = row.owner
     return rows
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def create_campaign(request):
     """Set a campaign up on a type. POST founds it and lands on its page.
@@ -178,7 +183,6 @@ def create_campaign(request):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaign(request, pk):
     """One campaign, whoever is reading it.
@@ -188,9 +192,8 @@ def campaign(request, pk):
     same battles, the same log. Accepted players can record battles and
     dice rolls. Campaign management remains with the arbitrator.
 
-    Who the address reaches is the decorators' answer rather than this
-    one's: signed in, and inside the campaigns feature. A reader outside
-    either is told there is nothing here.
+    Who the address reaches is the decorator's answer rather than this
+    one's: anybody signed in.
 
     The log reads newest first and is cut to the most recent acts: the page
     is a campaign, not its history, and a log that grew without bound would
@@ -228,21 +231,23 @@ def campaign(request, pk):
         if yours and not rolling
         else None
     )
+    _fill_addresses(sheet, found, yours=yours, viewer=request.user, request=request)
     if (rolling or starting) and request.method == "GET" and is_htmx(request):
         response = render(
             request,
             "n26/includes/campaign_roll_dialogs.html",
-            _roll_context(found, rolling, starting),
+            _roll_context(found, rolling, starting, cancel_url=sheet.table_href),
         )
-        response["HX-Replace-Url"] = request.get_full_path()
+        response["HX-Replace-Url"] = _table_action_href(request)
         return response
     if asked_for_a_dialog:
         # Asked for a dialog that cannot be drawn — a stale or withdrawn
         # question — so the whole page is served, and it names everybody.
         load_owner_badges(found.owner, *(line.owner for line in sheet.gangs))
-    _fill_addresses(sheet, found, yours=yours, viewer=request.user)
     acts, more_acts = _recent_acts(found, request.user)
-    battles = found.battles.prefetch_related("gangs", "winners")[:BATTLES_ON_THE_PAGE]
+    battles = found.battles.filter(archived=False).prefetch_related("gangs", "winners")[
+        :BATTLES_ON_THE_PAGE
+    ]
     # Read once and asked twice: the page draws the players, and whether
     # this reader is one of them decides what it offers them.
     players = list(_players(found))
@@ -280,7 +285,7 @@ def campaign(request, pk):
             "sheet": sheet,
             "yours": yours,
             "log_href": reverse("n26-campaign-log", args=[found.pk]),
-            "more_actions": more_actions(found, yours=yours),
+            "more_actions": more_actions(found, yours=yours, playing=at_the_table),
             # A player at the table brings their own gangs; the arbitrator
             # brings anybody's. Both reach the same screen.
             "may_add_gang": yours or at_the_table,
@@ -293,17 +298,19 @@ def campaign(request, pk):
             "battles": battles,
             "acts": acts,
             "more_acts": more_acts,
-            **_roll_context(found, rolling, starting, redrawn=False),
+            **_roll_context(
+                found, rolling, starting, redrawn=False, cancel_url=sheet.table_href
+            ),
         },
     )
 
 
-def more_actions(campaign, *, yours):
+def more_actions(campaign, *, yours, playing=False):
     """The links in the campaign header's More actions menu.
 
     Every player at the table may read the log. Only the arbitrator manages
-    the campaign's counters, labels and asset types, or archives it. No
-    separators.
+    the campaign's counters, labels and asset types, or archives it. Only a
+    player may leave: the arbitrator is never one. No separators.
     """
     actions = [
         Action(
@@ -329,16 +336,31 @@ def more_actions(campaign, *, yours):
                 SECONDARY,
             ),
             Action(
+                "Gang grouping",
+                LINK,
+                reverse("n26-campaign-grouping", args=[campaign.pk]),
+                SECONDARY,
+            ),
+            Action(
                 "Archive campaign",
                 LINK,
                 reverse("n26-archive-campaign", args=[campaign.pk]),
                 SECONDARY,
             ),
         ]
+    if playing:
+        actions.append(
+            Action(
+                "Leave campaign",
+                LINK,
+                reverse("n26-leave-campaign", args=[campaign.pk]),
+                DANGER,
+            )
+        )
     return actions
 
 
-def _fill_addresses(sheet, campaign, *, yours, viewer):
+def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url=""):
     """Put the addresses on a campaign sheet. The structure says who may
     act; only the view knows where each act is asked, so the same filling
     serves the page and the partial update a roll delivers."""
@@ -347,6 +369,12 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
     from n26.core.owned import with_query
 
     here = reverse("n26-campaign", args=[campaign.pk])
+    preferences = {}
+    if request is not None:
+        from n26.core.campaign_table import prepare_gang_table, table_query
+
+        prepare_gang_table(sheet, request, here, current_url=current_url)
+        preferences = table_query(request, current_url=sheet.table_href)
     for line in sheet.gangs:
         line.href = reverse("n26-gang", args=[line.gang_id])
         # The arbitrator of a campaign still being played may change any
@@ -367,7 +395,7 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
             for counter in line.counters:
                 if counter is not None and counter.assignment_id:
                     counter.href = reverse("n26-tally", args=[counter.assignment_id])
-                    counter.back = here + "#gangs"
+                    counter.back = (sheet.table_href or here) + "#gangs"
                     counter.adjust_href = with_query(counter.href, back=counter.back)
     if yours:
         # What the arbitrator adds sits where it will show: an asset type
@@ -383,7 +411,11 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
         # type; the address names both so a reload asks it again.
         for line in sheet.gangs:
             for roll in line.starting_rolls:
-                roll.href = f"{here}?starting={line.gang_id}&type={roll.asset_type_id}"
+                roll.href = with_query(
+                    sheet.table_href or here,
+                    starting=line.gang_id,
+                    type=roll.asset_type_id,
+                )
     for table in sheet.assets:
         if yours:
             table.add_href = (
@@ -393,7 +425,9 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
             # Only where there is a rolled table: a control for a roll
             # with nothing to roll from would be a control saying no.
             if table.tables:
-                table.roll_href = f"{here}?roll={table.asset_type_id}"
+                table.roll_href = with_query(
+                    sheet.table_href or here, roll=table.asset_type_id
+                )
         for entry in table.entries:
             entry.href = reverse(
                 "n26-campaign-asset", args=[campaign.pk, entry.campaign_asset_id]
@@ -419,6 +453,17 @@ def _fill_addresses(sheet, campaign, *, yours, viewer):
                     "n26-campaign-asset-remove",
                     args=[campaign.pk, entry.campaign_asset_id],
                 )
+            if preferences:
+                for field in (
+                    "href",
+                    "assign_href",
+                    "unassign_href",
+                    "transfer_href",
+                    "remove_href",
+                ):
+                    href = getattr(entry, field)
+                    if href:
+                        setattr(entry, field, with_query(href, **preferences))
 
 
 def _recent_acts(campaign, viewer):
@@ -453,16 +498,15 @@ def _rolling(campaign, sheet, asked):
     # type the arbitrator declared has no such rule, so its dialog says
     # nothing about how many to generate.
     label = table.plural.lower()
-    lead = (
-        f"Each rolled {table.label.lower()} will be added to the campaign as unclaimed."
-    )
+    lead = f"Add unclaimed {label} to the campaign pool."
+    count_help = "Choose how many to add to the unclaimed pool, up to 100 at a time."
     if table.label == TERRITORY:
-        lead += (
-            " The rules generate three per gang: "
-            f"{sheet.territories_to_generate} for this campaign."
-        )
+        if not sheet.starting_from_pool:
+            lead += " Each gang's starting territory is additional."
+        count_help = f"Three per gang: {sheet.territories_to_generate} unclaimed territories for this campaign."
     return {
         "kind": "pool",
+        "count_help": count_help,
         "title": f"Roll {label}",
         "lead": lead,
         "action": reverse("n26-campaign-roll-asset", args=[campaign.pk]),
@@ -482,6 +526,8 @@ def _starting(sheet, gang_id, asked):
     Anything else is a page without the panel."""
     from django.urls import reverse
 
+    from n26.library.territory_table import TERRITORY
+
     line = next((g for g in sheet.gangs if g.gang_id == gang_id), None)
     if line is None:
         return None
@@ -490,15 +536,21 @@ def _starting(sheet, gang_id, asked):
         return None
     # The type's own word, off the sheet's columns rather than peeled off
     # the control's wording, so a change to the button cannot reach here.
-    label = next(
-        column.label.lower()
-        for column in sheet.asset_types
-        if column.asset_type_id == asked
+    column = next(
+        column for column in sheet.asset_types if column.asset_type_id == asked
     )
+    label = column.label.lower()
+    allocating = sheet.starting_from_pool and column.label == TERRITORY
     return {
+        "plural": column.plural.lower(),
+        "allocating": allocating,
         "kind": "starting",
-        "title": f"Roll starting {label} for {line.name}",
-        "lead": f"The rolled {label} will be assigned to {line.name}.",
+        "title": f"{'Allocate' if allocating else 'Roll'} starting {label} for {line.name}",
+        "lead": (
+            f"Allocate an unclaimed {label} from the pool to {line.name}."
+            if allocating
+            else f"Roll an additional {label} for this gang, separate from the unclaimed pool."
+        ),
         "action": reverse(
             "n26-campaign-roll-starting", args=[sheet.campaign_id, gang_id]
         ),
@@ -523,7 +575,9 @@ def _island_field(bound):
     }
 
 
-def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
+def _roll_context(
+    campaign, rolling, starting, form=None, *, redrawn=True, cancel_url=""
+):
     """What the roll dialogs template draws from: the open question, its
     form, and which table its cards show as chosen.
 
@@ -547,6 +601,11 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
                 initial={"count": question.get("default_count", 1)},
                 tables=AssetTable.objects.filter(pk__in=[t.table_id for t in tables]),
             )
+        if rolling:
+            form.fields["count"].help_text = question["count_help"]
+        form.fields[
+            "avoid_duplicates"
+        ].label = f"Avoid duplicate {question.get('plural', question['label'])}"
         chosen = str(form["table"].value() or "")
         if chosen not in {table.table_id for table in tables}:
             chosen = tables[0].table_id
@@ -565,8 +624,47 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
                 for table in tables
             ],
         }
+        duplicate_field = {
+            "label": form["avoid_duplicates"].label,
+            "helpText": form["avoid_duplicates"].help_text,
+            "checked": bool(form["avoid_duplicates"].value()),
+        }
+        if question.get("allocating"):
+            from collections import Counter, defaultdict
+
+            from n26.core.models import CampaignAsset
+            from n26.library.models import AssetTableEntry, Dice
+
+            pool_counts = Counter(
+                CampaignAsset.objects.filter(
+                    campaign=campaign, holder__isnull=True
+                ).values_list("asset_id", flat=True)
+            )
+            entries = AssetTableEntry.objects.all()
+            if not sees_staged(campaign.owner):
+                entries = entries.live().filter(asset__staged=False)
+            by_table = defaultdict(list)
+            for entry in entries.filter(
+                table_id__in=[table.table_id for table in tables]
+            ).select_related("table"):
+                by_table[str(entry.table_id)].append(entry)
+            matching = Counter()
+            for table in tables:
+                bands = by_table[table.table_id]
+                if not bands:
+                    continue
+                # Count only the assets allocation can reach with this table's die.
+                reachable = {
+                    entry.asset_id
+                    for roll in Dice.rolls(table.dice)
+                    if (entry := bands[0].table.landing(roll, bands)) is not None
+                }
+                matching[table.table_id] = sum(pool_counts[pk] for pk in reachable)
+            for table in island_tables["tables"]:
+                table["availableCount"] = matching[table["value"]]
         if rolling:
             question["pool_fields"] = {
+                "avoidDuplicates": duplicate_field,
                 "count": _island_field(form["count"]),
                 "rolled": _island_field(form["rolled"]),
                 "previewUrl": reverse(
@@ -577,9 +675,13 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
             }
         else:
             question["roll_fields"] = {
+                "allocating": question.get("allocating", False),
+                "avoidDuplicates": None
+                if question.get("allocating")
+                else duplicate_field,
                 "rolled": _island_field(form["rolled"]),
                 "inputId": f"{question['kind']}-roll",
-                "cancelUrl": _campaign_page(campaign),
+                "cancelUrl": cancel_url or _campaign_page(campaign),
                 **island_tables,
             }
 
@@ -589,19 +691,20 @@ def _roll_context(campaign, rolling, starting, form=None, *, redrawn=True):
         "starting": starting,
         "form": form,
         "redrawn": redrawn,
+        "cancel_url": cancel_url or _campaign_page(campaign),
         # A dialog drawn again after a refusal replaces one still open.
         "reopened": redrawn and form is not None and form.is_bound,
     }
 
 
-def _roll_dialog(request, campaign, rolling, starting, form):
+def _roll_dialog(request, campaign, rolling, starting, form, *, cancel_url=""):
     """A refused roll's dialog on its own, in its host, for a page that is
     not rebuilt: drawn open again with the refusal inside it. ``form`` is
     the bound form carrying the refusal."""
     return render(
         request,
         "n26/includes/campaign_roll_dialogs.html",
-        _roll_context(campaign, rolling, starting, form),
+        _roll_context(campaign, rolling, starting, form, cancel_url=cancel_url),
     )
 
 
@@ -611,14 +714,18 @@ def _campaign_update(request, campaign):
     redrawn whole from a fresh sheet, plus the dialog host emptied so the
     panel closes. Whole sections rather than a row, because what a roll
     adds is a new line, and no partial update can put one where there
-    was none. The address goes back to the plain campaign page, and the
+    was none. The address keeps the table’s sorting and grouping, and the
     queued message rides along as a toast."""
     from n26.core.render import render_campaign
     from n26.core.views.htmx import with_toasts
 
     sheet = render_campaign(campaign, viewer=request.user)
     _fill_addresses(
-        sheet, campaign, yours=campaign.owner_id == request.user.pk, viewer=request.user
+        sheet,
+        campaign,
+        yours=campaign.owner_id == request.user.pk,
+        viewer=request.user,
+        request=request,
     )
     acts, more_acts = _recent_acts(campaign, request.user)
     response = render(
@@ -626,11 +733,10 @@ def _campaign_update(request, campaign):
         "n26/includes/campaign_update.html",
         {"campaign": campaign, "sheet": sheet, "acts": acts, "more_acts": more_acts},
     )
-    response["HX-Replace-Url"] = _campaign_page(campaign)
+    response["HX-Replace-Url"] = sheet.table_href or _campaign_page(campaign)
     return with_toasts(request, response)
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def roll_asset(request, pk):
     """Roll from one of the campaign's tables to add an unclaimed asset:
@@ -666,6 +772,7 @@ def roll_asset(request, pk):
                 rolls = act.roll_assets(
                     form.cleaned_data["table"],
                     count=form.cleaned_data["count"],
+                    avoid_duplicates=form.cleaned_data["avoid_duplicates"],
                     request_key=form.cleaned_data["request_key"],
                     rolled=form.cleaned_data["rolled"],
                 )
@@ -715,6 +822,7 @@ def _roll_refused(request, campaign, form, again, question):
     the page moves; without htmx the reason is queued and the page with
     the dialog open is served again. ``question`` builds the dialog's
     facts from a fresh sheet."""
+    from n26.core.campaign_table import prepare_gang_table
     from n26.core.render import render_campaign
     from n26.core.views.htmx import is_htmx
 
@@ -723,6 +831,7 @@ def _roll_refused(request, campaign, form, again, question):
         return redirect(again)
     # A dialog names no gang's owner.
     sheet = render_campaign(campaign, viewer=request.user, with_owner_badges=False)
+    prepare_gang_table(sheet, request, _campaign_page(campaign))
     asked = question(sheet)
     if asked is None:
         # The dialog no longer has anything to offer — the table was
@@ -731,8 +840,12 @@ def _roll_refused(request, campaign, form, again, question):
         response["HX-Redirect"] = _campaign_page(campaign)
         return response
     if "gang_id" in asked:
-        return _roll_dialog(request, campaign, None, asked, form=form)
-    return _roll_dialog(request, campaign, asked, None, form=form)
+        return _roll_dialog(
+            request, campaign, None, asked, form=form, cancel_url=sheet.table_href
+        )
+    return _roll_dialog(
+        request, campaign, asked, None, form=form, cancel_url=sheet.table_href
+    )
 
 
 def _roll_made(request, campaign):
@@ -746,7 +859,6 @@ def _roll_made(request, campaign):
     return redirect(_campaign_page(campaign))
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def roll_starting_asset(request, pk, gang_pk):
     """Roll one gang's starting asset from a table it holds: the act
@@ -816,6 +928,7 @@ def roll_starting_asset(request, pk, gang_pk):
                     form.cleaned_data["table"],
                     membership=membership,
                     rolled=form.cleaned_data["rolled"],
+                    avoid_duplicates=form.cleaned_data["avoid_duplicates"],
                 )
         except Refusal as refused:
             form.add_error(None, str(refused))
@@ -866,7 +979,6 @@ def _first_error(form):
     return "Check the form and try again."
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaign_log(request, pk):
     """The whole of a campaign's log, newest first, a screenful at a time.
@@ -915,7 +1027,6 @@ def campaign_log(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def edit_campaign(request, pk):
     """The facts an arbitrator may change after setting up."""
@@ -923,7 +1034,7 @@ def edit_campaign(request, pk):
     from django.urls import reverse
 
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.campaigns import campaign_operation
+    from n26.core.campaigns import archived_additions, campaign_operation
     from n26.core.forms import EditCampaignForm
     from n26.library.models import DefaultAssignment
 
@@ -936,6 +1047,9 @@ def edit_campaign(request, pk):
     labels = []
     asset_types = []
     shared_asset_types = ""
+    shared_definitions = ""
+    archived_counters = []
+    archived_labels = []
 
     if request.method == "POST":
         form = EditCampaignForm(request.POST)
@@ -944,6 +1058,7 @@ def edit_campaign(request, pk):
                 act.rename(form.cleaned_data["name"])
                 act.set_budget(form.cleaned_data["budget"])
                 act.edit_summary(form.cleaned_data["summary"])
+                act.set_starting_from_pool(form.cleaned_data["starting_from_pool"])
                 if form.cleaned_data["status"]:
                     act.set_status(form.cleaned_data["status"])
             record(request, N26Noun.CAMPAIGN, EventVerb.UPDATE, found)
@@ -956,6 +1071,7 @@ def edit_campaign(request, pk):
                 "budget": found.budget,
                 "summary": found.summary,
                 "status": found.status,
+                "starting_from_pool": found.starting_from_pool,
             }
         )
 
@@ -1001,11 +1117,54 @@ def edit_campaign(request, pk):
             .select_related("counter", "slot")
             .order_by("position", "pk")
         )
+        shared = []
         for member in members:
             if member.counter_id:
-                counters.append({"name": str(member.counter), "opening": member.amount})
-            if member.slot_id:
-                labels.append({"name": member.slot.choice_label})
+                item = {"name": str(member.counter), "opening": member.amount}
+                counters.append(item)
+                thing, route = member.counter, "n26-campaign-archive-counter"
+            else:
+                item = {"name": member.slot.choice_label}
+                labels.append(item)
+                thing, route = member.slot, "n26-campaign-archive-label"
+            # Only what the arbitrator added can be archived here; what the
+            # shared type gives is named once, under the lists.
+            if (
+                member.default_set_id == found.additions.built_ins_id
+                and thing.pack_id == found.pack_id
+            ):
+                item["archive_href"] = reverse(route, args=[found.pk, member.pk])
+            else:
+                shared.append(item["name"])
+        if len(shared) == 1:
+            shared_definitions = (
+                f"{shared[0]} comes with {found.campaign_type}. "
+                "You cannot archive it here."
+            )
+        elif shared:
+            names = f"{', '.join(shared[:-1])} and {shared[-1]}"
+            shared_definitions = (
+                f"{names} come with {found.campaign_type}. "
+                "You cannot archive them here."
+            )
+        archived_counters = [
+            {
+                "name": str(member.counter),
+                "unarchive_href": reverse(
+                    "n26-campaign-unarchive-counter", args=[found.pk, member.pk]
+                ),
+            }
+            for member in archived_additions(found, "counter")
+        ]
+        archived_labels = [
+            {
+                "name": member.slot.choice_label,
+                "unarchive_href": reverse(
+                    "n26-campaign-unarchive-label", args=[found.pk, member.pk]
+                ),
+            }
+            for member in archived_additions(found, "slot")
+        ]
 
     _badge_a_redrawn_page(request, found)
     return render(
@@ -1032,11 +1191,13 @@ def edit_campaign(request, pk):
             "labels": labels,
             "asset_types": asset_types,
             "shared_asset_types": shared_asset_types,
+            "shared_definitions": shared_definitions,
+            "archived_counters": archived_counters,
+            "archived_labels": archived_labels,
         },
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def archive_campaign(request, pk):
     """The question at its own address, then the act.
@@ -1119,7 +1280,6 @@ def _addable_gangs(campaign, reader, arbitrating):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_gang(request, pk):
     """Put a gang into this campaign, chosen from the ones at its table.
@@ -1258,7 +1418,6 @@ def add_gang(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def remove_gang(request, pk, gang_pk):
     """The question at its own address, then the act.
@@ -1294,6 +1453,9 @@ def remove_gang(request, pk, gang_pk):
     if not may_remove_gang(found, membership.gang, request.user):
         raise Http404("No such gang in this campaign")
     gang = membership.gang
+    from n26.core.campaign_table import table_view_href
+
+    back = table_view_href(request, _campaign_page(found))
 
     if request.method == "POST":
         with campaign_operation(found, actor=request.user) as act:
@@ -1303,7 +1465,7 @@ def remove_gang(request, pk, gang_pk):
         else:
             messages.success(request, f"Removed {gang.name} from {found.name}.")
         # The top of the page, not the gangs table, so the message is in view.
-        return redirect("n26-campaign", pk=found.pk)
+        return redirect(back)
 
     losing, returning = _what_the_gang_loses(found, gang)
     return render(
@@ -1314,6 +1476,7 @@ def remove_gang(request, pk, gang_pk):
             "gang": gang,
             "losing": losing,
             "returning": returning,
+            "back": back + "#gangs",
         },
     )
 
@@ -1338,6 +1501,11 @@ def _what_the_gang_loses(campaign, gang):
 
     sheet = render_campaign(campaign, with_owner_badges=False)
     line = next(line for line in sheet.gangs if line.gang_id == str(gang.pk))
+    return _what_the_line_loses(sheet, line)
+
+
+def _what_the_line_loses(sheet, line):
+    """``_what_the_gang_loses`` for a line of a sheet already rendered."""
     losing = []
     returning = []
     for column, names in zip(sheet.asset_types, line.assets, strict=True):
@@ -1362,7 +1530,6 @@ def _playing(campaign):
     ).order_by("name")
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_battle(request, pk):
     """Add a battle before it is fought; its outcome is recorded by editing it."""
@@ -1397,12 +1564,10 @@ def add_battle(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def remove_battle(request, pk, battle_pk):
     """The question at its own address, then the act."""
     from n26.core.campaigns import campaign_operation
-    from n26.core.models import CampaignRoll
     from n26.core.operations import Refusal
     from n26.core.views.battles import battle_or_404
 
@@ -1415,7 +1580,7 @@ def remove_battle(request, pk, battle_pk):
         except TypeError, ValueError:
             messages.error(
                 request,
-                "The battle version is missing or invalid. Reload it before removing it.",
+                "The battle version is missing or invalid. Reload it before archiving it.",
             )
             return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
         try:
@@ -1425,7 +1590,7 @@ def remove_battle(request, pk, battle_pk):
             messages.error(request, str(exc))
             return redirect("n26-battle", pk=found.pk, battle_pk=battle.pk)
         else:
-            messages.success(request, "Battle removed.")
+            messages.success(request, "Battle archived.")
             return redirect("n26-campaign", pk=found.pk)
 
     return render(
@@ -1434,12 +1599,6 @@ def remove_battle(request, pk, battle_pk):
         {
             "campaign": found,
             "battle": battle,
-            "has_history": (
-                battle.gang_events.exists()
-                or battle.crews.exists()
-                or battle.reports.exists()
-                or CampaignRoll.objects.filter(battle=battle).exists()
-            ),
         },
     )
 
@@ -1459,6 +1618,23 @@ def _assets_anchor(campaign):
     from django.urls import reverse
 
     return reverse("n26-campaign", args=[campaign.pk]) + "#assets"
+
+
+def _table_action_href(request, here=""):
+    """Carry the visible table's state into a dialog opened from an older link."""
+    from urllib.parse import parse_qsl, urlencode, urlsplit
+
+    from n26.core.campaign_table import CAMPAIGN_VIEW_KEYS, table_query
+    from n26.core.views.htmx import is_htmx
+
+    query = table_query(request)
+    url = urlsplit(here or request.get_full_path())
+    parameters = dict(parse_qsl(url.query, keep_blank_values=True))
+    if is_htmx(request) and request.headers.get("HX-Current-URL"):
+        for key in CAMPAIGN_VIEW_KEYS:
+            parameters.pop(key, None)
+    parameters.update({key: query[key] for key in CAMPAIGN_VIEW_KEYS if key in query})
+    return url.path + ("?" + urlencode(parameters) if parameters else "")
 
 
 def _gangs_anchor(campaign):
@@ -1498,9 +1674,14 @@ def _campaign_asset_or_404(campaign, asset_pk):
 def _asset_back(request, campaign, holding):
     from django.urls import reverse
 
+    from n26.core.campaign_table import table_view_href
+
     if request.GET.get("from") == "detail":
-        return reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
-    return _assets_anchor(campaign)
+        return table_view_href(
+            request, reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
+        )
+
+    return table_view_href(request, _campaign_page(campaign)) + "#assets"
 
 
 def _asset_update(request, campaign, holding):
@@ -1541,7 +1722,6 @@ def _asset_type_asked_for(campaign, value):
         return None
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_asset(request, pk):
     """Add an asset the campaign deals in, held by nobody.
@@ -1563,6 +1743,9 @@ def add_asset(request, pk):
     from n26.library.models import AssetType
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    from n26.core.campaign_table import table_view_href
+
+    back = table_view_href(request, _campaign_page(found)) + "#assets"
     asset_type = _asset_type_asked_for(found, request.GET.get("type"))
     offered = _holding_assets(found, include_staged=sees_staged(request.user))
     if asset_type is not None:
@@ -1592,7 +1775,7 @@ def add_asset(request, pk):
                 messages.success(
                     request, f"Added {len(form.cleaned_data['asset'])} {label}."
                 )
-            return redirect(_assets_anchor(found))
+            return redirect(back)
     else:
         form = AddAssetForm(offered=offered)
 
@@ -1639,6 +1822,8 @@ def add_asset(request, pk):
         if has_holding_type
         else ""
     )
+    if custom_href:
+        custom_href = _table_action_href(request, custom_href)
     empty_next_href = custom_href or reverse(
         "n26-campaign-add-asset-type", args=[found.pk]
     )
@@ -1651,13 +1836,14 @@ def add_asset(request, pk):
             "campaign": found,
             "asset_type": asset_type,
             "adding": noun,
-            "catalogue_href": request.path
-            + (f"?type={asset_type.pk}" if asset_type else ""),
+            "catalogue_href": _table_action_href(
+                request, request.path + (f"?type={asset_type.pk}" if asset_type else "")
+            ),
             "custom_href": custom_href,
             "custom_label": asset_type.label_singular.lower()
             if asset_type
             else "asset",
-            "back": _assets_anchor(found),
+            "back": back,
             # Drawn as cards, one per asset.
             "assets": assets,
             "fallback_options": [
@@ -1683,7 +1869,6 @@ def add_asset(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def assign_asset(request, pk, asset_pk):
     """Give an asset to a gang playing the campaign, picked from the roll."""
@@ -1738,18 +1923,17 @@ def assign_asset(request, pk, asset_pk):
                 for membership in playing
             ],
             "back": _asset_back(request, found, campaign_asset),
-            "action": request.get_full_path(),
+            "action": _table_action_href(request),
             "redrawn": is_htmx(request),
             "reopened": is_htmx(request) and request.method == "POST",
         },
     )
 
     if is_htmx(request):
-        response["HX-Replace-Url"] = request.get_full_path()
+        response["HX-Replace-Url"] = _table_action_href(request)
     return response
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def unassign_asset(request, pk, asset_pk):
     """The question at its own address, then the act.
@@ -1806,16 +1990,15 @@ def unassign_asset(request, pk, asset_pk):
             "campaign": found,
             "campaign_asset": campaign_asset,
             "back": _asset_back(request, found, campaign_asset),
-            "action": request.get_full_path(),
+            "action": _table_action_href(request),
         },
     )
 
     if is_htmx(request):
-        response["HX-Replace-Url"] = request.get_full_path()
+        response["HX-Replace-Url"] = _table_action_href(request)
     return response
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def transfer_asset(request, pk, asset_pk):
     """Hand a held asset to another gang playing the campaign.
@@ -1901,24 +2084,25 @@ def transfer_asset(request, pk, asset_pk):
             # of their own away and the arbitrator is moving the campaign's.
             "verb": "Transfer" if arbitrating else "Hand over",
             "back": _asset_back(request, found, campaign_asset),
-            "action": request.get_full_path(),
+            "action": _table_action_href(request),
         },
     )
 
     if is_htmx(request):
-        response["HX-Replace-Url"] = request.get_full_path()
+        response["HX-Replace-Url"] = _table_action_href(request)
     return response
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def remove_asset(request, pk, asset_pk):
     """The question at its own address, then the act."""
+    from n26.core.campaign_table import table_view_href
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import Refusal
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
     campaign_asset = _campaign_asset_or_404(found, asset_pk)
+    back = table_view_href(request, _campaign_page(found)) + "#assets"
 
     if request.method == "POST":
         name = str(campaign_asset)
@@ -1932,7 +2116,7 @@ def remove_asset(request, pk, asset_pk):
                 messages.error(request, f"{name} was already removed.")
             else:
                 messages.success(request, f"Removed {name}.")
-        return redirect(_assets_anchor(found))
+        return redirect(back)
 
     return render(
         request,
@@ -1940,7 +2124,7 @@ def remove_asset(request, pk, asset_pk):
         {
             "campaign": found,
             "campaign_asset": campaign_asset,
-            "back": _assets_anchor(found),
+            "back": back,
         },
     )
 
@@ -2012,7 +2196,6 @@ def _addition_page(request, campaign, form, template, act, back, **context):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_asset_type(request, pk):
     """Declare a new asset type for this campaign alone."""
@@ -2026,6 +2209,7 @@ def add_asset_type(request, pk):
             data["label_singular"],
             data["ownership"],
             label_plural=data["label_plural"],
+            display_group=data["display_group"],
         )
         return f"Added the asset type {asset_type.label_singular}."
 
@@ -2066,7 +2250,6 @@ def _ownership_cards(chosen):
     ]
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def edit_asset_type(request, pk, asset_type_pk):
     """Change the labels or ownership of one of the campaign's own asset
@@ -2088,6 +2271,7 @@ def edit_asset_type(request, pk, asset_type_pk):
         initial={
             "label_singular": asset_type.label_singular,
             "label_plural": asset_type.label_plural,
+            "display_group": asset_type.display_group,
             "ownership": asset_type.ownership,
         },
         ownership_locked=bool(fixed),
@@ -2099,6 +2283,7 @@ def edit_asset_type(request, pk, asset_type_pk):
             data["label_singular"],
             data["ownership"],
             label_plural=data["label_plural"],
+            display_group=data["display_group"],
         )
         if edited is None:
             return "Nothing changed."
@@ -2125,7 +2310,6 @@ def edit_asset_type(request, pk, asset_type_pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def new_asset(request, pk):
     """Write a new asset under one of the campaign's asset types.
@@ -2133,6 +2317,7 @@ def new_asset(request, pk):
     ``?type=`` picks the asset type in advance, which is how a link beside
     one type's table reaches here; the reader may still change it.
     """
+    from n26.core.campaign_table import table_view_href
     from n26.core.forms import NewAssetForm
 
     found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
@@ -2172,7 +2357,7 @@ def new_asset(request, pk):
         form,
         "n26/new_asset.html",
         act,
-        _assets_anchor(found),
+        table_view_href(request, _campaign_page(found)) + "#assets",
         asset_types=[
             {
                 "value": str(asset_type.pk),
@@ -2180,7 +2365,7 @@ def new_asset(request, pk):
                 "description": (
                     "Owned by one gang at a time and can be transferred."
                     if asset_type.is_holding
-                    else f"Each gang owns the {asset_type.label_singular} assets it receives."
+                    else f"Each gang has its own {asset_type.label_singular.lower()}."
                 ),
                 "checked": str(asset_type.pk) == picked,
             }
@@ -2190,8 +2375,11 @@ def new_asset(request, pk):
         unified=unified,
         custom_label=asset_type.label_singular.lower() if asset_type else "asset",
         custom_href=request.get_full_path(),
-        catalogue_href=reverse("n26-campaign-add-asset", args=[found.pk])
-        + (f"?type={asset_type.pk}" if asset_type else ""),
+        catalogue_href=_table_action_href(
+            request,
+            reverse("n26-campaign-add-asset", args=[found.pk])
+            + (f"?type={asset_type.pk}" if asset_type else ""),
+        ),
     )
 
 
@@ -2201,7 +2389,6 @@ def _campaign_settings_url(campaign):
     return reverse("n26-edit-campaign", args=[campaign.pk]) + "?tab=counters-and-labels"
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_counter(request, pk):
     """Give every gang in the campaign a counter, opening at a value."""
@@ -2219,7 +2406,6 @@ def add_counter(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_label(request, pk):
     """Ask every gang in the campaign one question with fixed options."""
@@ -2234,6 +2420,180 @@ def add_label(request, pk):
 
     return _addition_page(
         request, found, form, "n26/add_label.html", act, _campaign_settings_url(found)
+    )
+
+
+@login_required
+def archive_addition(request, pk, member_pk, kind):
+    """The question at its own address, then the act: archive a counter or
+    label the arbitrator added, taking it off every gang.
+
+    ``kind`` is ``"counter"`` or ``"label"``, fixed by the route. Only the
+    campaign's own additions are reachable (``own_addition``); Reputation,
+    Income and a gang's own questions are a 404 like any other key that
+    is not one. The page lists each gang with what it has, so the
+    arbitrator sees what goes before it goes, and says why when another
+    rule still uses the thing — without a button, since it would refuse.
+    """
+    from django.http import Http404
+
+    from n26.core.campaigns import archive_refusal, campaign_operation, own_addition
+    from n26.core.operations import Refusal
+
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    field = "counter" if kind == "counter" else "slot"
+    try:
+        member = own_addition(found, member_pk, field)
+    except ValueError:
+        raise Http404(f"No such {kind} in this campaign") from None
+    name = str(member.counter) if member.counter_id else member.slot.choice_label
+    back = _campaign_settings_url(found)
+
+    if request.method == "POST":
+        try:
+            with campaign_operation(found, actor=request.user) as act:
+                if member.counter_id:
+                    act.archive_counter(member)
+                else:
+                    act.archive_label(member)
+        except Refusal as refused:
+            messages.error(request, str(refused))
+        else:
+            messages.success(request, f"Archived the {kind} {name}.")
+        return redirect(back)
+
+    kept = (
+        f"every change to {name} and the value it ended on"
+        if member.counter_id
+        else f"the gang's pick for {name}"
+    )
+    _badge_a_redrawn_page(request, found)
+    return render(
+        request,
+        "n26/archive_campaign_addition.html",
+        {
+            "campaign": found,
+            "kind": kind,
+            "name": name,
+            "action": request.path,
+            "back": back,
+            "heading": f"Archiving removes {name} from every gang in {found.name}",
+            "consequences": (
+                f"Gangs that join later will not get it. "
+                f"Each gang's history keeps {kept}. "
+                f"You can unarchive it later to give each gang still in "
+                f"{found.name} what it had."
+            ),
+            "gangs": _what_each_gang_has(found, member),
+            "refusal": archive_refusal(found, member),
+        },
+    )
+
+
+def _what_each_gang_has(campaign, member):
+    """Each gang playing the campaign that carries one of its own counters
+    or labels, by gang name, with what to show beside it: the counter's
+    value, the option it picked, or that it has picked nothing yet. Two
+    queries whatever the number of gangs."""
+    from n26.core.models import Assignment
+
+    copies = list(
+        Assignment.objects.filter(
+            materialised_from=member,
+            archived=False,
+            gang_root__campaign_memberships__campaign=campaign,
+            gang_root__campaign_memberships__left__isnull=True,
+        )
+        .select_related("gang_root", "counter_value")
+        .order_by("gang_root__name", "pk")
+    )
+    if member.counter_id:
+        # A copy with no value yet reads as 0, as the gang sheet does.
+        values = [getattr(copy, "counter_value", None) for copy in copies]
+        return [
+            {
+                "gang": copy.gang_root.name,
+                "value": str(held.value if held is not None else 0),
+                "muted": False,
+            }
+            for copy, held in zip(copies, values, strict=True)
+        ]
+    picks = {
+        pick.chosen_for_id: pick.pickable.name
+        for pick in Assignment.objects.filter(
+            chosen_for__in=copies, archived=False
+        ).select_related("pickable")
+    }
+    return [
+        {
+            "gang": copy.gang_root.name,
+            "value": picks.get(copy.pk, "Nothing picked yet"),
+            "muted": copy.pk not in picks,
+        }
+        for copy in copies
+    ]
+
+
+@login_required
+def unarchive_addition(request, pk, member_pk, kind):
+    """The question at its own address, then the act: give an archived
+    counter or label back to every gang still in the campaign.
+
+    ``kind`` is ``"counter"`` or ``"label"``, fixed by the route. Only the
+    campaign's own archived additions are reachable. The page lists the
+    gangs that get it back, with the value or option each had, and the
+    gangs that joined since, which get it new.
+    """
+    from django.http import Http404
+
+    from n26.core.campaigns import (
+        archived_addition,
+        campaign_operation,
+        unarchive_preview,
+    )
+    from n26.core.operations import Refusal
+
+    found = _own_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    field = "counter" if kind == "counter" else "slot"
+    try:
+        member = archived_addition(found, member_pk, field)
+    except ValueError:
+        raise Http404(f"No such archived {kind} in this campaign") from None
+    name = str(member.counter) if member.counter_id else member.slot.choice_label
+    back = _campaign_settings_url(found)
+
+    if request.method == "POST":
+        try:
+            with campaign_operation(found, actor=request.user) as act:
+                if member.counter_id:
+                    act.unarchive_counter(member)
+                else:
+                    act.unarchive_label(member)
+        except Refusal as refused:
+            messages.error(request, str(refused))
+        else:
+            messages.success(request, f"Unarchived the {kind} {name}.")
+        return redirect(back)
+
+    preview = unarchive_preview(found, member)
+    _badge_a_redrawn_page(request, found)
+    return render(
+        request,
+        "n26/unarchive_campaign_addition.html",
+        {
+            "campaign": found,
+            "kind": kind,
+            "name": name,
+            "action": request.path,
+            "back": back,
+            "returning": preview.returning,
+            "new": preview.new,
+            "new_heading": (
+                f"Gangs that get {name} at its starting value"
+                if member.counter_id
+                else f"Gangs that get {name} with nothing picked"
+            ),
+        },
     )
 
 
@@ -2326,11 +2686,10 @@ def _tables_lead(asset_types):
 
     holding = [t for t in asset_types if t.is_holding]
     if len(holding) == 1 and holding[0].label_singular == TERRITORY:
-        return "Tables of territories the gangs in this campaign can use."
-    return "Tables the gangs in this campaign can use."
+        return "These are roll options. Generate the unclaimed pool separately with Roll territories."
+    return "These are roll options. Generate unclaimed assets separately on the campaign page."
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaign_tables(request, pk):
     """The tables every gang in the campaign may roll on, by asset type,
@@ -2395,8 +2754,7 @@ def campaign_tables(request, pk):
                 "label": label,
                 "plural": plural,
                 "intro": (
-                    f"Gangs can roll for a starting {label} from any of these. "
-                    f"You can also roll to add unclaimed {plural} to the campaign."
+                    f"Use these tables for starting rolls or to generate unclaimed {plural}."
                 ),
                 "ticks_help": (
                     "Tick a table to make it available to every gang. Untick to "
@@ -2437,6 +2795,9 @@ def campaign_tables(request, pk):
             "campaign": found,
             "sections": sections,
             "lead": _tables_lead(asset_types),
+            "tables_title": "Available territory tables"
+            if [t.label_singular for t in asset_types if t.is_holding] == ["Territory"]
+            else "Available tables",
             "back": _assets_anchor(found),
             "new_href": reverse("n26-campaign-new-table", args=[found.pk]),
         },
@@ -2453,7 +2814,6 @@ def _table_href(campaign, table):
     return reverse("n26-campaign-table", args=[campaign.pk, table.pk])
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def new_table(request, pk):
     """Write a new asset table for this campaign, then go and fill it."""
@@ -2533,7 +2893,6 @@ def _own_table_or_404(campaign, table_pk):
         raise Http404("No such table in this campaign") from None
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaign_table(request, pk, table_pk):
     """One of the campaign's own tables: its entries, whether its bands
@@ -2621,7 +2980,6 @@ def campaign_table(request, pk, table_pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def remove_table_entry(request, pk, table_pk, entry_pk):
     """Take one entry off one of the campaign's own tables. POST is the
@@ -2726,7 +3084,6 @@ def _players(campaign):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def add_player(request, pk):
     """Find somebody by name, and ask them into the campaign.
@@ -2792,7 +3149,6 @@ def add_player(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def remove_player(request, pk, user_pk):
     """The question at its own address, then the act."""
@@ -2811,19 +3167,160 @@ def remove_player(request, pk, user_pk):
 
     if request.method == "POST":
         name = player.user.username
+        # Their gangs stay unless the arbitrator chose to remove them. A
+        # player with no gangs is offered no choice and posts none.
+        with_gangs = request.POST.get("gangs") == "remove"
         with campaign_operation(found, actor=request.user) as act:
-            act.remove_player(player)
-        messages.success(request, f"Removed {name}.")
+            removed = act.remove_player(player, with_gangs=with_gangs)
+        if removed is None:
+            messages.info(request, f"{name} is no longer in {found.name}.")
+        elif removed:
+            gangs = "gangs" if len(removed) > 1 else "gang"
+            messages.success(
+                request, f"Removed {name} and their {gangs} from {found.name}."
+            )
+        else:
+            messages.success(request, f"Removed {name}.")
         return redirect("n26-campaign-add-player", pk=found.pk)
 
     return render(
         request,
         "n26/remove_player.html",
-        {"campaign": found, "player": player},
+        {
+            "campaign": found,
+            "player": player,
+            "gangs": list(_gangs_of(found, player.user)),
+        },
     )
 
 
-@requires_flag(CAMPAIGNS)
+@login_required
+def leave_campaign(request, pk):
+    """The question at its own address, then the act.
+
+    Only an accepted player may leave. The arbitrator is never one, and
+    anybody else is told there is nothing here. Leaving takes every gang
+    of theirs out as removing it would (``CampaignOperation.leave``), so
+    the page lists what each gang loses, gang by gang, and the battles of
+    theirs that are still unfinished. Leaving does not wait for those.
+    """
+    from django.http import Http404
+
+    from n26.core.campaigns import campaign_operation
+    from n26.core.render import render_campaign
+
+    found = _any_campaign_or_404(request, pk, with_owner_badge=request.method == "GET")
+    if not _plays_in(found, request.user):
+        raise Http404("You are not a player in this campaign")
+    back = _campaign_page(found)
+
+    if request.method == "POST":
+        with campaign_operation(found, actor=request.user) as act:
+            left = act.leave()
+        if left is None:
+            messages.info(request, f"You are no longer a player in {found.name}.")
+        elif left:
+            gangs = "gangs" if len(left) > 1 else "gang"
+            messages.success(request, f"You and your {gangs} left {found.name}.")
+        else:
+            messages.success(request, f"You left {found.name}.")
+        # The top of the page, not the gangs table, so the message is in view.
+        return redirect(back)
+
+    sheet = render_campaign(found, with_owner_badges=False)
+    # The player's gangs are read off the sheet, so every gang listed has a
+    # line to read its losses from.
+    lines = [
+        line
+        for line in sheet.gangs
+        if line.owner is not None and line.owner.pk == request.user.pk
+    ]
+    losses = [
+        GangLosses(line.name, *_what_the_line_loses(sheet, line)) for line in lines
+    ]
+    drafts, unrecorded = _unfinished_battles(found, [line.gang_id for line in lines])
+    return render(
+        request,
+        "n26/leave_campaign.html",
+        {
+            "campaign": found,
+            "losses": losses,
+            "drafts": drafts,
+            "unrecorded": unrecorded,
+            "back": back,
+        },
+    )
+
+
+def _gangs_of(campaign, user):
+    """The gangs this person owns that are playing this campaign, by name."""
+    from n26.core.models import Gang
+
+    return Gang.objects.filter(
+        owner=user,
+        campaign_memberships__campaign=campaign,
+        campaign_memberships__left__isnull=True,
+    ).order_by("name")
+
+
+@dataclass(frozen=True)
+class GangLosses:
+    """One gang on the leave page: what it loses, and which assets it
+    holds go back to the campaign. Each list is (column, value) pairs."""
+
+    name: str
+    losing: list
+    returning: list
+
+
+@dataclass(frozen=True)
+class UnfinishedBattle:
+    """A battle the leave page points at: what to call it, and where to go."""
+
+    label: str
+    href: str
+
+
+def _unfinished_battles(campaign, gang_ids):
+    """The leaving player's post-battle reports still in draft, and the
+    battles their gangs fought that have no result yet.
+
+    Drafts stay the owner's to finish once they have left. A battle's
+    result is the arbitrator's to record. Gangs taken out earlier are not
+    listed: leaving changes nothing about them.
+    """
+    from n26.core.models import Battle, PostBattleReport
+
+    if not gang_ids:
+        return [], []
+    drafts = [
+        UnfinishedBattle(
+            f"{report.gang.name}: {report.battle.title}",
+            reverse("n26-post-battle-editor", args=[report.pk]),
+        )
+        for report in PostBattleReport.objects.filter(
+            gang__in=gang_ids,
+            battle__campaign=campaign,
+            battle__archived=False,
+            state=PostBattleReport.State.DRAFT,
+        )
+        .select_related("gang", "battle")
+        .order_by("battle__date", "gang__name")
+    ]
+    unrecorded = [
+        UnfinishedBattle(
+            battle.title,
+            reverse("n26-battle", args=[campaign.pk, battle.pk]),
+        )
+        for battle in campaign.battles.filter(
+            gangs__in=gang_ids, result=Battle.Result.NOT_RECORDED, archived=False
+        )
+        .distinct()
+        .order_by("date")
+    ]
+    return drafts, unrecorded
+
+
 @login_required
 def answer_invitation(request, pk):
     """Accept or decline an invitation, as the person who was asked.
@@ -2892,4 +3389,42 @@ def answer_invitation(request, pk):
     )
     return _safe_redirect(
         request, request.POST.get("next", ""), fallback_url=reverse("n26-campaigns")
+    )
+
+
+@login_required
+def campaign_grouping(request, pk):
+    """Only the arbitrator sets shared grouping and colours."""
+    from n26.core.campaign_table import label_options
+    from n26.core.campaigns import campaign_operation
+    from n26.core.forms import CampaignGroupingForm
+    from n26.core.operations import Refusal
+    from n26.core.render import _arbitrators_additions
+
+    found = _own_campaign_or_404(request, pk, with_owner_badge=False)
+    _, slots = _arbitrators_additions(found)
+    form = CampaignGroupingForm(
+        request.POST or None,
+        campaign=found,
+        slots=slots,
+        options=label_options(found, slots),
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            with campaign_operation(found, actor=request.user) as op:
+                op.set_gang_grouping(form.cleaned_data["grouping"], form.colours())
+        except Refusal as error:
+            form.add_error(None, str(error))
+        else:
+            messages.success(request, "Gang grouping saved.")
+            return redirect(reverse("n26-campaign", args=[found.pk]) + "#gangs")
+    return render(
+        request,
+        "n26/campaign_grouping.html",
+        {
+            "campaign": found,
+            "form": form,
+            "groups": form.groups,
+            "back": reverse("n26-campaign", args=[found.pk]) + "#gangs",
+        },
     )

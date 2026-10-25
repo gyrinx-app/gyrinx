@@ -8,22 +8,13 @@ from django.contrib.auth.models import User
 from django.contrib.messages import get_messages
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core import history
 from n26.core.models import Gang, LedgerEvent
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
-from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import found_campaign, found_gang, join_campaign
 
 pytestmark = pytest.mark.django_db
-
-
-@pytest.fixture
-def feature():
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture
@@ -52,6 +43,32 @@ def told(gang, viewer):
         for act in history.build(gang, viewer=viewer)
         if act.category == "credits"
     ]
+
+
+@pytest.mark.parametrize("actor", ["owner", "arbitrator"])
+def test_credit_changes_keep_a_safe_campaign_table_return_url(client, table, actor):
+    client.force_login(getattr(table, actor))
+    back = (
+        reverse("n26-campaign", args=[table.campaign.pk]) + "?sort=-wealth&group=#gangs"
+    )
+    response = client.get(url(table.gang), {"back": back})
+    assert response.context["back"] == back
+    assert (
+        BeautifulSoup(response.content, "html.parser").find("input", {"name": "back"})[
+            "value"
+        ]
+        == back
+    )
+    bad = client.post(
+        url(table.gang), {"direction": "add", "amount": "words", "back": back}
+    )
+    assert bad.status_code == 200 and bad.context["back"] == back
+    saved = client.post(
+        url(table.gang), {"direction": "add", "amount": "5", "back": back}
+    )
+    assert saved.status_code == 302 and saved.url == back
+    outside = client.get(url(table.gang), {"back": "https://example.com/"})
+    assert outside.context["back"] != "https://example.com/"
 
 
 class TestTheOwner:
@@ -201,7 +218,7 @@ class TestTheArbitrator:
     """The arbitrator of the campaign a gang is playing may change its
     credits while the gang is in a campaign still being played."""
 
-    def test_may_add_credits_and_returns_to_the_campaign(self, client, table, feature):
+    def test_may_add_credits_and_returns_to_the_campaign(self, client, table):
         client.force_login(table.arbitrator)
         response = client.post(url(table.gang), {"direction": "add", "amount": "10"})
 
@@ -214,19 +231,14 @@ class TestTheArbitrator:
         assert event.actor == table.arbitrator
         assert_reconciled(fresh(table.gang))
 
-    def test_needs_the_campaigns_flag(self, client, table):
-        client.force_login(table.arbitrator)
-
-        assert client.get(url(table.gang)).status_code == 404
-
-    def test_loses_the_page_once_the_gang_leaves(self, client, table, feature):
+    def test_loses_the_page_once_the_gang_leaves(self, client, table):
         with operation(table.gang, actor=table.owner) as op:
             op.leave_campaign()
         client.force_login(table.arbitrator)
 
         assert client.get(url(table.gang)).status_code == 404
 
-    def test_loses_the_page_once_the_campaign_is_archived(self, client, table, feature):
+    def test_loses_the_page_once_the_campaign_is_archived(self, client, table):
         table.campaign.archived = True
         table.campaign.save(update_fields=["archived"])
         client.force_login(table.arbitrator)
@@ -241,7 +253,7 @@ class TestTheArbitrator:
         assert fresh(table.gang).credits == 100
 
     def test_is_refused_if_the_gang_leaves_while_the_change_waits(
-        self, client, table, feature, monkeypatch
+        self, client, table, monkeypatch
     ):
         """The page opened while the gang was in the campaign; by the time
         the change holds the gang's lock, it has left."""
@@ -266,20 +278,21 @@ class TestTheArbitrator:
         ).exists()
         assert fresh(table.gang).credits == 100
 
-    def test_the_campaign_table_links_each_gangs_credits(self, client, table, feature):
+    def test_the_campaign_table_links_each_gangs_credits(self, client, table):
         client.force_login(table.arbitrator)
         response = client.get(reverse("n26-campaign", args=[table.campaign.pk]))
+        from n26.tests.fixtures import island_props
 
-        page = BeautifulSoup(response.content, "html.parser")
-        link = page.select_one(f'a[href="{url(table.gang)}"]')
-        assert link is not None
-        assert link.get_text(strip=True) == "100¢"
+        props = island_props(response.content, "campaign-gangs")
+        line = next(line for line in props["gangs"] if line["id"] == str(table.gang.pk))
+        assert line["creditsHref"] == url(table.gang)
+        assert line["credits"] == 100
 
 
 class TestEveryoneElse:
     """Nobody else reaches the page or sees a way in."""
 
-    def test_a_stranger_gets_404(self, client, table, feature):
+    def test_a_stranger_gets_404(self, client, table):
         client.force_login(User.objects.create_user("stranger"))
 
         assert client.get(url(table.gang)).status_code == 404
@@ -297,9 +310,7 @@ class TestEveryoneElse:
         assert response.status_code == 302
         assert "login" in response.url
 
-    def test_a_stranger_sees_no_link_on_the_campaign_table(
-        self, client, table, feature
-    ):
+    def test_a_stranger_sees_no_link_on_the_campaign_table(self, client, table):
         client.force_login(User.objects.create_user("stranger"))
         response = client.get(reverse("n26-campaign", args=[table.campaign.pk]))
 

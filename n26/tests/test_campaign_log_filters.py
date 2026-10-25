@@ -10,12 +10,10 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from gyrinx.site.models import Availability, FeatureFlag
 from gyrinx.timezones import SESSION_TZ_KEY, SESSION_TZ_USER_KEY
 from n26.core.campaigns import campaign_operation
 from n26.core.models import Assignment, CampaignParticipant
 from n26.core.operations import operation
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import add_asset_type, create_asset
 from n26.library.models import AssetType
 from n26.tests.sandbox.actions import found_campaign, found_gang
@@ -32,9 +30,6 @@ def at(day, hour=12):
 
 @pytest.fixture
 def setup(client, campaign_type, gang_type):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     arbitrator = User.objects.create_user("arbitrator")
     player = User.objects.create_user("player")
     kind = add_asset_type(campaign_type, "Territory", AssetType.Ownership.HOLDING)

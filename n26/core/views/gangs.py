@@ -129,40 +129,28 @@ def dashboard(request):
     """
     from n26.core.models import Campaign
     from n26.core.views.campaigns import campaign_rows, invitations_for
-    from n26.flags import CAMPAIGNS, enabled
 
-    # The tab is a place this reader can go only where the feature is open to
-    # them; for everyone else it keeps saying it is being worked on. Asking
-    # here rather than in the template keeps the decision where the rows are
-    # fetched — a tab with rows nobody may reach would be the worse bug.
-    campaigns_open = enabled(CAMPAIGNS, request.user)
-    campaigns = (
-        campaign_rows(
-            Campaign.objects.involving(request.user)
-            .filter(archived=False)
-            .select_related("owner", "owner__profile")
-            .prefetch_related("owner__badge_grants")
-            .order_by("name", "pk"),
-            request.user,
-        )
-        if campaigns_open
-        else []
+    campaigns = campaign_rows(
+        Campaign.objects.involving(request.user)
+        .filter(archived=False)
+        .select_related("owner", "owner__profile", "campaign_type")
+        .prefetch_related("owner__badge_grants")
+        .order_by("name", "pk"),
     )
     # An invitation waiting is the one thing on this page worth interrupting
     # for, so the tab wears a mark and the rows sit above the reader's own.
     # The mark is markup rather than a flag because the tab strip is built in
     # the browser from a registered string, and a string is what it can take.
-    invitations = list(invitations_for(request.user)) if campaigns_open else []
+    invitations = list(invitations_for(request.user))
     tab = request.GET.get("tab", "Gangs")
 
     return render(
         request,
         "n26/dashboard.html",
         {
-            **_record_table_context(request, campaigns_open=campaigns_open),
+            **_record_table_context(request),
             "changelog": changelog_entries()[:5],
             "changelog_tag": CHANGELOG_TAG,
-            "campaigns_open": campaigns_open,
             "campaigns": campaigns,
             "invitations": invitations,
             "waiting_invitations": len(invitations),
@@ -198,7 +186,7 @@ def gangs(request):
     )
 
 
-def _record_table_context(request, everyone=False, per_page=None, campaigns_open=None):
+def _record_table_context(request, everyone=False, per_page=None):
     """The rows and facets <c-n26.record-table> needs: gangs — the
     viewer's own, or everybody's — narrowed by ``?q=`` when there is
     one, and the types present among what survives.
@@ -254,11 +242,7 @@ def _record_table_context(request, everyone=False, per_page=None, campaigns_open
     # An index may list everybody's public gangs. Only expose campaigns
     # this reader runs or has accepted, and fetch all displayed links once.
     campaigns = {}
-    from n26.flags import CAMPAIGNS, enabled
-
-    if campaigns_open is None:
-        campaigns_open = enabled(CAMPAIGNS, request.user)
-    if found and campaigns_open:
+    if found:
         campaigns = {
             membership.gang_id: membership.campaign
             for membership in CampaignMembership.objects.filter(
@@ -414,25 +398,24 @@ def gang_sheet(request, pk):
                 response["HX-Replace-Url"] = request.get_full_path()
             return response
     card = build_gang_card(gang)
-    # Read once for the page: the flag behind it is a query, and the
-    # cards, the stash card and the square all ask the same question.
-    founding_seen = may_see_founding(gang, request.user)
+    # Signed in as well as the owner: ``yours`` alone is true for a visitor
+    # reading a gang that has no owner.
+    signed_in_owner = may_see_founding(gang, request.user)
     # for_owner puts the founding figures on the cards — what a model has
-    # left of its founding Trade Points — for the readers the feature
-    # reaches, and is what keeps everyone else's read from paying for
-    # figures they are not shown.
+    # left of its founding Trade Points — for the owner, and is what keeps
+    # everyone else's read from paying for figures they are not shown.
     # The owner's stash lines each carry a menu naming one assignment,
     # so theirs stay one to an assignment; everyone else reads repeats
     # stacked as one line with a count.
     sheet = render_gang(
-        gang, card=card, for_owner=founding_seen, collapse_repeats=not yours
+        gang, card=card, for_owner=signed_in_owner, collapse_repeats=not yours
     )
-    campaigns_open = link_model_cards(gang, sheet.models, request.user)
+    link_model_cards(gang, sheet.models, request.user)
     dialog = None
     link_campaign(sheet.campaign, request.user)
     budget_notice = (
         _campaign_budget_notice(request, gang)
-        if campaigns_open and sheet.campaign is not None
+        if signed_in_owner and sheet.campaign is not None
         else None
     )
     link_owners(sheet)
@@ -514,16 +497,13 @@ def gang_sheet(request, pk):
             # Whether the stash card's way into a visit is shut for now.
             # Free where the square below was drawn: that read which
             # actions the gang has open, and the gang holds the reading.
-            "founding_blocks_visit": founding_blocks_visit(gang, founding_seen),
-            # Each feature supplies only its permitted controls. History
-            # and Trading Post visits are already available to every owner.
+            "founding_blocks_visit": founding_blocks_visit(gang, signed_in_owner),
+            # The square is the owner's: everything in it acts on the gang.
             "activities_square": (
                 activities_square(
                     gang,
                     sheet,
-                    founding_at=reverse("n26-gang-founding-action", args=[gang.pk])
-                    if founding_seen
-                    else "",
+                    founding_at=reverse("n26-gang-founding-action", args=[gang.pk]),
                     visit_at=reverse("n26-gang-trade-points", args=[gang.pk]),
                     history_at=reverse("n26-gang-history", args=[gang.pk]),
                     clean_house_at=reverse("n26-clean-house", args=[gang.pk])
@@ -536,21 +516,9 @@ def gang_sheet(request, pk):
                         for model in sheet.models
                         if may_mark and model.status == Status.RANSOMED
                     ),
-                    post_battle_at=reverse("n26-gang-post-battle", args=[gang.pk])
-                    if campaigns_open
-                    else "",
+                    post_battle_at=reverse("n26-gang-post-battle", args=[gang.pk]),
                 )
-                # A model In Recovery or held for ransom brings the square to
-                # any owner, since Clean House and the ransom live in it.
-                if founding_seen
-                or campaigns_open
-                or (
-                    may_mark
-                    and any(
-                        model.status in (Status.RECOVERY, Status.RANSOMED)
-                        for model in sheet.models
-                    )
-                )
+                if signed_in_owner
                 else None
             ),
             # Printing follows reading rather than owning, so a reader
@@ -598,6 +566,7 @@ def more_actions(gang, *, yours, signed_in):
     if yours:
         return [
             link("History", "n26-gang-history"),
+            link("Other actions", "n26-gang-other-actions"),
             link("Notes", "n26-gang-notes"),
             link("Lore", "n26-gang-lore"),
             link("Clone gang", "n26-clone-gang"),
@@ -1449,10 +1418,7 @@ def use_campaign_budget(request, pk):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.campaigns import campaign_operation
     from n26.core.operations import NotEnoughCredits, operation
-    from n26.flags import CAMPAIGNS, enabled
 
-    if not enabled(CAMPAIGNS, request.user):
-        raise Http404("Campaigns are not available")
     gang = _own_gang_or_404(request, pk)
     membership = _active_campaign_membership(gang)
     if membership is None or membership.campaign.budget is None:
@@ -1493,10 +1459,6 @@ def use_campaign_budget(request, pk):
 @require_POST
 def dismiss_campaign_budget(request, pk):
     """Hide this owner's budget prompt for this session and these budgets."""
-    from n26.flags import CAMPAIGNS, enabled
-
-    if not enabled(CAMPAIGNS, request.user):
-        raise Http404("Campaigns are not available")
     gang = _own_gang_or_404(request, pk)
     membership = _active_campaign_membership(gang)
     if membership is None:
@@ -1769,7 +1731,7 @@ def _edit_tabs(gang, current):
     answers them all.
     """
     at = reverse("n26-edit-gang", args=[gang.pk])
-    return [
+    tabs = [
         {"label": "General", "href": at, "current": current == "general"},
         {
             "label": "Notes and Lore",
@@ -1787,6 +1749,31 @@ def _edit_tabs(gang, current):
             "current": current == "dismissed",
         },
     ]
+
+    from n26.core.built_in_actions import trading_post_visit_relevant
+
+    if (
+        current != "trade-points"
+        and not trading_post_visit_relevant(gang)
+        and not gang.visiting_trading_post
+    ):
+        tabs = [tab for tab in tabs if tab["label"] != "Trade Points"]
+    return tabs
+
+
+@login_required
+def gang_other_actions(request, pk):
+    from n26.core.built_in_actions import trading_post_visit_relevant
+
+    gang = _own_gang_or_404(request, pk)
+    return render(
+        request,
+        "n26/other_actions.html",
+        {
+            "gang": gang,
+            "visit_excluded": not trading_post_visit_relevant(gang),
+        },
+    )
 
 
 @login_required
@@ -1830,6 +1817,9 @@ def gang_trade_points(request, pk):
     )
 
     gang = _own_gang_or_404(request, pk)
+    from n26.core.built_in_actions import trading_post_visit_relevant
+
+    visit_excluded = not trading_post_visit_relevant(gang)
     at = reverse("n26-gang-trade-points", args=[gang.pk])
 
     if request.method == "POST" and request.POST.get("act") == "finish":
@@ -1927,6 +1917,7 @@ def gang_trade_points(request, pk):
         request,
         "n26/trade_points.html",
         {
+            "visit_excluded": visit_excluded,
             "gang": gang,
             "action": at,
             # Each fighter on the receipt gets a way to their own equip

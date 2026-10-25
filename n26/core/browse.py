@@ -893,13 +893,14 @@ def offered_by(
             members = members.order_by(
                 F("roll_low").asc(nulls_last=True), "position", "pickable__name"
             )
-        return [
-            Listed(thing=member.pickable, name=member.label, band=member.band)
-            # One query for the whole list: the wording is the member's
-            # and the identity is the pickable's, so a list of thirty
-            # pickables must not be thirty fetches.
-            for member in members
-        ]
+        return _offer_catalogue(
+            _catalogues,
+            ("picklist", slot.slot.picklist_id, include_staged),
+            lambda: [
+                Listed(thing=member.pickable, name=member.label, band=member.band)
+                for member in members
+            ],
+        )
     offer = slot.offer
     section = getattr(offer, "from_section", None) if offer is not None else None
     if section is None:

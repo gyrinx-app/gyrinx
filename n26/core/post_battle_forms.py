@@ -493,7 +493,27 @@ def editor_models(plan, payload, refresh_url=""):
                 note=str(values.get("note") or ""),
             )
         )
-    return models
+    model_ids = {model.id for model in models}
+    children = {}
+    roots = []
+    for model in models:
+        owner_id = model.result.owned_by_id
+        if owner_id in model_ids:
+            children.setdefault(owner_id, []).append(model)
+        else:
+            roots.append(model)
+    ordered = []
+    seen = set()
+    for root in roots + models:
+        pending = [root]
+        while pending:
+            model = pending.pop()
+            if model.id in seen:
+                continue
+            seen.add(model.id)
+            ordered.append(model)
+            pending.extend(reversed(children.get(model.id, [])))
+    return ordered
 
 
 def _model_counter_rows(model, entered):

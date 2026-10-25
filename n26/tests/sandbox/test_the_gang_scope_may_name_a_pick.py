@@ -27,14 +27,12 @@ from django.contrib.auth.models import User
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core import select
 from n26.core.card import build_card, build_gang_card, build_modifier_index
 from n26.core.effects import compute, compute_gang
 from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import create_asset
 from n26.library.authoring import targets_model as authoring_targets_model
 from n26.library.core_campaign import seed_core_campaign
@@ -428,12 +426,6 @@ class TestAConditionalTerritoryBoon:
     the campaign page as a boon in its scope's words — apart from the
     plain figure every holder gets."""
 
-    @pytest.fixture(autouse=True)
-    def open_to_everyone(self):
-        return FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
-
     @pytest.fixture
     def core(self, default_pack):
         seed_core_campaign(apps)
@@ -483,12 +475,12 @@ class TestAConditionalTerritoryBoon:
         held = add_asset(campaign, amneo_vats)
 
         assign_asset(held, gangs["Irontooth"])
-        assert self.reading(gangs["Irontooth"]) == 30
-        assert self.reading(gangs["Wild Roses"]) == 0
+        assert self.reading(gangs["Irontooth"]) == 40
+        assert self.reading(gangs["Wild Roses"]) == 10
 
         transfer_asset(held, gangs["Wild Roses"])
-        assert self.reading(gangs["Irontooth"]) == 0
-        assert self.reading(gangs["Wild Roses"]) == 20
+        assert self.reading(gangs["Irontooth"]) == 10
+        assert self.reading(gangs["Wild Roses"]) == 30
 
     def test_the_campaign_page_prints_the_base_income(
         self, campaign, amneo_vats, gangs

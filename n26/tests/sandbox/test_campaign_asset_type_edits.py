@@ -11,13 +11,11 @@ from django.apps import apps
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.history import campaign_history
 from n26.core.models import CampaignEvent
 from n26.core.operations import Refusal
 from n26.core.views.campaigns import more_actions
-from n26.flags import CAMPAIGNS
 from n26.library.core_campaign import seed_core_campaign
 from n26.library.models import AssetType, CampaignType, DefaultAssignment
 from n26.tests.sandbox.actions import (
@@ -33,13 +31,6 @@ pytestmark = pytest.mark.django_db
 
 HOLDING = AssetType.Ownership.HOLDING
 POSSESSION = AssetType.Ownership.POSSESSION
-
-
-@pytest.fixture(autouse=True)
-def open_to_everyone(db):
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture
@@ -331,3 +322,81 @@ class TestTheEditPage:
         assert response.status_code == 404
         racket.refresh_from_db()
         assert racket.label_singular == "Rakit"
+
+
+class TestAssetDisplayGroups:
+    @pytest.mark.parametrize("creating", [True, False])
+    def test_an_overlong_display_group_shows_its_validation_error(
+        self, client, campaign, racket, creating
+    ):
+        client.force_login(campaign.owner)
+        url = (
+            reverse("n26-campaign-add-asset-type", args=[campaign.pk])
+            if creating
+            else edit_url(campaign, racket)
+        )
+        response = client.post(
+            url,
+            {
+                "label_singular": "Depot",
+                "label_plural": "Depots",
+                "ownership": HOLDING,
+                "display_group": "x" * 201,
+            },
+        )
+        assert response.status_code == 200
+        errors = response.context["form"].errors["display_group"]
+        assert errors
+        text = BeautifulSoup(response.content, "html.parser").get_text(" ", strip=True)
+        assert all(error in text for error in errors)
+        assert not campaign.additions.asset_types.filter(
+            label_singular="Depot"
+        ).exists()
+        racket.refresh_from_db()
+        assert racket.display_group == ""
+
+    def test_arbitrator_can_create_and_change_a_display_group(self, client, campaign):
+        client.force_login(campaign.owner)
+        response = client.post(
+            reverse("n26-campaign-add-asset-type", args=[campaign.pk]),
+            {
+                "label_singular": "Depot",
+                "label_plural": "Depots",
+                "ownership": HOLDING,
+                "display_group": "Supply sites",
+            },
+        )
+        assert response.status_code == 302
+        kind = campaign.additions.asset_types.get(label_singular="Depot")
+        assert kind.display_group == "Supply sites"
+        response = client.get(edit_url(campaign, kind))
+        assert response.context["form"]["display_group"].value() == "Supply sites"
+        response = client.post(
+            edit_url(campaign, kind),
+            {
+                "label_singular": "Depot",
+                "label_plural": "Depots",
+                "ownership": HOLDING,
+                "display_group": "Territories",
+            },
+        )
+        assert response.status_code == 302
+        kind.refresh_from_db()
+        assert kind.display_group == "Territories"
+        assert campaign.events.last().kind == CampaignEvent.Kind.ASSET_TYPE_EDITED
+
+    def test_clearing_a_group_restores_a_separate_line(self, campaign, racket):
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.edit_asset_type(
+                racket,
+                "Rakit",
+                HOLDING,
+                label_plural="Rakits",
+                display_group="Supply sites",
+            )
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.edit_asset_type(
+                racket, "Rakit", HOLDING, label_plural="Rakits", display_group=""
+            )
+        racket.refresh_from_db()
+        assert racket.display_group == ""

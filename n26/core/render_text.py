@@ -180,7 +180,8 @@ def render_gang_sheet(sheet):
         campaign = sheet.campaign
         lines.append(f"Campaign: {campaign.name}")
         for group in campaign.asset_groups:
-            lines.append(f"  {group.label}: {group.names}")
+            lines.append(f"  {group.label}:" + ("" if group.names else " None"))
+            lines.extend(f"    - {item.text}" for item in group.names)
         for line in campaign.other_lines:
             lines.append(f"  {line.type_label}: {line.name}")
         for counter in campaign.counters:

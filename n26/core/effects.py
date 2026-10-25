@@ -190,6 +190,9 @@ class CounterContribution:
     #: The modifier that actually substituted this contribution's amount.
     #: None when the authored effect ran, including an unselected override.
     applied_override: object = None
+    per_counter: object = None
+    per_counter_value: int = 0
+    per_counter_rate: int = 0
 
 
 @dataclass
@@ -222,6 +225,26 @@ def count_mark(count):
     return f" (x{count})" if count > 1 else ""
 
 
+@dataclass(frozen=True)
+class StackedName:
+    """A distinct name and the number of copies it represents."""
+
+    name: str
+    count: int = 1
+
+    @property
+    def text(self):
+        return f"{self.name}{count_mark(self.count)}"
+
+
+def stacked_name_items(names):
+    """Count identical names, retaining their first-seen order."""
+    counts = {}
+    for name in names:
+        counts[name] = counts.get(name, 0) + 1
+    return [StackedName(name, count) for name, count in counts.items()]
+
+
 def stacked_names(names):
     """Collapse repeated names to ``Name (xn)``.
 
@@ -231,14 +254,7 @@ def stacked_names(names):
     picks themselves stay as they were written — this is only how
     the line reads.
     """
-    counts = {}
-    order = []
-    for name in names:
-        if name not in counts:
-            order.append(name)
-            counts[name] = 0
-        counts[name] += 1
-    return ", ".join(f"{name}{count_mark(counts[name])}" for name in order)
+    return ", ".join(item.text for item in stacked_name_items(names))
 
 
 @dataclass
@@ -983,6 +999,7 @@ def compute(card, index):
     round_no = 0
     while (pending or edits) and round_no <= MAX_CHAIN_DEPTH:
         # The snapshot every scope in this round sees.
+        _scale_counter_contributions(computed)
         facts = _Facts(card, computed, guest_picks)
         adds, removes, exclusions = [], [], []
         # The owner's removals settle with round 0, the reach an
@@ -1238,6 +1255,8 @@ def compute(card, index):
                             modifier=step.modifier,
                             carrier_key=source_key,
                             applied_override=applied_override,
+                            per_counter=effect.per_counter,
+                            per_counter_rate=effect.amount,
                         )
                         computed.counter_contributions.append(contributed)
                         log.applied.append(
@@ -1341,6 +1360,7 @@ def compute(card, index):
     computed.echoed = echoed
     dead = _retract(computed, log)
     _settle_counter_origins(computed, log, dead)
+    _scale_counter_contributions(computed)
     computed.acquired = _acquisitions(log, dead)
     # A guest this card's own removals cancelled is not held here either.
     computed.echoed = [
@@ -1578,6 +1598,60 @@ class ComputedGang:
         )
 
 
+def _scale_counter_contributions(computed):
+    """Compute per-point amounts from the current counter values."""
+    if not any(item.per_counter is not None for item in computed.counter_contributions):
+        return
+    from n26.library.models import Counter
+
+    recorded = {}
+    for node in computed.card.all_nodes():
+        if (
+            isinstance(node.assignable, Counter)
+            and not node.suppressed
+            and not node.broadcast
+        ):
+            key = ModifierIndex.key(node.assignable)
+            held = (
+                getattr(node.assignment, "counter_value", None)
+                if node.assignment
+                else None
+            )
+            recorded.setdefault(
+                key, max(node.assignable.minimum, held.value if held else node.opens_at)
+            )
+    by_counter = {}
+    for contribution in computed.counter_contributions:
+        by_counter.setdefault(ModifierIndex.key(contribution.counter), []).append(
+            contribution
+        )
+    resolved = {}
+
+    def reading(counter, visiting=frozenset()):
+        key = ModifierIndex.key(counter)
+        if key in resolved:
+            return resolved[key]
+        if key in visiting:
+            raise ValueError("Counter contributions cannot form a cycle.")
+        if key not in recorded and key not in by_counter:
+            return 0
+        total = recorded.get(key, 0)
+        for contribution in by_counter.get(key, ()):
+            if contribution.per_counter is not None:
+                contribution.per_counter_value = reading(
+                    contribution.per_counter, visiting | {key}
+                )
+                contribution.amount = (
+                    contribution.per_counter_rate * contribution.per_counter_value
+                )
+            total += contribution.amount
+        resolved[key] = total
+        return resolved[key]
+
+    for contribution in computed.counter_contributions:
+        reading(contribution.counter)
+
+
 def counter_readings(card, computed=None):
     """Every counter on a card, and where each one stands.
 
@@ -1612,7 +1686,10 @@ def counter_readings(card, computed=None):
         readings.append(
             CounterReading(
                 thing=node.assignable,
-                value=(held.value if held else 0) + added,
+                value=max(
+                    node.assignable.minimum, held.value if held else node.opens_at
+                )
+                + added,
                 contributions=additions,
             )
         )

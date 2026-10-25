@@ -12,9 +12,18 @@ export function mount(element: HTMLElement, props: PoolRollProps) {
     const table = element.querySelector<HTMLInputElement>(
         'input[name="table"]:checked, input[type="hidden"][name="table"]',
     );
+    const duplicate = element.querySelector<HTMLInputElement>(
+        'input[name="avoid_duplicates"]',
+    );
     const active = document.activeElement;
     return mountRoot(element, PoolRoll, {
         ...props,
+        avoidDuplicates: props.avoidDuplicates
+            ? {
+                  ...props.avoidDuplicates,
+                  checked: duplicate?.checked ?? props.avoidDuplicates.checked,
+              }
+            : props.avoidDuplicates,
         table: table?.value ?? props.table,
         count: { ...props.count, value: count?.value ?? props.count.value },
         rolled: { ...props.rolled, value: rolled?.value ?? props.rolled.value },

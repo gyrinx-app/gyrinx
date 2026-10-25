@@ -14,7 +14,11 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from n26.core.forms import CreditsForm
-from n26.core.views.permissions import _any_gang_or_404, credits_campaign
+from n26.core.views.permissions import (
+    _any_gang_or_404,
+    _safe_redirect,
+    credits_campaign,
+)
 
 DIRECTION_HELP = {
     CreditsForm.ADD: "Credits the gang gained outside the app, such as a scenario reward.",
@@ -43,6 +47,10 @@ def gang_credits(request, pk):
         if campaign is None:
             raise Http404("No such gang")
         back = reverse("n26-campaign", args=[campaign.pk]) + "#gangs"
+
+    back = _safe_redirect(
+        request, request.POST.get("back") or request.GET.get("back"), back
+    ).url
 
     form = CreditsForm(request.POST or None)
     if request.method == "POST" and form.is_valid():

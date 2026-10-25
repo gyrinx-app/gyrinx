@@ -1,6 +1,5 @@
 """Approved dashboard behaviour over campaign, holding and counter operations."""
 
-import json
 from uuid import uuid4
 
 import pytest
@@ -13,10 +12,11 @@ from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
+from n26.core.effects import StackedName
 from n26.core.models import CounterValue, LedgerEvent
 from n26.core.operations import operation
 from n26.core.render import render_campaign, render_gang
-from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
+from n26.flags import BUILT_IN_PROPAGATION
 from n26.library.authoring import (
     create_asset,
     ef_contributes_to_counter,
@@ -25,6 +25,7 @@ from n26.library.authoring import (
 )
 from n26.library.core_campaign import seed_core_campaign
 from n26.library.models import CampaignType, Counter, Modifier
+from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import (
     add_asset,
     assign_asset,
@@ -40,9 +41,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def dashboard(client, gang_type, default_pack):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     seed_core_campaign(apps)
     kind = CampaignType.objects.get(name="Territory campaign")
     arb = User.objects.create_user("dashboard-arbitrator")
@@ -75,19 +73,19 @@ def test_income_adjustment_survives_loss_and_gain_and_reset_records_one_change(
     assignment = gang.assignments.get(counter__name="Income")
     credits = gang.credits
     href = reverse("n26-tally", args=[assignment.pk])
-    assert client.post(href, {"adjust": 1, "value": 25}).status_code == 302
-    assert (income(gang).value, income(gang).tallied) == (25, 5)
+    assert client.post(href, {"adjust": 1, "value": 35}).status_code == 302
+    assert (income(gang).value, income(gang).tallied) == (35, 5)
     unassign_asset(holding)
-    assert (income(gang).value, income(gang).tallied) == (5, 5)
+    assert (income(gang).value, income(gang).tallied) == (15, 5)
     assign_asset(holding, gang)
-    assert (income(gang).value, income(gang).tallied) == (25, 5)
+    assert (income(gang).value, income(gang).tallied) == (35, 5)
     with operation(gang, actor=gang.owner) as op:
         op.tally(assignment, 2000)
     before = LedgerEvent.objects.filter(
         assignment=assignment, kind=LedgerEvent.Kind.TALLIED
     ).count()
     assert client.post(href, {"adjust": 1, "reset": 1}).status_code == 302
-    assert (income(gang).value, income(gang).tallied) == (20, 0)
+    assert (income(gang).value, income(gang).tallied) == (30, 0)
     tallies = LedgerEvent.objects.filter(
         assignment=assignment, kind=LedgerEvent.Kind.TALLIED
     )
@@ -104,12 +102,17 @@ def test_reader_sees_income_breakdown_but_cannot_adjust_or_add(client, dashboard
     client.force_login(User.objects.create_user("dashboard-reader"))
     page = client.get(reverse("n26-campaign", args=[campaign.pk]))
     assert page.status_code == 200
-    soup = BeautifulSoup(page.content, "html.parser")
-    help_host = soup.select_one('[data-react-name="income-tooltip"]')
-    explanation = json.loads(soup.find(id=help_host["data-react-props"]).string)
+    from n26.tests.fixtures import island_props
+
+    props = island_props(page.content, "campaign-gangs")
+    counters = props["gangs"][0]["counters"]
+    explanation = next(
+        counter["income"] for counter in counters if counter and counter["income"]
+    )
+    assert not any(counter["adjustHref"] for counter in counters if counter)
     assert explanation == {
-        "value": 20,
-        "contributed": 20,
+        "value": 30,
+        "contributed": 30,
         "adjustment": 0,
         "sources": [
             {
@@ -123,7 +126,19 @@ def test_reader_sees_income_breakdown_but_cannot_adjust_or_add(client, dashboard
                         "replaced": False,
                     }
                 ],
-            }
+            },
+            {
+                "name": "Territory campaign",
+                "value": 10,
+                "parts": [
+                    {
+                        "label": "Reputation",
+                        "amount": 10,
+                        "detail": "1 × 10¢",
+                        "replaced": False,
+                    }
+                ],
+            },
         ],
     }
     assert "Adjustment 0¢" not in page.content.decode()
@@ -138,7 +153,7 @@ def test_reader_sees_income_breakdown_but_cannot_adjust_or_add(client, dashboard
         client.get(reverse("n26-campaign-add-asset", args=[campaign.pk])).status_code
         == 404
     )
-    assert income(gang).value == 20
+    assert income(gang).value == 30
 
 
 def test_income_total_uses_current_assets_and_repeated_saves_add_no_history(
@@ -148,23 +163,23 @@ def test_income_total_uses_current_assets_and_repeated_saves_add_no_history(
     assignment = gang.assignments.get(counter__name="Income")
     href = reverse("n26-tally", args=[assignment.pk])
     response = client.get(href)
-    assert response.context["counter_preview"]["inputValue"] == "20"
+    assert response.context["counter_preview"]["inputValue"] == "30"
     unassign_asset(holding)
     assert client.post(href, {"adjust": 1, "value": 25}).status_code == 302
-    assert (income(gang).value, income(gang).tallied) == (25, 25)
+    assert (income(gang).value, income(gang).tallied) == (25, 15)
     tallies = LedgerEvent.objects.filter(
         assignment=assignment, kind=LedgerEvent.Kind.TALLIED
     )
-    assert tallies.latest("created").note == "+25 → 25"
+    assert tallies.latest("created").note == "+15 → 15"
     before = tallies.count()
     assert client.post(href, {"adjust": 1, "value": 25}).status_code == 302
     assert tallies.count() == before
     assign_asset(holding, gang)
-    assert client.post(href, {"adjust": 1, "value": 20}).status_code == 302
-    assert (income(gang).value, income(gang).tallied) == (20, 0)
+    assert client.post(href, {"adjust": 1, "value": 30}).status_code == 302
+    assert (income(gang).value, income(gang).tallied) == (30, 0)
 
 
-@pytest.mark.parametrize("total", ["", "1.5", "19", "2147483668"])
+@pytest.mark.parametrize("total", ["", "1.5", "29", "2147483678"])
 def test_income_total_errors_keep_the_input_and_do_not_write(client, dashboard, total):
     _, gang, _, _, _ = dashboard
     assignment = gang.assignments.get(counter__name="Income")
@@ -174,7 +189,7 @@ def test_income_total_errors_keep_the_input_and_do_not_write(client, dashboard, 
     assert response.status_code == 200
     assert response.context["counter_preview"]["inputValue"] == total
     assert response.context["form"].errors["value"]
-    assert (income(gang).value, income(gang).tallied) == (20, 0)
+    assert (income(gang).value, income(gang).tallied) == (30, 0)
     assert not LedgerEvent.objects.filter(
         assignment=assignment, kind=LedgerEvent.Kind.TALLIED
     ).exists()
@@ -190,8 +205,8 @@ def test_settlement_is_first_in_one_territories_detail_without_changing_types(
         for detail in line.details
         if detail.label in {"Settlements", "Territories"}
     ]
-    assert [(detail.label, detail.text) for detail in assets] == [
-        ("Territories", "Settlement, Old Ruins")
+    assert [(detail.label, detail.names) for detail in assets] == [
+        ("Territories", [StackedName("Settlement"), StackedName("Old Ruins")])
     ]
     settlement = gang.assignments.get(asset__name="Settlement")
     assert not settlement.asset.asset_type.is_holding
@@ -219,14 +234,26 @@ def test_named_settlements_share_the_territories_detail_without_an_added_suffix(
         for detail in line.details
         if detail.label in {"Settlements", "Territories"}
     ]
-    assert [(detail.label, detail.text) for detail in assets] == [
-        ("Territories", "Settlement, Home, Old Ruins")
+    assert [(detail.label, detail.names) for detail in assets] == [
+        (
+            "Territories",
+            [StackedName("Settlement"), StackedName("Home"), StackedName("Old Ruins")],
+        )
     ]
     assert gang.assignments.filter(asset__name="Home", archived=False).exists()
     assert gang.assignments.filter(asset__name="Settlement", archived=False).exists()
-    body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
-    assert "Settlement, Home, Old Ruins" in body
-    assert "Home (settlement)" not in body
+    response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+    props = island_props(response.content, "campaign-gangs")
+    shown = next(item for item in props["gangs"] if item["id"] == str(gang.pk))
+    territories = next(
+        item for item in shown["assets"] if item["label"] == "Territories"
+    )
+    assert [item["name"] for item in territories["names"]] == [
+        "Settlement",
+        "Home",
+        "Old Ruins",
+    ]
+    assert "Home (settlement)" not in response.content.decode()
 
 
 @pytest.mark.parametrize("override", [0, 7])
@@ -263,14 +290,14 @@ def test_catalogue_batch_override_preserves_catalogue_and_applies_to_each_holdin
     assert shared.scope.echoes is False
     for item in added:
         assign_asset(item, gang)
-    assert income(gang).value == 20 + 2 * override
+    assert income(gang).value == 50 + 2 * override
     assert (
         next(
             line.value
             for line in render_gang(gang).campaign.counters
             if line.name == "Reputation"
         )
-        == 2
+        == 3
     )
     assert holding.asset.income == 20 and second.income == 30
     assert client.post(href, data).status_code == 302
@@ -285,7 +312,7 @@ def test_catalogue_batch_override_preserves_catalogue_and_applies_to_each_holdin
         detail = client.get(reverse("n26-campaign-asset", args=[campaign.pk, item.pk]))
         assert detail.context["details"].income == override
         unassign_asset(item)
-    assert income(gang).value == 20
+    assert income(gang).value == 30
     scope, effect = shared.scope, shared.effect
     scope_pk, effect_pk = scope.pk, effect.pk
     with campaign_operation(campaign, actor=campaign.owner) as act:
@@ -393,3 +420,49 @@ def test_player_counts_status_and_gangs_are_accurate_and_query_growth_is_flat(
     assert len(after) <= len(before)
     assert "2 accepted players · 9 pending invitations" in page.content.decode()
     assert "n26/arbitrator.svg" in page.content.decode()
+
+
+def test_reputation_income_adds_no_per_gang_queries(client, dashboard, gang_type):
+    campaign, _, _, arb, player = dashboard
+    client.force_login(arb)
+    href = reverse("n26-campaign", args=[campaign.pk])
+
+    def queries():
+        client.get(href)
+        with CaptureQueriesContext(connection) as captured:
+            assert client.get(href).status_code == 200
+        return len(captured)
+
+    before = queries()
+    for index in range(4):
+        gang = found_gang(f"Extra gang {index}", gang_type, owner=player)
+        join_campaign(gang, campaign)
+    assert queries() <= before
+
+
+def test_income_editor_and_reset_respect_an_authored_minimum(client, dashboard):
+    from n26.library.authoring import revise
+
+    _, gang, _, _, _ = dashboard
+    assignment = gang.assignments.get(counter__name="Income")
+    revise(assignment.counter, minimum=3)
+    href = reverse("n26-tally", args=[assignment.pk])
+    page = client.get(href)
+    assert page.context["counter_preview"]["minimum"] == 3
+    assert client.post(href, {"adjust": 1, "value": 34}).status_code == 302
+    assert (income(gang).value, income(gang).tallied) == (34, 4)
+    assert client.post(href, {"adjust": 1, "reset": 1}).status_code == 302
+    assert (income(gang).value, income(gang).tallied) == (33, 3)
+
+
+def test_income_reset_restores_the_minimum_from_a_legacy_zero(client, dashboard):
+    from n26.library.authoring import revise
+
+    _, gang, _, _, _ = dashboard
+    assignment = gang.assignments.get(counter__name="Income")
+    revise(assignment.counter, minimum=3)
+    assert CounterValue.objects.get(assignment=assignment).value == 0
+    href = reverse("n26-tally", args=[assignment.pk])
+    assert client.post(href, {"adjust": 1, "reset": 1}).status_code == 302
+    assert CounterValue.objects.get(assignment=assignment).value == 3
+    assert (income(gang).value, income(gang).tallied) == (33, 3)

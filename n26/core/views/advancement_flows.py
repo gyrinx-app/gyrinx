@@ -52,6 +52,13 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
                     request, fighter, record.action, refusal, record=record
                 )
             return redirect(flow_url(fighter, record, "choose"))
+    if (
+        step == "roll"
+        and record.completed_event_id
+        and selection
+        and selection.roll_event_id
+    ):
+        return redirect(flow_url(fighter, record, "choose"))
     if not replacement and (
         step == "roll" or selection is None or selection.roll_event_id is None
     ):
@@ -119,7 +126,7 @@ def advancement_step(request, fighter, record, *, step="choose", correction=Fals
             request.GET.get("pick") if correction else record.terms.get("pickable_id")
         )
         chosen = next((option for option in options if option.id == str(pick_id)), None)
-        if chosen is None:
+        if chosen is None or not chosen.needs_skill:
             return redirect(
                 flow_url(fighter, record, "correct" if correction else "choose")
             )

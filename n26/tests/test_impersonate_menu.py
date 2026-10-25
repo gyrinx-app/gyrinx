@@ -13,9 +13,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.models import Gang
-from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import found_campaign
 
 pytestmark = [pytest.mark.django_db, pytest.mark.core]
@@ -51,15 +49,6 @@ def make_gang(gang_type, player):
     return make
 
 
-@pytest.fixture
-def campaigns_open():
-    """The flag rows are seeded by a data migration, which does not run
-    under --nomigrations."""
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
-
-
 def start_url(person):
     return reverse("core:impersonate-start", args=[person.pk])
 
@@ -84,7 +73,7 @@ class TestWhoIsOffered:
         assert "Impersonate" not in body
 
     def test_a_campaign_names_its_arbitrator(
-        self, client, overseer, player, campaigns_open, campaign_type
+        self, client, overseer, player, campaign_type
     ):
         campaign = found_campaign(
             "Dust Falls", campaign_type, owner=player, budget=1000

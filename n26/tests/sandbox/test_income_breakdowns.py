@@ -43,6 +43,7 @@ from n26.library.authoring import (
 )
 from n26.library.income import income_modifiers
 from n26.library.models import AssetType
+from n26.tests.fixtures import island_props as component_props
 from n26.tests.fixtures import library_setup
 from n26.tests.sandbox.actions import (
     add_asset,
@@ -211,7 +212,12 @@ class TestExplainingTheGangReading:
             == props["value"]
         )
         html = render_to_string("n26/includes/campaign_gangs.html", {"sheet": sheet})
-        assert island_props(html) == [props]
+        from n26.tests.fixtures import island_props as table_props
+
+        counters = table_props(html, "campaign-gangs")["gangs"][0]["counters"]
+        assert [
+            counter["income"] for counter in counters if counter and counter["income"]
+        ] == [props]
         assert_reconciled(gang)
 
     def test_two_named_holdings_keep_their_own_choices_and_contributions(
@@ -310,11 +316,13 @@ class TestExplainingOneHolding:
         assert island_props(
             render_to_string("n26/includes/campaign_asset_detail.html", context)
         ) == [props]
-        assert island_props(
+        inventory = component_props(
             render_to_string(
                 "n26/includes/campaign_assets_section.html", {"sheet": sheet}
-            )
-        ) == [props]
+            ),
+            "campaign-assets",
+        )
+        assert [entry["income"] for entry in inventory["entries"]] == [props]
         assert reading(gang).value == 15 + override + 5
         assert_reconciled(gang)
 

@@ -137,6 +137,19 @@ dark-mode class and CSS tokens. Tailwind scans the React source and generated
 recipes. No new theme provider or CSS reset is introduced. The loader currently
 supports JavaScript-only entries; do not import per-island stylesheets.
 
+### Sortable tables
+
+`SortableTable` in `n26/frontend/ui/` is the controlled table used by campaign
+gangs and territory inventories. It renders sort and group controls, clickable
+column headers, accessible sort direction, group headings and a live status.
+Callers prepare the rows and groups, supply a row renderer, and handle view
+changes and URLs. Keep permissions and domain calculations on the server.
+
+`<c-n26.sortable-table :table="props" />` wraps the same component for plain
+text and numeric cells with local selections. Its gallery example documents
+the JSON shape. Richer tables mount their own island and import `SortableTable`
+from the public `ui` boundary; they do not import another island.
+
 ### Server interactions
 
 The PoC needs no API: its links and GET form use existing Django views. This is
@@ -180,10 +193,18 @@ PATH="$PWD/.venv/bin:$PATH" npm run js
 ```
 
 `.codex/run.sh` does both when `node_modules` or the manifest is missing or
-stale. `npm run js` starts a Python exporter, so a bare `npm run js` without the
+stale. If island, Cotton, or icon sources contain Git conflict markers,
+`.codex/run.sh` skips that rebuild and the command you asked for still runs.
+`npm run js` starts a Python exporter, so a bare `npm run js` without the
 venv fails. Do not run `npm audit fix` unless the task is the audit itself.
 
-Vite owns the content-hashed filenames under `n26/react/assets/`. The template
+Vite owns the content-hashed filenames under `n26/react/assets/`. That output
+lives in the gitignored directory `n26/core/static/n26/react/`. setuptools
+package discovery excludes `n26.core.static.n26.react*`,
+`n26.frontend.generated*`, `node_modules*`, `staticfiles*`, and `logs*`.
+Without that exclude, the editable install records every directory it finds,
+including the Vite tree, and a later `uv sync` still names the assets
+directory after a rebase has removed it. The template
 uses those exact URLs and preloads their static imports. The ordinary bootstrap
 script still uses Django's `static` tag. WhiteNoise marks Vite assets immutable;
 `collectstatic` must keep the original Vite-named files, not only Django's

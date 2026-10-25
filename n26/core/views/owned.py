@@ -1348,7 +1348,9 @@ def refund_assignment(request, pk):
 
 
 def _campaign_counter_update(request, assignment, gang, back, *, close=False):
-    """Redraw one computed campaign counter, including rules contributions."""
+    """Refresh the campaign table, or the counter on its gang sheet."""
+    from urllib.parse import urlsplit
+
     from n26.core.card import build_gang_card, build_modifier_index, carriers
     from n26.core.effects import compute_gang
     from n26.core.render import build_campaign_block
@@ -1367,6 +1369,30 @@ def _campaign_counter_update(request, assignment, gang, back, *, close=False):
     if counter is None:
         return no_update(request)
     messages.success(request, f"{counter.name} is now {counter.value}.")
+
+    sheet = None
+    if (
+        urlsplit(back).path == reverse("n26-campaign", args=[block.campaign_id])
+        and request.user.is_authenticated
+    ):
+        from n26.core.render import render_campaign
+        from n26.core.views.campaigns import _fill_addresses
+        from n26.core.views.permissions import _any_campaign_or_404
+
+        campaign = _any_campaign_or_404(
+            request, block.campaign_id, with_owner_badge=False
+        )
+        sheet = render_campaign(campaign, viewer=request.user)
+        _fill_addresses(
+            sheet,
+            campaign,
+            yours=campaign.owner_id == request.user.pk,
+            viewer=request.user,
+            request=request,
+            current_url=back,
+        )
+        if close:
+            sheet.table_focus_counter = str(assignment.pk)
     return with_toasts(
         request,
         render(
@@ -1374,6 +1400,7 @@ def _campaign_counter_update(request, assignment, gang, back, *, close=False):
             "n26/includes/campaign_counter_update.html",
             {
                 "counter": counter,
+                "sheet": sheet,
                 "redrawn": True,
                 "close_dialog": close,
                 "steps": back == reverse("n26-gang", args=[gang.pk]),
@@ -1425,10 +1452,8 @@ def _shown_counter_value(assignment, gang, miniature, recorded):
 def tally_counter(request, pk):
     """Move one counter up or down.
 
-    ``change`` is signed and the value floors at zero, both of which are
-    ``Operation.tally``'s — so a stale control that offers a subtraction
-    a later reader has already made impossible takes the value to zero
-    rather than below it.
+    ``change`` is signed and the value floors at the counter's minimum,
+    as enforced by ``Operation.tally``.
 
     The same address serves a model's counter and the gang's own: what
     is being changed is the assignment, and who is carrying it is its
@@ -1498,12 +1523,14 @@ def tally_counter(request, pk):
                 CounterValue.objects.filter(assignment=assignment)
                 .values_list("value", flat=True)
                 .first()
-                or 0
             )
+            if value is None:
+                value = assignment.assignable.minimum
             total = _shown_counter_value(assignment, gang, miniature, value)
             preview = {
                 "value": total,
                 "recorded": value,
+                "minimum": assignment.assignable.minimum,
                 "change": "" if setting_income else str(form["change"].value() or ""),
                 "inputValue": str(form["value"].value() or "")
                 if setting_income and form.is_bound
@@ -1551,6 +1578,14 @@ def tally_counter(request, pk):
 
     try:
         with operation(gang, actor=request.user) as op:
+            # Read again under the gang's line: an arbitrator archiving the
+            # counter can take it off the gang after this page found it.
+            if (
+                type(assignment)
+                .objects.filter(pk=assignment.pk, archived=True)
+                .exists()
+            ):
+                raise Refusal(f"{name} is no longer on {gang.name}.")
             if setting_income or (adjusting and change < 0):
                 from n26.core.models import CounterValue
 
@@ -1558,26 +1593,29 @@ def tally_counter(request, pk):
                     CounterValue.objects.filter(assignment=assignment)
                     .values_list("value", flat=True)
                     .first()
-                    or 0
                 )
+                if value is None:
+                    value = assignment.assignable.minimum
                 if setting_income:
-                    contributions = (
-                        _shown_counter_value(assignment, gang, miniature, value) - value
-                    )
+                    contributions = _shown_counter_value(
+                        assignment, gang, miniature, value
+                    ) - max(assignment.assignable.minimum, value)
                     adjustment = form.cleaned_data["value"] - contributions
-                    if adjustment < 0:
+                    if adjustment < assignment.assignable.minimum:
                         raise Refusal(
-                            f"Income cannot be lower than the total contributions of {contributions}¢."
+                            f"Income cannot be lower than {contributions + assignment.assignable.minimum}¢ from contributions and the counter minimum."
+                            if assignment.assignable.minimum
+                            else f"Income cannot be lower than the total contributions of {contributions}¢."
                         )
                     if adjustment > 2147483647:
                         raise Refusal("The adjustment cannot exceed 2147483647¢.")
                     change = adjustment - value
-                elif value == 0:
+                elif value == 0 and assignment.assignable.minimum == 0:
                     raise Refusal(
                         "This counter is already 0. Enter a positive amount to increase it."
                     )
                 if resetting:
-                    change = -value
+                    change = assignment.assignable.minimum - value
             standing = op.tally(assignment, change) if change else value
     except Refusal as refusal:
         if adjusting:

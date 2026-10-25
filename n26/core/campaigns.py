@@ -48,6 +48,12 @@ NO_CEILING = "unlimited"
 #: Left as it is: what ``edit_battle`` takes for a stake it is not given.
 KEEP = object()
 
+#: Marks the note on the removal a gang is written when the arbitrator
+#: archives a counter: the value the counter stood at, which the gang's
+#: history prints as "(was 4)". A marker rather than a bare figure, so the
+#: history never mistakes a player's reason for a value.
+ARCHIVED_COUNTER_NOTE_PREFIX = "archived-counter:v1:"
+
 
 def _now():
     return timezone.now()
@@ -154,6 +160,38 @@ class CampaignOperation:
         )
         return campaign
 
+    def set_gang_grouping(self, grouping, colours):
+        """Set the campaign's default label grouping and its group colours."""
+        from n26.core.campaign_table import label_options
+        from n26.core.colours import GANG_COLOURS
+        from n26.core.operations import Refusal
+        from n26.core.render import _arbitrators_additions
+
+        _, slots = _arbitrators_additions(self.campaign)
+        available = {str(slot.pk): slot for slot in slots}
+        if grouping and grouping not in available:
+            raise Refusal("Select a label from this campaign.")
+        options = label_options(self.campaign, slots)
+        for slot_id, values in colours.items():
+            if slot_id not in available:
+                raise Refusal("Select a label from this campaign.")
+            allowed = {option["id"] for option in options[slot_id]}
+            if any(
+                option_id not in allowed or colour not in GANG_COLOURS
+                for option_id, colour in values.items()
+            ):
+                raise Refusal("Choose one of the colours shown.")
+        if (
+            str(self.campaign.gang_grouping_id or "") == grouping
+            and self.campaign.group_colours == colours
+        ):
+            return None
+        self.campaign.gang_grouping = available.get(grouping)
+        self.campaign.group_colours = colours
+        self.campaign.save(update_fields=["gang_grouping", "group_colours", "modified"])
+        self.event(CampaignEvent.Kind.GROUPING_CHANGED)
+        return self.campaign
+
     def set_budget(self, credits):
         """Change what a gang is founded with here, and record it.
 
@@ -189,6 +227,19 @@ class CampaignOperation:
         campaign.summary = summary
         campaign.save(update_fields=["summary", "modified"])
         self.event(CampaignEvent.Kind.SUMMARY_EDITED)
+        return campaign
+
+    def set_starting_from_pool(self, enabled):
+        """Choose where future starting territories come from; leave completed ones alone."""
+        campaign = self.campaign
+        if campaign.starting_from_pool == enabled:
+            return campaign
+        campaign.starting_from_pool = enabled
+        campaign.save(update_fields=["starting_from_pool", "modified"])
+        self.event(
+            CampaignEvent.Kind.STARTING_MODE_SET,
+            note="From the unclaimed pool" if enabled else "Additional territories",
+        )
         return campaign
 
     def invite(self, user, message=""):
@@ -287,17 +338,70 @@ class CampaignOperation:
         )
         return player
 
-    def remove_player(self, player):
+    def remove_player(self, player, *, with_gangs=False):
         """Take somebody out of the campaign.
 
         The row goes rather than being marked: a person who is not in a
         campaign has no standing in it, and keeping a row saying so would
         make them look like somebody who declined. What happened stays in
         the log, which is where it belongs.
+
+        Their gangs keep playing unless the arbitrator asks for them to be
+        taken out too (``with_gangs``), each as ``remove_gang`` takes one.
+        Returns the gangs taken out. Somebody who left or was removed since
+        the page was read changes nothing, and the caller gets None back.
         """
+        from n26.core.models import CampaignParticipant
+
+        player = (
+            CampaignParticipant.objects.select_related("user")
+            .filter(pk=player.pk, campaign=self.campaign)
+            .first()
+        )
+        if player is None:
+            return None
         user = player.user
+        gangs = self._remove_gangs_of(user) if with_gangs else []
         player.delete()
         self.event(CampaignEvent.Kind.PLAYER_REMOVED, about_user=user)
+        return gangs
+
+    def leave(self):
+        """Take the actor out of the campaign as a player, and every gang of
+        theirs with them. Returns the gangs taken out.
+
+        The arbitrator is never a player, so has nothing to leave. Somebody
+        who is not an accepted player, or who left before this transaction
+        began, changes nothing, and the caller gets None back.
+        """
+        from n26.core.models import CampaignParticipant
+
+        player = CampaignParticipant.objects.filter(
+            campaign=self.campaign,
+            user=self.actor,
+            state=CampaignParticipant.State.ACCEPTED,
+        ).first()
+        if player is None:
+            return None
+        gangs = self._remove_gangs_of(self.actor)
+        player.delete()
+        self.event(CampaignEvent.Kind.PLAYER_LEFT, about_user=self.actor)
+        return gangs
+
+    def _remove_gangs_of(self, user):
+        """Take every gang this person owns out of the campaign, in key
+        order, and return them."""
+        removed = []
+        # Each gang's line stays held until the transaction commits, so they
+        # are taken in key order, the order every multi-gang operation uses.
+        for membership in (
+            self.campaign.memberships.filter(left__isnull=True, gang__owner=user)
+            .select_related("gang")
+            .order_by("gang_id")
+        ):
+            if self.remove_gang(membership) is not None:
+                removed.append(membership.gang)
+        return removed
 
     def _battle_details(self, *, scenario, result, gangs, winners, battle=None):
         """Validate shared metadata without changing any gang."""
@@ -436,7 +540,9 @@ class CampaignOperation:
                 raise Refusal("Select a model currently in the related gang.")
         if (
             battle is not None
-            and not Battle.objects.filter(pk=battle.pk, campaign=self.campaign).exists()
+            and not Battle.objects.filter(
+                pk=battle.pk, campaign=self.campaign, archived=False
+            ).exists()
         ):
             raise Refusal("Select a battle from this campaign.")
         results = []
@@ -473,11 +579,17 @@ class CampaignOperation:
         from n26.core.operations import Refusal
 
         self._require_recorder()
-        roll = CampaignRoll.objects.filter(
-            pk=roll.pk, campaign=self.campaign, actor=self.actor
-        ).first()
+        roll = (
+            CampaignRoll.objects.select_related("battle")
+            .filter(pk=roll.pk, campaign=self.campaign, actor=self.actor)
+            .first()
+        )
         if roll is None:
             raise Refusal("You can only add notes to your own dice rolls.")
+        if roll.battle_id and roll.battle.archived:
+            raise Refusal(
+                "This battle is archived. Restore it before changing its rolls."
+            )
         outcome = outcome.strip()
         if len(outcome) > CampaignEvent.NOTE_LENGTH:
             raise Refusal("Enter an outcome note of up to 512 characters.")
@@ -505,6 +617,7 @@ class CampaignOperation:
         revision,
         stake=KEEP,
         stake_awarded_to=KEEP,
+        stake_revision=None,
     ):
         """Amend the battle record, retaining its gang history.
 
@@ -539,7 +652,11 @@ class CampaignOperation:
         if stake_awarded_to is KEEP:
             stake_awarded_to = battle.stake_awarded_to
         stake, stake_awarded_to = self._stake_details(
-            battle, stake=stake, awarded_to=stake_awarded_to, gang_ids=gang_ids
+            battle,
+            stake=stake,
+            awarded_to=stake_awarded_to,
+            gang_ids=gang_ids,
+            expected_revision=stake_revision,
         )
         stake_changed = (
             getattr(stake, "pk", None),
@@ -580,14 +697,11 @@ class CampaignOperation:
         return battle
 
     def record_outcome(self, battle, *, result, winners, revision):
-        """Record the outcome of a battle that has none, from its page.
+        """Record the first outcome, preserving the battle's metadata and stake."""
+        from django.core.exceptions import ValidationError
 
-        For the players who fought it as well as the arbitrator, so the
-        result is in once the game is played. Everything else about the
-        battle is kept as it is, its stake included, through the same
-        edit the arbitrator makes.
-        """
         from n26.core.campaign_permissions import may_record_outcome
+        from n26.core.models import Battle
         from n26.core.operations import Refusal
 
         battle = self._locked_battle(battle)
@@ -596,22 +710,36 @@ class CampaignOperation:
                 "The outcome is already recorded, or this battle is not yours "
                 "to record. Ask the arbitrator to change it."
             )
-        return self.edit_battle(
-            battle,
-            scenario=battle.scenario,
-            date=battle.date,
-            gangs=list(battle.gangs.all()),
-            result=result,
-            winners=winners,
-            revision=revision,
+        if result == Battle.Result.NOT_RECORDED:
+            raise Refusal("Select an outcome.")
+        if battle.revision != revision:
+            raise Refusal("This battle changed. Reload it before saving your changes.")
+        winners = list(winners)
+        try:
+            Battle.validate_outcome(
+                result=result, gangs=battle.gangs.all(), winners=winners
+            )
+        except ValidationError as exc:
+            raise Refusal(" ".join(exc.messages)) from exc
+        battle.result = result
+        battle.revision += 1
+        battle.save(update_fields=["result", "revision", "modified"])
+        battle.winners.set(winners)
+        self.event(
+            CampaignEvent.Kind.BATTLE_EDITED,
+            battle=battle,
+            note=f"{battle.title} on {battle.date.isoformat()}",
         )
+        return battle
 
-    def _stake_details(self, battle, *, stake, awarded_to, gang_ids):
+    def _stake_details(
+        self, battle, *, stake, awarded_to, gang_ids, expected_revision=None
+    ):
         """Check a battle's stake against its participants.
 
         The stake as it stands under the campaign's line, and the gang it
-        goes to. A newly chosen stake must be held by a participant, and
-        only a participant can win it.
+        goes to. A newly chosen stake must be unclaimed or held by a
+        participant, and only a participant can win it.
         """
         from n26.core.operations import Refusal
 
@@ -624,12 +752,19 @@ class CampaignOperation:
         stake = _asset_under_the_lock(stake)
         if stake is None or stake.campaign_id != self.campaign.pk:
             raise Refusal("Select an asset from this campaign.")
-        if stake.pk != battle.stake_id and not (
-            stake.held and stake.holder.gang_id in gang_ids
+        if (
+            expected_revision is not None
+            and stake.ownership_revision != expected_revision
+        ):
+            raise Refusal("This stake changed hands. Reload the battle before saving.")
+        if (
+            stake.pk != battle.stake_id
+            and stake.held
+            and stake.holder.gang_id not in gang_ids
         ):
             noun = a_stake(stake.asset.asset_type.label_singular)
             raise Refusal(
-                f"No participant holds {stake}. Select {noun} a participant holds."
+                f"No participant holds {stake}. Select {noun} that is unclaimed or held by a participant."
             )
         if awarded_to is not None and awarded_to.pk not in gang_ids:
             raise Refusal(f"Select a participant to give {stake} to.")
@@ -645,8 +780,23 @@ class CampaignOperation:
         gang it goes to, and its mark is kept on the battle so saving again
         moves nothing.
         """
-        from n26.core.operations import Refusal
+        from n26.core.operations import Refusal, _hold
 
+        # A correction retains its reversal locks until commit. Take every
+        # involved gang together, in the same order as a payment.
+        gangs = [awarded_to]
+        for asset in (battle.stake, stake):
+            if asset is not None and asset.held:
+                gangs.append(asset.holder.gang)
+        if battle.stake_transfer_mark is not None:
+            gangs.extend(
+                event.gang
+                for event in LedgerEvent.objects.filter(
+                    batch=battle.stake_transfer_mark,
+                    campaign_asset_id=battle.stake_id,
+                ).select_related("gang")
+            )
+        _hold(*gangs)
         if battle.stake_transfer_mark is not None:
             self._reverse_stake(battle)
         battle.stake, battle.stake_awarded_to = stake, awarded_to
@@ -655,13 +805,17 @@ class CampaignOperation:
         stake = _asset_under_the_lock(stake)
         if stake.held and stake.holder.gang_id == awarded_to.pk:
             return
-        if not stake.held or stake.holder.gang_id not in gang_ids:
+        if stake.held and stake.holder.gang_id not in gang_ids:
             raise Refusal(
                 f"{stake} is not held by a participant any more. "
                 "Transfer it on the campaign page."
             )
         mark = uuid4()
-        self.transfer(stake, self._playing(awarded_to, stake), battle=battle, mark=mark)
+        membership = self._playing(awarded_to, stake)
+        if stake.held:
+            self.transfer(stake, membership, battle=battle, mark=mark)
+        else:
+            self.assign(stake, membership, battle=battle, mark=mark)
         battle.stake_transfer_mark = mark
 
     def _reverse_stake(self, battle):
@@ -688,17 +842,28 @@ class CampaignOperation:
                 .select_related("gang")
                 .first()
             )
-            if lost is None:
+            latest = (
+                LedgerEvent.objects.filter(
+                    campaign_asset=stake,
+                    kind__in=[LedgerEvent.Kind.GAINED, LedgerEvent.Kind.LOST],
+                )
+                .order_by("-created", "-pk")
+                .first()
+            )
+            if latest is None or latest.batch != battle.stake_transfer_mark:
                 raise Refusal(
                     f"{stake} cannot move back: the gang it went to no longer holds it. "
                     "Transfer it on the campaign page."
                 )
-            self.transfer(
-                stake,
-                self._playing(lost.gang, stake),
-                battle=battle,
-                reverses=battle.stake_transfer_mark,
-            )
+            if lost is None:
+                self.unassign(stake, battle=battle, reverses=battle.stake_transfer_mark)
+            else:
+                self.transfer(
+                    stake,
+                    self._playing(lost.gang, stake),
+                    battle=battle,
+                    reverses=battle.stake_transfer_mark,
+                )
         battle.stake_transfer_mark = None
 
     def _playing(self, gang, stake):
@@ -716,35 +881,55 @@ class CampaignOperation:
         return membership
 
     def remove_battle(self, battle, *, revision):
-        """Remove an unused battle; attributed gang history keeps its occasion."""
-        from n26.core.models import CampaignRoll
+        """Archive the occasion, retaining its records and applied gang changes."""
         from n26.core.operations import Refusal
 
-        battle = self._locked_battle(battle)
+        self._require_battle_admin()
+        battle = self._locked_battle(battle, include_archived=True)
+        if battle.archived:
+            return battle
         if battle.revision != revision:
-            raise Refusal("This battle changed. Reload it before removing it.")
-        if battle.gang_events.exists():
-            raise Refusal("You cannot remove a battle with recorded gang history.")
-        if CampaignRoll.objects.filter(battle=battle).exists():
-            raise Refusal("You cannot remove a battle with recorded dice rolls.")
-        if battle.reports.exists() or battle.crews.exists():
-            raise Refusal(
-                "You cannot remove a battle with a saved crew or post-battle report."
-            )
-        self.event(CampaignEvent.Kind.BATTLE_REMOVED, note=str(battle.date))
-        battle.delete()
+            raise Refusal("This battle changed. Reload it before archiving it.")
+        battle.revision += 1
+        battle.archive()
+        self.event(CampaignEvent.Kind.BATTLE_ARCHIVED, battle=battle, note=battle.title)
+        return battle
 
-    def _locked_battle(self, battle):
+    def restore_battle(self, battle, *, revision):
+        """Return an archived battle to the campaign with all records intact."""
+        from n26.core.operations import Refusal
+
+        self._require_battle_admin()
+        battle = self._locked_battle(battle, include_archived=True)
+        if not battle.archived:
+            return battle
+        if battle.revision != revision:
+            raise Refusal("This battle changed. Reload it before restoring it.")
+        battle.revision += 1
+        battle.unarchive()
+        self.event(CampaignEvent.Kind.BATTLE_RESTORED, battle=battle, note=battle.title)
+        return battle
+
+    def _require_battle_admin(self):
+        from n26.core.operations import Refusal
+
+        if self.actor is None or self.actor.pk != self.campaign.owner_id:
+            raise Refusal("Only the arbitrator can archive or restore a battle.")
+
+    def _locked_battle(self, battle, *, include_archived=False):
         from n26.core.models import Battle
         from n26.core.operations import Refusal
 
         # The full lock also excludes concurrent inserts naming this battle.
         try:
-            return Battle.objects.select_for_update().get(
+            found = Battle.objects.select_for_update().get(
                 pk=battle.pk, campaign=self.campaign
             )
         except Battle.DoesNotExist:
             raise Refusal("This battle is no longer available.") from None
+        if found.archived and not include_archived:
+            raise Refusal("This battle is archived. Restore it before making changes.")
+        return found
 
     def add_asset(self, asset, name="", *, income_override=None):
         """Add one of an asset to the campaign, held by nobody.
@@ -847,7 +1032,9 @@ class CampaignOperation:
             income_override=income_override,
         )
 
-    def roll_asset(self, table, *, membership=None, rolled=None, rng=None):
+    def roll_asset(
+        self, table, *, membership=None, rolled=None, rng=None, avoid_duplicates=False
+    ):
         """Roll on an asset table and add what the roll lands on.
 
         Without a membership this is the arbitrator generating the pool:
@@ -857,10 +1044,10 @@ class CampaignOperation:
         With a membership it is a gang's starting roll: the table has to
         be one that gang holds, on its card as stored or granted, and the
         asset is assigned to the gang as :meth:`assign` would, so the
-        gang's ledger gets its GAINED. The two rolls are independent, and
-        a roll may land on an asset the campaign already has: the rules
-        allow the same territory to come up more than once, and the
-        campaign asset's own name is what tells the two apart.
+        gang's ledger gets its GAINED. Starting territories are additional
+        by default. With starting_from_pool, territory rolls claim a matching
+        unclaimed asset instead. Duplicate avoidance excludes assets already
+        in the campaign from generated rolls, but records manual rolls as entered.
 
         ``rolled`` is a roll the reader made themselves and typed in
         rather than one generated here; it has to be one the die can
@@ -873,12 +1060,39 @@ class CampaignOperation:
         names no dice, or has no entry for the roll.
         """
         self._check_roll_table(table, membership=membership)
+        entries = self._roll_entries(table)
+        pool = None
+        available = None
+        from n26.library.territory_table import TERRITORY
+
+        if (
+            membership is not None
+            and self.campaign.starting_from_pool
+            and table.asset_type.label_singular == TERRITORY
+        ):
+            # The campaign lock protects the pool until assign takes the gang lock.
+            pool = {}
+            for asset in (
+                self.campaign.campaign_assets.filter(
+                    holder__isnull=True, asset__in=[entry.asset for entry in entries]
+                )
+                .select_related("asset")
+                .order_by("created", "pk")
+            ):
+                pool.setdefault(asset.asset_id, asset)
+            available = set(pool)
+        elif avoid_duplicates and rolled is None:
+            available = {entry.asset_id for entry in entries} - set(
+                self.campaign.campaign_assets.values_list("asset_id", flat=True)
+            )
         return self._roll_asset(
             table,
-            self._roll_entries(table),
+            entries,
             membership=membership,
             rolled=rolled,
             rng=rng,
+            available=available,
+            pool=pool,
         )
 
     def _check_roll_table(self, table, *, membership=None):
@@ -920,14 +1134,27 @@ class CampaignOperation:
     def _roll_entries(self, table):
         return roll_table_entries(table, self.actor)
 
-    def _roll_asset(self, table, entries, *, membership=None, rolled=None, rng=None):
+    def _roll_asset(
+        self,
+        table,
+        entries,
+        *,
+        membership=None,
+        rolled=None,
+        rng=None,
+        available=None,
+        pool=None,
+    ):
         from n26.core.operations import ROLL_ENTERED, Refusal
         from n26.library.models import Dice
 
         dice = Dice(table.dice)
         entered = rolled is not None
         if not entered:
-            rolled = Dice.roll(dice, rng)
+            if available is None:
+                rolled = Dice.roll(dice, rng)
+            else:
+                rolled = _available_roll(table, entries, available, rng=rng, pool=pool)
         elif rolled not in Dice.rolls(dice):
             raise Refusal(f"You cannot roll {rolled} on a {dice.label}.")
 
@@ -936,7 +1163,15 @@ class CampaignOperation:
             raise Refusal(
                 f"Nothing on {table} covers a roll of {rolled}. Fill that gap first."
             )
-        campaign_asset = self._keep(entry.asset)
+        if available is not None and entry.asset_id not in available:
+            raise Refusal(
+                f"No unclaimed {entry.asset} is available in the pool."
+                if pool is not None
+                else f"{entry.asset} is already in this campaign."
+            )
+        campaign_asset = (
+            pool[entry.asset_id] if pool is not None else self._keep(entry.asset)
+        )
         who = f" for {membership.gang.name}" if membership is not None else ""
         note = f"Rolled {rolled} from {_table_named(table)}{who}: {campaign_asset}."
         if entered:
@@ -948,7 +1183,16 @@ class CampaignOperation:
             roll=rolled, dice=dice, table=table, campaign_asset=campaign_asset
         )
 
-    def roll_assets(self, table, *, count, request_key, rolled=None, rng=None):
+    def roll_assets(
+        self,
+        table,
+        *,
+        count,
+        request_key,
+        rolled=None,
+        rng=None,
+        avoid_duplicates=False,
+    ):
         """Generate an unclaimed pool together and record the submission."""
         from n26.core.operations import Refusal
 
@@ -962,11 +1206,35 @@ class CampaignOperation:
             return []
         self._check_roll_table(table)
         entries = self._roll_entries(table)
+        from n26.library.models import Dice
+
+        available = None
+        if avoid_duplicates and rolled is None:
+            available = {entry.asset_id for entry in entries} - set(
+                self.campaign.campaign_assets.values_list("asset_id", flat=True)
+            )
+            # Count reachable assets, not entries: bands may name the same asset.
+            reachable = {
+                entry.asset_id
+                for roll in Dice.rolls(table.dice)
+                if (entry := table.landing(roll, entries)) is not None
+                and entry.asset_id in available
+            }
+            if count > len(reachable):
+                raise Refusal(
+                    f"Only {len(reachable)} different {table.asset_type.plural.lower()} "
+                    "remain on this table. Reduce the number to roll or allow duplicates."
+                )
         self.batch = request_key
-        return [
-            self._roll_asset(table, entries, rolled=rolled, rng=rng)
-            for _ in range(count)
-        ]
+        results = []
+        for _ in range(count):
+            result = self._roll_asset(
+                table, entries, rolled=rolled, rng=rng, available=available
+            )
+            results.append(result)
+            if available is not None:
+                available.discard(result.campaign_asset.asset_id)
+        return results
 
     def remove_asset(self, campaign_asset):
         """Take an asset nobody holds out of the campaign.
@@ -999,7 +1267,7 @@ class CampaignOperation:
             delete_modifier(override)
         return campaign_asset
 
-    def assign(self, campaign_asset, membership):
+    def assign(self, campaign_asset, membership, *, battle=None, mark=None):
         """Give an asset nobody holds to a gang playing this campaign.
 
         The asset's holder is set under the campaign's line, and the gang's
@@ -1034,11 +1302,11 @@ class CampaignOperation:
         campaign_asset.holder = membership
         campaign_asset.ownership_revision += 1
         campaign_asset.save(update_fields=["holder", "ownership_revision", "modified"])
-        with operation(membership.gang, actor=self.actor) as op:
-            op.gain_asset(campaign_asset)
+        with operation(membership.gang, actor=self.actor, batch=mark) as op:
+            op.gain_asset(campaign_asset, battle=battle)
         return campaign_asset
 
-    def unassign(self, campaign_asset, by_holder=None):
+    def unassign(self, campaign_asset, by_holder=None, *, battle=None, reverses=None):
         """Take an asset back from the gang holding it, so nobody holds it.
 
         The same two lines in the same order as assigning, and the matching
@@ -1066,7 +1334,23 @@ class CampaignOperation:
             campaign_asset.save(
                 update_fields=["holder", "ownership_revision", "modified"]
             )
-            op.event(campaign_asset, LedgerEvent.Kind.LOST, note=str(campaign_asset))
+            reversal = (
+                LedgerEvent.objects.filter(
+                    batch=reverses,
+                    campaign_asset=campaign_asset,
+                    gang=holder.gang,
+                    kind=LedgerEvent.Kind.GAINED,
+                ).first()
+                if reverses
+                else None
+            )
+            op.event(
+                campaign_asset,
+                LedgerEvent.Kind.LOST,
+                note=str(campaign_asset),
+                battle=battle,
+                reversal_of=reversal,
+            )
         return campaign_asset
 
     def transfer(
@@ -1158,7 +1442,9 @@ class CampaignOperation:
     # and onto its additions type, so it reaches member gangs by the path a
     # gang type's built-ins take. Nothing here touches the shared type.
 
-    def add_asset_type(self, label_singular, ownership, label_plural=""):
+    def add_asset_type(
+        self, label_singular, ownership, label_plural="", display_group=""
+    ):
         """Declare a new asset type for this campaign alone.
 
         The asset type lands on the additions type, in the campaign's pack.
@@ -1188,12 +1474,15 @@ class CampaignOperation:
             label_singular,
             ownership,
             label_plural=(label_plural or "").strip(),
+            display_group=(display_group or "").strip(),
             pack=self.campaign.pack,
         )
         self.event(CampaignEvent.Kind.ASSET_TYPE_ADDED, note=asset_type.label_singular)
         return asset_type
 
-    def edit_asset_type(self, asset_type, label_singular, ownership, label_plural=""):
+    def edit_asset_type(
+        self, asset_type, label_singular, ownership, label_plural="", display_group=""
+    ):
         """Change the labels or ownership of one of this campaign's own
         asset types, and say so in its log.
 
@@ -1215,6 +1504,7 @@ class CampaignOperation:
         asset_type = _asset_type_under_the_lock(asset_type)
         label_singular = (label_singular or "").strip()
         label_plural = (label_plural or "").strip()
+        display_group = (display_group or "").strip()
         if not label_singular:
             raise Refusal("Give the asset type a label.")
         taken = (
@@ -1238,17 +1528,25 @@ class CampaignOperation:
         ):
             raise Refusal(f"You cannot change the ownership now. {fixed}")
         was = asset_type.label_singular
-        if (label_singular, label_plural, ownership) == (
+        if (label_singular, label_plural, ownership, display_group) == (
             was,
             asset_type.label_plural,
             asset_type.ownership,
+            asset_type.display_group,
         ):
             return None
         asset_type.label_singular = label_singular
         asset_type.label_plural = label_plural
         asset_type.ownership = ownership
+        asset_type.display_group = display_group
         asset_type.save(
-            update_fields=["label_singular", "label_plural", "ownership", "modified"]
+            update_fields=[
+                "label_singular",
+                "label_plural",
+                "ownership",
+                "display_group",
+                "modified",
+            ]
         )
         note = label_singular if was == label_singular else f"{was} → {label_singular}"
         self.event(CampaignEvent.Kind.ASSET_TYPE_EDITED, note=note)
@@ -1319,6 +1617,14 @@ class CampaignOperation:
         from n26.library.models import Counter, DefaultAssignment
 
         name = (name or "").strip()
+        archived = Counter.objects.filter(
+            pack=self.campaign.pack, name__iexact=name, archived=True
+        ).first()
+        if archived is not None:
+            raise Refusal(
+                f"{self.campaign.name} has an archived counter called "
+                f"{archived.name}. Unarchive it, or use another name."
+            )
         taken = (
             Counter.objects.filter(pack=self.campaign.pack, name__iexact=name).exists()
             or DefaultAssignment.objects.filter(
@@ -1364,6 +1670,14 @@ class CampaignOperation:
         if not options:
             raise ValueError("A label needs at least one option.")
         pack = self.campaign.pack
+        archived = SlotType.objects.filter(
+            pack=pack, name__iexact=name, archived=True
+        ).first()
+        if archived is not None:
+            raise Refusal(
+                f"{self.campaign.name} has an archived label called "
+                f"{archived.name}. Unarchive it, or use another name."
+            )
         if SlotType.objects.filter(pack=pack, name__iexact=name).exists():
             raise Refusal(f"{self.campaign.name} already has a label called {name}.")
         slot_type = create_slot_type(name, pack=pack, allows_repeats=False)
@@ -1389,6 +1703,237 @@ class CampaignOperation:
             CampaignEvent.Kind.LABEL_ADDED, note=f"{name} → {', '.join(options)}"
         )
         return slot
+
+    def archive_counter(self, member):
+        """Take a counter the arbitrator added off every gang in the
+        campaign, keeping every value it reached.
+
+        ``member`` is the counter's place in the campaign's additions
+        (:func:`own_addition`). It is archived, so no gang joining later
+        receives the counter, and each gang still carrying it has it
+        removed under that gang's own line, in key order, as leaving the
+        campaign removes it. Nothing is deleted or set to zero: the value
+        stays on the archived row and the gang's history keeps every
+        change, with the removal saying what the counter stood at. The
+        counter itself is archived last, which takes it out of the
+        library's lists without losing the name its history reads.
+
+        A counter another rule still names is refused in words, since
+        archiving it would change what that rule does
+        (:func:`_refuse_while_named`).
+        """
+        from n26.core.models import CounterValue
+
+        member = self._still_own(member, "counter")
+        counter = member.counter
+        _refuse_archiving(self.campaign, member)
+        member.archive()
+
+        def remove(op, copy):
+            held = CounterValue.objects.filter(assignment=copy).first()
+            value = held.value if held is not None else 0
+            op.remove(copy, note=f"{ARCHIVED_COUNTER_NOTE_PREFIX}{value}")
+
+        self._off_every_gang(member, remove)
+        counter.archive()
+        self.event(CampaignEvent.Kind.COUNTER_ARCHIVED, note=str(counter))
+        return counter
+
+    def archive_label(self, member):
+        """Take a label the arbitrator added off every gang in the
+        campaign, keeping every pick made for it.
+
+        ``member`` is the label's slot in the campaign's additions
+        (:func:`own_addition`). As :meth:`archive_counter`: the member is
+        archived first, then each gang's copy of the slot is removed
+        under that gang's own line, taking its pick with it, and the
+        removal names that pick so the gang's history reads "(was
+        Lawful)". The label's slot and slot type are archived last.
+
+        A label another rule still names — the label itself, or any of
+        its options — is refused in words (:func:`_refuse_while_named`).
+        """
+        from n26.core.models import Assignment
+
+        member = self._still_own(member, "slot")
+        slot = member.slot
+        _refuse_archiving(self.campaign, member)
+        member.archive()
+
+        def remove(op, copy):
+            pick = Assignment.objects.filter(chosen_for=copy, archived=False).first()
+            if pick is None:
+                op.remove(copy)
+            else:
+                op.remove(copy, before_pick=pick)
+
+        self._off_every_gang(member, remove)
+        # The options and their list stay live: a clone outside the campaign
+        # still carries the label, and its picker offers only live options.
+        for row in (slot, slot.slot_type):
+            row.archive()
+        self.event(CampaignEvent.Kind.LABEL_ARCHIVED, note=slot.choice_label)
+        return slot
+
+    def _still_own(self, member, kind):
+        """The member read again under the campaign's line, or a refusal in
+        words if it was archived since the page was read. Anything else
+        that is not the campaign's own stays a ValueError."""
+        from n26.core.operations import Refusal
+
+        try:
+            return own_addition(self.campaign, member.pk, kind)
+        except ValueError:
+            archived = (
+                archived_additions(self.campaign, kind).filter(pk=member.pk).first()
+            )
+            if archived is None:
+                raise
+            name = archived.counter if kind == "counter" else archived.slot.choice_label
+            raise Refusal(f"{name} was already archived.") from None
+
+    def _off_every_gang(self, member, remove):
+        """Run ``remove(op, copy)`` on each gang's live copy of an archived
+        member, one gang at a time under that gang's line, in key order.
+
+        Every gang playing the campaign is visited, not only those holding a
+        copy before the walk began: a propagation pass already holding a
+        gang's line can be granting it a copy of the member as it was. That
+        pass commits before this one takes the line, so its copy is found
+        here and removed. A pass that starts later reads the member as
+        archived and grants nothing. Only gangs playing it: a clone of one
+        carries copies naming the same member, and is somebody else's gang
+        outside the campaign.
+        """
+        from n26.core.models import Assignment
+        from n26.core.operations import operation
+
+        for gang in _playing_gangs(self.campaign):
+            with operation(gang, actor=self.actor, batch=self.batch) as op:
+                for copy in Assignment.objects.filter(
+                    materialised_from=member, archived=False, gang_root=gang
+                ).order_by("pk"):
+                    remove(op, copy)
+
+    def unarchive_counter(self, member):
+        """Give an archived counter back to every gang still in the
+        campaign, at the value each gang had when it was archived.
+
+        ``member`` is the counter's archived place in the campaign's
+        additions (:func:`archived_addition`). The counter and the member
+        are unarchived, then each gang the archive took it from gets that
+        same assignment back, under the gang's own line, its value
+        untouched (:meth:`_back_on_every_gang`). A gang that joined while
+        it was archived never had it, so the propagation pass filed here
+        gives it the counter at its starting value, as any built-in added
+        to the campaign reaches gangs already playing.
+        """
+        from n26.core.models import CounterValue
+        from n26.core.propagation import file_propagation_task
+
+        member = self._still_archived(member, "counter")
+        counter = member.counter
+        counter.unarchive()
+        member.unarchive()
+
+        def restore(op, copy, removal):
+            held = CounterValue.objects.filter(assignment=copy).first()
+            value = held.value if held is not None else 0
+            op.restore(copy, note=f"{ARCHIVED_COUNTER_NOTE_PREFIX}{value}")
+
+        self._back_on_every_gang(member, restore)
+        file_propagation_task(member.default_set)
+        self.event(CampaignEvent.Kind.COUNTER_UNARCHIVED, note=str(counter))
+        return counter
+
+    def unarchive_label(self, member):
+        """Give an archived label back to every gang still in the
+        campaign, with the option each gang had picked.
+
+        As :meth:`unarchive_counter`. A gang's pick comes back only where
+        the archive removed it — the pick its removal names, archived in
+        the same act — so an option the gang had already replaced stays
+        replaced. A gang that had picked nothing gets the label back
+        unanswered.
+        """
+        from n26.core.propagation import file_propagation_task
+
+        member = self._still_archived(member, "slot")
+        slot = member.slot
+        for row in (slot.slot_type, slot):
+            row.unarchive()
+        member.unarchive()
+
+        def restore(op, copy, removal):
+            pick = removal.before_pick
+            if (
+                pick is not None
+                and pick.archived
+                and getattr(_last_removal(pick), "batch", None) == removal.batch
+            ):
+                op.restore(copy, after_pick=pick)
+                op.restore(pick)
+            else:
+                op.restore(copy)
+
+        self._back_on_every_gang(member, restore)
+        file_propagation_task(member.default_set)
+        self.event(CampaignEvent.Kind.LABEL_UNARCHIVED, note=slot.choice_label)
+        return slot
+
+    def _still_archived(self, member, kind):
+        """The archived member read again under the campaign's line, or a
+        refusal in words if it was unarchived since the page was read."""
+        from n26.core.operations import Refusal
+
+        try:
+            return archived_addition(self.campaign, member.pk, kind)
+        except ValueError:
+            live = own_additions(self.campaign, kind).filter(pk=member.pk).first()
+            if live is None:
+                raise
+            name = live.counter if kind == "counter" else live.slot.choice_label
+            raise Refusal(f"{name} is not archived.") from None
+
+    def _back_on_every_gang(self, member, restore):
+        """Run ``restore(op, copy, removal)`` for each gang still in the
+        campaign whose copy of the member an archive removed, one gang at a
+        time under that gang's line, in key order.
+
+        Only the copy made for the gang's current membership qualifies: a
+        gang that left took its copy with it, and a gang that came back
+        has a new membership that never held one. Only a copy whose last
+        removal was an archive's is put back, never one removed for any
+        other reason.
+        """
+        from n26.core.models import Assignment
+        from n26.core.operations import operation
+
+        archives = CampaignEvent.objects.filter(
+            campaign=self.campaign,
+            kind__in=(
+                CampaignEvent.Kind.COUNTER_ARCHIVED,
+                CampaignEvent.Kind.LABEL_ARCHIVED,
+            ),
+        )
+        memberships = (
+            self.campaign.memberships.filter(
+                left__isnull=True, additions_carrier__isnull=False
+            )
+            .select_related("gang")
+            .order_by("gang_id")
+        )
+        for membership in memberships:
+            with operation(membership.gang, actor=self.actor, batch=self.batch) as op:
+                copy = Assignment.objects.filter(
+                    materialised_from=member,
+                    materialised_for_id=membership.additions_carrier_id,
+                    archived=True,
+                ).last()
+                removal = _last_removal(copy) if copy is not None else None
+                if removal is None or not archives.filter(batch=removal.batch).exists():
+                    continue
+                restore(op, copy, removal)
 
     def open_table(self, table):
         """Let every gang in the campaign roll on an asset table, by
@@ -1622,12 +2167,300 @@ class AssetRoll:
     campaign_asset: object
 
 
+def _available_roll(table, entries, available, *, rng=None, pool=None):
+    """A roll conditioned on eligible assets, retaining each die's probability.
+
+    Enumerating the dice avoids an unbounded re-roll loop when the table is
+    exhausted or when a test generator keeps returning an excluded result.
+    """
+    import random
+
+    from n26.core.operations import Refusal
+    from n26.library.models import Dice
+
+    outcomes = []
+    for roll in Dice.rolls(table.dice):
+        entry = table.landing(roll, entries)
+        if entry is not None and entry.asset_id in available:
+            weight = 6 - abs(7 - roll) if table.dice == Dice.TWO_D6 else 1
+            outcomes.extend([roll] * weight)
+    if not outcomes:
+        label = table.asset_type.plural.lower()
+        raise Refusal(
+            f"No unclaimed {label} from this table are available in the pool."
+            if pool is not None
+            else f"No different {label} remain on this table. Allow duplicates to roll again."
+        )
+    return outcomes[(rng or random).randint(0, len(outcomes) - 1)]  # nosec B311
+
+
 def _table_named(table):
     """A table as a sentence names it: "the Territory Selection Table",
     but "Goliath Territories". The article follows the name's own last
     word, since the name is the author's."""
     name = str(table)
     return f"the {name}" if name.lower().endswith("table") else name
+
+
+def _playing_gangs(campaign):
+    """The gangs playing this campaign now, in the order gang lines are
+    taken."""
+    from n26.core.models import Gang
+
+    return Gang.objects.filter(
+        pk__in=campaign.memberships.filter(left__isnull=True).values("gang_id")
+    ).order_by("pk")
+
+
+def own_additions(campaign, kind):
+    """Every counter or label the arbitrator added to this campaign and
+    has not archived, as members of its additions, in added order.
+
+    ``kind`` is ``"counter"`` or ``"slot"``. Only members naming a thing
+    in the campaign's own pack qualify: Reputation and Income come with
+    the shared type, a gang's own questions come with its gang type, and
+    neither is the arbitrator's to archive.
+    """
+    return _additions(campaign, kind, archived=False)
+
+
+def archived_additions(campaign, kind):
+    """Every counter or label the arbitrator added to this campaign and
+    then archived, as members of its additions, in added order."""
+    return _additions(campaign, kind, archived=True)
+
+
+def own_addition(campaign, member_pk, kind):
+    """One of :func:`own_additions` by key, or ValueError. A view turns the
+    ValueError into a 404."""
+    return _one(own_additions(campaign, kind), campaign, member_pk, kind)
+
+
+def archived_addition(campaign, member_pk, kind):
+    """One of :func:`archived_additions` by key, or ValueError."""
+    return _one(archived_additions(campaign, kind), campaign, member_pk, kind)
+
+
+def _additions(campaign, kind, *, archived):
+    from n26.library.models import DefaultAssignment
+
+    built_ins = campaign.additions.built_ins_id
+    if built_ins is None:
+        return DefaultAssignment.objects.none()
+    return (
+        DefaultAssignment.objects.select_related(kind)
+        .filter(
+            default_set_id=built_ins,
+            archived=archived,
+            **{f"{kind}__pack_id": campaign.pack_id},
+        )
+        .order_by("position", "pk")
+    )
+
+
+def _one(members, campaign, member_pk, kind):
+    from django.core.exceptions import ValidationError
+
+    try:
+        member = members.filter(pk=member_pk).first()
+    except ValidationError:
+        member = None
+    if member is None:
+        raise ValueError(f"No {kind} of {campaign}'s own has the key {member_pk}.")
+    return member
+
+
+def _last_removal(assignment):
+    """The latest removal written for an assignment, or None."""
+    return (
+        LedgerEvent.objects.filter(assignment=assignment, kind=LedgerEvent.Kind.REMOVED)
+        .select_related("before_pick")
+        .order_by("-created", "-id")
+        .first()
+    )
+
+
+@dataclass(frozen=True)
+class UnarchiveLine:
+    """One gang, as the unarchive page lists it: what it gets back, or
+    what it gets for the first time."""
+
+    gang: str
+    value: str
+    #: Nothing to show beyond its absence: no option picked yet.
+    muted: bool
+
+
+@dataclass(frozen=True)
+class UnarchivePreview:
+    """What unarchiving one counter or label gives the gangs in the
+    campaign, read the way the act decides it (``_back_on_every_gang``)."""
+
+    returning: list
+    new: list
+
+
+def unarchive_preview(campaign, member):
+    """What unarchiving this archived counter or label would give each
+    gang still in the campaign, in a fixed number of queries.
+
+    A gang whose copy an archive removed gets that copy back, with its
+    value or the option it had picked. Every other gang still in the
+    campaign — one that joined while it was archived — gets it new: a
+    counter at its starting value, a label with nothing picked.
+    """
+    from n26.core.models import Assignment
+
+    memberships = list(
+        campaign.memberships.filter(left__isnull=True, additions_carrier__isnull=False)
+        .select_related("gang")
+        .order_by("gang__name", "gang_id")
+    )
+    copies = {
+        copy.materialised_for_id: copy
+        for copy in Assignment.objects.filter(
+            materialised_from=member,
+            archived=True,
+            materialised_for_id__in=[m.additions_carrier_id for m in memberships],
+        )
+        .select_related("counter_value")
+        # The newest copy per carrier wins, as ``.last()`` picks it in the act.
+        .order_by("pk")
+    }
+    removals = _last_removals(copies.values())
+    picks = [r.before_pick for r in removals.values() if r.before_pick_id]
+    pick_removals = _last_removals(picks)
+    archives = set(
+        campaign.events.filter(
+            kind__in=(
+                CampaignEvent.Kind.COUNTER_ARCHIVED,
+                CampaignEvent.Kind.LABEL_ARCHIVED,
+            )
+        ).values_list("batch", flat=True)
+    )
+    returning, new = [], []
+    for membership in memberships:
+        name = membership.gang.name
+        copy = copies.get(membership.additions_carrier_id)
+        if copy is None:
+            if member.counter_id:
+                new.append(UnarchiveLine(name, str(member.amount), muted=False))
+            else:
+                new.append(UnarchiveLine(name, "Nothing picked yet", muted=True))
+            continue
+        removal = removals.get(copy.pk)
+        if removal is None or removal.batch not in archives:
+            # Removed for another reason: the act leaves it, and a copy
+            # already made for this membership is never granted again.
+            continue
+        if member.counter_id:
+            held = getattr(copy, "counter_value", None)
+            value = str(held.value if held is not None else 0)
+            returning.append(UnarchiveLine(name, value, muted=False))
+            continue
+        pick = removal.before_pick
+        pick_removal = pick_removals.get(pick.pk) if pick is not None else None
+        if pick is not None and pick.archived and pick_removal is not None:
+            if pick_removal.batch == removal.batch:
+                returning.append(UnarchiveLine(name, pick.pickable.name, muted=False))
+                continue
+        returning.append(UnarchiveLine(name, "Nothing picked yet", muted=True))
+    return UnarchivePreview(returning=returning, new=new)
+
+
+def _last_removals(assignments):
+    """The latest removal of each of these assignments, by key: one query."""
+    keys = [assignment.pk for assignment in assignments]
+    if not keys:
+        return {}
+    latest = {}
+    for removal in (
+        LedgerEvent.objects.filter(
+            assignment_id__in=keys, kind=LedgerEvent.Kind.REMOVED
+        )
+        .select_related("before_pick__pickable")
+        .order_by("created", "id")
+    ):
+        latest[removal.assignment_id] = removal
+    return latest
+
+
+def _key(row):
+    return (type(row)._meta.label_lower, row.pk)
+
+
+def archive_refusal(campaign, member):
+    """Why this counter or label of the campaign's own cannot be archived,
+    in words, or "" when it can. The confirm page asks before it offers
+    the button; the archive itself asks again under the campaign's line."""
+    from n26.core.operations import Refusal
+
+    try:
+        _refuse_archiving(campaign, member)
+    except Refusal as refused:
+        return str(refused)
+    return ""
+
+
+def _label_rows(campaign, slot):
+    """What ``add_label`` wrote beside the slot: its picklist, the options
+    in the campaign's pack, and the picklist's entries for them."""
+    picklist = slot.picklist
+    pickables = list(slot.slot_type.pickables.filter(pack_id=campaign.pack_id))
+    return picklist, pickables, list(picklist.members.all())
+
+
+def _refuse_archiving(campaign, member):
+    """Refuse, in words, to archive a counter or label another library
+    row names (:func:`_refuse_while_named`)."""
+    if member.counter_id is not None:
+        counter = member.counter
+        _refuse_while_named(counter, [counter], own={_key(member)})
+        return
+    slot = member.slot
+    picklist, pickables, entries = _label_rows(campaign, slot)
+    own = {
+        _key(row)
+        for row in (member, slot, slot.slot_type, picklist, *pickables, *entries)
+    }
+    for things in ([slot.slot_type], [slot], [picklist], pickables):
+        if things:
+            _refuse_while_named(slot.choice_label, things, own=own)
+
+
+def _refuse_while_named(name, things, own):
+    """Refuse, in words, to archive something another library row names.
+
+    ``things`` are rows of one kind; ``own`` is the set of rows that make
+    up the counter or label itself, which naming each other is not a use.
+    What a gang holds is not a use either: a copy, its pick and its
+    history are what archiving deals with. Anything else in the library —
+    a condition reading the counter, a rule granting a pick — would
+    change what it does, so the archive stops and says what to change.
+    """
+    from n26.core.operations import Refusal
+    from n26.library.references import named, references_to
+
+    def said(row):
+        # A modifier's part says what it does ("adds 2 to Faith"); the
+        # rule it belongs to is what an admin would look for.
+        modifier = getattr(row, "modifier", None)
+        return str(modifier) if modifier is not None else named(row)
+
+    uses = sorted(
+        {
+            said(reference.row)
+            for reference in references_to(*things)
+            if reference.row._meta.app_label == "library"
+            and _key(reference.row) not in own
+        }
+    )
+    if uses:
+        raise Refusal(
+            f"You cannot archive {name}. It is used by "
+            f"{_and(f'“{use}”' for use in uses)}. "
+            "Ask a Gyrinx admin to change that first."
+        )
 
 
 def _own_table(campaign, table):
@@ -1976,7 +2809,7 @@ def battle_stake(battle, viewer=None):
     awarded_to = battle.stake_awarded_to
     return BattleStake(
         label=f"{label[:1].upper()}{label[1:]} staked",
-        name=str(stake),
+        name=f"{stake} [{str(stake.pk)[-6:]}]",
         awarded_to=awarded_to.name if awarded_to else "",
         holder=stake.holder.gang.name if stake.held else "",
         arbitrator=viewer is not None and viewer.pk == battle.campaign.owner_id,
@@ -2163,11 +2996,11 @@ def summarise_campaign_type(campaign_type, checked=False):
 
 
 def _asset_type_sentence(asset_type):
-    """How assets of one type behave, in one sentence: "one" rather than
+    """How assets of one type behave, in one sentence: "each" rather than
     an article, so the label needs no a/an."""
     if asset_type.is_holding:
-        return f"One gang holds each {asset_type.label_singular} at a time."
-    return f"Each gang owns the {asset_type.label_singular} assets it receives."
+        return f"Each {asset_type.label_singular} is held by one gang at a time."
+    return f"Each gang has its own {asset_type.label_singular.lower()}."
 
 
 def _given(member):

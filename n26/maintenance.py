@@ -98,6 +98,7 @@ __all__ = [
     "open_founding_actions",
     "rehost_gang_picks",
     "repair_doubled_refunds",
+    "repair_campaign_reputation",
     "repoint_champion_picks",
     "seed_journal_content",
     "seed_territory_boons",
@@ -269,6 +270,10 @@ class Operation(models.TextChoices):
         "n26_activate_counter_history",
         "n26: activate counter history",
     )
+    REPAIR_CAMPAIGN_REPUTATION = (
+        "n26_repair_campaign_reputation",
+        "n26: correct campaign reputation minimums",
+    )
     INITIALISE_ACTION_ALLOWANCES = (
         "n26_initialise_action_allowances",
         "n26: existing fighters receive earned action allowances",
@@ -314,6 +319,7 @@ LOCK_KEYS = {
     Operation.ACTIVATE_COUNTER_HISTORY: 826_020_627,
     Operation.INITIALISE_ACTION_ALLOWANCES: 826_020_626,
     Operation.PREVIEW_ACTION_ALLOWANCES: 826_020_630,
+    Operation.REPAIR_CAMPAIGN_REPUTATION: 826_020_633,
     Operation.RESET_SPYRER_BUILT_INS: 826_020_628,
 }
 
@@ -1923,6 +1929,54 @@ register_operation(
 
 
 @task
+def repair_campaign_reputation(backfill_id, **said_by_whoever_enqueued_it):
+    """Journal minimum corrections once per affected campaign counter."""
+    from n26.core.reputation_repair import apply_one, find
+
+    run_per_gang(
+        backfill_id,
+        operation=Operation.REPAIR_CAMPAIGN_REPUTATION,
+        what="Campaign reputation correction",
+        find=find,
+        apply_one=apply_one,
+        again=lambda: repair_campaign_reputation.enqueue(backfill_id=backfill_id),
+    )
+
+
+def repair_campaign_reputation_view(request):
+    from n26.core.reputation_repair import find
+
+    return _deletion_view(
+        request,
+        Operation.REPAIR_CAMPAIGN_REPUTATION,
+        find,
+        repair_campaign_reputation,
+        {
+            "noun": "correction",
+            "intro": "Raise active campaign reputation balances below their minimum. Each correction is recorded in the gang’s history. Higher balances and credits remain unchanged.",
+            "nothing_heading": "No corrections needed",
+            "nothing_flash": "Campaign reputation balances meet their minimums.",
+            "nothing_words": "Campaign reputation balances meet their minimums.",
+            "refuses_heading": "The correction cannot run",
+            "button": "Correct reputation",
+            "confirm": "Raise the listed reputation balances to their minimums?",
+        },
+    )
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.REPAIR_CAMPAIGN_REPUTATION.value,
+        name=Operation.REPAIR_CAMPAIGN_REPUTATION.label,
+        added=date(2026, 10, 15),
+        description="Raise active campaign reputation balances to their minimums and record each correction in gang history.",
+        view=repair_campaign_reputation_view,
+        detail_template="admin/maintenance/n26/_per_gang_detail.html",
+    )
+)
+
+
+@task
 def initialise_action_allowances(backfill_id, **said_by_whoever_enqueued_it):
     """Give existing fighters the rank allowances earned since recruitment."""
     from n26.core.action_initialisation import INACTIVE_REASON, apply_one
@@ -2731,6 +2785,18 @@ register_control_operation(
 )
 
 
+def territory_boon_setup_links(user):
+    """Authoring shortcuts to the existing superuser-only content previews."""
+    if not user.is_superuser:
+        return {}
+    return {
+        "income": reverse(f"admin:maintenance_{Operation.SEED_TERRITORY_BOONS.value}"),
+        "choices": reverse(
+            f"admin:maintenance_{Operation.SEED_TERRITORY_BOON_CHOICES.value}"
+        ),
+    }
+
+
 @task
 def seed_territory_boon_choices(backfill_id, **said_by_whoever_enqueued_it):
     """Record the guarded territory boon conversion and current Income picks."""
@@ -3365,6 +3431,7 @@ register_control_operation(
 #: from the declaration, and only there — the local backend fires no
 #: schedules, so dev and tests invoke the sweep function directly.
 task_routes = [
+    N26TaskRoute(repair_campaign_reputation, ack_deadline=600),
     N26TaskRoute(reset_spyrer_built_ins, ack_deadline=600),
     N26PausedTaskRoute(activate_counter_history, ack_deadline=600),
     N26TaskRoute(delete_test_content, ack_deadline=600, min_retry_delay=60),

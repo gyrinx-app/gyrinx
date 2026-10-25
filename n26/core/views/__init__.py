@@ -20,8 +20,14 @@ from n26.core.views.assignment_sets import (
     model_cards,
     remove_model_card,
 )
-from n26.core.views.battles import battle, edit_battle, record_battle_outcome
-from n26.core.views.campaign_assets import asset_detail
+from n26.core.views.battles import (
+    archived_battles,
+    battle,
+    edit_battle,
+    record_battle_outcome,
+    restore_battle,
+)
+from n26.core.views.campaign_assets import asset_detail, save_asset_boons
 from n26.core.views.campaign_rolls import (
     campaign_roll,
     preview_pool_roll,
@@ -36,9 +42,11 @@ from n26.core.views.campaigns import (
     add_label,
     add_player,
     answer_invitation,
+    archive_addition,
     archive_campaign,
     assign_asset,
     campaign,
+    campaign_grouping,
     campaign_log,
     campaign_table,
     campaign_tables,
@@ -46,6 +54,7 @@ from n26.core.views.campaigns import (
     create_campaign,
     edit_asset_type,
     edit_campaign,
+    leave_campaign,
     new_asset,
     new_table,
     remove_asset,
@@ -56,6 +65,7 @@ from n26.core.views.campaigns import (
     roll_asset,
     roll_starting_asset,
     transfer_asset,
+    unarchive_addition,
     unassign_asset,
 )
 from n26.core.views.changelog import (
@@ -81,6 +91,7 @@ from n26.core.views.gangs import (
     gang_founding_action,
     gang_lore,
     gang_notes,
+    gang_other_actions,
     gang_sheet,
     gang_trade_points,
     gangs,
@@ -140,6 +151,7 @@ __all__ = [
     "record_battle_outcome",
     "accessorise_assignment",
     "asset_detail",
+    "save_asset_boons",
     "campaign",
     "campaign_log",
     "campaign_roll",
@@ -167,6 +179,8 @@ __all__ = [
     "add_asset_type",
     "edit_asset_type",
     "add_label",
+    "archive_addition",
+    "unarchive_addition",
     "remove_asset",
     "roll_asset",
     "roll_starting_asset",
@@ -183,9 +197,13 @@ __all__ = [
     "delete_fighter",
     "delete_gang",
     "edit_campaign",
+    "campaign_grouping",
     "remove_battle",
+    "archived_battles",
+    "restore_battle",
     "remove_gang",
     "remove_player",
+    "leave_campaign",
     "base_rating",
     "edit_fighter",
     "edit_gang",
@@ -203,6 +221,7 @@ __all__ = [
     "mark_fighter",
     "pay_ransom",
     "gang_trade_points",
+    "gang_other_actions",
     "gangs",
     "hire_card",
     "hire_fighter",

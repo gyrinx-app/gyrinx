@@ -18,11 +18,13 @@ from django.utils.text import capfirst
 from n26.core.card import build_card
 from n26.core.effects import (
     ModifierIndex,
+    StackedName,
     choice_notes,
     count_mark,
     counter_totals,
     kind_of,
     limit_notes,
+    stacked_name_items,
     stacked_names,
 )
 from n26.core.income import (
@@ -313,6 +315,7 @@ class CounterLine:
     provenance: Provenance = field(default_factory=Provenance)
     is_income: bool = False
     income_sources: list[IncomeSource] = field(default_factory=list)
+    counter_key: str = ""
 
     @property
     def contributed(self):
@@ -1491,31 +1494,38 @@ class CampaignAssetLine:
     #: actual type rather than merging unrelated types with the same label.
     type_plural: str = ""
     asset_type_id: str = ""
+    display_group: str = ""
 
 
 @dataclass(frozen=True)
 class CampaignAssetGroup:
-    """One asset type's named holdings or possessions on a gang sheet."""
+    """Named holdings and possessions sharing one authored display line."""
 
     label: str
-    names: str
+    names: list[StackedName]
     held: bool
     provenance: Provenance = field(default_factory=Provenance)
 
 
 def group_campaign_assets(lines, *, types=()):
-    """One row per available type, with the shared xN convention."""
+    """One row per display group or ungrouped type, with the shared xN convention."""
     grouped = {key: [] for key, _ in types}
     labels = dict(types)
     for line in lines:
         if line.type_plural:
-            key = line.asset_type_id or line.type_plural
-            labels.setdefault(key, line.type_plural)
+            key = line.display_group or line.asset_type_id or line.type_plural
+            labels.setdefault(key, line.display_group or line.type_plural)
             grouped.setdefault(key, []).append(line)
     return [
         CampaignAssetGroup(
             label=labels[key],
-            names=stacked_names(line.name for line in members) if members else "None",
+            names=[
+                item
+                for kind in dict.fromkeys(line.asset_type_id for line in members)
+                for item in stacked_name_items(
+                    line.name for line in members if line.asset_type_id == kind
+                )
+            ],
             held=any(line.campaign_asset_id for line in members),
             provenance=members[0].provenance
             if members
@@ -1695,8 +1705,8 @@ class CampaignBlock:
     #: Where the campaign's name and its holdings lead — the campaign
     #: page, and its assets section — filled in by whoever knows both the
     #: URL space and who may open them, as a counter's own href is. Empty
-    #: draws plain text, which is what a reader outside the campaigns
-    #: feature gets: the page behind these answers them with a 404.
+    #: draws plain text, which is what a visitor who is not signed in gets:
+    #: the page behind these would only send them to sign in.
     href: str = ""
     assets_href: str = ""
     #: Available types remain visible even when this gang holds none.
@@ -1888,8 +1898,7 @@ class CampaignGangLine:
     #: Whether the reader owns this gang — what decides which of the
     #: table's controls are theirs.
     yours: bool = False
-    #: The columns a detail value spans: rating, credits, wealth, counters
-    #: and the gang menu. Set by the sheet alongside the detail headings.
+    #: The full table width: gang identity, money, counters and menu.
     detail_colspan: int = 1
 
     @property
@@ -1902,13 +1911,16 @@ class CampaignGangLine:
         details = [
             *(
                 GangDetail(label=name, text=pick)
-                for name, pick in zip(self.label_names, self.labels, strict=True)
+                for index, (name, pick) in enumerate(
+                    zip(self.label_names, self.labels, strict=True)
+                )
+                if index != self.grouped_label_index
             ),
             *(
                 self.grouped_assets
                 if self.grouped_assets is not None
                 else (
-                    GangDetail(label=plural, text=", ".join(names))
+                    GangDetail(label=plural, names=stacked_name_items(names))
                     for plural, names in zip(self.asset_names, self.assets, strict=True)
                 )
             ),
@@ -1923,15 +1935,17 @@ class CampaignGangLine:
     label_names: list[str] = field(default_factory=list)
     asset_names: list[str] = field(default_factory=list)
     grouped_assets: list[GangDetail] | None = None
+    grouped_label_index: int | None = None
 
 
 @dataclass(frozen=True)
 class GangDetail:
-    """A labelled gang detail: a choice, asset group or permitted actions.
-    Empty text without actions is drawn as a dash."""
+    """A labelled choice, counted asset names or permitted actions.
+    A detail without any values is drawn as a dash."""
 
     label: str
     text: str = ""
+    names: list[StackedName] = field(default_factory=list)
     rolls: list[StartingRoll] = field(default_factory=list)
 
 
@@ -1992,6 +2006,7 @@ class AssetTypeColumn:
     #: Whether one gang holds each asset of this type at a time. A
     #: possession is every gang's own and the campaign keeps none.
     holding: bool
+    display_group: str = ""
 
 
 @dataclass
@@ -2007,6 +2022,7 @@ class CampaignAssetEntry:
     campaign_asset_id: str
     name: str
     asset_name: str = ""
+    boon: str = ""
     income: int = 0
     income_source: IncomeSource | None = None
     held: bool = False
@@ -2059,6 +2075,12 @@ class CampaignAssetTable:
     #: Where the pool roll is asked. Empty for a reader who may not, and
     #: where there is no rolled table to roll on.
     roll_href: str = ""
+    setup_hint: str = ""
+    inventory_view: dict = field(default_factory=dict)
+
+    @property
+    def header_description(self):
+        return self.setup_hint if self.roll_href else ""
 
     @property
     def held(self):
@@ -2103,7 +2125,11 @@ class CampaignSheet:
     summary: str = ""
     gangs: list[CampaignGangLine] = field(default_factory=list)
     counter_columns: list[str] = field(default_factory=list)
+    counter_keys: list[str] = field(default_factory=list)
     label_columns: list[str] = field(default_factory=list)
+    label_ids: list[str] = field(default_factory=list)
+    label_options: dict[str, list[dict]] = field(default_factory=dict)
+    default_group: str = ""
     asset_types: list[AssetTypeColumn] = field(default_factory=list)
     assets: list[CampaignAssetTable] = field(default_factory=list)
     battles_fought: int = 0
@@ -2117,40 +2143,56 @@ class CampaignSheet:
     tables_href: str = ""
     #: Suggested unclaimed pool: three territories per active gang.
     territories_to_generate: int = 0
+    starting_from_pool: bool = False
+
+    table_headers: list[dict] = field(default_factory=list)
+    table_groups: list[dict] = field(default_factory=list)
+    table_sort_options: list[dict] = field(default_factory=list)
+    table_group_options: list[dict] = field(default_factory=list)
+    table_sort: str = "name"
+    table_group: str = ""
+    table_href: str = ""
+    table_focus_counter: str = ""
+    inventory_view: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        # Detail values span every column after the gang identity. Labels
-        # and asset names stay in the same order as their prepared values.
+        for table in self.assets:
+            if table.label != "Territory":
+                continue
+            remaining = sum(
+                any(
+                    roll.asset_type_id == table.asset_type_id
+                    for roll in line.starting_rolls
+                )
+                for line in self.gangs
+            )
+            if self.starting_from_pool:
+                for line in self.gangs:
+                    for roll in line.starting_rolls:
+                        if roll.asset_type_id == table.asset_type_id:
+                            roll.label = "Allocate starting territory"
+            if self.status == "Pre-campaign" and self.gangs and table.tables:
+                if self.starting_from_pool:
+                    starting_label = "territory" if remaining == 1 else "territories"
+                    table.setup_hint = (
+                        f"Suggested pool: {self.territories_to_generate} territories. "
+                        f"{remaining} starting {starting_label} still to allocate."
+                    )
+                else:
+                    table.setup_hint = f"Setup: {self.territories_to_generate} unclaimed + {len(self.gangs)} starting territories. {remaining} still to roll."
+        # Details span the table. Labels and asset names retain their column order.
         for line in self.gangs:
-            line.detail_colspan = 4 + len(self.counter_columns)
+            line.detail_colspan = 5 + len(self.counter_columns)
             line.label_names = self.label_columns
             line.asset_names = [asset_type.plural for asset_type in self.asset_types]
-            settlement = next(
-                (
-                    i
-                    for i, kind in enumerate(self.asset_types)
-                    if kind.label.casefold() == "settlement" and not kind.holding
-                ),
-                None,
-            )
-            territory = next(
-                (
-                    i
-                    for i, kind in enumerate(self.asset_types)
-                    if kind.label.casefold() == "territory" and kind.holding
-                ),
-                None,
-            )
-            if settlement is not None and territory is not None:
-                groups = []
-                for i, kind in enumerate(self.asset_types):
-                    if i == settlement:
-                        continue
-                    names = line.assets[i]
-                    if i == territory:
-                        names = [*line.assets[settlement], *names]
-                    groups.append(GangDetail(label=kind.plural, text=", ".join(names)))
-                line.grouped_assets = groups
+            groups = {}
+            for kind, names in zip(self.asset_types, line.assets, strict=True):
+                key = kind.display_group or kind.asset_type_id
+                label = kind.display_group or kind.plural
+                groups.setdefault(key, [label, []])[1].extend(stacked_name_items(names))
+            line.grouped_assets = [
+                GangDetail(label=label, names=names) for label, names in groups.values()
+            ]
 
     @property
     def gang_count(self):
@@ -2551,7 +2593,37 @@ def hide_dismissed_choices(keys, choices, *, reveal=False, removed=None):
     return found
 
 
-def build_choice_offer(slot, computed, *, include_staged=False):
+def build_choice_offers(slots, computed, *, include_staged=False):
+    """Several choice lists with their picklist options loaded together."""
+    from n26.core.browse import Listed
+    from n26.library.models import PicklistMember
+
+    slots = list(slots)
+    picklists = {
+        slot.slot.picklist_id
+        for slot in slots
+        if slot.slot is not None and not slot.slot.picklist.dice
+    }
+    grouped = {pk: [] for pk in picklists}
+    if picklists:
+        for member in PicklistMember.available_for_choices(
+            picklists, include_staged=include_staged
+        ):
+            grouped[member.picklist_id].append(
+                Listed(thing=member.pickable, name=member.label, band=member.band)
+            )
+    catalogues = {
+        ("picklist", pk, include_staged): members for pk, members in grouped.items()
+    }
+    return [
+        build_choice_offer(
+            slot, computed, include_staged=include_staged, _catalogues=catalogues
+        )
+        for slot in slots
+    ]
+
+
+def build_choice_offer(slot, computed, *, include_staged=False, _catalogues=None):
     """What may be chosen for one slot, in the one shape a picker draws.
 
     The offer decides the list; this only flattens it. A slot narrowed to
@@ -2582,7 +2654,9 @@ def build_choice_offer(slot, computed, *, include_staged=False):
         # click here could write, so there is nothing to draw.
         return ChoiceOffer(label=slot.kind_label, chosen=slot.chosen_name)
 
-    offered = offered_by(slot, computed, include_staged=include_staged)
+    offered = offered_by(
+        slot, computed, include_staged=include_staged, _catalogues=_catalogues
+    )
     current = slot.resolved_with.assignable if slot.resolved_with is not None else None
 
     if isinstance(offered, CollectionView):
@@ -3320,7 +3394,7 @@ def card_to_model_card(
             # what is due.
             counter_key = ModifierIndex.key(thing)
             tallied = _counter_value(node)
-            standing = tallied + (
+            standing = max(thing.minimum, tallied) + (
                 0 if counter_key in counted else contributed.get(counter_key, 0)
             )
             counted.add(counter_key)
@@ -3821,6 +3895,7 @@ def _campaign_parts(gang_card, membership, keys, readings, *, computed=None):
             counters.append(
                 CounterLine(
                     name=reading.name,
+                    counter_key=str(node.assignable.pk),
                     value=reading.value,
                     tallied=_counter_value(node),
                     is_income=is_income_counter(node.assignable),
@@ -3876,6 +3951,7 @@ def _possession_lines(possessions, types, provenance_of, income_for):
                 else capfirst(kind_of(node.assignable)),
                 type_plural=asset_type.plural if asset_type else "",
                 asset_type_id=str(asset_type.pk) if asset_type else "",
+                display_group=asset_type.display_group if asset_type else "",
                 name=node.name,
                 income=income_for(node.assignable, node) if asset_type else 0,
                 provenance=provenance_of(node),
@@ -3962,7 +4038,10 @@ def _campaign_block(gang_card, membership, keys, readings, index=None, computed=
         campaign_id=str(membership.campaign_id),
         boon_assets=[row for key, row in boons.items() if key in boon_keys],
         asset_types=[
-            (str(asset_type.pk), asset_type.plural)
+            (
+                asset_type.display_group or str(asset_type.pk),
+                asset_type.display_group or asset_type.plural,
+            )
             for asset_type in sorted(
                 AssetType.objects.filter(
                     campaign_type_id__in=(
@@ -3986,6 +4065,7 @@ def _campaign_block(gang_card, membership, keys, readings, index=None, computed=
                 type_label=campaign_asset.asset.asset_type.label_singular,
                 type_plural=campaign_asset.asset.asset_type.plural,
                 asset_type_id=str(campaign_asset.asset.asset_type_id),
+                display_group=campaign_asset.asset.asset_type.display_group,
                 name=str(campaign_asset),
                 income=income_for(campaign_asset.asset, campaign_asset),
                 campaign_asset_id=str(campaign_asset.pk),
@@ -4473,6 +4553,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     """
     from django.db.models import Prefetch
 
+    from n26.core.campaign_table import label_options
     from n26.core.campaigns import (
         foreign_tables,
         over_budget,
@@ -4482,8 +4563,8 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         withdrawn_members,
     )
     from n26.core.card import build_gang_cards, build_modifier_index, carriers
-    from n26.core.effects import compute, counter_readings
-    from n26.core.models import CampaignMembership
+    from n26.core.effects import asset_origins, compute, counter_readings
+    from n26.core.models import CampaignAsset, CampaignMembership
     from n26.library.models import Asset, AssetType, Modifier
     from n26.library.references import reading_sentences
     from n26.library.staged import sees_staged
@@ -4543,6 +4624,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     picks = {}
     incomes = {}
     income_breakdowns = {}
+    boon_names = {}
     held_tables = {}
     # Tables given through a member the arbitrator has since closed stay
     # on the gangs and are not offered: one query for every card at once.
@@ -4555,6 +4637,22 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         computed = compute(card, index)
         incomes.update(holding_income(computed))
         income_breakdowns.update(holding_income_sources(computed))
+        origins = asset_origins(card)
+        labels = {}
+        for choice in computed.choices:
+            if choice.is_history_only or not choice.chosen_name:
+                continue
+            origin = choice.holding or origins.get(getattr(choice.anchor, "key", None))
+            if isinstance(origin, CampaignAsset):
+                labels.setdefault(_asset_origin_key(origin), []).append(
+                    choice.chosen_name
+                )
+        for choice in _orphan_asset_choices(computed, origins):
+            labels.setdefault(choice.asset_key, []).append(choice.chosen)
+        for holding in card.holdings:
+            boon_names[holding.pk] = ", ".join(
+                labels.get(_asset_origin_key(holding), ())
+            )
         readings = counter_readings(card, computed)
         keys = _campaign_keys(card, membership)
         parts[membership.pk] = _campaign_parts(
@@ -4611,6 +4709,12 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
     # under it says so where a missing column would say nothing. Labels
     # remain visible as named details even before any gang picks a value.
     added_counters, label_slots = _arbitrators_additions(campaign)
+    counter_keys = {
+        line.name: line.counter_key
+        for _, counters in parts.values()
+        for line in counters
+    }
+    counter_keys.update(added_counters)
     label_columns = [slot.choice_label for slot in label_slots]
     for name in added_counters:
         if name not in names:
@@ -4692,6 +4796,7 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
                 )
                 if holder
                 else unclaimed_income_source(campaign_asset),
+                boon=boon_names.get(campaign_asset.pk, ""),
                 held=holder is not None,
                 holder=holder.gang.name if holder else "",
                 holder_gang_id=str(holder.gang_id) if holder else "",
@@ -4708,20 +4813,26 @@ def render_campaign(campaign, viewer=None, *, with_owner_badges=True):
         budget=campaign.budget,
         status=campaign.get_status_display(),
         summary=campaign.summary,
+        starting_from_pool=campaign.starting_from_pool,
         gangs=lines,
         counter_columns=counter_columns,
+        counter_keys=[counter_keys[name] for name in counter_columns],
         label_columns=label_columns,
+        label_ids=[str(slot.pk) for slot in label_slots],
+        label_options=label_options(campaign, label_slots),
+        default_group=str(campaign.gang_grouping_id or ""),
         asset_types=[
             AssetTypeColumn(
                 asset_type_id=str(asset_type.pk),
                 label=asset_type.label_singular,
                 plural=asset_type.plural,
                 holding=asset_type.is_holding,
+                display_group=asset_type.display_group,
             )
             for asset_type in asset_types
         ],
         assets=list(tables.values()),
-        battles_fought=campaign.battles.count(),
+        battles_fought=campaign.battles.filter(archived=False).count(),
         territories_to_generate=TERRITORIES_PER_GANG * len(memberships),
     )
 
@@ -4763,7 +4874,7 @@ def _starting_rolls(asset_types, held, received):
 
 
 def _arbitrators_additions(campaign):
-    """Counter names and label slots built into this campaign, in added order.
+    """Counter names with their identities, and label slots, in added order.
 
     One query, and none for a campaign nothing has been added to.
     """
@@ -4771,14 +4882,18 @@ def _arbitrators_additions(campaign):
 
     built_ins = campaign.additions.built_ins
     if built_ins is None:
-        return [], []
+        return {}, []
     members = (
         built_ins.members.filter(archived=False)
         .filter(Q(counter__isnull=False) | Q(slot__isnull=False))
         .select_related("counter", "slot")
         .order_by("position")
     )
-    counters = [str(member.counter) for member in members if member.counter_id]
+    counters = {
+        str(member.counter): str(member.counter_id)
+        for member in members
+        if member.counter_id
+    }
     labels = [member.slot for member in members if member.slot_id]
     return counters, labels
 

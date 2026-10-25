@@ -18,7 +18,7 @@
     {% endif %}
     <c-n26.form-page :action="action_url"
                      title="{% if battle %}Edit battle{% else %}Record a battle{% endif %}"
-                     lead="{% if not battle %}Record the battle before you play, then choose crews from its page. The arbitrator records the outcome after the game.{% endif %}"
+                     lead="{% if not battle %}Record the battle before you play, then choose crews from its page. A participating player or the arbitrator records the outcome after the game.{% endif %}"
                      :form="form"
                      submit_label="{% if battle %}Save changes{% else %}Record battle{% endif %}"
                      :cancel_url="cancel_url">
@@ -31,7 +31,7 @@
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        {% if battle %}{{ form.revision }}{% endif %}
+        {% if battle %}{{ form.revision }}{{ form.stake_versions }}{% endif %}
         <c-n26.form-section title="The battle">
             <c-ui.field label="Scenario *"
                         error="x"
@@ -63,34 +63,10 @@
             </c-ui.field>
         </c-n26.form-section>
         {% if battle %}
-            <c-n26.form-section id="outcome"
-                                class="scroll-mt-24"
-                                title="After the game"
-                                description="Record the outcome once the battle is played. Saving does not change credits, XP or injuries. A staked territory moves when you save.">
-                <c-ui.field label="Outcome *"
-                            error="x"
-                            :form="form"
-                            name="result"
-                            for="battle-result">
-                    <c-ui.select.native id="battle-result" name="result" required placeholder="">
-                        {% for value, label in form.fields.result.choices %}
-                            <option value="{{ value }}"
-                                    {% if value == form.result.value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </c-ui.select.native>
-                </c-ui.field>
-                <c-ui.field label="Winning gangs" error="x" :form="form" name="winners">
-                    <p class="mb-2 text-sm text-muted">Select one or more participants if the outcome is “Winner or winners”. Leave clear for a draw or an outcome not yet recorded.</p>
-                    <div class="flex flex-col gap-1.5">
-                        {% for choice in form.winners %}
-                            <label class="flex min-h-11 items-center gap-3 text-base"
-                                   for="{{ choice.id_for_label }}">{{ choice.tag }} {{ choice.choice_label }}</label>
-                        {% empty %}
-                            <p class="text-sm text-muted">No gangs in this campaign yet.</p>
-                        {% endfor %}
-                    </div>
-                </c-ui.field>
-                {% if form.stake_label %}
+            {% if form.stake_label %}
+                <c-n26.form-section id="stakes"
+                                    title="Stakes"
+                                    description="Record the stake before or after the battle. Choose a gang to award it to when the result is known.">
                     <c-ui.field label="{{ form.fields.stake.label }}"
                                 error="x"
                                 :form="form"
@@ -122,7 +98,35 @@
                             {% endfor %}
                         </c-ui.select.native>
                     </c-ui.field>
-                {% endif %}
+                </c-n26.form-section>
+            {% endif %}
+            <c-n26.form-section id="outcome"
+                                class="scroll-mt-24"
+                                title="After the game"
+                                description="Record the outcome once the battle is played. Saving does not change credits, XP or injuries.">
+                <c-ui.field label="Outcome *"
+                            error="x"
+                            :form="form"
+                            name="result"
+                            for="battle-result">
+                    <c-ui.select.native id="battle-result" name="result" required placeholder="">
+                        {% for value, label in form.fields.result.choices %}
+                            <option value="{{ value }}"
+                                    {% if value == form.result.value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </c-ui.select.native>
+                </c-ui.field>
+                <c-ui.field label="Winning gangs" error="x" :form="form" name="winners">
+                    <p class="mb-2 text-sm text-muted">Select one or more participants if the outcome is “Winner or winners”. Leave clear for a draw or an outcome not yet recorded.</p>
+                    <div class="flex flex-col gap-1.5">
+                        {% for choice in form.winners %}
+                            <label class="flex min-h-11 items-center gap-3 text-base"
+                                   for="{{ choice.id_for_label }}">{{ choice.tag }} {{ choice.choice_label }}</label>
+                        {% empty %}
+                            <p class="text-sm text-muted">No gangs in this campaign yet.</p>
+                        {% endfor %}
+                    </div>
+                </c-ui.field>
             </c-n26.form-section>
         {% endif %}
     </c-n26.form-page>

@@ -149,6 +149,6 @@ Re-download from the bucket. The export job creates valid JSON, so corruption us
 
 The command lives at `n23/core/management/commands/loaddata_overwrite.py`.
 
-The command uses PostgreSQL's `TRUNCATE CASCADE` for fast deletion, but falls back to regular `DELETE` if that fails. Foreign key checks are disabled with `SET session_replication_role = 'replica'` during import.
+For each model the fixture names, the command truncates that table, and falls back to DELETE when truncate fails. It does not cascade. Foreign key checks are disabled with `SET session_replication_role = 'replica'` during the clear and the import, so an automatic many-to-many link can outlive a record the fixture removed. After the import, those links are deleted when either end is missing. A link whose two records are both still there is kept.
 
 Historical models (from django-simple-history) are automatically detected and skipped - they're managed separately by the history system.

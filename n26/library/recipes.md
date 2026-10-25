@@ -953,6 +953,11 @@ stash need a separate recorded post-cycle action; they are not standing boons.
 
 ## Income or a cycle reward
 
+Open **Foundations → Territory boons**. A site administrator can use **Review
+income and standing boons**, then **Review boon choices** to open the maintenance
+previews. Applying the choices preview creates the Income option and the
+recruitment or equipment alternative automatically.
+
 The **Add territory boon choices** maintenance operation converts the supported
 standard territories, including Settlement. Run **Add territory income and
 standing boons** first, then check the choices preview. It preserves authored
@@ -977,3 +982,58 @@ operation preserves a dismissed unresolved choice instead of selecting Income.
 Resolve the alternative's recruitment discount or equipment reward manually at
 cycle end. Its summary states the eligibility and amount. Selecting an option
 does not grant a persistent reward immediately.
+
+### Income from reputation
+
+Set the Reputation counter’s minimum to 1. Build it into the campaign type
+with an opening value of 1. Attach an “Adds to a counter” modifier to that
+campaign type: counter Income, amount 10, per counter Reputation. Its income
+contribution follows the gang’s current reputation, including territory boons.
+Collect credits manually.
+
+## Configure Trading Post visits
+
+Visit Trading Post is a built-in action: it has its own screen for choosing
+visitors, tracking Trade Points and completing the visit. You configure its
+default visibility separately from the actions you grant to fighter entries.
+
+### Choose the gang types
+
+1. Open **Content library → Actions**.
+2. Under **Built-in actions**, open **Visit Trading Post**.
+3. In **Gang types excluded by default**, select the gang types that do not
+   normally visit the Trading Post. For example, select **Spyre Hunters**.
+4. Save changes.
+
+The choices come from the library's gang types. When you add a new gang type,
+return here if it should be excluded. Clearing an import keeps the selected
+gang types. An unselected type shows the visit setup
+links normally. Renaming a selected type preserves its selection. To restore
+the usual links, remove the type from the selection and save.
+
+An excluded gang's owner can open **More actions → Other actions → Visit
+Trading Post** for house rules or an exception. The visit screen explains the
+usual rule and still allows a custom Trade Point amount. Changing this setting
+does not close an open visit: its owner can still manage and complete it.
+Equipment access and founding or hire-time Trade Points are separate settings.
+
+### Check what each visitor contributes
+
+Visibility does not change how many Trade Points a model contributes. Those
+amounts come from modifiers on its subtypes.
+
+For the standard Spyrer exception:
+
+1. Open **Subtypes → Leader** and open its modifier that adds **2** to
+   **Trading Post visit contribution**.
+2. In **WHO**, keep the scope on the model carrying it. Add **Has subtypes**,
+   select **Spyrer**, and negate the condition. Save changes.
+3. Open **Subtypes → Champion** and its modifier that adds **1** to the same
+   counter. Add the same negated **Spyrer** condition.
+4. Keep Champion's existing negated **Leader** condition as well. A model
+   holding both ranks must contribute 2, rather than adding both amounts.
+
+The standard setup already includes these conditions. When authoring another
+exception, change the contribution modifiers only if the rules also change
+what the visitors contribute. Use the built-in action settings when only its
+default visibility needs to change.

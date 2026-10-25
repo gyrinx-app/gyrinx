@@ -6,9 +6,11 @@ from uuid import uuid4
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch, Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from n26.core.battle_permissions import may_record_gang
 from n26.core.campaign_permissions import may_record_outcome
@@ -18,14 +20,12 @@ from n26.core.models import (
     Battle,
     BattleCrew,
     CampaignEvent,
-    CampaignRoll,
     Gang,
     PostBattleReport,
 )
 from n26.core.operations import Refusal
 from n26.core.views.campaigns import _badge_a_redrawn_page
 from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
-from n26.flags import CAMPAIGNS, requires_flag
 
 
 def battle_or_404(campaign, pk):
@@ -61,7 +61,6 @@ class BattleParticipant:
         return "View results"
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def battle(request, pk, battle_pk):
     campaign = _any_campaign_or_404(request, pk)
@@ -95,7 +94,8 @@ def battle(request, pk, battle_pk):
             name=gang.name,
             winner=gang.pk in winners,
             gang=gang,
-            may_record=may_record_gang(
+            may_record=not found.archived
+            and may_record_gang(
                 gang=gang,
                 actor=request.user,
                 campaign=campaign,
@@ -131,22 +131,18 @@ def battle(request, pk, battle_pk):
             "stake": battle_stake(found, request.user),
             "yours": campaign.owner_id == request.user.pk,
             "may_record_outcome": may_record_outcome(found, request.user),
-            "has_history": (
-                bool(crews or reports)
-                or found.gang_events.exists()
-                or CampaignRoll.objects.filter(battle=found).exists()
-            ),
         },
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def edit_battle(request, pk, battle_pk):
     campaign = _own_campaign_or_404(
         request, pk, with_owner_badge=request.method == "GET"
     )
     found = battle_or_404(campaign, battle_pk)
+    if found.archived:
+        raise Http404("This battle is archived")
     # Existing participants remain available after leaving the campaign.
     playing = (
         Gang.objects.filter(
@@ -181,7 +177,41 @@ def edit_battle(request, pk, battle_pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
+@login_required
+def archived_battles(request, pk):
+    campaign = _own_campaign_or_404(request, pk)
+    page = Paginator(
+        campaign.battles.filter(archived=True).prefetch_related("gangs", "winners"),
+        30,
+    ).get_page(request.GET.get("page"))
+    return render(
+        request, "n26/archived_battles.html", {"campaign": campaign, "page": page}
+    )
+
+
+@login_required
+@require_POST
+def restore_battle(request, pk, battle_pk):
+    campaign = _own_campaign_or_404(request, pk, with_owner_badge=False)
+    found = battle_or_404(campaign, battle_pk)
+    try:
+        revision = int(request.POST.get("revision", ""))
+    except TypeError, ValueError:
+        messages.error(
+            request,
+            "The battle version is missing or invalid. Reload it before restoring it.",
+        )
+    else:
+        try:
+            with campaign_operation(campaign, actor=request.user) as act:
+                act.restore_battle(found, revision=revision)
+        except Refusal as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, "Battle restored.")
+    return redirect("n26-battle", pk=campaign.pk, battle_pk=found.pk)
+
+
 @login_required
 def record_battle_outcome(request, pk, battle_pk):
     """The outcome of a battle with none, recorded by a player who fought

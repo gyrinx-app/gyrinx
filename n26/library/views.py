@@ -5564,6 +5564,7 @@ def foundations(request):
         progression_plan,
     )
     from n26.library.standard_content import STANDARD_CONTENT
+    from n26.maintenance import territory_boon_setup_links
 
     rollout_plan = progression_plan()
     plan_ids = [
@@ -5654,6 +5655,7 @@ def foundations(request):
         "authoring/foundations.html",
         {
             "entries": entries,
+            "territory_boon_setup": territory_boon_setup_links(request.user),
             "progression_plan": rollout_plan,
             "progression_eligible": sum(not row.excluded for row in rollout_plan),
             "progression_attached": sum(
@@ -6121,3 +6123,37 @@ def picklist_table(request, pk):
             "form": form,
         },
     )
+
+
+@staff_member_required
+def trading_post_visit_settings(request):
+    """Configure the built-in visit without offering a second action definition."""
+    from django.db.models import Q
+
+    from n26.library.forms import trading_post_visit_settings_form
+    from n26.library.models import BuiltInAction, GangType
+
+    action = BuiltInAction.objects.filter(
+        key=BuiltInAction.Key.TRADING_POST_VISIT
+    ).first()
+    selected = (
+        list(action.excluded_gang_types.values_list("pk", flat=True)) if action else []
+    )
+    form = trading_post_visit_settings_form(
+        request.POST if request.method == "POST" else None,
+        initial={"excluded_gang_types": selected},
+    )
+    form.fields["excluded_gang_types"].queryset = (
+        GangType.objects.outside_campaign_packs()
+        .filter(Q(archived=False, pack__archived=False) | Q(pk__in=selected))
+        .select_related("pack")
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            form.compile()
+        except ValidationError as error:
+            form.add_error(None, error)
+        else:
+            messages.success(request, "Trading Post visit settings saved.")
+            return redirect("authoring-trading-post-visit")
+    return render(request, "authoring/trading_post_visit.html", {"form": form})

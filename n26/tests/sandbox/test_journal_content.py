@@ -47,7 +47,7 @@ from n26.core.models import BuiltInPropagationTask, CampaignAsset
 from n26.core.operations import Refusal
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
-from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
+from n26.flags import BUILT_IN_PROPAGATION
 from n26.library.authoring import modifier
 from n26.library.core_campaign import CAMPAIGN_TYPE, seed_core_campaign
 from n26.library.gang_supertypes import (
@@ -131,13 +131,6 @@ def staff_arbitrator(db):
 @pytest.fixture
 def superuser(db):
     return User.objects.create_superuser("boss", "boss@example.com", "password")
-
-
-@pytest.fixture
-def campaigns_open(db):
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture
@@ -457,7 +450,7 @@ class TestWhoHasASupertype:
     Outcast have not."""
 
     def test_a_goliath_gang_founded_after_the_seed_has_the_pick(
-        self, seeded, gang_types, owner, campaigns_open
+        self, seeded, gang_types, owner
     ):
         gang = found_gang("Irontooth", gang_types["Goliath"], owner=owner, budget=1000)
 
@@ -493,7 +486,7 @@ class TestWhoHasASupertype:
         assert_reconciled(gang)
 
     def test_a_clan_house_goliath_outcast_gang_counts_as_goliath(
-        self, seeded, gang_types, clan_house, owner, campaigns_open
+        self, seeded, gang_types, clan_house, owner
     ):
         gang = found_gang(
             "The Cast Out", gang_types["Outcast"], owner=owner, budget=1000
@@ -556,10 +549,6 @@ class TestNothingIsToldAboutTheSupertype:
     founding, or when propagation catches an older gang up — while a
     visible slot's pick is told as it always was."""
 
-    @pytest.fixture(autouse=True)
-    def flag(self, campaigns_open):
-        return campaigns_open
-
     def test_the_propagation_pass_writes_no_line_naming_it(
         self,
         core,
@@ -590,10 +579,6 @@ class TestNothingIsToldAboutTheSupertype:
 
 class TestAJournalTerritoryInPlay:
     """Journal territories provide baseline Income to any holder."""
-
-    @pytest.fixture(autouse=True)
-    def flag(self, campaigns_open):
-        return campaigns_open
 
     @pytest.fixture
     def campaign(self, seeded, core, arbitrator):
@@ -628,12 +613,12 @@ class TestAJournalTerritoryInPlay:
         held = campaign.campaign_assets.get(asset=vats)
 
         assign_asset(held, gangs["Goliath"])
-        assert income_reading(gangs["Goliath"]) == 15
-        assert income_reading(gangs["Escher"]) == 0
+        assert income_reading(gangs["Goliath"]) == 25
+        assert income_reading(gangs["Escher"]) == 10
 
         held = add_asset(campaign, vats)
         assign_asset(held, gangs["Escher"])
-        assert income_reading(gangs["Escher"]) == 15
+        assert income_reading(gangs["Escher"]) == 25
         for gang in gangs.values():
             gang.refresh_from_db()
             assert_reconciled(gang)
@@ -647,8 +632,8 @@ class TestAJournalTerritoryInPlay:
 
         assert not gang_rules(gangs["Goliath"])
         assert not gang_rules(gangs["Escher"])
-        assert income_reading(gangs["Goliath"]) == 20
-        assert income_reading(gangs["Escher"]) == 20
+        assert income_reading(gangs["Goliath"]) == 30
+        assert income_reading(gangs["Escher"]) == 30
 
 
 class TestTheSeededControlledBoonsAreReset:
@@ -780,7 +765,7 @@ class TestTheSeededControlledBoonsAreReset:
         assert seed_all() == [NOTHING_TO_DO]
 
     def test_reset_preserves_holdings_history_income_and_house_table_access(
-        self, legacy_boons, core, gang_types, owner, arbitrator, campaigns_open
+        self, legacy_boons, core, gang_types, owner, arbitrator
     ):
         from uuid import uuid4
 
@@ -801,13 +786,13 @@ class TestTheSeededControlledBoonsAreReset:
         table = AssetTable.objects.get(name=GOLIATH_TABLE)
         holdings = list(CampaignAsset.objects.filter(campaign=campaign).values())
         recorded = campaign_history(campaign)
-        assert income_reading(gang) == 32
+        assert income_reading(gang) == 42
         assert legacy_boons["Slug House"][1] in gang_rules(gang)
 
         seed_all()
 
         assert income_of(vats) == 15
-        assert income_reading(gang) == 22
+        assert income_reading(gang) == 32
         assert Modifier.objects.filter(pk=override.pk).exists()
         assert not gang_rules(gang)
         assert (
@@ -969,10 +954,6 @@ class TestTheHouseTable:
     starting-roll dialog offers it; an Escher gang's does not until the
     arbitrator opens the table. A staged table is offered only to a reader
     who may see staged content."""
-
-    @pytest.fixture(autouse=True)
-    def flag(self, campaigns_open):
-        return campaigns_open
 
     @pytest.fixture
     def campaign(self, seeded, core, staff_arbitrator):

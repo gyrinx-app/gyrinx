@@ -113,6 +113,17 @@ class LedgerEntry(Base):
             "stash."
         ),
     )
+    #: A clone copies an advancement's contribution but not the advancement
+    #: record that names it, so the copy's entry keeps that fact itself. The
+    #: database default lets a revision that predates the column still insert.
+    cloned_from_advancement = models.BooleanField(
+        default=False,
+        db_default=False,
+        help_text=(
+            "Copied from a contribution an advancement added. The rating "
+            "breakdown lists it under Advancements."
+        ),
+    )
     note = models.CharField(max_length=255, blank=True)
 
     class Meta:
@@ -169,6 +180,10 @@ class LedgerEvent(Base):
         AMENDED = "amended", "Amended"
         REPRICED = "repriced", "Repriced"
         REMOVED = "removed", "Removed"
+        # One removed assignment put back exactly as it was, when an
+        # arbitrator unarchives a campaign counter or label. Never a fresh
+        # grant: the value or pick it held comes back with it.
+        RESTORED = "restored", "Restored"
         REFUNDED = "refunded", "Refunded"
         # Separate from REFUNDED: a refund undoes a purchase and returns what
         # was paid; a sale is a later trade at half the item's rating. The
@@ -229,6 +244,7 @@ class LedgerEvent(Base):
         ACTION_USE_CORRECTED = "use_corrected", "Action use corrected"
         ACTION_USE_APPLIED_BY_HAND = "use_by_hand", "Action use applied by hand"
         ACTION_USE_REOPENED = "use_reopened", "Action use reopened"
+        ACTION_USE_UNDONE = "use_undone", "Action use undone"
 
         # A gang joining or leaving a campaign. Recorded on the gang; the
         # campaign's log reads the same events.

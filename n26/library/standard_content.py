@@ -507,6 +507,11 @@ def _create_visit_contribution():
     counter = visit_contribution_counter()
     if counter is None:
         counter = Counter.objects.create(name=VISIT_CONTRIBUTION_COUNTER, drawn=False)
+    spyrer = _by_name(Subtype, "Spyrer")
+    if spyrer is None:
+        from n26.library.authoring import create_subtype
+
+        spyrer = create_subtype("Spyrer")
     better = []
     for (rank, amount), name in zip(
         VISIT_CONTRIBUTIONS, VISIT_CONTRIBUTION_MODIFIERS, strict=True
@@ -519,12 +524,33 @@ def _create_visit_contribution():
                 modifier(
                     name,
                     targets_model(
-                        *([has_subtypes(*better, negate=True)] if better else [])
+                        *([has_subtypes(*better, negate=True)] if better else []),
+                        has_subtypes(spyrer, negate=True),
                     ),
                     ef_contributes_to_counter(counter, amount),
                 )
             )
         better.append(subtype)
+
+
+def _create_built_in_actions():
+    from n26.library.authoring import configure_trading_post_visit, create_gang_type
+    from n26.library.models import BuiltInAction, GangType
+
+    if BuiltInAction.objects.filter(key=BuiltInAction.Key.TRADING_POST_VISIT).exists():
+        return
+    spyre = _by_name(GangType, "Spyre Hunters")
+    if spyre is None:
+        spyre = create_gang_type("Spyre Hunters")
+    configure_trading_post_visit([spyre])
+
+
+def _check_built_in_actions():
+    from n26.library.models import BuiltInAction
+
+    return BuiltInAction.objects.filter(
+        key=BuiltInAction.Key.TRADING_POST_VISIT
+    ).count(), 1
 
 
 def _raises_visit_counter(subtype, counter):
@@ -2657,10 +2683,18 @@ STANDARD_CONTENT = {
                 "The counter for what each model adds to a Visit Trading "
                 "Post action, and the modifiers that raise it: 2 on the "
                 "Leader subtype, 1 on Champion. The counter is not drawn "
-                "on any card. A model holding both ranks adds 2, not 3."
+                "on any card. A model holding both ranks adds 2, not 3. "
+                "Spyrer models contribute nothing through these modifiers."
             ),
             check=_check_visit_contribution,
             create=_create_visit_contribution,
+        ),
+        StandardContent(
+            key="built-in-actions",
+            name="Built-in actions",
+            help="Default visibility for Visit Trading Post. Spyre Hunters find it under Other actions. Author changes are preserved.",
+            check=_check_built_in_actions,
+            create=_create_built_in_actions,
         ),
         StandardContent(
             key="founding-budgets",

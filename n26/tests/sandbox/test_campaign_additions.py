@@ -29,7 +29,7 @@ from n26.core.models import CampaignAsset, CampaignEvent, LedgerEvent
 from n26.core.operations import Refusal, operation
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
-from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
+from n26.flags import BUILT_IN_PROPAGATION
 from n26.library.authoring import (
     add_asset_type,
     add_built_in,
@@ -118,13 +118,6 @@ def rival(gang_type, campaign):
 def campaign_asset(campaign, old_ruins, gang):
     """Old Ruins in the campaign, held by the player's gang."""
     return assign_asset(add_asset(campaign, old_ruins), gang)
-
-
-@pytest.fixture
-def open_to_everyone(db):
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture
@@ -273,7 +266,7 @@ class TestActingForAHolderThatChanged:
         assert unassign_asset(campaign_asset).holder is None
 
     def test_the_page_refuses_the_owners_stale_post(
-        self, client, campaign_asset, gang, rival, open_to_everyone
+        self, client, campaign_asset, gang, rival
     ):
         client.force_login(gang.owner)
         address = reverse(
@@ -291,10 +284,6 @@ class TestActingForAHolderThatChanged:
 class TestTransferOnThePage:
     """The arbitrator transfers; the holding gang's owner hands over;
     nobody else is offered either."""
-
-    @pytest.fixture(autouse=True)
-    def flag(self, open_to_everyone):
-        return open_to_everyone
 
     def address(self, campaign_asset):
         return reverse(
@@ -456,7 +445,7 @@ class TestAnAsset:
             create_campaign_asset(campaign, territory, "sump hole")
 
     def test_another_campaign_on_the_same_type_never_sees_it(
-        self, client, campaign, core, open_to_everyone
+        self, client, campaign, core
     ):
         """An asset written under the shared Territory type belongs to the
         campaign whose pack it is in. A second campaign founded on the same
@@ -656,7 +645,7 @@ class TestACounter:
         add_campaign_counter(campaign, "Meat", opening=3)
         late = found_gang("Late", gang_type, owner=User.objects.create_user("late"))
         join_campaign(late, campaign)
-        assert readings(late) == {"Reputation": 0, "Income": 0, "Meat": 3}
+        assert readings(late) == {"Reputation": 1, "Income": 10, "Meat": 3}
 
     def test_gangs_already_playing_catch_up(
         self, campaign, gang, rival, propagating, task_queue
@@ -665,8 +654,8 @@ class TestACounter:
             add_campaign_counter(campaign, "Meat", opening=3)
         task_queue.deliver_all()
 
-        assert readings(gang) == {"Reputation": 0, "Income": 0, "Meat": 3}
-        assert readings(rival) == {"Reputation": 0, "Income": 0, "Meat": 3}
+        assert readings(gang) == {"Reputation": 1, "Income": 10, "Meat": 3}
+        assert readings(rival) == {"Reputation": 1, "Income": 10, "Meat": 3}
         caught_up = LedgerEvent.objects.filter(
             gang=gang, kind=LedgerEvent.Kind.CAUGHT_UP
         )
@@ -683,12 +672,12 @@ class TestACounter:
         sheet = render_campaign(campaign)
         assert sheet.counter_columns == ["Reputation", "Income", "Meat"]
         (line,) = sheet.gangs
-        assert [c.value if c else None for c in line.counters] == [0, 0, None]
+        assert [c.value if c else None for c in line.counters] == [1, 10, None]
 
         task_queue.deliver_all()
 
         (line,) = render_campaign(campaign).gangs
-        assert [c.value if c else None for c in line.counters] == [0, 0, 3]
+        assert [c.value if c else None for c in line.counters] == [1, 10, 3]
 
     def test_a_name_the_pack_already_uses_is_refused(self, campaign):
         add_campaign_counter(campaign, "Meat")
@@ -935,10 +924,6 @@ class TestTheArbitratorsControlsOnThePage:
     """Four small pages, the arbitrator's alone, each landing back on the
     part of the campaign page where what it added shows."""
 
-    @pytest.fixture(autouse=True)
-    def flag(self, open_to_everyone):
-        return open_to_everyone
-
     def test_the_arbitrator_sees_the_controls_and_a_player_does_not(
         self, client, campaign, gang
     ):
@@ -1037,7 +1022,15 @@ class TestTheArbitratorsControlsOnThePage:
         assert entry.income == 15
         html = client.get(response["Location"]).content.decode()
         assert "Sump Hole (flooded)" in html
-        assert "15¢" in html
+        from n26.tests.fixtures import island_props
+
+        drawn = next(
+            entry
+            for entry in island_props(html, "campaign-assets")["entries"]
+            if entry["name"] == "Sump Hole (flooded)"
+        )
+        assert drawn["income"]["value"] == 15
+        assert drawn["income"]["currency"] is True
 
     def test_add_remains_available_for_custom_holdings_when_catalogue_is_empty(
         self, client, arbitrator
@@ -1119,10 +1112,6 @@ class TestTheCampaignsOwnTypeIsInvisible:
     campaign's name and is nobody's to found on or author against, so no
     staff listing names it and the founding form never offers it."""
 
-    @pytest.fixture(autouse=True)
-    def flag(self, open_to_everyone):
-        return open_to_everyone
-
     def test_the_authoring_listing_and_menu_leave_it_out(self, client, campaign, core):
         staff = User.objects.create_user("staff", is_staff=True)
         client.force_login(staff)
@@ -1151,10 +1140,6 @@ class TestTheCampaignsOwnTypeIsInvisible:
 
 class TestCampaignContentIsOutsideAuthoring:
     """A campaign's pack stays with its campaign, outside staff authoring."""
-
-    @pytest.fixture(autouse=True)
-    def flag(self, open_to_everyone):
-        return open_to_everyone
 
     def test_a_labels_four_kinds_are_absent_from_their_listings(
         self, admin_client, campaign
@@ -1232,7 +1217,7 @@ class TestCampaignContentIsOutsideAuthoring:
         territory = core.asset_types.get(label_singular="Territory")
         create_campaign_asset(campaign, territory, "Campaign mine", income=15)
         campaign_modifier = Modifier.objects.get(pack=campaign.pack)
-        book_modifier = Modifier.objects.get(pack=old_ruins.pack)
+        book_modifier = old_ruins.modifiers.get()
 
         body = admin_client.get(
             reverse("authoring-leaf", args=["counter"])
@@ -1324,10 +1309,6 @@ class TestTheArbitratorTallies:
     """The one act on a gang that is not its owner's: the arbitrator moving
     a campaign counter on any gang at the table, from the campaign page."""
 
-    @pytest.fixture(autouse=True)
-    def flag(self, open_to_everyone):
-        return open_to_everyone
-
     def reputation_of(self, gang):
         (line,) = [
             line
@@ -1340,7 +1321,13 @@ class TestTheArbitratorTallies:
         client.force_login(campaign.owner)
         page = reverse("n26-campaign", args=[campaign.pk])
         body = client.get(page).content.decode()
-        assert "Edit Reputation" in body
+        from n26.tests.fixtures import island_props
+
+        counters = island_props(body, "campaign-gangs")["gangs"][0]["counters"]
+        assert any(
+            counter and counter["name"] == "Reputation" and counter["adjustHref"]
+            for counter in counters
+        )
 
         response = client.post(
             reverse("n26-tally", args=[self.reputation_of(gang).assignment_id]),
@@ -1349,7 +1336,7 @@ class TestTheArbitratorTallies:
 
         assert response.status_code == 302
         assert response["Location"] == page + "#gangs"
-        assert self.reputation_of(gang).value == 1
+        assert self.reputation_of(gang).value == 2
         tallied = LedgerEvent.objects.get(gang=gang, kind=LedgerEvent.Kind.TALLIED)
         assert tallied.actor == campaign.owner
         assert tallied.campaign == campaign
@@ -1361,13 +1348,23 @@ class TestTheArbitratorTallies:
         client.force_login(rival.owner)
         body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
         # Their own row carries the control; the other gang's does not.
-        assert body.count("Edit Reputation") == 1
+        from n26.tests.fixtures import island_props
+
+        rows = island_props(body, "campaign-gangs")["gangs"]
+        assert {
+            row["id"]
+            for row in rows
+            if any(
+                counter and counter["name"] == "Reputation" and counter["adjustHref"]
+                for counter in row["counters"]
+            )
+        } == {str(rival.pk)}
         response = client.post(
             reverse("n26-tally", args=[self.reputation_of(gang).assignment_id]),
             {"change": "1"},
         )
         assert response.status_code == 404
-        assert self.reputation_of(gang).value == 0
+        assert self.reputation_of(gang).value == 1
 
     def test_the_arbitrator_may_not_move_a_gangs_own_counter(
         self, client, campaign, gang, default_pack

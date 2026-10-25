@@ -25,6 +25,8 @@ from n26.library.fighter_action_setup import (
 from n26.library.models import (
     Action,
     AdvancementPromotion,
+    Category,
+    CollectionSection,
     Counter,
     Dice,
     Hidden,
@@ -32,6 +34,7 @@ from n26.library.models import (
     Pickable,
     ProfileType,
     Rule,
+    Skill,
     Stat,
     Subtype,
     Trait,
@@ -957,6 +960,152 @@ class TestPromotions:
         assert "Medicate" in skills
         assert "Clamber" not in skills
 
+    def test_undo_restores_the_prospect_and_refuses_a_later_dependent_advancement(
+        self, client, progression
+    ):
+        from n26.core.advancements import advancement_undo_snapshot
+
+        record, url = _start(client, progression, _earned(progression, 13))
+        pick = Pickable.objects.get(name="Ganger specialist: Scout")
+        response = client.post(url, {"pickable_id": str(pick.pk)})
+        page = client.get(response.url)
+        assert (
+            client.post(
+                response.url, {"review": page.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        expected = advancement_undo_snapshot(record)
+        with operation(progression.gang, actor=progression.owner) as op:
+            op.undo_action(record, expected=expected)
+        assert {str(row.thing) for row in _computed(progression.fighter).subtypes} == {
+            "Prospect"
+        }
+        assert "Clamber" not in {
+            str(row.thing) for row in _computed(progression.fighter).skills
+        }
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        response = client.post(url, {"pickable_id": str(pick.pk)})
+        page = client.get(response.url)
+        assert (
+            client.post(
+                response.url, {"review": page.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        with operation(progression.gang, actor=progression.owner) as op:
+            op.tally(progression.xp, 6)
+        later = ActionAllowance.objects.get(fighter=progression.fighter, threshold=19)
+        with operation(progression.gang, actor=progression.owner) as op:
+            op.start_action(
+                progression.fighter, progression.action, uuid4(), allowance=later
+            )
+        with pytest.raises(Refusal, match="later advancement depends"):
+            advancement_undo_snapshot(record)
+        progression.gang.refresh_from_db()
+        assert_reconciled(progression.gang)
+
+    @pytest.mark.parametrize("reapply", [True, False], ids=["reapply", "correct"])
+    def test_promotion_undo_checks_when_an_older_advancement_was_applied(
+        self, client, progression, reapply
+    ):
+        def confirm(url):
+            page = client.get(url)
+            response = client.post(
+                url, {"review": page.context["form"]["review"].value()}
+            )
+            assert response.status_code == 302, _errors(response)
+
+        agility = Category.objects.get(name="Agility", section__name="Skills")
+        primary = CollectionSection.objects.get(
+            collection__name="Skills & Powers", name="Primary"
+        )
+        a.modifier(
+            "Specialists learn Agility",
+            a.targets_model(),
+            a.ef_places(agility, primary),
+            attach_to=Subtype.objects.get(name="Specialist"),
+        )
+        a.set_statline(progression.profile, toughness=3)
+        promotion_allowance = _earned(progression, 13)
+        earlier_allowance = ActionAllowance.objects.create(
+            action=progression.action,
+            fighter=progression.fighter,
+            source=progression.fighter.membership,
+            source_kind=ActionAllowance.Source.RANK,
+            threshold=4,
+            rank_table=promotion_allowance.rank_table,
+        )
+        earlier, earlier_url = _start(client, progression, earlier_allowance)
+        with operation(progression.gang, actor=progression.owner) as op:
+            op.record_action_roll(
+                earlier, progression.outcome.operation, uuid4(), rolled=5
+            )
+        page = client.get(earlier_url)
+        choices = [row["option"] for row in page.context["advancement_options"]]
+        characteristic = next(
+            option for option in choices if option.name.startswith("Toughness")
+        )
+        response = client.post(earlier_url, {"pickable_id": characteristic.id})
+        assert response.status_code == 302, _errors(response)
+        confirm(response.url)
+        promoted, promotion_url = _start(client, progression, promotion_allowance)
+        scout = Pickable.objects.get(name="Ganger specialist: Scout")
+        response = client.post(promotion_url, {"pickable_id": str(scout.pk)})
+        assert response.status_code == 302, _errors(response)
+        confirm(response.url)
+        promoted.refresh_from_db()
+        undo_promotion = reverse(
+            "n26-action-flow", args=[progression.fighter.pk, promoted.pk, "undo"]
+        )
+        token = client.get(undo_promotion).context["form"]["review"].value()
+        if reapply:
+            undo_earlier = reverse(
+                "n26-action-flow", args=[progression.fighter.pk, earlier.pk, "undo"]
+            )
+            confirm(undo_earlier)
+        else:
+            earlier_url = reverse(
+                "n26-action-flow", args=[progression.fighter.pk, earlier.pk, "correct"]
+            )
+        page = client.get(earlier_url)
+        selected = next(
+            row["option"]
+            for row in page.context["advancement_options"]
+            if row["option"].name.startswith("Select Primary skill")
+        )
+        response = client.post(earlier_url, {"pickable_id": selected.id})
+        assert response.status_code == 302, _errors(response)
+        skill = Skill.objects.filter(category=agility).exclude(name="Clamber").first()
+        assert skill is not None
+        response = client.post(response.url, {"skill_id": str(skill.pk)})
+        assert response.status_code == 302, _errors(response)
+        confirm(response.url)
+        earlier.refresh_from_db()
+        assert earlier.terms.get("skill_id") == str(skill.pk), earlier.terms
+        assert earlier.skill_selection.skill_assignment.skill_id == skill.pk
+        assert not earlier.skill_selection.skill_assignment.archived
+        assert earlier.created < promoted.created
+        assert earlier.ledger_events.filter(
+            kind__in=[
+                LedgerEvent.Kind.ACTION_USE_COMPLETED,
+                LedgerEvent.Kind.ACTION_USE_CORRECTED,
+            ],
+            created__gt=promoted.completed_event.created,
+        ).exists()
+        blocked = client.post(undo_promotion, {"review": token})
+        assert "later advancement depends on this promotion" in blocked.content.decode()
+        promoted.refresh_from_db()
+        assert promoted.state == ActionRecord.State.COMPLETED
+        assert not promoted.advancement_selection.pick_assignment.archived
+        earlier.skill_selection.skill_assignment.refresh_from_db()
+        assert not earlier.skill_selection.skill_assignment.archived
+        progression.gang.refresh_from_db()
+        assert_reconciled(progression.gang)
+
     def test_promotion_resolves_the_imported_specialist_choice_once(
         self, client, progression
     ):
@@ -1143,6 +1292,20 @@ class TestPromotions:
         assert {str(row.thing) for row in _computed(progression.fighter).subtypes} == {
             "Champion"
         }
+
+        from n26.core.advancements import advancement_undo_snapshot
+
+        record.refresh_from_db()
+        with operation(progression.gang, actor=progression.owner) as op:
+            op.undo_action(record, expected=advancement_undo_snapshot(record))
+        assert {str(row.thing) for row in _computed(progression.fighter).subtypes} == {
+            "Ganger"
+        }
+        assert not Assignment.objects.filter(
+            pk=record.advancement_selection.promotion_assignment_id, archived=False
+        ).exists()
+        progression.gang.refresh_from_db()
+        assert_reconciled(progression.gang)
 
     def test_promoting_an_initiate_stashes_the_gun_but_keeps_the_melee_weapon(
         self, client, progression

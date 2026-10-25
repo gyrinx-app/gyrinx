@@ -83,7 +83,11 @@
                             <c-n26.print.column>
                                 {% for group in campaign.asset_groups %}
                                     <c-n26.print.entry label="{{ group.label }}">
-                                        {{ group.names }}
+                                        {% if group.names %}
+                                            <c-n26.name-list :names="group.names" label="{{ group.label }}" />
+                                        {% else %}
+                                            None
+                                        {% endif %}
                                     </c-n26.print.entry>
                                 {% endfor %}
                                 {% for line in campaign.other_lines %}

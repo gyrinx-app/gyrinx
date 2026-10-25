@@ -23,7 +23,7 @@ word for what a table contains.
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-tables' campaign.pk %}"
-                     title="Tables"
+                     title="{{ tables_title }}"
                      lead="{{ lead }}"
                      submit_label="Save"
                      submit_variant="primary"

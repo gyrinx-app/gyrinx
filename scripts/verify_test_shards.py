@@ -8,6 +8,8 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from gyrinx.suite_shards import module_shard
+
 
 class InvalidManifest(ValueError):
     """A manifest cannot prove one successful, complete execution."""
@@ -27,11 +29,6 @@ def _ids(value, label):
     _require(all(isinstance(v, str) and v for v in value), f"invalid {label}")
     _require(value == sorted(set(value)), f"{label} must be sorted and unique")
     return set(value)
-
-
-def module_shard(nodeid, count):
-    module = nodeid.split("::", 1)[0]
-    return int.from_bytes(hashlib.sha256(module.encode()).digest(), "big") % count
 
 
 def _validate_execution(manifest, selected):

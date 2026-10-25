@@ -52,8 +52,26 @@ def checked_classes(attrs):
     return {"checked": match[1], "unchecked": match[2]}
 
 
-def native_select_recipe():
-    (select,) = attributes('<c-ui.select.native placeholder="" />', "select")
+def sortable_group_recipe():
+    return {
+        name: classes(
+            '<c-n26.sortable-table.group label="Held" count="2 territories" '
+            + attrs
+            + " />",
+            "tbody",
+            "tr",
+            "th",
+            "span",
+        )
+        for name, attrs in (("default", ""), ("mobile", ':mobile_cards="True"'))
+    }
+
+
+def native_select_recipe(size=""):
+    size_attribute = f'size="{size}"' if size else ""
+    (select,) = attributes(
+        f'<c-ui.select.native placeholder="" {size_attribute} />', "select"
+    )
     style = select.get("style", "").strip()
     match = re.fullmatch(
         r"background-image:\s*(url\('[^']*'\));\s*background-size:\s*([^;]+);?",
@@ -67,9 +85,38 @@ def native_select_recipe():
     }
 
 
+def radio_option_recipe():
+    root, control, content, label, description = classes(
+        '<c-n26.radio-option label="Income" description="Income contribution." />',
+        "label",
+        "input",
+        "span",
+        "span",
+        "span",
+    )
+    return dict(
+        root=root,
+        control=control,
+        content=content,
+        label=label,
+        description=description,
+    )
+
+
 def input_recipe():
     root, control = classes('<c-ui.input type="text" />', "div", "input")
     return {"root": root, "control": control}
+
+
+def name_list_recipe():
+    root, item, separator, text = classes(
+        "<c-n26.name-list :names=\"[{'text': 'Old Ruins'}]\" />",
+        "ul",
+        "li",
+        "span",
+        "span",
+    )
+    return dict(root=root, item=item, separator=separator, text=text)
 
 
 def _switch_face(size="md", checked=False, accent=True, disabled=False):
@@ -408,7 +455,45 @@ def filter_menu_recipe():
     a structural change fails this build instead of silently drifting the
     adapter.
     """
-    source = '<c-n26.filter-menu label="Filter" name="filter" :options="options" />'
+    # The live component is a React island, so the class strings come from this
+    # face: the same kit pieces the menu used to draw, with one option.
+    source = """
+<c-ui.checkbox.group name="filter" :values="[]" class="contents">
+    <div class="inline-block">
+        <c-ui.dropdown align="start" position="bottom" min_width="20rem">
+            <c-slot name="trigger">
+                <c-ui.button size="sm" variant="default">
+                    <span class="flex items-center justify-center gap-1.5">
+                        Filter
+                        <span class="rounded-full bg-ink-500/15 px-1.5 text-xs tabular-nums"></span>
+                        <c-n26.icon name="chevron-down" class="size-4" stroke_width="2" />
+                    </span>
+                </c-ui.button>
+            </c-slot>
+            <div class="p-3">
+                <div class="pb-2 text-sm">
+                    <button type="button" class="rounded text-accent-text hover:underline focus-ring">All</button>
+                    <span class="px-1 text-muted">/</span>
+                    <button type="button" class="rounded text-accent-text hover:underline focus-ring">None</button>
+                </div>
+                <div class="max-h-72 space-y-2 overflow-y-auto py-1">
+                    {% for option in options %}
+                        <div class="flex items-center gap-2">
+                            <c-ui.checkbox value="{{ option.value }}" label="{{ option.label }}" />
+                            <span class="text-muted">·</span>
+                            <button type="button" class="shrink-0 rounded text-sm text-accent-text hover:underline focus-ring">only</button>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-3 flex items-center gap-2 border-t border-box-border pt-3">
+                    <c-ui.button size="sm" variant="primary">OK</c-ui.button>
+                    <c-ui.button size="sm" variant="text">Cancel</c-ui.button>
+                </div>
+            </div>
+        </c-ui.dropdown>
+    </div>
+</c-ui.checkbox.group>
+"""
     rendered = Template(CottonCompiler().process(source)).render(
         Context({"options": [{"value": "one", "label": "One"}]})
     )
@@ -506,6 +591,10 @@ def filter_menu_recipe():
         "actions": at(28),
         "apply": at(29),
         "cancel": at(30),
+        "triggerXs": classes(
+            '<c-ui.button size="xs" variant="default">Filter</c-ui.button>',
+            "button",
+        )[0],
     }
 
 
@@ -1079,8 +1168,11 @@ def recipes():
         "checkboxCard": checkbox_card_recipe(),
         "callout": callout_recipe(),
         "radioCards": radio_cards_recipe(),
+        "radioOption": radio_option_recipe(),
         "input": input_recipe(),
+        "nameList": name_list_recipe(),
         "nativeSelect": native_select_recipe(),
+        "nativeSelectSmall": native_select_recipe("sm"),
         "field": {
             **dict(
                 zip(
@@ -1104,6 +1196,7 @@ def recipes():
         ),
         "card": classes('<c-ui.card padding="sm" />', "div")[0],
         "table": classes("<c-ui.table />", "div", "table"),
+        "sortableGroup": sortable_group_recipe(),
         "link": classes('<c-n26.link href="/">Name</c-n26.link>', "a", "span"),
         "linkCurrent": classes(
             '<c-n26.link href="/" tone="current">Name</c-n26.link>', "a", "span"
@@ -1148,6 +1241,7 @@ def recipes():
         "svgProps": svg_props(),
         "rangeMenu": range_menu_recipe(),
         "userLink": user_link_recipe(),
+        "colorSwatch": classes('<c-n26.color-swatch color="red" />', "span")[0],
         "toggle": toggle_recipe(),
         "popover": {
             "panel": classes(
@@ -1180,6 +1274,10 @@ def recipes():
                 "sun",
                 "moon",
                 "monitor",
+                "arrow-up",
+                "arrow-down",
+                "arrow-right",
+                "pencil",
             )
         },
     }

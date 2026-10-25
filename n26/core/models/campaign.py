@@ -100,6 +100,15 @@ class Campaign(Base, Owned, Archived):
             "adds on top of the type the campaign was founded on."
         ),
     )
+    gang_grouping = models.ForeignKey(
+        "library.Slot",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="grouped_campaigns",
+        help_text="The campaign label used to group gangs by default.",
+    )
+    group_colours = models.JSONField(default=dict, blank=True)
     budget = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -115,6 +124,10 @@ class Campaign(Base, Owned, Archived):
     #: way out (n26.core.templatetags.richtext), so a tightened allowlist
     #: reaches what was already saved.
     summary = models.TextField(blank=True, default="")
+    starting_from_pool = models.BooleanField(
+        default=False,
+        help_text="Allocate starting territories from the existing unclaimed pool.",
+    )
 
     objects = CampaignQuerySet.as_manager()
 
@@ -149,17 +162,22 @@ class CampaignEvent(Base):
         RENAMED = "renamed", "Renamed"
         BUDGET_SET = "budget_set", "Budget set"
         SUMMARY_EDITED = "summary_edited", "Summary edited"
+        STARTING_MODE_SET = "starting_mode_set", "Starting territories changed"
         STATUS_CHANGED = "status_changed", "Status changed"
+        GROUPING_CHANGED = "grouping_changed", "Gang grouping changed"
         ARCHIVED = "archived", "Archived"
         DICE_ROLLED = "dice_rolled", "Dice rolled"
         DICE_ROLL_NOTED = "dice_roll_noted", "Dice roll noted"
         BATTLE_RECORDED = "battle_recorded", "Battle recorded"
         BATTLE_EDITED = "battle_edited", "Battle edited"
         BATTLE_REMOVED = "battle_removed", "Battle removed"
+        BATTLE_ARCHIVED = "battle_archived", "Battle archived"
+        BATTLE_RESTORED = "battle_restored", "Battle restored"
         INVITED = "invited", "Invited a player"
         INVITE_ACCEPTED = "invite_accepted", "Invitation accepted"
         INVITE_DECLINED = "invite_declined", "Invitation declined"
         PLAYER_REMOVED = "player_removed", "Player removed"
+        PLAYER_LEFT = "player_left", "Player left"
         # The campaign's assets changing with no gang touched. An asset
         # assigned to a gang or unassigned from one changes the gang, and
         # is that gang's ledger event instead.
@@ -177,6 +195,15 @@ class CampaignEvent(Base):
         ASSET_CREATED = "asset_created", "Asset created"
         COUNTER_ADDED = "counter_added", "Counter added"
         LABEL_ADDED = "label_added", "Label added"
+        # A counter or label the arbitrator added, taken off every gang.
+        # Each gang's removal is that gang's ledger event, written under
+        # the same mark, so the log shows the archive as this one line.
+        COUNTER_ARCHIVED = "counter_archived", "Counter archived"
+        LABEL_ARCHIVED = "label_archived", "Label archived"
+        # The same counter or label given back to every gang still in the
+        # campaign, each gang's restoration written under the same mark.
+        COUNTER_UNARCHIVED = "counter_unarchived", "Counter unarchived"
+        LABEL_UNARCHIVED = "label_unarchived", "Label unarchived"
         # Changes to the asset tables available to every gang in the
         # campaign beyond its type's own: a table added to the campaign's
         # additions, removed from them, or created for this campaign.
@@ -417,7 +444,7 @@ class CampaignAsset(Base):
         return self.asset.asset_type.label_singular.lower()
 
 
-class Battle(Base):
+class Battle(Base, Archived):
     """A campaign battle and its result, separate from changes to the gangs."""
 
     class Result(models.TextChoices):
@@ -445,7 +472,7 @@ class Battle(Base):
         blank=True,
     )
     winners = models.ManyToManyField("n26.Gang", related_name="battles_won", blank=True)
-    #: A campaign asset a participant put up for this battle. Only the
+    #: A campaign asset staked for this battle. Only the
     #: arbitrator sets it, and the holder is always read from the asset.
     stake = models.ForeignKey(
         "n26.CampaignAsset",
@@ -454,8 +481,8 @@ class Battle(Base):
         blank=True,
         related_name="staked_in",
     )
-    #: The participant the stake goes to. Blank means it stays with whoever
-    #: held it.
+    #: The participant the stake goes to. Blank leaves it with its holder
+    #: or in the unclaimed pool.
     stake_awarded_to = models.ForeignKey(
         "n26.Gang",
         on_delete=models.SET_NULL,
@@ -463,8 +490,8 @@ class Battle(Base):
         blank=True,
         related_name="stakes_awarded",
     )
-    #: The ledger batch shared by the LOST and GAINED events of this
-    #: battle's stake transfer. When set, the stake has moved, so saving
+    #: The ledger batch recording this battle's stake award. An unclaimed
+    #: stake has only a GAINED event. When set, the stake has moved, so saving
     #: again does not move it twice; a correction reverses the transfer
     #: first.
     stake_transfer_mark = models.UUIDField(null=True, blank=True, editable=False)

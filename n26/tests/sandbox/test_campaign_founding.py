@@ -4,7 +4,7 @@ A campaign is founded on a shared campaign type and owns, from that
 moment, a pack of its own with an empty additions type in it. A gang
 that joins is assigned both types, gang-hosted and granted, and the
 shared type's built-ins arrive caused by its carrier — on Territory campaign, a
-Settlement and a Reputation counter at 0. The gang sheet draws those
+Settlement and a Reputation counter at 1. The gang sheet draws those
 under the campaign's name, credited to the type that brought them, and
 a staff edit to the shared type reaches every member gang by the same
 propagation that reaches a gang type's members. See
@@ -49,7 +49,7 @@ def arbitrator():
 
 @pytest.fixture
 def core(default_pack):
-    """The Territory campaign type as it ships: Reputation at 0 and a Settlement
+    """The Territory campaign type as it ships: Reputation at 1 and a Settlement
     built in. The data migration that creates it never runs under the
     test settings, so the same code seeds it here."""
     seed_core_campaign(apps)
@@ -153,7 +153,7 @@ class TestJoiningACampaign:
     def test_the_types_built_ins_arrive_caused_by_its_carrier(self, membership):
         assert caused_by(membership.type_carrier) == [
             ("Income", 0),
-            ("Reputation", 0),
+            ("Reputation", 1),
             ("Settlement", None),
         ]
         # An additions type is empty at founding, so its carrier brings
@@ -231,8 +231,8 @@ class TestTheGangSheet:
         assert [
             (line.name, line.value, line.provenance.source) for line in block.counters
         ] == [
-            ("Reputation", 0, "Territory campaign"),
-            ("Income", 0, "Territory campaign"),
+            ("Reputation", 1, "Territory campaign"),
+            ("Income", 10, "Territory campaign"),
         ]
 
     def test_the_owner_can_tally_the_campaigns_counter_from_the_sheet(
@@ -254,7 +254,7 @@ class TestTheGangSheet:
 
         assert [
             (line.name, line.value) for line in render_gang(gang).campaign.counters
-        ] == [("Reputation", 1), ("Income", 0)]
+        ] == [("Reputation", 2), ("Income", 20)]
 
     def test_a_reader_who_does_not_own_the_gang_gets_no_tally_control(
         self, client, membership, gang
@@ -262,18 +262,6 @@ class TestTheGangSheet:
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
         assert "Reputation" in body
         assert "Add one to Reputation" not in body
-
-    def test_a_reader_outside_the_campaigns_feature_gets_the_name_alone(
-        self, client, membership, gang, campaign
-    ):
-        """The campaign pages answer a reader outside the feature with a
-        404, so the sheet names the campaign rather than linking to it."""
-        client.force_login(gang.owner)
-
-        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
-
-        assert "Dust Falls" in body
-        assert reverse("n26-campaign", args=[campaign.pk]) not in body
 
     def test_the_campaigns_counter_is_drawn_once(self, membership, gang):
         sheet = render_gang(gang)
@@ -301,7 +289,8 @@ class TestTheGangSheet:
             heading.get_text(" ", strip=True)
             == f"Campaign · {membership.campaign.name}"
         )
-        assert "Settlements" in state.get_text()
+        assert "Territories" in state.get_text()
+        assert "Settlements" not in state.get_text()
 
 
 class TestEditingTheTypeReachesMemberGangs:
@@ -326,7 +315,7 @@ class TestEditingTheTypeReachesMemberGangs:
         assert caused_by(membership.type_carrier) == [
             ("Income", 0),
             ("Meat", 2),
-            ("Reputation", 0),
+            ("Reputation", 1),
             ("Settlement", None),
         ]
         assert_reconciled(gang)
@@ -347,7 +336,7 @@ class TestEditingTheTypeReachesMemberGangs:
         assert caused_by(membership.type_carrier) == [
             ("Bolthole", None),
             ("Income", 0),
-            ("Reputation", 0),
+            ("Reputation", 1),
             ("Settlement", None),
         ]
         block = render_gang(gang).campaign
@@ -399,16 +388,8 @@ class TestEditingTheTypeReachesMemberGangs:
 class TestTheLeaveRoute:
     """Taking a gang out gives back everything its carriers brought."""
 
-    @pytest.fixture
-    def open_to_everyone(self):
-        from n26.flags import CAMPAIGNS
-
-        return FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
-
     def test_it_removes_what_the_carriers_brought(
-        self, client, membership, gang, campaign, arbitrator, open_to_everyone
+        self, client, membership, gang, campaign, arbitrator
     ):
         client.force_login(arbitrator)
         address = reverse("n26-campaign-remove-gang", args=[campaign.pk, gang.pk])
@@ -484,7 +465,7 @@ class TestGivingExistingCampaignsTheirPacks:
         assert membership.type_carrier.ledger_entry.reason == Reason.GRANTED
         assert caused_by(membership.type_carrier) == [
             ("Income", 0),
-            ("Reputation", 0),
+            ("Reputation", 1),
             ("Settlement", None),
         ]
         assert_reconciled(gang)
@@ -501,8 +482,8 @@ class TestGivingExistingCampaignsTheirPacks:
             ("Settlement", "Settlement")
         ]
         assert [(line.name, line.value) for line in block.counters] == [
-            ("Reputation", 0),
-            ("Income", 0),
+            ("Reputation", 1),
+            ("Income", 10),
         ]
         granted = LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.GRANTED)
         assert granted.count() == 5

@@ -44,7 +44,7 @@ from n26.core.operations import ROLL_ENTERED, Refusal
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_campaign, render_gang
 from n26.core.views.campaigns import _holding_assets
-from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
+from n26.flags import BUILT_IN_PROPAGATION
 from n26.library.authoring import (
     add_asset_table_entry,
     create_asset,
@@ -92,13 +92,6 @@ def _roll_props(body):
 @pytest.fixture
 def arbitrator(db):
     return User.objects.create_user("arbitrator")
-
-
-@pytest.fixture
-def campaigns_open(db):
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture
@@ -520,7 +513,7 @@ class TestTheCatalogue:
         assert after == before
 
     def test_an_opened_tables_entry_can_be_added_by_hand(
-        self, client, campaign, journal, arbitrator, campaigns_open
+        self, client, campaign, journal, arbitrator
     ):
         """The picker and the act read one rule: what the widened catalogue
         offers, Add territory accepts, though the asset sits in a pack the
@@ -698,10 +691,6 @@ class TestThePages:
     word; the dialogs offer only what can be rolled on; nothing new
     reaches the gang sheet."""
 
-    @pytest.fixture(autouse=True)
-    def flag(self, campaigns_open):
-        return campaigns_open
-
     def test_the_roll_control_appears_only_where_a_rolled_table_is_held(
         self, client, arbitrator, default_pack
     ):
@@ -731,7 +720,7 @@ class TestThePages:
             reverse("n26-campaign", args=[quiet.pk]) + f"?roll={racket.pk}"
         ).content.decode()
         assert "Roll racket" in page
-        assert "Each rolled racket will be added to the campaign as unclaimed." in page
+        assert "Add unclaimed rackets to the campaign pool." in page
         assert "three per gang" not in page
 
     def test_a_malformed_gang_key_is_a_bad_link(
@@ -784,7 +773,7 @@ class TestThePages:
         client.force_login(arbitrator)
         address = reverse("n26-campaign", args=[campaign.pk]) + f"?roll={territory.pk}"
         page = client.get(address).content.decode()
-        assert "The rules generate three per gang: 9 for this campaign." in page
+        assert "Three per gang: 9 unclaimed territories for this campaign." in page
         assert "Roll territories" in page
         assert f'name="table" value="{selection_table.pk}"' in page
 
@@ -802,8 +791,52 @@ class TestThePages:
             body, "html.parser"
         ).get_text(" ", strip=True)
         assert f'type="hidden" name="table" value="{selection_table.pk}"' in body
+        assert "Add unclaimed territories to the campaign pool." in body
+
+    def test_pool_roll_keeps_explicit_table_preferences_through_the_dialog(
+        self, client, campaign, territory, selection_table, arbitrator
+    ):
+        from uuid import uuid4
+
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            label = op.add_label("Division", ["Upper"])
+            op.set_gang_grouping(str(label.pk), {})
+        client.force_login(arbitrator)
+        page = reverse("n26-campaign", args=[campaign.pk])
+        current = page + "?sort=-rating&group="
+        sheet = client.get(current).context["sheet"]
+        link = next(
+            table.roll_href
+            for table in sheet.assets
+            if table.asset_type_id == str(territory.pk)
+        )
+        opened = client.get(
+            link,
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver" + current,
+        )
+        assert opened.context["cancel_url"] == current
+        response = client.post(
+            reverse("n26-campaign-roll-asset", args=[campaign.pk]),
+            {
+                "type": str(territory.pk),
+                "table": str(selection_table.pk),
+                "count": 1,
+                "rolled": 11,
+                "request_key": str(uuid4()),
+            },
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver" + opened["HX-Replace-Url"],
+        )
+        assert response.status_code == 200
+        assert response["HX-Replace-Url"] == current
+        assert response.context["sheet"].table_sort == "-rating"
+        assert response.context["sheet"].table_group == ""
         assert (
-            "Each rolled territory will be added to the campaign as unclaimed." in body
+            CampaignAsset.objects.filter(campaign=campaign, holder__isnull=True).count()
+            == 1
         )
 
     @pytest.mark.parametrize("allocation", ["roll", "assign"])
@@ -885,7 +918,10 @@ class TestThePages:
             cats, "html.parser"
         ).get_text(" ", strip=True)
         assert 'type="radio"' not in cats.split('id="n26-roll-dialog-host"')[1]
-        assert "The rolled territory will be assigned to Wild Cats." in cats
+        assert (
+            "Roll an additional territory for this gang, separate from the unclaimed pool."
+            in cats
+        )
         assert "The tables Wild Cats holds" not in cats
 
         # Two tables are radio cards, each named with its die; the range
@@ -893,7 +929,40 @@ class TestThePages:
         assert kings.count('type="radio"') == 2
         assert "A D6 roll is 1 to 6." in kings
         assert "A D66 roll is 11 to 66." in kings
-        assert "The rolled territory will be assigned to Slag Kings." in kings
+        assert (
+            "Roll an additional territory for this gang, separate from the unclaimed pool."
+            in kings
+        )
+
+    def test_starting_roll_cancel_keeps_the_table_view_after_a_refusal(
+        self, client, campaign, territory, journal, slag_kings, arbitrator
+    ):
+        client.force_login(arbitrator)
+        page = reverse("n26-campaign", args=[campaign.pk])
+        current = page + "?sort=-rating&group="
+        opened = client.get(
+            page,
+            {
+                "starting": str(slag_kings.pk),
+                "type": str(territory.pk),
+                "sort": "-rating",
+                "group": "",
+            },
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver" + current,
+        )
+        assert _roll_props(opened.content.decode())["cancelUrl"] == current
+        response = client.post(
+            reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]),
+            {"type": str(territory.pk), "table": str(journal.pk), "rolled": 99},
+            HTTP_HX_REQUEST="true",
+            HTTP_HX_CURRENT_URL="http://testserver"
+            + current
+            + f"&starting={slag_kings.pk}&type={territory.pk}",
+        )
+        assert response.status_code == 200
+        assert _roll_props(response.content.decode())["cancelUrl"] == current
+        assert not CampaignAsset.objects.filter(campaign=campaign).exists()
 
     def test_the_starting_dialog_draws_its_roll_and_buttons_in_one_island(
         self, client, campaign, territory, journal, slag_kings, wild_cats, arbitrator
@@ -1135,19 +1204,12 @@ class TestThePages:
         soup = BeautifulSoup(response.content, "html.parser")
         region = soup.find(id="n26-campaign-gangs")
         assert region["hx-swap-oob"] == "true"
-        menus = {}
-        for host in region.select('[data-react-name="action-menu"]'):
-            props = json.loads(soup.find(id=host["data-react-props"]).string)
-            menus[props["label"]] = [
-                (item["label"], item["href"]) for item in props["items"]
-            ]
-        assert menus == {
-            f"Actions for {gang.name}": [
-                (
-                    "Remove from campaign",
-                    reverse("n26-campaign-remove-gang", args=[campaign.pk, gang.pk]),
-                )
-            ]
+        from n26.tests.fixtures import island_props
+
+        props = island_props(response.content, "campaign-gangs")
+        assert not region.select('[data-react-name="action-menu"]')
+        assert {gang["name"]: gang["removeHref"] for gang in props["gangs"]} == {
+            gang.name: reverse("n26-campaign-remove-gang", args=[campaign.pk, gang.pk])
             for gang in (slag_kings, wild_cats)
         }
 
@@ -1310,13 +1372,15 @@ class TestThePages:
         assert "Goliath Territories" in page
         assert "Optional territory tables</legend>" in page
         assert "Available to every gang</legend>" not in page
-        assert "Tables of territories the gangs in this campaign can use." in page
         assert (
-            "Gangs can roll for a starting territory from any of these. You can "
-            "also roll to add unclaimed territories to the campaign."
+            "These are roll options. Generate the unclaimed pool separately with Roll territories."
+            in page
+        )
+        assert (
+            "Use these tables for starting rolls or to generate unclaimed territories."
         ) in page
         assert "Territories already rolled stay in the campaign." in page
-        for banned in ("roll on", "holds", "Entries", "pool", "Given by", "opened"):
+        for banned in ("roll on", "holds", "Entries", "Given by", "opened"):
             assert banned not in page, banned
 
         with task_queue.capture():
@@ -1490,7 +1554,6 @@ class TestThePages:
         assert not badge_reads(refused)
 
 
-@pytest.mark.usefixtures("campaigns_open")
 class TestBatchPool:
     def test_quantity_generates_unclaimed_results_and_records_each_roll(
         self, client, campaign, territory, selection_table, arbitrator, monkeypatch
@@ -1594,7 +1657,6 @@ class TestBatchPool:
         assert "Add to pool" in page
 
 
-@pytest.mark.usefixtures("campaigns_open")
 class TestPoolReads:
     def test_larger_batches_reuse_the_available_table_and_entries(
         self, campaign, selection_table, arbitrator
@@ -1648,7 +1710,7 @@ class TestManualPoolPreview:
         )
 
     def test_preview_matches_the_saved_result_without_creating_assets_or_events(
-        self, client, campaign, selection_table, arbitrator, campaigns_open
+        self, client, campaign, selection_table, arbitrator
     ):
         client.force_login(arbitrator)
         response = self.preview(client, campaign, selection_table, 34)
@@ -1661,7 +1723,7 @@ class TestManualPoolPreview:
 
     @pytest.mark.parametrize("value", ["17", "20", "0", "67", "2.5", "e", ""])
     def test_preview_rejects_numbers_the_die_cannot_make(
-        self, client, campaign, selection_table, arbitrator, campaigns_open, value
+        self, client, campaign, selection_table, arbitrator, value
     ):
         client.force_login(arbitrator)
         response = self.preview(client, campaign, selection_table, value)
@@ -1669,7 +1731,7 @@ class TestManualPoolPreview:
         assert not rolled_events(campaign)
 
     def test_a_valid_roll_in_a_live_table_gap_creates_no_assets_or_events(
-        self, client, campaign, territory, arbitrator, campaigns_open
+        self, client, campaign, territory, arbitrator
     ):
         table = create_campaign_table(campaign, territory, "Holed", dice="d6")
         add_asset_table_entry(
@@ -1689,7 +1751,7 @@ class TestManualPoolPreview:
         assert (campaign.campaign_assets.count(), campaign.events.count()) == before
 
     def test_preview_respects_staged_entry_visibility(
-        self, client, campaign, selection_table, arbitrator, campaigns_open
+        self, client, campaign, selection_table, arbitrator
     ):
         from n26.library.models import Asset
 
@@ -1709,7 +1771,7 @@ class TestManualPoolPreview:
         )
 
     def test_preview_requires_the_arbitrator_and_a_table_held_by_the_campaign(
-        self, client, campaign, selection_table, arbitrator, campaigns_open, territory
+        self, client, campaign, selection_table, arbitrator, territory
     ):
         client.force_login(User.objects.create_user("outsider-preview"))
         assert self.preview(client, campaign, selection_table, 34).status_code == 404
@@ -1726,3 +1788,366 @@ class TestManualPoolPreview:
         )
         url = reverse("n26-campaign-preview-pool-roll", args=[campaign.pk])
         assert client.post(url, {}).status_code == 405
+
+
+class TestTerritorySetupOptions:
+    def test_duplicate_avoidance_excludes_held_assets_and_results_in_the_same_batch(
+        self, campaign, selection_table, arbitrator, slag_kings
+    ):
+        from uuid import uuid4
+
+        from n26.core.campaigns import campaign_operation
+
+        membership = campaign.memberships.get(gang=slag_kings)
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            first = op.roll_asset(selection_table, membership=membership, rolled=34)
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            results = op.roll_assets(
+                selection_table,
+                count=17,
+                request_key=uuid4(),
+                avoid_duplicates=True,
+                rng=random.Random(7),
+            )
+        ids = [result.campaign_asset.asset_id for result in results]
+        assert len(ids) == len(set(ids)) == 17
+        assert first.campaign_asset.asset_id not in ids
+        before = campaign.campaign_assets.count()
+        with pytest.raises(Refusal, match="Only 0 different"):
+            with campaign_operation(campaign, actor=arbitrator) as op:
+                op.roll_assets(
+                    selection_table, count=1, request_key=uuid4(), avoid_duplicates=True
+                )
+        assert campaign.campaign_assets.count() == before
+
+    def test_oversized_duplicate_free_batches_write_nothing_and_can_be_retried(
+        self, campaign, selection_table, arbitrator
+    ):
+        from uuid import uuid4
+
+        from n26.core.campaigns import campaign_operation
+
+        key = uuid4()
+        with pytest.raises(Refusal, match="Only 18 different"):
+            with campaign_operation(campaign, actor=arbitrator) as op:
+                op.roll_assets(
+                    selection_table, count=19, request_key=key, avoid_duplicates=True
+                )
+        assert not campaign.campaign_assets.exists()
+        assert not campaign.events.filter(batch=key).exists()
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            assert (
+                len(
+                    op.roll_assets(
+                        selection_table, count=2, request_key=key, avoid_duplicates=True
+                    )
+                )
+                == 2
+            )
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            assert (
+                op.roll_assets(
+                    selection_table, count=2, request_key=key, avoid_duplicates=True
+                )
+                == []
+            )
+
+    def test_manual_rolls_are_recorded_without_replacing_duplicate_results(
+        self, campaign, selection_table, arbitrator
+    ):
+        from uuid import uuid4
+
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            first = op.roll_asset(selection_table, rolled=34)
+            result = op.roll_assets(
+                selection_table,
+                count=1,
+                request_key=uuid4(),
+                rolled=34,
+                avoid_duplicates=True,
+            )[0]
+        assert result.roll == 34
+        assert result.campaign_asset.asset_id == first.campaign_asset.asset_id
+        assert result.campaign_asset.pk != first.campaign_asset.pk
+
+    def test_pool_allocation_claims_an_existing_asset_and_records_the_starting_receipt(
+        self, client, campaign, selection_table, arbitrator, slag_kings, territory
+    ):
+        from n26.core.campaigns import campaign_operation, starting_asset_types_received
+
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            asset = op.roll_asset(selection_table, rolled=34).campaign_asset
+            op.set_starting_from_pool(True)
+        client.force_login(arbitrator)
+        data = {
+            "type": str(territory.pk),
+            "table": str(selection_table.pk),
+            "rolled": "34",
+        }
+        url = reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk])
+        assert client.post(url, data).status_code == 302
+        asset.refresh_from_db()
+        membership = campaign.memberships.get(gang=slag_kings)
+        assert asset.holder_id == membership.pk
+        assert campaign.campaign_assets.count() == 1
+        assert (
+            territory.pk
+            in starting_asset_types_received(campaign, [membership])[membership.pk]
+        )
+        assert client.post(url, data).status_code == 302
+        assert campaign.campaign_assets.count() == 1
+        assert_reconciled(slag_kings)
+
+    def test_a_house_table_without_pool_matches_stays_available_but_refuses_allocation(
+        self,
+        client,
+        campaign,
+        selection_table,
+        arbitrator,
+        slag_kings,
+        territory,
+        journal,
+    ):
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            op.roll_asset(selection_table, rolled=34)
+            op.set_starting_from_pool(True)
+        client.force_login(arbitrator)
+        url = reverse("n26-campaign", args=[campaign.pk])
+        body = client.get(
+            url, {"starting": str(slag_kings.pk), "type": str(territory.pk)}
+        ).content.decode()
+        props = _roll_props(body)
+        counts = {table["value"]: table["availableCount"] for table in props["tables"]}
+        assert counts[str(journal.pk)] == 0
+        assert counts[str(selection_table.pk)] == 1
+        assert props["allocating"] is True
+        response = client.post(
+            reverse("n26-campaign-roll-starting", args=[campaign.pk, slag_kings.pk]),
+            {"type": str(territory.pk), "table": str(journal.pk)},
+            HTTP_HX_REQUEST="true",
+        )
+        assert "from this table are available in the pool" in response.content.decode()
+        assert campaign.campaign_assets.count() == 1
+        assert not campaign.campaign_assets.filter(holder__isnull=False).exists()
+
+    def test_manual_allocation_cannot_create_a_missing_pool_result(
+        self, campaign, selection_table, arbitrator, slag_kings
+    ):
+        from n26.core.campaigns import campaign_operation
+
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            op.roll_asset(selection_table, rolled=34)
+            op.set_starting_from_pool(True)
+        with pytest.raises(Refusal, match="No unclaimed"):
+            with campaign_operation(campaign, actor=arbitrator) as op:
+                op.roll_asset(
+                    selection_table,
+                    membership=campaign.memberships.get(gang=slag_kings),
+                    rolled=11,
+                )
+        assert campaign.campaign_assets.count() == 1
+
+    def test_editing_the_campaign_persists_the_pool_setting_and_logs_the_change(
+        self, client, campaign, arbitrator
+    ):
+        client.force_login(arbitrator)
+        response = client.post(
+            reverse("n26-edit-campaign", args=[campaign.pk]),
+            {
+                "name": campaign.name,
+                "budget": "1000",
+                "summary": "",
+                "starting_from_pool": "on",
+            },
+        )
+        assert response.status_code == 302
+        campaign.refresh_from_db()
+        assert campaign.starting_from_pool is True
+        assert any(
+            "starting territories: from the unclaimed pool" in line
+            for line in sentences(campaign_history(campaign))
+        )
+
+    def test_the_setup_hint_counts_active_gangs_and_outstanding_starting_rolls(
+        self,
+        client,
+        campaign,
+        arbitrator,
+        slag_kings,
+        wild_cats,
+        territory,
+        selection_table,
+    ):
+        from n26.core.campaigns import campaign_operation
+
+        client.force_login(arbitrator)
+        url = reverse("n26-campaign", args=[campaign.pk])
+        assert (
+            "Setup: 6 unclaimed + 2 starting territories. 2 still to roll."
+            in client.get(url).content.decode()
+        )
+        with campaign_operation(campaign, actor=arbitrator) as op:
+            op.roll_asset(
+                selection_table,
+                membership=campaign.memberships.get(gang=slag_kings),
+                rolled=34,
+            )
+        assert (
+            "Setup: 6 unclaimed + 2 starting territories. 1 still to roll."
+            in client.get(url).content.decode()
+        )
+
+
+def test_allocation_dialog_reads_stay_flat_as_the_unclaimed_pool_grows(
+    client, campaign, arbitrator, slag_kings, selection_table, territory
+):
+    from n26.core.campaigns import campaign_operation
+
+    client.force_login(arbitrator)
+    url = reverse("n26-campaign", args=[campaign.pk])
+    query = {"starting": str(slag_kings.pk), "type": str(territory.pk)}
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.set_starting_from_pool(True)
+        op.roll_asset(selection_table, rolled=34)
+    client.get(url, query, HTTP_HX_REQUEST="true")
+    with CaptureQueriesContext(connection) as few:
+        first = client.get(url, query, HTTP_HX_REQUEST="true")
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        for _ in range(9):
+            op.roll_asset(selection_table, rolled=34)
+    client.get(url, query, HTTP_HX_REQUEST="true")
+    with CaptureQueriesContext(connection) as many:
+        second = client.get(url, query, HTTP_HX_REQUEST="true")
+    assert first.status_code == second.status_code == 200
+    assert _roll_props(second.content.decode())["tables"][0]["availableCount"] == 10
+    assert len(many) <= len(few)
+
+
+@pytest.mark.parametrize("label", ["territory", "TERRITORY"])
+def test_custom_asset_labels_keep_their_additional_starting_roll(
+    client, arbitrator, goliath, label
+):
+    from n26.core.campaigns import campaign_operation
+    from n26.library.authoring import add_asset_type
+
+    campaign_type = create_campaign_type("Custom campaign")
+    asset_type = add_asset_type(campaign_type, label, "pooled")
+    table = create_asset_table("Custom territory table", asset_type, dice="d6")
+    asset = create_asset("Outpost", asset_type)
+    add_asset_table_entry(table, asset, roll_low=1, roll_high=6)
+    campaign = found_campaign("Custom starting rolls", campaign_type, owner=arbitrator)
+    gang = found_gang("Slag Kings", goliath, owner=arbitrator)
+    join_campaign(gang, campaign)
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.set_starting_from_pool(True)
+    client.force_login(arbitrator)
+    body = client.get(
+        reverse("n26-campaign", args=[campaign.pk]),
+        {"starting": str(gang.pk), "type": str(asset_type.pk)},
+        HTTP_HX_REQUEST="true",
+    ).content.decode()
+    assert _roll_props(body)["allocating"] is False
+    assert "Roll starting territory for Slag Kings" in body
+    response = client.post(
+        reverse("n26-campaign-roll-starting", args=[campaign.pk, gang.pk]),
+        {"type": str(asset_type.pk), "table": str(table.pk), "rolled": "1"},
+    )
+    assert response.status_code == 302
+    holding = campaign.campaign_assets.get()
+    assert holding.asset_id == asset.pk
+    assert holding.holder.gang_id == gang.pk
+
+
+def test_multiple_table_bands_count_each_matching_pool_holding_once(
+    client, campaign, arbitrator, goliath, territory
+):
+    from n26.core.campaigns import campaign_operation
+
+    table = create_asset_table("Repeated territory bands", territory, dice="d6")
+    asset = create_asset("Outpost", territory)
+    add_asset_table_entry(table, asset, position=0, roll_low=1, roll_high=3)
+    add_asset_table_entry(table, asset, position=1, roll_low=4, roll_high=6)
+    gang = found_gang("Slag Kings", goliath, owner=arbitrator)
+    join_campaign(gang, campaign)
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.roll_asset(table, rolled=1)
+        op.roll_asset(table, rolled=4)
+        op.set_starting_from_pool(True)
+    client.force_login(arbitrator)
+    body = client.get(
+        reverse("n26-campaign", args=[campaign.pk]),
+        {"starting": str(gang.pk), "type": str(territory.pk)},
+        HTTP_HX_REQUEST="true",
+    ).content.decode()
+    props = _roll_props(body)
+    counts = {option["value"]: option["availableCount"] for option in props["tables"]}
+    assert counts[str(table.pk)] == 2
+
+
+def test_the_pool_allocation_hint_labels_the_target_instead_of_claiming_inventory(
+    client, campaign, arbitrator, slag_kings, wild_cats, selection_table
+):
+    from n26.core.campaigns import campaign_operation
+
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.set_starting_from_pool(True)
+    client.force_login(arbitrator)
+    page = reverse("n26-campaign", args=[campaign.pk])
+    body = client.get(page).content.decode()
+    assert (
+        "Suggested pool: 6 territories. 2 starting territories still to allocate."
+        in body
+    )
+    assert not campaign.campaign_assets.exists()
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        asset = op.roll_asset(selection_table, rolled=34).campaign_asset
+        op.assign(asset, campaign.memberships.get(gang=slag_kings))
+    body = client.get(page).content.decode()
+    assert (
+        "Suggested pool: 6 territories. 1 starting territory still to allocate." in body
+    )
+
+
+@pytest.mark.parametrize("band", [None, (11, 16)])
+def test_allocation_counts_only_pool_assets_a_table_roll_can_reach(
+    client, campaign, arbitrator, goliath, territory, band
+):
+    from n26.core.campaigns import campaign_operation
+
+    table = create_asset_table("Unreachable pool matches", territory, dice="d6")
+    asset = create_asset("Outpost", territory)
+    if band is None:
+        add_asset_table_entry(table, asset)
+    else:
+        add_asset_table_entry(table, asset, roll_low=band[0], roll_high=band[1])
+    gang = found_gang("Slag Kings", goliath, owner=arbitrator)
+    join_campaign(gang, campaign)
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.add_asset(asset)
+        op.set_starting_from_pool(True)
+    client.force_login(arbitrator)
+    body = client.get(
+        reverse("n26-campaign", args=[campaign.pk]),
+        {"starting": str(gang.pk), "type": str(territory.pk)},
+        HTTP_HX_REQUEST="true",
+    ).content.decode()
+    counts = {
+        option["value"]: option["availableCount"]
+        for option in _roll_props(body)["tables"]
+    }
+    assert counts[str(table.pk)] == 0
+    response = client.post(
+        reverse("n26-campaign-roll-starting", args=[campaign.pk, gang.pk]),
+        {"type": str(territory.pk), "table": str(table.pk)},
+        HTTP_HX_REQUEST="true",
+    )
+    assert (
+        "No unclaimed territories from this table are available in the pool."
+        in response.content.decode()
+    )
+    assert campaign.campaign_assets.count() == 1
+    assert not campaign.campaign_assets.filter(holder__isnull=False).exists()

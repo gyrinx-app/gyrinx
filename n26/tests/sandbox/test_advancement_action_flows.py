@@ -381,6 +381,7 @@ class TestChangingTheRoll:
                 action_record=record, kind=LedgerEvent.Kind.ROLLED
             ).values_list("roll", flat=True)
         ) == [2, 11, 12]
+        advancement.gang.refresh_from_db()
         assert_reconciled(advancement.gang)
 
     def test_back_allows_a_correction_and_invalidates_the_old_review(
@@ -433,6 +434,7 @@ class TestChangingTheRoll:
                 action_record=record, kind=LedgerEvent.Kind.ROLLED
             ).values_list("roll", flat=True)
         ) == [3, 12]
+        advancement.gang.refresh_from_db()
         assert_reconciled(advancement.gang)
 
 
@@ -824,6 +826,7 @@ class TestCompletingAndCorrecting:
             "cancel",
             "by-hand",
             "reopen",
+            "undo",
         ):
             url = reverse(
                 "n26-action-flow", args=[advancement.fighter.pk, record.pk, stage]
@@ -907,6 +910,7 @@ class TestApplyingByHand:
         assert "Applied by hand" in page
         assert "Undo" in page
         assert "Mark as applied" not in page
+        advancement.gang.refresh_from_db()
         assert_reconciled(advancement.gang)
 
         _mark_unused_by_hand(client, advancement, key)
@@ -942,6 +946,7 @@ class TestApplyingByHand:
             ActionAllowance.objects.filter(fighter=advancement.fighter).unused()
         ) == [advancement.allowance]
         assert "reopened Advance for Kara" in _story(advancement)
+        advancement.gang.refresh_from_db()
         assert_reconciled(advancement.gang)
 
     def test_another_owner_cannot_mark_an_unused_use(self, client, advancement):
@@ -1089,6 +1094,8 @@ class TestApplyingByHand:
         )
 
     def _later_allowance(self, advancement):
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 4)
         return ActionAllowance.objects.create(
             action=advancement.action,
             fighter=advancement.fighter,
@@ -1153,3 +1160,508 @@ class TestApplyingByHand:
         assert ActionRecord.objects.get(fighter=advancement.fighter).allowance == (
             advancement.allowance
         )
+
+
+class TestAdvancementHoldsAndUndo:
+    """XP corrections retain one earned use and every recorded roll."""
+
+    @pytest.mark.parametrize("stage", ["unused", "started", "rolled", "reviewed"])
+    def test_lowering_xp_holds_the_use_and_raising_it_restores_the_same_flow(
+        self, client, monkeypatch, advancement, stage
+    ):
+        from n26.core.operations import Refusal
+        from n26.core.progression import progression_for
+
+        _load_rolls(monkeypatch, 12)
+        client.force_login(advancement.owner)
+        record = None
+        reviewed = None
+        if stage != "unused":
+            record = _start(client, advancement)
+        if stage in {"rolled", "reviewed"}:
+            _post_roll(client, advancement, record)
+        if stage == "reviewed":
+            skill_url = _choose_result(
+                client, advancement, record, advancement.results["primary"]
+            )
+            reviewed = client.post(
+                skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+            )
+            page = client.get(reviewed.url)
+            token = page.context["form"]["review"].value()
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, -1)
+        assert progression_for(advancement.fighter).history[0].state_label == "On hold"
+        assert not _waiting(advancement)
+        edit = client.get(reverse("n26-edit-fighter", args=[advancement.fighter.pk]))
+        panel = next(
+            p
+            for p in edit.context["action_panels"]
+            if p.action_id == str(advancement.action.pk)
+        )
+        assert not panel.flagged and not panel.start_href
+        assert panel.held_uses == 1
+        assert "On hold until 4 XP." in edit.content.decode()
+        with pytest.raises(Refusal, match="On hold"):
+            with operation(advancement.gang, actor=advancement.owner) as op:
+                op.start_action(
+                    advancement.fighter,
+                    advancement.action,
+                    uuid4(),
+                    allowance=advancement.allowance,
+                )
+        if record:
+            resumed = client.get(
+                reverse(
+                    "n26-action-flow",
+                    args=[advancement.fighter.pk, record.pk, "resume"],
+                )
+            )
+            assert "On hold" in resumed.content.decode()
+            assert resumed.context["back_href"] == reverse(
+                "n26-edit-fighter", args=[advancement.fighter.pk]
+            )
+            assert not resumed.context["outcome_href"]
+            assert client.get(resumed.context["back_href"]).status_code == 200
+        if reviewed:
+            blocked = client.post(reviewed.url, {"review": token})
+            assert "On hold" in blocked.content.decode()
+            record.refresh_from_db()
+            assert record.state == ActionRecord.State.STARTED
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 1)
+        assert _waiting(advancement)
+        assert (
+            ActionAllowance.objects.filter(fighter=advancement.fighter).get().pk
+            == advancement.allowance.pk
+        )
+        assert ActionRecord.objects.filter(fighter=advancement.fighter).count() == (
+            stage != "unused"
+        )
+        if record and stage in {"rolled", "reviewed"}:
+            assert record.advancement_selection.roll_event.roll == 12
+            assert (
+                LedgerEvent.objects.filter(
+                    action_record=record, kind=LedgerEvent.Kind.ROLLED
+                ).count()
+                == 1
+            )
+        advancement.gang.refresh_from_db()
+        assert_reconciled(advancement.gang)
+
+    def test_a_later_unused_rank_does_not_mask_the_started_flows_hold_reason(
+        self, client, advancement
+    ):
+        a.add_rank_threshold(advancement.allowance.rank_table, 8)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 4)
+        _start(client, advancement)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, -5)
+        response = client.get(
+            reverse("n26-edit-fighter", args=[advancement.fighter.pk])
+        )
+        panel = next(
+            panel
+            for panel in response.context["action_panels"]
+            if panel.action_id == str(advancement.action.pk)
+        )
+        assert panel.held_uses == 2
+        assert panel.hold_reason == "On hold until 4 XP."
+        assert panel.drafts[0].problem == panel.hold_reason
+
+    def _complete(self, client, monkeypatch, advancement):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        reviewed = client.post(
+            skill_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        )
+        page = client.get(reviewed.url)
+        assert (
+            client.post(
+                reviewed.url, {"review": page.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        return record
+
+    def test_undo_removes_only_the_result_and_retains_the_same_use_roll_and_history(
+        self, client, monkeypatch, advancement
+    ):
+        from n26.core.operations import Refusal
+
+        before = advancement.fighter.recompute_rating()
+        credits = advancement.gang.recompute_credits()
+        record = self._complete(client, monkeypatch, advancement)
+        original_roll = record.advancement_selection.roll_event
+        assert advancement.fighter.recompute_rating() == before + 5
+        undo = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        page = client.get(undo)
+        assert page.context["stage"] == "undo"
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        token = page.context["form"]["review"].value()
+        for _ in range(2):
+            assert client.post(undo, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        assert record.allowance_id == advancement.allowance.pk
+        assert record.advancement_selection.roll_event_id == original_roll.pk
+        assert advancement.fighter.recompute_rating() == before
+        from n26.core.action_records import action_changes
+
+        assert action_changes(record).rating_delta == 0
+        assert advancement.gang.recompute_credits() == credits
+        assert not Assignment.objects.filter(
+            miniature_root=advancement.fighter,
+            skill=advancement.skills["primary"],
+            archived=False,
+        ).exists()
+        assert Assignment.objects.filter(
+            miniature_root=advancement.fighter,
+            skill=advancement.skills["owned"],
+            archived=False,
+        ).exists()
+        assert (
+            LedgerEvent.objects.filter(
+                action_record=record, kind=LedgerEvent.Kind.ACTION_USE_UNDONE
+            ).count()
+            == 1
+        )
+        assert any("undid Advance for Kara" in text for text in _story(advancement))
+        assert any("completed Advance for Kara" in text for text in _story(advancement))
+        with pytest.raises(Refusal, match="cannot change the roll"):
+            with operation(advancement.gang, actor=advancement.owner) as op:
+                op.record_action_roll(
+                    record,
+                    advancement.outcome.operation,
+                    uuid4(),
+                    rolled=11,
+                    previous_roll=original_roll.pk,
+                )
+        resume = client.get(
+            reverse(
+                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
+            ),
+            follow=True,
+        )
+        assert resume.status_code == 200
+        # Reviewing the retained choice applies it once, with no new roll or use.
+        reviewed = client.post(
+            reverse(
+                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "skill"]
+            ),
+            {"skill_id": str(advancement.skills["primary"].pk)},
+        )
+        page = client.get(reviewed.url)
+        assert (
+            client.post(
+                reviewed.url, {"review": page.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+        assert advancement.fighter.recompute_rating() == before + 5
+        assert action_changes(record).rating_delta == 5
+        stale = client.post(undo, {"review": token})
+        assert "The advancement changed." in stale.content.decode()
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        assert advancement.fighter.recompute_rating() == before + 5
+        assert ActionRecord.objects.filter(fighter=advancement.fighter).count() == 1
+        assert (
+            LedgerEvent.objects.filter(
+                action_record=record, kind=LedgerEvent.Kind.ROLLED
+            ).count()
+            == 1
+        )
+        advancement.gang.refresh_from_db()
+        assert_reconciled(advancement.gang)
+
+    def test_undo_keeps_the_random_skill_attempt_when_the_flow_resumes(
+        self, client, monkeypatch, advancement
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["random"]
+        )
+        page = client.get(skill_url)
+        skill_set = page.context["skill_roll"]["choices"]["options"][0]["value"]
+        reviewed = client.post(
+            skill_url,
+            {
+                "request_key": page.context["form"]["request_key"].value(),
+                "skill_set_id": skill_set,
+                "roll_mode": "record",
+                "rolled": "2",
+            },
+        )
+        assert client.get(reviewed.url).context["skill_resolved"]
+        reviewed = client.post(skill_url, {"review_skill": "1"})
+        token = client.get(reviewed.url).context["form"]["review"].value()
+        assert client.post(reviewed.url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        attempts = record.skill_selection.random_attempts
+        undo = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        token = client.get(undo).context["form"]["review"].value()
+        assert client.post(undo, {"review": token}).status_code == 302
+        resumed = client.get(skill_url)
+        assert resumed.context["skill_resolved"]
+        assert resumed.context["skill_roll"] is None
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            attempt = op.record_skill_roll(
+                record,
+                advancement.outcome.operation,
+                uuid4(),
+                pickable_id=advancement.results["random"].pk,
+                skill_set_id=skill_set,
+                rolled=6,
+            )
+        record.refresh_from_db()
+        assert attempt == attempts[-1]
+        assert record.skill_selection.random_attempts == attempts
+        assert record.skill_selection.selected == advancement.skills["primary"]
+        assert record.advancement_selection.roll_event.roll == 12
+        assert record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED).count() == 2
+
+    @pytest.mark.parametrize("earlier_random_attempt", [False, True])
+    def test_a_selected_skill_can_switch_to_random_after_undo(
+        self, client, monkeypatch, advancement, earlier_random_attempt
+    ):
+        def roll_random_skill(url):
+            page = client.get(url)
+            skill_set = page.context["skill_roll"]["choices"]["options"][0]["value"]
+            response = client.post(
+                url,
+                {
+                    "request_key": page.context["form"]["request_key"].value(),
+                    "skill_set_id": skill_set,
+                    "roll_mode": "record",
+                    "rolled": "2",
+                },
+            )
+            assert response.status_code == 302
+            assert client.get(response.url).context["skill_resolved"]
+
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        if earlier_random_attempt:
+            random_url = _choose_result(
+                client, advancement, record, advancement.results["random"]
+            )
+            roll_random_skill(random_url)
+        selected_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        reviewed = client.post(
+            selected_url, {"skill_id": str(advancement.skills["primary"].pk)}
+        )
+        token = client.get(reviewed.url).context["form"]["review"].value()
+        assert client.post(reviewed.url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.skill_selection.mode == SkillSelection.Mode.SELECT
+        original_roll = record.advancement_selection.roll_event_id
+        undo = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        token = client.get(undo).context["form"]["review"].value()
+        assert client.post(undo, {"review": token}).status_code == 302
+        random_url = _choose_result(
+            client, advancement, record, advancement.results["random"]
+        )
+        roll_random_skill(random_url)
+        reviewed = client.post(random_url, {"review_skill": "1"})
+        token = client.get(reviewed.url).context["form"]["review"].value()
+        assert client.post(reviewed.url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        assert record.skill_selection.mode == SkillSelection.Mode.RANDOM
+        assert len(record.skill_selection.random_attempts) == 1
+        assert record.advancement_selection.roll_event_id == original_roll
+        assert record.ledger_events.filter(kind=LedgerEvent.Kind.ROLLED).count() == 2
+
+    def test_undo_accepts_long_authored_pick_and_skill_names(
+        self, client, monkeypatch, advancement
+    ):
+        pick = advancement.results["primary"]
+        skill = advancement.skills["primary"]
+        pick.name = "P" * 200
+        skill.name = "S" * 200
+        pick.save(update_fields=["name", "modified"])
+        skill.save(update_fields=["name", "modified"])
+        record = self._complete(client, monkeypatch, advancement)
+        original_roll = record.advancement_selection.roll_event_id
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        token = client.get(url).context["form"]["review"].value()
+        assert client.post(url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        event = record.ledger_events.get(kind=LedgerEvent.Kind.ACTION_USE_UNDONE)
+        assert event.note == f"{pick}: {skill}"[:255]
+        assert len(event.note) == 255
+        reviewed = client.post(
+            reverse(
+                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "skill"]
+            ),
+            {"skill_id": str(skill.pk)},
+        )
+        token = client.get(reviewed.url).context["form"]["review"].value()
+        assert client.post(reviewed.url, {"review": token}).status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        assert record.advancement_selection.roll_event_id == original_roll
+
+    def test_changed_content_refuses_undo_before_removing_the_applied_result(
+        self, client, monkeypatch, advancement
+    ):
+        record = self._complete(client, monkeypatch, advancement)
+        rating = advancement.fighter.recompute_rating()
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        token = client.get(url).context["form"]["review"].value()
+        pick = advancement.results["primary"]
+        pick.name = "Renamed skill result"
+        pick.save(update_fields=["name", "modified"])
+        for response in (client.get(url), client.post(url, {"review": token})):
+            assert "table changed after the roll" in response.content.decode()
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        assert not record.advancement_selection.pick_assignment.archived
+        assert advancement.fighter.recompute_rating() == rating
+        assert not record.ledger_events.filter(
+            kind=LedgerEvent.Kind.ACTION_USE_UNDONE
+        ).exists()
+
+    def test_completed_results_survive_lower_xp_until_undo_then_wait_on_hold(
+        self, client, monkeypatch, advancement
+    ):
+        record = self._complete(client, monkeypatch, advancement)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, -1)
+        assert record.advancement_selection.pick_assignment.archived is False
+        undo = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        page = client.get(undo)
+        assert (
+            client.post(
+                undo, {"review": page.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+        assert not _waiting(advancement)
+        resumed = client.get(
+            reverse(
+                "n26-action-flow", args=[advancement.fighter.pk, record.pk, "resume"]
+            )
+        )
+        assert "On hold" in resumed.content.decode()
+
+    def test_undo_refuses_a_dependency_added_after_confirmation_was_opened(
+        self, client, monkeypatch, advancement
+    ):
+        record = self._complete(client, monkeypatch, advancement)
+        undo = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        page = client.get(undo)
+        token = page.context["form"]["review"].value()
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.assign(
+                a.create_rule("Later result"),
+                miniature=advancement.fighter,
+                caused_by=record.advancement_selection.pick_assignment,
+            )
+        response = client.post(undo, {"review": token})
+        assert "Later changes depend on this advancement." in response.content.decode()
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        assert (
+            LedgerEvent.objects.filter(
+                action_record=record, kind=LedgerEvent.Kind.ACTION_USE_UNDONE
+            ).count()
+            == 0
+        )
+        advancement.gang.refresh_from_db()
+        assert_reconciled(advancement.gang)
+
+    def test_undo_waits_for_another_started_flow_of_the_same_action(
+        self, client, monkeypatch, advancement
+    ):
+        record = self._complete(client, monkeypatch, advancement)
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        token = client.get(url).context["form"]["review"].value()
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 4)
+        later = ActionAllowance.objects.create(
+            action=advancement.action,
+            fighter=advancement.fighter,
+            source=advancement.fighter.membership,
+            source_kind=ActionAllowance.Source.RANK,
+            threshold=8,
+            rank_table=advancement.allowance.rank_table,
+        )
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.start_action(
+                advancement.fighter, advancement.action, uuid4(), allowance=later
+            )
+        response = client.post(url, {"review": token})
+        assert "another flow for this action is started" in response.content.decode()
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        assert not record.advancement_selection.pick_assignment.archived
+        assert not record.ledger_events.filter(
+            kind=LedgerEvent.Kind.ACTION_USE_UNDONE
+        ).exists()
+
+    def test_an_old_undo_confirmation_cannot_undo_a_changed_advancement(
+        self, client, monkeypatch, advancement
+    ):
+        record = self._complete(client, monkeypatch, advancement)
+        url = reverse(
+            "n26-action-flow", args=[advancement.fighter.pk, record.pk, "undo"]
+        )
+        token = client.get(url).context["form"]["review"].value()
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.review_action_correction(record, terms=dict(record.terms))
+        response = client.post(url, {"review": token})
+        assert "The advancement changed." in response.content.decode()
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        assert not LedgerEvent.objects.filter(
+            action_record=record, kind=LedgerEvent.Kind.ACTION_USE_UNDONE
+        ).exists()
+
+    def test_a_held_unrolled_flow_can_be_cancelled_but_not_marked_as_applied(
+        self, client, advancement
+    ):
+        record = _start(client, advancement)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, -1)
+        marked = _flow(client, advancement, record, "by-hand")
+        assert "On hold" in marked.content.decode()
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        assert _flow(client, advancement, record, "cancel").status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.CANCELLED
+        assert not _waiting(advancement)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.tally(advancement.xp, 1)
+        assert _waiting(advancement)

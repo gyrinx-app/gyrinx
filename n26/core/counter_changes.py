@@ -16,7 +16,7 @@ caller hands over the card's nodes and readings, and gets back one
 counters and each model's use it the same way.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from n26.library.income import is_income_counter
 from n26.library.models import Counter
@@ -50,8 +50,7 @@ class CounterChange:
 
     @property
     def start(self):
-        """The reading before this report: everything it applied taken
-        off, so the start, the change and ``from_results`` sum to after."""
+        """The current reading with this report's stored movements removed."""
         return self.before - self.recorded - self.earlier
 
     @property
@@ -75,13 +74,16 @@ class HeldCounter:
 
     ``reading`` is what the card shows (the stored value and any
     contributions); ``stored`` is the value a tally moves, which never
-    goes below zero.
+    goes below its authored minimum.
     """
 
     assignment: object
     name: str
     reading: int
     stored: int
+    minimum: int = 0
+    counter_id: object = None
+    contributions: tuple = ()
 
     @property
     def id(self):
@@ -132,10 +134,41 @@ def held_counters(nodes, readings):
                 assignment=node.assignment,
                 name=str(node.assignable),
                 reading=reading.value,
-                stored=value.value if value else 0,
+                stored=value.value if value else node.assignable.minimum,
+                minimum=node.assignable.minimum,
+                counter_id=node.assignable.pk,
+                contributions=getattr(reading, "contributions", ()),
             )
         )
     return held
+
+
+def projection_sources(nodes, readings):
+    """Source readings use local balances; inherited counters supply no balance."""
+    balances = {}
+    for node in nodes:
+        if (
+            isinstance(node.assignable, Counter)
+            and not node.broadcast
+            and not node.suppressed
+        ):
+            held = (
+                getattr(node.assignment, "counter_value", None)
+                if node.assignment
+                else None
+            )
+            balances.setdefault(
+                node.assignable.pk,
+                max(node.assignable.minimum, held.value if held else 0),
+            )
+    return tuple(
+        replace(
+            reading,
+            value=balances.get(reading.thing.pk, 0)
+            + sum(part.amount for part in reading.contributions),
+        )
+        for reading in readings
+    )
 
 
 def read_changes(raw, errors):
@@ -166,6 +199,39 @@ def read_changes(raw, errors):
     return changes
 
 
+def project_readings(readings, balances):
+    """Counter readings after stored changes and dependent contributions."""
+    by_counter = {}
+    for reading in readings:
+        by_counter.setdefault(reading.thing.pk, reading)
+    resolved = {}
+
+    def projected_reading(key, visiting=frozenset()):
+        if key in resolved:
+            return resolved[key]
+        if key in visiting:
+            raise ValueError("Counter contributions cannot form a cycle.")
+        reading = by_counter.get(key)
+        if reading is None:
+            resolved[key] = balances.get(key, 0)
+            return resolved[key]
+        baseline = reading.value - sum(part.amount for part in reading.contributions)
+        total = balances.get(key, baseline)
+        for part in reading.contributions:
+            total += (
+                part.amount
+                if part.per_counter is None
+                else part.per_counter_rate
+                * projected_reading(part.per_counter.pk, visiting | {key})
+            )
+        resolved[key] = total
+        return total
+
+    for key in by_counter.keys() | balances.keys():
+        projected_reading(key)
+    return resolved
+
+
 def plan_changes(
     held,
     entered,
@@ -174,6 +240,8 @@ def plan_changes(
     names=None,
     change_on="the gang page",
     earlier=None,
+    readings=(),
+    projected=None,
 ):
     """Every held counter's line, and why any of them cannot be applied.
 
@@ -184,6 +252,9 @@ def plan_changes(
     ``change_on`` is where the player can change the counter instead.
     ``earlier`` is what results this report applied before added to each
     counter's reading, for showing where the counter started.
+
+    ``readings`` supplies standing contributions; ``projected`` supplies stored
+    balances after ordered result effects, keyed by library counter id.
 
     Returns ``(changes, errors)``. A counter the report changed before
     that has since been removed or moved to another holder cannot be
@@ -196,13 +267,38 @@ def plan_changes(
     errors = []
     changes = []
     by_id = {counter.id: counter for counter in held}
+    projected_values = {}
+    for counter in held:
+        projected_values.setdefault(
+            counter.counter_id,
+            max(
+                counter.minimum,
+                counter.stored
+                + entered.get(counter.id, 0)
+                - recorded.get(counter.id, 0)
+                + effects.get(counter.id, 0),
+            ),
+        )
+    projected_values.update(projected or {})
+    totals = project_readings(readings, projected_values)
+
     for counter in held:
         manual = entered.get(counter.id, 0)
         was = recorded.get(counter.id, 0)
         effect = effects.get(counter.id, 0)
-        after = counter.reading + manual - was + effect
-        if counter.stored + manual - was + effect < 0:
-            errors.append(f"{counter.name} cannot go below 0.")
+        contributions = counter.reading - max(counter.minimum, counter.stored)
+        after = (
+            max(counter.minimum, counter.stored + manual - was + effect) + contributions
+        )
+        if counter.contributions:
+            after = max(counter.minimum, counter.stored + manual - was + effect) + sum(
+                part.amount
+                if part.per_counter is None
+                else part.per_counter_rate * totals.get(part.per_counter.pk, 0)
+                for part in counter.contributions
+            )
+        if counter.stored + manual - was + effect < counter.minimum:
+            errors.append(f"{counter.name} cannot go below {counter.minimum}.")
         changes.append(
             CounterChange(
                 assignment_id=counter.id,

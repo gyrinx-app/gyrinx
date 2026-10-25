@@ -14,8 +14,8 @@ dependencies = [
     "click==8.5.0",
     "defusedxml==0.7.1",
     "Django==6.0.7",
-    "django-allauth==65.19.7",
-    "django-cotton==2.7.2",
+    "django-allauth==65.20.1",
+    "django-cotton==2.8.0",
     "django-cotton-ui==0.3.4",
     "django-csp==4.0",
     "django-debug-toolbar==8.0.0",
@@ -26,12 +26,12 @@ dependencies = [
     "django-simple-history==3.13.0",
     "django-storages[google]==1.14.6",
     "django-tinymce==5.0.0",
-    "djlint==1.46.4",
+    "djlint==1.46.6",
     "docutils==0.23",
     "fido2==2.2.1",
-    "filelock==4.0.12",
+    "filelock==4.2.4",
     "google-cloud-logging==3.17.0",
-    "google-cloud-pubsub==2.42.0",
+    "google-cloud-pubsub==2.43.0",
     "google-cloud-scheduler==2.21.0",
     "google-cloud-sqlcommenter==2.0.0",
     "gunicorn==26.2.0",
@@ -51,13 +51,13 @@ dependencies = [
     "opentelemetry-resourcedetector-gcp==1.14.0",
     "opentelemetry-sdk==1.44.0",
     "Pillow==12.3.0",
-    "playwright==1.63.0",
-    "pre-commit==4.6.2",
+    "playwright==1.64.0",
+    "pre-commit==4.7.0",
     "psycopg[binary,pool]==3.3.6",
     "pygments==2.21.0",
     "python-ulid==4.0.1",
     "pyasn1==0.6.4",
-    "pydantic==2.13.5",
+    "pydantic==2.14.1",
     "pydot==4.0.1",
     "PyNaCl==1.6.2",
     "pyparsing==3.3.3",
@@ -70,13 +70,13 @@ dependencies = [
     "referencing==0.37.0",
     "requests==2.34.2",
     "rich==15.0.0",
-    "ruff==0.16.10",
+    "ruff==0.17.1",
     "setuptools==81.0.0",
     "simpleeval==1.0.8",
     "sqlparse==0.6.0",
     # Security: minimum versions for vulnerable transitive dependencies
     "urllib3>=2.8.0",
-    "virtualenv>=21.14.5",
+    "virtualenv>=21.14.13",
     "whitenoise==6.12.0",
     "markdown-it-py>=4.2.0",
 ]
@@ -122,8 +122,19 @@ markers = [
     "core: the required CI job runs these (pytest -m core); see docs/developing-gyrinx/testing.md",
 ]
 
-[tool.setuptools.packages]
-find = {}
+# Namespace discovery treats every directory as a package, and the editable
+# install records each one. That pulled in the gitignored Vite tree: after a
+# rebase removed n26/core/static/n26/react/assets, the next `uv sync` still
+# named that directory and failed before the frontend rebuild. node_modules
+# alone is more than a thousand extra packages on the import path.
+[tool.setuptools.packages.find]
+exclude = [
+    "logs*",
+    "node_modules*",
+    "staticfiles*",
+    "n26.core.static.n26.react*",
+    "n26.frontend.generated*",
+]
 
 [tool.setuptools_scm]
 

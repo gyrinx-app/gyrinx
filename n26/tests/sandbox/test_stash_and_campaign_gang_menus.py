@@ -16,10 +16,8 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.models import CampaignParticipant
-from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import (
     assign,
     create_wargear,
@@ -135,19 +133,12 @@ class TestTheGangSheetStash:
 
 
 @pytest.fixture
-def campaigns_open(db):
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
-
-
-@pytest.fixture
 def arbitrator():
     return User.objects.create_user("arbitrator")
 
 
 @pytest.fixture
-def campaign(campaigns_open, campaign_type, arbitrator, gang, player):
+def campaign(campaign_type, arbitrator, gang, player):
     campaign = found_campaign("Dust Falls", campaign_type, owner=arbitrator)
     CampaignParticipant.objects.create(
         campaign=campaign, user=player, state=CampaignParticipant.State.ACCEPTED
@@ -207,26 +198,18 @@ class TestTheCampaignGangs:
         client.force_login(arbitrator)
         body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
 
-        found = menus(body, within="n26-campaign-gangs")
-        assert set(found) == {"Actions for The Ashen Choir", "Actions for Rust Kings"}
-        props = found["Actions for Rust Kings"]
-        assert props["items"] == [
-            {
-                "label": "Remove from campaign",
-                "href": reverse(
-                    "n26-campaign-remove-gang", args=[campaign.pk, rivals.pk]
-                ),
-                "tone": "danger",
-                "separatorBefore": False,
-            }
-        ]
-        assert (props["trigger"], props["variant"], props["align"]) == (
-            "ellipsis",
-            "ghost",
-            "end",
+        from n26.tests.fixtures import island_props
+
+        rows = island_props(body, "campaign-gangs")["gangs"]
+        assert {row["name"] for row in rows if row["removeHref"]} == {
+            "The Ashen Choir",
+            "Rust Kings",
+        }
+        row = next(row for row in rows if row["name"] == "Rust Kings")
+        assert row["removeHref"] == reverse(
+            "n26-campaign-remove-gang", args=[campaign.pk, rivals.pk]
         )
-        assert props["minWidth"] == "12rem"
-        assert body.count('aria-label="Actions for Rust Kings"') == 1
+        assert not menus(body, within="n26-campaign-gangs")
 
     def test_an_owner_gets_the_menu_on_their_own_gang_alone(
         self, client, campaign, gang, rivals, player
@@ -234,7 +217,7 @@ class TestTheCampaignGangs:
         client.force_login(player)
         body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
 
-        assert set(menus(body, within="n26-campaign-gangs")) == {
-            "Actions for The Ashen Choir"
-        }
-        assert "Actions for Rust Kings" not in body
+        from n26.tests.fixtures import island_props
+
+        rows = island_props(body, "campaign-gangs")["gangs"]
+        assert {row["name"] for row in rows if row["removeHref"]} == {"The Ashen Choir"}

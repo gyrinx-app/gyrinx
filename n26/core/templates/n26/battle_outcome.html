@@ -1,11 +1,5 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
-{% comment %}
-Recording the outcome of a battle that has none: a draw, or which of its
-participants won. The players who fought it may record it as well as the
-arbitrator, so nothing else about the battle is offered here; its stake
-stays as the arbitrator set it.
-{% endcomment %}
 {% block head_title %}Record the outcome of {{ battle.title }}{% endblock %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}

@@ -84,6 +84,28 @@
             </div>
         {% endif %}
     </c-n26.form-section>
+    <c-n26.form-section title="Territory boons"
+                        class="mt-10"
+                        description="Create the standard territory income, standing boons and Income-or-alternative choices from the rulebook.">
+        <c-n26.prose>
+            <p>First review income and standing boons, then review boon choices for Settlement and the 11 supported territories. Each preview lists the changes and any authored content it preserves.</p>
+            <p>Current holders start with Income selected. Recruitment discounts and equipment rewards are resolved manually.</p>
+        </c-n26.prose>
+        {% if territory_boon_setup %}
+            <div class="flex flex-wrap gap-3">
+                <c-ui.button href="{{ territory_boon_setup.income }}" variant="primary" size="sm">
+                    Review income and standing boons
+                </c-ui.button>
+                <c-ui.button href="{{ territory_boon_setup.choices }}" variant="primary" size="sm">
+                    Review boon choices
+                </c-ui.button>
+            </div>
+        {% else %}
+            <c-ui.description>
+                Ask a site administrator to run Add territory income and standing boons, then Add territory boon choices in Maintenance.
+            </c-ui.description>
+        {% endif %}
+    </c-n26.form-section>
     <c-n26.form-section title="Standard content" class="mt-10">
         <c-ui.table>
             <tbody>

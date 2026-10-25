@@ -25,9 +25,7 @@ from django.urls import reverse
 
 from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.badges import STAFF_BADGE, badge_by_slug
-from gyrinx.site.models import Availability, FeatureFlag
 from gyrinx.site.templatetags.badge_tags import badge_svg
-from n26.flags import CAMPAIGNS
 
 pytestmark = pytest.mark.django_db
 
@@ -282,15 +280,7 @@ class TestTheNamesOnACampaign:
     whole page, not once per name."""
 
     @pytest.fixture
-    def campaigns_open(self):
-        """The flag rows are seeded by a data migration, which does not run
-        under --nomigrations."""
-        return FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
-
-    @pytest.fixture
-    def table(self, supporter, campaign_type, campaigns_open):
+    def table(self, supporter, campaign_type):
         """A campaign the supporter arbitrates."""
         from n26.tests.sandbox.actions import found_campaign
 
@@ -349,8 +339,14 @@ class TestTheNamesOnACampaign:
 
         mark = badge_svg(GUILDER).strip()
         assert after.split("</header>")[-1].count(mark) == (
-            before.split("</header>")[-1].count(mark) + 6
+            before.split("</header>")[-1].count(mark) + 4
         )
+        from n26.tests.fixtures import island_props
+
+        props = island_props(after, "campaign-gangs")
+        assert {line["owner"]["name"] for line in props["gangs"]} == {"vex", "kesh"}
+        assert all(line["owner"]["badge"] == GUILDER.slug for line in props["gangs"])
+        assert props["badges"][GUILDER.slug]["svg"]["tag"] == "svg"
 
     def test_the_page_reads_the_badges_once_for_everybody(self, table, player, client):
         player(table, "vex")
@@ -368,11 +364,11 @@ class TestTheNamesOnACampaign:
         client.force_login(person)
         body = client.get("/n26/campaigns/").content.decode()
         rows = body.split("</header>")[-1]
-        assert "arbitrated by" in rows
+        assert "Arbitrator:" not in rows
         assert badge_svg(GUILDER).strip() in rows
 
     def test_the_list_reads_the_badges_once_for_every_campaign(
-        self, supporter, campaign_type, campaigns_open, player, client
+        self, supporter, campaign_type, player, client
     ):
         from n26.tests.sandbox.actions import found_campaign
 
@@ -821,7 +817,7 @@ class TestTheNamesOnACampaign:
             return reverse("n26-campaign-remove-player", args=[table.pk, person.pk])
 
         body = client.get(remove(badged)).content.decode()
-        question = body[body.index("Their gangs stay where they are") :]
+        question = body[body.index("Choose what happens to their gang") :]
         assert "vex" in question
         assert badge_svg(GUILDER).strip() in question
         badged_queries = self._queries(client, remove(badged))
@@ -845,7 +841,7 @@ class TestTheNamesOnACampaign:
         assert badge_svg(GUILDER).strip() in invitations
 
     def test_the_list_reads_the_badges_once_for_every_invitation(
-        self, supporter, campaign_type, campaigns_open, client
+        self, supporter, campaign_type, client
     ):
         from n26.core.campaigns import campaign_operation
         from n26.tests.sandbox.actions import found_campaign
@@ -910,12 +906,12 @@ class TestTheBadgeAsData:
         svg = mark["svg"]
         assert svg["tag"] == "svg"
         assert svg["props"]["viewBox"] == "0 0 24 24"
-        assert svg["props"]["shapeRendering"] == "crispEdges"
+        assert svg["props"]["shapeRendering"] == "geometricPrecision"
         # The wrapper names the badge; the island hides the drawing itself.
         assert "aria-hidden" not in svg["props"]
-        rects = [child for child in svg["children"] if child["tag"] == "rect"]
-        assert rects
-        assert set(rects[0]["props"]) <= {"x", "y", "width", "height", "fill"}
+        paths = [child for child in svg["children"] if child["tag"] == "path"]
+        assert paths
+        assert all(path["props"]["d"] and path["props"]["fill"] for path in paths)
 
     def test_anything_that_could_run_or_fetch_is_left_behind(self):
         from n26.badges import svg_tree

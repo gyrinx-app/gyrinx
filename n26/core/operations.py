@@ -746,7 +746,7 @@ class Operation:
         was founded on and its own additions — as gang-hosted assignments,
         granted, with their built-ins landing in the same breath: on N26
         core a gang comes away holding a Settlement and a Reputation counter
-        at 0, each caused by the type's carrier. The membership points at
+        at 1, each caused by the type's carrier. The membership points at
         both carriers, so what the campaign gave can be found again. The
         event is the gang's own, and names the campaign, so it reads in both
         histories from one record.
@@ -1502,6 +1502,26 @@ class Operation:
             )
         return assignment
 
+    def restore(self, assignment, note="", **event_fields):
+        """Put back one removed assignment, exactly as it was.
+
+        Only this assignment: unlike ``remove`` nothing beneath it comes
+        back with it, because what it caused may have been removed for
+        reasons of its own — a pick the player replaced stays replaced.
+        The caller restores each assignment it means to. Nothing it held
+        changed while it was archived, so a counter's value and a slot's
+        pick read as they did. Already live means nothing to do.
+        """
+        assignment = _under_the_lock(assignment)
+        if not assignment.archived:
+            return None
+        self.touched(assignment.miniature_root)
+        assignment.archived = False
+        assignment.archived_at = None
+        assignment.save(update_fields=["archived", "archived_at", "modified"])
+        self.event(assignment, LedgerEvent.Kind.RESTORED, note=note, **event_fields)
+        return assignment
+
     def refund(self, assignment, note=""):
         """Take something back and return what was paid for it.
 
@@ -1692,6 +1712,7 @@ class Operation:
 
     def _materialise_clone_plan(self, plan, *, primary_name=None):
         """Write a read-side clone plan without replaying stored effects."""
+        from n26.core.card import advancement_rated
         from n26.core.models import (
             AssignmentSet,
             ChosenProfileOption,
@@ -1712,6 +1733,14 @@ class Operation:
             .values_list("assignment_id", "total")
         )
         planned = {assignment.pk for assignment in plan.assignments}
+        # A clone copies no advancement records, which would count towards
+        # eligibility and allow undo. Its ledger entries keep the receipt's
+        # Advancements line instead.
+        from_advancement = set(
+            Assignment.objects.filter(advancement_rated(), pk__in=planned).values_list(
+                "pk", flat=True
+            )
+        )
         preserving_external_anchors = plan.source_gang.pk == self.gang.pk
 
         # Memberships are gang-hosted, so they can be written before the
@@ -1833,6 +1862,7 @@ class Operation:
                 clone,
                 neutral=source.pk in plan.neutral,
                 rating_override=rating_overrides.get(source.pk, 0),
+                from_advancement=source.pk in from_advancement,
             )
 
             role = getattr(source, "profile_role", None)
@@ -1941,7 +1971,9 @@ class Operation:
             archived_at=_now() if is_archived else None,
         )
 
-    def _clone_ledger(self, source, clone, *, neutral=False, rating_override=0):
+    def _clone_ledger(
+        self, source, clone, *, neutral=False, rating_override=0, from_advancement=False
+    ):
         """Give a cloned assignment a fresh opening and its rating override."""
         from n26.core.cloning import CLONED_RATING_NOTE_PREFIX
 
@@ -1979,7 +2011,9 @@ class Operation:
                 "You cannot clone this model. Its base rating without an override "
                 "is outside the supported range."
             )
-        LedgerEntry.objects.create(assignment=clone, **values)
+        LedgerEntry.objects.create(
+            assignment=clone, cloned_from_advancement=from_advancement, **values
+        )
         self.event(
             clone,
             LedgerEvent.Kind.CLONED,
@@ -3235,8 +3269,8 @@ class Operation:
     def tally(self, assignment, change, note="", **event_fields):
         """Change a counter's value — the only writer it has.
 
-        ``change`` is signed; the value floors at zero. Every change is a
-        ledger event, so the history of a Kill Count reads like the
+        ``change`` is signed; the value floors at the counter's minimum.
+        Every change is a ledger event, so the history of a Kill Count reads like the
         history of anything else the gang owns — and carries what moved
         and where it landed, which is what a reader auditing a number is
         looking for. ``note`` is why, where the caller knows.
@@ -3248,12 +3282,12 @@ class Operation:
         except CounterValue.DoesNotExist:
             held = self.open_counter(assignment, 0)
         before = held.value
-        held.value = max(0, held.value + change)
+        held.value = max(assignment.counter.minimum, held.value + change)
         held.save(update_fields=["value", "modified"])
         # What moved and where it landed, so the history can be read
         # against the number on the card. The movement recorded is the
         # one that happened rather than the one asked for: a subtraction
-        # that would go below zero stops at zero.
+        # that would go below the counter's minimum stops at that minimum.
         moved = f"{held.value - before:+d} → {held.value}"
         amounts = (
             {
@@ -3376,6 +3410,12 @@ class Operation:
 
         return reopen_action(self, record)
 
+    def undo_action(self, record, *, expected):
+        """Undo an earned advancement and resume its original flow."""
+        from n26.core.action_records import undo_action
+
+        return undo_action(self, record, expected=expected)
+
     def review_action_correction(self, record, *, terms):
         """Capture exact completed-result state before a safe correction."""
         from n26.core.action_records import review_action_correction
@@ -3404,6 +3444,7 @@ class Operation:
                 "You cannot edit this counter. "
                 "Its value is missing, but its history already exists."
             )
+        value = max(assignment.counter.minimum, value)
         held = CounterValue.objects.create(assignment=assignment, value=value)
         if self.counter_tracking_active:
             self.event(

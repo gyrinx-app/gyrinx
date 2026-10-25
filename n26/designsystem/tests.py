@@ -47,6 +47,7 @@ class TestTheReactMarks:
             "filter-select",
             "pick-list",
             "quick-switcher",
+            "filter-menu",
             "share",
             "switch",
         } <= react
@@ -175,6 +176,27 @@ class TestTheQuickSwitchersPage:
         assert "The chevron on its own" in page
         assert "A long list, narrowed" in page
         assert "#the-rust-sermon" in page
+
+
+class TestTheFilterMenuPage:
+    """The menu is a React island, and the apply demo still hears the event."""
+
+    def test_the_demos_render_the_island_outside_the_listener(self, reader):
+        import json
+
+        page = reader.get("/n26/design/c/filter-menu/").content.decode()
+        assert "Basic" in page
+        assert "Apply and cancel" in page
+        soup = BeautifulSoup(page, "html.parser")
+        hosts = soup.select("[data-react-name='filter-menu']")
+        assert len(hosts) >= 4
+        for host in hosts:
+            assert host.select("[x-data], [x-show], [x-model]") == []
+            props = json.loads(soup.find(id=host["data-react-props"]).string)
+            assert props["options"]
+        apply = soup.find(attrs={"@filter-apply": True})
+        assert apply is not None
+        assert apply.select_one("[data-react-name='filter-menu']") is not None
 
 
 class TestTheSharePage:
@@ -713,13 +735,13 @@ class TestTheShellStillDraws:
         # Each gang names its owner under its name, through the same
         # component the app draws people with — a sample person is a
         # username, so the name comes through and no badge follows it.
-        document = BeautifulSoup(page, "html.parser")
-        gang_headers = document.select('th[scope="rowgroup"]')
+        from n26.tests.fixtures import island_props
+
+        rows = island_props(page, "campaign-gangs")["gangs"]
         for gang_type, owner in [("Goliath (HoC)", "marta"), ("Escher (HoB)", "tom")]:
-            header = next(
-                header for header in gang_headers if gang_type in header.get_text()
-            )
-            assert header.find("span", string=owner) is not None
+            row = next(row for row in rows if row["type"] == gang_type)
+            assert row["owner"]["name"] == owner
+            assert row["owner"]["badge"] is None
         # The players and the log name people the same way; the
         # arbitrator's own acts read "You", as the page reads them.
         assert re.search(r"<td[^>]*>\s*<span[^>]*>vey<", page)
@@ -727,7 +749,10 @@ class TestTheShellStillDraws:
         assert ">You</span>" in page
         assert "Old Ruins by the sump" in page
         assert "Reputation" in page
-        assert "Unclaimed" in page
+        assert any(
+            not entry["held"]
+            for entry in island_props(page, "campaign-assets")["entries"]
+        )
         assert "Record a battle" in page
         assert "Old Ruins went to The Ashen Choir" in page
 

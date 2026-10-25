@@ -31,8 +31,6 @@ urlpatterns = [
         views.n26_changelog_entry,
         name="n26-changelog-entry",
     ),
-    # Every campaign route is gated by the campaigns feature flag, so all
-    # of them answer 404 to a reader who is not let in.
     path("campaigns/", views.campaigns, name="n26-campaigns"),
     path("campaigns/new/", views.create_campaign, name="n26-create-campaign"),
     # After campaigns/new/, which would otherwise resolve "new" as an id.
@@ -55,9 +53,19 @@ urlpatterns = [
         name="n26-edit-campaign",
     ),
     path(
+        "campaigns/<str:pk>/grouping/",
+        views.campaign_grouping,
+        name="n26-campaign-grouping",
+    ),
+    path(
         "campaigns/<str:pk>/archive/",
         views.archive_campaign,
         name="n26-archive-campaign",
+    ),
+    path(
+        "campaigns/<str:pk>/leave/",
+        views.leave_campaign,
+        name="n26-leave-campaign",
     ),
     path(
         "campaigns/<str:pk>/gangs/add/",
@@ -90,6 +98,11 @@ urlpatterns = [
         name="n26-campaign-add-battle",
     ),
     path(
+        "campaigns/<str:pk>/battles/archived/",
+        views.archived_battles,
+        name="n26-campaign-archived-battles",
+    ),
+    path(
         "campaigns/<str:pk>/battles/<str:battle_pk>/",
         views.battle,
         name="n26-battle",
@@ -118,6 +131,11 @@ urlpatterns = [
         "campaigns/<str:pk>/battles/<str:battle_pk>/gangs/<str:gang_pk>/results/",
         views.battle_report,
         name="n26-battle-report",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/restore/",
+        views.restore_battle,
+        name="n26-campaign-restore-battle",
     ),
     path(
         "campaigns/<str:pk>/battles/<str:battle_pk>/remove/",
@@ -181,6 +199,30 @@ urlpatterns = [
         views.add_label,
         name="n26-campaign-add-label",
     ),
+    path(
+        "campaigns/<str:pk>/counters/<str:member_pk>/archive/",
+        views.archive_addition,
+        {"kind": "counter"},
+        name="n26-campaign-archive-counter",
+    ),
+    path(
+        "campaigns/<str:pk>/labels/<str:member_pk>/archive/",
+        views.archive_addition,
+        {"kind": "label"},
+        name="n26-campaign-archive-label",
+    ),
+    path(
+        "campaigns/<str:pk>/counters/<str:member_pk>/unarchive/",
+        views.unarchive_addition,
+        {"kind": "counter"},
+        name="n26-campaign-unarchive-counter",
+    ),
+    path(
+        "campaigns/<str:pk>/labels/<str:member_pk>/unarchive/",
+        views.unarchive_addition,
+        {"kind": "label"},
+        name="n26-campaign-unarchive-label",
+    ),
     # Rolling on an asset table: for the campaign's pool, and for one gang's
     # starting asset. Both dialogs are drawn on the campaign's page; these
     # are the acts behind them.
@@ -193,6 +235,11 @@ urlpatterns = [
         "campaigns/<str:pk>/assets/roll/",
         views.roll_asset,
         name="n26-campaign-roll-asset",
+    ),
+    path(
+        "campaigns/<str:pk>/assets/<str:asset_pk>/boons/",
+        views.save_asset_boons,
+        name="n26-campaign-asset-boons",
     ),
     path(
         "campaigns/<str:pk>/assets/<str:asset_pk>/",
@@ -429,6 +476,16 @@ urlpatterns = [
     ),
     path("design/", include("n26.designsystem.urls")),
     path("authoring/", authoring_views.index, name="authoring-index"),
+    path(
+        "authoring/built-in-actions/trading-post-visit/",
+        authoring_views.trading_post_visit_settings,
+        name="authoring-trading-post-visit",
+    ),
+    path(
+        "gangs/<str:pk>/other-actions/",
+        views.gang_other_actions,
+        name="n26-gang-other-actions",
+    ),
     path(
         "authoring/action/<str:pk>/grant/",
         action_builder_views.grant_action,

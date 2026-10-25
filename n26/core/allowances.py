@@ -8,6 +8,32 @@ from n26.core.effects import compute
 from n26.core.models import ActionAllowance, CounterValue, LedgerEvent
 
 
+def allowance_hold_reason(allowance):
+    """Explain a held use loaded with ``with_progression_value`` and its table."""
+    if allowance.source_kind != ActionAllowance.Source.RANK:
+        return ""
+    if (
+        allowance.progression_value is not None
+        and allowance.progression_value >= allowance.threshold
+    ):
+        return ""
+    return f"On hold until {allowance.threshold} {allowance.rank_table.counter}."
+
+
+def require_allowance_available(allowance):
+    """Check current progression at the write boundary, including resumed flows."""
+    from n26.core.operations import Refusal
+
+    current = (
+        ActionAllowance.objects.with_progression_value()
+        .select_related("rank_table__counter")
+        .get(pk=allowance.pk)
+    )
+    problem = allowance_hold_reason(current)
+    if problem:
+        raise Refusal(f"You cannot use this action. {problem}")
+
+
 def _membership(fighter):
     membership = fighter.membership
     if membership is None:

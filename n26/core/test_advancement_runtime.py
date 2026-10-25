@@ -107,13 +107,19 @@ def _seed_fighter_actions():
     STANDARD_CONTENT["fighter-actions"].create()
 
 
-def _advancement(fighter):
+def _advancement(fighter, *, xp=4):
     action = Action.objects.get(name="Advancement")
     outcome = (
         action.outcomes.select_related("outcome__resolve_advancement").get().outcome
     )
     with operation(fighter.gang) as op:
         op.assign(action, miniature=fighter)
+        counter = op.assign(
+            action.rank_allowance_rule.counter,
+            miniature=fighter,
+            caused_by=fighter.membership,
+        )
+        op.open_counter(counter, xp)
     allowance = ActionAllowance.objects.create(
         action=action,
         fighter=fighter,
@@ -296,7 +302,7 @@ def test_advancement_roll_reuses_the_unfilled_configured_slot(fighter):
 
 
 def test_advancement_roll_does_not_reuse_another_drafts_slot(fighter):
-    action, outcome, first_allowance = _advancement(fighter)
+    action, outcome, first_allowance = _advancement(fighter, xp=7)
     configured = outcome.resolve_advancement
     second_allowance = ActionAllowance.objects.create(
         action=action,
@@ -1138,7 +1144,7 @@ def test_advancement_previews_do_not_query_rank_display(fighter):
 
 
 def test_advancement_option_queries_are_flat_for_18_or_36_results(fighter):
-    action, outcome, allowance = _advancement(fighter)
+    action, outcome, allowance = _advancement(fighter, xp=7)
     configured = outcome.resolve_advancement
     movement = Stat.objects.get(short_name="M")
     with operation(fighter.gang) as op:

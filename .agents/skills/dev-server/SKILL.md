@@ -73,6 +73,15 @@ taken by another process, it listens on the next free port and writes
 to the hashed port once it is free. If this worktree's own `runserver` is already
 listening, `dev.sh` prints that URL and does not start a second server.
 
+The port check connects to 127.0.0.1, reads the IPv4 listener table, and
+binds 127.0.0.1 only. It does not open a socket on every interface.
+
+When `bind` fails with EPERM or EACCES, `./scripts/dev.sh` keeps that port.
+A Codex sandbox returns those errors when it cannot open ports, and `lsof`
+shows no listener. If the server then fails to open the port, rerun
+`./scripts/dev.sh` with permission to bind. Leave `logs/dev-port` unchanged:
+another port stays blocked the same way.
+
 ## Finding the URL
 
 The server URL is printed in the startup banner:

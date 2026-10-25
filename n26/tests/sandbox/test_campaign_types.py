@@ -7,7 +7,7 @@ is one entry in that list: it belongs to one asset type, and so to one
 campaign type, and is authored on the campaign type's page under its
 asset type; its income is a figure on the card and its boons ride it as
 modifiers. The Territory campaign type ships with Settlement as a
-possession, Territory as a holding, and Reputation at 0 built in. See
+possession, Territory as a holding, and Reputation at 1 built in. See
 design/campaign-assets.md.
 
 The same note settles one rule about packs: content in a pack nobody
@@ -401,7 +401,7 @@ class TestAuthoringACampaignType:
 
 class TestTheCoreCampaignType:
     """What every install ships with: the Territory campaign type, its two asset types,
-    a Settlement, and Reputation at 0 — created once, whatever the
+    a Settlement, and Reputation at 1 — created once, whatever the
     database already holds."""
 
     def test_it_creates_the_type_its_asset_types_the_settlement_and_reputation(
@@ -424,7 +424,7 @@ class TestTheCoreCampaignType:
         income = Counter.objects.get(name="Income")
         members = list(core.built_in_members)
         assert [(member.assignable, member.amount) for member in members] == [
-            (reputation, 0),
+            (reputation, 1),
             (settlement, 0),
             (income, 0),
         ]
@@ -432,7 +432,7 @@ class TestTheCoreCampaignType:
         assert all(row.pack == default_pack for row in (core, settlement, reputation))
         # One line per row: two counters, the type, two asset types, the
         # asset, the set, and three members.
-        assert len(lines) == 10
+        assert len(lines) == 13
 
     def test_running_it_again_creates_nothing(self, default_pack):
         list(seed_core_campaign(apps))

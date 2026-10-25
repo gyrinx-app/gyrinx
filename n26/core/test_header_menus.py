@@ -12,10 +12,8 @@ from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.models import CampaignParticipant, Gang
-from n26.flags import CAMPAIGNS
 from n26.tests.sandbox.actions import found_campaign
 
 pytestmark = pytest.mark.django_db
@@ -33,14 +31,7 @@ def gang(owner, gang_type):
 
 
 @pytest.fixture
-def campaigns_open(db):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
-
-
-@pytest.fixture
-def campaign(campaigns_open, campaign_type):
+def campaign(db, campaign_type):
     arbitrator = User.objects.create_user("arbitrator")
     return found_campaign("Dust Falls", campaign_type, owner=arbitrator)
 
@@ -93,6 +84,12 @@ class TestTheGangSheetHeader:
 
         assert entries(props) == [
             ("History", gang_url("n26-gang-history", gang), "default", False),
+            (
+                "Other actions",
+                gang_url("n26-gang-other-actions", gang),
+                "default",
+                False,
+            ),
             ("Notes", gang_url("n26-gang-notes", gang), "default", False),
             ("Lore", gang_url("n26-gang-lore", gang), "default", False),
             ("Clone gang", gang_url("n26-clone-gang", gang), "default", False),
@@ -189,16 +186,17 @@ def test_the_menu_comes_back_when_a_label_choice_redraws_the_sheet(
     _, props, listed = the_menu(html)
     assert [item["label"] for item in props["items"]] == [
         "History",
+        "Other actions",
         "Notes",
         "Lore",
         "Clone gang",
         "Delete gang",
     ]
-    assert len(listed) == 5
+    assert len(listed) == 6
 
 
 class TestTheCampaignHeader:
-    def test_the_arbitrator_gets_the_log_counters_asset_types_and_archive(
+    def test_the_arbitrator_gets_the_log_counters_asset_types_grouping_and_archive(
         self, client, campaign
     ):
         client.force_login(campaign.owner)
@@ -227,6 +225,12 @@ class TestTheCampaignHeader:
                 False,
             ),
             (
+                "Gang grouping",
+                reverse("n26-campaign-grouping", args=[campaign.pk]),
+                "default",
+                False,
+            ),
+            (
                 "Archive campaign",
                 reverse("n26-archive-campaign", args=[campaign.pk]),
                 "default",
@@ -241,7 +245,7 @@ class TestTheCampaignHeader:
         assert listed is None
         assert "n26-button-group" in host.parent.parent["class"]
 
-    def test_a_player_gets_only_the_log(self, client, campaign):
+    def test_a_player_gets_the_log_and_leaving(self, client, campaign):
         player = User.objects.create_user("seated")
         CampaignParticipant.objects.create(
             campaign=campaign,
@@ -253,5 +257,18 @@ class TestTheCampaignHeader:
 
         _, props, _ = the_menu(html)
 
-        assert [item["label"] for item in props["items"]] == ["View log"]
+        assert entries(props) == [
+            (
+                "View log",
+                reverse("n26-campaign-log", args=[campaign.pk]),
+                "default",
+                False,
+            ),
+            (
+                "Leave campaign",
+                reverse("n26-leave-campaign", args=[campaign.pk]),
+                "danger",
+                False,
+            ),
+        ]
         assert reverse("n26-archive-campaign", args=[campaign.pk]) not in html

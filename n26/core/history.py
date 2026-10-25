@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 
 from django.urls import reverse
 
-from n26.core.campaigns import NO_CEILING
+from n26.core.campaigns import ARCHIVED_COUNTER_NOTE_PREFIX, NO_CEILING
 from n26.core.cloning import CLONED_RATING_NOTE_PREFIX, clone_event_details
 from n26.core.effects import kind_of
 from n26.core.models import Assignment, CampaignEvent, LedgerEvent, Reason
@@ -224,6 +224,7 @@ def _acts_from(events, viewer, *, alive):
     """The acts these events tell, oldest first."""
     rows = _rows_for(events)
     _name_the_rolls(events, rows)
+    _name_the_named_picks(events, rows)
     sources = _comes_with_sources(events, rows)
     acts = []
     #: Where each thing's opening act landed, so an old record's grant
@@ -257,6 +258,7 @@ def _comes_with_sources(events, rows):
 def _rows_for(events):
     """The assignments the events name, resolved to their things."""
     wanted = {e.assignment_id for e in events if e.assignment_id}
+    wanted |= {_named_pick_id(e) for e in events} - {None}
     fetched = Assignment.with_assignables(
         Assignment.objects.filter(pk__in=wanted).select_related(
             "ledger_entry",
@@ -271,6 +273,46 @@ def _rows_for(events):
         )
     )
     return {row.pk: row for row in fetched}
+
+
+def _named_pick_id(e):
+    """The pick a label's removal or restoration names, or None.
+
+    Archiving a label removes each gang's copy of it with its pick as
+    ``before_pick``; unarchiving puts it back with that pick as
+    ``after_pick``. Every other removal that names a pick names the
+    removed pick itself, so it says nothing more.
+    """
+    if e.kind == Kind.REMOVED:
+        pick = e.before_pick_id
+    elif e.kind == Kind.RESTORED:
+        pick = e.after_pick_id
+    else:
+        return None
+    return pick if pick is not None and pick != e.assignment_id else None
+
+
+def _name_the_named_picks(events, rows):
+    """Put the pick on each label removed or restored with one, so the
+    sentence can say what it was. The picks come in with the records'
+    own read (``_rows_for``), so this costs nothing further."""
+    for e in events:
+        pick = rows.get(_named_pick_id(e))
+        if pick is not None and pick.chosen_for_id == e.assignment_id:
+            e.named_pick = pick
+
+
+def _stood_at(e):
+    """What an archived counter or label stood at as it went or came back:
+    " (was 4)" and " (was Lawful)" on a removal, " (4)" and " (Lawful)"
+    on a restoration. Nothing for any other event."""
+    if e.note.startswith(ARCHIVED_COUNTER_NOTE_PREFIX):
+        value = e.note.removeprefix(ARCHIVED_COUNTER_NOTE_PREFIX)
+    elif getattr(e, "named_pick", None) is not None:
+        value = _name(e.named_pick)
+    else:
+        return ()
+    return (Span(f" (was {value})" if e.kind == Kind.REMOVED else f" ({value})"),)
 
 
 def _name_the_rolls(events, rows):
@@ -352,11 +394,18 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
     # beneath it.
     joined = any(e.kind == Kind.JOINED_CAMPAIGN for e in cluster)
     left = any(e.kind == Kind.LEFT_CAMPAIGN for e in cluster)
+    # A label removed or restored with its pick says the pick: "removed
+    # Alignment (was Lawful)". The pick's own event would say it again.
+    told_picks = {
+        e.named_pick.pk for e in cluster if getattr(e, "named_pick", None) is not None
+    }
     standing = []
     waiting = []
     for e in cluster:
         row = rows.get(e.assignment_id)
         if _machinery(e, row):
+            continue
+        if e.kind in {Kind.REMOVED, Kind.RESTORED} and e.assignment_id in told_picks:
             continue
         if (
             e.kind == Kind.GRANTED
@@ -558,7 +607,10 @@ def _rides(e, row):
         return None
     if e.kind == Kind.GRANTED:
         return row.caused_by_id
-    if e.kind in {Kind.REMOVED, Kind.REFUNDED, Kind.SOLD} and not row.removes:
+    if (
+        e.kind in {Kind.REMOVED, Kind.RESTORED, Kind.REFUNDED, Kind.SOLD}
+        and not row.removes
+    ):
         return row.parent_id or row.caused_by_id
     return None
 
@@ -776,6 +828,8 @@ def _tell(e, row, alive):
             return _tell_action_use(e, "applied", alive, after=" by hand"), "model"
         case Kind.ACTION_USE_REOPENED:
             return _tell_action_use(e, "reopened", alive), "model"
+        case Kind.ACTION_USE_UNDONE:
+            return _tell_action_use(e, "undid", alive, result=True), "model"
         case Kind.ACTION_USE_CORRECTED:
             return _tell_action_use(e, "corrected", alive, result=True), "model"
         case Kind.PURCHASED:
@@ -829,7 +883,19 @@ def _tell(e, row, alive):
         case Kind.REMOVED if row is not None and row.removes:
             return (Span("put "), thing, Span(" back"), *_for(model, at, "on")), "model"
         case Kind.REMOVED:
-            return (Span("removed "), thing, *_for(model, at, "from")), category
+            return (
+                Span("removed "),
+                thing,
+                *_stood_at(e),
+                *_for(model, at, "from"),
+            ), category
+        case Kind.RESTORED:
+            return (
+                Span("restored "),
+                thing,
+                *_stood_at(e),
+                *_for(model, at, "on"),
+            ), category
         case Kind.REFUNDED:
             return (Span("returned "), thing, Span(" for a refund")), "credits"
         case Kind.SOLD:
@@ -1175,6 +1241,7 @@ _NOTE_IS_MACHINERY = {
     Kind.ACTION_USE_CORRECTED,
     Kind.ACTION_USE_APPLIED_BY_HAND,
     Kind.ACTION_USE_REOPENED,
+    Kind.ACTION_USE_UNDONE,
 }
 
 
@@ -1186,6 +1253,9 @@ def _shown_note(e):
     if e.kind in _NOTE_IS_MACHINERY:
         return ""
     if e.note == "reset":
+        return ""
+    # The value an archived counter stood at, which the sentence has said.
+    if e.note.startswith(ARCHIVED_COUNTER_NOTE_PREFIX):
         return ""
     # A holding's note is its name, which the sentence has already said.
     if _about_a_holding(e):
@@ -1336,6 +1406,30 @@ def _joining_companions():
     )
 
 
+def _archiving_companions():
+    """Each gang's removal or restoration when the arbitrator archives or
+    unarchives a counter or label shares that act's mark; only the act
+    itself is a campaign act.
+
+    The gang's own history keeps its line, which says what it lost or
+    got back.
+    """
+    from django.db.models import Exists, OuterRef
+
+    return Exists(
+        CampaignEvent.objects.filter(
+            campaign_id=OuterRef("campaign_id"),
+            batch=OuterRef("batch"),
+            kind__in=(
+                CampaignEvent.Kind.COUNTER_ARCHIVED,
+                CampaignEvent.Kind.LABEL_ARCHIVED,
+                CampaignEvent.Kind.COUNTER_UNARCHIVED,
+                CampaignEvent.Kind.LABEL_UNARCHIVED,
+            ),
+        )
+    )
+
+
 def campaign_history_size(campaign):
     """How many acts the history holds, without building any of them.
 
@@ -1358,6 +1452,7 @@ def campaign_history_size(campaign):
     return (
         campaign.events.count()
         + campaign.gang_events.exclude(_joining_companions())
+        .exclude(_archiving_companions())
         .exclude(riders)
         .exclude(handed_over)
         .exclude(kind=Kind.CLONED, assignment__isnull=False)
@@ -1414,6 +1509,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
     events = (
         LedgerEvent.objects.filter(campaign=campaign)
         .exclude(_joining_companions())
+        .exclude(_archiving_companions())
         # A clone's assignment-level openings are ledger machinery. Its one
         # standalone event already holds the visible act and its totals, so
         # letting the openings consume a page would make one large clone hide
@@ -1462,6 +1558,7 @@ def _gang_acts_in_campaign(campaign, viewer, limit=None):
 
     rows = _rows_for(events)
     _name_the_rolls(events, rows)
+    _name_the_named_picks(events, rows)
     sources = _comes_with_sources(events, rows)
     # Only the living have a page to link to, across every gang here.
     alive = set(
@@ -1572,6 +1669,12 @@ def _tell_campaign(e):
         case kinds.STATUS_CHANGED:
             _, _, now = e.note.rpartition(" → ")
             return (Span(f"set the campaign status to {now}"),), "campaign"
+        case kinds.STARTING_MODE_SET:
+            return (
+                Span(f"changed starting territories: {e.note.lower()}"),
+            ), "campaign"
+        case kinds.GROUPING_CHANGED:
+            return (Span("changed the gang grouping and colours"),), "campaign"
         case kinds.SUMMARY_EDITED:
             return (Span("edited the campaign's summary"),), "campaign"
         case kinds.ARCHIVED:
@@ -1581,11 +1684,12 @@ def _tell_campaign(e):
             | kinds.INVITE_ACCEPTED
             | kinds.INVITE_DECLINED
             | kinds.PLAYER_REMOVED
+            | kinds.PLAYER_LEFT
         ):
-            # An answer is the invited person's own act, so the actor's name
-            # already leads the sentence and naming them again would say it
-            # twice. Asking and removing are the arbitrator's, and there the
-            # sentence has to say who it was about.
+            # An answer or a leaving is the player's own act, so the actor's
+            # name already leads the sentence and naming them again would say
+            # it twice. Asking and removing are the arbitrator's, and there
+            # the sentence has to say who it was about.
             who = e.about_user.username if e.about_user_id else "somebody"
             match e.kind:
                 case kinds.INVITED:
@@ -1594,6 +1698,8 @@ def _tell_campaign(e):
                     return (Span("accepted the invitation"),), "campaign"
                 case kinds.INVITE_DECLINED:
                     return (Span("declined the invitation"),), "campaign"
+                case kinds.PLAYER_LEFT:
+                    return (Span("left the campaign"),), "campaign"
             return (Span(f"removed {who} from the campaign"),), "campaign"
         case kinds.DICE_ROLLED | kinds.DICE_ROLL_NOTED:
             if not e.roll_id:
@@ -1647,10 +1753,24 @@ def _tell_campaign(e):
                 else ""
             )
             return (Span(f"edited the battle: {e.note}", href),), "campaign"
+        case kinds.BATTLE_ARCHIVED:
+            href = (
+                reverse("n26-battle", args=[e.campaign_id, e.battle_id])
+                if e.battle_id
+                else ""
+            )
+            return (Span(f"archived the battle: {e.note}", href),), "campaign"
         case kinds.BATTLE_REMOVED:
             if e.note:
                 return (Span(f"removed the battle of {e.note}"),), "campaign"
             return (Span("removed a battle"),), "campaign"
+        case kinds.BATTLE_RESTORED:
+            href = (
+                reverse("n26-battle", args=[e.campaign_id, e.battle_id])
+                if e.battle_id
+                else ""
+            )
+            return (Span(f"restored the battle: {e.note}", href),), "campaign"
         case kinds.ASSET_ADDED:
             # The note is the asset's name at the time. One removed since is
             # still named, which is what a log is for.
@@ -1721,4 +1841,16 @@ def _tell_campaign(e):
             if name:
                 return (Span(f"added the label {name}"),), "campaign"
             return (Span("added a label"),), "campaign"
+        case kinds.COUNTER_ARCHIVED:
+            what = f"the counter {e.note}" if e.note else "a counter"
+            return (Span(f"archived {what}"),), "campaign"
+        case kinds.LABEL_ARCHIVED:
+            what = f"the label {e.note}" if e.note else "a label"
+            return (Span(f"archived {what}"),), "campaign"
+        case kinds.COUNTER_UNARCHIVED:
+            what = f"the counter {e.note}" if e.note else "a counter"
+            return (Span(f"unarchived {what}"),), "campaign"
+        case kinds.LABEL_UNARCHIVED:
+            what = f"the label {e.note}" if e.note else "a label"
+            return (Span(f"unarchived {what}"),), "campaign"
     return (Span("changed the campaign"),), "campaign"

@@ -9,7 +9,6 @@ from django.contrib.auth.models import User
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.crews import CrewSelection, save_crew
 from n26.core.forms import BattleForm
@@ -17,7 +16,6 @@ from n26.core.models import Battle, CampaignEvent, Gang, LedgerEvent, Miniature
 from n26.core.operations import operation
 from n26.core.post_battle import start_report
 from n26.core.reconcile import assert_reconciled
-from n26.flags import CAMPAIGNS
 from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
     assign,
@@ -34,13 +32,6 @@ from n26.tests.sandbox.actions import (
 )
 
 pytestmark = pytest.mark.django_db
-
-
-@pytest.fixture
-def flag():
-    return FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
 
 
 @pytest.fixture
@@ -91,7 +82,7 @@ def fields(gang=None, **changes):
     ],
 )
 def test_campaign_lists_battle_result_above_participating_gangs(
-    client, campaign, battle, gang, flag, result, expected
+    client, campaign, battle, gang, result, expected
 ):
     battle.result = result
     battle.save(update_fields=["result"])
@@ -174,7 +165,6 @@ class TestBattlePages:
         battle,
         gang,
         arbitrator,
-        flag,
         default_pack,
         make_profile,
         person_type,
@@ -221,7 +211,6 @@ class TestBattlePages:
         battle,
         gang,
         arbitrator,
-        flag,
         default_pack,
         make_profile,
         reader,
@@ -259,15 +248,7 @@ class TestBattlePages:
         assert_reconciled(gang)
 
     def test_zero_rating_is_shown_for_a_confirmed_crew(
-        self,
-        client,
-        campaign,
-        battle,
-        gang,
-        arbitrator,
-        flag,
-        default_pack,
-        make_profile,
+        self, client, campaign, battle, gang, arbitrator, default_pack, make_profile
     ):
         model = hire(gang, make_profile("Gunner"), "Mara")
         save_crew(
@@ -283,15 +264,7 @@ class TestBattlePages:
         assert "Reinforcements rating:" not in drawn
 
     def test_draft_crew_rating_is_not_published(
-        self,
-        client,
-        campaign,
-        battle,
-        gang,
-        arbitrator,
-        flag,
-        default_pack,
-        make_profile,
+        self, client, campaign, battle, gang, arbitrator, default_pack, make_profile
     ):
         model = hire(gang, make_profile("Gunner"), "Mara", paid=65)
         save_crew(
@@ -309,7 +282,7 @@ class TestBattlePages:
         assert_reconciled(gang)
 
     def test_participant_actions_and_recorded_by_have_no_extra_footer_explanation(
-        self, client, campaign, battle, flag
+        self, client, campaign, battle
     ):
         response = client.get(address(campaign, battle))
         soup = BeautifulSoup(response.content, "html.parser")
@@ -325,7 +298,7 @@ class TestBattlePages:
         assert address(campaign, battle, "remove/") in drawn
 
     def test_own_gang_first_with_shared_colour_and_type_flair(
-        self, client, campaign, battle, gang, gang_type, flag, arbitrator, monkeypatch
+        self, client, campaign, battle, gang, gang_type, arbitrator, monkeypatch
     ):
         opponent = found_gang(
             "A rival gang", gang_type, owner=User.objects.create_user("rival")
@@ -356,13 +329,11 @@ class TestBattlePages:
         assert first.select_one(".n26-icon-inline svg") is not None
         assert "--color-amber-500" in first.select_one("[style]")["style"]
 
-    def test_full_campaign_log_links_to_older_battle(
-        self, client, campaign, battle, flag
-    ):
+    def test_full_campaign_log_links_to_older_battle(self, client, campaign, battle):
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/log/").content.decode()
         assert f'href="{address(campaign, battle)}"' in drawn
 
-    def test_create_redirects_to_permanent_detail(self, client, campaign, gang, flag):
+    def test_create_redirects_to_permanent_detail(self, client, campaign, gang):
         response = client.post(
             f"/n26/campaigns/{campaign.pk}/battles/new/", fields(gang)
         )
@@ -377,7 +348,7 @@ class TestBattlePages:
             response.content.decode()
         )
 
-    def test_create_ignores_an_outcome_sent_with_it(self, client, campaign, gang, flag):
+    def test_create_ignores_an_outcome_sent_with_it(self, client, campaign, gang):
         client.post(
             f"/n26/campaigns/{campaign.pk}/battles/new/",
             fields(gang, result="winners", winners=[str(gang.pk)]),
@@ -386,15 +357,13 @@ class TestBattlePages:
         assert battle.result == Battle.Result.NOT_RECORDED
         assert not battle.winners.exists()
 
-    def test_the_add_page_offers_no_outcome(self, client, campaign, flag):
+    def test_the_add_page_offers_no_outcome(self, client, campaign):
         drawn = client.get(f"/n26/campaigns/{campaign.pk}/battles/new/")
         assert drawn.status_code == 200
         assert 'name="result"' not in drawn.content.decode()
         assert 'name="winners"' not in drawn.content.decode()
 
-    def test_legacy_detail_and_campaign_do_not_invent_results(
-        self, client, campaign, flag
-    ):
+    def test_legacy_detail_and_campaign_do_not_invent_results(self, client, campaign):
         legacy = Battle.objects.create(campaign=campaign, date=date(2026, 8, 3))
         detail = client.get(address(campaign, legacy)).content.decode()
         assert "Battle on 3 Aug 2026" in detail
@@ -406,7 +375,7 @@ class TestBattlePages:
         assert ">Draw<" not in campaign_page
 
     def test_campaign_battles_mark_winners_and_draws(
-        self, client, campaign, arbitrator, gang, flag
+        self, client, campaign, arbitrator, gang
     ):
         with campaign_operation(campaign, actor=arbitrator) as act:
             won = act.record_battle(
@@ -426,7 +395,7 @@ class TestBattlePages:
         assert "n26-row-link" in campaign_page
 
     def test_edit_records_result_without_gang_changes(
-        self, client, campaign, battle, gang, flag
+        self, client, campaign, battle, gang
     ):
         before = LedgerEvent.objects.count()
         response = client.post(
@@ -447,7 +416,7 @@ class TestBattlePages:
         assert LedgerEvent.objects.count() == before
         assert "Won by The Ashen Choir" in client.get(response.url).content.decode()
 
-    def test_invalid_form_preserves_choices(self, client, campaign, battle, gang, flag):
+    def test_invalid_form_preserves_choices(self, client, campaign, battle, gang):
         response = client.post(
             address(campaign, battle, "edit/"),
             fields(gang, result="draw", winners=[str(gang.pk)], revision=0),
@@ -462,7 +431,7 @@ class TestBattlePages:
         assert battle.result == "not_recorded"
 
     def test_stale_edit_is_explained_without_overwriting(
-        self, client, campaign, battle, gang, flag
+        self, client, campaign, battle, gang
     ):
         url = address(campaign, battle, "edit/")
         assert (
@@ -479,7 +448,7 @@ class TestBattlePages:
         )
 
     def test_edit_keeps_departed_participant_selectable(
-        self, client, campaign, battle, gang, arbitrator, flag
+        self, client, campaign, battle, gang, arbitrator
     ):
         with operation(gang, actor=arbitrator) as op:
             op.leave_campaign()
@@ -491,38 +460,36 @@ class TestBattlePages:
         )
         assert response.status_code == 302
 
-    def test_attributed_history_blocks_remove_get_and_post(
-        self, client, campaign, battle, gang, flag
+    def test_attributed_history_is_preserved_when_archiving(
+        self, client, campaign, battle, gang
     ):
-        LedgerEvent.objects.create(
+        event = LedgerEvent.objects.create(
             gang=gang, campaign=campaign, battle=battle, kind=LedgerEvent.Kind.ADDED
         )
         url = address(campaign, battle, "remove/")
-        detail = client.get(address(campaign, battle)).content.decode()
-        assert url not in detail
-        assert "This battle cannot be removed because" not in detail
+        assert url in client.get(address(campaign, battle)).content.decode()
         question = client.get(url).content.decode()
-        assert 'type="submit"' not in question
-        assert "cannot remove it" in question
+        assert 'type="submit"' in question
+        assert "stake transfers will stay in effect" in question
         response = client.post(url, {"revision": battle.revision}, follow=True)
-        assert (
-            "cannot remove a battle with recorded gang history"
-            in response.content.decode()
-        )
-        assert Battle.objects.filter(pk=battle.pk).exists()
+        assert response.status_code == 200
+        battle.refresh_from_db()
+        event.refresh_from_db()
+        assert battle.archived
+        assert event.battle_id == battle.pk
 
     def test_remove_confirmation_posts_its_reviewed_version(
-        self, client, campaign, battle, flag
+        self, client, campaign, battle
     ):
         url = address(campaign, battle, "remove/")
         confirmation = BeautifulSoup(client.get(url).content, "html.parser")
         revision = confirmation.select_one('input[name="revision"]')["value"]
         assert revision == str(battle.revision)
         assert client.post(url, {"revision": revision}).status_code == 302
-        assert not Battle.objects.filter(pk=battle.pk).exists()
+        assert Battle.objects.get(pk=battle.pk).archived
 
     def test_an_old_removal_form_cannot_delete_newer_battle_details(
-        self, client, campaign, battle, gang, flag
+        self, client, campaign, battle, gang
     ):
         url = address(campaign, battle, "remove/")
         confirmation = BeautifulSoup(client.get(url).content, "html.parser")
@@ -536,59 +503,47 @@ class TestBattlePages:
         )
         response = client.post(url, {"revision": revision}, follow=True)
         assert "This battle changed." in response.content.decode()
-        assert "before removing it" in response.content.decode()
+        assert "before archiving it" in response.content.decode()
         battle.refresh_from_db()
         assert battle.scenario == "Ambush"
         assert battle.revision == int(revision) + 1
         assert not campaign.events.filter(
-            kind=CampaignEvent.Kind.BATTLE_REMOVED
+            kind=CampaignEvent.Kind.BATTLE_ARCHIVED
         ).exists()
 
     @pytest.mark.parametrize("data", [{}, {"revision": ""}, {"revision": "bad"}])
     def test_removal_requires_a_valid_confirmation_version(
-        self, client, campaign, battle, flag, data
+        self, client, campaign, battle, data
     ):
         response = client.post(address(campaign, battle, "remove/"), data, follow=True)
         assert "version is missing or invalid" in response.content.decode()
         assert Battle.objects.filter(pk=battle.pk).exists()
 
     @pytest.mark.parametrize("record", ["crew", "report"])
-    def test_saved_crews_and_reports_block_both_the_question_and_removal(
-        self, client, campaign, battle, gang, arbitrator, flag, record
+    def test_saved_crews_and_reports_are_preserved_when_archiving(
+        self, client, campaign, battle, gang, arbitrator, record
     ):
         if record == "crew":
             save_crew(
-                battle=battle,
-                gang=gang,
-                actor=arbitrator,
-                revision=0,
-                selections=[],
+                battle=battle, gang=gang, actor=arbitrator, revision=0, selections=[]
             )
+            saved = battle.crews.get()
         else:
-            start_report(gang, battle=battle, actor=arbitrator, request_key=uuid4())
+            saved = start_report(
+                gang, battle=battle, actor=arbitrator, request_key=uuid4()
+            )
         url = address(campaign, battle, "remove/")
-        response = client.get(url)
-        assert response.status_code == 200
-        assert 'type="submit"' not in response.content.decode()
-        assert "This battle has saved records" in response.content.decode()
-        assert "cannot remove it" in response.content.decode()
-        response = client.post(url, {"revision": battle.revision}, follow=True)
-        assert "cannot remove a battle with a saved crew" in response.content.decode()
-        assert Battle.objects.filter(pk=battle.pk).exists()
+        assert 'type="submit"' in client.get(url).content.decode()
+        assert client.post(url, {"revision": battle.revision}).status_code == 302
+        battle.refresh_from_db()
+        saved.refresh_from_db()
+        assert battle.archived
+        assert saved.battle_id == battle.pk
 
 
 class TestBattlePermissions:
-    @pytest.mark.parametrize("suffix", ["", "edit/", "remove/"])
-    def test_flag_off_blocks_get_and_post(self, client, campaign, battle, flag, suffix):
-        flag.availability = Availability.OFF
-        flag.save()
-        url = address(campaign, battle, suffix)
-        assert client.get(url).status_code == 404
-        assert client.post(url, fields()).status_code == 404
-        assert Battle.objects.filter(pk=battle.pk).exists()
-
     def test_non_owner_can_read_but_cannot_administer(
-        self, client, campaign, battle, gang, flag
+        self, client, campaign, battle, gang
     ):
         player = User.objects.create_user("player")
         client.force_login(player)
@@ -597,6 +552,7 @@ class TestBattlePermissions:
         drawn = page.content.decode()
         assert "Edit battle" not in drawn
         assert "Remove battle" not in drawn
+        assert "Archive battle" not in drawn
         assert f"/n26/gangs/{gang.pk}/history/" not in drawn
         for url in (
             address(campaign, battle, "edit/"),
@@ -607,14 +563,14 @@ class TestBattlePermissions:
             assert client.post(url, fields(gang, revision=0)).status_code == 404
 
     def test_gang_history_link_is_omitted_for_its_owner_too(
-        self, client, campaign, battle, gang, flag
+        self, client, campaign, battle, gang
     ):
         drawn = client.get(address(campaign, battle)).content.decode()
         assert f"/n26/gangs/{gang.pk}/history/" not in drawn
 
     @pytest.mark.parametrize("suffix", ["", "edit/", "remove/"])
     def test_foreign_or_invalid_battle_is_404(
-        self, client, campaign, battle, campaign_type, arbitrator, flag, suffix
+        self, client, campaign, battle, campaign_type, arbitrator, suffix
     ):
         foreign = found_campaign("Elsewhere", campaign_type, owner=arbitrator)
         for url in (
@@ -624,20 +580,11 @@ class TestBattlePermissions:
             assert client.get(url).status_code == 404
             assert client.post(url, fields(revision=0)).status_code == 404
 
-    def test_anonymous_reader_does_not_reach_the_feature(
-        self, client, campaign, battle, flag
-    ):
+    def test_anonymous_reader_is_asked_to_sign_in(self, client, campaign, battle):
         client.logout()
         response = client.get(address(campaign, battle))
-        assert response.status_code == 404
-
-    def test_flag_off_blocks_creation_get_and_post(self, client, campaign, flag):
-        flag.availability = Availability.OFF
-        flag.save()
-        url = f"/n26/campaigns/{campaign.pk}/battles/new/"
-        assert client.get(url).status_code == 404
-        assert client.post(url, fields()).status_code == 404
-        assert not Battle.objects.exists()
+        assert response.status_code == 302
+        assert "/accounts/login/" in response["Location"]
 
 
 class TestBattleQueryGrowth:
@@ -649,7 +596,6 @@ class TestBattleQueryGrowth:
         gang,
         gang_type,
         arbitrator,
-        flag,
         default_pack,
         make_profile,
     ):
@@ -701,7 +647,7 @@ class TestBattleQueryGrowth:
 
     @pytest.mark.parametrize("screen", ["detail", "edit", "create", "campaign"])
     def test_participants_and_winners_add_no_queries(
-        self, client, campaign, battle, gang, gang_type, arbitrator, flag, screen
+        self, client, campaign, battle, gang, gang_type, arbitrator, screen
     ):
         urls = {
             "detail": address(campaign, battle),
@@ -726,7 +672,7 @@ class TestBattleQueryGrowth:
         assert len(many) == len(few)
 
     def test_campaign_battle_rows_add_no_queries(
-        self, client, campaign, battle, gang, arbitrator, flag
+        self, client, campaign, battle, gang, arbitrator
     ):
         url = f"/n26/campaigns/{campaign.pk}/"
         client.get(url)
@@ -744,3 +690,239 @@ class TestBattleQueryGrowth:
         with CaptureQueriesContext(connection) as many:
             assert client.get(url).status_code == 200
         assert len(many) == len(few)
+
+
+class TestArchivedBattles:
+    def test_archived_list_paginates_without_listing_active_battles(
+        self, client, campaign, battle, arbitrator
+    ):
+        from django.urls import reverse
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            for i in range(31):
+                archived = act.record_battle(
+                    battle.date, scenario=f"Cancelled battle {i}"
+                )
+                act.remove_battle(archived, revision=0)
+        url = reverse("n26-campaign-archived-battles", args=[campaign.pk])
+        first = client.get(url)
+        assert first.context["page"].paginator.count == 31
+        assert len(first.context["page"]) == 30
+        second = client.get(url, {"page": 2})
+        assert len(second.context["page"]) == 1
+        assert "Page 2 of 2" in second.content.decode()
+        assert "pagination.label" not in second.content.decode()
+        assert battle not in first.context["page"]
+        assert battle not in second.context["page"]
+
+    def test_archive_hides_the_battle_and_restore_returns_it(
+        self, client, campaign, battle, gang, arbitrator
+    ):
+        from django.urls import reverse
+
+        from n26.core.models import Campaign
+        from n26.core.views.campaigns import _unfinished_battles, campaign_rows
+
+        draft = start_report(gang, battle=battle, actor=arbitrator, request_key=uuid4())
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            archived = act.remove_battle(battle, revision=battle.revision)
+        campaign_url = reverse("n26-campaign", args=[campaign.pk])
+        assert not client.get(campaign_url).context["battles"]
+        assert client.get(campaign_url).context["sheet"].battles_fought == 0
+        assert (
+            campaign_rows(Campaign.objects.filter(pk=campaign.pk))[0].battle_count == 0
+        )
+        reports = client.get(reverse("n26-gang-post-battle", args=[gang.pk]))
+        assert not reports.context["campaign_entries"]
+        assert _unfinished_battles(campaign, [gang.pk]) == ([], [])
+        archive_url = reverse("n26-campaign-archived-battles", args=[campaign.pk])
+        assert list(client.get(archive_url).context["page"]) == [archived]
+        detail = client.get(address(campaign, battle))
+        assert "This battle is archived" in detail.content.decode()
+        assert "Edit battle" not in detail.content.decode()
+        assert "Continue draft" not in detail.content.decode()
+        assert (
+            client.get(reverse("n26-post-battle-editor", args=[draft.pk])).status_code
+            == 404
+        )
+        restore = reverse("n26-campaign-restore-battle", args=[campaign.pk, battle.pk])
+        assert client.get(restore).status_code == 405
+        assert client.post(restore, {"revision": archived.revision}).status_code == 302
+        restored = Battle.objects.get(pk=battle.pk)
+        assert not restored.archived
+        assert restored.archived_at is None
+        assert restored.revision == archived.revision + 1
+        assert list(client.get(campaign_url).context["battles"]) == [restored]
+        assert not client.get(archive_url).context["page"]
+        assert (
+            client.get(reverse("n26-post-battle-editor", args=[draft.pk])).status_code
+            == 200
+        )
+        assert draft.battle_id == restored.pk
+
+    def test_archive_and_restore_are_idempotent_and_invalidate_old_forms(
+        self, campaign, battle, arbitrator, gang
+    ):
+        from n26.core.operations import Refusal
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            archived = act.remove_battle(battle, revision=0)
+            retried = act.remove_battle(battle, revision=0)
+        assert retried.archived_at == archived.archived_at
+        assert (
+            campaign.events.filter(kind=CampaignEvent.Kind.BATTLE_ARCHIVED).count() == 1
+        )
+        with pytest.raises(Refusal, match="changed.*restoring"):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                act.restore_battle(battle, revision=0)
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            restored = act.restore_battle(archived, revision=archived.revision)
+            retried = act.restore_battle(archived, revision=archived.revision)
+        assert restored.revision == retried.revision == 2
+        assert (
+            campaign.events.filter(kind=CampaignEvent.Kind.BATTLE_RESTORED).count() == 1
+        )
+        with pytest.raises(Refusal, match="changed"):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                act.edit_battle(
+                    battle,
+                    scenario="Ambush",
+                    date=battle.date,
+                    gangs=[gang],
+                    result="draw",
+                    winners=[],
+                    revision=0,
+                )
+        with pytest.raises(Refusal, match="changed"):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                act.remove_battle(battle, revision=0)
+
+    def test_open_forms_cannot_change_an_archived_battle(
+        self, client, campaign, battle, gang, arbitrator
+    ):
+        from django.urls import reverse
+
+        from n26.core.operations import Refusal
+        from n26.core.post_battle import apply_report, save_draft, start_correction
+
+        draft = start_report(gang, battle=battle, actor=arbitrator, request_key=uuid4())
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.remove_battle(battle, revision=battle.revision)
+        # Call with objects read before archiving, as a form opened in another tab would.
+        with pytest.raises(Refusal, match="archived"):
+            save_crew(
+                battle=battle, gang=gang, actor=arbitrator, revision=0, selections=[]
+            )
+        with pytest.raises(Refusal, match="archived"):
+            start_report(gang, battle=battle, actor=arbitrator, request_key=uuid4())
+        with pytest.raises(Refusal, match="archived"):
+            save_draft(
+                draft,
+                actor=arbitrator,
+                generation=draft.generation,
+                revision=0,
+                payload={},
+            )
+        with pytest.raises(Refusal, match="archived"):
+            start_correction(draft, actor=arbitrator)
+        with pytest.raises(Refusal, match="archived"):
+            apply_report(
+                draft,
+                actor=arbitrator,
+                generation=draft.generation,
+                revision=0,
+                submission_key=uuid4(),
+                review="",
+            )
+        assert (
+            client.post(address(campaign, battle, "edit/"), fields(gang)).status_code
+            == 404
+        )
+        assert (
+            client.post(
+                reverse("n26-battle-crew", args=[campaign.pk, battle.pk, gang.pk]), {}
+            ).status_code
+            == 404
+        )
+        assert (
+            client.post(
+                reverse("n26-battle-report", args=[campaign.pk, battle.pk, gang.pk]),
+                {"request_key": uuid4()},
+            ).status_code
+            == 404
+        )
+        assert (
+            client.post(
+                reverse("n26-post-battle-editor", args=[draft.pk]), {}
+            ).status_code
+            == 404
+        )
+        assert (
+            client.post(
+                reverse("n26-post-battle-correct", args=[draft.pk]), {}
+            ).status_code
+            == 404
+        )
+
+    def test_only_the_arbitrator_can_archive_restore_or_list_archived_battles(
+        self, client, campaign, battle, arbitrator
+    ):
+        from django.urls import reverse
+
+        from n26.core.operations import Refusal
+
+        stranger = User.objects.create_user("stranger")
+        client.force_login(stranger)
+        for suffix in ["remove/", "restore/"]:
+            assert (
+                client.post(
+                    address(campaign, battle, suffix), {"revision": 0}
+                ).status_code
+                == 404
+            )
+        assert (
+            client.get(
+                reverse("n26-campaign-archived-battles", args=[campaign.pk])
+            ).status_code
+            == 404
+        )
+        for action in ["remove_battle", "restore_battle"]:
+            with pytest.raises(Refusal, match="Only the arbitrator"):
+                with campaign_operation(campaign, actor=stranger) as act:
+                    getattr(act, action)(battle, revision=0)
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.remove_battle(battle, revision=0)
+        assert client.get(address(campaign, battle)).status_code == 200
+        assert (
+            "Restore battle"
+            not in client.get(address(campaign, battle)).content.decode()
+        )
+
+    def test_archived_list_has_no_query_growth_per_battle(
+        self, client, campaign, battle, gang, arbitrator
+    ):
+        from django.urls import reverse
+
+        def count():
+            with CaptureQueriesContext(connection) as captured:
+                response = client.get(url)
+            assert response.status_code == 200
+            return len(captured)
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.remove_battle(battle, revision=battle.revision)
+        url = reverse("n26-campaign-archived-battles", args=[campaign.pk])
+        count()
+        before = count()
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            for i in range(4):
+                extra = act.record_battle(
+                    battle.date,
+                    [gang],
+                    scenario=f"Archived battle {i}",
+                    result="winners",
+                    winners=[gang],
+                )
+                act.remove_battle(extra, revision=extra.revision)
+        assert count() <= before
+        assert client.get(url).context["page"].paginator.count == 5

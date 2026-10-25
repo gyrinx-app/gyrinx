@@ -10,10 +10,8 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
 from n26.core.models import Assignment, Battle, CampaignParticipant, LedgerEvent
-from n26.flags import CAMPAIGNS
 from n26.library.authoring import (
     add_asset_type,
     attach_modifiers_to,
@@ -31,6 +29,7 @@ from n26.library.authoring import (
 )
 from n26.library.income import ensure_income_counter, income_modifiers
 from n26.library.models import AssetType
+from n26.tests.fixtures import island_props
 from n26.tests.sandbox.actions import found_campaign, found_gang
 
 pytestmark = pytest.mark.django_db
@@ -38,9 +37,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def setup(client, campaign_type, gang_type):
-    FeatureFlag.objects.create(
-        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-    )
     arbitrator = User.objects.create_user("arbitrator")
     player = User.objects.create_user("player")
     kind = add_asset_type(
@@ -93,15 +89,13 @@ def test_asset_row_and_holding_log_link_to_the_exact_holding(client, setup):
         client.get(reverse("n26-campaign", args=[campaign.pk])).content, "html.parser"
     )
     links = soup.find_all("a", href=address(campaign, holding))
-    assert len(links) >= 2
+    assert links
     assert all("Ruins by the sump" in link.get_text() for link in links)
-    table = soup.find(id="n26-campaign-assets").find("table")
-    assert [heading.get_text(strip=True) for heading in table.thead.find_all("th")] == [
-        "Territory",
-        "Income",
-        "Held by",
-        "Actions",
-    ]
+    table = island_props(str(soup), "campaign-assets")
+    entry = next(entry for entry in table["entries"] if entry["id"] == str(holding.pk))
+    assert entry["href"] == address(campaign, holding)
+    assert entry["name"] == "Ruins by the sump"
+    assert table["label"] == "Territory"
 
 
 @pytest.mark.parametrize(
@@ -143,8 +137,8 @@ def test_asset_dropdown_keeps_permission_gated_links_and_dialog_fetches(
         client.get(reverse("n26-campaign", args=[campaign.pk])).content,
         "html.parser",
     )
-    panel_id = f"asset-actions-{holding.pk}"
-    panel = soup.find(id=panel_id)
+    props = island_props(str(soup), "campaign-assets")
+    entry = next(entry for entry in props["entries"] if entry["id"] == str(holding.pk))
     labels = (
         {"Transfer", "Unassign"}
         if held and person == "arbitrator"
@@ -154,19 +148,11 @@ def test_asset_dropdown_keeps_permission_gated_links_and_dialog_fetches(
         if not held and person == "arbitrator"
         else set()
     )
-    if not labels:
-        assert panel is None
-        assert soup.find("button", popovertarget=panel_id) is None
-        return
-    assert panel["popover"] == "auto"
-    trigger = soup.find("button", popovertarget=panel_id)
-    assert trigger["aria-label"] == f"Actions for {holding.name}"
-    links = panel.find_all("a")
-    assert {link.get_text(strip=True) for link in links} == labels
-    for link in links:
-        if link.get_text(strip=True) != "Remove":
-            assert link["hx-get"] == link["href"]
-            assert link["hx-swap"] == "none"
+    assert {action["label"] for action in entry["actions"]} == labels
+    for action in entry["actions"]:
+        assert str(campaign.pk) in action["href"]
+        assert str(holding.pk) in action["href"]
+        assert action["dialog"] == (action["label"] != "Remove")
 
 
 def test_unclaimed_asset_offers_assign_remove_only_to_arbitrator(client, setup):
@@ -238,7 +224,7 @@ def test_staked_battles_show_results_and_recorded_transfer_without_moving_again(
     assert LedgerEvent.objects.count() == before
 
 
-def test_bad_keys_other_campaigns_and_closed_feature_do_not_expose_details(
+def test_bad_keys_other_campaigns_and_visitors_do_not_expose_details(
     client, setup, campaign_type
 ):
     arbitrator, _, campaign, holding, _, _ = setup
@@ -250,13 +236,8 @@ def test_bad_keys_other_campaigns_and_closed_feature_do_not_expose_details(
         ).status_code
         == 404
     )
-    FeatureFlag.objects.filter(slug=CAMPAIGNS).update(availability=Availability.OFF)
-    assert client.get(address(campaign, holding)).status_code == 404
-    FeatureFlag.objects.filter(slug=CAMPAIGNS).update(
-        availability=Availability.EVERYONE
-    )
     client.logout()
-    assert client.get(address(campaign, holding)).status_code == 404
+    assert client.get(address(campaign, holding)).status_code == 302
 
 
 def test_more_battles_and_ownership_changes_do_not_add_queries(client, setup):
@@ -284,9 +265,9 @@ def test_holding_choices_use_the_same_queries_as_more_choices_are_authored(
     client.force_login(player)
     kind = create_slot_type("Territory benefit")
     pick = create_pickable("Local reputation", kind)
-    picklist = create_picklist("Territory benefits", kind, members=[pick])
 
     def add_choice(number):
+        picklist = create_picklist(f"Territory benefits {number}", kind, members=[pick])
         slot = create_slot(
             f"Territory benefit {number}", kind, picklist, assigned_to="gang"
         )
@@ -453,7 +434,10 @@ def test_the_holding_detail_opens_assignment_and_unassignment_dialogs(client, se
         address(campaign, holding)
     ]
     soup = BeautifulSoup(response.content, "html.parser")
-    assert soup.find("a", href=choice.href).get_text(strip=True) == "Extra income"
+    host = soup.select_one('[data-react-name="territory-boon-choices"]')
+    assert host is not None
+    editor = response.context["boon_editor"]
+    assert editor["groups"][0]["options"][0]["label"] == "Extra income"
 
 
 def test_gang_groups_each_holding_choice_under_boons_after_other_assets(client, setup):
@@ -576,4 +560,393 @@ def test_more_distinct_selectable_holdings_do_not_add_roster_or_campaign_page_qu
             ]
             assert len(entries) == 8
             assert all(entry.income == 17 for entry in entries)
-        assert len(soup.select('[data-react-name="income-tooltip"]')) >= 1
+            assert all(entry.boon == "Income" for entry in entries)
+        if path == paths[0]:
+            assert len(soup.select('[data-react-name="income-tooltip"]')) >= 1
+        else:
+            props = island_props(response.content, "campaign-assets")
+            assert all(entry["income"]["value"] >= 0 for entry in props["entries"])
+            assert any(entry["income"]["sources"] for entry in props["entries"])
+
+
+@pytest.mark.parametrize("person", ["arbitrator", "player", "reader"])
+def test_campaign_shows_each_holdings_current_boon_to_every_viewer(
+    client, setup, person
+):
+    from n26.core.operations import operation
+
+    arbitrator, player, campaign, holding, first, second = setup
+    kind = create_slot_type("Shared territory boon")
+    income = create_pickable("Income", kind)
+    supplies = create_pickable("Respirators", kind)
+    picklist = create_picklist("Shared territory boons", kind, [income, supplies])
+    slot = create_slot("Boon", kind, picklist, assigned_to="gang")
+    grant = modifier(
+        "Shared territory boon",
+        targets_gang_alone(),
+        ef_adds(slot),
+        attach_to=holding.asset,
+    )
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.unassign(holding)
+        op.assign(holding, first)
+        other = op.add_asset(holding.asset, name="Second ruins")
+        op.assign(other, second)
+    holding.refresh_from_db()
+    viewer = {"arbitrator": arbitrator, "player": player}.get(person)
+    client.force_login(viewer or User.objects.create_user("shared-boon-reader"))
+
+    def selected():
+        before = LedgerEvent.objects.count()
+        response = client.get(reverse("n26-campaign", args=[campaign.pk]))
+        assert response.status_code == 200
+        assert LedgerEvent.objects.count() == before
+        entries = {
+            entry.campaign_asset_id: entry
+            for table in response.context["sheet"].assets
+            for entry in table.entries
+        }
+        soup = BeautifulSoup(response.content, "html.parser")
+        props = island_props(response.content, "campaign-assets")
+        rendered = {entry["id"]: entry for entry in props["entries"]}
+        for entry in entries.values():
+            assert rendered[entry.campaign_asset_id]["boon"] == entry.boon
+        assert "Apply boons" not in soup.get_text()
+        return entries
+
+    assert selected()[str(holding.pk)].boon == "Income"
+    with campaign_operation(campaign, actor=player):
+        with operation(first.gang, actor=player) as op:
+            previous = Assignment.objects.get(
+                chosen_for_holding=holding,
+                chosen_for_slot=slot,
+                archived=False,
+                chosen_for_holding_revision=holding.ownership_revision,
+            )
+            op.remove(previous)
+            op.choose(holding, supplies, slot=slot)
+    entries = selected()
+    assert entries[str(holding.pk)].boon == "Respirators"
+    assert entries[str(other.pk)].boon == "Income"
+
+    # A hidden offer still leaves the selected fact on the holder's graph.
+    detach_modifier(holding.asset, grant)
+    assert selected()[str(holding.pk)].boon == "Respirators"
+    attach_modifiers_to(holding.asset, [grant])
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.transfer(holding, second)
+    assert selected()[str(holding.pk)].boon == "Income"
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.unassign(holding)
+    assert selected()[str(holding.pk)].boon == ""
+
+
+@pytest.fixture
+def inline_boons(client, setup):
+    arbitrator, player, campaign, holding, first, second = setup
+    income = ensure_income_counter()
+    for label, amounts in (("Production", (1, 5)), ("Support", (2, 10))):
+        kind = create_slot_type(f"Inline {label}")
+        picks = [
+            create_pickable(
+                name,
+                kind,
+                qualifier=label,
+                summary=f"{name} {label.lower()} policy.",
+                effects=[
+                    (targets_gang_alone(), ef_contributes_to_counter(income, amount))
+                ],
+            )
+            for name, amount in zip(("First", "Second"), amounts, strict=True)
+        ]
+        picklist = create_picklist(f"Inline {label} options", kind, picks)
+        slot = create_slot(label, kind, picklist, assigned_to="gang")
+        modifier(
+            f"Inline {label}",
+            targets_gang_alone(),
+            ef_adds(slot),
+            attach_to=holding.asset,
+        )
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.unassign(holding)
+        op.assign(holding, first)
+        other = op.add_asset(holding.asset, name="Independent ruins")
+        op.assign(other, second)
+    holding.refresh_from_db()
+    client.force_login(player)
+    return (*setup, other)
+
+
+def editor_payload(client, campaign, holding):
+    import json
+
+    response = client.get(address(campaign, holding))
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.content, "html.parser")
+    host = soup.select_one('[data-react-name="territory-boon-choices"]')
+    assert host is not None
+    props = json.loads(soup.find(id=host["data-react-props"]).string)
+    assert props == response.context["boon_editor"]
+    return props
+
+
+def changed_boons(editor, indices=(0, 1)):
+    payload = {"snapshot": editor["snapshot"]}
+    for index in indices:
+        group = editor["groups"][index]
+        payload["choice_" + group["key"]] = next(
+            option["value"]
+            for option in group["options"]
+            if option["value"] != group["selected"] and not option["disabled"]
+        )
+    return payload
+
+
+def test_inline_boons_save_multiple_choices_together_and_keep_other_copies_independent(
+    client, inline_boons
+):
+    _, _, campaign, holding, _, _, other = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    assert [group["label"] for group in editor["groups"]] == ["Production", "Support"]
+    assert all(len(group["options"]) == 2 for group in editor["groups"])
+    before = LedgerEvent.objects.count()
+    assert client.get(editor["saveUrl"]).status_code == 405
+    assert LedgerEvent.objects.count() == before
+    payload = changed_boons(editor)
+    result = client.post(editor["saveUrl"], payload)
+    assert result.status_code == 200
+    assert (
+        result.json()["redirectUrl"]
+        == address(campaign, holding) + "#n26-territory-boons"
+    )
+    after = editor_payload(client, campaign, holding)
+    assert [group["selected"] for group in after["groups"]] == [
+        payload["choice_" + group["key"]] for group in editor["groups"]
+    ]
+    assert client.get(address(campaign, holding)).context["details"].income == 45
+    assert client.get(address(campaign, other)).context["details"].income == 33
+    assert LedgerEvent.objects.count() > before
+    repeated = client.post(editor["saveUrl"], payload)
+    assert repeated.status_code == 409
+    assert "Reload" in repeated.json()["error"]
+
+
+def test_mixed_inline_and_multi_pick_boons_keep_both_choice_labels(
+    client, inline_boons
+):
+    from n26.library.models import Slot
+
+    _, _, campaign, holding, _, _, _ = inline_boons
+    support = Slot.objects.get(name="Support")
+    support.max_picks = 2
+    support.save(update_fields=["max_picks"])
+    response = client.get(address(campaign, holding))
+    editor = response.context["boon_editor"]
+    assert [group["label"] for group in editor["groups"]] == ["Production"]
+    assert editor["showLabels"] is True
+    assert len(response.context["static_boons"]) == 1
+    soup = BeautifulSoup(response.content, "html.parser")
+    static_label = soup.select_one("#n26-territory-boons dt span")
+    assert static_label.get_text(strip=True) == "Support"
+
+
+def test_hidden_saved_boons_can_be_reverted_without_allowing_new_hidden_picks(
+    client, inline_boons
+):
+    from n26.library.models import PicklistMember
+
+    _, _, campaign, holding, _, _, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    selected = editor["groups"][0]["selected"]
+    PicklistMember.objects.get(pickable_id=selected.rsplit(":", 1)[1]).archive()
+    editor = editor_payload(client, campaign, holding)
+    current = next(
+        option
+        for option in editor["groups"][0]["options"]
+        if option["value"] == selected
+    )
+    assert current["description"] == "Current choice"
+    assert current["disabled"] is False
+    payload = changed_boons(editor, (1,))
+    payload["choice_" + editor["groups"][0]["key"]] = selected
+    assert client.post(editor["saveUrl"], payload).status_code == 200
+    assert client.get(address(campaign, holding)).context["details"].income == 41
+
+    fresh = editor_payload(client, campaign, holding)
+    assert client.post(fresh["saveUrl"], changed_boons(fresh, (0,))).status_code == 200
+    fresh = editor_payload(client, campaign, holding)
+    before = LedgerEvent.objects.count()
+    attempted = {
+        "snapshot": fresh["snapshot"],
+        "choice_" + fresh["groups"][0]["key"]: selected,
+    }
+    assert client.post(fresh["saveUrl"], attempted).status_code == 400
+    assert LedgerEvent.objects.count() == before
+    assert client.get(address(campaign, holding)).context["details"].income == 45
+
+
+def test_inline_boons_bad_option_rolls_back_the_whole_group(client, inline_boons):
+    _, _, campaign, holding, _, _, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    payload = changed_boons(editor)
+    payload["choice_" + editor["groups"][1]["key"]] = "library.pickable:forged"
+    before = LedgerEvent.objects.count()
+    response = client.post(editor["saveUrl"], payload)
+    assert response.status_code == 400
+    assert LedgerEvent.objects.count() == before
+    unchanged = editor_payload(client, campaign, holding)
+    assert [group["selected"] for group in unchanged["groups"]] == [
+        group["selected"] for group in editor["groups"]
+    ]
+    assert client.get(address(campaign, holding)).context["details"].income == 33
+
+
+def test_inline_boons_unchanged_values_write_no_events(client, inline_boons):
+    _, _, campaign, holding, _, _, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    payload = {
+        "snapshot": editor["snapshot"],
+        **{"choice_" + group["key"]: group["selected"] for group in editor["groups"]},
+    }
+    before = LedgerEvent.objects.count()
+    assert client.post(editor["saveUrl"], payload).status_code == 200
+    assert LedgerEvent.objects.count() == before
+
+
+@pytest.mark.parametrize("viewer", ["arbitrator", "reader"])
+def test_other_viewers_see_saved_choices_without_inline_editor_or_save_permission(
+    client, inline_boons, viewer
+):
+    arbitrator, _, campaign, holding, _, _, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    client.force_login(
+        arbitrator
+        if viewer == "arbitrator"
+        else User.objects.create_user("inline-reader")
+    )
+    response = client.get(address(campaign, holding))
+    assert response.context["boon_editor"] is None
+    assert b'data-react-name="territory-boon-choices"' not in response.content
+    assert "First" in BeautifulSoup(response.content, "html.parser").get_text()
+    before = LedgerEvent.objects.count()
+    assert client.post(editor["saveUrl"], changed_boons(editor)).status_code == 404
+    assert LedgerEvent.objects.count() == before
+
+
+def test_inline_boons_reject_other_holding_keys_and_tampered_snapshots(
+    client, inline_boons
+):
+    _, _, campaign, holding, _, _, other = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    payload = changed_boons(editor)
+    key = editor["groups"][0]["key"].replace(str(holding.pk), str(other.pk))
+    payload["choice_" + key] = payload["choice_" + editor["groups"][0]["key"]]
+    assert client.post(editor["saveUrl"], payload).status_code == 400
+    payload = changed_boons(editor)
+    payload["snapshot"] = "tampered"
+    assert client.post(editor["saveUrl"], payload).status_code == 409
+    assert client.get(address(campaign, holding)).context["details"].income == 33
+
+
+def test_inline_boons_refuse_an_old_form_after_another_saved_selection(
+    client, inline_boons
+):
+    _, _, campaign, holding, _, _, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    first = changed_boons(editor, (0,))
+    assert client.post(editor["saveUrl"], first).status_code == 200
+    before = LedgerEvent.objects.count()
+    assert (
+        client.post(editor["saveUrl"], changed_boons(editor, (1,))).status_code == 409
+    )
+    assert LedgerEvent.objects.count() == before
+    assert client.get(address(campaign, holding)).context["details"].income == 37
+
+
+def test_inline_boons_do_not_follow_a_transfer(client, inline_boons):
+    arbitrator, _, campaign, holding, _, second, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    with campaign_operation(campaign, actor=arbitrator) as op:
+        op.transfer(holding, second)
+    before = LedgerEvent.objects.count()
+    assert client.post(editor["saveUrl"], changed_boons(editor)).status_code == 404
+    assert LedgerEvent.objects.count() == before
+
+
+def test_inline_boons_require_csrf(client, inline_boons):
+    from django.conf import settings
+    from django.test import Client
+
+    _, player, campaign, holding, _, _, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    checked = Client(enforce_csrf_checks=True)
+    checked.force_login(player)
+    before = LedgerEvent.objects.count()
+    refused = checked.post(editor["saveUrl"], changed_boons(editor))
+    assert refused.status_code == 302 and refused.url == "/"
+    assert LedgerEvent.objects.count() == before
+    checked.get(address(campaign, holding))
+    assert (
+        checked.post(
+            editor["saveUrl"],
+            changed_boons(editor),
+            HTTP_X_CSRFTOKEN=checked.cookies[settings.CSRF_COOKIE_NAME].value,
+        ).status_code
+        == 200
+    )
+
+
+def test_a_refused_second_boon_rolls_back_the_first_changed_choice(
+    client, inline_boons, monkeypatch
+):
+    import importlib
+
+    from n26.core.operations import Refusal
+
+    _, _, campaign, holding, _, _, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    choices = importlib.import_module("n26.core.views.choose")
+    original = choices._write_pick
+    written = []
+
+    def refuse_second(*args, **kwargs):
+        if written:
+            raise Refusal("The second choice cannot be applied.")
+        picked = original(*args, **kwargs)
+        written.append(picked)
+        return picked
+
+    monkeypatch.setattr(choices, "_write_pick", refuse_second)
+    before = LedgerEvent.objects.count()
+    assert client.post(editor["saveUrl"], changed_boons(editor)).status_code == 409
+    assert len(written) == 1
+    assert LedgerEvent.objects.count() == before
+    assert client.get(address(campaign, holding)).context["details"].income == 33
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_group_saves_apply_once_and_reject_the_stale_submission(
+    client, inline_boons
+):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from django.db import close_old_connections
+    from django.test import Client
+
+    _, player, campaign, holding, _, _, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    payload = changed_boons(editor)
+
+    def post():
+        close_old_connections()
+        try:
+            request_client = Client()
+            request_client.force_login(User.objects.get(pk=player.pk))
+            return request_client.post(editor["saveUrl"], payload).status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: post(), range(2)))
+    assert sorted(results) == [200, 409]
+    assert client.get(address(campaign, holding)).context["details"].income == 45

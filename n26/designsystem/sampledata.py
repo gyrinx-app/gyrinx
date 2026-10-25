@@ -874,9 +874,13 @@ def _sample_account_menu(*, unread=0, theme=True):
 
 def context():
     from n26.core.checkbox_card import CheckboxCardItem
+    from n26.core.effects import stacked_name_items
     from n26.core.rating import RatingContribution, RatingReceipt
 
     return {
+        "name_list_items": stacked_name_items(
+            ["Ruins, North", "Shop", "Shop", "Settlement"]
+        ),
         "checkbox_card_weapons": (
             CheckboxCardItem("demo-weapons", "lasgun", "Lasgun", True, "15¢"),
             CheckboxCardItem(
@@ -959,6 +963,59 @@ def context():
         # Somebody for a demo to name who is not the reader: a fixed name,
         # so the gallery reads the same whoever opens it.
         "sample_user": SampleUser("kesh"),
+        "sortable_table": {
+            "label": "Example territory inventory",
+            "columns": [
+                {
+                    "token": column,
+                    "label": label,
+                    "className": "text-right" if column == "income" else "",
+                }
+                for column, label in (
+                    ("name", "Territory"),
+                    ("income", "Income"),
+                    ("holder", "Held by"),
+                )
+            ],
+            "rows": [
+                {
+                    "id": "ruins-one",
+                    "values": {
+                        "name": "Old Ruins",
+                        "income": 20,
+                        "holder": "Unclaimed",
+                    },
+                    "groups": {"status": "Unclaimed", "holder": "Unclaimed"},
+                },
+                {
+                    "id": "ruins-two",
+                    "values": {
+                        "name": "Old Ruins",
+                        "income": 30,
+                        "holder": "Cinder Crew",
+                    },
+                    "groups": {"status": "Held", "holder": "Cinder Crew"},
+                },
+                {
+                    "id": "workshop",
+                    "values": {
+                        "name": "Workshop",
+                        "income": 25,
+                        "holder": "Rust Kings",
+                    },
+                    "groups": {"status": "Held", "holder": "Rust Kings"},
+                },
+            ],
+            "groupOptions": [
+                {"token": column, "label": label}
+                for column, label in (
+                    ("status", "Held or unclaimed"),
+                    ("holder", "Holding gang"),
+                )
+            ],
+            "sort": "name",
+            "group": "status",
+        },
         "campaign_sheet": campaign_sheet(),
         "sample_miniature": sample_miniature(),
         "sample_roster_summary": roster_summary(),
@@ -2311,6 +2368,8 @@ def gang_sheet():
                 CampaignAssetLine(
                     type_label="Settlement",
                     type_plural="Settlements",
+                    asset_type_id="settlement",
+                    display_group="Territories",
                     name="Settlement",
                     provenance=Provenance(
                         source="Territory campaign", source_kind="campaign type"
@@ -2349,6 +2408,8 @@ def gang_sheet():
                 CampaignAssetLine(
                     type_label="Territory",
                     type_plural="Territories",
+                    asset_type_id="territory",
+                    display_group="Territories",
                     name="Old Ruins",
                     income=30,
                     campaign_asset_id="old-ruins",
@@ -2792,9 +2853,14 @@ CAMPAIGN_ASSET_TYPES = [
         label="Settlement",
         plural="Settlements",
         holding=False,
+        display_group="Territories",
     ),
     AssetTypeColumn(
-        asset_type_id="territory", label="Territory", plural="Territories", holding=True
+        asset_type_id="territory",
+        label="Territory",
+        plural="Territories",
+        holding=True,
+        display_group="Territories",
     ),
 ]
 

@@ -7,6 +7,7 @@ export type CounterAdjustmentProps = {
     change: string;
     errors: string[];
     maximum: number;
+    minimum?: number;
     isIncome?: boolean;
     inputValue?: string;
 };
@@ -22,7 +23,8 @@ export function CounterAdjustment(props: CounterAdjustmentProps) {
 function IncomeAdjustment(props: CounterAdjustmentProps) {
     const id = useId();
     const [value, setValue] = useState(props.inputValue ?? String(props.value));
-    const contributions = props.value - props.recorded;
+    const minimum = props.minimum ?? 0;
+    const contributions = props.value - Math.max(minimum, props.recorded);
     const amount = Number(value);
     const valid = value.trim() !== "" && Number.isInteger(amount);
     return (
@@ -33,7 +35,7 @@ function IncomeAdjustment(props: CounterAdjustmentProps) {
                     name="value"
                     type="number"
                     required
-                    min={contributions}
+                    min={contributions + minimum}
                     max={contributions + 2147483647}
                     value={value}
                     onChange={(event) => setValue(event.target.value)}
@@ -55,7 +57,7 @@ function IncomeAdjustment(props: CounterAdjustmentProps) {
                     value="1"
                     formNoValidate
                     size="sm"
-                    disabled={!props.recorded}
+                    disabled={props.recorded === minimum}
                 >
                     Reset adjustment
                 </Button>
@@ -69,8 +71,12 @@ function AmountAdjustment(props: CounterAdjustmentProps) {
     const [change, setChange] = useState(props.change);
     const amount = change.trim() === "" ? 0 : Number(change);
     const valid = Number.isInteger(amount) && Math.abs(amount) <= props.maximum;
-    const delta = valid ? Math.max(-props.recorded, amount) : 0;
-    const value = props.value + delta;
+    const delta = valid
+        ? Math.max((props.minimum ?? 0) - props.recorded, amount)
+        : 0;
+    const contribution =
+        props.value - Math.max(props.minimum ?? 0, props.recorded);
+    const value = valid ? contribution + props.recorded + delta : props.value;
     return (
         <div className="space-y-5">
             <div

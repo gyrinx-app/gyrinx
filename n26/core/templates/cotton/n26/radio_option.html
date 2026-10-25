@@ -1,0 +1,16 @@
+{% comment %}
+<c-n26.radio-option> — A native radio with a label and optional description.
+
+    <c-n26.radio-option name="boon" value="income" label="Income" />
+
+Options in one choice share a name. The whole label can be clicked.
+{% endcomment %}
+<c-vars name="" value="" label="" description="" :checked="False" :disabled="False" class="" />
+<label class="flex min-w-0 cursor-pointer items-start gap-3 py-2 {{ class }}">
+    <input type="radio" name="{{ name }}" value="{{ value }}" {% if checked %}checked{% endif %} {% if disabled %}disabled{% endif %}
+           class="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+    <span class="min-w-0 space-y-1">
+        <span class="block text-sm font-medium">{{ label }}</span>
+        {% if description %}<span class="block text-sm text-muted">{{ description }}</span>{% endif %}
+    </span>
+</label>

@@ -1072,16 +1072,17 @@ GROUPS: list[Group] = [
                 summary=(
                     "A dropdown of checkboxes that applies a named set of values."
                 ),
-                needs=(ALPINE, KIT_JS, FOCUS),
+                needs=(ALPINE,),
                 notes=(
-                    "OK dispatches filter-apply on the window with name and values, "
-                    "and a parent must listen or the ticks do nothing; name must "
-                    "match that listener and any filter-reset. With :select_all, an "
-                    "empty :selected becomes every option on init, so the menu "
-                    "cannot open on none. Cancel restores the snapshot taken when "
-                    "the panel opened, not the last applied set. The checkbox group "
-                    "wraps the whole dropdown rather than sitting in the panel, so "
-                    "the closed trigger can show a count."
+                    "React draws the menu. OK dispatches filter-apply with name and "
+                    "values, and the event bubbles, so a listener on the component "
+                    "or on the window both hear it. A parent must listen or the "
+                    "ticks do nothing. name must match that listener and any "
+                    "filter-reset. With :select_all, an empty :selected becomes "
+                    "every option on init, so the menu cannot open on none. Cancel "
+                    "restores the snapshot taken when the panel opened, not the "
+                    "last applied set. Ticked values post under name, including "
+                    "while the panel is closed."
                 ),
             ),
             Component(
@@ -1499,6 +1500,25 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="sortable-table",
+                tag="c-n26.sortable-table",
+                template="n26/sortable_table.html",
+                summary="A table with clickable sort headers, group controls and distinct group headings.",
+                parts=(
+                    Part(
+                        "c-n26.sortable-table.group",
+                        "n26/sortable_table/group.html",
+                        "The shaded group heading shared by Cotton and React tables.",
+                    ),
+                ),
+                notes=(
+                    "The React SortableTable adapter in n26/frontend/ui owns the controls, headers and group headings. "
+                    "Callers supply prepared rows, grouping, permitted URLs and a row renderer; campaign gangs and territories share it. "
+                    "Use this Cotton wrapper for plain text and numeric cells with local view state. "
+                    "Use the controlled React adapter when a page owns URL state, richer cells or server actions."
+                ),
+            ),
+            Component(
                 slug="section",
                 tag="c-n26.section",
                 template="n26/section.html",
@@ -1662,6 +1682,13 @@ GROUPS: list[Group] = [
                     "binding and its options are a <template>, so unscripted it "
                     "posts nothing."
                 ),
+            ),
+            Component(
+                slug="radio-option",
+                tag="c-n26.radio-option",
+                template="n26/radio_option.html",
+                summary="A native radio option with a label and optional description.",
+                notes="Options in one choice share a name. Use these for compact lists of alternatives.",
             ),
             Component(
                 slug="radio-cards",
@@ -1916,6 +1943,13 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="name-list",
+                tag="c-n26.name-list",
+                template="n26/name_list.html",
+                summary="A compact list of names that wrap independently.",
+                notes="Pass counted names and an accessible label. Punctuation stays inside each item; an optional href links each name to the same page.",
+            ),
+            Component(
                 slug="statline",
                 tag="c-n26.statline",
                 template="n26/statline/index.html",
@@ -1983,8 +2017,8 @@ GROUPS: list[Group] = [
                         "c-n26.record-table.campaign-row",
                         "n26/record_table/campaign_row.html",
                         (
-                            "A campaign listing: its name, its arbitrator, and Edit "
-                            "when the viewer is the arbitrator."
+                            "A campaign listing: its name, type, arbitrator, status "
+                            "and participation counts."
                         ),
                     ),
                 ),
@@ -2268,18 +2302,14 @@ GROUPS: list[Group] = [
                     "Every gang in the campaign, with its counters, labels and "
                     "assets, as one table."
                 ),
-                needs=(ALPINE, KIT_JS),
                 notes=(
-                    "Numeric counters stay in columns; labels, assets and actions "
-                    "have labelled rows beneath each gang, with values spanning "
-                    "the remaining columns. On phones the figures form a grid "
-                    "and details keep labels beside values. Match values "
-                    "to the sheet's heading lists by position, never by name. "
-                    "Every empty value draws a dash, "
-                    "never a blank, which would look like a failed number. Counter "
-                    "controls appear only where the line carries an address, which "
-                    "the view fills for the arbitrator and for a gang's own owner. "
-                    "At wider widths c-ui.table scrolls extra numeric columns."
+                    "React renders the compact table and updates sorting and label grouping in place. "
+                    "Viewing preferences use stable column identifiers in the URL and support Back/Forward. "
+                    "Numeric counters stay in columns; over-budget status, labels, assets and actions "
+                    "share one wrapping detail line. On phones the figures form a grid. "
+                    "The prepared sheet supplies permitted links and preloaded owner badges. "
+                    "Counter and starting-roll dialogs belong in separate page hosts; their updates "
+                    "replace the Django wrapper around the island."
                 ),
             ),
             Component(
@@ -2292,16 +2322,12 @@ GROUPS: list[Group] = [
                 ),
                 needs=(KIT_JS,),
                 notes=(
-                    "Call it once per transferable asset type. Asset actions open "
-                    "in a native popover outside the scrolling table. Tab moves "
-                    "through its links and Escape closes it. A control is drawn "
-                    "only where the structure carries its address, "
-                    "so a viewer without permission sees no controls, not "
-                    "disabled ones; n26.core.views.campaigns fills them for the "
-                    "arbitrator and the holding gang's owner. Roll is the primary "
-                    "control because it begins a form, and it fetches with "
-                    'hx-swap="none" so the response opens a dialog; without '
-                    "JavaScript it is a plain link."
+                    "Call it once per transferable asset type. The shared SortableTable React adapter draws the "
+                    "clickable column headers, view controls and group headings used by the campaign gangs table. "
+                    "Income, boon text and permitted action links remain attached to each separate holding. "
+                    "Inventory preferences use asset_sort and asset_group in the URL and support Back/Forward. "
+                    "React owns the table and its action menus; existing Django dialogs stay outside it. "
+                    "The setup summary sits below the title in the section header."
                 ),
             ),
             Component(

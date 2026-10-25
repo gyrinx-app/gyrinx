@@ -307,15 +307,18 @@ export function NativeSelect({
     style,
     "aria-describedby": describedBy,
     "aria-invalid": invalid,
+    controlSize = "default",
     ...props
-}: ComponentProps<"select">) {
+}: ComponentProps<"select"> & { controlSize?: "default" | "sm" }) {
     const field = useFieldControl(id, describedBy);
+    const recipe =
+        controlSize === "sm" ? cotton.nativeSelectSmall : cotton.nativeSelect;
     return (
         <select
             {...props}
             id={field.id}
-            className={`${cotton.nativeSelect.className} ${className}`}
-            style={{ ...cotton.nativeSelect.style, ...style }}
+            className={`${recipe.className} ${className}`}
+            style={{ ...recipe.style, ...style }}
             aria-invalid={invalid ?? (field.errorId ? true : undefined)}
             aria-describedby={field.describedBy}
         />
@@ -579,12 +582,20 @@ export function CheckboxCardItem({
     value,
     label,
     defaultChecked = false,
+    checked,
+    disabled = false,
+    onCheckedChange,
+    describedBy,
     meta,
 }: {
     name: string;
     value: string;
     label: string;
     defaultChecked?: boolean;
+    checked?: boolean;
+    disabled?: boolean;
+    onCheckedChange?: (checked: boolean) => void;
+    describedBy?: string;
     meta?: string;
 }) {
     const recipe = cotton.checkboxCard;
@@ -594,7 +605,17 @@ export function CheckboxCardItem({
                 type="checkbox"
                 name={name}
                 value={value}
-                defaultChecked={defaultChecked}
+                defaultChecked={
+                    checked === undefined ? defaultChecked : undefined
+                }
+                checked={checked}
+                disabled={disabled}
+                onChange={
+                    onCheckedChange
+                        ? (event) => onCheckedChange(event.target.checked)
+                        : undefined
+                }
+                aria-describedby={describedBy}
                 className={recipe.itemInput}
             />
             <span className={recipe.itemLabel}>{label}</span>
@@ -627,6 +648,55 @@ export function Callout({
                 <div className={cotton.callout.body}>{children}</div>
             </div>
         </div>
+    );
+}
+
+export function RadioOption({
+    name,
+    value,
+    label,
+    description = "",
+    checked,
+    disabled = false,
+    onChange,
+}: {
+    name: string;
+    value: string;
+    label: string;
+    description?: string;
+    checked: boolean;
+    disabled?: boolean;
+    onChange: () => void;
+}) {
+    const id = useId();
+    const recipe = cotton.radioOption;
+    return (
+        <label className={recipe.root}>
+            <input
+                type="radio"
+                name={name}
+                value={value}
+                checked={checked}
+                disabled={disabled}
+                onChange={onChange}
+                className={recipe.control}
+                aria-labelledby={`${id}-label`}
+                aria-describedby={description ? `${id}-description` : undefined}
+            />
+            <span className={recipe.content}>
+                <span id={`${id}-label`} className={recipe.label}>
+                    {label}
+                </span>
+                {description && (
+                    <span
+                        id={`${id}-description`}
+                        className={recipe.description}
+                    >
+                        {description}
+                    </span>
+                )}
+            </span>
+        </label>
     );
 }
 
@@ -901,6 +971,24 @@ function SvgArt({ node }: { node: SvgNode }): ReactNode {
             ),
         ),
     );
+}
+
+export function Artwork({ node }: { node: SvgNode }) {
+    return (
+        <span className={cotton.userLink.flair} aria-hidden="true">
+            <SvgArt node={node} />
+        </span>
+    );
+}
+
+export function ColorSwatch({ color }: { color: string }) {
+    return color ? (
+        <span
+            className={cotton.colorSwatch}
+            style={{ background: color }}
+            aria-hidden="true"
+        />
+    ) : null;
 }
 
 /**
@@ -1208,7 +1296,11 @@ export {
     type ActionMenuItem,
     type ActionMenuProps,
 } from "./ActionMenu";
-export { FilterMenu, type FilterOption } from "./FilterMenu";
+export {
+    FilterMenu,
+    type FilterMenuSize,
+    type FilterOption,
+} from "./FilterMenu";
 export { RangeMenu } from "./RangeMenu";
 export {
     MenuButton,
@@ -1224,8 +1316,27 @@ export {
     type SwitcherRow,
 } from "./QuickSwitcher";
 export { HelpPopover } from "./HelpPopover";
+export { IncomeTooltip, type IncomeTooltipProps } from "./IncomeTooltip";
+export { NameList, type CountedName } from "./NameList";
 export {
     useAnchoredPlacement,
     useDismiss,
     type AnchoredPlacementOptions,
 } from "./anchoredPanel";
+
+export {
+    SortableTable,
+    compareTableValues,
+    type TableView,
+    type TableColumn,
+    type TableGroup,
+} from "./SortableTable";
+
+export {
+    campaignViewHref,
+    registerCampaignDialogLifecycle,
+    openCampaignDialog,
+    runCampaignDialog,
+    guardDialogSubmission,
+    useCampaignDialogRequests,
+} from "./campaignNavigation";

@@ -17,10 +17,8 @@ from n26.core.views.permissions import (
     _own_campaign_or_404,
     _recording_campaign_or_404,
 )
-from n26.flags import CAMPAIGNS, requires_flag
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def record_campaign_roll(request, pk):
     campaign = _recording_campaign_or_404(request, pk)
@@ -93,7 +91,6 @@ def record_campaign_roll(request, pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 def campaign_roll(request, pk, roll_pk):
     campaign = _any_campaign_or_404(request, pk)
@@ -105,8 +102,10 @@ def campaign_roll(request, pk, roll_pk):
         )
     except ValidationError:
         raise Http404("No such dice roll") from None
-    may_note = roll.actor_id == request.user.pk and may_record_campaign(
-        campaign, request.user
+    may_note = (
+        (not roll.battle_id or not roll.battle.archived)
+        and roll.actor_id == request.user.pk
+        and may_record_campaign(campaign, request.user)
     )
     if request.method == "POST" and not may_note:
         raise Http404("No such dice roll")
@@ -147,7 +146,6 @@ def campaign_roll(request, pk, roll_pk):
     )
 
 
-@requires_flag(CAMPAIGNS)
 @login_required
 @require_GET
 def preview_pool_roll(request, pk):

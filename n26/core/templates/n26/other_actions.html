@@ -1,0 +1,28 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}Other actions — {{ gang.name }}{% endblock %}
+{% block content %}
+    <div class="max-w-3xl space-y-6">
+        <c-n26.page-header title="Other actions">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Other actions
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        {% if visit_excluded %}
+            <c-ui.card class="p-5 space-y-3">
+                <h2 class="font-semibold">Visit Trading Post</h2>
+                <p class="text-sm text-muted">This action is not normally used by {{ gang.gang_type }} gangs. You can still use it for house rules or an exception.</p>
+                <c-ui.button variant="primary"
+                             href="{% url 'n26-gang-trade-points' gang.pk %}">Set up Trading Post visit →</c-ui.button>
+            </c-ui.card>
+        {% else %}
+            <c-ui.description>
+                No other actions for this gang. Available actions are shown on the gang page.
+            </c-ui.description>
+        {% endif %}
+    </div>
+{% endblock %}

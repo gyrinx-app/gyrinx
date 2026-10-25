@@ -9,6 +9,7 @@ gang types are the library's own.
 from html.parser import HTMLParser
 
 from django import forms
+from django.core import signing
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 
@@ -446,22 +447,12 @@ class CampaignForm(forms.Form):
         min_value=0,
         initial=1000,
         label="Gang budget",
-        help_text=(
-            "What a gang should be worth to join, counting its rating, stash "
-            "and unspent credits. A gang worth more than this can still join. "
-            "Over-budget warnings appear only while the campaign status is "
-            "Pre-campaign. Leave blank for no budget."
-        ),
+        help_text="Available credits for hiring and equipping the gang.",
     )
     summary = forms.CharField(
         required=False,
         label="Summary",
         widget=RichText(mce_attrs=CAMPAIGN_SUMMARY_CONFIG),
-        help_text=(
-            "What this campaign is, and anything the players have agreed. "
-            "Shown at the top of the campaign's page. Paste an image, upload one "
-            "with the image button, or enter a public image URL."
-        ),
     )
 
     def clean_summary(self):
@@ -479,6 +470,16 @@ class CampaignForm(forms.Form):
 
 
 class EditCampaignForm(CampaignForm):
+    starting_from_pool = forms.BooleanField(
+        required=False,
+        label="Allocate starting territories from the existing pool",
+        help_text=(
+            "By default, each gang rolls an additional territory. Tick to claim "
+            "an unclaimed territory from its selected table instead. This applies "
+            "to future starting rolls."
+        ),
+    )
+
     status = forms.ChoiceField(
         choices=Campaign.Status.choices,
         required=False,
@@ -586,13 +587,13 @@ class StakeChoiceField(forms.ModelChoiceField):
 
     def label_from_instance(self, obj):
         if obj.held:
-            return f"{obj} (held by {obj.holder.gang.name})"
-        return f"{obj} (not held)"
+            return f"{obj} [{str(obj.pk)[-6:]}] (held by {obj.holder.gang.name})"
+        return f"{obj} [{str(obj.pk)[-6:]}] (unclaimed)"
 
 
 def stakes_offered(battle):
     """The campaign assets a battle could stake: those its participants
-    hold now, and whatever it already stakes. None for a new battle."""
+    hold now, unclaimed assets, and whatever it already stakes. None for a new battle."""
     from n26.core.models import CampaignAsset
 
     if battle is None:
@@ -604,6 +605,8 @@ def stakes_offered(battle):
                 holder__left__isnull=True,
                 holder__gang__in=battle.gangs.values("pk"),
             )
+            | Q(holder__isnull=True)
+            | Q(holder__left__isnull=False)
             | Q(pk=battle.stake_id)
         )
         .select_related("asset__asset_type", "holder__gang")
@@ -655,12 +658,12 @@ class BattleForm(forms.Form):
     stake_awarded_to = forms.ModelChoiceField(
         queryset=None,
         required=False,
-        empty_label="Stays with the gang that held it before the battle",
+        empty_label="Not awarded",
     )
     revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
+    stake_versions = forms.CharField(required=False, widget=forms.HiddenInput)
 
     def __init__(self, *args, playing, battle=None, **kwargs):
-        from n26.core.campaigns import stake_came_from
         from n26.core.models import Battle
 
         super().__init__(*args, **kwargs)
@@ -692,26 +695,26 @@ class BattleForm(forms.Form):
             # battle's stake as it is.
             del self.fields["stake"]
             del self.fields["stake_awarded_to"]
+            del self.fields["stake_versions"]
             self.stake_label = ""
             return
         self.fields["stake"].queryset = stakes
-        # The gang that held it before the battle is the empty choice, so it
-        # is not offered again by name.
-        came_from = stake_came_from(battle)
-        awardable = self._awardable(playing, battle)
-        if came_from is not None:
-            awardable = awardable.exclude(pk=came_from.pk)
-            self.fields["stake_awarded_to"].empty_label = f"Stays with {came_from.name}"
-            if battle.stake_awarded_to_id == came_from.pk:
-                self.initial["stake_awarded_to"] = None
-        self.fields["stake_awarded_to"].queryset = awardable
+        self._stake_salt = f"battle-stake:{battle.pk}"
+        self.initial["stake_versions"] = signing.dumps(
+            {str(stake.pk): stake.ownership_revision for stake in stakes},
+            salt=self._stake_salt,
+            compress=True,
+        )
+        # Every participant remains selectable when the stake changes to an
+        # unclaimed asset in the same form submission.
+        self.fields["stake_awarded_to"].queryset = self._awardable(playing, battle)
         from n26.core.campaigns import a_stake
 
         noun = stake_noun(stakes)
         self.stake_label = f"{noun} staked"
         self.fields["stake"].label = self.stake_label
         self.fields["stake"].error_messages["invalid_choice"] = (
-            f"Select {a_stake(noun)} a participant holds."
+            f"Select {a_stake(noun)} that is unclaimed or held by a participant."
         )
         self.fields["stake_awarded_to"].label = f"{noun} goes to"
         self.fields["stake_awarded_to"].error_messages["invalid_choice"] = (
@@ -732,6 +735,25 @@ class BattleForm(forms.Form):
         from n26.core.models import Battle
 
         cleaned = super().clean()
+        if self.is_bound and self.data.get("stake") and "stake" not in self.fields:
+            self.add_error(
+                None, "The available stakes changed. Reload the battle before saving."
+            )
+        versions = cleaned.pop("stake_versions", None)
+        stake = cleaned.get("stake")
+        if "stake_versions" in self.fields and not versions:
+            self.add_error(
+                None, "The available stakes changed. Reload the battle before saving."
+            )
+        elif stake is not None and versions:
+            try:
+                expected = signing.loads(versions, salt=self._stake_salt)
+                cleaned["stake_revision"] = expected[str(stake.pk)]
+            except signing.BadSignature, KeyError, TypeError:
+                self.add_error(
+                    "stake",
+                    "The available stakes changed. Reload the battle before saving.",
+                )
         if all(field in cleaned for field in ("result", "gangs", "winners")):
             try:
                 Battle.validate_outcome(
@@ -745,8 +767,7 @@ class BattleForm(forms.Form):
 
 
 class BattleOutcomeForm(forms.Form):
-    """A battle's outcome, recorded after the game: a draw, or which of
-    its participants won. Nothing else about the battle is offered."""
+    """Record a draw or winners from the battle's participants."""
 
     result = forms.ChoiceField(
         label="Outcome",
@@ -900,6 +921,12 @@ class AddAssetTypeForm(forms.Form):
             "blank and an s is added."
         ),
     )
+    display_group = forms.CharField(
+        required=False,
+        max_length=200,
+        label="Display group",
+        help_text=AssetType._meta.get_field("display_group").help_text,
+    )
     ownership = forms.ChoiceField(
         choices=AssetType.Ownership.choices,
         initial=AssetType.Ownership.HOLDING,
@@ -1039,6 +1066,12 @@ class RollAssetForm(forms.Form):
         min_value=1,
         label="Your own roll",
         help_text="Optional. Leave blank and the roll is made for you.",
+    )
+
+    avoid_duplicates = forms.BooleanField(
+        required=False,
+        label="Avoid duplicate territories",
+        help_text="Re-roll results already in this campaign.",
     )
 
     def __init__(self, *args, tables, **kwargs):
@@ -1273,7 +1306,9 @@ class CampaignRollForm(forms.Form):
             .select_related("membership")
             .order_by("name", "pk")
         )
-        self.fields["battle"].queryset = campaign.battles.order_by("-date", "-created")
+        self.fields["battle"].queryset = campaign.battles.filter(
+            archived=False
+        ).order_by("-date", "-created")
 
     def clean(self):
         from n26.core.models import CampaignRoll
@@ -1330,3 +1365,49 @@ class CounterAdjustmentForm(forms.Form):
         if not change:
             raise forms.ValidationError("Enter an amount to add or remove.")
         return change
+
+
+class CampaignGroupingForm(forms.Form):
+    """The arbitrator's default grouping and colours for each label option."""
+
+    grouping = forms.ChoiceField(required=False, label="Group gangs by")
+
+    def __init__(self, *args, campaign, slots, options, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["grouping"].choices = [
+            ("", "No grouping"),
+            *((str(slot.pk), slot.choice_label) for slot in slots),
+        ]
+        self.fields["grouping"].initial = str(campaign.gang_grouping_id or "")
+        self.groups = []
+        for slot in slots:
+            rows = []
+            for option in options[str(slot.pk)]:
+                name = f"colour_{slot.pk}_{option['id']}"
+                self.fields[name] = forms.ChoiceField(
+                    choices=[
+                        ("", "No colour"),
+                        *((colour, colour) for colour in GANG_COLOURS),
+                    ],
+                    required=False,
+                    label=option["name"],
+                    initial=option["colour"],
+                )
+                rows.append(
+                    {"field": self[name], "slot": str(slot.pk), "option": option["id"]}
+                )
+            self.groups.append(
+                {"label": slot.choice_label, "slot": str(slot.pk), "rows": rows}
+            )
+
+    def colours(self):
+        colours = {}
+        for group in self.groups:
+            selected = {
+                row["option"]: self.cleaned_data[row["field"].name]
+                for row in group["rows"]
+                if self.cleaned_data[row["field"].name]
+            }
+            if selected:
+                colours[group["slot"]] = selected
+        return colours

@@ -1,12 +1,14 @@
 {% load react %}
 <div id="n26-campaign-asset-detail"
      {% if redrawn %}hx-swap-oob="true"{% endif %}
-     class="max-w-3xl space-y-8">
+     class="min-w-0 max-w-3xl space-y-8 [overflow-wrap:anywhere]">
     <c-n26.page-header title="{{ details.name }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}#assets">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ campaign_href }}">
+                    {{ campaign.name }}
+                </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
                     {{ details.name }}
                 </c-ui.breadcrumbs.item>
@@ -50,8 +52,15 @@
         <p class="text-sm text-muted">Added to the campaign {{ details.created|date:"j M Y, H:i" }}.</p>
     </c-n26.form-section>
     {% if boons %}
-        <c-n26.form-section title="Boons">
-            {% include "n26/includes/asset_boons.html" with prominent_choices=True %}
+        <c-n26.form-section title="Boons" id="n26-territory-boons">
+            {% if boon_editor %}
+                {% react_island "territory-boon-choices" boon_editor %}
+                {% if static_boons %}
+                    {% include "n26/includes/asset_boons.html" with boons=static_boons prominent_choices=True show_choice_labels=True %}
+                {% endif %}
+            {% else %}
+                {% include "n26/includes/asset_boons.html" with prominent_choices=True %}
+            {% endif %}
         </c-n26.form-section>
     {% endif %}
     <c-n26.form-section title="Battles staked in">

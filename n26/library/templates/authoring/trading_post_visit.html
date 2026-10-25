@@ -1,0 +1,24 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}Visit Trading Post{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-trading-post-visit' %}"
+                     title="Visit Trading Post"
+                     lead="Configure where this built-in action appears. Trade Point contributions and equipment access are configured separately."
+                     submit_label="Save changes"
+                     submit_variant="success"
+                     cancel_url="{% url 'authoring-leaf' 'action' %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' 'action' %}">Actions</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Visit Trading Post
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% include "authoring/_form.html" with form=form %}
+        <p class="text-sm text-muted">Owners of excluded gangs can find Visit Trading Post under More actions → Other actions.</p>
+        <c-n26.link href="{% url 'authoring-doc' 'recipes' %}#configure-trading-post-visits">Read the recipe</c-n26.link>
+    </c-n26.form-page>
+{% endblock %}

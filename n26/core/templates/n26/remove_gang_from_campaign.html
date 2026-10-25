@@ -17,11 +17,11 @@ already went wrong, and nothing has yet.
     {% include "n26/_nav.html" with here="campaigns" %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-campaign-remove-gang' campaign.pk gang.pk %}"
+    <c-n26.form-page action="{{ request.get_full_path }}"
                      title="Remove {{ gang.name }} from {{ campaign.name }}?"
                      submit_label="Remove gang"
                      submit_variant="danger"
-                     cancel_url="{% url 'n26-campaign' campaign.pk %}">
+                     cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>

@@ -1082,8 +1082,6 @@ def equip(request, pk):
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.gang
-    # Read once: the flag behind it is a query, and the screen and the
-    # note offering a visit ask the same question.
     founding_seen = may_see_founding(gang, request.user)
 
     wanted = request.GET.get("list", "")

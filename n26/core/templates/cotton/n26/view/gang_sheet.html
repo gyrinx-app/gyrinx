@@ -103,7 +103,7 @@ The notice slot holds guidance below the header, before the gang details.
         {% if campaign_state.strip %}{{ campaign_state }}{% endif %}
         <div class="flex min-h-0 flex-col gap-4">
             {% if activities_square %}{{ activities_square }}{% endif %}
-            <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
+            <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating" :credits="sheet.credits" :credits_unlimited="sheet.credits_unlimited">
                 {% if stash_actions %}<c-slot name="actions">{{ stash_actions }}</c-slot>{% endif %}
                 {% if stash_controls %}<c-slot name="controls">{{ stash_controls }}</c-slot>{% endif %}
                 {% if stash_empty %}<c-slot name="empty">{{ stash_empty }}</c-slot>{% endif %}

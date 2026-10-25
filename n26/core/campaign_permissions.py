@@ -24,7 +24,7 @@ def may_record_outcome(battle, user):
     """
     from n26.core.models import Battle
 
-    if battle.result != Battle.Result.NOT_RECORDED:
+    if battle.archived or battle.result != Battle.Result.NOT_RECORDED:
         return False
     if not may_record_campaign(battle.campaign, user):
         return False

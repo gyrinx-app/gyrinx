@@ -46,6 +46,7 @@ class QuotedLine:
     available: int | None
     position: int = 0
     name: str = ""
+    minimum: int = 0
 
     def __post_init__(self):
         if self.amount <= 0:
@@ -69,6 +70,7 @@ class QuotedLine:
             "after_payment": self.after_payment,
             "position": self.position,
             "name": self.name,
+            **({"minimum": self.minimum} if self.minimum else {}),
         }
 
 
@@ -87,7 +89,7 @@ class Quote:
             if previous is None:
                 combined[line.balance] = line
                 continue
-            if previous.available != line.available:
+            if previous.available != line.available or previous.minimum != line.minimum:
                 raise ValueError("Repeated price components disagree on the balance.")
             combined[line.balance] = QuotedLine(
                 balance=line.balance,
@@ -95,13 +97,15 @@ class Quote:
                 available=line.available,
                 position=min(previous.position, line.position),
                 name=previous.name or line.name,
+                minimum=previous.minimum,
             )
         return cls(tuple(sorted(combined.values(), key=lambda line: line.position)))
 
     @property
     def affordable(self):
         return all(
-            line.after_payment is None or line.after_payment >= 0 for line in self.lines
+            line.after_payment is None or line.after_payment >= line.minimum
+            for line in self.lines
         )
 
     def snapshot(self):

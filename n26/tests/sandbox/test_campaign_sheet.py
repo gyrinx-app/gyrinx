@@ -15,10 +15,9 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.models import Campaign
 from n26.core.render import render_campaign
-from n26.flags import CAMPAIGNS, STAGED_CONTENT
+from n26.flags import STAGED_CONTENT
 from n26.library.authoring import (
     add_asset_type,
     add_built_in,
@@ -156,7 +155,7 @@ class TestTheGangsTable:
         sheet = render_campaign(campaign)
 
         assert sheet.counter_columns == ["Reputation", "Income", "Meat"]
-        assert readings(line_named(sheet, "Late")) == [0, 0, 2]
+        assert readings(line_named(sheet, "Late")) == [1, 10, 2]
 
     def test_a_held_territory_counts_in_the_reading(self, campaign, gangs, old_ruins):
         """The same reading the gang sheet shows: stored value plus what a
@@ -168,8 +167,8 @@ class TestTheGangsTable:
 
         sheet = render_campaign(campaign)
 
-        assert readings(line_named(sheet, "The Ashen Choir")) == [3, 30]
-        assert readings(line_named(sheet, "The Rust Kings")) == [0, 0]
+        assert readings(line_named(sheet, "The Ashen Choir")) == [4, 70]
+        assert readings(line_named(sheet, "The Rust Kings")) == [1, 10]
 
     def test_a_gang_without_the_counter_reads_none(self, campaign, gangs):
         """A dash, never a blank: a gang whose card lacks the counter says
@@ -181,7 +180,7 @@ class TestTheGangsTable:
         ).update(archived=True)
         sheet = render_campaign(campaign)
         assert readings(line_named(sheet, "Pit of Teeth")) == [None, 0]
-        assert readings(line_named(sheet, "The Ashen Choir")) == [0, 0]
+        assert readings(line_named(sheet, "The Ashen Choir")) == [1, 10]
 
     def test_assets_sit_under_their_asset_type_column(
         self, campaign, gangs, old_ruins, toll_crossing, protection
@@ -334,9 +333,6 @@ class TestTheQueryBudget:
     def test_the_page_costs_a_fixed_number_of_queries(
         self, client, campaign, gang_type, old_ruins, arbitrator
     ):
-        FeatureFlag.objects.create(
-            slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
-        )
         # What the arbitrator added draws a counter column with a control in
         # every cell, and a label every gang is asked.
         # Added before any gang joins, so every gang measured carries the
@@ -372,7 +368,17 @@ class TestTheQueryBudget:
             body = client.get(address).content.decode()
 
         assert "More 2" in body
-        assert body.count("Edit Meat") == 6
+        from n26.tests.fixtures import island_props
+
+        rows = island_props(body, "campaign-gangs")["gangs"]
+        assert (
+            sum(
+                bool(counter and counter["name"] == "Meat" and counter["adjustHref"])
+                for row in rows
+                for counter in row["counters"]
+            )
+            == 6
+        )
         assert len(more_queries.captured_queries) == len(few.captured_queries)
         # Rendering the assets and filling their addresses share the same
         # reader instance, so the staged-content flag is checked once.

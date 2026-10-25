@@ -112,7 +112,13 @@ def create_campaign_type(
 
 @guarded_write
 def add_asset_type(
-    campaign_type, label_singular, ownership, label_plural="", position=None, **kwargs
+    campaign_type,
+    label_singular,
+    ownership,
+    label_plural="",
+    position=None,
+    display_group="",
+    **kwargs,
 ):
     """One asset type a campaign type deals in, at the end of its listing
     unless placed. Two asset types of one campaign type cannot share a
@@ -141,6 +147,7 @@ def add_asset_type(
         campaign_type=campaign_type,
         label_singular=label_singular,
         label_plural=label_plural,
+        display_group=display_group.strip(),
         ownership=ownership,
         position=position,
         **kwargs,
@@ -640,12 +647,12 @@ def revise(row, **fields):
                 f"set_ verb that owns it and says what leaving means"
             )
         setattr(row, name, value)
-    from n26.library.models import Asset, PicklistMember
+    from n26.library.models import Asset, ContributesToCounter, PicklistMember
     from n26.library.models.assignable import D6Rollable
 
     if isinstance(row, D6Rollable):
         return _save_rollable(row)
-    if isinstance(row, (Asset, PicklistMember)):
+    if isinstance(row, (Asset, ContributesToCounter, PicklistMember)):
         row.full_clean()
     row.save()
     return row
@@ -1755,13 +1762,16 @@ def add_weapon_profile(
 
 
 @guarded_write
-def create_counter(name, qualifier="", drawn=True, library_author_help="", **kwargs):
+def create_counter(
+    name, qualifier="", drawn=True, library_author_help="", minimum=0, **kwargs
+):
     from n26.library.models import Counter
 
     return Counter.objects.create(
         name=name,
         qualifier=qualifier,
         drawn=drawn,
+        minimum=minimum,
         library_author_help=library_author_help,
         **kwargs,
     )
@@ -2802,14 +2812,19 @@ def ef_changes_stat(stat, mode="worsen", amount=1):
 
 
 @guarded_write
-def ef_contributes_to_counter(counter, amount=0):
+def ef_contributes_to_counter(counter, amount=0, per_counter=None):
     """Adds to a counter's reading while the carrier is held —
     ``ef_contributes_to_counter(visit_tp, 2)`` for the 2 Trade Points a
     Leader brings to a Trading Post visit. Nothing is written down, so
     the contribution goes when the carrier does."""
     from n26.library.models import ContributesToCounter
 
-    return ContributesToCounter.objects.create(counter=counter, amount=amount)
+    effect = ContributesToCounter(
+        counter=counter, amount=amount, per_counter=per_counter
+    )
+    effect.full_clean()
+    effect.save()
+    return effect
 
 
 @guarded_write
@@ -3091,3 +3106,21 @@ def detach_modifier(assignable, modifier):
     it may hang on other carriers, or wait as a reusable."""
     assignable.modifiers.remove(modifier)
     return assignable
+
+
+@guarded_write
+@transaction.atomic
+def configure_trading_post_visit(excluded_gang_types=()):
+    """Replace the gang types whose usual Trading Post setup links are hidden."""
+    from n26.library.models import BuiltInAction
+
+    types = list(excluded_gang_types)
+    if GangType.objects.filter(
+        pk__in=[gang_type.pk for gang_type in types], pack__campaign__isnull=False
+    ).exists():
+        raise ValidationError("Choose gang types from the content library.")
+    action, _ = BuiltInAction.objects.get_or_create(
+        key=BuiltInAction.Key.TRADING_POST_VISIT
+    )
+    action.excluded_gang_types.set(types)
+    return action

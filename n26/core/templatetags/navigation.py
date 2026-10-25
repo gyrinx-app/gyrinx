@@ -6,31 +6,6 @@ register = template.Library()
 
 
 @register.simple_tag(takes_context=True)
-def feature_open(context, slug):
-    """Whether this reader is let into a gated feature.
-
-    Lets the drawer draw a place as a link for the accounts that have it and
-    as a plain word for everyone else, so a reader is never offered an
-    address that would answer them 404.
-
-    Drawing the link is not what grants access — every gated view asks the
-    same question again for itself. This only decides what the drawer says.
-
-    Memoised on the request because the drawer is drawn more than once on a
-    page — the bar's list and the scriptless strip beneath it are the same
-    include — and the page's query budget is a fixed number rather than one
-    that grows with how often a template happens to ask.
-    """
-    from n26.flags import enabled_for_request
-
-    request = context.get("request")
-    if request is None:
-        return False
-
-    return enabled_for_request(slug, request)
-
-
-@register.simple_tag(takes_context=True)
 def drawer_gangs(context):
     """The signed-in user's gangs, for the navigation drawer.
 
@@ -63,11 +38,7 @@ def places_switcher(context, here=""):
     """
     from n26.core.navigation import places_switcher as build
 
-    return build(
-        context.get("request"),
-        here=here,
-        campaigns_open=feature_open(context, "campaigns"),
-    )
+    return build(context.get("request"), here=here)
 
 
 @register.simple_tag

@@ -504,7 +504,7 @@ class TestPublishedPlaceholders:
                 if line.name == "Income"
             )
             == before
-            == 32
+            == 42
         )
         assert (
             list(
