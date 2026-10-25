@@ -36,6 +36,7 @@ class ActionUseLink:
     undoable: bool = False
     problem: str = ""
     variant: str = "primary"
+    earned_threshold: str = ""
 
 
 @dataclass
@@ -57,6 +58,7 @@ class ActionPanel:
     flagged: bool = False
     drafts: list[ActionUseLink] = field(default_factory=list)
     completed: list[ActionUseLink] = field(default_factory=list)
+    earned_thresholds: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -70,6 +72,13 @@ class PaymentTally:
     """One reviewed payment resource, arranged as a receipt."""
 
     facts: tuple[Fact, ...]
+
+
+def earned_threshold(allowance):
+    """Name the original threshold, even after the model's progression changes."""
+    if allowance is None or allowance.source_kind != ActionAllowance.Source.RANK:
+        return ""
+    return f"{allowance.threshold} {allowance.rank_table.counter}"
 
 
 def payment_figures(quote):
@@ -259,7 +268,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
     allowances = list(
         ActionAllowance.objects.filter(fighter=fighter)
         .unused()
-        .with_progression_value()
+        .eligible()
         .select_related("rank_table__counter")
         .order_by("threshold", "created", "pk")
     )
@@ -291,6 +300,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
         )
         .filter(action_position__lte=3)
         .select_related(
+            "allowance__rank_table__counter",
             "outcome__resolve_advancement",
             "slot_selection__item_assignment__weapon",
             "slot_selection__item_assignment__wargear",
@@ -303,11 +313,8 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
     )
     records = [*drafts, *completed]
     available = defaultdict(list)
-    held = defaultdict(list)
     for allowance in allowances:
-        (held if allowance_hold_reason(allowance) else available)[
-            allowance.action_id
-        ].append(allowance)
+        available[allowance.action_id].append(allowance)
     draft_allowances = {
         row.pk: row
         for row in ActionAllowance.objects.filter(
@@ -318,10 +325,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
     }
     effective_ids = {found.action.pk for found in access}
     action_ids = (
-        effective_ids
-        | set(available)
-        | set(held)
-        | {record.action_id for record in records}
+        effective_ids | set(available) | {record.action_id for record in records}
     )
     if not action_ids:
         return []
@@ -353,10 +357,9 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
             timing=action.get_timing_display(),
             allowance_id=str(granted[0].pk) if granted else "",
             available_uses=len(granted) if action.allowance_rule else None,
-            held_uses=len(held[action.pk]),
-            hold_reason=allowance_hold_reason(held[action.pk][0])
-            if held[action.pk]
-            else "",
+            earned_thresholds=tuple(
+                threshold for row in granted if (threshold := earned_threshold(row))
+            ),
         )
         quote, panel.problem = _action_quote(
             action, balances=balances, credits=credits, gang_id=fighter.gang.pk
@@ -385,6 +388,9 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                         earned=record.allowance_id is not None,
                         problem=problem,
                         variant="default" if problem else "primary",
+                        earned_threshold=earned_threshold(
+                            draft_allowances.get(record.allowance_id)
+                        ),
                     )
                 )
             elif (
@@ -397,6 +403,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                         "Applied by hand",
                         when=record.modified,
                         applied_by_hand=True,
+                        earned_threshold=earned_threshold(record.allowance),
                     )
                 )
             elif (
@@ -412,6 +419,7 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                         and record.outcome_id is not None
                         and record.outcome.resolve_advancement_id is not None,
                         when=record.created,
+                        earned_threshold=earned_threshold(record.allowance),
                     )
                 )
         panel.flagged = any(not draft.problem for draft in panel.drafts) or (

@@ -245,6 +245,8 @@ def progression_for(fighter, *, card=None, computed=None):
         on_hold = (
             record is None or record.state == ActionRecord.State.STARTED
         ) and bool(allowance_hold_reason(allowance))
+        if on_hold and record is None:
+            continue
         history.append(
             RankHistory(
                 table_id=allowance.rank_table_id,

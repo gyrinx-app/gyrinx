@@ -14,7 +14,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from n26.core.access import actions_for
-from n26.core.action_flow import payment_figures, payment_tallies, receipt_lines
+from n26.core.action_flow import (
+    earned_threshold,
+    payment_figures,
+    payment_tallies,
+    receipt_lines,
+)
 from n26.core.action_forms import (
     ActionOutcomeForm,
     ActionSelectionForm,
@@ -205,7 +210,9 @@ def _steps(record=None, *, action=None, stage="start", correction=False):
 def _record_or_404(fighter, key):
     try:
         return get_object_or_404(
-            ActionRecord.objects.select_related("action", "outcome", "allowance"),
+            ActionRecord.objects.select_related(
+                "action", "outcome", "allowance__rank_table__counter"
+            ),
             pk=key,
             fighter=fighter,
             gang=fighter.gang,
@@ -258,7 +265,15 @@ def _review_payments(record):
 
 
 def _page(
-    request, fighter, action, *, record=None, stage="start", correction=False, **context
+    request,
+    fighter,
+    action,
+    *,
+    record=None,
+    allowance=None,
+    stage="start",
+    correction=False,
+    **context,
 ):
     back = reverse("n26-edit-fighter", args=[fighter.pk])
     cancel_href = flow_url(fighter, record, "cancel") if _can_cancel(record) else ""
@@ -315,6 +330,9 @@ def _page(
             "gang": fighter.gang,
             "action": action,
             "record": record,
+            "earned_threshold": earned_threshold(
+                record.allowance if record is not None else allowance
+            ),
             "stage": stage,
             "correction": correction,
             "steps": _steps(record, action=action, stage=stage, correction=correction),
@@ -549,6 +567,14 @@ def action_start(request, pk, action_id):
         fighter,
         action,
         form=form,
+        allowance=next(
+            (
+                row
+                for row in allowances
+                if str(row.pk) == str(form["allowance"].value())
+            ),
+            None,
+        ),
         prices=payment_figures(quote),
         outcomes=[
             {
@@ -576,7 +602,9 @@ def action_by_hand(request, pk, action_id):
         allowance = (
             ActionAllowance.objects.filter(
                 pk=request.GET.get("allowance"), fighter=fighter, action=action
-            ).first()
+            )
+            .select_related("rank_table__counter")
+            .first()
             if request.GET.get("allowance")
             else None
         )
@@ -596,15 +624,25 @@ def action_by_hand(request, pk, action_id):
             return redirect("n26-edit-fighter", pk=fighter.pk)
         except Refusal as refusal:
             form.add_error(None, str(refusal))
-    return _by_hand_page(request, fighter, action, form)
+    if allowance is None:
+        allowance = (
+            ActionAllowance.objects.filter(fighter=fighter, action=action)
+            .unused()
+            .eligible()
+            .select_related("rank_table__counter")
+            .order_by("threshold", "created", "pk")
+            .first()
+        )
+    return _by_hand_page(request, fighter, action, form, allowance=allowance)
 
 
-def _by_hand_page(request, fighter, action, form, *, record=None):
+def _by_hand_page(request, fighter, action, form, *, record=None, allowance=None):
     return _page(
         request,
         fighter,
         action,
         record=record,
+        allowance=allowance,
         stage="by-hand",
         form=form,
         submit_label="Mark as applied",

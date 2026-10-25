@@ -29,6 +29,7 @@
                                                   class="shrink-0 text-xs text-muted">{{ result.when|naturaltime }}</time>
                                         {% endif %}
                                     </div>
+                                    {% if result.earned_threshold %}<p class="mt-0.5 text-muted">Earned at {{ result.earned_threshold }}.</p>{% endif %}
                                     {% if result.applied_by_hand %}
                                         <form method="post" action="{{ result.reopen_href }}" class="mt-0.5">
                                             {% csrf_token %}
