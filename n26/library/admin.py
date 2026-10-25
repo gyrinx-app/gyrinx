@@ -325,6 +325,7 @@ class SlotAdmin(admin.ModelAdmin):
         "max_picks",
         "assigned_to",
         "hidden",
+        "allow_dismissal",
         "pack",
         "archived",
     ]
@@ -333,6 +334,7 @@ class SlotAdmin(admin.ModelAdmin):
         "slot_type",
         "assigned_to",
         "hidden",
+        "allow_dismissal",
         "archived",
     ]
     search_fields = ["name", "label"]

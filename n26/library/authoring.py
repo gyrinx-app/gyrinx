@@ -1492,6 +1492,7 @@ def create_slot(
     qualifier="",
     library_author_help="",
     introduction="",
+    allow_dismissal=True,
     **kwargs,
 ):
     """One named use of a slot type: the choice a card actually asks.
@@ -1518,6 +1519,7 @@ def create_slot(
         max_picks=max_picks,
         assigned_to=assigned_to,
         hidden=hidden,
+        allow_dismissal=allow_dismissal,
         follows_status=follows_status,
         mode=mode,
         position=position,

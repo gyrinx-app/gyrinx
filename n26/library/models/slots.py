@@ -727,6 +727,14 @@ class Slot(Content, Assignable):
         default=False,
         help_text="Display no choice at all. What is picked still applies.",
     )
+    allow_dismissal = models.BooleanField(
+        default=True,
+        verbose_name="allow dismissal",
+        help_text=(
+            "Players can hide this choice while it has no picks. Turn off to keep "
+            "the choice available, including if it was previously dismissed."
+        ),
+    )
     position = models.PositiveIntegerField(
         default=0,
         help_text="Order among the slots on one card. Ties fall back to name.",

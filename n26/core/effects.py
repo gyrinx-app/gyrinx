@@ -305,6 +305,10 @@ class ChoiceSlot:
         return len(self.picks) >= self.max_picks
 
     @property
+    def allow_dismissal(self):
+        return self.slot.allow_dismissal if self.slot is not None else True
+
+    @property
     def current_picks(self):
         """The picks that belong among current choices rather than in history."""
         return [
