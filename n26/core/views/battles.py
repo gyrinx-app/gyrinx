@@ -10,11 +10,14 @@ from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch, Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from n26.core import matchmaking
 from n26.core.battle_permissions import may_record_gang
 from n26.core.campaigns import battle_stake, campaign_operation
-from n26.core.forms import BattleForm
+from n26.core.forms import BattleForm, MatchmakerForm
 from n26.core.models import (
     Battle,
     BattleCrew,
@@ -184,6 +187,105 @@ def archived_battles(request, pk):
     ).get_page(request.GET.get("page"))
     return render(
         request, "n26/archived_battles.html", {"campaign": campaign, "page": page}
+    )
+
+
+@login_required
+def matchmaker(request, pk):
+    """Draw random matchups, then pre-record or redraw the ones ticked.
+
+    The settings live in the address, so a POST keeps them. Drawing writes
+    nothing: only Pre-record battles does.
+    """
+    campaign = _own_campaign_or_404(request, pk)
+    today = timezone.localdate()
+    entrants = matchmaking.campaign_entrants(campaign, today)
+    if "mode" in request.GET:
+        form = MatchmakerForm(request.GET, entrants=entrants)
+    else:
+        form = MatchmakerForm(entrants=entrants)
+    draw, selected, results_error = None, set(), ""
+    if request.method == "POST":
+        values = request.POST.getlist("selected")
+        try:
+            draw = matchmaking.Draw.read(
+                campaign, request.POST.get("draw", ""), entrants
+            )
+            chosen = draw.chosen(values)
+            selected = {str(index + 1) for index in chosen}
+            if request.POST.get("action") == "rematch":
+                draw = draw.redraw(chosen)
+                selected = set()
+            elif not chosen:
+                raise Refusal("Select at least one matchup to pre-record.")
+            else:
+                picked = [
+                    (title, matchup)
+                    for number, title, matchup in draw.titled()
+                    if number - 1 in chosen
+                ]
+                gangs = {
+                    str(gang.pk): gang
+                    for gang in Gang.objects.filter(
+                        pk__in=[g.id for _, m in picked for g in m.gangs]
+                    )
+                }
+                with campaign_operation(campaign, actor=request.user) as act:
+                    battles = act.pre_record_matchups(
+                        [
+                            (title, [gangs[gang.id] for gang in matchup.gangs])
+                            for title, matchup in picked
+                        ],
+                        today=today,
+                    )
+                count = len(battles)
+                messages.success(
+                    request,
+                    f"Pre-recorded {count} battle{'s' if count != 1 else ''}.",
+                )
+                return redirect("n26-campaign", pk=campaign.pk)
+        except (matchmaking.NoMatchup, Refusal) as exc:
+            results_error = str(exc)
+    elif form.is_bound and form.is_valid():
+        data = form.cleaned_data
+        try:
+            draw = matchmaking.Draw(
+                mode=data["mode"],
+                ways=data["ways"],
+                allow_uneven=data["allow_uneven"],
+                allow_rematches=data["allow_rematches"],
+                matchups=tuple(
+                    matchmaking.make_matchups(
+                        form.selected(),
+                        ways=data["ways"],
+                        matchups=data["matchups"],
+                        allow_uneven=data["allow_uneven"],
+                        allow_rematches=data["allow_rematches"],
+                    )
+                ),
+            )
+        except matchmaking.NoMatchup as exc:
+            form.add_error(None, str(exc))
+    mode = request.GET.get("mode", matchmaking.Mode.PAIRS)
+    results_url = reverse("n26-campaign-matchmaker", args=[campaign.pk])
+    if request.GET:
+        results_url += "?" + request.GET.urlencode()
+    return render(
+        request,
+        "n26/matchmaker.html",
+        {
+            "campaign": campaign,
+            "form": form,
+            "mode_pairs": mode != matchmaking.Mode.MORE,
+            "mode_more": mode == matchmaking.Mode.MORE,
+            "entrants": entrants,
+            "chosen": set(form["gangs"].value() or ()),
+            "draw_token": draw.sign(campaign) if draw else "",
+            "proposals": draw.titled() if draw else [],
+            "selected": selected,
+            "results_url": results_url,
+            "results_error": results_error,
+        },
     )
 
 

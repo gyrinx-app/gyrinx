@@ -13,6 +13,7 @@ from django.core import signing
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 
+from n26.core import matchmaking
 from n26.core.colours import GANG_COLOURS
 from n26.core.models import Campaign
 from n26.core.widgets import CAMPAIGN_SUMMARY_CONFIG, RichText
@@ -764,6 +765,83 @@ class BattleForm(forms.Form):
             except forms.ValidationError as exc:
                 self.add_error(None, exc)
         return cleaned
+
+
+class MatchmakerForm(forms.Form):
+    """The arbitrator's choice of gangs and matchup rules for a random draw.
+
+    Only available gangs can be ticked. Whether the ticked gangs fill the
+    matchups is checked here; whether they can meet without a rematch is
+    found by drawing.
+    """
+
+    mode = forms.ChoiceField(
+        choices=matchmaking.Mode.CHOICES,
+        initial=matchmaking.Mode.PAIRS,
+        widget=forms.RadioSelect,
+    )
+    ways = forms.IntegerField(
+        required=False,
+        initial=3,
+        label="Gangs in each battle",
+        error_messages={"invalid": "Enter a number of gangs from 2 to 8."},
+    )
+    allow_rematches = forms.BooleanField(required=False, label="Allow rematches")
+    allow_uneven = forms.BooleanField(required=False, label="Allow uneven sides")
+    gangs = forms.MultipleChoiceField(
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        error_messages={"invalid_choice": "Select available gangs from this campaign."},
+    )
+    matchups = forms.IntegerField(
+        initial=1,
+        label="Matchups",
+        error_messages={
+            "required": "Enter a number of matchups from 1 to 10.",
+            "invalid": "Enter a number of matchups from 1 to 10.",
+        },
+    )
+
+    def __init__(self, *args, entrants, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.entrants = entrants
+        self.fields["gangs"].choices = [
+            (entrant.id, entrant.name) for entrant in entrants if entrant.available
+        ]
+
+    def clean_ways(self):
+        ways = self.cleaned_data.get("ways")
+        if self.data.get("mode") != matchmaking.Mode.MORE:
+            return 2
+        if ways is None or not (matchmaking.MIN_WAYS <= ways <= matchmaking.MAX_WAYS):
+            raise ValidationError("Enter a number of gangs from 2 to 8.")
+        return ways
+
+    def clean_matchups(self):
+        matchups = self.cleaned_data["matchups"]
+        if not matchmaking.MIN_MATCHUPS <= matchups <= matchmaking.MAX_MATCHUPS:
+            raise ValidationError("Enter a number of matchups from 1 to 10.")
+        return matchups
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.errors:
+            return cleaned
+        try:
+            matchmaking.matchup_sizes(
+                len(cleaned["gangs"]),
+                cleaned["ways"],
+                cleaned["matchups"],
+                allow_uneven=cleaned["allow_uneven"],
+            )
+        except matchmaking.NoMatchup as exc:
+            self.add_error("gangs", str(exc))
+        return cleaned
+
+    def selected(self):
+        """The ticked gangs, as entrants."""
+        chosen = set(self.cleaned_data["gangs"])
+        return [entrant for entrant in self.entrants if entrant.id in chosen]
 
 
 class AddAssetForm(forms.Form):
