@@ -746,6 +746,7 @@ def edit_fighter(request, pk):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.access import model_collections
     from n26.core.card import build_card, build_modifier_index, carriers
+    from n26.core.departure import departure_for
     from n26.core.effects import compute
     from n26.core.forms import (
         FighterLoreForm,
@@ -754,7 +755,7 @@ def edit_fighter(request, pk):
         statline_override_form_for,
     )
     from n26.core.images import MAX_PX, PORTRAIT
-    from n26.core.operations import Refusal, operation, trade_points_carried_by
+    from n26.core.operations import Refusal, operation
     from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import roster, summarise_roster
     from n26.core.views.gangs import _fighter_named
@@ -1098,6 +1099,12 @@ def edit_fighter(request, pk):
     # the same numbers the equip face keeps there. One query.
     members = roster(gang)
     may_mark = may_mark_status(gang, request.user)
+    may_refund = not gang.credits_unlimited
+    if not may_refund:
+        try:
+            may_refund = departure_for(miniature).refund[1] > 0
+        except Refusal:
+            may_refund = False
     from n26.core.allowances import missing_progression_counters
     from n26.core.views.trade_points import hire_time_context
 
@@ -1140,14 +1147,9 @@ def edit_fighter(request, pk):
             # Copying the owner carries both across; the child has no
             # independent purchase to copy on its own.
             "may_clone": miniature.membership.caused_by_id is None,
-            # Whether the menu offers Refund beside Delete. A gang founded
-            # without a budget refunds no credits, so the act is worth
-            # offering only where a founding allowance paid for something
-            # this model still carries. One query, and only for such a
-            # gang — everybody else knows the answer already.
-            "may_refund": (
-                not gang.credits_unlimited or trade_points_carried_by(miniature) > 0
-            ),
+            # An unlimited gang refunds only Trade Points. A generated
+            # model's points may be on its originating purchase.
+            "may_refund": may_refund,
             # The role beside the name: the rank the profile is filed
             # under, which is what a reader checking "which of my models
             # is this" wants said once at the top. The bare name — the
