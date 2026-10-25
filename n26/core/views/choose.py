@@ -182,6 +182,8 @@ def link_slots(gang, *holders, back="", dismiss_back=None):
             # a dismissed one, kept on the structure to be shown, offers
             # only the way back.
             line.back = dismiss_back
+            if not line.allow_dismissal:
+                continue
             if line.dismissed:
                 line.restore_href = reverse(
                     "n26-restore-offer", args=[gang.pk, line.key]
@@ -791,6 +793,11 @@ def dismiss_offer(request, pk, slot):
     fallback = reverse("n26-gang", args=[gang.pk])
     with choice_operation(gang, [slot], actor=request.user):
         found = find_slot(gang, slot)
+        if not found.slot.allow_dismissal:
+            messages.error(
+                request, f"You cannot dismiss {label}. This choice must stay available."
+            )
+            return _safe_redirect(request, request.POST.get("back"), fallback)
         if found.slot.is_resolved:
             # Counted, because a choice worked at a pick at a time may
             # hold several, and every one of them has to go first.

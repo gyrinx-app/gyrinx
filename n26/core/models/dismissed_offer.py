@@ -9,7 +9,8 @@ A dismissal applies across the gang: the owner's pages, the shared sheet
 and the printed roster. It is display state, like ``PrintConfig``: it moves
 no money, changes no rating and does not go through ``n26.operations``.
 Only an offer with no pick can be dismissed. An offer with a pick shows the
-pick and has no hide control.
+pick and has no hide control. Slots may disallow dismissal; stored dismissals
+for those choices are ignored while dismissal is disabled.
 
 The key comes from ``slot_key`` below: the card, the assignment carrying
 the offer, and the offer itself. It matches only while those rows exist,

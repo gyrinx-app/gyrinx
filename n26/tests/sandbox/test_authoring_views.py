@@ -1177,6 +1177,53 @@ def affiliation(default_pack):
     return slot_type
 
 
+class TestAuthoringSlotDismissal:
+    def test_new_slots_allow_dismissal_by_default(self, author, client, default_pack):
+        from bs4 import BeautifulSoup
+
+        response = client.get("/n26/authoring/slot/new/")
+        checkbox = BeautifulSoup(response.content, "html.parser").find(
+            "input", attrs={"name": "allow_dismissal"}
+        )
+        assert checkbox.has_attr("checked")
+        assert "Allow dismissal" in response.content.decode()
+
+    @pytest.mark.parametrize("allowed", [True, False])
+    def test_an_author_can_create_and_change_the_setting(
+        self, author, client, legacy, allowed
+    ):
+        from n26.library.models import Slot
+
+        original = Slot.objects.get()
+        data = {
+            "name": "Another choice",
+            "slot_type": str(legacy.pk),
+            "picklist": str(original.picklist_id),
+            "min_picks": "1",
+            "max_picks": "1",
+            "assigned_to": "bearer",
+            "position": "0",
+        }
+        if allowed:
+            data["allow_dismissal"] = "on"
+        response = client.post("/n26/authoring/slot/new/", data)
+        assert response.status_code == 302
+        slot = Slot.objects.get(name="Another choice")
+        assert slot.allow_dismissal is allowed
+
+        data.pop("slot_type")
+        data.pop("allow_dismissal", None)
+        if not allowed:
+            data["allow_dismissal"] = "on"
+        edit = {f"edit-{name}": value for name, value in data.items()}
+        response = client.post(
+            f"/n26/authoring/slot/{slot.pk}/", {"act": "edit", **edit}
+        )
+        assert response.status_code == 302
+        slot.refresh_from_db()
+        assert slot.allow_dismissal is not allowed
+
+
 class TestASlotTypeIsSettledWhenAThingIsMade:
     """Which slot type a pickable, a picklist or a slot belongs to is
     settled when it is made. Moved afterwards, a picklist would offer

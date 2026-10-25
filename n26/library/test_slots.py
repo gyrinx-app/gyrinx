@@ -132,6 +132,18 @@ class TestHowManyPicksAChoiceHolds:
         assert slot.hidden is False
 
 
+class TestSlotDismissal:
+    def test_slots_allow_dismissal_by_default(self, legacy, legacies):
+        slot = create_slot("Gang Legacy", legacy, legacies)
+        slot.refresh_from_db()
+        assert slot.allow_dismissal is True
+
+    def test_an_author_can_disable_dismissal(self, legacy, legacies):
+        slot = create_slot("Gang Legacy", legacy, legacies, allow_dismissal=False)
+        slot.refresh_from_db()
+        assert slot.allow_dismissal is False
+
+
 class TestWhatTheCardCallsAChoice:
     def test_the_label_where_there_is_one(self, legacy, legacies):
         slot = create_slot("Hunter legacy slot", legacy, legacies, label="Gang Legacy")

@@ -1458,6 +1458,7 @@ def _build_registry():
                 "max_picks": Int(source=(Slot, "max_picks")),
                 "assigned_to": Choice(source=(Slot, "assigned_to")),
                 "hidden": Bool(source=(Slot, "hidden")),
+                "allow_dismissal": Bool(source=(Slot, "allow_dismissal")),
                 "follows_status": Bool(source=(Slot, "follows_status")),
                 "mode": Choice(source=(Slot, "mode")),
                 "position": Int(source=(Slot, "position")),

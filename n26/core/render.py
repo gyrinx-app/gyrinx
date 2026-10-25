@@ -670,6 +670,7 @@ class ChoiceLine:
     #: Dismissed choices are kept off the model card. The model's Edit page
     #: and the gang's Dismissed choices tab offer Restore instead of Choose.
     dismissed: bool = False
+    allow_dismissal: bool = True
     #: Where dismissing this offer posts to, and where restoring it does.
     #: Filled in by whoever knows the URL space, as ``href`` is, and only
     #: for the owner: an open offer carries the first, a dismissed one
@@ -2407,6 +2408,7 @@ def _choice_line(slot, host):
         is_tier_ladder=is_tier_ladder(slot),
         is_lasting_effect=is_lasting_effect(slot),
         follows_status=bool(slot.slot and slot.slot.follows_status),
+        allow_dismissal=slot.allow_dismissal,
         key=slot_key(slot, host),
         provenance=Provenance(
             source=slot.source,
@@ -2581,7 +2583,12 @@ def hide_dismissed_choices(keys, choices, *, reveal=False, removed=None):
     found = 0
     kept = []
     for line in choices:
-        if line.key in keys and not line.is_resolved and not line.is_full:
+        if (
+            line.allow_dismissal
+            and line.key in keys
+            and not line.is_resolved
+            and not line.is_full
+        ):
             found += 1
             line.dismissed = True
             if not reveal:

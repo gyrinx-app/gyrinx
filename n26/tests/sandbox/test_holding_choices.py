@@ -830,6 +830,28 @@ class TestTheSharedPicker:
         assert counts() == before
         assert question(gang, current, content["slot"]).chosen_name == "Extra income"
 
+    def test_a_holding_choice_can_disallow_dismissal(
+        self, client, owner, holding, gang, content
+    ):
+        client.force_login(owner)
+        remove(question(gang, holding, content["slot"]).picks[0].assignment)
+        key = key_for(gang, holding, content["slot"])
+        dismiss = reverse("n26-dismiss-offer", args=[gang.pk, key])
+        client.post(dismiss)
+        assert DismissedOffer.objects.filter(gang=gang, slot_key=key).exists()
+
+        revise(content["slot"], allow_dismissal=False)
+        sheet = render_gang(gang)
+        settle_dismissed(gang, hide_only=(sheet,))
+        line = next(line for line in sheet.campaign.choices if line.key == key)
+        assert line.allow_dismissal is False
+        assert line.dismissed is False
+        response = client.post(dismiss, follow=True)
+        assert "This choice must stay available." in response.content.decode()
+        DismissedOffer.objects.filter(gang=gang).delete()
+        client.post(dismiss)
+        assert not DismissedOffer.objects.filter(gang=gang).exists()
+
     def test_a_dismissal_hides_only_one_holding_and_one_ownership_period(
         self, client, owner, holding, gang, campaign, content
     ):

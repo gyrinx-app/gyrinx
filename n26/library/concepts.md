@@ -313,6 +313,8 @@ One specific, named use of a slot type. Assigning one to a model or gang — bui
 
 **Follows status** gives each status change a fresh use of this choice. It takes one pick on the model. A modifier narrowed by **Has status** can show it only while that status applies. Earlier picks stay in history and do not settle a later occurrence.
 
+**Allow dismissal** lets players hide the choice while it has no picks. Turn it off for choices that should stay available, such as an injury table or a required patron choice. Earlier dismissals are ignored while it is off. Hidden slots still stay hidden.
+
 ### Interstitial
 
 > Draft, for review.
