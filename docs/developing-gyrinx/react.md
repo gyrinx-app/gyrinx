@@ -181,7 +181,14 @@ builds CSS. `npm run js` is enough for Django tests that need the island
 manifest. `npm run js:dev` selects React's development runtime and emits
 unminified local assets with source maps, so source component names remain
 visible in React DevTools. `./scripts/dev.sh` runs that development build before
-serving and watches frontend changes with the same mode.
+serving and watches frontend changes with the same mode. A later `./scripts/dev.sh`
+skips `npm run js:dev` when that development build is still current. Vite
+resolves `react`, `react-dom`, and `scheduler` from this checkout only. A
+path in another checkout stops the build: remove this checkout's
+`node_modules`, run `npm ci` here, and do not edit the other checkout's
+`node_modules`. A concurrent install there can leave
+`react-dom-client.development.js` half-written, which fails with
+`Unterminated string`.
 
 After rebasing an older worktree onto a branch that added or changed the React
 islands, install from the lockfile and rebuild the gitignored manifest with the
