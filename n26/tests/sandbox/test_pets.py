@@ -464,18 +464,28 @@ class TestRemovingThroughThePetsCard:
         assert_reconciled(gang)
 
     @pytest.mark.parametrize("points", [0, 2])
+    @pytest.mark.parametrize("in_stash", [False, True])
     def test_an_unlimited_gang_can_remove_the_purchase_and_refund_its_trade_points(
-        self, client, gang_type, player, mastiff_wargear, make_profile, points
+        self, client, gang_type, player, mastiff_wargear, make_profile, points, in_stash
     ):
         gang = found_gang("Unlimited gang", gang_type, owner=player)
         fighter = hire(gang, make_profile("Handler"), "Handler")
         purchase = assign(
-            mastiff_wargear, miniature=fighter, paid=0, trade_points=points
+            mastiff_wargear,
+            miniature=None if in_stash else fighter,
+            stash=gang.stash if in_stash else None,
+            paid=0,
+            trade_points=points,
         )
         pet = pet_of(gang)
         client.force_login(player)
         url = reverse("n26-gang", args=[gang.pk])
 
+        edit = client.get(reverse("n26-edit-fighter", args=[pet.pk]))
+        assert edit.status_code == 200
+        assert edit.context["may_refund"] is bool(points)
+        refund_link = f'href="{url}?refund={pet.pk}"'
+        assert (refund_link in edit.content.decode()) is bool(points)
         leaving = client.get(f"{url}?refund={pet.pk}").context["leaving"]
         assert leaving["kind"] == ("refund" if points else "delete")
         if points:
@@ -505,6 +515,36 @@ class TestRemovingThroughThePetsCard:
         gang.refresh_from_db()
         assert bought.archived and pet.membership.archived and kit.archived
         assert gang.rating == 0
+        assert gang.credits == credits
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("act, credits", [("delete", 830), ("refund", 885)])
+    def test_stashing_the_owners_pet_purchase_keeps_the_pet_in_the_stash(
+        self, client, gang, bought, yolanda, act, credits
+    ):
+        pet = pet_of(gang)
+        kit = assign(create_wargear("Spiked collar"), miniature=pet, paid=15)
+        client.force_login(gang.owner)
+        url = reverse("n26-gang", args=[gang.pk])
+        leaving = client.get(f"{url}?{act}={yolanda.pk}").context["leaving"]
+        if act == "refund":
+            assert leaving["stash_label"] == "Stash kit, refund 55¢"
+
+        client.post(reverse(f"n26-{act}-fighter", args=[yolanda.pk]), {"kit": "stash"})
+
+        bought.refresh_from_db()
+        pet.refresh_from_db()
+        kit.refresh_from_db()
+        yolanda.refresh_from_db()
+        gang.refresh_from_db()
+        assert yolanda.membership.archived is True
+        assert bought.archived is False
+        assert pet.membership.archived is False
+        assert kit.archived is False
+        assert bought.stash_id == kit.stash_id == gang.stash.pk
+        assert build_model_card(pet).owner_line == "In the stash"
+        assert gang.rating == 0
+        assert gang.stash_rating == 115
         assert gang.credits == credits
         assert_reconciled(gang)
 
