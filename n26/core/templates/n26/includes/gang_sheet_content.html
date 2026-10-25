@@ -319,6 +319,12 @@
                     brought. What was paid stays spent.
                 </c-slot>
                 {% csrf_token %}
+                {% if leaving.purchase %}
+                    <p class="text-sm text-muted">
+                        This also deletes {{ leaving.purchase }}.
+                        Models leaving the roster: {{ leaving.models }}.
+                    </p>
+                {% endif %}
                 {% if leaving.stashable %}
                     <c-slot name="actions">
                         <c-ui.button type="submit" name="kit" value="stash" size="md">
@@ -338,6 +344,12 @@
                     anything not stashed.
                 </c-slot>
                 {% csrf_token %}
+                {% if leaving.purchase %}
+                    <p class="text-sm text-muted">
+                        This also refunds {{ leaving.purchase }}.
+                        Models leaving the roster: {{ leaving.models }}.
+                    </p>
+                {% endif %}
                 {% if leaving.stashable %}
                     <c-slot name="actions">
                         <c-ui.button type="submit" name="kit" value="stash" size="md">
