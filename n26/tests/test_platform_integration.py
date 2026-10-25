@@ -332,6 +332,10 @@ class TestTheChangelogIndex:
 
     def test_tags_are_coloured_and_the_chosen_one_is_marked(self, client, default_pack):
         changelog_entry("Both editions", "N26", "N23")
+        from gyrinx.site.models import ChangelogEntryTag
+
+        ChangelogEntryTag.objects.filter(name="N26").update(colour="sky")
+        ChangelogEntryTag.objects.filter(name="N23").update(colour="amber")
 
         body = client.get("/changelog/?tag=N26").content.decode()
         filters = tag_filters(body)
@@ -472,7 +476,27 @@ class TestOneChangelogEntry:
         assert "<p>The opening.</p>" in body
         assert "<ul><li><strong>First point</strong></li>" in body
         assert "n26-clamp-2" not in body
-        assert "bg-sky-600" in body
+        assert "bg-ink-700" in body
+        assert "dark:bg-ink-300" in body
+
+    @pytest.mark.parametrize("query", ["", "?tag=N26"])
+    def test_entry_tags_open_the_filtered_feed_without_detail_filters(
+        self, client, default_pack, query
+    ):
+        from urllib.parse import urlencode
+
+        name = "Tools & fixes / café"
+        entry = changelog_entry("A tagged update", "N26", name)
+        response = client.get(f"/changelog/{entry.pk}/{query}")
+        page = BeautifulSoup(response.content, "html.parser")
+        assert page.select_one('nav[aria-label="Filter by tag"]') is None
+        assert "filter_tags" not in response.context
+        links = {
+            link.get_text(strip=True): link["href"] for link in page.select("article a")
+        }
+        assert links[name] == f"/changelog/?{urlencode({'tag': name})}"
+        feed = client.get(links[name])
+        assert [item.pk for item in feed.context["entries"]] == [entry.pk]
 
     def test_the_full_body_is_sanitised(self, client, default_pack):
         entry = changelog_entry(
