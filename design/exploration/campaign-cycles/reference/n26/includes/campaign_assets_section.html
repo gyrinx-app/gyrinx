@@ -1,0 +1,26 @@
+{% comment %}
+Each transferable asset type has its own card. This host is replaced after
+rolls, including headings and counts. Possessions remain on their gang.
+{% endcomment %}
+<div id="n26-campaign-assets"
+     class="min-w-0 flex flex-col gap-4 xl:col-span-2"
+     {% if redrawn %}hx-swap-oob="true"{% endif %}>
+    {% if assets_actions.strip or sheet.add_asset_type_href or sheet.tables_href %}
+        <div class="flex flex-wrap justify-end gap-2">
+            {% if sheet.tables_href %}<c-ui.button size="sm"
+             variant="default"
+             href="{{ sheet.tables_href }}">Tables</c-ui.button>{% endif %}
+            {% if sheet.add_asset_type_href %}<c-ui.button size="sm"
+             variant="default"
+             href="{{ sheet.add_asset_type_href }}">Add asset type</c-ui.button>{% endif %}
+            {{ assets_actions }}
+        </div>
+    {% endif %}
+    <div id="assets" class="flex flex-col gap-4">
+        {% for table in sheet.assets %}
+            <c-n26.campaign-assets :table="table" />
+        {% empty %}
+            <p class="p-4 text-sm text-muted">{{ sheet.campaign_type }} has no transferable asset types.</p>
+        {% endfor %}
+    </div>
+</div>
