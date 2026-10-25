@@ -48,7 +48,10 @@ def battle(client, campaign, player, gang_type):
         )
     with campaign_operation(campaign, actor=campaign.owner) as act:
         return act.record_battle(
-            date(2026, 10, 6), [ours, theirs], scenario="Stand-off"
+            date(2026, 10, 6),
+            [ours, theirs],
+            scenario="Stand-off",
+            scenario_rolls={"deployment": 6, "crew": 2},
         )
 
 
@@ -62,8 +65,9 @@ def battle_url(battle):
 
 def test_a_player_who_fought_records_the_outcome(client, battle, player):
     client.force_login(player)
-    page = client.get(battle_url(battle)).content.decode()
-    assert outcome_url(battle) in page
+    page = client.get(battle_url(battle))
+    assert outcome_url(battle) in page.content.decode()
+    assert len(page.context["scenario_results"]) == 2
 
     ours = battle.gangs.get(name="Ashen Choir")
     response = client.post(
@@ -75,6 +79,7 @@ def test_a_player_who_fought_records_the_outcome(client, battle, player):
     assert battle.result == Battle.Result.WINNERS
     assert list(battle.winners.all()) == [ours]
     assert battle.scenario == "Stand-off"
+    assert battle.scenario_rolls == {"deployment": 6, "crew": 2}
     assert (
         battle.campaign.events.filter(kind=CampaignEvent.Kind.BATTLE_EDITED).get().actor
         == player

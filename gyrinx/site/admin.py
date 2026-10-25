@@ -173,7 +173,7 @@ class NotificationAdmin(admin.ModelAdmin):
 
 @admin.register(ChangelogEntryTag)
 class ChangelogEntryTagAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+    list_display = ("name", "colour")
     search_fields = ("name",)
 
 

@@ -1,0 +1,103 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+The scenario generator for one campaign. On wide screens the scenario
+components sit on the left and the generated scenario on the right, with
+room for the descriptions and the deployment map; on a phone the
+components come first.
+
+Each table has one native select: Roll a D6, Leave out, or one of its
+six entries. The form is a GET, because generating saves nothing: the
+view rolls once and redirects to an address holding the result and the
+picks, so Share passes the same scenario on and Generate again keeps
+the picks. Nothing here is saved, so anyone who can read the campaign
+may use it.
+{% endcomment %}
+{% block head_title %}Generate a scenario for {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <c-n26.page-header title="Generate a scenario"
+                           lead="Roll or choose components for a battle in {{ campaign.name }}. Nothing is saved until you save the scenario or record a battle.">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Scenario
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+            {% if scenario %}
+                <c-slot name="breadcrumb_actions">
+                    <c-n26.share :url="share_url" />
+                </c-slot>
+            {% endif %}
+        </c-n26.page-header>
+        <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+            <form method="get"
+                  action="{% url 'n26-scenario-generator' campaign.pk %}"
+                  class="flex flex-col gap-5 rounded-box border border-box-border p-4 sm:p-5">
+                <c-n26.form-section title="Scenario components"
+                                    description="Leave a component out if you already have it covered.">
+                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                        {% for field in form %}
+                            <c-ui.field label="{{ field.label }}"
+                                        error="x"
+                                        :form="form"
+                                        name="{{ field.html_name }}"
+                                        for="{{ field.auto_id }}">
+                                <c-ui.select.native id="{{ field.auto_id }}"
+                                                    name="{{ field.html_name }}"
+                                                    placeholder="">
+                                    {% for value, label in field.field.choices %}
+                                        <option value="{{ value }}"
+                                                {% if value == field.value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </c-ui.select.native>
+                            </c-ui.field>
+                        {% endfor %}
+                    </div>
+                </c-n26.form-section>
+                <c-ui.error :form="form" name="__all__" />
+                <div class="flex flex-wrap items-center justify-end gap-2 border-t border-box-border pt-4">
+                    <c-ui.button variant="ghost" href="{% url 'n26-campaign' campaign.pk %}">Cancel</c-ui.button>
+                    <c-ui.button type="submit" name="generate" value="1" variant="success">
+                        {% if scenario %}
+                            Generate again
+                        {% else %}
+                            Generate scenario
+                        {% endif %}
+                    </c-ui.button>
+                </div>
+            </form>
+            <c-n26.section id="scenario" title="Your scenario" class="scroll-mt-24">
+                {% if wrong %}
+                    <p class="text-sm text-red-600 dark:text-red-400">
+                        This link names a component that is not on its table. Generate the scenario again.
+                    </p>
+                {% elif scenario %}
+                    {% include "n26/includes/scenario_results.html" with results=scenario %}
+                    {% if record_href %}
+                        <div class="flex flex-wrap items-center justify-end gap-2 border-t border-box-border pt-4">
+                            <c-ui.button href="{{ save_href }}">
+                                Save to log
+                            </c-ui.button>
+                            <c-ui.button variant="primary" href="{{ record_href }}">
+                                Record a battle
+                            </c-ui.button>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <p class="text-sm text-muted">Choose what to roll, then generate the scenario. It appears here.</p>
+                {% endif %}
+            </c-n26.section>
+        </div>
+    </div>
+{% endblock content %}

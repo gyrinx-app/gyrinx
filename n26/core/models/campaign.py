@@ -210,6 +210,9 @@ class CampaignEvent(Base):
         TABLE_OPENED = "table_opened", "Table opened"
         TABLE_CLOSED = "table_closed", "Table closed"
         TABLE_CREATED = "table_created", "Table created"
+        # The note stores the scenario name and component values.
+        # Recording a battle with a scenario is BATTLE_RECORDED.
+        SCENARIO_SAVED = "scenario_saved", "Scenario saved"
 
     campaign = models.ForeignKey(
         "n26.Campaign",
@@ -462,6 +465,11 @@ class Battle(Base, Archived):
     date = models.DateField()
     # An unnamed record is valid; entry forms require a scenario name.
     scenario = models.CharField(max_length=200, blank=True, default="")
+    #: What each scenario generator table landed on, as ``{key: roll}``,
+    #: for the tables the battle was played with. Empty when the scenario
+    #: was not generated. Only the rolls are stored; the battle's page
+    #: looks each entry up through ``n26.core.scenarios``.
+    scenario_rolls = models.JSONField(default=dict, blank=True)
     result = models.CharField(
         max_length=20, choices=Result, default=Result.NOT_RECORDED
     )
