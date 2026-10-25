@@ -216,7 +216,20 @@ def test_invalid_posts_redisplay_without_writing(client, campaign, holding, inco
     response = client.post(url(campaign, holding), {"name": "Sump", "income": income})
     assert response.status_code == 200
     assert "income" in response.context["form"].errors
+    for error in response.context["form"].errors["income"]:
+        assert error in BeautifulSoup(response.content, "html.parser").get_text()
     assert CampaignEvent.objects.count() == before
+    holding.refresh_from_db()
+    assert holding.name == ""
+
+
+def test_a_name_that_is_too_long_shows_its_error(client, campaign, holding):
+    client.force_login(campaign.owner)
+    response = client.post(url(campaign, holding), {"name": "x" * 201, "income": ""})
+    assert response.status_code == 200
+    assert "name" in response.context["form"].errors
+    for error in response.context["form"].errors["name"]:
+        assert error in BeautifulSoup(response.content, "html.parser").get_text()
     holding.refresh_from_db()
     assert holding.name == ""
 

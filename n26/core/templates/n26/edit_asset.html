@@ -31,6 +31,7 @@
             <p class="text-sm text-muted">Catalogue entry: {{ holding.asset }} · Income: {{ catalogue_income }}¢.</p>
             <c-ui.field :label="form.name.label"
                         :description="form.name.help_text"
+                        error="x"
                         :form="form"
                         name="name"
                         for="asset-name">
@@ -42,6 +43,7 @@
             </c-ui.field>
             <c-ui.field :label="form.income.label"
                         :description="form.income.help_text"
+                        error="x"
                         :form="form"
                         name="income"
                         for="asset-income">
