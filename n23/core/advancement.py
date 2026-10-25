@@ -40,7 +40,7 @@ class AdvancementRoll:
 STAT_ROLL_BANDS = (
     (
         (3, 4),
-        (("weapon_skill", "Weapon Skill"), ("ballistic_skill", "Ballistic Skill")),
+        (("weapon_skill", "Weapon skill"), ("ballistic_skill", "Ballistic skill")),
         20,
     ),
     ((5, 6), (("strength", "Strength"), ("toughness", "Toughness")), 30),
