@@ -746,6 +746,42 @@ class CampaignOperation:
         )
         return battle
 
+    def record_outcome(self, battle, *, result, winners, revision):
+        """Record the first outcome, preserving the battle's metadata and stake."""
+        from django.core.exceptions import ValidationError
+
+        from n26.core.campaign_permissions import may_record_outcome
+        from n26.core.models import Battle
+        from n26.core.operations import Refusal
+
+        battle = self._locked_battle(battle)
+        if not may_record_outcome(battle, self.actor):
+            raise Refusal(
+                "The outcome is already recorded, or this battle is not yours "
+                "to record. Ask the arbitrator to change it."
+            )
+        if result == Battle.Result.NOT_RECORDED:
+            raise Refusal("Select an outcome.")
+        if battle.revision != revision:
+            raise Refusal("This battle changed. Reload it before saving your changes.")
+        winners = list(winners)
+        try:
+            Battle.validate_outcome(
+                result=result, gangs=battle.gangs.all(), winners=winners
+            )
+        except ValidationError as exc:
+            raise Refusal(" ".join(exc.messages)) from exc
+        battle.result = result
+        battle.revision += 1
+        battle.save(update_fields=["result", "revision", "modified"])
+        battle.winners.set(winners)
+        self.event(
+            CampaignEvent.Kind.BATTLE_EDITED,
+            battle=battle,
+            note=f"{battle.title} on {battle.date.isoformat()}",
+        )
+        return battle
+
     def _stake_details(
         self, battle, *, stake, awarded_to, gang_ids, expected_revision=None
     ):

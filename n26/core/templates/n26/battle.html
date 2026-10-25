@@ -68,8 +68,16 @@
             {% endif %}
             {% if battle.result == "not_recorded" and yours and not battle.archived %}
                 <c-ui.button size="sm"
+                             variant="primary"
                              class="mt-3"
                              href="{% url 'n26-campaign-edit-battle' campaign.pk battle.pk %}#outcome">
+                    Record outcome
+                </c-ui.button>
+            {% elif may_record_outcome %}
+                <c-ui.button size="sm"
+                             variant="primary"
+                             class="mt-3"
+                             href="{% url 'n26-campaign-battle-outcome' campaign.pk battle.pk %}">
                     Record outcome
                 </c-ui.button>
             {% endif %}

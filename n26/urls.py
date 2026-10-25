@@ -123,6 +123,11 @@ urlpatterns = [
         name="n26-campaign-edit-battle",
     ),
     path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/outcome/",
+        views.record_battle_outcome,
+        name="n26-campaign-battle-outcome",
+    ),
+    path(
         "campaigns/<str:pk>/battles/<str:battle_pk>/gangs/<str:gang_pk>/crew/",
         views.edit_crew,
         name="n26-battle-crew",

@@ -74,6 +74,48 @@ def table(client, default_pack, gang_type):
     )
 
 
+def test_player_outcome_preserves_a_stake_that_changed_hands(table, client):
+    with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+        act.invite(table.player)
+        act.edit_battle(
+            table.battle,
+            scenario=table.battle.scenario,
+            date=table.battle.date,
+            gangs=[table.choir, table.kings],
+            result="not_recorded",
+            winners=[],
+            revision=0,
+            stake=table.ruins,
+            stake_awarded_to=None,
+        )
+    with campaign_operation(table.campaign, actor=table.player) as act:
+        act.answer_invitation(table.player, accepted=True)
+    transfer_asset(table.ruins, table.bystanders)
+    table.battle.refresh_from_db()
+    events_before = LedgerEvent.objects.count()
+    client.force_login(table.player)
+    response = client.post(
+        reverse(
+            "n26-campaign-battle-outcome", args=[table.campaign.pk, table.battle.pk]
+        ),
+        {
+            "result": "winners",
+            "winners": [str(table.choir.pk)],
+            "revision": table.battle.revision,
+            "stake": "",
+            "stake_awarded_to": str(table.choir.pk),
+        },
+    )
+    assert response.status_code == 302
+    table.battle.refresh_from_db()
+    assert table.battle.result == Battle.Result.WINNERS
+    assert table.battle.stake_id == table.ruins.pk
+    assert table.battle.stake_awarded_to_id is None
+    assert table.battle.stake_transfer_mark is None
+    assert holder(table) == table.bystanders
+    assert LedgerEvent.objects.count() == events_before
+
+
 def edit_url(table):
     return reverse(
         "n26-campaign-edit-battle", args=[table.campaign.pk, table.battle.pk]
