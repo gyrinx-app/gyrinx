@@ -53,6 +53,7 @@
 @source "../../../gyrinx/templates/platform";
 @source "../../../gyrinx/templates/404.html";
 @source "../../../gyrinx/templates/errors";
+@source "../../../gyrinx/site/templates/admin/gyrinxsite/widgets";
 @source "../../../n23/core/templates/core/account_home.html";
 @source "../../../n23/core/templates/core/change_username.html";
 @source "../../../n23/core/templates/core/badge_settings.html";

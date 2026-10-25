@@ -1,0 +1,37 @@
+{% load static %}
+<div data-tag-colour-picker
+     data-theme-css="{% static 'designsystem/app.css' %}">
+    {% include "django/forms/widgets/select.html" %}
+    <template>
+        <link rel="stylesheet" href="{% static 'gyrinxsite/tag-colour.css' %}">
+        <div class="tag-colour-theme">
+            <div class="tag-colour">
+                <c-ui.button type="button"
+                             class="tag-colour-trigger"
+                             role="combobox"
+                             aria-label="Tag colour"
+                             aria-haspopup="listbox"
+                             aria-expanded="false">
+                    <span data-selected-colour></span>
+                    <c-n26.icon name="chevron-down" class="size-4" />
+                </c-ui.button>
+                <div class="tag-colour-options"
+                     role="listbox"
+                     aria-label="Tag colours"
+                     hidden>
+                    {% for group_name, options, group_index in widget.optgroups %}
+                        {% for option in options %}
+                            <c-ui.button type="button"
+                                         variant="ghost"
+                                         role="option"
+                                         tabindex="-1"
+                                         data-value="{{ option.value }}">
+                                {{ option.label }}
+                            </c-ui.button>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </template>
+</div>

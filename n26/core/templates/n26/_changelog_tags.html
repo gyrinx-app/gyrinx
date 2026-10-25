@@ -1,5 +1,8 @@
 {% for tag in entry.tag_badges %}
-    <c-ui.badge color="{{ tag.color }}" size="sm" variant="solid">
+    <c-ui.badge href="{{ tag.href }}"
+                color="{{ tag.color }}"
+                size="sm"
+                variant="solid">
         {{ tag.name }}
     </c-ui.badge>
 {% endfor %}

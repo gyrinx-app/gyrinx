@@ -19,37 +19,9 @@ from django.urls import reverse
 #: The dashboard, and the link from the n26 home, ask for this tag.
 CHANGELOG_TAG = "N26"
 
-#: Colour names from ``c-ui.badge``. The component owns the fills, so a
-#: tag follows the design system in both modes. Amber is the site accent;
-#: sky is the other named hue that stays distinct from it.
-#: Any other tag takes a stable colour from the palette below.
-EDITION_COLOURS = {
-    "n23": "amber",
-    "n26": "sky",
-}
-OTHER_COLOURS = (
-    "violet",
-    "teal",
-    "rose",
-    "lime",
-    "indigo",
-    "emerald",
-    "fuchsia",
-    "pink",
-)
-
-
 #: ``ChangelogEntryTag.name`` cannot be longer than this. A longer query
 #: is not a tag, and must not be cut down to one that is.
 TAG_NAME_MAX = 100
-
-
-def tag_colour(name):
-    """A ``c-ui.badge`` colour name. The same tag always gets the same one."""
-    key = name.casefold()
-    if key in EDITION_COLOURS:
-        return EDITION_COLOURS[key]
-    return OTHER_COLOURS[sum(key.encode()) % len(OTHER_COLOURS)]
 
 
 def changelog_href(tag=None, pk=None):
@@ -113,8 +85,6 @@ def changelog_entry(request, pk):
         {
             "entry": entry,
             "sidebar": sidebar,
-            "filter_tags": _filter_tags(tag),
-            "active_tag": tag,
             "tag_query": _tag_query(tag),
         },
     )
@@ -191,23 +161,23 @@ def _filter_tags(active):
     """
     from gyrinx.site.models import ChangelogEntryTag
 
-    names = (
+    tags = (
         ChangelogEntryTag.objects.filter(entries__archived=False)
-        .values_list("name", flat=True)
+        .only("name", "colour")
         .distinct()
     )
     chosen = {}
-    for name in sorted(names, key=lambda item: (item.casefold(), item)):
-        chosen.setdefault(name.casefold(), name)
+    for tag in sorted(tags, key=lambda item: (item.name.casefold(), item.name)):
+        chosen.setdefault(tag.name.casefold(), tag)
     active_key = active.casefold() if active else None
     return [
         {
-            "name": name,
-            "color": tag_colour(name),
-            "href": changelog_href(name),
-            "current": active_key is not None and name.casefold() == active_key,
+            "name": tag.name,
+            "color": "ink" if tag.colour == "default" else tag.colour,
+            "href": changelog_href(tag.name),
+            "current": active_key is not None and tag.name.casefold() == active_key,
         }
-        for name in chosen.values()
+        for tag in chosen.values()
     ]
 
 
@@ -215,7 +185,11 @@ def _attach_badges(entries):
     """A colour per tag, computed once. Cotton cannot look a colour up itself."""
     for entry in entries:
         entry.tag_badges = [
-            {"name": tag.name, "color": tag_colour(tag.name)}
+            {
+                "name": tag.name,
+                "color": "ink" if tag.colour == "default" else tag.colour,
+                "href": changelog_href(tag.name),
+            }
             for tag in entry.tags.all()
         ]
 
