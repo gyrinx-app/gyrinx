@@ -357,6 +357,7 @@ def asset_table_props(table):
                         "separatorBefore": False,
                     }
                     for label, href, dialog, tone in (
+                        ("Edit", entry.edit_href, False, "default"),
                         (entry.transfer_label, entry.transfer_href, True, "default"),
                         ("Unassign", entry.unassign_href, True, "default"),
                         ("Assign", entry.assign_href, True, "default"),

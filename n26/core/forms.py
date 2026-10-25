@@ -929,6 +929,22 @@ class AddAssetForm(forms.Form):
         return data
 
 
+class EditAssetForm(forms.Form):
+    name = forms.CharField(
+        required=False,
+        max_length=200,
+        label="Name in this campaign",
+        help_text="Leave blank to use the catalogue name.",
+    )
+    income = forms.IntegerField(
+        required=False,
+        min_value=0,
+        max_value=2147483647,
+        label="Income override",
+        help_text="Leave blank to use catalogue income. Enter 0 for no base income. Boon contributions still apply.",
+    )
+
+
 class AssignAssetForm(forms.Form):
     """Which gang playing the campaign an asset goes to."""
 

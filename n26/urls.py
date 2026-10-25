@@ -161,6 +161,11 @@ urlpatterns = [
         name="n26-campaign-add-asset",
     ),
     path(
+        "campaigns/<str:pk>/assets/<str:asset_pk>/edit/",
+        views.edit_asset,
+        name="n26-campaign-asset-edit",
+    ),
+    path(
         "campaigns/<str:pk>/assets/<str:asset_pk>/assign/",
         views.assign_asset,
         name="n26-campaign-asset-assign",

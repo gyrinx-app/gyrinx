@@ -101,7 +101,7 @@ def test_asset_row_and_holding_log_link_to_the_exact_holding(client, setup):
 @pytest.mark.parametrize(
     "person,labels",
     [
-        ("arbitrator", {"Transfer", "Unassign"}),
+        ("arbitrator", {"Edit", "Transfer", "Unassign"}),
         ("player", {"Hand over", "Unassign"}),
         ("reader", set()),
     ],
@@ -140,11 +140,11 @@ def test_asset_dropdown_keeps_permission_gated_links_and_dialog_fetches(
     props = island_props(str(soup), "campaign-assets")
     entry = next(entry for entry in props["entries"] if entry["id"] == str(holding.pk))
     labels = (
-        {"Transfer", "Unassign"}
+        {"Edit", "Transfer", "Unassign"}
         if held and person == "arbitrator"
         else {"Hand over", "Unassign"}
         if held and person == "player"
-        else {"Assign", "Remove"}
+        else {"Edit", "Assign", "Remove"}
         if not held and person == "arbitrator"
         else set()
     )
@@ -152,7 +152,7 @@ def test_asset_dropdown_keeps_permission_gated_links_and_dialog_fetches(
     for action in entry["actions"]:
         assert str(campaign.pk) in action["href"]
         assert str(holding.pk) in action["href"]
-        assert action["dialog"] == (action["label"] != "Remove")
+        assert action["dialog"] == (action["label"] not in {"Edit", "Remove"})
 
 
 def test_unclaimed_asset_offers_assign_remove_only_to_arbitrator(client, setup):
@@ -162,6 +162,7 @@ def test_unclaimed_asset_offers_assign_remove_only_to_arbitrator(client, setup):
     response = client.get(address(campaign, holding))
     assert response.context["details"].holder == ""
     assert {action.label for action in response.context["actions"]} == {
+        "Edit",
         "Assign",
         "Remove",
     }
@@ -729,6 +730,24 @@ def test_inline_boons_save_multiple_choices_together_and_keep_other_copies_indep
     repeated = client.post(editor["saveUrl"], payload)
     assert repeated.status_code == 409
     assert "Reload" in repeated.json()["error"]
+
+
+def test_editing_base_income_keeps_boons_and_other_holdings(client, inline_boons):
+    arbitrator, _, campaign, holding, _, _, other = inline_boons
+    before = editor_payload(client, campaign, holding)
+    client.force_login(arbitrator)
+    response = client.post(
+        reverse("n26-campaign-asset-edit", args=[campaign.pk, holding.pk]),
+        {"name": "Sump ruins", "income": "80"},
+    )
+    assert response.status_code == 302
+    assert client.get(address(campaign, holding)).context["details"].income == 83
+    assert client.get(address(campaign, other)).context["details"].income == 33
+    client.force_login(inline_boons[1])
+    after = editor_payload(client, campaign, holding)
+    assert [group["selected"] for group in after["groups"]] == [
+        group["selected"] for group in before["groups"]
+    ]
 
 
 def test_mixed_inline_and_multi_pick_boons_keep_both_choice_labels(

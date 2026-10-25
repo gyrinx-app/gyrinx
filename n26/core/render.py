@@ -2036,6 +2036,7 @@ class CampaignAssetEntry:
     #: Where each act on this asset is asked. Empty is no control: the
     #: view fills them for the reader who may act and nobody else.
     assign_href: str = ""
+    edit_href: str = ""
     unassign_href: str = ""
     transfer_href: str = ""
     #: The transfer control's word. The arbitrator transfers the campaign's

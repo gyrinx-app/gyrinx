@@ -429,6 +429,11 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url
                     sheet.table_href or here, roll=table.asset_type_id
                 )
         for entry in table.entries:
+            if yours:
+                entry.edit_href = reverse(
+                    "n26-campaign-asset-edit",
+                    args=[campaign.pk, entry.campaign_asset_id],
+                )
             entry.href = reverse(
                 "n26-campaign-asset", args=[campaign.pk, entry.campaign_asset_id]
             )
@@ -457,6 +462,7 @@ def _fill_addresses(sheet, campaign, *, yours, viewer, request=None, current_url
                 for field in (
                     "href",
                     "assign_href",
+                    "edit_href",
                     "unassign_href",
                     "transfer_href",
                     "remove_href",

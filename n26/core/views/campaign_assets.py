@@ -8,9 +8,9 @@ from django.core import signing
 from django.core.paginator import Paginator
 from django.http import Http404, JsonResponse
 from django.middleware.csrf import get_token
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from n26.core.campaign_table import table_view_href
 from n26.core.history import asset_ownership_history
@@ -23,7 +23,54 @@ from n26.core.render import (
 )
 from n26.core.views.campaigns import _campaign_asset_or_404, _holding_owner
 from n26.core.views.gangs import _pages
-from n26.core.views.permissions import _any_campaign_or_404
+from n26.core.views.permissions import _any_campaign_or_404, _own_campaign_or_404
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def edit_asset(request, pk, asset_pk):
+    """Only the campaign's arbitrator may edit an individual holding."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.forms import EditAssetForm
+    from n26.core.operations import Refusal
+    from n26.core.views.campaigns import _asset_back
+    from n26.library.income import income_of
+
+    campaign = _own_campaign_or_404(request, pk)
+    holding = _campaign_asset_or_404(campaign, asset_pk)
+    form = EditAssetForm(
+        request.POST if request.method == "POST" else None,
+        initial={
+            "name": holding.name,
+            "income": holding.income_override.contributes_to_counter.amount
+            if holding.income_override_id
+            else None,
+        },
+    )
+    detail_href = table_view_href(
+        request, reverse("n26-campaign-asset", args=[campaign.pk, holding.pk])
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            with campaign_operation(campaign, actor=request.user) as op:
+                edited = op.edit_asset(holding, **form.cleaned_data)
+        except Refusal as error:
+            form.add_error(None, str(error))
+        else:
+            messages.success(request, "Asset saved." if edited else "Nothing changed.")
+            return redirect(detail_href)
+    return render(
+        request,
+        "n26/edit_asset.html",
+        {
+            "campaign": campaign,
+            "holding": holding,
+            "form": form,
+            "catalogue_income": income_of(holding.asset),
+            "detail_href": detail_href,
+            "back": _asset_back(request, campaign, holding),
+        },
+    )
 
 
 @login_required
@@ -78,6 +125,18 @@ def _asset_context(request, pk, asset_pk, *, back=None):
             )
         )
 
+    if arbitrating:
+        edit_href = table_view_href(
+            request,
+            reverse("n26-campaign-asset-edit", args=[campaign.pk, holding.pk]),
+        )
+        actions.append(
+            CampaignAssetAction(
+                label="Edit",
+                href=edit_href + ("&" if "?" in edit_href else "?") + "from=detail",
+                variant="default",
+            )
+        )
     if may_release:
         action(
             "Transfer" if arbitrating else "Hand over", "n26-campaign-asset-transfer"

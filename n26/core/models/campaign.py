@@ -182,6 +182,7 @@ class CampaignEvent(Base):
         # assigned to a gang or unassigned from one changes the gang, and
         # is that gang's ledger event instead.
         ASSET_ADDED = "asset_added", "Asset added"
+        ASSET_EDITED = "asset_edited", "Asset edited"
         ASSET_REMOVED = "asset_removed", "Asset removed"
         # A roll for an asset table. The note names the asset it adds, so no
         # separate ASSET_ADDED is written. A roll for a gang also assigns
