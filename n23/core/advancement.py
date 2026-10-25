@@ -57,9 +57,6 @@ def resolve_advancement_roll(total, fighter=None) -> AdvancementRoll:
     for path in paths:
         if fighter and not path.is_available_to_fighter(fighter):
             continue
-        targets = path.resolve_targets(fighter) if fighter else path.targets.all()
-        if len(targets) > 1:
-            continue
         return AdvancementRoll(
             choices=((promotion_choice_key(path), promotion_choice_label(path)),),
             cost_increase=path.cost_increase,

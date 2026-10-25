@@ -7,6 +7,7 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
+from n23.content.models import ContentPromotionPath
 from n23.core.advancement import resolve_advancement_roll
 from n23.core.handlers.fighter.advancement import handle_fighter_advancement
 from n23.core.models import ListFighterAdvancement
@@ -336,6 +337,86 @@ def test_promotion_roll_keeps_six_xp_through_skill_selection(
     assert (advancement.xp_cost, advancement.cost_increase) == (6, 20)
     assert rolled_fighter.xp_current == 24
     assert rolled_fighter.get_category() == FighterCategoryChoices.SPECIALIST
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("total", [2, 7, 12])
+@pytest.mark.parametrize("grants_skill", ["none", "primary_random"])
+@pytest.mark.parametrize("target_index", [0, 1])
+def test_rolled_promotion_collects_target_before_application(
+    client,
+    user,
+    rolled_fighter,
+    roll_action,
+    make_content_fighter,
+    make_content_skill,
+    total,
+    grants_skill,
+    target_index,
+):
+    targets = [
+        make_content_fighter(
+            type=name,
+            category=FighterCategoryChoices.SPECIALIST,
+            house=rolled_fighter.list.content_house,
+            base_cost=125,
+        )
+        for name in ("First specialist", "Second specialist")
+    ]
+    path = ContentPromotionPath.objects.create(
+        name="Choose specialist type",
+        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
+        from_category=FighterCategoryChoices.GANGER,
+        to_category=FighterCategoryChoices.SPECIALIST,
+        xp_cost=15,
+        cost_increase=35,
+        rolls=[total],
+        grants_skill=grants_skill,
+    )
+    path.targets.set(targets)
+    skill = make_content_skill("Iron Jaw", category="Combat")
+    rolled_fighter.content_fighter.primary_skill_categories.add(skill.category)
+    roll_action.dice_results = [max(1, total - 6), min(6, total - 1)]
+    roll_action.dice_total = total
+    roll_action.save()
+    client.force_login(user)
+    type_url = flow_url(rolled_fighter, "type", campaign_action_id=roll_action.id)
+    response = client.get(type_url)
+    assert list(
+        dict(response.context["form"].fields["advancement_choice"].choices)
+    ) == [f"promotion_{path.id}"]
+    response = client.post(
+        type_url,
+        {
+            "advancement_choice": f"promotion_{path.id}",
+            "xp_cost": 0,
+            "cost_increase": 999,
+        },
+    )
+    assert response.status_code == 302
+    target_url = response.url
+    response = client.get(target_url)
+    assert set(response.context["form"].fields["target"].queryset) == set(targets)
+    response = client.post(target_url, {"target": targets[target_index].id})
+    assert response.status_code == 302
+    if grants_skill == "primary_random":
+        response = client.post(response.url, {"category": skill.category_id})
+    else:
+        confirm_url = response.url
+        response = client.get(confirm_url)
+        assert response.context["details"]["xp_cost"] == 6
+        assert response.context["details"]["cost_increase"] == 35
+        response = client.post(confirm_url)
+    assert response.status_code == 302
+    rolled_fighter.refresh_from_db()
+    advancement = rolled_fighter.advancements.get()
+    assert advancement.promotion_path == path
+    assert advancement.promotion_target == targets[target_index]
+    assert advancement.skill == (skill if grants_skill == "primary_random" else None)
+    assert advancement.campaign_action_id == roll_action.id
+    assert (advancement.xp_cost, advancement.cost_increase) == (6, 35)
+    assert rolled_fighter.xp_current == 24
+    assert rolled_fighter.promoted_content_fighter == targets[target_index]
 
 
 @pytest.mark.django_db
