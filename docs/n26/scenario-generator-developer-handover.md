@@ -144,6 +144,68 @@ shows an error and no scenario.
 - The scenario name starts blank. Validation errors keep the hidden
   components and the fields already entered.
 
+## The generator outside a campaign
+
+The N26 menu's **Scenario generator** opens the same generator without a
+campaign, for campaign and skirmish play. The campaign's own generator above
+keeps its flows. Its Battles box button reads **Record battle** so both
+buttons fit on a small phone, and it offers the same **Print** as the menu's
+generator, through `campaign_print_scenario`.
+
+### Files
+
+| File | Purpose |
+| --- | --- |
+| `n26/core/views/scenarios.py` | `generate_scenario`, `save_scenario_to_campaign`, `record_scenario_battle`, `print_scenario` and `campaign_print_scenario`. `_render_generator` draws the page and any open dialog. |
+| `n26/core/campaign_permissions.py` | `recording_campaigns(user)`: the campaigns a reader may record in, by name, by the same rule as `may_record_campaign`. |
+| `n26/core/forms.py` | `CampaignChoiceMixin` adds the campaign select. `ScenarioCampaignForm` is a scenario and a campaign; `SaveScenarioToCampaignForm` is `SaveScenarioForm` with a campaign. |
+| `n26/core/templates/n26/generate_scenario.html` | The page, its actions and its two dialogs. |
+| `n26/core/templates/n26/includes/scenario_dialog_fields.html` | The fields both dialogs share: the hidden components, the form errors and the campaign select. |
+| `n26/core/templates/n26/print_scenario.html` | The print page: a bare document with a screen-only toolbar and one `<c-n26.print.card>` per component. |
+| `n26/core/templates/n26/_nav.html` | The **Scenario generator** menu item. |
+| `n26/tests/test_views_generate_scenario.py` | Generating, printing, the dialogs, saving, recording and permissions. |
+
+### Routes
+
+| Name | Path | View | Who may use it |
+| --- | --- | --- | --- |
+| `n26-generate-scenario` | `scenario/` | `generate_scenario` | Anyone signed in. |
+| `n26-scenario-print` | `scenario/print/` | `print_scenario` | Anyone signed in. A missing or wrong scenario is a 404. |
+| `n26-generate-scenario-save` | `scenario/save/` | `save_scenario_to_campaign` (POST) | A campaign from `recording_campaigns`. |
+| `n26-generate-scenario-record` | `scenario/record/` | `record_scenario_battle` (POST) | A campaign from `recording_campaigns`. |
+| `n26-campaign-scenario-print` | `campaigns/<pk>/scenario/print/` | `campaign_print_scenario` | Anyone who can read the campaign (`_any_campaign_or_404`). |
+
+### Dialogs
+
+**Save to campaign** and **Record a battle** link to the page with
+`dialog=save` or `dialog=record`, keeping the result and the choices in the
+address. The page then draws a `<c-n26.dialog>` whose campaign select lists
+`recording_campaigns(request.user)`; a `campaign` value in the address
+chooses one up front. Because the address opens it, the dialog also works
+without script.
+
+- **Saving** posts to `n26-generate-scenario-save`. A valid form calls
+  `CampaignOperation.save_scenario` in the chosen campaign, which checks the
+  permission again through `_require_recorder`. The log line links to that
+  campaign's own generator, as every saved scenario does.
+- **Recording** posts to `n26-generate-scenario-record`, which redirects to
+  the chosen campaign's `n26-campaign-add-battle` with the scenario.
+- **An error** redraws the page with the dialog open and the bound form, so
+  the message shows and the entries stay. Each action keeps the choices in
+  its query string, and **Cancel** returns to the same scenario.
+
+### Printing
+
+**Print** links to `n26-scenario-print`, or from a campaign's generator to
+`n26-campaign-scenario-print`, with the scenario's components and picks.
+Both render through `_print`, and differ only in where **Back to scenario**
+leads. The page follows a gang's print: a bare document using `designsystem/app.css`,
+with a screen-only toolbar (**Back to scenario** and **Print**, which calls
+`window.print()`), inside `<c-n26.print.sheet>`. Each component is one
+`<c-n26.print.card>`, so it is never split across a page fold, and is laid
+out as on screen: the table, the entry, the die, the description and the
+map.
+
 ## Existing features reused
 
 - `Dice.roll` from `n26/library/models/slots.py`.
@@ -158,7 +220,7 @@ shows an error and no scenario.
 ## Testing
 
 ```bash
-.codex/run.sh .venv/bin/python -m pytest -n 4 n26/library/test_scenario_tables.py n26/core/test_scenarios.py n26/tests/test_views_scenario_generator.py
+.codex/run.sh .venv/bin/python -m pytest -n 4 n26/library/test_scenario_tables.py n26/core/test_scenarios.py n26/tests/test_views_scenario_generator.py n26/tests/test_views_generate_scenario.py
 ```
 
 Run the full N26 suite with `.codex/run.sh .venv/bin/python -m pytest -n 4 n26`. Check

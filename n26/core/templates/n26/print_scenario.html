@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en-gb">
+    <head>
+        <meta charset="utf-8">
+        {% comment %}
+        A scenario on paper: a bare document like a gang's print, with a
+        screen-only toolbar. One card per component, in the order the
+        generator shows them, each laid out as on screen: the table, the
+        entry and its roll, the description, and the deployment map. A card
+        is never split across a page fold.
+        {% endcomment %}
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="A printable scenario.">
+        <title>Print — Your scenario</title>
+        <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+    </head>
+    <body>
+        <nav aria-label="Scenario print controls"
+             class="flex flex-wrap items-center justify-between gap-3 border-b border-box-border bg-surface px-4 py-3 print:hidden">
+            <c-n26.link href="{{ back_url }}">
+                Back to scenario
+            </c-n26.link>
+            <c-ui.button type="button" onclick="window.print()" data-busy="off">
+                <span class="flex items-center justify-center gap-2">
+                    <c-n26.icon name="printer" class="size-4" />
+                    Print
+                </span>
+            </c-ui.button>
+        </nav>
+        <c-n26.print.sheet scroll="1">
+            <h1 class="mb-3 text-xl font-semibold">Your scenario</h1>
+            <div class="flex flex-col gap-3">
+                {% for result in scenario %}
+                    <c-n26.print.card>
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-xs font-semibold tracking-wide uppercase">{{ result.table.name }}</p>
+                                <h2 class="text-lg font-semibold">{{ result.entry.label }}</h2>
+                            </div>
+                            <c-n26.die value="{{ result.face }}" class="text-2xl" />
+                        </div>
+                        <p class="mt-2">{{ result.entry.text }}</p>
+                        {% if result.entry.image %}
+                            <img src="{% static result.entry.image %}"
+                                 alt="Deployment map for {{ result.entry.label }}"
+                                 class="mt-2 w-full max-w-xs">
+                        {% endif %}
+                    </c-n26.print.card>
+                {% endfor %}
+            </div>
+        </c-n26.print.sheet>
+    </body>
+</html>

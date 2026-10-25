@@ -1279,6 +1279,47 @@ class SaveScenarioForm(ScenarioComponentsMixin, forms.Form):
         return cleaned
 
 
+class CampaignChoiceMixin:
+    """A campaign to use a generated scenario in, chosen from the campaigns
+    the reader may record in. For the generator outside a campaign, which
+    has to ask. ``campaigns`` has no default: a queryset built without one
+    would accept a campaign the reader has no place in."""
+
+    def add_campaign_field(self, campaigns):
+        self.fields["campaign"] = forms.ModelChoiceField(
+            queryset=campaigns,
+            label="Campaign",
+            empty_label="Select a campaign",
+            error_messages={
+                "required": "Select a campaign.",
+                "invalid_choice": "Select one of your campaigns.",
+            },
+        )
+
+
+class ScenarioCampaignForm(CampaignChoiceMixin, ScenarioComponentsMixin, forms.Form):
+    """A generated scenario and the campaign to record a battle in."""
+
+    def __init__(self, *args, campaigns, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.add_campaign_field(campaigns)
+        self.add_scenario_fields()
+
+    def clean(self):
+        cleaned = self.gather_scenario(super().clean())
+        if not self.errors and not cleaned["scenario_rolls"]:
+            self.add_error(None, "There is no scenario. Generate one first.")
+        return cleaned
+
+
+class SaveScenarioToCampaignForm(CampaignChoiceMixin, SaveScenarioForm):
+    """A generated scenario, its name, and the campaign to save it to."""
+
+    def __init__(self, *args, campaigns, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.add_campaign_field(campaigns)
+
+
 class OpenTablesForm(forms.Form):
     """Which of the tables offered every gang in the campaign may roll on.
     Unticked is closed; the view reads the difference from what stood

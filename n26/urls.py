@@ -31,6 +31,20 @@ urlpatterns = [
         views.n26_changelog_entry,
         name="n26-changelog-entry",
     ),
+    # The scenario generator outside a campaign, for skirmish play too. Each
+    # campaign has its own as well, under campaigns/<pk>/scenario/.
+    path("scenario/", views.generate_scenario, name="n26-generate-scenario"),
+    path(
+        "scenario/save/",
+        views.save_scenario_to_campaign,
+        name="n26-generate-scenario-save",
+    ),
+    path(
+        "scenario/record/",
+        views.record_scenario_battle,
+        name="n26-generate-scenario-record",
+    ),
+    path("scenario/print/", views.print_scenario, name="n26-scenario-print"),
     path("campaigns/", views.campaigns, name="n26-campaigns"),
     path("campaigns/new/", views.create_campaign, name="n26-create-campaign"),
     # After campaigns/new/, which would otherwise resolve "new" as an id.
@@ -56,6 +70,11 @@ urlpatterns = [
         "campaigns/<str:pk>/scenario/save/",
         views.save_scenario,
         name="n26-save-scenario",
+    ),
+    path(
+        "campaigns/<str:pk>/scenario/print/",
+        views.campaign_print_scenario,
+        name="n26-campaign-scenario-print",
     ),
     path(
         "campaigns/<str:pk>/edit/",

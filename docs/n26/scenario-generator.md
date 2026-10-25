@@ -1,14 +1,23 @@
 # N26 Scenario Generator: what it does
 
-The Scenario Generator gives an N26 campaign a quick way to set up a battle.
-For each of four scenario tables, a player rolls a D6, chooses an entry, or
-leaves the table out. They can then share the result, save it to the
-campaign log, or take it to **Record a battle**.
+The Scenario Generator is a quick way to set up a battle. For each of four
+scenario tables, a player rolls a D6, chooses an entry, or leaves the table
+out. They can then share the result, save it to a campaign log, or take it to
+**Record a battle**.
 
 ## Where to find it
 
-Every campaign's **Battles** box has a **Generate scenario** button next to
-**Record a battle**. Anyone who can read the campaign sees it.
+There are two ways in:
+
+- **Inside a campaign.** Every campaign's **Battles** box has a **Generate
+  scenario** button next to **Record battle**. Anyone who can read the
+  campaign sees it. This generator belongs to that campaign: saving and
+  recording use it directly.
+- **From the menu.** **Scenario generator** is in the N26 menu, after
+  **Campaigns**, at `/n26/scenario/`. Anyone signed in can use it, for
+  campaign or skirmish play. It asks which campaign to use when saving or
+  recording. See
+  [Outside a campaign](#outside-a-campaign).
 
 ## The four tables
 
@@ -52,6 +61,7 @@ and record the battle afterwards, or never record it.
 | Action | Who can use it | What it does |
 | --- | --- | --- |
 | **Share** | Everyone who can read the campaign | Copies a link to the scenario on a desktop, or opens the share sheet on a phone. Anyone who opens the link sees the same scenario. |
+| **Print** | Everyone who can read the campaign | Opens a print page with the scenario laid out as on screen, one card per component, with the Deployment map. **Print** on that page opens the browser's print dialog, which can also save a PDF. **Back to scenario** returns to the campaign's generator. |
 | **Save to log** | The arbitrator and accepted players | Opens **Save scenario**, which asks for a scenario name and adds one line to the campaign log. |
 | **Record a battle** | The arbitrator and accepted players | Opens **Record a battle** with the scenario attached. The player names the battle and records it as usual. |
 
@@ -62,6 +72,22 @@ A saved scenario appears in the log like this:
 
 The line links back to the scenario. A recorded battle appears in the log in
 the usual way, for example "recorded Vent ambush on 2026-10-12".
+
+## Outside a campaign
+
+The generator in the menu works the same way, without a campaign. Under the
+result it offers:
+
+| Action | Who can use it | What it does |
+| --- | --- | --- |
+| **Print** | Everyone | The same print page as inside a campaign. **Back to scenario** returns to this generator. |
+| **Save to campaign** | Anyone who arbitrates a campaign or has accepted a place in one | Opens a dialog that asks for the campaign and a scenario name, then adds one line to that campaign's log. |
+| **Record a battle** | The same people | Opens a dialog that asks for the campaign, then opens that campaign's **Record a battle** with the scenario attached. |
+
+The campaign list shows only campaigns the player can record in. Archived
+campaigns are left out. Someone with no such campaign sees **Share** and
+**Print** only. A dialog that finds a problem reopens with the message and
+keeps what was entered.
 
 ## The battle record
 
@@ -84,6 +110,9 @@ The battle keeps its scenario, and the battle's page shows it in a
 
 ## Decisions
 
+- The generator is in the menu as well as in each campaign, so it works for
+  skirmish play. The campaign's Battles button is labelled **Record battle**
+  so both buttons fit on one line on a small phone.
 - Generating a scenario saves nothing. Players save a scenario or record a
   battle only when they want to.
 - A saved scenario adds one line to the log.

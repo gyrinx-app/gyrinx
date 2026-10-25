@@ -512,3 +512,57 @@ class TestRecordingTheResult:
         assert battle.scenario_rolls == {}
         page = client.get(reverse("n26-battle", args=[campaign.pk, battle.pk]))
         assert page.context["scenario_results"] == []
+
+
+def campaign_print_url(campaign):
+    return reverse("n26-campaign-scenario-print", args=[campaign.pk])
+
+
+class TestPrintingFromTheCampaign:
+    def test_print_comes_first_for_whoever_may_record(self, client, campaign):
+        response = client.get(
+            generator_url(campaign), {"deployment": "4", "side_job_pick": "leave"}
+        )
+        body = response.content.decode()
+        print_link = f'href="{campaign_print_url(campaign)}?side_job_pick=leave&amp;deployment=4"'
+        assert print_link in body
+        assert body.index(print_link) < body.index("Save to log")
+
+    def test_a_reader_who_may_not_record_may_still_print(
+        self, client, campaign, stranger
+    ):
+        body = client.get(generator_url(campaign), {"deployment": "4"}).content.decode()
+        assert f'href="{campaign_print_url(campaign)}?deployment=4"' in body
+        assert "Save to log" not in body
+
+    def test_the_print_page_returns_to_the_campaign_generator(self, client, campaign):
+        response = client.get(
+            campaign_print_url(campaign),
+            {"crew": "3", "deployment": "4", "side_job_pick": "leave"},
+        )
+        assert response.status_code == 200
+        assert [r.table.key for r in response.context["scenario"]] == [
+            "deployment",
+            "crew",
+        ]
+        body = response.content.decode()
+        assert "Your scenario" in body
+        assert "window.print()" in body
+        assert "scenarios/deployment-4.png" in body
+        back = urlparse(response.context["back_url"])
+        assert back.path == generator_url(campaign)
+        assert parse_qs(back.query) == {
+            "side_job_pick": ["leave"],
+            "deployment": ["4"],
+            "crew": ["3"],
+        }
+
+    @pytest.mark.parametrize("query", [{}, {"deployment": "7"}])
+    def test_nothing_to_print_is_not_found(self, client, campaign, query):
+        assert client.get(campaign_print_url(campaign), query).status_code == 404
+
+    def test_an_unknown_campaign_is_not_found(self, client, campaign):
+        url = reverse(
+            "n26-campaign-scenario-print", args=["01ARZ3NDEKTSV4RRFFQ69G5FAV"]
+        )
+        assert client.get(url, {"deployment": "4"}).status_code == 404

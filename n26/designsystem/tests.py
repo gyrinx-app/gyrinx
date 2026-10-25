@@ -753,7 +753,7 @@ class TestTheShellStillDraws:
             not entry["held"]
             for entry in island_props(page, "campaign-assets")["entries"]
         )
-        assert "Record a battle" in page
+        assert "Record battle" in page
         assert "Old Ruins went to The Ashen Choir" in page
 
     def test_the_new_gang_shell_offers_its_types(self, reader):

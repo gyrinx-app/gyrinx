@@ -38,7 +38,7 @@ under one name is worse than naming this one after what is in it.
 Modifiers before Foundations: modifiers are what an author comes back to day
 after day, and foundations are the rows you plant once.
 
-Takes `here` — "home" or "gangs" on the app's side; "library", "modifiers",
+Takes `here` — "home", "gangs", "campaigns" or "scenario" on the app's side; "library", "modifiers",
 "foundations" or "ingest" on the authoring side. The authoring pages with no
 item of their own — the kind leaves, the detail pages — pass "library": they
 are reached from the library index, and a drawer with nothing marked reads as
@@ -50,6 +50,8 @@ a page that belongs nowhere.
                   current="{% if here == 'gangs' %}1{% endif %}">Gangs</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'n26-campaigns' %}"
                   current="{% if here == 'campaigns' %}1{% endif %}">Campaigns</c-ui.navbar.item>
+<c-ui.navbar.item href="{% url 'n26-generate-scenario' %}"
+                  current="{% if here == 'scenario' %}1{% endif %}">Scenario generator</c-ui.navbar.item>
 <span>Content Packs <span class="text-xs tracking-wide uppercase">Soon</span></span>
 <c-ui.navbar.item href="/help/n26/">
     Help

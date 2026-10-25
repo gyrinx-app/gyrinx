@@ -1082,6 +1082,11 @@ def scenario_generator(request, pk):
             "share_url": request.get_full_path(),
             "record_href": record_href,
             "save_href": save_href,
+            # Print saves nothing, so whoever can read the campaign gets it.
+            "print_url": (
+                f"{reverse('n26-campaign-scenario-print', args=[found.pk])}"
+                f"?{urlencode({**(form.chosen_picks() if valid else {}), **rolls})}"
+            ),
         },
     )
 
