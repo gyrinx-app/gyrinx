@@ -1280,6 +1280,10 @@
     }
 
     .n26-print-tactics .n26-tactic-nameplate::before {
+        /* Chromium's PDF mask raster leaves a rectangular seam. The same
+         * silhouette can be printed directly without the mask. */
+        mask: none;
+        background: url("./print/nameplate.png") center / 100% 100% no-repeat;
         bottom: calc(-1.6mm * var(--tactic-scale, 1));
     }
     .n26-print-tactics .n26-tactic-rule + .n26-tactic-rule {
