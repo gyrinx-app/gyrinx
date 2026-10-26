@@ -200,5 +200,6 @@ class TestTheDevelopedLabel:
 
     def test_the_card_says_developed(self, client, tester, gang, roster, seeded):
         develop(tester, gang, roster["Sura"], seeded, key("Universal"))
-        body = client.get(reverse("n26-gang-tactics", args=[gang.pk])).content
-        assert b"Developed" in body
+        response = client.get(reverse("n26-gang-tactics", args=[gang.pk]))
+        (card,) = response.context["tactics_island"]["cards"]
+        assert card["developed"] is True
