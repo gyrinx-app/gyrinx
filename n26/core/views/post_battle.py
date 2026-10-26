@@ -168,7 +168,7 @@ def gang_post_battle(request, pk):
                 **form.cleaned_data,
             )
         except Refusal as exc:
-            form.add_error(None, str(exc))
+            form.add_error(None, exc.public_message)
         else:
             return _report_destination(report)
 
@@ -235,7 +235,7 @@ def battle_report(request, pk, battle_pk, gang_pk):
             payload=_initial_payload(gang, battle),
         )
     except Refusal as exc:
-        messages.error(request, str(exc))
+        messages.error(request, exc.public_message)
         return redirect("n26-battle", pk=campaign.pk, battle_pk=battle.pk)
     return _report_destination(report)
 
@@ -336,7 +336,9 @@ def post_battle_editor(request, pk):
                 )
             except (Refusal, ValidationError) as exc:
                 errors = (
-                    exc.messages if isinstance(exc, ValidationError) else [str(exc)]
+                    exc.messages
+                    if isinstance(exc, ValidationError)
+                    else [exc.public_message]
                 )
                 show_errors = True
                 status = 409
@@ -497,6 +499,6 @@ def correct_post_battle(request, pk):
     try:
         report = start_correction(report, actor=request.user)
     except Refusal as exc:
-        messages.error(request, str(exc))
+        messages.error(request, exc.public_message)
         return redirect("n26-post-battle-receipt", pk=report.pk)
     return redirect("n26-post-battle-editor", pk=report.pk)

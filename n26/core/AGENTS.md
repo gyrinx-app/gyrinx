@@ -33,8 +33,8 @@ underlying spec.
 - Raise `NotEnoughCredits` from `settle()` so the transaction unwinds. Do not
   add affordability checks part-way through an operation.
 - Use `Refusal` only for errors a player can cause through the UI. Views show
-  that message and redirect. Content bugs and caller errors must keep their
-  tracebacks.
+  its `public_message` and redirect. Do not use exception formatting for public
+  responses. Content bugs and caller errors must keep their tracebacks.
 - Record every change to the gang's story through an operation, including
   renames, notes and characteristic overrides. Device preferences such as
   `AssignmentSet` and `PrintConfig` remain plain saves.

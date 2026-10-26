@@ -55,7 +55,7 @@ def edit_asset(request, pk, asset_pk):
             with campaign_operation(campaign, actor=request.user) as op:
                 edited = op.edit_asset(holding, **form.cleaned_data)
         except Refusal as error:
-            form.add_error(None, str(error))
+            form.add_error(None, error.public_message)
         else:
             messages.success(request, "Asset saved." if edited else "Nothing changed.")
             return redirect(detail_href)
@@ -465,7 +465,7 @@ def save_asset_boons(request, pk, asset_pk):
             {"error": "That boon is not one of the available options."}, status=400
         )
     except Refusal as error:
-        return JsonResponse({"error": str(error)}, status=409)
+        return JsonResponse({"error": error.public_message}, status=409)
     for offer, picked in written:
         _record_pick(request, gang, offer, picked, "")
     if written:

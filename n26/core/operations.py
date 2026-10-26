@@ -45,6 +45,7 @@ from n26.core.models import (
     Reason,
 )
 from n26.core.status import Status
+from n26.errors import UserFacingError
 
 #: The least a sale ever returns. Half of a knife is nothing, and nobody
 #: hands a knife over for nothing.
@@ -198,7 +199,7 @@ def trade_points_carried_by(miniature):
     )
 
 
-class Refusal(Exception):
+class Refusal(UserFacingError):
     """An operation will not do this, and the message says why.
 
     Raised inside the operation, so the transaction unwinds and nothing

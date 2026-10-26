@@ -1,6 +1,7 @@
 """Clickable holding details retain the campaign gate and action permissions."""
 
 from datetime import date
+from importlib import import_module
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -12,6 +13,7 @@ from django.urls import reverse
 
 from n26.core.campaigns import campaign_operation
 from n26.core.models import Assignment, Battle, CampaignParticipant, LedgerEvent
+from n26.core.operations import LibraryError, Refusal
 from n26.library.authoring import (
     add_asset_type,
     attach_modifiers_to,
@@ -748,6 +750,55 @@ def test_editing_base_income_keeps_boons_and_other_holdings(client, inline_boons
     assert [group["selected"] for group in after["groups"]] == [
         group["selected"] for group in before["groups"]
     ]
+
+
+def test_boon_refusals_return_only_the_public_message(
+    client, inline_boons, monkeypatch
+):
+    _, _, campaign, holding, _, _, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    public = "The boon choices changed. Reload this page before saving."
+    secret = "SELECT secret FROM private_boon_table"
+
+    class DiagnosticRefusal(Refusal):
+        def __str__(self):
+            return secret
+
+    def refuse(*args, **kwargs):
+        try:
+            raise RuntimeError(secret)
+        except RuntimeError as cause:
+            raise DiagnosticRefusal(public) from cause
+
+    monkeypatch.setattr(import_module("n26.core.views.choose"), "_write_pick", refuse)
+    before = LedgerEvent.objects.count()
+    response = client.post(editor["saveUrl"], changed_boons(editor))
+    assert response.status_code == 409
+    assert response.json() == {"error": public}
+    assert secret not in response.content.decode()
+    assert LedgerEvent.objects.count() == before
+
+
+@pytest.mark.parametrize("error_type", [RuntimeError, LibraryError])
+def test_unexpected_boon_errors_use_the_server_error_handler(
+    client, inline_boons, monkeypatch, settings, caplog, error_type
+):
+    settings.DEBUG = False
+    client.raise_request_exception = False
+    _, _, campaign, holding, _, _, _ = inline_boons
+    editor = editor_payload(client, campaign, holding)
+    secret = "SELECT secret FROM private_boon_table"
+
+    def fail(*args, **kwargs):
+        raise error_type(secret)
+
+    monkeypatch.setattr(import_module("n26.core.views.choose"), "_write_pick", fail)
+    before = LedgerEvent.objects.count()
+    response = client.post(editor["saveUrl"], changed_boons(editor))
+    assert response.status_code == 500
+    assert secret not in response.content.decode()
+    assert secret in caplog.text
+    assert LedgerEvent.objects.count() == before
 
 
 def test_mixed_inline_and_multi_pick_boons_keep_both_choice_labels(

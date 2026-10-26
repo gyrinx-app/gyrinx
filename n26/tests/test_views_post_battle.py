@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -26,7 +27,7 @@ from n26.core.models import (
     PostBattleReport,
     PostBattleRevision,
 )
-from n26.core.operations import operation
+from n26.core.operations import LibraryError, Refusal, operation
 from n26.core.post_battle import preview_report, start_report
 from n26.core.post_battle_forms import editor_models
 from n26.core.reconcile import assert_reconciled
@@ -305,6 +306,73 @@ def start_through_page(client, table, *, standalone=False):
     report = PostBattleReport.objects.get(gang=table.gang)
     assert response.url == editor_url(report)
     return report
+
+
+@pytest.mark.parametrize("transport", ["autosave", "refresh", "save"])
+@pytest.mark.parametrize("validation", [False, True])
+def test_report_errors_show_only_public_messages(
+    client, table, monkeypatch, transport, validation
+):
+    report = start(client, table)
+    page = client.get(editor_url(report))
+    public = "Reload this draft before saving."
+    secret = "SELECT secret FROM private_report_table"
+
+    class DiagnosticRefusal(Refusal):
+        def __str__(self):
+            return secret
+
+    def refuse(*args, **kwargs):
+        try:
+            raise RuntimeError(secret)
+        except RuntimeError as cause:
+            error = (
+                ValidationError([public, "Review the draft."])
+                if validation
+                else DiagnosticRefusal(public)
+            )
+            raise error from cause
+
+    monkeypatch.setattr("n26.core.post_battle.save_draft", refuse)
+    before = LedgerEvent.objects.count()
+    if transport == "refresh":
+        response = refresh(client, report, page, table.models[0])
+    else:
+        response = client.post(editor_url(report), html_fields(page, intent=transport))
+    assert response.status_code == 409
+    expected = public + (" Review the draft." if validation else "")
+    if transport == "autosave":
+        assert response.json() == {"error": expected}
+    elif transport == "refresh":
+        assert response.content.decode() == expected
+    else:
+        assert public in response.context["errors"]
+        if validation:
+            assert "Review the draft." in response.context["errors"]
+    assert secret not in response.content.decode()
+    assert LedgerEvent.objects.count() == before
+    report.refresh_from_db()
+    assert report.draft_revision == 0
+
+
+@pytest.mark.parametrize("error_type", [RuntimeError, LibraryError])
+def test_unexpected_report_errors_use_the_server_error_handler(
+    client, table, monkeypatch, settings, caplog, error_type
+):
+    settings.DEBUG = False
+    client.raise_request_exception = False
+    report = start(client, table)
+    page = client.get(editor_url(report))
+    secret = "SELECT secret FROM private_report_table"
+
+    def fail(*args, **kwargs):
+        raise error_type(secret)
+
+    monkeypatch.setattr("n26.core.post_battle.save_draft", fail)
+    response = client.post(editor_url(report), html_fields(page, intent="autosave"))
+    assert response.status_code == 500
+    assert secret not in response.content.decode()
+    assert secret in caplog.text
 
 
 def awards(response, table, **changes):
