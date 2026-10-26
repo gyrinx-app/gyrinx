@@ -31,7 +31,7 @@ def test_exception_string_formatting_is_not_the_public_message():
 @pytest.mark.parametrize("message", [RuntimeError("secret"), None, 123])
 def test_public_messages_require_explicit_text(message):
     with pytest.raises(TypeError, match="A public error message must be a string"):
-        UserFacingError(message)
+        raise UserFacingError(message)
 
 
 def test_unexpected_exceptions_are_not_public_errors():
