@@ -36,6 +36,9 @@ export type GangTacticsProps = {
     csrfToken: string;
     rollUrl: string;
     batchUrl: string;
+    /** Every set in the library: a bonus card may come from any of them. */
+    bonusChoices: GangTacticsProps["tableChoices"];
+    bonusUrl: string;
     printView: boolean;
     initialLayout: string;
 };
@@ -44,6 +47,10 @@ export function GangTactics(props: GangTacticsProps) {
     const [cards, setCards] = useState(props.cards);
     const [toGenerate, setToGenerate] = useState(props.toGenerate);
     const [tableChoices, setTableChoices] = useState(props.tableChoices);
+    const [bonusChoices, setBonusChoices] = useState(props.bonusChoices);
+    const [bonusOpen, setBonusOpen] = useState(false);
+    const [bonusTable, setBonusTable] = useState("");
+    const [bonusCount, setBonusCount] = useState("1");
     const [action, setAction] = useState<{
         kind: "delete" | "reroll";
         keys: string[];
@@ -168,10 +175,86 @@ export function GangTactics(props: GangTacticsProps) {
                 origin?.id ||
                 "tactics-print-action",
         });
+        // Start on the first card's own set, unless the gang already holds
+        // every tactic in it: then the first set that can still be rolled.
+        const own = cards.find((card) => card.pk === keys[0])?.tableKey ?? "";
+        const open = rerollChoices(keys).filter((choice) => !choice.full);
         setActionTable(
-            cards.find((card) => card.pk === keys[0])?.tableKey ?? "",
+            open.some((choice) => choice.value === own)
+                ? own
+                : (open[0]?.value ?? ""),
         );
         setError("");
+    }
+    // Bonus cards alone may be re-rolled onto any set; a selection with a
+    // counted card keeps to the gang's own sets.
+    function rerollChoices(keys: string[]) {
+        const chosen = cards.filter((card) => keys.includes(card.pk));
+        return chosen.length > 0 && chosen.every((card) => card.bonus)
+            ? bonusChoices
+            : tableChoices;
+    }
+    function openBonus() {
+        if (pending) return;
+        setBonusTable(bonusChoices.find((choice) => !choice.full)?.value ?? "");
+        setBonusCount("1");
+        setError("");
+        setBonusOpen(true);
+    }
+    async function submitBonus() {
+        if (submitting.current) return;
+        submitting.current = true;
+        setPending(true);
+        setError("");
+        const fields = new URLSearchParams({
+            table: bonusTable,
+            count: bonusCount,
+        });
+        try {
+            const response = await fetch(props.bonusUrl, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    Accept: "application/json",
+                    "X-CSRFToken": props.csrfToken,
+                },
+                body: fields,
+            });
+            if (
+                !response.headers
+                    .get("content-type")
+                    ?.includes("application/json")
+            ) {
+                throw new Error(
+                    response.status === 403 || response.redirected
+                        ? "Your session may have expired. Reload the page and try again."
+                        : "The bonus cards could not be drawn. Reload the page and try again.",
+                );
+            }
+            const result = await response.json();
+            if (!response.ok)
+                throw new Error(
+                    result.error ||
+                        "The bonus cards could not be drawn. Try again.",
+                );
+            setCards(result.cards);
+            setToGenerate(result.toGenerate);
+            setTableChoices(result.tableChoices);
+            setBonusChoices(result.bonusChoices);
+            setNotice(result.message);
+            setBonusOpen(false);
+        } catch (failure) {
+            setError(
+                failure instanceof TypeError
+                    ? "The bonus cards could not be drawn. Check your connection and try again."
+                    : failure instanceof Error
+                      ? failure.message
+                      : "The bonus cards could not be drawn. Try again.",
+            );
+        } finally {
+            submitting.current = false;
+            setPending(false);
+        }
     }
     function changeSelected(kind: "delete" | "reroll") {
         openAction(kind, [...selected]);
@@ -186,8 +269,7 @@ export function GangTactics(props: GangTacticsProps) {
             confirmed: "yes",
         });
         action.keys.forEach((key) => fields.append("selected", key));
-        if (action.kind === "reroll" && action.keys.length === 1)
-            fields.set("table", actionTable);
+        if (action.kind === "reroll") fields.set("table", actionTable);
         try {
             const response = await fetch(props.batchUrl, {
                 method: "POST",
@@ -218,6 +300,7 @@ export function GangTactics(props: GangTacticsProps) {
             setCards(result.cards);
             setToGenerate(result.toGenerate);
             setTableChoices(result.tableChoices);
+            setBonusChoices(result.bonusChoices);
             setTable(
                 result.tableChoices.find(
                     (choice: GangTacticsProps["tableChoices"][number]) =>
@@ -264,6 +347,12 @@ export function GangTactics(props: GangTacticsProps) {
             return next;
         });
     }
+    const bonusButton = (
+        <Button size="sm" onClick={openBonus} disabled={pending}>
+            <Icon name="plus" strokeWidth={1.7} />{" "}
+            <span>Generate bonus card</span>
+        </Button>
+    );
     const inactiveGeneration = (
         <Button
             size="sm"
@@ -458,9 +547,10 @@ export function GangTactics(props: GangTacticsProps) {
             ) : (
                 <>
                     <div className="n26-tactics-controls">
-                        {yours && toGenerate === 0 && (
+                        {yours && (
                             <div className="n26-tactics-inactive n26-tactics-inactive-wide">
-                                {inactiveGeneration}
+                                {toGenerate === 0 && inactiveGeneration}
+                                {bonusButton}
                             </div>
                         )}
                         {yours && (toGenerate > 0 || generationOpen) && (
@@ -635,9 +725,10 @@ export function GangTactics(props: GangTacticsProps) {
             >
                 {!printView && (
                     <div className="n26-tactics-heading">
-                        {yours && toGenerate === 0 && (
+                        {yours && (
                             <div className="n26-tactics-inactive n26-tactics-inactive-narrow">
-                                {inactiveGeneration}
+                                {toGenerate === 0 && inactiveGeneration}
+                                {bonusButton}
                             </div>
                         )}
                         <h2 className="text-lg font-semibold">
@@ -820,7 +911,84 @@ export function GangTactics(props: GangTacticsProps) {
                         {yours && toGenerate > 0 ? " Roll for them above." : ""}
                     </p>
                 )}
+                {cards.length > 0 && (
+                    <p className="n26-tactics-disclaimer text-xs text-muted">
+                        All text is provided for reference only. Please consult
+                        the official Necromunda Skirmish books/journals for
+                        official wording.
+                    </p>
+                )}
             </section>
+            {bonusOpen && (
+                <Dialog
+                    title="Generate bonus card"
+                    lead="Draw extra tactics from any set. Bonus cards do not count against what the gang's Leader and Champions allow. The gang's log records the draw."
+                    pending={pending}
+                    onDismiss={() => {
+                        if (!pending) setBonusOpen(false);
+                    }}
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        void submitBonus();
+                    }}
+                >
+                    <Field label="Draw from" htmlFor="tactic-bonus-table">
+                        <NativeSelect
+                            id="tactic-bonus-table"
+                            value={bonusTable}
+                            disabled={pending}
+                            onChange={(event) =>
+                                setBonusTable(event.target.value)
+                            }
+                        >
+                            {bonusChoices.map((choice) => (
+                                <option
+                                    key={choice.value}
+                                    value={choice.value}
+                                    disabled={choice.full}
+                                >
+                                    {choice.label}
+                                </option>
+                            ))}
+                        </NativeSelect>
+                    </Field>
+                    <Field label="Number to draw" htmlFor="tactic-bonus-count">
+                        <Input
+                            type="number"
+                            id="tactic-bonus-count"
+                            min={1}
+                            value={bonusCount}
+                            disabled={pending}
+                            onChange={(event) =>
+                                setBonusCount(event.target.value)
+                            }
+                        />
+                    </Field>
+                    {error && (
+                        <p
+                            role="alert"
+                            className="text-red-600 dark:text-red-400"
+                        >
+                            {error}
+                        </p>
+                    )}
+                    <FormActions>
+                        <Button
+                            disabled={pending}
+                            onClick={() => setBonusOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            variant="success"
+                            disabled={pending || !bonusTable || !bonusCount}
+                        >
+                            {pending ? "Drawing…" : "Draw"}
+                        </Button>
+                    </FormActions>
+                </Dialog>
+            )}
             {action && (
                 <Dialog
                     title={`${action.kind === "delete" ? "Delete" : "Re-roll"} ${action.keys.length === 1 ? cards.find((card) => card.pk === action.keys[0])?.name : `${action.keys.length} gang tactics`}`}
@@ -846,36 +1014,42 @@ export function GangTactics(props: GangTacticsProps) {
                                 <li key={card.pk}>{card.name}</li>
                             ))}
                     </ul>
-                    {action.kind === "reroll" &&
-                        (action.keys.length === 1 ? (
-                            <Field
-                                label="Choose gang tactics set"
-                                htmlFor="tactic-reroll-table"
+                    {action.kind === "reroll" && (
+                        <Field
+                            label={
+                                action.keys.length === 1
+                                    ? "Choose gang tactics set"
+                                    : "Re-roll all selected cards from"
+                            }
+                            htmlFor="tactic-reroll-table"
+                        >
+                            <NativeSelect
+                                id="tactic-reroll-table"
+                                value={actionTable}
+                                disabled={pending}
+                                onChange={(event) =>
+                                    setActionTable(event.target.value)
+                                }
                             >
-                                <NativeSelect
-                                    id="tactic-reroll-table"
-                                    value={actionTable}
-                                    disabled={pending}
-                                    onChange={(event) =>
-                                        setActionTable(event.target.value)
-                                    }
-                                >
-                                    {tableChoices.map((choice) => (
-                                        <option
-                                            key={choice.value}
-                                            value={choice.value}
-                                            disabled={choice.full}
-                                        >
-                                            {choice.label}
-                                        </option>
-                                    ))}
-                                </NativeSelect>
-                            </Field>
-                        ) : (
-                            <p className="text-sm text-muted">
-                                Each tactic is re-rolled on its current set.
-                            </p>
-                        ))}
+                                {rerollChoices(action.keys).map((choice) => (
+                                    <option
+                                        key={choice.value}
+                                        value={choice.value}
+                                        disabled={choice.full}
+                                    >
+                                        {choice.label}
+                                    </option>
+                                ))}
+                            </NativeSelect>
+                        </Field>
+                    )}
+                    {action.kind === "reroll" && action.keys.length > 1 && (
+                        <p className="text-sm text-muted">
+                            Every selected card is re-rolled on this set. To use
+                            different sets, select and re-roll the cards for
+                            each set separately.
+                        </p>
+                    )}
                     {error && (
                         <p
                             role="alert"
@@ -896,9 +1070,7 @@ export function GangTactics(props: GangTacticsProps) {
                             variant="success"
                             disabled={
                                 pending ||
-                                (action.kind === "reroll" &&
-                                    action.keys.length === 1 &&
-                                    !actionTable)
+                                (action.kind === "reroll" && !actionTable)
                             }
                         >
                             {pending

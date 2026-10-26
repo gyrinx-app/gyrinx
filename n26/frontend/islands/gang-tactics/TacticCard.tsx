@@ -14,6 +14,8 @@ export type Card = {
     developed: boolean;
     reference: string;
     tableKey: string;
+    /** Drawn as a bonus, outside the ranks' allowance. */
+    bonus?: boolean;
 };
 const words = (runs: Words[]) => runs.map((run) => run.text).join("");
 const referenceText = (reference: string) =>
@@ -71,6 +73,9 @@ export function TacticCard({
                             <h4>Effect</h4>
                             <p>{words(card.effect)}</p>
                         </div>
+                    )}
+                    {card.bonus && (
+                        <p className="n26-tactic-bonus">Bonus card</p>
                     )}
                 </div>
             </div>

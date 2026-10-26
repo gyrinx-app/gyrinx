@@ -77,6 +77,10 @@ def gang_tactics(request, pk):
         "yours": yours,
         "toGenerate": room.to_generate,
         "tableChoices": [asdict(choice) for choice in choices],
+        "bonusChoices": [
+            asdict(choice) for choice in table_choices(gang, tactics, bonus=True)
+        ],
+        "bonusUrl": reverse("n26-bonus-gang-tactics", args=[gang.pk]),
         "count": str(form["count"].value() or "") if form else "",
         "errors": dict(form.errors) if form else {},
         "csrfToken": get_token(request),
@@ -115,6 +119,9 @@ def _tactics_state(gang):
         "cards": _card_props(cards(tactics), tactics),
         "toGenerate": room.to_generate,
         "tableChoices": [asdict(choice) for choice in table_choices(gang, tactics)],
+        "bonusChoices": [
+            asdict(choice) for choice in table_choices(gang, tactics, bonus=True)
+        ],
     }
 
 
@@ -195,7 +202,10 @@ def reroll_gang_tactic(request, pk, tactic_pk):
     back = reverse("n26-gang-tactics", args=[gang.pk])
     name = name_of(tactic)
     choices = table_choices(
-        gang, held(gang), request.POST.get("table", "") or str(tactic.picklist_id)
+        gang,
+        held(gang),
+        request.POST.get("table", "") or str(tactic.picklist_id),
+        bonus=tactic.bonus,
     )
     form = RerollTacticForm(
         request.POST if request.method == "POST" else None, table_choices=choices
@@ -253,8 +263,16 @@ def batch_gang_tactics(request, pk):
     if action == "reroll" and table:
         from n26.core.forms import RerollTacticForm
 
+        # Bonus cards alone may go to any table; with a counted card in
+        # the selection, only the gang's own tables are offered.
         form = RerollTacticForm(
-            request.POST, table_choices=table_choices(gang, held(gang), table)
+            request.POST,
+            table_choices=table_choices(
+                gang,
+                held(gang),
+                table,
+                bonus=all(tactic.bonus for tactic in chosen),
+            ),
         )
         if not form.is_valid():
             return invalid("Choose an available gang tactics set.")
@@ -304,4 +322,44 @@ def batch_gang_tactics(request, pk):
     )
     return render(
         request, "n26/confirm.html", {"gang": gang, "confirmation": confirmation}
+    )
+
+
+@login_required
+@require_POST
+def bonus_gang_tactics(request, pk):
+    """Draw bonus tactics from any table, for the owner, as JSON.
+
+    Bonus tactics sit outside the ranks' allowance, so nothing here asks
+    how many the gang has left to roll. They still never duplicate a
+    tactic the gang holds.
+    """
+    from django.http import JsonResponse
+
+    from n26.core.forms import BonusTacticsForm
+    from n26.core.operations import Refusal, operation
+    from n26.core.tactics import held, table_choices
+
+    gang = _own_gang_or_404(request, pk)
+    form = BonusTacticsForm(
+        request.POST,
+        table_choices=table_choices(gang, held(gang), bonus=True),
+    )
+    if not form.is_valid():
+        first = next(iter(form.errors.values()))[0]
+        return JsonResponse({"error": first}, status=400)
+    try:
+        with operation(gang, actor=request.user) as op:
+            gained = op.roll_bonus_tactics(
+                form.cleaned_data["table"], form.cleaned_data["count"]
+            )
+    except Refusal as refusal:
+        return JsonResponse({"error": str(refusal)}, status=400)
+    names = ", ".join(tactic.pickable.name for tactic in gained)
+    plural = "" if len(gained) == 1 else "s"
+    return JsonResponse(
+        {
+            **_tactics_state(gang),
+            "message": f"Drew {len(gained)} bonus card{plural}: {names}.",
+        }
     )

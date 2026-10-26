@@ -1622,3 +1622,27 @@ class RerollTacticForm(forms.Form):
         self.fields["table"].choices = [
             (choice.value, choice.label) for choice in table_choices if not choice.full
         ]
+
+
+class BonusTacticsForm(forms.Form):
+    """Which table to draw bonus Gang Tactics from, and how many. Any
+    table in the library is offered, bar one whose every result the gang
+    holds."""
+
+    table = forms.ChoiceField(error_messages={"required": "Choose a set to draw from."})
+    count = forms.IntegerField(
+        min_value=1,
+        max_value=36,
+        error_messages={
+            "required": "Enter how many bonus cards to draw.",
+            "min_value": "Draw at least one bonus card.",
+            "max_value": "Draw no more than 36 bonus cards.",
+            "invalid": "Enter a whole number.",
+        },
+    )
+
+    def __init__(self, *args, table_choices=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["table"].choices = [
+            (choice.value, choice.label) for choice in table_choices if not choice.full
+        ]

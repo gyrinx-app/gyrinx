@@ -858,7 +858,7 @@ built from the same parts. For a House whose journal prints a D6 table:
 
 1. Use the existing **Gang Tactic** slot type. Add a **pickable** for each
    tactic, named as the book names it. In each one's **summary**, say where it
-   is printed, such as "Page 42 - Journals of the Underhive: Cawdor". The
+   is printed, such as "Page 42 - Underhive Journal: Cawdor". The
    card shows this when it does not show the tactic's words.
 2. Create a **picklist** for the Gang Tactic slot type, named after the
    House, such as **Cawdor**. Set its dice to **D6** and its rolls to

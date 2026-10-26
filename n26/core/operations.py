@@ -1360,6 +1360,7 @@ class Operation:
         note,
         kind=None,
         action_record=None,
+        bonus=False,
     ):
         """Add one rolled Gang Tactic to the gang, and say so.
 
@@ -1375,6 +1376,7 @@ class Operation:
             roll=roll,
             source=source,
             action_record=action_record,
+            bonus=bonus,
         )
         self.event(
             None,
@@ -1406,6 +1408,12 @@ class Operation:
         from n26.core.tactics import reroll_tactic
 
         return reroll_tactic(self, held, table, rng)
+
+    def roll_bonus_tactics(self, table, count, rng=None):
+        """Draw ``count`` bonus tactics from any table (``n26.core.tactics``)."""
+        from n26.core.tactics import roll_bonus_tactics
+
+        return roll_bonus_tactics(self, table, count, rng)
 
     def roll_tactics(self, table, count, rng=None):
         """Roll ``count`` Gang Tactics on one table (``n26.core.tactics``)."""

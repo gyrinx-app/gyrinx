@@ -133,6 +133,7 @@ from n26.core.views.skills import skills
 from n26.core.views.switchers import switcher_page
 from n26.core.views.tactics import (
     batch_gang_tactics,
+    bonus_gang_tactics,
     delete_gang_tactic,
     gang_tactics,
     reroll_gang_tactic,
@@ -228,6 +229,7 @@ __all__ = [
     "gang_lore",
     "gang_notes",
     "gang_tactics",
+    "bonus_gang_tactics",
     "batch_gang_tactics",
     "delete_gang_tactic",
     "reroll_gang_tactic",
