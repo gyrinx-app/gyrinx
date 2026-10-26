@@ -1278,6 +1278,17 @@ def recipes():
                 "arrow-down",
                 "arrow-right",
                 "pencil",
+                "layout-grid",
+                "gallery-horizontal",
+                "book-open",
+                "chevron-left",
+                "chevron-right",
+                "printer",
+                "rotate-cw",
+                "trash-2",
+                "circle-minus",
+                "zoom-in",
+                "zoom-out",
             )
         },
     }

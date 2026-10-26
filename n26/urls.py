@@ -315,6 +315,11 @@ urlpatterns = [
     path("gangs/<str:pk>/notes/", views.gang_notes, name="n26-gang-notes"),
     path("gangs/<str:pk>/tactics/", views.gang_tactics, name="n26-gang-tactics"),
     path(
+        "gangs/<str:pk>/tactics/batch/",
+        views.batch_gang_tactics,
+        name="n26-batch-gang-tactics",
+    ),
+    path(
         "gangs/<str:pk>/tactics/<str:tactic_pk>/delete/",
         views.delete_gang_tactic,
         name="n26-delete-gang-tactic",

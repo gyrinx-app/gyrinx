@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
+{% load navigation react %}
 {% comment %}
 The gang's Gang Tactics: two figures, the form to roll for more, then
 one card per tactic held.
@@ -16,161 +16,38 @@ address reads it; only the owner sees the roll form.
     {% include "n26/_nav.html" with here="gangs" %}
 {% endblock %}
 {% block content %}
-    <div class="flex flex-col gap-6">
-        <c-n26.page-header title="{{ gang.name }}">
-            {% if gang.colour %}
-                <c-slot name="leading">
-                    <c-n26.color-swatch color="{{ gang.colour }}" />
+    <div class="n26-tactics-page n26-print-tactics flex flex-col gap-6">
+        {% if not print_view %}
+            <c-n26.page-header title="{{ gang.name }}">
+                {% if gang.colour %}
+                    <c-slot name="leading">
+                        <c-n26.color-swatch color="{{ gang.colour }}" />
+                    </c-slot>
+                {% endif %}
+                <c-slot name="breadcrumb">
+                    <c-ui.breadcrumbs>
+                        <c-ui.breadcrumbs.item>
+                            <c-n26.user-link :user="gang.owner" tone="current" />
+                        </c-ui.breadcrumbs.item>
+                        <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                        <c-ui.breadcrumbs.item :current="True">
+                            Gang Tactics
+                        </c-ui.breadcrumbs.item>
+                    </c-ui.breadcrumbs>
                 </c-slot>
-            {% endif %}
-            <c-slot name="breadcrumb">
-                <c-ui.breadcrumbs>
-                    <c-ui.breadcrumbs.item>
-                        <c-n26.user-link :user="gang.owner" tone="current" />
-                    </c-ui.breadcrumbs.item>
-                    <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
-                    <c-ui.breadcrumbs.item :current="True">
-                        Gang Tactics
-                    </c-ui.breadcrumbs.item>
-                </c-ui.breadcrumbs>
-            </c-slot>
-            <c-slot name="lead">
-                <c-n26.flair-link text="{{ gang.gang_type.name }}" tone="current">
-                    <c-n26.flair.gang-type :icon="gang.gang_type.artwork" />
-                </c-n26.flair-link>
-            </c-slot>
-            <c-slot name="actions">
-                <c-n26.gang-figures :gang="gang"
-                                    :summary="summary"
-                                    trade_points_href="{{ trade_points_href }}"
-                                    credits_href="{{ credits_href }}" />
-            </c-slot>
-        </c-n26.page-header>
-        <dl class="grid grid-cols-2 gap-2 sm:gap-3" data-tactics-figures>
-            <div class="flex flex-col justify-between gap-1 rounded-box border border-box-border p-3 sm:p-4">
-                <dt class="text-xs text-muted sm:text-sm">Current Gang Tactics</dt>
-                <dd class="text-2xl font-semibold tabular-nums sm:text-3xl text-ink-900 dark:text-ink-100">
-                    {{ room.held }}
-                </dd>
-            </div>
-            <div class="flex flex-col justify-between gap-1 rounded-box border border-box-border p-3 sm:p-4">
-                <dt class="text-xs text-muted sm:text-sm">Tactics to be generated</dt>
-                <dd class="text-2xl font-semibold tabular-nums sm:text-3xl text-ink-900 dark:text-ink-100">
-                    {{ room.to_generate }}
-                </dd>
-            </div>
-        </dl>
-        {% if form and room.to_generate %}
-            <form method="post"
-                  action="{% url 'n26-gang-tactics' gang.pk %}"
-                  class="flex flex-col gap-4 rounded-box border border-box-border p-4"
-                  data-tactics-roll>
-                {% csrf_token %}
-                <c-ui.error :form="form" name="__all__" />
-                <c-n26.radio-cards label="Roll on" :form="form" name="table" min="12rem">
-                    {% for choice in table_choices %}
-                        <c-n26.radio-cards.card name="table"
-                                                value="{{ choice.value }}"
-                                                label="{{ choice.label }}"
-                                                description="{{ choice.description }}"
-                                                :checked="choice.checked"
-                                                :disabled="choice.full"
-                                                reason="{{ choice.description }}" />
-                    {% endfor %}
-                </c-n26.radio-cards>
-                <div class="flex flex-wrap items-end gap-3">
-                    <c-ui.button type="submit" name="how" value="all" variant="success">
-                        Roll all ({{ room.to_generate }})
-                    </c-ui.button>
-                    <div class="w-28">
-                        <c-ui.field label="Number"
-                                    error="x"
-                                    :form="form"
-                                    name="count"
-                                    for="tactics-count">
-                            <c-ui.input type="number"
-                                        id="tactics-count"
-                                        name="count"
-                                        min="1"
-                                        max="{{ room.to_generate }}"
-                                        value="{{ form.count.value|default:'' }}" />
-                        </c-ui.field>
-                    </div>
-                    <c-ui.button type="submit" name="how" value="some" variant="success">
-                        Roll
-                    </c-ui.button>
-                </div>
-            </form>
+                <c-slot name="lead">
+                    <c-n26.flair-link text="{{ gang.gang_type.name }}" tone="current">
+                        <c-n26.flair.gang-type :icon="gang.gang_type.artwork" />
+                    </c-n26.flair-link>
+                </c-slot>
+                <c-slot name="actions">
+                    <c-n26.gang-figures :gang="gang"
+                                        :summary="summary"
+                                        trade_points_href="{{ trade_points_href }}"
+                                        credits_href="{{ credits_href }}" />
+                </c-slot>
+            </c-n26.page-header>
         {% endif %}
-        <c-n26.section title="Current Gang Tactics" count="{{ room.held }}">
-            {% if cards %}
-                <ul class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {% for card in cards %}
-                        {% comment %}
-                        The name sits on the site title bar's colour in the button accent, as a
-                        label plate. Keywords in the rules text arrive marked (n26.core.tactics.keywords)
-                        and are drawn bold; the words are kept on one line so no stray spaces appear.
-                        {% endcomment %}
-                        <li class="flex flex-col overflow-hidden rounded-box border border-box-border"
-                            data-tactic-card="{{ card.name }}">
-                            {% comment %}
-                            Three columns so the name stays centred whether or not the
-                            Developed label sits to its left; the right column balances it.
-                            {% endcomment %}
-                            <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-ink-900 px-3 py-3">
-                                <span class="text-xs text-ink-300">{% if card.developed %}Developed{% endif %}</span>
-                                <h3 class="text-center text-lg font-semibold text-accent">{{ card.name }}</h3>
-                                <span aria-hidden="true"></span>
-                            </div>
-                            <div class="flex flex-1 flex-col gap-3 p-4 text-sm text-ink-900 dark:text-white">
-                                {% if card.timing %}
-                                    <div>
-                                        <p class="text-xs font-semibold uppercase tracking-wide text-muted">Timing</p>
-                                        <p class="italic">{% for run in card.timing %}{% if run.keyword %}<strong class="font-bold">{{ run.text }}</strong>{% else %}{{ run.text }}{% endif %}{% endfor %}</p>
-                                    </div>
-                                {% endif %}
-                                {% if card.effect %}
-                                    <div>
-                                        <p class="text-xs font-semibold uppercase tracking-wide text-muted">Effect</p>
-                                        <p class="italic">{% for run in card.effect %}{% if run.keyword %}<strong class="font-bold">{{ run.text }}</strong>{% else %}{{ run.text }}{% endif %}{% endfor %}</p>
-                                    </div>
-                                {% elif card.reference %}
-                                    {% comment %}
-                                    No rules text to print: the card says where to read the tactic.
-                                    {% endcomment %}
-                                    <div>
-                                        <p class="text-xs font-semibold uppercase tracking-wide text-muted">Effect</p>
-                                        <p class="italic">{{ card.reference }}</p>
-                                    </div>
-                                {% endif %}
-                                <div class="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-box-border pt-2 text-xs">
-                                    <span class="text-muted">{{ card.table_name }} · {{ card.dice_label }} {{ card.roll }}</span>
-                                    {% if yours %}
-                                        <c-n26.action-links>
-                                            <c-n26.action-link href="{% url 'n26-reroll-gang-tactic' gang.pk card.pk %}">
-                                                Re-roll
-                                            </c-n26.action-link>
-                                            <c-n26.action-link href="{% url 'n26-delete-gang-tactic' gang.pk card.pk %}"
-                                                               tone="danger">
-                                                Delete
-                                            </c-n26.action-link>
-                                        </c-n26.action-links>
-                                    {% endif %}
-                                </div>
-                                {% if card.reference %}
-                                    <p class="-mt-2 text-right text-xs text-muted">{{ card.reference }}</p>
-                                {% endif %}
-                            </div>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% elif yours and room.to_generate %}
-                <p class="text-muted">No Gang Tactics yet. Roll for them above.</p>
-            {% elif yours %}
-                <p class="text-muted">No Gang Tactics yet. A gang gains them from its Leader and Champions.</p>
-            {% else %}
-                <p class="text-muted">No Gang Tactics yet.</p>
-            {% endif %}
-        </c-n26.section>
+        {% react_island "gang-tactics" tactics_island %}
     </div>
 {% endblock content %}

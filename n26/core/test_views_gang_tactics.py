@@ -230,9 +230,10 @@ class TestRolling:
 
 class TestThePage:
     def test_anyone_reads_it(self, client, gang, roster):
-        body = client.get(page(gang)).content.decode()
-        assert "Tactics to be generated" in body
-        assert "data-tactics-roll" not in body
+        response = client.get(page(gang))
+        assert response.status_code == 200
+        assert response.context["tactics_island"]["toGenerate"] == 3
+        assert response.context["tactics_island"]["yours"] is False
 
     def test_the_owner_rolls_all(self, client, tester, gang, roster):
         client.force_login(tester)
@@ -264,8 +265,10 @@ class TestThePage:
     def test_a_held_tactic_shows_as_a_card(self, client, tester, gang, roster):
         with operation(gang, actor=tester) as op:
             (gained,) = op.roll_tactics(key("Escher"), 1)
-        body = client.get(page(gang)).content.decode()
-        assert f'data-tactic-card="{gained.pickable.name}"' in body
+        response = client.get(page(gang))
+        (card,) = response.context["tactics_island"]["cards"]
+        assert card["pk"] == str(gained.pk)
+        assert card["name"] == gained.pickable.name
 
     def test_the_menu_links_here(self, client, tester, gang, roster):
         client.force_login(tester)
@@ -450,8 +453,7 @@ class TestTheTextSwitch:
     def test_the_page_follows_the_switch(
         self, client, tester, gang, roster, tmp_path, monkeypatch
     ):
-        """Off, the reference stands in for the effect and sits in the
-        footer; on, with words to show, it is in the footer alone."""
+        """The reference is always available; rules text follows the switch."""
         from gyrinx.site.models import Availability, FeatureFlag
         from n26.flags import GANG_TACTICS_TEXT
 
@@ -464,13 +466,15 @@ class TestTheTextSwitch:
         )
         monkeypatch.setenv("N26_GANG_TACTICS_TEXT", str(text))
         reference = "Page 42 - Journals of the Underhive: Escher"
-        assert client.get(page(gang)).content.decode().count(reference) == 2
+        (card,) = client.get(page(gang)).context["tactics_island"]["cards"]
+        assert card["reference"] == reference
+        assert card["effect"] == ()
         FeatureFlag.objects.create(
             slug=GANG_TACTICS_TEXT, name="Text", availability=Availability.EVERYONE
         )
-        body = client.get(page(gang)).content.decode()
-        assert body.count(reference) == 1
-        assert "They move." in body
+        (card,) = client.get(page(gang)).context["tactics_island"]["cards"]
+        assert card["reference"] == reference
+        assert "".join(run["text"] for run in card["effect"]) == "They move."
 
     def test_on_without_words_the_card_still_gives_the_reference(
         self, tester, gang, roster, monkeypatch

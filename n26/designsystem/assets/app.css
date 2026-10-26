@@ -64,6 +64,7 @@
  * is unlayered, deliberately, so its rules beat the utilities a call site
  * brought with it from a screen layout. */
 @import "./print.css";
+@import "./tactics.css";
 
 /* Emit the whole colour palette as variables.
  *
