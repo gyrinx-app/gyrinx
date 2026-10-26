@@ -16,6 +16,7 @@ from pydantic import BaseModel, PrivateAttr, ValidationError, field_validator
 from gyrinx import messages
 from gyrinx.analytics.models import EventVerb, log_event
 from n23.content.models import ContentAdvancementEquipment, ContentSkill
+from n23.core.advancement import validate_advancement_roll
 from n23.core.events import EventNoun
 from n23.core.forms.advancement import (
     AdvancementDiceChoiceForm,
@@ -624,16 +625,38 @@ def list_fighter_advancement_type(request, id, fighter_id):
 
     is_campaign_mode = lst.status == List.CAMPAIGN_MODE
 
-    params = AdvancementBaseParams.model_validate(request.GET.dict())
+    try:
+        raw_params = {**request.POST.dict(), **request.GET.dict()}
+        raw_params["campaign_action_id"] = raw_params.get("campaign_action_id") or None
+        params = AdvancementBaseParams.model_validate(raw_params)
+    except ValidationError:
+        messages.error(request, "This advancement roll could not be found.")
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
+        )
     # Get campaign action if provided
     campaign_action = None
+    roll = None
     if params.campaign_action_id:
         campaign_action = get_object_or_404(
-            CampaignAction, id=params.campaign_action_id
+            CampaignAction,
+            id=params.campaign_action_id,
+            list=lst,
+            campaign=lst.campaign,
+            user=request.user,
         )
+        try:
+            roll = validate_advancement_roll(campaign_action, fighter)
+        except DjangoValidationError as e:
+            messages.validation(request, e)
+            return HttpResponseRedirect(
+                reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
+            )
 
     if request.method == "POST":
-        form = AdvancementTypeForm(request.POST, fighter=fighter)
+        form = AdvancementTypeForm(
+            request.POST, fighter=fighter, campaign_action=campaign_action, roll=roll
+        )
         if form.is_valid():
             next_params = AdvancementFlowParams.model_validate(form.cleaned_data)
 
@@ -689,9 +712,15 @@ def list_fighter_advancement_type(request, id, fighter_id):
     else:
         initial = {
             **params.model_dump(mode="json", exclude_none=True),
-            **AdvancementTypeForm.get_initial_for_action(campaign_action, fighter),
+            **(
+                AdvancementTypeForm.get_initial_for_action()
+                if not campaign_action
+                else {}
+            ),
         }
-        form = AdvancementTypeForm(initial=initial, fighter=fighter)
+        form = AdvancementTypeForm(
+            initial=initial, fighter=fighter, campaign_action=campaign_action, roll=roll
+        )
 
     return render(
         request,
@@ -708,6 +737,24 @@ def list_fighter_advancement_type(request, id, fighter_id):
             "advancement_configs": form.get_all_configs_json(),
         },
     )
+
+
+def validate_rolled_advancement_params(params, fighter, user):
+    """Use the recorded roll for both the confirmation display and the write."""
+    if not params.campaign_action_id:
+        return
+    action = get_object_or_404(
+        CampaignAction,
+        id=params.campaign_action_id,
+        list=fighter.list,
+        campaign=fighter.list.campaign,
+        user=user,
+    )
+    if action.dice_count:
+        roll = validate_advancement_roll(action, fighter)
+        roll.validate_choice(params.advancement_choice)
+        params.xp_cost = roll.xp_cost
+        params.cost_increase = roll.cost_increase
 
 
 @login_required
@@ -738,6 +785,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
     # Get and sanitize parameters from query string
     try:
         params = AdvancementFlowParams.model_validate(request.GET.dict())
+        validate_rolled_advancement_params(params, fighter, request.user)
         # Allow stat, other, random equipment, and skill-less promotion advancements at
         # the confirm stage (promotions that bundle a skill complete at the select stage)
         is_random_equipment = (
@@ -769,6 +817,11 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
             # For random equipment and promotions, prepare the details
             stat = None
             stat_desc = params.description_from_choice()
+    except DjangoValidationError as e:
+        messages.validation(request, e)
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
+        )
     except ValueError as e:
         messages.error(request, f"Invalid advancement: {e}.")
         return HttpResponseRedirect(
@@ -1030,6 +1083,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
     # reach this stage. Then build the details object.
     try:
         params = AdvancementFlowParams.model_validate(request.GET.dict())
+        validate_rolled_advancement_params(params, fighter, request.user)
         if not (
             params.is_skill_advancement()
             or params.is_equipment_advancement()
@@ -1043,6 +1097,11 @@ def list_fighter_advancement_select(request, id, fighter_id):
             params.skill_category_from_choice()
             if params.is_skill_advancement()
             else None
+        )
+    except DjangoValidationError as e:
+        messages.validation(request, e)
+        return HttpResponseRedirect(
+            reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
         )
     except (ValidationError, ValueError) as e:
         messages.error(request, f"Invalid advancement: {e}.")

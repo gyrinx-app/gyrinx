@@ -1,10 +1,10 @@
 {
-  "alert": 68,
-  "badge": 76,
+  "alert": 65,
+  "badge": 75,
   "border-rounded": 69,
-  "btn": 396,
+  "btn": 395,
   "include-back": 82,
   "include-cancel": 18,
   "include-form_field": 21,
-  "invalid-feedback": 23
+  "invalid-feedback": 20
 }
