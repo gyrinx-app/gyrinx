@@ -50,7 +50,7 @@ dependencies = [
     # pre-release pin is no longer needed.
     "opentelemetry-resourcedetector-gcp==1.14.0",
     "opentelemetry-sdk==1.44.0",
-    "Pillow==12.3.0",
+    "Pillow==13.0.0",
     "playwright==1.64.0",
     "pre-commit==4.7.0",
     "psycopg[binary,pool]==3.3.6",
