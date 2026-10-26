@@ -433,7 +433,7 @@ class TestTheTextSwitch:
         with operation(gang, actor=tester) as op:
             op.roll_tactics(key("Escher"), 1)
         (card,) = cards(held(gang), show_text=False)
-        assert card.reference == "Page 42 - Journals of the Underhive: Escher"
+        assert card.reference == "Page 42 - Underhive Journal: Escher"
         assert card.timing == () and card.effect == ()
 
     def test_on_the_card_reads_the_local_text(
@@ -465,7 +465,7 @@ class TestTheTextSwitch:
             f"Escher,{gained.pickable.name},When a Fighter moves.,They move.\n"
         )
         monkeypatch.setenv("N26_GANG_TACTICS_TEXT", str(text))
-        reference = "Page 42 - Journals of the Underhive: Escher"
+        reference = "Page 42 - Underhive Journal: Escher"
         (card,) = client.get(page(gang)).context["tactics_island"]["cards"]
         assert card["reference"] == reference
         assert card["effect"] == ()
@@ -516,3 +516,95 @@ class TestKeywords:
         assert (
             bold('With the Blast (3"/5") trait.') == 'With the [Blast (3"/5")] trait.'
         )
+
+
+class TestRerollingSeveral:
+    def test_every_selected_card_goes_to_the_chosen_set(
+        self, client, tester, gang, roster
+    ):
+        with operation(gang, actor=tester) as op:
+            escher = op.roll_tactics(key("Escher"), 1)
+            universal = op.roll_tactics(key("Universal"), 1)
+        client.force_login(tester)
+        response = client.post(
+            reverse("n26-batch-gang-tactics", args=[gang.pk]),
+            {
+                "action": "reroll",
+                "confirmed": "yes",
+                "selected": [str(escher[0].pk), str(universal[0].pk)],
+                "table": key("Universal"),
+            },
+            HTTP_ACCEPT="application/json",
+        )
+        assert response.status_code == 200
+        now = GangTactic.objects.filter(gang=gang, archived=False)
+        assert [one.picklist.name for one in now] == ["Universal", "Universal"]
+        assert not {one.pickable_id for one in now} & {
+            escher[0].pickable_id,
+            universal[0].pickable_id,
+        }
+
+
+class TestBonusCards:
+    def draw(self, client, gang, table, count):
+        return client.post(
+            reverse("n26-bonus-gang-tactics", args=[gang.pk]),
+            {"table": table, "count": str(count)},
+            HTTP_ACCEPT="application/json",
+        )
+
+    def test_any_set_may_be_drawn_from_even_another_houses(
+        self, client, tester, gang, roster
+    ):
+        client.force_login(tester)
+        response = self.draw(client, gang, key("Goliath"), 2)
+        assert response.status_code == 200
+        drawn = GangTactic.objects.filter(gang=gang, bonus=True)
+        assert [one.picklist.name for one in drawn] == ["Goliath", "Goliath"]
+        assert all(one.source_id is None for one in drawn)
+
+    def test_bonus_cards_do_not_count_against_the_ranks(
+        self, client, tester, gang, roster
+    ):
+        client.force_login(tester)
+        self.draw(client, gang, key("Universal"), 3)
+        room = allowance(gang)
+        assert (room.available, room.held, room.to_generate) == (3, 0, 3)
+        with operation(gang, actor=tester) as op:
+            op.roll_tactics(key("Escher"), 3)
+        assert allowance(gang).to_generate == 0
+
+    def test_a_bonus_never_duplicates_a_held_tactic(self, tester, gang, roster):
+        with operation(gang, actor=tester) as op:
+            op.roll_tactics(key("Escher"), 3)
+            op.roll_bonus_tactics(key("Escher"), 3)
+        held_now = GangTactic.objects.filter(gang=gang, archived=False)
+        assert len({one.pickable_id for one in held_now}) == 6
+        with pytest.raises(Refusal), operation(gang, actor=tester) as op:
+            op.roll_bonus_tactics(key("Escher"), 1)
+
+    def test_a_rerolled_bonus_stays_a_bonus_and_may_change_set(
+        self, tester, gang, roster
+    ):
+        with operation(gang, actor=tester) as op:
+            (drawn,) = op.roll_bonus_tactics(key("Universal"), 1)
+        with operation(gang, actor=tester) as op:
+            new = op.reroll_tactic(drawn, key("Goliath"))
+        assert new.bonus and new.picklist.name == "Goliath"
+
+    def test_the_card_is_marked(self, tester, gang, roster):
+        with operation(gang, actor=tester) as op:
+            op.roll_bonus_tactics(key("Universal"), 1)
+        (card,) = cards(held(gang), show_text=False)
+        assert card.bonus
+
+    def test_someone_else_cannot_draw(self, client, gang, roster):
+        client.force_login(User.objects.create_user("stranger"))
+        assert self.draw(client, gang, key("Universal"), 1).status_code == 404
+        assert not GangTactic.objects.filter(gang=gang).exists()
+
+    def test_a_bad_count_is_refused(self, client, tester, gang, roster):
+        client.force_login(tester)
+        response = self.draw(client, gang, key("Universal"), 0)
+        assert response.status_code == 400
+        assert response.json()["error"] == "Draw at least one bonus card."

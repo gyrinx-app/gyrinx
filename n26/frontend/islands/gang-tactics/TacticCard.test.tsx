@@ -12,7 +12,7 @@ const card: Card = {
     timing: [{ text: "Play this tactic.", keyword: true }],
     effect: [],
     developed: false,
-    reference: "Page 42 - Journals of the Underhive: Escher",
+    reference: "Page 42 - Underhive Journal: Escher",
     tableKey: "escher",
 };
 beforeEach(() =>
@@ -49,7 +49,7 @@ test("click, Space and Enter select the same card without bolding keywords", () 
     expect(toggle).toHaveBeenCalledTimes(3);
     expect(screen.getByText("Play this tactic.").tagName).toBe("P");
     expect(
-        screen.getByText("Journals of the Underhive: Escher · Page 42"),
+        screen.getByText("Underhive Journal: Escher · Page 42"),
     ).toBeTruthy();
 });
 test("print cards have no selection interaction", () => {
@@ -60,4 +60,24 @@ test("print cards have no selection interaction", () => {
     fireEvent.click(container.querySelector("article")!);
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(toggle).not.toHaveBeenCalled();
+});
+
+test("a bonus card says so under its rules, not in the footer", () => {
+    const view = render(
+        <TacticCard
+            card={{
+                ...card,
+                effect: [{ text: "They move.", keyword: false }],
+                bonus: true,
+            }}
+            selected={false}
+            printView={false}
+            onToggle={() => {}}
+        />,
+    );
+    const label = screen.getByText("Bonus card");
+    expect(label.closest(".n26-tactic-rules")).toBeTruthy();
+    expect(view.container.querySelector("footer")?.textContent).not.toContain(
+        "Bonus",
+    );
 });

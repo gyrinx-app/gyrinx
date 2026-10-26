@@ -624,3 +624,20 @@
         color: var(--color-ink-700);
     }
 }
+
+/* The reference-only disclaimer under the last card: set well apart from
+   the cards so it reads as a note about all of them. */
+.n26-tactics-disclaimer {
+    margin-top: 2.5rem;
+}
+
+/* "Bonus card" under the effect: set in the rule labels' style, so it reads
+   as a note on the card rather than part of the rules or the footer. */
+.n26-tactic-bonus {
+    margin-top: 0.9em;
+    color: var(--tactic-label);
+    font-size: 0.85em;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}

@@ -85,7 +85,7 @@ UNIVERSAL = SeedTable(
 ESCHER = SeedTable(
     name="Escher",
     dice="d6",
-    reference="Page 42 - Journals of the Underhive: Escher",
+    reference="Page 42 - Underhive Journal: Escher",
     gang_types=("Escher",),
     rows=(
         (1, 1, "Thrill of the Hunt"),
@@ -100,7 +100,7 @@ ESCHER = SeedTable(
 GOLIATH = SeedTable(
     name="Goliath",
     dice="d6",
-    reference="Page 42 - Journals of the Underhive: Goliath",
+    reference="Page 42 - Underhive Journal: Goliath",
     gang_types=("Goliath",),
     rows=(
         (1, 1, "And Stay Down!"),

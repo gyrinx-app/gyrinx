@@ -160,4 +160,12 @@ class Migration(migrations.Migration):
                 ],
             },
         ),
+        migrations.AddField(
+            model_name="gangtactic",
+            name="bonus",
+            field=models.BooleanField(
+                default=False,
+                help_text="Drawn as a bonus, from any table, outside what the gang's ranks allow. It does not count against them.",
+            ),
+        ),
     ]

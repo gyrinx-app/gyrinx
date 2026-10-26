@@ -67,6 +67,8 @@ class TacticCard:
     developed: bool = False
     #: Where the tactic is printed in the books.
     reference: str = ""
+    #: Drawn as a bonus, outside the ranks' allowance.
+    bonus: bool = False
 
 
 @dataclass(frozen=True)
@@ -167,7 +169,9 @@ def allowance(gang, tactics=None, members=None):
     tactics = held(gang) if tactics is None else tactics
     members = roster(gang) if members is None else members
     spent = {}
-    for tactic in tactics:
+    # A bonus tactic is held but was never paid for by a rank.
+    counted = [tactic for tactic in tactics if not tactic.bonus]
+    for tactic in counted:
         spent[tactic.source_id] = spent.get(tactic.source_id, 0) + 1
     amounts = {}
     counter = tactics_contribution_counter()
@@ -197,7 +201,7 @@ def allowance(gang, tactics=None, members=None):
         Share(by_pk[pk], amount, spent.get(pk, 0)) for pk, amount in amounts.items()
     ]
     shares.sort(key=lambda share: (-share.amount, share.miniature.name))
-    return Allowance(shares=tuple(shares), held=len(tactics))
+    return Allowance(shares=tuple(shares), held=len(counted))
 
 
 def tables(gang):
@@ -213,7 +217,6 @@ def tables(gang):
         held_assets,
     )
     from n26.core.effects import compute
-    from n26.library.gang_tactics import SLOT_TYPE
     from n26.library.models import Slot
 
     card = build_gang_cards([gang], {gang.pk: held_assets(gang)})[gang.pk]
@@ -223,8 +226,24 @@ def tables(gang):
         for contribution in computed.acquired
         if isinstance(contribution.thing, Slot)
     }
+    return _tables_of(Slot.objects.filter(pk__in=given))
+
+
+def every_table():
+    """Every Gang Tactics table in the library, in their slots' order. A
+    bonus tactic may be drawn from any of them, whichever gangs they are
+    given to."""
+    from n26.library.models import Slot
+
+    return _tables_of(Slot.objects.filter(archived=False, picklist__archived=False))
+
+
+def _tables_of(slots):
+    """The roll tables these Gang Tactic slots name, each once."""
+    from n26.library.gang_tactics import SLOT_TYPE
+
     slots = (
-        Slot.objects.filter(pk__in=given, slot_type__name__iexact=SLOT_TYPE)
+        slots.filter(slot_type__name__iexact=SLOT_TYPE)
         .exclude(picklist__dice="")
         .select_related("picklist")
         .order_by("position", "name")
@@ -239,21 +258,23 @@ def tables(gang):
     return found
 
 
-def _table(gang, key):
-    """One of the gang's tables by its key, or a refusal."""
-    for table in tables(gang):
+def _table(gang, key, *, bonus=False):
+    """One of the gang's tables by its key, or any table for a bonus, or
+    a refusal."""
+    for table in every_table() if bonus else tables(gang):
         if table.key == key:
             return table
     raise Refusal("Choose a table this gang can roll on.")
 
 
-def table_choices(gang, tactics, chosen=""):
-    """Each table as a radio card. A table the gang holds every result
-    of is marked full, and is never the default."""
+def table_choices(gang, tactics, chosen="", *, bonus=False):
+    """Each table as a radio card: the gang's own, or every table for a
+    bonus. A table the gang holds every result of is marked full, and is
+    never the default."""
     holding = {tactic.pickable_id for tactic in tactics}
     choices = []
     open_tables = []
-    for table in tables(gang):
+    for table in every_table() if bonus else tables(gang):
         full = all(member.pickable_id in holding for member in table.members)
         if not full:
             open_tables.append(table.key)
@@ -305,6 +326,7 @@ def cards(tactics, show_text=None):
                 timing=keywords(timing),
                 effect=keywords(effect),
                 developed=tactic.action_record_id is not None,
+                bonus=tactic.bonus,
                 reference=tactic.pickable.summary,
             )
         )
@@ -352,6 +374,36 @@ def roll_tactics(op, table_key, count, rng=None):
     return gained
 
 
+def roll_bonus_tactics(op, table_key, count, rng=None):
+    """Draw ``count`` bonus tactics from any table and add them to the gang.
+
+    A bonus is outside what the gang's ranks allow: it spends no share and
+    does not count against them. It still never duplicates a tactic the
+    gang holds.
+    """
+    gang = op.gang
+    table = _table(gang, table_key, bonus=True)
+    if count < 1:
+        raise Refusal("Draw at least one bonus tactic.")
+    holding = {one.pickable_id for one in held(gang)}
+    gained = []
+    for _ in range(count):
+        roll, landed, rolls = _roll_free(gang, table, holding, rng)
+        holding.add(landed.pickable_id)
+        gained.append(
+            op.gain_tactic(
+                picklist=table.picklist,
+                pickable=landed.pickable,
+                roll=roll,
+                dice=table.dice,
+                source=None,
+                bonus=True,
+                note=f"{_rolled_note(table, landed, rolls)} as a bonus",
+            )
+        )
+    return gained
+
+
 def reroll_tactic(op, old, table_key, rng=None):
     """Swap one held tactic for a new roll on the table the owner picks.
 
@@ -370,7 +422,7 @@ def reroll_tactic(op, old, table_key, rng=None):
     )
     if old.archived:
         raise Refusal("That Gang Tactic has already gone.")
-    table = _table(gang, table_key)
+    table = _table(gang, table_key, bonus=old.bonus)
     holding = {one.pickable_id for one in held(gang)}
     roll, landed, rolls = _roll_free(gang, table, holding, rng)
     was = name_of(old)
@@ -382,6 +434,7 @@ def reroll_tactic(op, old, table_key, rng=None):
         dice=table.dice,
         source=old.source,
         action_record=old.action_record,
+        bonus=old.bonus,
         note=f"{was} into {_rolled_note(table, landed, rolls)}",
         kind=LedgerEvent.Kind.TACTIC_REROLLED,
     )
@@ -496,7 +549,7 @@ def too_many_among(campaign, gangs):
         return set()
     by_pk = {gang.pk: gang for gang in gangs}
     holding = (
-        GangTactic.objects.filter(gang_id__in=by_pk, archived=False)
+        GangTactic.objects.filter(gang_id__in=by_pk, archived=False, bonus=False)
         .values("gang_id")
         .annotate(held=Count("pk"))
     )

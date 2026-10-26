@@ -13,7 +13,8 @@ library (``n26/core/models/AGENTS.md``).
 
 A discarded tactic is archived rather than deleted, so the record of
 what was rolled stays. A tactic rolled by the Develop Tactics action names
-that action's record. Only one tactic of each kind may be held at a
+that action's record. A bonus tactic is drawn outside the ranks' allowance
+and does not count against it. Only one tactic of each kind may be held at a
 time, which is the rule's "no duplicates" kept by the database.
 """
 
@@ -57,6 +58,13 @@ class GangTactic(Base, Archived):
         blank=True,
         related_name="gang_tactics",
         help_text="The Develop Tactics action this tactic was rolled for, if any.",
+    )
+    bonus = models.BooleanField(
+        default=False,
+        help_text=(
+            "Drawn as a bonus, from any table, outside what the gang's ranks "
+            "allow. It does not count against them."
+        ),
     )
 
     class Meta:
