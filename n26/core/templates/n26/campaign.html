@@ -238,6 +238,13 @@ reader's other campaigns — the same pattern a gang's screens use.
                         </li>
                     {% endfor %}
                 </ul>
+                {% if battles_cut %}
+                    <p class="border-t border-box-border px-4 py-3 text-sm">
+                        <c-n26.link href="{% url 'n26-campaign-battles' campaign.pk %}">
+                            Show all {{ sheet.battles_fought }} battles
+                        </c-n26.link>
+                    </p>
+                {% endif %}
             {% else %}
                 <p class="p-4 text-sm text-muted">No battles yet.</p>
             {% endif %}

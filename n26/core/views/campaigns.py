@@ -30,8 +30,8 @@ CAMPAIGNS_PER_PAGE = 25
 PEOPLE_FOUND = 10
 
 #: How many battles the campaign's page lists, newest first. A campaign
-#: played for a year has more than a page wants; the rest wait for a screen
-#: of their own.
+#: played for a year has more than a page wants; the campaign's battles
+#: page lists the rest.
 BATTLES_ON_THE_PAGE = 10
 
 #: How many acts the campaign's own page shows before saying there are more.
@@ -296,6 +296,7 @@ def campaign(request, pk):
             "invitation_count": invitation_count,
             "invitations": invitations,
             "battles": battles,
+            "battles_cut": sheet.battles_fought > BATTLES_ON_THE_PAGE,
             "acts": acts,
             "more_acts": more_acts,
             **_roll_context(

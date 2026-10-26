@@ -5,6 +5,7 @@ site's own row, and only these tests may reach across to the platform.
 """
 
 import re
+from datetime import date
 from importlib import import_module
 
 import pytest
@@ -20,7 +21,7 @@ from n26.core.models import (
     CampaignMembership,
     CampaignParticipant,
 )
-from n26.core.views.campaigns import LOG_ON_THE_PAGE
+from n26.core.views.campaigns import BATTLES_ON_THE_PAGE, LOG_ON_THE_PAGE
 from n26.library.authoring import create_wargear
 from n26.tests.sandbox.actions import assign, found_campaign, found_gang, hire
 
@@ -1059,6 +1060,27 @@ class TestBattlesOnTheCampaignsPage:
         drawn = self.page(client, campaign)
         assert "No battles yet." in drawn
         assert "archived the battle: Stand-off" in drawn
+
+    def battles_drawn(self, drawn):
+        section = BeautifulSoup(drawn, "html.parser").find(id="battles")
+        return section.select("a.n26-row-link")
+
+    def test_a_long_campaign_links_to_every_battle(self, client, campaign):
+        for day in range(1, BATTLES_ON_THE_PAGE + 3):
+            Battle.objects.create(campaign=campaign, date=date(2026, 8, day))
+        Battle.objects.create(campaign=campaign, date=date(2026, 9, 1), archived=True)
+
+        drawn = self.page(client, campaign)
+        assert len(self.battles_drawn(drawn)) == BATTLES_ON_THE_PAGE
+        assert f"Show all {BATTLES_ON_THE_PAGE + 2} battles" in drawn
+        assert f'href="/n26/campaigns/{campaign.pk}/battles/"' in drawn
+
+    def test_a_short_campaign_offers_no_more(self, client, campaign):
+        for day in range(1, BATTLES_ON_THE_PAGE + 1):
+            Battle.objects.create(campaign=campaign, date=date(2026, 8, day))
+        drawn = self.page(client, campaign)
+        assert len(self.battles_drawn(drawn)) == BATTLES_ON_THE_PAGE
+        assert "Show all" not in drawn
 
     def test_another_campaigns_battle_is_not_reachable(
         self, client, campaign, arbitrator, campaign_type
