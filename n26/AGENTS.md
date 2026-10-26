@@ -34,6 +34,7 @@ When it is present, read the relevant note before a non-trivial change.
 | `n26/impersonation.py` | `gyrinx.impersonation` | Keep the shared session and audit behaviour behind this file. |
 | `n26/profiles.py` | `gyrinx.accounts.public_profiles` | Register public account display data and reuse canonical username lookup and redirects. |
 | `n26/write_pause.py` | `gyrinx.site.write_pause` | Keep the platform write-pause state behind this file. |
+| `n26/errors.py` | `gyrinx.errors` | Expected failures expose an explicit public message; unexpected errors keep their tracebacks. |
 | `n26/maintenance.py` | `gyrinx.maintenance`, `gyrinx.tasks` | Register edition repairs here. Never import `gyrinx.maintenance.admin`. |
 | `n26/library/artwork.py` | `gyrinx.artwork` | Bind N26's upload folder here; keep storage-address checks in the platform. |
 | `n26/core/templatetags/artwork.py` | `gyrinx.svg` | Use the shared SVG sanitiser rather than another allowlist. |
