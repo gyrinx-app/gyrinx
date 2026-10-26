@@ -1286,6 +1286,73 @@ class CampaignOperation:
                 available.discard(result.campaign_asset.asset_id)
         return results
 
+    def edit_asset(self, campaign_asset, *, name="", income=None):
+        """Change one holding's name and base income under the campaign lock."""
+        from n26.core.operations import Refusal
+        from n26.library.authoring import (
+            delete_modifier,
+            ef_contributes_to_counter,
+            modifier,
+            targets_gang_alone,
+        )
+        from n26.library.income import ensure_income_counter
+
+        if self.actor is None or self.actor.pk != self.campaign.owner_id:
+            raise Refusal("Only the arbitrator can edit an asset.")
+        holding = _asset_under_the_lock(campaign_asset)
+        if holding is None:
+            raise Refusal("This asset was removed from the campaign.")
+        if holding.campaign_id != self.campaign.pk:
+            raise ValueError("The asset belongs to another campaign.")
+        name = (name or "").strip()
+        if len(name) > 200:
+            raise Refusal("The name must be at most 200 characters.")
+        if income is not None and (
+            not isinstance(income, int) or not 0 <= income <= 2147483647
+        ):
+            raise Refusal("Income must be between 0 and 2147483647.")
+        previous = holding.income_override
+        previous_income = (
+            previous.contributes_to_counter.amount if previous is not None else None
+        )
+        if (holding.name, previous_income) == (name, income):
+            return None
+
+        changes = []
+        was = holding.name or holding.asset.name
+        now = name or holding.asset.name
+        if holding.name != name:
+            changes.append(f"name {was} → {now}")
+        if previous_income != income:
+            # Batch-added holdings can share an override. Replace the reference
+            # so editing this holding cannot change another one's income.
+            holding.income_override = (
+                modifier(
+                    f"Income override {uuid4()}",
+                    targets_gang_alone(),
+                    ef_contributes_to_counter(ensure_income_counter(), income),
+                    pack=self.campaign.pack,
+                )
+                if income is not None
+                else None
+            )
+            before = "catalogue" if previous_income is None else f"{previous_income}¢"
+            after = "catalogue" if income is None else f"{income}¢"
+            changes.append(f"income override {before} → {after}")
+        holding.name = name
+        holding.save(update_fields=["name", "income_override", "modified"])
+        if (
+            previous is not None
+            and previous.pk != holding.income_override_id
+            and not CampaignAsset.objects.filter(income_override=previous).exists()
+        ):
+            delete_modifier(previous)
+        note = "; ".join(changes)
+        if len(changes) == 1 and previous_income != income:
+            note = f"{now}: {note}"
+        self.event(CampaignEvent.Kind.ASSET_EDITED, note=note)
+        return holding
+
     def remove_asset(self, campaign_asset):
         """Take an asset nobody holds out of the campaign.
 

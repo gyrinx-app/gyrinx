@@ -1,0 +1,61 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% block head_title %}Edit {{ holding }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{{ request.get_full_path }}"
+                     title="Edit {{ holding }}"
+                     :form="form"
+                     submit_label="Save"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ detail_href }}">
+                    {{ holding }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Edit
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="Details">
+            <p class="text-sm text-muted">Catalogue entry: {{ holding.asset }} · Income: {{ catalogue_income }}¢.</p>
+            <c-ui.field :label="form.name.label"
+                        :description="form.name.help_text"
+                        error="x"
+                        :form="form"
+                        name="name"
+                        for="asset-name">
+                <c-ui.input id="asset-name"
+                            name="name"
+                            maxlength="200"
+                            autocomplete="off"
+                            value="{{ form.name.value|default:'' }}" />
+            </c-ui.field>
+            <c-ui.field :label="form.income.label"
+                        :description="form.income.help_text"
+                        error="x"
+                        :form="form"
+                        name="income"
+                        for="asset-income">
+                <c-ui.input id="asset-income"
+                            name="income"
+                            type="number"
+                            min="0"
+                            max="2147483647"
+                            inputmode="numeric"
+                            right_addon="¢"
+                            value="{{ form.income.value|default_if_none:'' }}" />
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

@@ -1803,6 +1803,8 @@ def _tell_campaign(e):
         case kinds.ASSET_REMOVED:
             what = f"the asset {e.note}" if e.note else "an asset"
             return (Span(f"removed {what}"),), "campaign"
+        case kinds.ASSET_EDITED:
+            return (Span(f"edited an asset: {e.note}"),), "campaign"
         case kinds.ASSET_ROLLED:
             # The note is the whole sentence — "Rolled 34 from the Territory
             # Selection Table: Old Ruins." — written to stand on its own,
