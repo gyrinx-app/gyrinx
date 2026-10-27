@@ -29,7 +29,8 @@ if [ "${NPM_STATUS:-0}" -ne 0 ]; then
   exit "$NPM_STATUS"
 fi
 if [ "$1" = "ci" ]; then
-  mkdir -p node_modules
+  mkdir -p node_modules/react-dom
+  printf '%s\\n' '{"name":"react-dom"}' > node_modules/react-dom/package.json
 elif [ "$1" = "run" ] && [ "$2" = "js" ]; then
   mkdir -p n26/core/static/n26/react
   printf '{}\\n' > n26/core/static/n26/react/manifest.json
@@ -516,6 +517,98 @@ provision_worktree_frontend "$2"
     ]
     lock_pid = worktree / ".gyrinx-frontend-provision.lock" / "pid"
     assert lock_pid.read_text().strip() == "999999"
+
+
+def test_frontend_provision_installs_when_react_dom_is_absent(tmp_path):
+    worktree = _islands_worktree(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_fake_npm(bin_dir)
+    modules = worktree / "node_modules"
+    modules.mkdir()
+    manifest = worktree / "n26/core/static/n26/react/manifest.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("{}\n")
+    _touch_later(modules, manifest)
+
+    result = _provision(worktree, bin_dir)
+
+    assert result.returncode == 0, result.stderr
+    assert (bin_dir / "npm-calls").read_text().splitlines() == [
+        "ci --no-audit --no-fund",
+    ]
+    assert (modules / "react-dom/package.json").is_file()
+
+
+def test_frontend_provision_refuses_a_node_modules_symlink(tmp_path):
+    parent = tmp_path / "shared-checkout"
+    (parent / "node_modules/react-dom").mkdir(parents=True)
+    (parent / "node_modules/react-dom/package.json").write_text("{}\n")
+    worktree = _islands_worktree(tmp_path)
+    (worktree / "node_modules").symlink_to(
+        parent / "node_modules", target_is_directory=True
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_fake_npm(bin_dir)
+
+    result = _provision(worktree, bin_dir)
+
+    assert result.returncode == 1
+    assert "outside this checkout" in result.stderr
+    assert "Do not edit the other checkout's node_modules." in result.stderr
+    assert "npm ci --no-audit --no-fund" in result.stderr
+    assert not (bin_dir / "npm-calls").exists()
+    assert (parent / "node_modules/react-dom/package.json").is_file()
+
+
+def test_dev_build_stamp_skips_until_an_island_changes(tmp_path):
+    worktree = _islands_worktree(tmp_path)
+    react = worktree / "n26/core/static/n26/react"
+    react.mkdir(parents=True)
+    (react / "manifest.json").write_text("{}\n")
+    stamp = react / ".dev-build"
+    stamp.write_text("\n")
+    _touch_later(react / "manifest.json", stamp)
+
+    def current() -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                "/bin/bash",
+                "-c",
+                """
+source "$1"
+if _frontend_dev_build_current "$2"; then
+  exit 0
+fi
+exit 1
+""",
+                "test",
+                str(REPO_ROOT / "scripts/lib/worktree.sh"),
+                str(worktree),
+            ],
+            text=True,
+            capture_output=True,
+        )
+
+    assert current().returncode == 0
+
+    island = worktree / "n26/frontend/islands/list.tsx"
+    island.write_text("export const changed = 1\n")
+    later = stamp.stat().st_mtime + 5
+    os.utime(island, (later, later))
+
+    changed = current()
+    assert changed.returncode == 1, changed.stderr
+
+
+def test_dev_sh_guards_react_and_skips_a_current_dev_build():
+    source = (REPO_ROOT / "scripts/dev.sh").read_text()
+
+    assert "_frontend_react_guard" in source
+    assert "_frontend_dev_build_current" in source
+    assert "npm run js:dev" in source
+    assert "development build is current" in source
 
 
 def test_both_provisioners_hand_off_through_the_shared_release():
