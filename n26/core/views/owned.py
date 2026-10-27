@@ -620,6 +620,7 @@ def owned_dialog(request, host: EquipHost):
                 "changing": True,
                 "choices": pick_group_props(choices),
                 "before": sum(row.default_set.price for row in recorded),
+                "held": sorted(str(key) for key in taken),
                 "fixed": [
                     {
                         "setKey": str(offered[0].default_set.pk),

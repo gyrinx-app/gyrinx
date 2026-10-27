@@ -94,6 +94,7 @@ describe("option price previews", () => {
                     },
                 ]}
                 before={0}
+                held={[]}
             />,
         );
         expect(
@@ -170,7 +171,14 @@ describe("option price previews", () => {
     });
 
     it("shows the change against the held options' full prices", () => {
-        render(<EquipPrice changing choices={groups} before={25} />);
+        render(
+            <EquipPrice
+                changing
+                choices={groups}
+                before={25}
+                held={["launchers"]}
+            />,
+        );
         expect(screen.getByRole("status").textContent).toBe("No price change");
         fireEvent.click(
             screen.getByRole("radio", { name: "Plasma guns +15¢" }),
@@ -211,17 +219,17 @@ describe("option price previews", () => {
         host.remove();
     });
 
-    it("counts shared sets once and includes fixed options when changing a held copy", () => {
-        const duplicate: PickGroup = {
-            ...groups[1],
-            options: [{ ...groups[0].options[0], checked: true }],
-        };
+    it("leaves unchanged shared sets alone and includes fixed options in a change", () => {
         render(
             <EquipPrice
                 changing
-                choices={[groups[0], duplicate]}
+                choices={[groups[0]]}
                 before={32}
-                fixed={[{ setKey: "fixed", price: 7 }]}
+                held={["launchers", "fixed"]}
+                fixed={[
+                    { setKey: "launchers", price: 25 },
+                    { setKey: "fixed", price: 7 },
+                ]}
             />,
         );
         expect(screen.getByRole("status").textContent).toBe("No price change");
@@ -232,6 +240,66 @@ describe("option price previews", () => {
             "Options charge 40¢",
         );
     });
+
+    it.each([true, false])(
+        "matches settlement when a shared group is fixed: %s",
+        (fixed) => {
+            const guns: PickGroup = {
+                ...groups[0],
+                options: groups[0].options.map((option) => ({
+                    ...option,
+                    checked: option.value === "1",
+                })),
+            };
+            const shared: PickGroup = {
+                ...groups[1],
+                options: [
+                    {
+                        ...groups[0].options[0],
+                        name: "Extra launchers",
+                        checked: false,
+                    },
+                    {
+                        name: "Extra fitting",
+                        value: "1",
+                        price: 7,
+                        surcharge: 7,
+                        surchargeLabel: "+7¢",
+                        setKey: "extra",
+                        checked: true,
+                    },
+                ],
+            };
+            render(
+                <EquipPrice
+                    changing
+                    choices={fixed ? [guns] : [guns, shared]}
+                    before={fixed ? 65 : 47}
+                    held={[fixed ? "launchers" : "extra", "plasma"]}
+                    fixed={fixed ? [{ setKey: "launchers", price: 25 }] : []}
+                />,
+            );
+            expect(screen.getByRole("status").textContent).toBe(
+                "No price change",
+            );
+            fireEvent.click(screen.getByRole("radio", { name: "Launchers" }));
+            expect(screen.getByRole("status").textContent).toBe(
+                "Options refund 15¢",
+            );
+            if (!fixed) {
+                fireEvent.click(
+                    screen.getByRole("radio", { name: "Extra launchers" }),
+                );
+                expect(screen.getByRole("status").textContent).toBe(
+                    "Options charge 3¢",
+                );
+                fireEvent.click(screen.getByRole("radio", { name: "None" }));
+                expect(screen.getByRole("status").textContent).toBe(
+                    "Options refund 22¢",
+                );
+            }
+        },
+    );
 });
 
 describe("EquipPrice", () => {

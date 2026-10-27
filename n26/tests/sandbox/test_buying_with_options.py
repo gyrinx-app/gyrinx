@@ -799,6 +799,73 @@ class TestTheWayToChangeThem:
 class TestChangingThem:
     """The swap settles on the thing's own line, in either direction."""
 
+    @pytest.mark.parametrize("mode", ["one", "one-or-none"])
+    def test_shared_set_preview_prices_match_saving_and_unchanged_is_free(
+        self, client, owner, gang, fighter, default_pack, mode
+    ):
+        from n26.core.models import LedgerEntry
+
+        mount = create_wargear("Shared-set mount", price=100)
+        standard = offer_option(
+            mount, "Standard guns", price=25, thing=create_wargear("Standard guns")
+        )
+        upgrade = offer_option(
+            mount, "Upgraded guns", price=40, thing=create_wargear("Upgraded guns")
+        )
+        shared = create_option_group(mount, "Shared guns", choose=mode)
+        offer_option(
+            mount, "Extra guns", default_set=standard.default_set, group=shared
+        )
+        extra = None
+        if mode == "one-or-none":
+            extra = offer_option(
+                mount,
+                "Extra fitting",
+                price=7,
+                thing=create_wargear("Extra fitting"),
+                group=shared,
+            )
+        collection = create_collection("Shared equipment", entries=[mount])
+        assign(collection, gang=gang)
+        client.force_login(owner)
+        choices = {choice_field(mount, 0): "1"}
+        if mode == "one-or-none":
+            choices[choice_field(mount, 1)] = "1"
+        client.post(equip_url(fighter, collection), {"thing": key_of(mount), **choices})
+        entry = LedgerEntry.objects.get(assignment__wargear=mount)
+        preview_url = f"{equip_url(fighter, collection)}&rechoose={entry.assignment_id}"
+        preview = client.get(preview_url).context["dialog"]["price_preview"]
+        assert preview["before"] == (47 if extra else 65)
+        assert set(preview["held"]) == {
+            str((extra or standard).default_set_id),
+            str(upgrade.default_set_id),
+        }
+
+        gang.refresh_from_db()
+        before = gang.credits
+        choices[choice_field(mount, 0)] = "0"
+        if mode == "one-or-none":
+            choices[choice_field(mount, 1)] = "0"
+        client.post(
+            reverse("n26-rechoose", args=[entry.assignment_id]),
+            {"list": str(collection.pk), **choices},
+        )
+        gang.refresh_from_db()
+        assert gang.credits - before == (-3 if extra else 15)
+        assert_reconciled(gang)
+
+        preview = client.get(preview_url).context["dialog"]["price_preview"]
+        assert preview["before"] == 25
+        assert preview["held"] == [str(standard.default_set_id)]
+        before = gang.credits
+        client.post(
+            reverse("n26-rechoose", args=[entry.assignment_id]),
+            {"list": str(collection.pk), **choices},
+        )
+        gang.refresh_from_db()
+        assert gang.credits == before
+        assert_reconciled(gang)
+
     def bought(self, client, owner, fighter, house_list, cutter, **picked):
         client.force_login(owner)
         client.post(equip_url(fighter, house_list), {"thing": key_of(cutter), **picked})

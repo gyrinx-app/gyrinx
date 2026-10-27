@@ -44,18 +44,12 @@ export function useChoices(
             selected[group.field]?.includes(option.value),
         ),
     );
+    const options = [...fixed, ...picked];
     return {
         selected,
         surcharge: picked.reduce((sum, option) => sum + option.surcharge, 0),
-        // A default set can be offered in more than one group, but is held once.
-        price: [
-            ...new Map(
-                [...fixed, ...picked].map((option) => [
-                    option.setKey,
-                    option.price,
-                ]),
-            ).values(),
-        ].reduce((sum, price) => sum + price, 0),
+        price: options.reduce((sum, option) => sum + option.price, 0),
+        setKeys: new Set(options.map((option) => option.setKey)),
         onPick(group: PickGroup, value: string, checked: boolean) {
             setSelected((previous) => ({
                 ...previous,

@@ -3345,9 +3345,15 @@ def _stock(name):
 
 def owned_context():
     """What a fighter is carrying, and the things that can happen to it."""
-    from n26.core.listing import copy_row, pick_groups
+    from n26.core.listing import copy_row, pick_group_props, pick_groups
 
     named = {"cancel_url": "#", "action": "#", "list": "", "name": "Meltagun"}
+    held_options = {"Ridge-runner harpoon", "Ridge-runner spikes"}
+    choices = pick_groups(
+        _offered_choices("Ridge-runner"),
+        "library.wargear:ridge-runner",
+        taken=held_options,
+    )
     return {
         "owned_copies": [
             copy_row(thing) for entries in carried().values() for thing in entries
@@ -3445,11 +3451,14 @@ def owned_context():
             "kind": "rechoose",
             "name": "Ridge-runner",
             "title": "Change Ridge-runner's options",
-            "choices": pick_groups(
-                _offered_choices("Ridge-runner"),
-                "library.wargear:ridge-runner",
-                taken={"Ridge-runner harpoon", "Ridge-runner spikes"},
-            ),
+            "choices": choices,
+            "price_preview": {
+                "changing": True,
+                "choices": pick_group_props(choices),
+                "before": 35,
+                "held": sorted(held_options),
+                "fixed": [],
+            },
             "submit_label": "Save options",
             "submit_variant": "success",
         },

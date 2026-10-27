@@ -30,6 +30,7 @@ export type OptionChangeProps = {
     changing: true;
     choices: PickGroup[];
     before: number;
+    held: string[];
     fixed?: { setKey: string; price: number }[];
     initialSelections?: Record<string, string[]>;
 };
@@ -178,7 +179,12 @@ function OptionChange(props: OptionChangeProps) {
         props.initialSelections,
         props.fixed,
     );
-    const difference = choices.price - props.before;
+    // Settlement leaves the same set identities unchanged; changed selections
+    // include each selected occurrence when calculating their price.
+    const unchanged =
+        choices.setKeys.size === props.held.length &&
+        props.held.every((key) => choices.setKeys.has(key));
+    const difference = unchanged ? 0 : choices.price - props.before;
     return (
         <>
             <OptionChoices groups={props.choices} {...choices} />
