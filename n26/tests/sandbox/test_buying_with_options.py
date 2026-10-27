@@ -31,6 +31,7 @@ from n26.tests.sandbox.actions import (
     buy,
     create_category,
     create_collection,
+    create_default_set,
     create_option_group,
     create_wargear,
     create_weapon,
@@ -1270,6 +1271,62 @@ class TestAPickTheListingNeverOffered:
 class TestScaling:
     """The offer rides the listing's own prefetches: a collection full of
     mounts asks the database no more than a collection with one."""
+
+    def test_change_options_queries_do_not_grow_with_held_grants(
+        self, client, owner, gang, fighter, default_pack
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.models import LedgerEntry
+
+        mounts = []
+        for count in (2, 12):
+            weapons = [
+                create_weapon(f"Grant {count}-{index}", profiles=[("Standard", 0)])
+                for index in range(count)
+            ]
+            bundle = create_default_set(f"Grant bundle {count}", members=weapons)
+            mount = create_wargear(f"Grant mount {count}", price=100)
+            offer_option(mount, "Standard bundle", default_set=bundle)
+            offer_option(
+                mount,
+                "Other bundle",
+                price=10,
+                thing=create_wargear(f"Other grant {count}"),
+            )
+            mounts.append((mount, weapons))
+        collection = create_collection(
+            "Grant equipment", entries=[mount for mount, _ in mounts]
+        )
+        assign(collection, gang=gang)
+        client.force_login(owner)
+        urls = []
+        for mount, weapons in mounts:
+            client.post(equip_url(fighter, collection), {"thing": key_of(mount)})
+            carrier = LedgerEntry.objects.get(assignment__wargear=mount).assignment_id
+            for weapon in weapons:
+                gun = Assignment.objects.get(
+                    miniature_root=fighter, weapon=weapon, archived=False
+                )
+                attach(
+                    gun,
+                    create_weapon_accessory(f"Sight for {weapon.name}", price=1),
+                    paid=1,
+                )
+            urls.append(f"{equip_url(fighter, collection)}&rechoose={carrier}")
+
+        def measure(url):
+            client.get(url)
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(url)
+                assert response.status_code == 200
+                assert response.context["dialog"]["price_preview"]["refunds"]
+            return len(queries)
+
+        assert measure(urls[0]) == measure(urls[1])
+        gang.refresh_from_db()
+        assert_reconciled(gang)
 
     def test_a_list_of_optioned_things_costs_no_more_queries_to_browse(
         self, client, gang, default_pack

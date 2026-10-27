@@ -33,7 +33,7 @@ from functools import cached_property
 from uuid import uuid4
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 
 from n26.core.models import (
     Assignment,
@@ -189,33 +189,36 @@ def _ammo_rows_without_provenance(carrier, default_set, tagged):
     archived member may never have materialised for this carrier.
     """
     from n26.core.models import Reason
-    from n26.library.models import WeaponProfile
 
     wanted = {}
     for member in default_set.members.filter(archived=False):
-        assignable = member.assignable
-        if isinstance(assignable, WeaponProfile):
-            wanted[assignable] = wanted.get(assignable, 0) + 1
+        if member.weapon_profile_id is not None:
+            wanted[member.weapon_profile_id] = (
+                wanted.get(member.weapon_profile_id, 0) + 1
+            )
     for copy in tagged:
-        if copy.assignable in wanted:
-            wanted[copy.assignable] -= 1
+        if copy.weapon_profile_id in wanted:
+            wanted[copy.weapon_profile_id] -= 1
 
-    rows = []
-    for assignable, count in wanted.items():
-        if count <= 0:
-            continue
-        matches = Assignment.objects.filter(
-            weapon_profile=assignable,
-            archived=False,
-            materialised_from__isnull=True,
-            ledger_entry__reason=Reason.DEFAULT,
-            gang_root=carrier.gang_root,
-            miniature_root=carrier.miniature_root,
-            # Granted ammo is caused by its gun, not by the carrier.
-            caused_by__isnull=False,
-        )
-        rows.extend(matches.order_by("-pk")[:count])
-    return rows
+    needed = {profile_id: count for profile_id, count in wanted.items() if count > 0}
+    if not needed:
+        return []
+    matches = Assignment.objects.filter(
+        weapon_profile_id__in=needed,
+        archived=False,
+        materialised_from__isnull=True,
+        ledger_entry__reason=Reason.DEFAULT,
+        gang_root=carrier.gang_root,
+        miniature_root=carrier.miniature_root,
+        # Granted ammo is caused by its gun, not by the carrier.
+        caused_by__isnull=False,
+    ).order_by("-pk")
+    by_profile = {profile_id: [] for profile_id in needed}
+    for row in matches:
+        if needed[row.weapon_profile_id] > 0:
+            by_profile[row.weapon_profile_id].append(row)
+            needed[row.weapon_profile_id] -= 1
+    return [row for profile_id in by_profile for row in by_profile[profile_id]]
 
 
 def option_refunds(carrier, default_sets):
@@ -224,13 +227,45 @@ def option_refunds(carrier, default_sets):
     Departing options may share descendants. Keep their identities so a
     preview can count each refunded assignment once, as settlement does.
     """
+    roots = {
+        default_set.pk: {row.pk for row in option_grants(carrier, default_set)}
+        for default_set in default_sets
+    }
+    frontier = set().union(*roots.values()) if roots else set()
+    rows = {
+        row.pk: row
+        for row in Assignment.objects.filter(pk__in=frontier).select_related(
+            "ledger_entry"
+        )
+    }
+    children = {}
+    # Batch each depth of the refund graph, rather than querying each grant.
+    # Archived intermediates may still have live descendants to refund.
+    while frontier:
+        found = list(
+            Assignment.objects.filter(
+                Q(parent_id__in=frontier) | Q(caused_by_id__in=frontier)
+            ).select_related("ledger_entry")
+        )
+        for row in found:
+            for parent in (row.parent_id, row.caused_by_id):
+                if parent is not None:
+                    children.setdefault(parent, set()).add(row.pk)
+        frontier = {row.pk for row in found if row.pk not in rows}
+        rows.update((row.pk, row) for row in found)
     refunds = {}
-    for default_set in default_sets:
-        rows = {}
-        for granted in option_grants(carrier, default_set):
-            for row in refund_of(granted)[0]:
-                rows[row.pk] = row
-        refunds[default_set.pk] = tuple(rows.values())
+    for key, granted in roots.items():
+        pending = list(granted)
+        seen = set()
+        while pending:
+            pk = pending.pop()
+            if pk in seen:
+                continue
+            seen.add(pk)
+            pending.extend(children.get(pk, ()))
+        refunds[key] = tuple(
+            rows[pk] for pk in seen if pk in rows and not rows[pk].archived
+        )
     return refunds
 
 
