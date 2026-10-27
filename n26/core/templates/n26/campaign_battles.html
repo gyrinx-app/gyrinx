@@ -144,15 +144,17 @@ battle links to its own page.
                             </div>
                             <div class="min-w-0 text-sm">
                                 <p class="mb-1 text-xs font-medium text-muted md:hidden">Stake</p>
-                                {% if line.stake %}
-                                    <p class="font-medium">{{ line.stake }}</p>
-                                    <p class="text-xs text-muted">
-                                        {{ line.stake.asset.asset_type.label_singular }}
-                                        {% if line.battle.stake_awarded_to %}· to {{ line.battle.stake_awarded_to.name }}{% endif %}
-                                    </p>
-                                {% else %}
+                                {% for stake in line.stakes %}
+                                    <div {% if not forloop.first %}class="mt-2"{% endif %}>
+                                        <p class="font-medium">{{ stake }}</p>
+                                        <p class="text-xs text-muted">
+                                            {{ stake.asset.asset.asset_type.label_singular }}
+                                            {% if stake.awarded_to %}· to {{ stake.awarded_to.name }}{% endif %}
+                                        </p>
+                                    </div>
+                                {% empty %}
                                     <span class="text-muted">—</span>
-                                {% endif %}
+                                {% endfor %}
                             </div>
                             <div class="hidden text-sm tabular-nums md:block">
                                 <time datetime="{{ line.battle.date|date:'Y-m-d' }}">{{ line.battle.date|date:"j M Y" }}</time>

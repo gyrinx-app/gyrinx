@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from n26.core.campaigns import battle_stake, stake_came_from
+from n26.core.campaigns import battle_stakes
 from n26.core.models import (
     Battle,
     BattleCrew,
@@ -386,36 +386,34 @@ def post_battle_editor(request, pk):
                 "corrections": corrections,
             }
         )
-    stake = battle_stake(report.battle, request.user)
-    territory = None
-    if stake:
-        applied = (
-            bool(report.battle.stake_transfer_mark)
-            or report.battle.result != report.battle.Result.NOT_RECORDED
-        )
-        if report.battle.stake_transfer_mark:
-            source = stake_came_from(report.battle)
+    territories = []
+    for stake in battle_stakes(report.battle, request.user):
+        recorded = report.battle.result != report.battle.Result.NOT_RECORDED
+        applied = stake.moved or recorded
+        if stake.moved:
             outcome = (
-                f"Moved from {source.name} to {stake.awarded_to}."
-                if source
+                f"Moved from {stake.moved_from} to {stake.awarded_to}."
+                if stake.moved_from
                 else f"Moved to {stake.awarded_to}."
             )
-        elif report.battle.result == report.battle.Result.NOT_RECORDED:
+        elif not recorded:
             outcome = "Outcome not recorded."
         else:
             outcome = stake.outcome
-        territory = {
-            "name": stake.name,
-            "heading": stake.label,
-            "outcome": outcome,
-            "currentHolder": stake.held_by,
-            "applied": applied,
-            "note": (
-                "The campaign’s arbitrator records this outcome on Edit battle."
-                if not applied
-                else "Already applied."
-            ),
-        }
+        territories.append(
+            {
+                "name": stake.name,
+                "heading": stake.label,
+                "outcome": outcome,
+                "currentHolder": stake.held_by,
+                "applied": applied,
+                "note": (
+                    "The campaign’s arbitrator records this outcome on Edit battle."
+                    if not applied
+                    else "Already applied."
+                ),
+            }
+        )
     context = {
         "report": report,
         "gang": report.gang,
@@ -426,7 +424,7 @@ def post_battle_editor(request, pk):
         "mission": mission_results(
             plan, payload, refresh_url=request.path, show_errors=show_errors
         ),
-        "territory": territory,
+        "territories": territories,
         "preview": preview,
         "toolbar_props": toolbar_display(models),
         "xp_toolbar": xp_toolbar(models),
@@ -482,7 +480,7 @@ def post_battle_receipt(request, pk, sequence=None):
             "receipt": revision.receipt,
             "receipt_models": receipt_models(revision.receipt),
             "mission": receipt_mission(revision.receipt, revision),
-            "stake": battle_stake(report.battle, request.user),
+            "stakes": battle_stakes(report.battle, request.user),
             "revisions": report.revisions.only("sequence", "created"),
             "may_edit": can_edit_report(report, request.user),
         },

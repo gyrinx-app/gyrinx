@@ -147,11 +147,13 @@ def _asset_context(request, pk, asset_pk, *, back=None):
         action("Remove", "n26-campaign-asset-remove", danger=True)
 
     battles = []
-    for battle in (
-        holding.staked_in.filter(archived=False)
-        .select_related("stake_awarded_to")
-        .prefetch_related("gangs", "winners")
+    for stake in (
+        holding.battle_stakes.filter(battle__archived=False)
+        .select_related("battle", "awarded_to")
+        .prefetch_related("battle__gangs", "battle__winners")
+        .order_by("-battle__date", "-battle__created")
     ):
+        battle = stake.battle
         if battle.result == Battle.Result.NOT_RECORDED:
             outcome = "Result not recorded"
         elif battle.result == Battle.Result.DRAW:
@@ -167,8 +169,8 @@ def _asset_context(request, pk, asset_pk, *, back=None):
                 href=reverse("n26-battle", args=[campaign.pk, battle.pk]),
                 gangs=", ".join(gang.name for gang in battle.gangs.all()),
                 outcome=outcome,
-                transferred_to=battle.stake_awarded_to.name
-                if battle.stake_transfer_mark and battle.stake_awarded_to_id
+                transferred_to=stake.awarded_to.name
+                if stake.transfer_mark and stake.awarded_to_id
                 else "",
             )
         )

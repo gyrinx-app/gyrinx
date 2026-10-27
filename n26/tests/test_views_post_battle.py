@@ -2797,7 +2797,7 @@ class TestLivePreview:
             editor_url(report), html_fields(page, intent="autosave")
         ).json()
         assert "territory" not in result["preview"]
-        assert page.context["territory"] is None
+        assert page.context["territories"] == []
 
     @pytest.mark.parametrize("result", ["winners", "not_recorded"])
     def test_recorded_territory_is_attributed_and_never_replayed(
@@ -2825,8 +2825,7 @@ class TestLivePreview:
                 result=result,
                 winners=[other] if result == "winners" else [],
                 revision=table.battle.revision,
-                stake=token,
-                stake_awarded_to=other,
+                stakes=[(token, other)],
             )
         table.battle.refresh_from_db()
         report = start(client, table)
@@ -2859,10 +2858,10 @@ class TestLivePreview:
         page = client.get(editor_url(report))
         # Corrections retain the historical winner separately from today's holder.
         assert (
-            page.context["territory"]["outcome"]
+            page.context["territories"][0]["outcome"]
             == "Moved from Ashen Choir to Rust Kings."
         )
-        assert "Ashen Choir" in page.context["territory"]["currentHolder"]
+        assert "Ashen Choir" in page.context["territories"][0]["currentHolder"]
 
     def test_autosave_query_count_does_not_grow_with_roster(self, client, table):
         report = start(client, table)
@@ -2898,12 +2897,11 @@ class TestLivePreview:
                 result="not_recorded",
                 winners=[],
                 revision=table.battle.revision,
-                stake=token,
-                stake_awarded_to=None,
+                stakes=[(token, None)],
             )
         report = start(client, table)
         page = client.get(editor_url(report))
-        territory = page.context["territory"]
+        (territory,) = page.context["territories"]
         assert territory["outcome"] == "Outcome not recorded."
         assert "arbitrator records" in territory["note"]
         assert "Already applied." not in mission(page).get_text()
