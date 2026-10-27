@@ -11,6 +11,7 @@ The input id is search- plus name. Two bars with the same name on one page colli
 A live nested bar swallows Enter. Otherwise the browser activates the first Hire or Buy in the form, even a line the filter has hidden.
 A browser drops a nested form tag without complaint and reparents its children, so the field and the button stop being one control.
 The field is a plain input. c-ui.input would draw a second border inside this group.
+The field fills narrow containers and stops at max-w-xl on wide pages.
 {% endcomment %}
 
 <c-vars
@@ -31,7 +32,7 @@ The field is a plain input. c-ui.input would draw a second border inside this gr
       {% if not nested %}action="{{ action }}" method="{{ method }}"{% endif %}
       {% if live and not action and not nested %}@submit.prevent{% endif %}
       role="search" {{ attrs }}
-      class="flex items-center gap-2 {{ class }}">
+      class="flex w-full max-w-xl items-center gap-2 {{ class }}">
 
 {# Focus ring is on the field group. On the form it would also light when the submit button is focused. #}
     <div class="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-control

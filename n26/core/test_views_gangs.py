@@ -5,9 +5,11 @@ tests are about the wiring — whose gangs reach it, whose do not, that
 the facets the filter needs come with them, and what ``?q=`` narrows.
 """
 
+import json
 import re
 
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
@@ -92,18 +94,31 @@ def test_a_wider_list_says_whose_each_gang_is(client, tester, make_gang):
     assert "· player" in everyones
 
 
-def test_the_toggle_says_which_list_this_is_and_leads_to_the_other(
-    client, tester, make_gang
-):
+def test_the_toggle_says_which_list_this_is(client, tester, make_gang):
     make_gang("The Ashen Choir")
     client.force_login(tester)
 
-    yours = client.get(reverse("n26-gangs")).content.decode()
-    assert 'aria-pressed="true"' in yours
-    assert "?everyone=1" in yours
+    def controls(response):
+        soup = BeautifulSoup(response.content, "html.parser")
+        host = soup.select_one('[data-react-name="record-table-controls"]')
+        return json.loads(soup.find(id=host["data-react-props"]).string)
 
-    everyones = client.get(reverse("n26-gangs"), {"everyone": "1"}).content.decode()
-    assert 'aria-pressed="false"' in everyones
+    yours = client.get(reverse("n26-gangs"))
+    assert controls(yours)["mineOnly"] is True
+
+    everyones = client.get(reverse("n26-gangs"), {"everyone": "1"})
+    assert controls(everyones)["mineOnly"] is False
+
+
+def test_the_scriptless_search_keeps_everyones_gangs_selected(client, tester):
+    client.force_login(tester)
+    response = client.get(reverse("n26-gangs"), {"everyone": "1", "q": "ashen"})
+    soup = BeautifulSoup(response.content, "html.parser")
+    host = soup.select_one('[data-react-name="record-table-controls"]')
+    form = host.find("form")
+    assert form["action"] == reverse("n26-gangs")
+    assert form.find("input", {"name": "everyone"})["value"] == "1"
+    assert form.find("input", {"name": "q"})["value"] == "ashen"
 
 
 def test_widening_the_list_keeps_the_search(client, tester, make_gang):

@@ -275,6 +275,7 @@ def _record_table_context(request, everyone=False, per_page=None):
         # your own would print your name down the side of it.
         "show_owners": everyone,
         "everyone": everyone,
+        "mine_only": not everyone,
         # Deduplicated in order rather than sorted: the filter reads
         # better in the order the reader saw the types down the list.
         "gang_type_options": [

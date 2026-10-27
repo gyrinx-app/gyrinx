@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+    ActionBar,
     FilterMenu,
     Link,
     SearchBar,
@@ -60,31 +61,40 @@ export function ModifierList({
 
     return (
         <div className="flex flex-col gap-3">
-            <SearchBar
-                value={query}
-                onChange={setQuery}
-                label="Search modifiers"
-            />
-            {facets.some((facet) => facet.options.length > 1) && (
-                <div className="flex flex-wrap items-center gap-2">
-                    {facets.map(
-                        (facet) =>
-                            facet.options.length > 1 && (
-                                <FilterMenu
-                                    key={facet.name}
-                                    label={facet.label}
-                                    options={facet.options}
-                                    onApply={(values) =>
-                                        setSelected((previous) => ({
-                                            ...previous,
-                                            [facet.name]: values,
-                                        }))
-                                    }
-                                />
-                            ),
-                    )}
+            <div className="flex flex-wrap items-center gap-3">
+                <div className="w-full min-w-0 max-w-xl basis-96 grow">
+                    <SearchBar
+                        value={query}
+                        onChange={setQuery}
+                        label="Search modifiers"
+                    />
                 </div>
-            )}
+                {facets.some((facet) => facet.options.length > 1) && (
+                    <ActionBar
+                        surface={false}
+                        spaced={false}
+                        aria-label="Filters"
+                        role="group"
+                    >
+                        {facets.map(
+                            (facet) =>
+                                facet.options.length > 1 && (
+                                    <FilterMenu
+                                        key={facet.name}
+                                        label={facet.label}
+                                        options={facet.options}
+                                        onApply={(values) =>
+                                            setSelected((previous) => ({
+                                                ...previous,
+                                                [facet.name]: values,
+                                            }))
+                                        }
+                                    />
+                                ),
+                        )}
+                    </ActionBar>
+                )}
+            </div>
             <p role="status" className="text-sm text-muted">
                 <span className="font-semibold text-ink-900 tabular-nums dark:text-ink-100">
                     {shown.length}

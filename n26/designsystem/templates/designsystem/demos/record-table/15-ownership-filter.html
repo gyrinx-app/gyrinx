@@ -1,0 +1,14 @@
+{# title: Search, type and ownership #}
+{# note: Search and filters share one line when space allows and wrap in narrower containers. The ownership switch submits to the gangs list and keeps the current search. #}
+{# layout: full #}
+<c-n26.record-table :type_options="dashboard_types"
+                    noun="gangs"
+                    action="{% url 'n26-gangs' %}"
+                    :mine_only="True">
+    {% for gang in dashboard_gangs %}
+        <c-n26.record-table.gang-row name="{{ gang.name }}"
+                                     type="{{ gang.type }}"
+                                     :sheet="gang.sheet"
+                                     href="#" />
+    {% endfor %}
+</c-n26.record-table>

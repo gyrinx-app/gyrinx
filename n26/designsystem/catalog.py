@@ -1055,6 +1055,7 @@ GROUPS: list[Group] = [
                 ),
                 notes=(
                     "By default it is a real form and submits with no JavaScript. "
+                    "It fills narrow containers up to max-w-xl on wide pages. "
                     ":live binds x-model to the parent Alpine field named by model, "
                     "and that parent must own the state. Set :nested inside an "
                     "existing form: a browser discards a nested <form> tag and "
@@ -2006,7 +2007,6 @@ GROUPS: list[Group] = [
                     "A searchable list of gangs or campaigns, each listing a link "
                     "to one."
                 ),
-                needs=(ALPINE, KIT_JS),
                 parts=(
                     Part(
                         "c-n26.record-table.gang-row",
@@ -2023,15 +2023,16 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
-                    "Child listings go in the default slot so they share this "
-                    "Alpine scope, and each must register on init or the count "
-                    "stays at zero. Typing filters only the listings already on "
-                    "the page, while submitting the search, or anything in the "
-                    "filters slot, goes to the server and reloads the page. The "
-                    "type filter listens only for filter-apply events named "
-                    "type. The listings wrapper is a query container, so a gang "
-                    "listing's wide layout keys off that rather than the "
-                    "viewport."
+                    "Put record-table gang or campaign listings in the default "
+                    "slot. Search is bounded to max-w-xl; type and ownership "
+                    "controls sit alongside it when space allows and wrap "
+                    "beneath it in narrower containers. Typing and "
+                    "type selection filter only this table's loaded listings. "
+                    "Submitting Search uses action to query the server. Set "
+                    "mine_only to show the ownership toggle; it submits the "
+                    "current query and everyone=1 when switched off. Omit it "
+                    "on lists without an ownership filter. Gang listings use "
+                    "their container's width for their responsive layout."
                 ),
             ),
             Component(
