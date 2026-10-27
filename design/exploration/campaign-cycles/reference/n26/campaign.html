@@ -1,0 +1,235 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+One campaign, to whoever opens it.
+
+Accepted players can record battles and dice rolls. Campaign management stays
+with the arbitrator, and gang owners can hand over the assets they hold.
+
+The design system's campaign sheet over real rows, as the gang sheet is over
+a gang's. The gallery's shell version (designsystem/shell/campaign.html) is
+this page with sample data; what was judged there is what ships here, so the
+two should be edited together. The sheet itself is built by
+n26.core.render.render_campaign; this page adds the addresses.
+{% endcomment %}
+{% block head_title %}{{ campaign.name }}{% endblock head_title %}
+{% comment %}
+The bar names the campaign through the switcher rather than a plain heading:
+the name is a link back to this page, and the chevron beside it offers the
+reader's other campaigns — the same pattern a gang's screens use.
+{% endcomment %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <c-n26.view.campaign-sheet :sheet="sheet"
+                               edit_href="{% if yours %}{% url 'n26-edit-campaign' campaign.pk %}{% endif %}"
+                               log_href="{{ log_href }}">
+        {% if invitations %}
+            <c-slot name="invitation">
+                {% url "n26-campaign" campaign.pk as invitation_return %}
+                {% include "n26/includes/campaign_invitations.html" with back=invitation_return %}
+            </c-slot>
+        {% endif %}
+        <c-slot name="log_count">
+            {% include "n26/includes/campaign_log_count.html" %}
+        </c-slot>
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner" tone="current" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ campaign.name }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        <c-slot name="arbitrator">
+            <c-n26.user-link :user="campaign.owner" tone="current" />
+        </c-slot>
+        {% comment %}
+        The reader's other campaigns, beside the name of this one — the same
+        rows the bar offers, off the same memo. Named differently from the
+        bar's, because two controls announced identically tell a reader who
+        cannot see where they sit nothing about either.
+
+        The test for who gets one sits outside the slot rather than inside it:
+        a slot holding only whitespace is still content, and the header would
+        draw a wrapper beside the name for a reader who gets no switcher.
+        {% endcomment %}
+        {% if yours %}
+            <c-slot name="trailing">
+                {% campaign_switcher campaign named=False menu_label="Your other campaigns" as heading_campaigns_ %}
+                <c-n26.quick-switcher.of :switcher="heading_campaigns_" hotkey="r" />
+            </c-slot>
+        {% endif %}
+        <c-slot name="share">
+            <c-n26.share url="{% url 'n26-campaign' campaign.pk %}" />
+        </c-slot>
+        {% if may_record %}
+            <c-slot name="actions">
+                {% if not yours %}
+                    <c-ui.button size="sm"
+                                 variant="primary"
+                                 href="{% url 'n26-campaign-add-battle' campaign.pk %}">Record a battle</c-ui.button>
+                {% endif %}
+                <c-n26.button-group>
+                    {% if yours %}
+                        <c-ui.button size="sm"
+                                     variant="default"
+                                     href="{% url 'n26-edit-campaign' campaign.pk %}">Edit</c-ui.button>
+                    {% endif %}
+                    <c-ui.button size="sm"
+                                 variant="default"
+                                 aria-label="Log a dice roll"
+                                 href="{% url 'n26-campaign-record-roll' campaign.pk %}">
+                        <c-n26.icon name="dices" class="size-4" />
+                    </c-ui.button>
+                    <c-n26.action-menu :items="more_actions" label="More actions" align="end" />
+                </c-n26.button-group>
+            </c-slot>
+            <c-slot name="log_actions">
+                <c-ui.button size="sm"
+                             variant="default"
+                             href="{% url 'n26-campaign-record-roll' campaign.pk %}">
+                    <span class="flex items-center gap-2">
+                        <c-n26.icon name="dices" class="size-4" />
+                        Log a dice roll
+                    </span>
+                </c-ui.button>
+            </c-slot>
+        {% endif %}
+        {% comment %}
+        A player at the table brings their own gangs; the arbitrator brings
+        anybody's. Both reach the same screen. The arbitrator's Add counter
+        and Add label sit on the same heading, drawn by the sheet from the
+        addresses the view filled.
+        {% endcomment %}
+        {% if may_add_gang %}
+            <c-slot name="gangs_actions">
+                <c-ui.button size="sm"
+                             variant="primary"
+                             href="{% url 'n26-campaign-add-gang' campaign.pk %}">
+                    Add gang
+                </c-ui.button>
+            </c-slot>
+        {% endif %}
+        {% if yours %}
+            <c-slot name="players_actions">
+                <c-ui.button size="sm"
+                             variant="primary"
+                             href="{% url 'n26-campaign-add-player' campaign.pk %}">
+                    Invite players
+                </c-ui.button>
+            </c-slot>
+        {% endif %}
+        {% if may_record %}
+            <c-slot name="battles_actions">
+                <c-ui.button size="sm"
+                             variant="primary"
+                             href="{% url 'n26-campaign-add-battle' campaign.pk %}">
+                    Record a battle
+                </c-ui.button>
+            </c-slot>
+        {% endif %}
+        <c-slot name="players">
+            {% if players %}
+                <c-ui.table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Player</th>
+                            <th scope="col" class="text-right">Invitation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for player in players %}
+                            <tr>
+                                <td class="font-semibold text-ink-900 dark:text-ink-100">
+                                    <c-n26.user-link :user="player.user" tone="current" />
+                                </td>
+                                <td class="text-right">
+                                    {% if player.state == "accepted" %}
+                                        <c-ui.badge color="green" size="sm">
+                                            Accepted
+                                        </c-ui.badge>
+                                    {% elif player.state == "declined" %}
+                                        <c-ui.badge color="ink" size="sm">
+                                            Declined
+                                        </c-ui.badge>
+                                    {% else %}
+                                        <c-ui.badge color="orange" size="sm">
+                                            Invited
+                                        </c-ui.badge>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            {% else %}
+                <p class="text-sm text-muted">No players yet.</p>
+            {% endif %}
+        </c-slot>
+        <c-slot name="battles">
+            {% if battles %}
+                <ul class="divide-y divide-box-border">
+                    {% for battle in battles %}
+                        <li class="relative px-4 py-3 hover:bg-ink-500/5">
+                            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                <c-n26.link href="{% url 'n26-battle' campaign.pk battle.pk %}"
+                                            class="n26-row-link mr-auto font-medium">{{ battle.title }}</c-n26.link>
+                                <time class="text-xs tabular-nums text-muted"
+                                      datetime="{{ battle.date|date:'Y-m-d' }}">{{ battle.date|date:"j M Y" }}</time>
+                                <span class="text-xs text-muted">{{ battle.result_label }}</span>
+                            </div>
+                            <ul class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted">
+                                {% for gang, won in battle.gang_outcomes %}
+                                    <li>
+                                        <c-n26.color-swatch color="{{ gang.colour }}" />
+                                        {{ gang.name }}
+                                        {% if won %}
+                                            <c-n26.icon name="trophy"
+                                                        label="Winner"
+                                                        stroke_width="2"
+                                                        class="inline-block size-4 align-[-0.15em] text-accent" />
+                                        {% endif %}
+                                    </li>
+                                {% empty %}
+                                    <li>No gangs named</li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="p-4 text-sm text-muted">No battles yet.</p>
+            {% endif %}
+        </c-slot>
+        {% comment %}
+        Cut to the most recent acts, with a count of what is not drawn: a
+        campaign played for a year would otherwise push its own facts off
+        the bottom of the page. In a host of its own, because a roll made
+        on this page writes a line here and redraws the list in place.
+        {% endcomment %}
+        <c-slot name="log">
+            {% include "n26/includes/campaign_log.html" %}
+        </c-slot>
+    </c-n26.view.campaign-sheet>
+    {% comment %}
+    The roll questions' host, drawn even when empty so a Roll control can
+    fetch its panel into it without rebuilding the page. Outside the sheet:
+    each panel is a form of its own. The panels post over htmx, which only
+    this page may let them do: it holds every host the update names — the
+    figures, the gangs table, the Assets section, the log and this one.
+    {% endcomment %}
+    {% if yours %}
+        {% include "n26/includes/campaign_roll_dialogs.html" with redrawn=False %}
+    {% else %}
+        <div id="n26-roll-dialog-host"></div>
+    {% endif %}
+{% endblock content %}
