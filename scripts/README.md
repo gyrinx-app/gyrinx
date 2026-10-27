@@ -29,6 +29,12 @@ Automated UI screenshot utility using Playwright for capturing views without man
 .codex/run.sh python scripts/screenshot.py --check
 ```
 
+The helper checks that this worktree's port accepts a connection before it
+launches the browser. When the process is not allowed to open that socket, it
+prints the refusal and a `.codex/run.sh` command. The development server can
+still be running. "Django development server is not running" means the port
+refused the connection; start it with `./scripts/dev.sh --no-watch`.
+
 **Options:**
 
 - `url_name`: Django URL name (e.g. `core:campaign`, `authoring-create`). N26 has no URL namespace, so use the bare name; a leading `n26:` is stripped.

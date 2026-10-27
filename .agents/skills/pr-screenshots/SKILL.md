@@ -89,6 +89,11 @@ The helper uses the worktree's `DJANGO_PORT` and mints a local staff session for
 `agent` by default. `screenshots/` is gitignored: it is staging, not the durable
 home of the review evidence.
 
+If the helper says it could not open a socket, the development server can
+still be running. Rerun the same command through `.codex/run.sh` from a shell
+that can connect to localhost. "Django development server is not running"
+means the port refused the connection.
+
 ### Local CLI handoff
 
 Screenshots do not render in a local CLI terminal. After capturing them, give the
