@@ -1,0 +1,170 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Every battle in the campaign that is not archived. The campaign's own page
+draws only the newest few; this is where the rest are read, with who took
+part, their players and gang types, and what was staked.
+
+Sorted and filtered by the address: the headings and the form are plain
+links and a GET form, so a view survives a reload and can be shared. Each
+battle links to its own page.
+{% endcomment %}
+{% block head_title %}Battles · {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="campaigns" %}
+{% endblock %}
+{% block content %}
+    <div class="flex w-full flex-col gap-6">
+        <c-n26.page-header title="Battles"
+                           lead="Every battle recorded in {{ campaign.name }}, except archived ones.">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Battles
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        <form method="get"
+              action="{% url 'n26-campaign-battles' campaign.pk %}"
+              class="space-y-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:max-w-2xl">
+                <c-ui.field label="Sort by"
+                            :form="filters"
+                            name="sort"
+                            error="x"
+                            for="battles-sort">
+                    <c-ui.select.native id="battles-sort" name="sort" placeholder="">
+                        {% for value, label in filters.fields.sort.choices %}<option value="{{ value }}"
+        {% if value == sort %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </c-ui.select.native>
+                </c-ui.field>
+                <c-ui.field label="Gang" :form="filters" name="gang" error="x" for="battles-gang">
+                    <c-ui.select.native id="battles-gang" name="gang" placeholder="">
+                        {% for value, label in filters.fields.gang.choices %}<option value="{{ value }}"
+        {% if value|stringformat:'s' == filters.gang.value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </c-ui.select.native>
+                </c-ui.field>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+                <c-ui.button type="submit" size="sm">
+                    Apply
+                </c-ui.button>
+                {% if narrowed %}
+                    <c-n26.link href="{% url 'n26-campaign-battles' campaign.pk %}" class="text-sm">Clear</c-n26.link>
+                {% endif %}
+                <p class="text-sm text-muted">{{ matched }} of {{ total }} battle{{ total|pluralize }}</p>
+            </div>
+        </form>
+        {% if lines %}
+            <div class="border border-box-border bg-surface">
+                {% comment %}
+                Column headings on wide screens only; on a phone each battle
+                is a card with its own labels, and the form sorts.
+                {% endcomment %}
+                <div class="hidden gap-4 border-b border-box-border px-4 py-2 text-xs font-medium text-muted md:grid md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1.2fr)_6.5rem]">
+                    {% for heading in headings %}
+                        <a href="{{ heading.href }}"
+                           class="hover:text-ink-900 dark:hover:text-ink-100 {% if heading.state %}text-ink-900 dark:text-ink-100{% endif %}"
+                           {% if heading.state %}aria-current="true"{% endif %}>
+                            {{ heading.label }}
+                            {% if heading.state == "descending" %}
+                                <span aria-label="sorted descending">↓</span>
+                            {% elif heading.state == "ascending" %}
+                                <span aria-label="sorted ascending">↑</span>
+                            {% endif %}
+                        </a>
+                    {% endfor %}
+                </div>
+                <ul class="divide-y divide-box-border">
+                    {% for line in lines %}
+                        <li class="relative grid grid-cols-1 gap-3 px-4 py-3 hover:bg-ink-500/5 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.8fr)_minmax(0,1fr)_minmax(0,1.2fr)_6.5rem] md:gap-4">
+                            <div class="min-w-0">
+                                <c-n26.link href="{% url 'n26-battle' campaign.pk line.battle.pk %}"
+                                            class="n26-row-link font-medium">{{ line.battle.title }}</c-n26.link>
+                                <p class="text-xs text-muted">
+                                    {% comment %}On a phone the date stays here; wider screens give it a column.{% endcomment %}
+                                    <span class="md:hidden"><time class="tabular-nums"
+      datetime="{{ line.battle.date|date:'Y-m-d' }}">{{ line.battle.date|date:"j M Y" }}</time> ·</span>
+                                    {{ line.battle.result_label }}
+                                </p>
+                            </div>
+                            {% comment %}
+                            Gangs and their players share one block, a gang and
+                            its owner to a line, laid on the outer columns as a
+                            subgrid so each owner sits beside their gang. On a
+                            phone the owner follows the gang type instead.
+                            {% endcomment %}
+                            <div class="min-w-0 md:col-span-2 md:grid md:grid-cols-subgrid">
+                                <p class="mb-1 text-xs font-medium text-muted md:hidden">Gangs</p>
+                                <ul class="space-y-1 text-sm md:col-span-2 md:grid md:grid-cols-subgrid md:gap-y-1 md:space-y-0">
+                                    {% for entry in line.gangs %}
+                                        <li class="md:col-span-2 md:grid md:grid-cols-subgrid">
+                                            <div class="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                                                <span class="font-medium">
+                                                    <c-n26.color-swatch color="{{ entry.gang.colour }}" />
+                                                    {{ entry.gang.name }}
+                                                    {% if entry.won %}
+                                                        <c-n26.icon name="trophy"
+                                                                    label="Winner"
+                                                                    stroke_width="2"
+                                                                    class="inline-block size-4 align-[-0.15em] text-accent" />
+                                                    {% endif %}
+                                                </span>
+                                                <span class="text-xs text-muted">
+                                                    {{ entry.gang.gang_type.name }}
+                                                    {% if entry.starting is not None %}· {{ entry.starting }} starting{% endif %}
+                                                    {% if entry.gang.owner %}
+                                                        <span class="md:hidden">·
+                                                            <c-n26.user-link :user="entry.gang.owner"
+                                                                             tone="current"
+                                                                             class="relative" />
+                                                        </span>
+                                                    {% endif %}
+                                                </span>
+                                            </div>
+                                            <div class="hidden min-w-0 md:block">
+                                                {% if entry.gang.owner %}
+                                                    <c-n26.user-link :user="entry.gang.owner" class="relative" />
+                                                {% else %}
+                                                    <span class="text-muted">—</span>
+                                                {% endif %}
+                                            </div>
+                                        </li>
+                                    {% empty %}
+                                        <li class="text-muted md:col-span-2">No gangs named</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <div class="min-w-0 text-sm">
+                                <p class="mb-1 text-xs font-medium text-muted md:hidden">Stake</p>
+                                {% if line.stake %}
+                                    <p class="font-medium">{{ line.stake }}</p>
+                                    <p class="text-xs text-muted">
+                                        {{ line.stake.asset.asset_type.label_singular }}
+                                        {% if line.battle.stake_awarded_to %}· to {{ line.battle.stake_awarded_to.name }}{% endif %}
+                                    </p>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </div>
+                            <div class="hidden text-sm tabular-nums md:block">
+                                <time datetime="{{ line.battle.date|date:'Y-m-d' }}">{{ line.battle.date|date:"j M Y" }}</time>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% elif total %}
+            <p class="text-sm text-muted">No battles match.</p>
+        {% else %}
+            <p class="text-sm text-muted">No battles yet.</p>
+        {% endif %}
+    </div>
+{% endblock %}

@@ -926,3 +926,101 @@ class TestArchivedBattles:
                 act.remove_battle(extra, revision=extra.revision)
         assert count() <= before
         assert client.get(url).context["page"].paginator.count == 5
+
+
+class TestCampaignBattlesPage:
+    def url(self, campaign):
+        return f"/n26/campaigns/{campaign.pk}/battles/"
+
+    def titles(self, response):
+        return [line.battle.title for line in response.context["lines"]]
+
+    def test_lists_every_battle_but_archived_ones_newest_first(
+        self, client, campaign, battle, gang, arbitrator
+    ):
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.record_battle(date(2026, 8, 10), [gang], scenario="Ambush")
+            gone = act.record_battle(date(2026, 8, 20), [gang], scenario="Gone")
+            act.remove_battle(gone, revision=0)
+        response = client.get(self.url(campaign))
+        assert self.titles(response) == ["Ambush", "Stand-off"]
+        drawn = response.content.decode()
+        assert f'href="{address(campaign, battle)}"' in drawn
+        assert "2 of 2 battles" in drawn
+
+    def test_sorts_by_gangs_and_filters_by_gang(
+        self, client, campaign, battle, gang, gang_type, arbitrator
+    ):
+        other = found_gang("Rust Kings", gang_type, owner=arbitrator)
+        join_campaign(other, campaign)
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.record_battle(date(2026, 8, 1), [gang, other], scenario="Brawl")
+            act.record_battle(date(2026, 8, 2), [other], scenario="Raid")
+
+        response = client.get(self.url(campaign), {"sort": "-gangs"})
+        assert self.titles(response)[0] == "Brawl"
+        response = client.get(self.url(campaign), {"gang": str(other.pk)})
+        assert self.titles(response) == ["Raid", "Brawl"]
+        assert "2 of 3 battles" in response.content.decode()
+
+    def test_names_each_gangs_player_and_sorts_by_them(
+        self, client, campaign, battle, gang, gang_type, arbitrator
+    ):
+        zed = User.objects.create_user("zed")
+        other = found_gang("Rust Kings", gang_type, owner=zed)
+        join_campaign(other, campaign)
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.record_battle(date(2026, 8, 9), [other], scenario="Raid")
+
+        response = client.get(self.url(campaign), {"sort": "player"})
+        assert self.titles(response) == ["Stand-off", "Raid"]
+        from django.urls import reverse
+
+        assert f'href="{reverse("user-profile", args=["zed"])}"' in (
+            response.content.decode()
+        )
+        response = client.get(self.url(campaign), {"sort": "-player"})
+        assert self.titles(response) == ["Raid", "Stand-off"]
+
+    def test_refuses_an_unknown_sort(self, client, campaign, battle):
+        response = client.get(self.url(campaign), {"sort": "secret"})
+        assert response.status_code == 200
+        assert response.context["sort"] == "-date"
+        assert response.context["filters"].errors["sort"]
+
+    def test_counts_saved_starting_crews(
+        self, client, campaign, battle, gang, arbitrator, make_profile
+    ):
+        profile = make_profile("Gunner")
+        models = [hire(gang, profile, f"Gunner {i}", paid=20) for i in range(3)]
+        save_crew(
+            battle=battle,
+            gang=gang,
+            actor=arbitrator,
+            revision=0,
+            selections=[
+                CrewSelection(str(model.pk), "starting" if i < 2 else "reserve")
+                for i, model in enumerate(models)
+            ],
+            confirm=True,
+        )
+        response = client.get(self.url(campaign))
+        assert response.context["lines"][0].gangs[0].starting == 2
+        assert "2 starting" in response.content.decode()
+
+    def test_more_battles_add_no_queries(
+        self, client, campaign, battle, gang, gang_type, arbitrator
+    ):
+        client.get(self.url(campaign))
+        with CaptureQueriesContext(connection) as few:
+            assert client.get(self.url(campaign)).status_code == 200
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            for index in range(5):
+                extra = found_gang(f"Gang {index}", gang_type, owner=arbitrator)
+                join_campaign(extra, campaign)
+                act.record_battle(
+                    date(2026, 8, 5 + index), [gang, extra], scenario=f"Raid {index}"
+                )
+        with CaptureQueriesContext(connection) as many:
+            assert client.get(self.url(campaign)).status_code == 200
+        assert len(many) == len(few)

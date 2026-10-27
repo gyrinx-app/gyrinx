@@ -1417,6 +1417,30 @@ class CampaignLogFilterForm(forms.Form):
         return cleaned
 
 
+class CampaignBattlesForm(forms.Form):
+    """URL-backed sort and gang filter for a campaign's battles page."""
+
+    SORTS = [
+        ("-date", "Date, newest first"),
+        ("date", "Date, oldest first"),
+        ("scenario", "Scenario, A to Z"),
+        ("-scenario", "Scenario, Z to A"),
+        ("-gangs", "Most gangs"),
+        ("gangs", "Fewest gangs"),
+        ("player", "Player, A to Z"),
+        ("-player", "Player, Z to A"),
+        ("stake", "Stake, A to Z"),
+        ("-stake", "Stake, Z to A"),
+    ]
+
+    sort = forms.ChoiceField(required=False, label="Sort by", choices=SORTS)
+    gang = forms.ChoiceField(required=False, label="Gang")
+
+    def __init__(self, *args, gangs, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["gang"].choices = [("", "All gangs"), *gangs]
+
+
 class CampaignRollForm(forms.Form):
     """A generated or physical roll, attributed only within its campaign."""
 

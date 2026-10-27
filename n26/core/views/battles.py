@@ -179,6 +179,157 @@ def edit_battle(request, pk, battle_pk):
     )
 
 
+@dataclass(frozen=True)
+class BattleListGang:
+    gang: object
+    won: bool
+    #: Models saved as this gang's starting crew, or None before a crew is
+    #: saved.
+    starting: int | None
+
+
+@dataclass(frozen=True)
+class BattleListLine:
+    battle: object
+    gangs: list
+    stake: object
+
+    @property
+    def players(self):
+        """The usernames of the gangs' owners, A to Z, for sorting."""
+        return sorted(
+            line.gang.owner.username.lower() for line in self.gangs if line.gang.owner
+        )
+
+
+def _battle_lines(campaign):
+    """Each battle that is not archived, with its gangs, their starting
+    crew sizes and its stake, read in a fixed number of queries."""
+    # A pet saved as a crew member goes with its owner and is not counted,
+    # as on the battle's own page.
+    starting = Q(
+        members__miniature__membership__caused_by__miniature_root__isnull=True,
+        members__role="starting",
+    )
+    battles = (
+        campaign.battles.filter(archived=False)
+        .select_related("stake__asset__asset_type", "stake_awarded_to")
+        .prefetch_related(
+            Prefetch(
+                "gangs",
+                # The owner's profile and badges, so each Player link
+                # costs nothing more.
+                queryset=Gang.objects.select_related(
+                    "gang_type", "owner__profile"
+                ).prefetch_related("owner__badge_grants"),
+            ),
+            "winners",
+            Prefetch(
+                "crews",
+                queryset=BattleCrew.objects.annotate(
+                    starting_count=Count("members", filter=starting)
+                ),
+            ),
+        )
+    )
+    lines = []
+    for found in battles:
+        crews = {crew.gang_id: crew.starting_count for crew in found.crews.all()}
+        lines.append(
+            BattleListLine(
+                battle=found,
+                gangs=[
+                    BattleListGang(gang, won, crews.get(gang.pk))
+                    for gang, won in found.gang_outcomes
+                ],
+                stake=found.stake,
+            )
+        )
+    return lines
+
+
+def _sorted_battle_lines(lines, sort):
+    """``lines`` in the order ``sort`` names. A battle missing the value
+    sorted on, such as one with no stake, goes last either way; ties keep
+    the newest battle first."""
+    key = sort.lstrip("-")
+    reverse = sort.startswith("-")
+    value = {
+        "date": lambda line: (line.battle.date, line.battle.created),
+        "scenario": lambda line: line.battle.title.lower(),
+        "gangs": lambda line: len(line.gangs),
+        "player": lambda line: line.players or None,
+        "stake": lambda line: str(line.stake).lower() if line.stake else None,
+    }[key]
+    known = [line for line in lines if value(line) is not None]
+    unknown = [line for line in lines if value(line) is None]
+    return sorted(known, key=value, reverse=reverse) + unknown
+
+
+@login_required
+def campaign_battles(request, pk):
+    """Every battle in the campaign that is not archived, with who took
+    part, their players and gang types, and what was staked. Sorted and
+    filtered by the address, so a view can be shared."""
+    from n26.core.forms import CampaignBattlesForm
+
+    campaign = _any_campaign_or_404(request, pk)
+    lines = _battle_lines(campaign)
+    gangs = {}
+    for line in lines:
+        for entry in line.gangs:
+            gangs[str(entry.gang.pk)] = entry.gang.name
+    filters = CampaignBattlesForm(
+        request.GET or None,
+        gangs=sorted(gangs.items(), key=lambda item: item[1].lower()),
+    )
+    sort, gang = "-date", ""
+    if filters.is_valid():
+        sort = filters.cleaned_data["sort"] or sort
+        gang = filters.cleaned_data["gang"]
+    total = len(lines)
+    if gang:
+        lines = [
+            line
+            for line in lines
+            if any(str(entry.gang.pk) == gang for entry in line.gangs)
+        ]
+    # Each heading sorts by its column in its usual first order; a second
+    # click reverses it. The gang filter is kept.
+    headings = []
+    for first, label in (
+        ("scenario", "Battle"),
+        ("-gangs", "Gangs"),
+        ("player", "Player"),
+        ("stake", "Stake"),
+        ("-date", "Date"),
+    ):
+        token = first.lstrip("-")
+        reverse = token if first.startswith("-") else f"-{token}"
+        query = request.GET.copy()
+        query["sort"] = reverse if sort == first else first
+        state = ""
+        if sort.lstrip("-") == token:
+            state = "descending" if sort.startswith("-") else "ascending"
+        headings.append(
+            {"label": label, "href": f"?{query.urlencode()}", "state": state}
+        )
+    return render(
+        request,
+        "n26/campaign_battles.html",
+        {
+            "campaign": campaign,
+            "filters": filters,
+            "headings": headings,
+            "sort": sort,
+            "lines": _sorted_battle_lines(lines, sort),
+            "matched": len(lines),
+            "total": total,
+            "narrowed": bool(gang) or sort != "-date",
+        },
+    )
+
+
 @login_required
 def archived_battles(request, pk):
     campaign = _own_campaign_or_404(request, pk)

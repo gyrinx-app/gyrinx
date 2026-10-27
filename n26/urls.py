@@ -108,6 +108,11 @@ urlpatterns = [
         name="n26-campaign-add-battle",
     ),
     path(
+        "campaigns/<str:pk>/battles/",
+        views.campaign_battles,
+        name="n26-campaign-battles",
+    ),
+    path(
         "campaigns/<str:pk>/battles/archived/",
         views.archived_battles,
         name="n26-campaign-archived-battles",

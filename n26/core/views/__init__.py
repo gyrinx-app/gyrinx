@@ -23,6 +23,7 @@ from n26.core.views.assignment_sets import (
 from n26.core.views.battles import (
     archived_battles,
     battle,
+    campaign_battles,
     edit_battle,
     record_battle_outcome,
     restore_battle,
@@ -205,6 +206,7 @@ __all__ = [
     "campaign_grouping",
     "remove_battle",
     "archived_battles",
+    "campaign_battles",
     "restore_battle",
     "remove_gang",
     "remove_player",
