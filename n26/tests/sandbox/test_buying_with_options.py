@@ -16,7 +16,10 @@ costs on this list, and what a swap adds to it.
 Rule *names* only; the rulebook's words are copyright (n26/AGENTS.md).
 """
 
+import json
+
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
@@ -246,6 +249,27 @@ class TestWhatTheRowAsks:
 
 class TestWhatTheScreenDraws:
     """Controls on the row, working with no script running."""
+
+    def test_the_price_and_options_share_one_island_with_the_server_prices(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        client.force_login(owner)
+        response = client.get(equip_url(fighter, house_list))
+        soup = BeautifulSoup(response.content, "html.parser")
+        box = soup.find("input", attrs={"name": price_field(cutter)})
+        host = box.find_parent(attrs={"data-react-name": "equip-price"})
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+
+        assert props["quoted"] == 150
+        assert props["purchase"]["buy"]["target"] == key_of(cutter)
+        assert len(host.select('input[type="radio"]')) == 5
+        assert not host.select("[data-react-name]")
+        assert [option["surcharge"] for option in props["choices"][0]["options"]] == [
+            0,
+            10,
+            15,
+        ]
+        assert props["choices"][1]["options"][0]["price"] == 20
 
     def test_every_option_is_a_radio_named_what_the_purchase_reads_back(
         self, client, owner, fighter, house_list, cutter
@@ -723,6 +747,14 @@ class TestTheWayToChangeThem:
 
         assert [option.checked for option in guns.options] == [False, False, True]
         assert fittings.nothing_taken
+        preview = response.context["dialog"]["price_preview"]
+        assert preview["changing"]
+        assert preview["before"] == 15
+        assert [option["checked"] for option in preview["choices"][0]["options"]] == [
+            False,
+            False,
+            True,
+        ]
 
     def test_a_set_the_copy_took_from_says_so(
         self, client, owner, fighter, house_list, cutter
@@ -739,6 +771,29 @@ class TestTheWayToChangeThem:
 
         assert not fittings.nothing_taken
         assert [option.checked for option in fittings.options] == [True]
+
+    def test_a_fixed_option_is_included_in_the_change_preview(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        fixed = create_option_group(cutter, "Fixed fittings", choose="one")
+        offer_option(
+            cutter,
+            "Fixed fitting",
+            price=7,
+            thing=create_wargear("Fixed fitting"),
+            group=fixed,
+        )
+        client.force_login(owner)
+        client.post(
+            equip_url(fighter, house_list),
+            {"thing": key_of(cutter), choice_field(cutter, 0): "2"},
+        )
+        copy_id = cutter_row(client, owner, fighter, house_list).copies[0].id
+        response = client.get(f"{equip_url(fighter, house_list)}&rechoose={copy_id}")
+        preview = response.context["dialog"]["price_preview"]
+        assert preview["before"] == 22
+        assert [option["price"] for option in preview["fixed"]] == [7]
+        assert len(preview["choices"]) == 2
 
 
 class TestChangingThem:
@@ -1042,7 +1097,7 @@ class TestScaling:
     mounts asks the database no more than a collection with one."""
 
     def test_a_list_of_optioned_things_costs_no_more_queries_to_browse(
-        self, gang, default_pack
+        self, client, gang, default_pack
     ):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
@@ -1075,6 +1130,20 @@ class TestScaling:
             return len(captured.captured_queries)
 
         assert measure(small) == measure(big)
+
+        # The rendered preview serialises prepared options without per-item queries.
+        def page_queries(collection):
+            assign(collection, gang=gang)
+            client.force_login(gang.owner)
+            url = reverse("n26-equip-gang", args=[gang.pk]) + f"?list={collection.pk}"
+            client.get(url)
+            with CaptureQueriesContext(connection) as captured:
+                response = client.get(url)
+                assert response.status_code == 200
+                assert b'"purchase"' in response.content
+            return len(captured)
+
+        assert page_queries(small) == page_queries(big)
 
     def test_the_same_holds_for_a_swept_listing(self, gang, default_pack):
         """A trading post finds its stock by rule rather than by row, so

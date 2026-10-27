@@ -1,0 +1,16 @@
+{# title: Custom item body #}
+{# note: Use the body slot when one interaction owns the heading and its options. The item still registers its name and price with the collection filters. #}
+{# layout: full #}
+<c-n26.collection-picker>
+    <c-n26.collection-picker.section name="Equipment">
+        <c-n26.collection-picker.item name="Mount" :price="150">
+            <c-slot name="body">
+                <div class="flex min-h-9 items-center gap-2 text-sm">
+                    <span class="flex-1 font-semibold">Mount with plasma guns</span>
+                    <span class="tabular-nums">165¢</span>
+                </div>
+                <p class="n26-cp-inset text-xs text-muted">Includes a 15¢ option.</p>
+            </c-slot>
+        </c-n26.collection-picker.item>
+    </c-n26.collection-picker.section>
+</c-n26.collection-picker>

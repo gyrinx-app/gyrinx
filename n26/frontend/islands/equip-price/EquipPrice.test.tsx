@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { mount } from "./entry";
 import { EquipPrice, type EquipPriceProps } from "./EquipPrice";
+import type { PickGroup } from "./OptionChoices";
 
 const props: EquipPriceProps = {
     field: "sword:price",
@@ -10,6 +11,228 @@ const props: EquipPriceProps = {
     min: 0,
     max: 100000,
 };
+
+const groups: PickGroup[] = [
+    {
+        field: "mount:option:0",
+        choose: "one",
+        nothingTaken: false,
+        options: [
+            {
+                name: "Launchers",
+                value: "0",
+                setKey: "launchers",
+                price: 25,
+                surcharge: 0,
+                surchargeLabel: "",
+                checked: true,
+            },
+            {
+                name: "Plasma guns",
+                value: "1",
+                setKey: "plasma",
+                price: 40,
+                surcharge: 15,
+                surchargeLabel: "+15¢",
+                checked: false,
+            },
+            {
+                name: "Light guns",
+                value: "2",
+                setKey: "light",
+                price: 20,
+                surcharge: -5,
+                surchargeLabel: "−5¢",
+                checked: false,
+            },
+        ],
+    },
+    {
+        field: "mount:option:1",
+        choose: "one-or-none",
+        nothingTaken: true,
+        options: [
+            {
+                name: "Smoke dispenser",
+                value: "0",
+                setKey: "smoke",
+                price: 20,
+                surcharge: 20,
+                surchargeLabel: "+20¢",
+                checked: false,
+            },
+        ],
+    },
+];
+const purchaseProps: EquipPriceProps = {
+    ...props,
+    field: "mount:price",
+    quoted: 150,
+    label: "Mount",
+    choices: groups,
+    purchase: {
+        name: "Mount",
+        repeat: false,
+        tradePoints: 0,
+        exclusive: false,
+        buy: { label: "Buy", target: "mount" },
+    },
+};
+
+describe("option price previews", () => {
+    it("uses the server's first-option default for an unselected required group", () => {
+        render(
+            <EquipPrice
+                changing
+                choices={[
+                    {
+                        ...groups[0],
+                        options: groups[0].options.map((option) => ({
+                            ...option,
+                            checked: false,
+                        })),
+                    },
+                ]}
+                before={0}
+            />,
+        );
+        expect(
+            screen.getByRole<HTMLInputElement>("radio", { name: "Launchers" })
+                .checked,
+        ).toBe(true);
+        expect(screen.getByRole("status").textContent).toBe(
+            "Options charge 25¢",
+        );
+    });
+
+    it("totals groups and keeps the posted base payment separate", () => {
+        const { container } = render(
+            <form>
+                <EquipPrice {...purchaseProps} />
+            </form>,
+        );
+        const base = screen.getByRole("spinbutton", {
+            name: "Base price for Mount",
+        });
+        expect(screen.getByRole("status").textContent).toBe("Total 150¢");
+        fireEvent.click(
+            screen.getByRole("radio", { name: "Plasma guns +15¢" }),
+        );
+        expect(screen.getByRole("status").textContent).toBe("Total 165¢");
+        fireEvent.click(
+            screen.getByRole("radio", { name: "Smoke dispenser +20¢" }),
+        );
+        expect(screen.getByRole("status").textContent).toBe("Total 185¢");
+        fireEvent.change(base, { target: { value: "140" } });
+        expect(screen.getByRole("status").textContent).toBe("Total 175¢");
+        const data = new FormData(container.querySelector("form")!);
+        expect(data.get("mount:price")).toBe("140");
+        expect(data.get("mount:option:0")).toBe("1");
+        expect(data.get("mount:option:1")).toBe("0");
+        expect(data.get("total")).toBeNull();
+        fireEvent.click(screen.getByRole("radio", { name: "None" }));
+        fireEvent.click(screen.getByRole("radio", { name: "Launchers" }));
+        expect(screen.getByRole("status").textContent).toBe("Total 140¢");
+    });
+
+    it("previews cheaper options, an empty base, and negative equipment prices", () => {
+        render(<EquipPrice {...purchaseProps} quoted={-10} min={-10} />);
+        fireEvent.click(screen.getByRole("radio", { name: "Light guns −5¢" }));
+        expect(screen.getByRole("status").textContent).toBe("Total -15¢");
+        const base = screen.getByRole("spinbutton");
+        fireEvent.change(base, { target: { value: "-5" } });
+        expect(screen.getByRole("status").textContent).toBe("Total -10¢");
+        fireEvent.change(base, { target: { value: "" } });
+        expect(screen.getByRole("status").textContent).toBe("Total -15¢");
+    });
+
+    it("adds and removes any-number selections independently", () => {
+        const any: PickGroup = {
+            ...groups[0],
+            choose: "any",
+            options: groups[0].options.map((option) => ({
+                ...option,
+                checked: false,
+            })),
+        };
+        render(<EquipPrice {...purchaseProps} choices={[any]} />);
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Plasma guns +15¢" }),
+        );
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Light guns −5¢" }),
+        );
+        expect(screen.getByRole("status").textContent).toBe("Total 160¢");
+        fireEvent.click(
+            screen.getByRole("checkbox", { name: "Plasma guns +15¢" }),
+        );
+        expect(screen.getByRole("status").textContent).toBe("Total 145¢");
+    });
+
+    it("shows the change against the held options' full prices", () => {
+        render(<EquipPrice changing choices={groups} before={25} />);
+        expect(screen.getByRole("status").textContent).toBe("No price change");
+        fireEvent.click(
+            screen.getByRole("radio", { name: "Plasma guns +15¢" }),
+        );
+        expect(screen.getByRole("status").textContent).toBe(
+            "Options charge 15¢",
+        );
+        fireEvent.click(screen.getByRole("radio", { name: "Light guns −5¢" }));
+        expect(screen.getByRole("status").textContent).toBe(
+            "Options refund 5¢",
+        );
+        fireEvent.click(
+            screen.getByRole("radio", { name: "Smoke dispenser +20¢" }),
+        );
+        expect(screen.getByRole("status").textContent).toBe(
+            "Options charge 15¢",
+        );
+    });
+
+    it("retains a price and options edited before React mounts", () => {
+        const host = document.createElement("div");
+        host.innerHTML =
+            '<input type="number" name="mount:price" value="150"><input type="radio" name="mount:option:0" value="1" checked><input type="radio" name="mount:option:1" value="">';
+        document.body.appendChild(host);
+        host.querySelector<HTMLInputElement>('input[type="number"]')!.value =
+            "140";
+        let unmount = () => {};
+        act(() => {
+            unmount = mount(host, purchaseProps);
+        });
+        expect(screen.getByRole("status").textContent).toBe("Total 155¢");
+        expect(
+            screen.getByRole<HTMLInputElement>("radio", {
+                name: "Plasma guns +15¢",
+            }).checked,
+        ).toBe(true);
+        act(() => unmount());
+        host.remove();
+    });
+
+    it("counts shared sets once and includes fixed options when changing a held copy", () => {
+        const duplicate: PickGroup = {
+            ...groups[1],
+            options: [{ ...groups[0].options[0], checked: true }],
+        };
+        render(
+            <EquipPrice
+                changing
+                choices={[groups[0], duplicate]}
+                before={32}
+                fixed={[{ setKey: "fixed", price: 7 }]}
+            />,
+        );
+        expect(screen.getByRole("status").textContent).toBe("No price change");
+        fireEvent.click(
+            screen.getByRole("radio", { name: "Plasma guns +15¢" }),
+        );
+        expect(screen.getByRole("status").textContent).toBe(
+            "Options charge 40¢",
+        );
+    });
+});
 
 describe("EquipPrice", () => {
     it("starts at the quote and names the box", () => {

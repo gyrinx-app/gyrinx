@@ -23,14 +23,9 @@ A set is never named. The label the content carries is the author's word for
 their own page, and a player is here to pick — so a set is shown as grouping,
 with a line saying how many to take, and never as a heading naming it.
 
-The surcharge follows the name rather than sitting in the price column: it is a
-different kind of number from the figure in the box above, which is the one
-anyone is charged, and it is measured from that figure — so the standard option
-adds nothing and prints nothing.
-
-Works with no script running: every control posts its own value and the server
-does the arithmetic when the purchase is made. What is lost without one is the
-price box updating as the radios move.
+The surcharge is relative to the standard option included in the base price.
+Every control posts its own value; the server calculates the payment.
+React replaces this fallback with the same controls and a live price preview.
 {% endcomment %}
 {% for group in choices %}
     {% comment %}

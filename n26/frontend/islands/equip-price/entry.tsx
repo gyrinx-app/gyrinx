@@ -1,7 +1,33 @@
 import { mount as mountRoot } from "../../runtime/mount";
-import { EquipPrice, type EquipPriceProps } from "./EquipPrice";
+import {
+    EquipPrice,
+    type EquipPriceProps,
+    type OptionChangeProps,
+} from "./EquipPrice";
 
-export function mount(element: HTMLElement, props: EquipPriceProps) {
+export function mount(
+    element: HTMLElement,
+    props: EquipPriceProps | OptionChangeProps,
+) {
+    const initialSelections = props.choices
+        ? Object.fromEntries(
+              props.choices.map((group) => [
+                  group.field,
+                  Array.from(
+                      element.querySelectorAll<HTMLInputElement>(
+                          "input:checked",
+                      ),
+                  )
+                      .filter(
+                          (input) =>
+                              input.name === group.field && input.value !== "",
+                      )
+                      .map((input) => input.value),
+              ]),
+          )
+        : undefined;
+    if ("changing" in props)
+        return mountRoot(element, EquipPrice, { ...props, initialSelections });
     // The server-drawn box is editable before this module loads. Start from
     // what is typed there, or a slow load would put the quote back. If that
     // box still has focus, put it back on the replacement so the next
@@ -23,6 +49,7 @@ export function mount(element: HTMLElement, props: EquipPriceProps) {
     }
     return mountRoot(element, EquipPrice, {
         ...props,
+        initialSelections,
         initial: box?.value,
         restoreFocus,
         selectionStart,

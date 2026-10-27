@@ -400,15 +400,10 @@ OFFERED = {
 
 @dataclass(frozen=True)
 class _Set:
-    """What an option would bring, as far as a drawing needs to know.
-
-    Only its identity is read here: a control starts picked when the
-    thing being drawn holds this set, and the gallery holds nothing that
-    could be fetched. The option's own name serves, because two options
-    of one offer never share it.
-    """
+    """The identity and price of an option's set, without database access."""
 
     pk: str
+    price: int
 
 
 def _offered_choices(name):
@@ -421,7 +416,7 @@ def _offered_choices(name):
                     name=option,
                     surcharge=surcharge,
                     is_default=(choose == "one" and position == 0),
-                    default_set=_Set(option),
+                    default_set=_Set(option, surcharge),
                 )
                 for position, (option, surcharge) in enumerate(options)
             ),

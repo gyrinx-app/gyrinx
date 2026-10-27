@@ -606,21 +606,29 @@ def owned_dialog(request, host: EquipHost):
         }
 
     if kind == "rechoose":
-        # The same controls the row for sale draws, starting on what this
-        # copy took rather than on what a buyer would be handed. What a
-        # swap adds is beside each option; what it settles to is on the
-        # copy's own line once it is saved, because that is where the
-        # figure it changes lives.
         from n26.core.browse import offered_choices
-        from n26.core.listing import pick_groups
+        from n26.core.listing import pick_group_props, pick_groups
 
         thing = assignment.assignable
-        taken = {row.default_set_id for row in assignment.chosen_options.all()}
+        recorded = list(assignment.chosen_options.select_related("default_set"))
+        taken = {row.default_set_id for row in recorded}
+        choices = pick_groups(offered_choices(thing), thing_key(thing), taken=taken)
         return dialog | {
             "title": f"Change {name}'s options",
-            "choices": pick_groups(
-                offered_choices(thing), thing_key(thing), taken=taken
-            ),
+            "choices": choices,
+            "price_preview": {
+                "changing": True,
+                "choices": pick_group_props(choices),
+                "before": sum(row.default_set.price for row in recorded),
+                "fixed": [
+                    {
+                        "setKey": str(offered[0].default_set.pk),
+                        "price": offered[0].price,
+                    }
+                    for group, offered in thing.grouped_offers()
+                    if (group is None or group.choose == "one") and len(offered) == 1
+                ],
+            },
             "submit_label": "Save options",
             "submit_variant": "success",
         }

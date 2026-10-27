@@ -1,0 +1,41 @@
+{% load arith hire_price react %}
+{% comment %}
+Price, Buy and option controls share one React owner. The posted price remains
+the base payment; selected surcharges are added by the server.
+The fallback uses the same listing and native form fields.
+{% endcomment %}
+{% equip_purchase_props row price_cap repeat as props_ %}
+{% react_host "equip-price" props_ %}
+    <div class="flex min-h-9 items-center gap-2">
+        {% if repeat %}
+            <span class="min-w-0 flex-1 text-sm text-muted">Buy another</span>
+        {% else %}
+            <span class="flex min-w-0 flex-1 items-center gap-2 text-sm text-ink-900 dark:text-ink-100">
+                <span class="n26-cp-rail" aria-hidden="true"></span>
+                <span class="min-w-0 font-semibold sm:truncate">{{ row.marked_name }}</span>
+            </span>
+            {% if row.is_exclusive %}
+                <span class="shrink-0 text-xs font-semibold tabular-nums text-ink-900 dark:text-ink-100"
+                      title="Exclusive — equipment list only">E</span>
+            {% elif row.trade_points %}
+                <span class="shrink-0 text-xs tabular-nums text-ink-900 dark:text-ink-100"
+                      title="{{ row.trade_points }} trade points">{{ row.trade_points }}TP</span>
+            {% endif %}
+        {% endif %}
+        <div class="n26-cp-price flex shrink-0 items-center justify-end gap-1.5 text-sm text-ink-900 dark:text-ink-100">
+            <input type="number"
+                   name="{{ row.price_field }}"
+                   value="{{ row.price }}"
+                   min="{{ row.price|at_most:0 }}"
+                   max="{{ price_cap }}"
+                   step="1"
+                   inputmode="numeric"
+                   aria-label="Base price for {{ row.marked_name }}"
+                   class="w-16 shrink-0 rounded-control border border-box-border bg-[var(--color-input-bg)] px-1.5 py-1 text-right text-sm tabular-nums text-ink-900 shadow-[var(--shadow-input)] focus-ring dark:text-ink-100">
+        </div>
+        <span class="flex shrink-0 items-center gap-1">{% include "n26/includes/row_action.html" with action=row.buy %}</span>
+    </div>
+    <div class="{% if not repeat %}n26-cp-inset{% endif %}">
+        {% include "n26/includes/equip_choices.html" with choices=row.choices %}
+    </div>
+{% endreact_host %}
