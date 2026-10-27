@@ -15,11 +15,12 @@ so the id must stay put.
         <h2 class="text-lg font-semibold">Mission results</h2>
         <p class="mt-1 text-sm text-muted">Enter the credits the gang gained and any change to its counters.</p>
     </div>
-    {% if territory %}
+    {% for territory in territories %}
         <section class="space-y-2 border border-box-border bg-ink-100 p-4 dark:bg-ink-900"
-                 aria-labelledby="territory-result-heading"
+                 aria-labelledby="territory-result-heading-{{ forloop.counter }}"
                  data-battle-stake>
-            <h3 id="territory-result-heading" class="text-sm font-medium text-muted">{{ territory.heading }}</h3>
+            <h3 id="territory-result-heading-{{ forloop.counter }}"
+                class="text-sm font-medium text-muted">{{ territory.heading }}</h3>
             <p class="text-xl font-semibold">{{ territory.name }}</p>
             <p class="text-sm">{{ territory.outcome }}</p>
             {% if territory.currentHolder %}<p class="text-sm text-muted">{{ territory.currentHolder }}</p>{% endif %}
@@ -28,7 +29,7 @@ so the id must stay put.
                 {{ territory.note }}
             </p>
         </section>
-    {% endif %}
+    {% endfor %}
     <div class="space-y-3">
         <h3 id="credits-heading" class="text-lg font-semibold">Credits</h3>
         <ul class="space-y-3" aria-labelledby="credits-heading">

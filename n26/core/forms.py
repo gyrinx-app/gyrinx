@@ -607,8 +607,9 @@ def stakes_offered(battle):
             )
             | Q(holder__isnull=True)
             | Q(holder__left__isnull=False)
-            | Q(pk=battle.stake_id)
+            | Q(battle_stakes__battle=battle)
         )
+        .distinct()
         .select_related("asset__asset_type", "holder__gang")
     )
 
@@ -697,20 +698,10 @@ class BattleForm(ScenarioComponentsMixin, forms.Form):
         label="Winning gangs",
         widget=forms.CheckboxSelectMultiple,
     )
-    stake = StakeChoiceField(
-        queryset=None,
-        required=False,
-        empty_label="Nothing staked",
-    )
-    stake_awarded_to = forms.ModelChoiceField(
-        queryset=None,
-        required=False,
-        empty_label="Not awarded",
-    )
     revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
     stake_versions = forms.CharField(required=False, widget=forms.HiddenInput)
 
-    def __init__(self, *args, playing, battle=None, **kwargs):
+    def __init__(self, *args, playing, battle=None, draft=None, **kwargs):
         from n26.core.models import Battle
 
         super().__init__(*args, **kwargs)
@@ -735,48 +726,87 @@ class BattleForm(ScenarioComponentsMixin, forms.Form):
                 result=battle.result,
                 winners=[gang.pk for gang in battle.winners.all()],
                 revision=battle.revision,
-                stake=battle.stake_id,
-                stake_awarded_to=battle.stake_awarded_to_id,
             )
+        self.stake_rows = []
         stakes = stakes_offered(battle)
         if not stakes:
             # Nothing to stake: the fields go, and saving leaves the
-            # battle's stake as it is.
-            del self.fields["stake"]
-            del self.fields["stake_awarded_to"]
+            # battle's stakes as they are.
             del self.fields["stake_versions"]
             self.stake_label = ""
             return
-        self.fields["stake"].queryset = stakes
         self._stake_salt = f"battle-stake:{battle.pk}"
         self.initial["stake_versions"] = signing.dumps(
             {str(stake.pk): stake.ownership_revision for stake in stakes},
             salt=self._stake_salt,
             compress=True,
         )
+        current = list(battle.stakes.all())
+        for index, row in enumerate(current):
+            self.initial[f"stake_{index}"] = row.asset_id
+            self.initial[f"stake_awarded_to_{index}"] = row.awarded_to_id
+        data = self.data if self.is_bound else draft
+        if data is not None:
+            count = 0
+            while f"stake_{count}" in data:
+                count += 1
+            if draft is not None:
+                count += 1
+                self.initial.update(
+                    {
+                        key: data.getlist(key)
+                        if key in ("gangs", "winners")
+                        else data[key]
+                        for key in data
+                        if key != "csrfmiddlewaretoken"
+                    }
+                )
+        else:
+            count = len(current)
+        # Never more rows than there are assets to stake, and always one.
+        count = max(1, min(count, len(stakes)))
+        self.may_add_stake = count < len(stakes)
         # Every participant remains selectable when the stake changes to an
         # unclaimed asset in the same form submission.
-        self.fields["stake_awarded_to"].queryset = self._awardable(playing, battle)
+        awardable = self._awardable(playing, battle, data)
         from n26.core.campaigns import a_stake
 
         noun = stake_noun(stakes)
+        word = noun[:1].lower() + noun[1:]
         self.stake_label = f"{noun} staked"
-        self.fields["stake"].label = self.stake_label
-        self.fields["stake"].error_messages["invalid_choice"] = (
-            f"Select {a_stake(noun)} that is unclaimed or held by a participant."
-        )
-        self.fields["stake_awarded_to"].label = f"{noun} goes to"
-        self.fields["stake_awarded_to"].error_messages["invalid_choice"] = (
-            f"Select a participant to give the {noun[:1].lower() + noun[1:]} to."
-        )
+        self.stake_noun = word
+        for index in range(count):
+            stake = StakeChoiceField(
+                queryset=stakes,
+                required=False,
+                empty_label="Nothing staked",
+                label=self.stake_label,
+            )
+            stake.error_messages["invalid_choice"] = (
+                f"Select {a_stake(noun)} that is unclaimed or held by a participant."
+            )
+            awarded_to = forms.ModelChoiceField(
+                queryset=awardable,
+                required=False,
+                empty_label="Not awarded",
+                label=f"{noun} goes to",
+            )
+            awarded_to.error_messages["invalid_choice"] = (
+                f"Select a participant to give the {word} to."
+            )
+            self.fields[f"stake_{index}"] = stake
+            self.fields[f"stake_awarded_to_{index}"] = awarded_to
+            self.stake_rows.append(
+                (self[f"stake_{index}"], self[f"stake_awarded_to_{index}"])
+            )
 
-    def _awardable(self, playing, battle):
+    def _awardable(self, playing, battle, data):
         """The gangs the stake can go to: the participants being saved,
         so a gang added in this save can win it. Saving checks again."""
-        if not self.is_bound:
+        if data is None:
             return battle.gangs.order_by("name")
         try:
-            return playing.filter(pk__in=self.data.getlist("gangs")).order_by("name")
+            return playing.filter(pk__in=data.getlist("gangs")).order_by("name")
         except ValidationError, ValueError:
             return playing.none()
 
@@ -784,25 +814,19 @@ class BattleForm(ScenarioComponentsMixin, forms.Form):
         from n26.core.models import Battle
 
         cleaned = super().clean()
-        if self.is_bound and self.data.get("stake") and "stake" not in self.fields:
+        if self.is_bound and "stake_0" in self.data and not self.stake_rows:
             self.add_error(
                 None, "The available stakes changed. Reload the battle before saving."
             )
         versions = cleaned.pop("stake_versions", None)
-        stake = cleaned.get("stake")
-        if "stake_versions" in self.fields and not versions:
+        if not self.stake_rows:
+            pass
+        elif not versions:
             self.add_error(
                 None, "The available stakes changed. Reload the battle before saving."
             )
-        elif stake is not None and versions:
-            try:
-                expected = signing.loads(versions, salt=self._stake_salt)
-                cleaned["stake_revision"] = expected[str(stake.pk)]
-            except signing.BadSignature, KeyError, TypeError:
-                self.add_error(
-                    "stake",
-                    "The available stakes changed. Reload the battle before saving.",
-                )
+        else:
+            self._gather_stakes(cleaned, versions)
         if self.scenario_keys:
             cleaned = self.gather_scenario(cleaned)
         if all(field in cleaned for field in ("result", "gangs", "winners")):
@@ -815,6 +839,49 @@ class BattleForm(ScenarioComponentsMixin, forms.Form):
             except forms.ValidationError as exc:
                 self.add_error(None, exc)
         return cleaned
+
+    def _gather_stakes(self, cleaned, versions):
+        """The stake rows as one ``stakes`` list of ``(asset, gang)``
+        pairs, with the ownership revision each asset had when the page
+        was drawn. A row left as "Nothing staked" is dropped."""
+        try:
+            expected = signing.loads(versions, salt=self._stake_salt)
+        except signing.BadSignature:
+            self.add_error(
+                None, "The available stakes changed. Reload the battle before saving."
+            )
+            return
+        stakes, revisions, seen = [], {}, set()
+        for index in range(len(self.stake_rows)):
+            name, goes_to = f"stake_{index}", f"stake_awarded_to_{index}"
+            asset = cleaned.pop(name, None)
+            awarded_to = cleaned.pop(goes_to, None)
+            if name in self.errors or goes_to in self.errors:
+                continue
+            if asset is None:
+                if awarded_to is not None:
+                    self.add_error(
+                        goes_to,
+                        "Select what was staked before selecting which gang it goes to.",
+                    )
+                continue
+            if asset.pk in seen:
+                self.add_error(
+                    name,
+                    f"{asset} is already staked. Select each {self.stake_noun} once.",
+                )
+                continue
+            seen.add(asset.pk)
+            if str(asset.pk) not in expected:
+                self.add_error(
+                    name,
+                    "The available stakes changed. Reload the battle before saving.",
+                )
+                continue
+            revisions[str(asset.pk)] = expected[str(asset.pk)]
+            stakes.append((asset, awarded_to))
+        cleaned["stakes"] = stakes
+        cleaned["stake_revisions"] = revisions
 
 
 class BattleOutcomeForm(forms.Form):

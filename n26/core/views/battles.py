@@ -14,11 +14,12 @@ from django.views.decorators.http import require_POST
 
 from n26.core.battle_permissions import may_record_gang
 from n26.core.campaign_permissions import may_record_outcome
-from n26.core.campaigns import battle_stake, campaign_operation
+from n26.core.campaigns import battle_stakes, campaign_operation
 from n26.core.forms import BattleForm, BattleOutcomeForm
 from n26.core.models import (
     Battle,
     BattleCrew,
+    BattleStake,
     CampaignEvent,
     Gang,
     PostBattleReport,
@@ -129,7 +130,7 @@ def battle(request, pk, battle_pk):
             "participants": participants,
             "request_key": uuid4(),
             "recorded": recorded,
-            "stake": battle_stake(found, request.user),
+            "stakes": battle_stakes(found, request.user),
             "yours": campaign.owner_id == request.user.pk,
             "may_record_outcome": may_record_outcome(found, request.user),
             "scenario_results": results(found.scenario_rolls or {}),
@@ -157,12 +158,16 @@ def edit_battle(request, pk, battle_pk):
         .distinct()
         .order_by("name")
     )
+    # "Add another" redraws the draft with one more stake row and saves
+    # nothing, so what was entered is kept and nothing is checked yet.
+    adding_stake = request.method == "POST" and "add_stake" in request.POST
     form = BattleForm(
-        request.POST if request.method == "POST" else None,
+        request.POST if request.method == "POST" and not adding_stake else None,
         playing=playing,
         battle=found,
+        draft=request.POST if adding_stake else None,
     )
-    if request.method == "POST" and form.is_valid():
+    if request.method == "POST" and not adding_stake and form.is_valid():
         try:
             with campaign_operation(campaign, actor=request.user) as act:
                 act.edit_battle(found, **form.cleaned_data)
@@ -192,7 +197,8 @@ class BattleListGang:
 class BattleListLine:
     battle: object
     gangs: list
-    stake: object
+    #: The battle's ``BattleStake`` rows, in the order they were added.
+    stakes: list
 
     @property
     def players(self):
@@ -211,26 +217,28 @@ def _battle_lines(campaign):
         members__miniature__membership__caused_by__miniature_root__isnull=True,
         members__role="starting",
     )
-    battles = (
-        campaign.battles.filter(archived=False)
-        .select_related("stake__asset__asset_type", "stake_awarded_to")
-        .prefetch_related(
-            Prefetch(
-                "gangs",
-                # The owner's profile and badges, so each Player link
-                # costs nothing more.
-                queryset=Gang.objects.select_related(
-                    "gang_type", "owner__profile"
-                ).prefetch_related("owner__badge_grants"),
+    battles = campaign.battles.filter(archived=False).prefetch_related(
+        Prefetch(
+            "stakes",
+            queryset=BattleStake.objects.select_related(
+                "asset__asset__asset_type", "awarded_to"
             ),
-            "winners",
-            Prefetch(
-                "crews",
-                queryset=BattleCrew.objects.annotate(
-                    starting_count=Count("members", filter=starting)
-                ),
+        ),
+        Prefetch(
+            "gangs",
+            # The owner's profile and badges, so each Player link
+            # costs nothing more.
+            queryset=Gang.objects.select_related(
+                "gang_type", "owner__profile"
+            ).prefetch_related("owner__badge_grants"),
+        ),
+        "winners",
+        Prefetch(
+            "crews",
+            queryset=BattleCrew.objects.annotate(
+                starting_count=Count("members", filter=starting)
             ),
-        )
+        ),
     )
     lines = []
     for found in battles:
@@ -242,7 +250,7 @@ def _battle_lines(campaign):
                     BattleListGang(gang, won, crews.get(gang.pk))
                     for gang, won in found.gang_outcomes
                 ],
-                stake=found.stake,
+                stakes=list(found.stakes.all()),
             )
         )
     return lines
@@ -250,7 +258,7 @@ def _battle_lines(campaign):
 
 def _sorted_battle_lines(lines, sort):
     """``lines`` in the order ``sort`` names. A battle missing the value
-    sorted on, such as one with no stake, goes last either way; ties keep
+    sorted on, such as one with no stakes, goes last either way; ties keep
     the newest battle first."""
     key = sort.lstrip("-")
     reverse = sort.startswith("-")
@@ -259,7 +267,9 @@ def _sorted_battle_lines(lines, sort):
         "scenario": lambda line: line.battle.title.lower(),
         "gangs": lambda line: len(line.gangs),
         "player": lambda line: line.players or None,
-        "stake": lambda line: str(line.stake).lower() if line.stake else None,
+        "stake": lambda line: (
+            ", ".join(str(stake).lower() for stake in line.stakes) or None
+        ),
     }[key]
     known = [line for line in lines if value(line) is not None]
     unknown = [line for line in lines if value(line) is None]

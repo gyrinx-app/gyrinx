@@ -16,10 +16,16 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from n26.core import history
-from n26.core.campaigns import BattleStake, battle_stake, campaign_operation
+from n26.core.campaigns import StakeSummary, battle_stakes, campaign_operation
 from n26.core.forms import BattleForm
 from n26.core.history import build, latest
-from n26.core.models import Battle, Gang, LedgerEvent, PostBattleReport
+from n26.core.models import (
+    Battle,
+    BattleStake,
+    Gang,
+    LedgerEvent,
+    PostBattleReport,
+)
 from n26.core.operations import Refusal
 from n26.core.post_battle import start_report
 from n26.library.authoring import create_asset
@@ -85,8 +91,7 @@ def test_player_outcome_preserves_a_stake_that_changed_hands(table, client):
             result="not_recorded",
             winners=[],
             revision=0,
-            stake=table.ruins,
-            stake_awarded_to=None,
+            stakes=[(table.ruins, None)],
         )
     with campaign_operation(table.campaign, actor=table.player) as act:
         act.answer_invitation(table.player, accepted=True)
@@ -109,9 +114,9 @@ def test_player_outcome_preserves_a_stake_that_changed_hands(table, client):
     assert response.status_code == 302
     table.battle.refresh_from_db()
     assert table.battle.result == Battle.Result.WINNERS
-    assert table.battle.stake_id == table.ruins.pk
-    assert table.battle.stake_awarded_to_id is None
-    assert table.battle.stake_transfer_mark is None
+    assert staked(table).asset_id == table.ruins.pk
+    assert staked(table).awarded_to_id is None
+    assert staked(table).transfer_mark is None
     assert holder(table) == table.bystanders
     assert LedgerEvent.objects.count() == events_before
 
@@ -134,9 +139,14 @@ def form_fields(table, **changes):
         "stake_versions": BattleForm(
             playing=Gang.objects.all(), battle=table.battle
         ).initial.get("stake_versions", ""),
-        "stake": str(table.ruins.pk),
-        "stake_awarded_to": str(table.kings.pk),
+        "stake_0": str(table.ruins.pk),
+        "stake_awarded_to_0": str(table.kings.pk),
     } | changes
+
+
+def staked(table):
+    """The battle's first stake, or None where it stakes nothing."""
+    return BattleStake.objects.filter(battle=table.battle).first()
 
 
 def holder(table):
@@ -163,8 +173,7 @@ def stake_as(table, awarded_to, *, revision=None):
             result="not_recorded",
             winners=[],
             revision=table.battle.revision if revision is None else revision,
-            stake=table.ruins,
-            stake_awarded_to=awarded_to,
+            stakes=[(table.ruins, awarded_to)],
         )
 
 
@@ -175,7 +184,7 @@ class TestSavingTheStake:
         assert response.status_code == 302
         assert holder(table) == table.kings
         table.battle.refresh_from_db()
-        mark = table.battle.stake_transfer_mark
+        mark = staked(table).transfer_mark
         assert mark is not None
         assert sorted(moves(table)) == [
             ("Ashen Choir", LedgerEvent.Kind.LOST, mark),
@@ -202,35 +211,31 @@ class TestSavingTheStake:
         assert len(moves(table)) == 2
 
     def test_staying_with_its_holder_moves_nothing(self, client, table):
-        client.post(edit_url(table), form_fields(table, stake_awarded_to=""))
+        client.post(edit_url(table), form_fields(table, stake_awarded_to_0=""))
 
         table.battle.refresh_from_db()
-        assert table.battle.stake == table.ruins
-        assert table.battle.stake_transfer_mark is None
+        assert staked(table).asset == table.ruins
+        assert staked(table).transfer_mark is None
         assert holder(table) == table.choir
         assert moves(table) == []
 
     def test_going_to_its_holder_moves_nothing(self, table):
-        battle = stake_as(table, table.choir)
+        stake_as(table, table.choir)
 
-        assert battle.stake_transfer_mark is None
+        assert staked(table).transfer_mark is None
         assert holder(table) == table.choir
         assert moves(table) == []
 
-    def test_a_winner_without_a_stake_is_refused(self, table):
-        with pytest.raises(Refusal, match="Select what was staked"):
-            with campaign_operation(table.campaign, actor=table.arbitrator) as act:
-                act.edit_battle(
-                    table.battle,
-                    scenario="Stand-off",
-                    date=date(2026, 9, 20),
-                    gangs=[table.choir, table.kings],
-                    result="not_recorded",
-                    winners=[],
-                    revision=table.battle.revision,
-                    stake=None,
-                    stake_awarded_to=table.kings,
-                )
+    def test_a_winner_without_a_stake_is_refused(self, client, table):
+        response = client.post(
+            edit_url(table),
+            form_fields(table, stake_0="", result="not_recorded", winners=[]),
+        )
+
+        assert response.status_code == 200
+        assert "Select what was staked" in response.content.decode()
+        assert staked(table) is None
+        assert holder(table) == table.choir
 
     def test_editing_without_naming_the_stake_keeps_it(self, table):
         stake_as(table, table.kings)
@@ -247,8 +252,8 @@ class TestSavingTheStake:
             )
 
         table.battle.refresh_from_db()
-        assert table.battle.stake == table.ruins
-        assert table.battle.stake_awarded_to == table.kings
+        assert staked(table).asset == table.ruins
+        assert staked(table).awarded_to == table.kings
         assert len(moves(table)) == 2
 
 
@@ -265,9 +270,9 @@ class TestWhatCanBeStaked:
 
         form = BattleForm(playing=Gang.objects.all(), battle=table.battle)
 
-        assert set(form.fields["stake"].queryset) == {table.ruins, unclaimed}
-        assert form.fields["stake"].label == "Territory staked"
-        assert set(form.fields["stake_awarded_to"].queryset) == {
+        assert set(form.fields["stake_0"].queryset) == {table.ruins, unclaimed}
+        assert form.fields["stake_0"].label == "Territory staked"
+        assert set(form.fields["stake_awarded_to_0"].queryset) == {
             table.choir,
             table.kings,
         }
@@ -286,8 +291,8 @@ class TestWhatCanBeStaked:
 
         form = BattleForm(playing=Gang.objects.all(), battle=table.battle)
 
-        assert "stake" not in form.fields
-        assert "stake_awarded_to" not in form.fields
+        assert "stake_0" not in form.fields
+        assert "stake_awarded_to_0" not in form.fields
 
     def test_a_gang_added_in_the_same_save_can_win_it(self, client, table):
         response = client.post(
@@ -296,7 +301,7 @@ class TestWhatCanBeStaked:
                 table,
                 gangs=[str(g.pk) for g in (table.choir, table.kings, table.bystanders)],
                 winners=[str(table.bystanders.pk)],
-                stake_awarded_to=str(table.bystanders.pk),
+                stake_awarded_to_0=str(table.bystanders.pk),
             ),
         )
 
@@ -315,7 +320,7 @@ class TestWhatCanBeStaked:
         assign_asset(foreign, outsiders)
 
         response = client.post(
-            edit_url(table), form_fields(table, stake=str(foreign.pk))
+            edit_url(table), form_fields(table, stake_0=str(foreign.pk))
         )
 
         assert response.status_code == 200
@@ -325,7 +330,7 @@ class TestWhatCanBeStaked:
         )
         foreign.refresh_from_db()
         assert foreign.holder.gang == outsiders
-        assert Battle.objects.get(pk=table.battle.pk).stake is None
+        assert staked(table) is None
         assert holder(table) == table.choir
 
 
@@ -333,7 +338,7 @@ class TestWhereItCanGo:
     def options(self, table):
         table.battle.refresh_from_db()
         form = BattleForm(playing=Gang.objects.all(), battle=table.battle)
-        return [label for _, label in form.fields["stake_awarded_to"].choices]
+        return [label for _, label in form.fields["stake_awarded_to_0"].choices]
 
     def test_before_a_stake_is_set_the_empty_choice_says_what_it_does(self, table):
         assert self.options(table) == [
@@ -351,7 +356,7 @@ class TestWhereItCanGo:
         client.post(edit_url(table), form_fields(table))
 
         assert self.options(table) == ["Not awarded", "Ashen Choir", "Rust Kings"]
-        client.post(edit_url(table), form_fields(table, stake_awarded_to=""))
+        client.post(edit_url(table), form_fields(table, stake_awarded_to_0=""))
         assert holder(table) == table.choir
 
     def test_an_explicit_award_to_the_first_holder_stays_selected(self, table):
@@ -360,7 +365,7 @@ class TestWhereItCanGo:
 
         form = BattleForm(playing=Gang.objects.all(), battle=table.battle)
 
-        assert form.initial["stake_awarded_to"] == table.choir.pk
+        assert form.initial["stake_awarded_to_0"] == table.choir.pk
 
     def test_editing_the_scenario_preserves_an_award_to_the_first_holder(
         self, client, table
@@ -368,14 +373,14 @@ class TestWhereItCanGo:
         stake_as(table, table.choir)
         response = client.get(edit_url(table))
         document = BeautifulSoup(response.content, "html.parser")
-        assert document.select_one("#battle-stake-awarded-to option[selected]")[
+        assert document.select_one("#battle-stake_awarded_to_0 option[selected]")[
             "value"
         ] == str(table.choir.pk)
         data = html_fields(response, scenario="Stand-off at dusk")
         assert client.post(edit_url(table), data).status_code == 302
         table.battle.refresh_from_db()
         assert table.battle.scenario == "Stand-off at dusk"
-        assert table.battle.stake_awarded_to_id == table.choir.pk
+        assert staked(table).awarded_to_id == table.choir.pk
         assert holder(table) == table.choir
         assert not moves(table)
 
@@ -385,7 +390,7 @@ class TestRemovingTheBattle:
         client.post(edit_url(table), form_fields(table))
         table.battle.refresh_from_db()
         before = moves(table)
-        mark = table.battle.stake_transfer_mark
+        mark = staked(table).transfer_mark
         response = client.post(
             reverse(
                 "n26-campaign-remove-battle", args=[table.campaign.pk, table.battle.pk]
@@ -395,7 +400,7 @@ class TestRemovingTheBattle:
         assert response.status_code == 302
         archived = Battle.objects.get(pk=table.battle.pk)
         assert archived.archived
-        assert archived.stake_transfer_mark == mark
+        assert staked(table).transfer_mark == mark
         assert holder(table) == table.kings
         assert moves(table) == before
         with campaign_operation(table.campaign, actor=table.campaign.owner) as act:
@@ -407,9 +412,9 @@ class TestRemovingTheBattle:
 class TestCorrectingTheStake:
     def test_a_different_recipient_reverses_the_transfer_first(self, table):
         stake_as(table, table.kings)
-        battle = stake_as(table, None)
+        stake_as(table, None)
 
-        assert battle.stake_transfer_mark is None
+        assert staked(table).transfer_mark is None
         assert holder(table) == table.choir
         assert len(moves(table)) == 4
 
@@ -417,7 +422,9 @@ class TestCorrectingTheStake:
         client.post(edit_url(table), form_fields(table))
         transfer_asset(table.ruins, table.bystanders)
 
-        response = client.post(edit_url(table), form_fields(table, stake_awarded_to=""))
+        response = client.post(
+            edit_url(table), form_fields(table, stake_awarded_to_0="")
+        )
 
         assert response.status_code == 200
         assert (
@@ -426,8 +433,8 @@ class TestCorrectingTheStake:
         )
         assert holder(table) == table.bystanders
         table.battle.refresh_from_db()
-        assert table.battle.stake_awarded_to == table.kings
-        assert table.battle.stake_transfer_mark is not None
+        assert staked(table).awarded_to == table.kings
+        assert staked(table).transfer_mark is not None
 
 
 class TestWhoMovesTheStake:
@@ -439,7 +446,7 @@ class TestWhoMovesTheStake:
 
         assert response.status_code == 404
         assert holder(table) == table.choir
-        assert Battle.objects.get(pk=table.battle.pk).stake is None
+        assert staked(table) is None
 
     def test_the_gang_owner_sees_the_stake_read_only(self, client, table):
         stake_as(table, table.kings)
@@ -508,11 +515,11 @@ class TestBothReportsAgree:
         assert holder(table) == table.bystanders
 
     def test_no_stake_shows_nothing(self, table):
-        assert battle_stake(table.battle) is None
+        assert battle_stakes(table.battle) == []
 
     def test_a_stake_not_given_away_stays_with_its_holder(self):
         def outcome(holder):
-            return BattleStake(
+            return StakeSummary(
                 label="Territory staked", name="Old Ruins", awarded_to="", holder=holder
             ).outcome
 
@@ -521,7 +528,7 @@ class TestBothReportsAgree:
 
     def test_the_note_names_a_holder_the_outcome_does_not(self):
         def note(awarded_to, holder, arbitrator=False):
-            return BattleStake(
+            return StakeSummary(
                 label="Territory staked",
                 name="Old Ruins",
                 awarded_to=awarded_to,
@@ -627,14 +634,14 @@ class TestUnclaimedStakes:
                 table,
                 result="not_recorded",
                 winners=[],
-                stake_awarded_to="",
+                stake_awarded_to_0="",
             ),
         )
         assert response.status_code == 302
         table.battle.refresh_from_db()
-        assert table.battle.stake == table.ruins
-        assert table.battle.stake_awarded_to is None
-        assert table.battle.stake_transfer_mark is None
+        assert staked(table).asset == table.ruins
+        assert staked(table).awarded_to is None
+        assert staked(table).transfer_mark is None
         assert holder(table) is None
         assert LedgerEvent.objects.count() == before
         assert "Old Ruins" in stake_text(
@@ -652,19 +659,19 @@ class TestUnclaimedStakes:
         unassign_asset(table.ruins)
         other = add_asset(table.campaign, table.ruins.asset)
         form = BattleForm(playing=Gang.objects.all(), battle=table.battle)
-        labels = {str(value): label for value, label in form.fields["stake"].choices}
+        labels = {str(value): label for value, label in form.fields["stake_0"].choices}
         assert labels[str(table.ruins.pk)] != labels[str(other.pk)]
         response = client.post(
             edit_url(table),
             form_fields(
                 table,
-                stake=str(other.pk),
-                stake_awarded_to="",
+                stake_0=str(other.pk),
+                stake_awarded_to_0="",
             ),
         )
         assert response.status_code == 302
         table.battle.refresh_from_db()
-        assert table.battle.stake_id == other.pk
+        assert staked(table).asset_id == other.pk
         assert holder(table) is None
         other.refresh_from_db()
         assert other.holder is None
@@ -683,7 +690,7 @@ class TestUnclaimedStakes:
             campaign_asset=table.ruins,
         )
         assert gained.kind == LedgerEvent.Kind.GAINED
-        assert gained.batch == table.battle.stake_transfer_mark
+        assert gained.batch == staked(table).transfer_mark
         assert client.post(edit_url(table), data).status_code == 200
         assert len(moves(table)) == 1
         assert (
@@ -707,7 +714,7 @@ class TestUnclaimedStakes:
         assert returned.kind == LedgerEvent.Kind.LOST
         assert returned.battle_id == table.battle.pk
         table.battle.refresh_from_db()
-        assert table.battle.stake_transfer_mark is None
+        assert staked(table).transfer_mark is None
 
     def test_correcting_the_winner_reverses_the_unclaimed_award(self, table):
         unassign_asset(table.ruins)
@@ -728,7 +735,7 @@ class TestUnclaimedStakes:
         assign_asset(table.ruins, table.choir)
         response = client.post(edit_url(table), data)
         assert response.status_code == 200
-        assert "This stake changed hands" in response.content.decode()
+        assert "Old Ruins changed hands" in response.content.decode()
         assert holder(table) == table.choir
         assert not moves(table)
 
@@ -747,7 +754,7 @@ class TestUnclaimedStakes:
         )
         foreign = add_asset(other, table.ruins.asset)
         response = client.post(
-            edit_url(table), form_fields(table, stake=str(foreign.pk))
+            edit_url(table), form_fields(table, stake_0=str(foreign.pk))
         )
         assert response.status_code == 200
         foreign.refresh_from_db()
@@ -798,7 +805,7 @@ class TestUnclaimedStakes:
         data = form_fields(table)
         del data["stake_versions"]
         if not select_stake:
-            data.update(stake="", stake_awarded_to="")
+            data.update(stake_0="", stake_awarded_to_0="")
         response = client.post(edit_url(table), data)
         assert response.status_code == 200
         message = "The available stakes changed. Reload the battle before saving."
@@ -834,7 +841,7 @@ class TestUnclaimedStakes:
         )
         table.battle.refresh_from_db()
         assert table.battle.scenario == "Stand-off at dusk"
-        assert table.battle.stake_id is None
+        assert staked(table) is None
         assert holder(table) is None
         assert not moves(table)
 
@@ -861,16 +868,241 @@ class TestUnclaimedStakes:
             edit_url(table),
             form_fields(
                 table,
-                stake=str(other.pk),
-                stake_awarded_to=str(table.choir.pk),
+                stake_0=str(other.pk),
+                stake_awarded_to_0=str(table.choir.pk),
             ),
         )
         assert response.status_code == 302
         table.battle.refresh_from_db()
         other.refresh_from_db()
-        assert table.battle.stake_id == other.pk
+        assert staked(table).asset_id == other.pk
         assert other.holder.gang_id == table.choir.pk
         assert holder(table) == table.choir
+
+
+class TestSeveralStakes:
+    """A battle can stake several assets, and each goes to its own gang."""
+
+    @pytest.fixture
+    def shrine(self, table):
+        return add_asset(
+            table.campaign, create_asset("Bone Shrine", table.ruins.asset.asset_type)
+        )
+
+    def two_rows(self, table, shrine, ruins_to, shrine_to, **changes):
+        return form_fields(
+            table,
+            **{
+                "stake_awarded_to_0": ruins_to,
+                "stake_1": str(shrine.pk),
+                "stake_awarded_to_1": shrine_to,
+            }
+            | changes,
+        )
+
+    def stakes(self, table):
+        return {
+            stake.asset.pk: stake
+            for stake in BattleStake.objects.filter(battle=table.battle)
+        }
+
+    def test_each_asset_goes_to_its_own_gang(self, client, table, shrine):
+        response = client.post(
+            edit_url(table),
+            self.two_rows(table, shrine, str(table.kings.pk), str(table.choir.pk)),
+        )
+
+        assert response.status_code == 302
+        assert holder(table) == table.kings
+        shrine.refresh_from_db()
+        assert shrine.holder.gang == table.choir
+        stakes = self.stakes(table)
+        assert stakes[table.ruins.pk].awarded_to == table.kings
+        assert stakes[shrine.pk].awarded_to == table.choir
+        assert stakes[table.ruins.pk].transfer_mark != stakes[shrine.pk].transfer_mark
+
+    def test_correcting_one_leaves_the_other_where_it_went(self, client, table, shrine):
+        client.post(
+            edit_url(table),
+            self.two_rows(table, shrine, str(table.kings.pk), str(table.choir.pk)),
+        )
+        ruins_moves = moves(table)
+
+        response = client.post(
+            edit_url(table),
+            self.two_rows(table, shrine, str(table.kings.pk), ""),
+        )
+
+        assert response.status_code == 302
+        shrine.refresh_from_db()
+        assert shrine.holder is None
+        assert holder(table) == table.kings
+        assert moves(table) == ruins_moves
+
+    def test_dropping_a_stake_returns_what_it_moved(self, client, table, shrine):
+        client.post(
+            edit_url(table),
+            self.two_rows(table, shrine, str(table.kings.pk), str(table.choir.pk)),
+        )
+
+        response = client.post(
+            edit_url(table),
+            self.two_rows(table, shrine, str(table.kings.pk), "", stake_1=""),
+        )
+
+        assert response.status_code == 302
+        assert set(self.stakes(table)) == {table.ruins.pk}
+        shrine.refresh_from_db()
+        assert shrine.holder is None
+        assert holder(table) == table.kings
+
+    def test_two_held_assets_can_both_go_back(self, client, table, default_pack):
+        market = add_asset(
+            table.campaign,
+            create_asset("Sump Market", table.ruins.asset.asset_type),
+        )
+        assign_asset(market, table.kings)
+        stakes = [(table.ruins, table.kings), (market, table.choir)]
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            act.edit_battle(
+                table.battle,
+                scenario="Stand-off",
+                date=date(2026, 9, 20),
+                gangs=[table.choir, table.kings],
+                result="not_recorded",
+                winners=[],
+                revision=table.battle.revision,
+                stakes=stakes,
+            )
+        market.refresh_from_db()
+        assert (holder(table), market.holder.gang) == (table.kings, table.choir)
+
+        stake_as_none = [(table.ruins, None), (market, None)]
+        table.battle.refresh_from_db()
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            act.edit_battle(
+                table.battle,
+                scenario="Stand-off",
+                date=date(2026, 9, 20),
+                gangs=[table.choir, table.kings],
+                result="not_recorded",
+                winners=[],
+                revision=table.battle.revision,
+                stakes=stake_as_none,
+            )
+
+        market.refresh_from_db()
+        assert (holder(table), market.holder.gang) == (table.choir, table.kings)
+
+    def test_the_same_asset_twice_is_refused(self, client, table, shrine):
+        response = client.post(
+            edit_url(table),
+            form_fields(
+                table,
+                stake_1=str(table.ruins.pk),
+                stake_awarded_to_1=str(table.choir.pk),
+            ),
+        )
+
+        assert response.status_code == 200
+        assert (
+            "Old Ruins is already staked. Select each territory once."
+            in response.content.decode()
+        )
+        assert staked(table) is None
+        assert holder(table) == table.choir
+
+    def test_the_same_asset_twice_is_refused_by_the_operation(self, table):
+        with pytest.raises(Refusal, match="Old Ruins is staked twice"):
+            with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+                act.edit_battle(
+                    table.battle,
+                    scenario="Stand-off",
+                    date=date(2026, 9, 20),
+                    gangs=[table.choir, table.kings],
+                    result="not_recorded",
+                    winners=[],
+                    revision=table.battle.revision,
+                    stakes=[(table.ruins, None), (table.ruins, table.kings)],
+                )
+        assert staked(table) is None
+
+    def test_add_another_keeps_the_draft_and_saves_nothing(self, client, table, shrine):
+        response = client.post(
+            edit_url(table),
+            form_fields(table, scenario="Stand-off at dusk", add_stake="1"),
+        )
+
+        assert response.status_code == 200
+        document = BeautifulSoup(response.content, "html.parser")
+        assert len(document.select("[data-stake-row]")) == 2
+        assert document.select_one("#battle-scenario")["value"] == "Stand-off at dusk"
+        assert document.select_one("#battle-stake_0 option[selected]")["value"] == str(
+            table.ruins.pk
+        )
+        assert document.select_one("#battle-stake_awarded_to_0 option[selected]")[
+            "value"
+        ] == str(table.kings.pk)
+        # Every asset on offer has a row, so there is nothing more to add.
+        assert document.find("button", attrs={"name": "add_stake"}) is None
+        table.battle.refresh_from_db()
+        assert table.battle.scenario == "Stand-off"
+        assert staked(table) is None
+        assert holder(table) == table.choir
+
+        saved = client.post(
+            edit_url(table),
+            html_fields(response) | {"stake_1": str(shrine.pk)},
+        )
+        assert saved.status_code == 302
+        assert set(self.stakes(table)) == {table.ruins.pk, shrine.pk}
+        table.battle.refresh_from_db()
+        assert table.battle.scenario == "Stand-off at dusk"
+
+    def test_the_edit_page_shows_a_row_per_stake(self, client, table, shrine):
+        client.post(
+            edit_url(table),
+            self.two_rows(table, shrine, str(table.kings.pk), ""),
+        )
+
+        document = BeautifulSoup(client.get(edit_url(table)).content, "html.parser")
+
+        rows = document.select("[data-stake-row]")
+        assert len(rows) == 2
+        assert [row.select_one("select option[selected]")["value"] for row in rows] == [
+            str(table.ruins.pk),
+            str(shrine.pk),
+        ]
+        assert document.find("button", attrs={"name": "add_stake"}) is None
+
+    def test_one_row_and_the_button_before_anything_is_staked(
+        self, client, table, shrine
+    ):
+        document = BeautifulSoup(client.get(edit_url(table)).content, "html.parser")
+
+        assert len(document.select("[data-stake-row]")) == 1
+        button = document.find("button", attrs={"name": "add_stake"})
+        assert " ".join(button.get_text().split()) == "Add another territory"
+
+    def test_the_battle_page_lists_every_stake(self, client, table, shrine):
+        client.post(
+            edit_url(table),
+            self.two_rows(table, shrine, str(table.kings.pk), ""),
+        )
+
+        page = client.get(
+            reverse("n26-battle", args=[table.campaign.pk, table.battle.pk])
+        )
+
+        texts = [
+            " ".join(stake.get_text().split())
+            for stake in BeautifulSoup(page.content, "html.parser").select(
+                "[data-battle-stake]"
+            )
+        ]
+        assert len(texts) == 2
+        assert "Old Ruins" in texts[0] and "Goes to Rust Kings" in texts[0]
+        assert "Bone Shrine" in texts[1] and "Not given to any gang" in texts[1]
 
 
 @pytest.mark.django_db(transaction=True)
@@ -951,8 +1183,7 @@ def test_correcting_an_unclaimed_award_can_finish_beside_a_ransom_payment(
         correction.result(timeout=10)
         payment.result(timeout=10)
 
-    table.battle.refresh_from_db()
-    assert table.battle.stake_awarded_to_id == earlier.pk
+    assert staked(table).awarded_to_id == earlier.pk
     assert holder(table) == earlier
     earlier.refresh_from_db()
     later.refresh_from_db()

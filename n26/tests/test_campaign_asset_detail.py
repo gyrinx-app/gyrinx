@@ -207,8 +207,7 @@ def stake_battle(campaign, holding, first, second, number, *, transfer=False):
             result=Battle.Result.WINNERS if transfer else Battle.Result.DRAW,
             winners=[second.gang] if transfer else [],
             revision=battle.revision,
-            stake=holding,
-            stake_awarded_to=second.gang if transfer else None,
+            stakes=[(holding, second.gang if transfer else None)],
         )
 
 

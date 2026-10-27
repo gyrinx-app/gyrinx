@@ -31,7 +31,11 @@
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        {% if battle %}{{ form.revision }}{{ form.stake_versions }}{% endif %}
+        {% if battle %}
+            {# Enter in a field saves: HTML's default submit is the first in the form, and Add another comes before Save. #}
+            <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true">Save</button>
+            {{ form.revision }}{{ form.stake_versions }}
+        {% endif %}
         {% for field in form %}
             {% if field.name in form.scenario_keys %}{{ field }}{% endif %}
         {% endfor %}
@@ -89,39 +93,59 @@
         {% if battle %}
             {% if form.stake_label %}
                 <c-n26.form-section id="stakes"
+                                    class="scroll-mt-24"
                                     title="Stakes"
-                                    description="Record the stake before or after the battle. Choose a gang to award it to when the result is known.">
-                    <c-ui.field label="{{ form.fields.stake.label }}"
-                                error="x"
-                                :form="form"
-                                name="stake"
-                                for="battle-stake">
-                        <c-ui.select.native id="battle-stake" name="stake" placeholder="">
-                            {% for value, label in form.fields.stake.choices %}
-                                <option value="{{ value }}"
-                                        {% if value|stringformat:'s' == form.stake.value|stringformat:'s' %}selected{% endif %}>
-                                    {{ label }}
-                                </option>
-                            {% endfor %}
-                        </c-ui.select.native>
-                    </c-ui.field>
-                    <c-ui.field label="{{ form.fields.stake_awarded_to.label }}"
-                                error="x"
-                                :form="form"
-                                name="stake_awarded_to"
-                                for="battle-stake-awarded-to">
-                        <p class="mb-2 text-sm text-muted">
-                            Saving gives it to the gang you select. If you change your pick later, it moves only if that gang still holds it.
-                        </p>
-                        <c-ui.select.native id="battle-stake-awarded-to" name="stake_awarded_to" placeholder="">
-                            {% for value, label in form.fields.stake_awarded_to.choices %}
-                                <option value="{{ value }}"
-                                        {% if value|stringformat:'s' == form.stake_awarded_to.value|stringformat:'s' %}selected{% endif %}>
-                                    {{ label }}
-                                </option>
-                            {% endfor %}
-                        </c-ui.select.native>
-                    </c-ui.field>
+                                    description="Record what was staked before or after the battle. Choose a gang for each one when the result is known. Saving gives it to that gang. If you change your pick later, it moves only if that gang still holds it.">
+                    {% for stake, awarded_to in form.stake_rows %}
+                        <div class="grid gap-4 sm:grid-cols-2 {% if not forloop.first %}border-t border-box-border pt-4{% endif %}"
+                             data-stake-row>
+                            <c-ui.field label="{{ stake.label }}"
+                                        error="x"
+                                        :form="form"
+                                        name="{{ stake.name }}"
+                                        for="battle-{{ stake.name }}">
+                                <c-ui.select.native id="battle-{{ stake.name }}" name="{{ stake.name }}" placeholder="">
+                                    {% for value, label in stake.field.choices %}
+                                        <option value="{{ value }}"
+                                                {% if value|stringformat:'s' == stake.value|stringformat:'s' %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </c-ui.select.native>
+                            </c-ui.field>
+                            <c-ui.field label="{{ awarded_to.label }}"
+                                        error="x"
+                                        :form="form"
+                                        name="{{ awarded_to.name }}"
+                                        for="battle-{{ awarded_to.name }}">
+                                <c-ui.select.native id="battle-{{ awarded_to.name }}"
+                                                    name="{{ awarded_to.name }}"
+                                                    placeholder="">
+                                    {% for value, label in awarded_to.field.choices %}
+                                        <option value="{{ value }}"
+                                                {% if value|stringformat:'s' == awarded_to.value|stringformat:'s' %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </c-ui.select.native>
+                            </c-ui.field>
+                        </div>
+                    {% endfor %}
+                    {% if form.may_add_stake %}
+                        {# Redraws the form with one more row and saves nothing. #}
+                        <c-ui.button type="submit"
+                                     name="add_stake"
+                                     value="1"
+                                     variant="default"
+                                     size="sm"
+                                     formaction="#stakes"
+                                     formnovalidate>
+                            <span class="flex items-center gap-1.5">
+                                <c-n26.icon name="plus" class="size-4" />
+                                Add another {{ form.stake_noun }}
+                            </span>
+                        </c-ui.button>
+                    {% endif %}
                 </c-n26.form-section>
             {% endif %}
             <c-n26.form-section id="outcome"

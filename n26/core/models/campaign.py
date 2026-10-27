@@ -481,29 +481,6 @@ class Battle(Base, Archived):
         blank=True,
     )
     winners = models.ManyToManyField("n26.Gang", related_name="battles_won", blank=True)
-    #: A campaign asset staked for this battle. Only the
-    #: arbitrator sets it, and the holder is always read from the asset.
-    stake = models.ForeignKey(
-        "n26.CampaignAsset",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="staked_in",
-    )
-    #: The participant the stake goes to. Blank leaves it with its holder
-    #: or in the unclaimed pool.
-    stake_awarded_to = models.ForeignKey(
-        "n26.Gang",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="stakes_awarded",
-    )
-    #: The ledger batch recording this battle's stake award. An unclaimed
-    #: stake has only a GAINED event. When set, the stake has moved, so saving
-    #: again does not move it twice; a correction reverses the transfer
-    #: first.
-    stake_transfer_mark = models.UUIDField(null=True, blank=True, editable=False)
 
     class Meta:
         verbose_name = "battle"
@@ -561,6 +538,52 @@ class Battle(Base, Archived):
             )
         if {gang.pk for gang in winners} - {gang.pk for gang in gangs}:
             raise ValidationError({"winners": "Every winner must be a participant."})
+
+
+class BattleStake(Base):
+    """A campaign asset staked in a battle, and the gang it goes to.
+
+    A battle can stake several assets, and each goes to its own gang. Only
+    the arbitrator sets them, and the holder is always read from the asset.
+    """
+
+    battle = models.ForeignKey(
+        "n26.Battle",
+        on_delete=models.CASCADE,
+        related_name="stakes",
+    )
+    asset = models.ForeignKey(
+        "n26.CampaignAsset",
+        on_delete=models.CASCADE,
+        related_name="battle_stakes",
+    )
+    #: The participant the asset goes to. Blank leaves it with its holder
+    #: or in the unclaimed pool.
+    awarded_to = models.ForeignKey(
+        "n26.Gang",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="stakes_awarded",
+    )
+    #: The ledger batch recording this award. An unclaimed asset has only a
+    #: GAINED event. When set, the asset has moved, so saving again does not
+    #: move it twice; a correction reverses the transfer first.
+    transfer_mark = models.UUIDField(null=True, blank=True, editable=False)
+
+    class Meta:
+        verbose_name = "battle stake"
+        verbose_name_plural = "battle stakes"
+        ordering = ["created", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["battle", "asset"],
+                name="battle_stake_one_per_asset",
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.asset)
 
 
 class CampaignParticipant(Base):

@@ -12,6 +12,7 @@ from n26.core.models.assignment_set import AssignmentSet
 from n26.core.models.built_in_propagation import BuiltInPropagationTask
 from n26.core.models.campaign import (
     Battle,
+    BattleStake,
     Campaign,
     CampaignAsset,
     CampaignEvent,
@@ -48,6 +49,7 @@ __all__ = [
     "Base",
     "BuiltInPropagationTask",
     "Battle",
+    "BattleStake",
     "BattleCrew",
     "Campaign",
     "CampaignAsset",
