@@ -7,8 +7,9 @@ developer can maintain or extend it. For what the feature does, see
 ## Design in brief
 
 - **Django renders the pages.** The generator uses four native selects and
-  the existing React Share island. The battle form's details section uses a
-  native `<details>` element. No new JavaScript is required.
+  the existing React Share island. React owns the campaign/battle dialogs
+  and optional battle-creation preview. Expandable details use native
+  `<details>` elements.
 - **Roll, then redirect.** **Generate scenario** submits `?generate=1`. The
   view resolves every table once, rolling where asked, then redirects to an
   address that holds the result. A reload never rolls again, and the
@@ -57,8 +58,8 @@ developer can maintain or extend it. For what the feature does, see
 | `n26/core/views/campaigns.py` | Adds the `scenario_generator` and `save_scenario` views. `add_battle` reads and checks the rolls. |
 | `n26/core/views/battles.py` | The battle page passes `scenario_results`. |
 | `n26/urls.py`, `n26/core/views/__init__.py` | Register the two new routes. |
-| `campaign.html`, `add_battle.html`, `battle.html` | Add the **Generate scenario** button, the components box and the Scenario section. |
-| `designsystem/shell/campaign.html`, `demos/view-campaign-sheet/10-sheet.html` | Mirror the new Battles button in the gallery copies of the campaign page, which must be kept in step with `campaign.html`. |
+| `campaign.html`, `add_battle.html`, `battle.html` | Provide battle creation, inline generation and the Scenario section. |
+| `designsystem/shell/campaign.html`, `demos/view-campaign-sheet/10-sheet.html` | Keep the campaign gallery copies in step with the single **Record battle** action. |
 
 ## Routes
 
@@ -148,9 +149,9 @@ shows an error and no scenario.
 
 The N26 menu's **Scenario generator** opens the same generator without a
 campaign, for campaign and skirmish play. The campaign's own generator above
-keeps its flows. Its Battles box button reads **Record battle** so both
-buttons fit on a small phone, and it offers the same **Print** as the menu's
-generator, through `campaign_print_scenario`.
+keeps its flows and offers the same **Print** as the menu's generator,
+through `campaign_print_scenario`. The campaign Battles box offers only
+**Record battle**; generation is available inside the battle flow.
 
 ### Files
 
@@ -158,9 +159,9 @@ generator, through `campaign_print_scenario`.
 | --- | --- |
 | `n26/core/views/scenarios.py` | `generate_scenario`, `save_scenario_to_campaign`, `record_scenario_battle`, `print_scenario` and `campaign_print_scenario`. `_render_generator` draws the page and any open dialog. |
 | `n26/core/campaign_permissions.py` | `recording_campaigns(user)`: the campaigns a reader may record in, by name, by the same rule as `may_record_campaign`. |
-| `n26/core/forms.py` | `CampaignChoiceMixin` adds the campaign select. `ScenarioCampaignForm` is a scenario and a campaign; `SaveScenarioToCampaignForm` is `SaveScenarioForm` with a campaign. |
+| `n26/core/forms.py` | `CampaignChoiceMixin` adds the campaign select. `ScenarioCampaignForm` is a scenario and a campaign; `ConnectScenarioToBattleForm` adds an existing battle scoped to the chosen campaign and a revision for concurrency checks. |
 | `n26/core/templates/n26/generate_scenario.html` | The page, its actions and its two dialogs. |
-| `n26/core/templates/n26/includes/scenario_dialog_fields.html` | The fields both dialogs share: the hidden components, the form errors and the campaign select. |
+| `n26/frontend/islands/scenario-dialog/` | React-owned creation and connection dialogs; campaign selection navigates with the result retained in the URL. |
 | `n26/core/templates/n26/print_scenario.html` | The print page: a bare document with a screen-only toolbar and one `<c-n26.print.card>` per component. |
 | `n26/core/templates/n26/_nav.html` | The **Scenario generator** menu item. |
 | `n26/tests/test_views_generate_scenario.py` | Generating, printing, the dialogs, saving, recording and permissions. |
@@ -177,22 +178,34 @@ generator, through `campaign_print_scenario`.
 
 ### Dialogs
 
-**Save to campaign** and **Record a battle** link to the page with
-`dialog=save` or `dialog=record`, keeping the result and the choices in the
-address. The page then draws a `<c-n26.dialog>` whose campaign select lists
-`recording_campaigns(request.user)`; a `campaign` value in the address
-chooses one up front. Because the address opens it, the dialog also works
-without script.
+**Connect to battle** and **Create a battle** retain `dialog=save` and
+`dialog=record` in their URLs. `_render_generator` supplies plain props to the
+`scenario-dialog` island. The connection list contains only active campaigns the
+reader arbitrates; creation still permits accepted participants.
 
-- **Saving** posts to `n26-generate-scenario-save`. A valid form calls
-  `CampaignOperation.save_scenario` in the chosen campaign, which checks the
-  permission again through `_require_recorder`. The log line links to that
-  campaign's own generator, as every saved scenario does.
-- **Recording** posts to `n26-generate-scenario-record`, which redirects to
-  the chosen campaign's `n26-campaign-add-battle` with the scenario.
-- **An error** redraws the page with the dialog open and the bound form, so
-  the message shows and the entries stay. Each action keeps the choices in
-  its query string, and **Cancel** returns to the same scenario.
+Changing the connection campaign navigates with the scenario intact, and the
+server loads that campaign's active battles in one query. The form scopes the
+battle to the selected authorised campaign. Its revision is submitted with the
+components. `CampaignOperation.connect_scenario` rechecks permissions, locks the
+battle and refuses stale changes. It changes only `scenario_rolls`, the revision
+and the modification time, appending a `BATTLE_EDITED` event. It preserves the
+battle's name and outcome. No migration is required.
+
+The `battle-scenario` island supplies an optional compact preview on creation.
+It calls the existing generator with `generate=1&format=json`; rolls are still
+chosen on the server. Component validation remains in `BattleForm` and
+`record_battle`. A blank battle name is assigned `Battle #N` under the campaign
+lock. The battle header shares its canonical battle URL. The scenario panel offers a compact summary, printing
+and full-result links. Arbitrators reuse the same island on saved battles.
+The optional save props supply the battle, campaign, revision and CSRF token.
+The existing connection endpoint accepts `generate=1&format=json` with table
+picks, generating and attaching in one POST. It removes supplied result values
+before applying those picks, so omitted components cannot survive from an older
+result. The response supplies the saved components and updated revision
+for later generations. The display changes only after attachment succeeds, so
+a refused write preserves the saved result. Pending creation previews block
+battle submission until generation finishes. No separate save/discard controls
+or page navigation are needed.
 
 ### Printing
 

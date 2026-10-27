@@ -1673,6 +1673,7 @@ def add_battle(request, pk):
     from n26.core.forms import BattleForm
     from n26.core.operations import Refusal
     from n26.core.scenarios import parse
+    from n26.core.views.scenario_props import battle_scenario_props
 
     found = _recording_campaign_or_404(
         request, pk, with_owner_badge=request.method == "GET"
@@ -1708,6 +1709,9 @@ def add_battle(request, pk):
             "campaign": found,
             "scenario_results": scenario,
             "scenario_wrong": bool(wrong),
+            "battle_scenario": battle_scenario_props(
+                request.POST if request.method == "POST" else request.GET
+            ),
         },
     )
 

@@ -89,6 +89,11 @@ may use it.
                     recording are for whoever may record in the campaign.
                     {% endcomment %}
                     <div class="flex flex-wrap items-center justify-end gap-2 border-t border-box-border pt-4">
+                        <c-n26.share :url="share_url"
+                                     label="Share result"
+                                     size="sm"
+                                     variant="ghost"
+                                     :compact="False" />
                         <c-ui.button href="{{ print_url }}">
                             <span class="flex items-center justify-center gap-2">
                                 <c-n26.icon name="printer" class="size-4" />

@@ -84,7 +84,7 @@ def test_the_page_opens_with_the_four_components_set_to_roll(client, campaign):
     }
     body = response.content.decode()
     assert "Roll a D6" in body and "Leave out" in body
-    assert 'aria-label="Share"' not in body
+    assert 'aria-label="Share result"' not in body
 
 
 def test_a_signed_out_reader_is_sent_to_sign_in(client, campaign):
@@ -106,7 +106,7 @@ def test_generating_rolls_every_table_by_default(client, campaign):
     ]
     body = response.content.decode()
     assert "Generate again" in body
-    assert 'aria-label="Share"' in body
+    assert 'aria-label="Share result"' in body
 
 
 def test_a_pick_can_choose_an_entry_or_leave_a_table_out(client, campaign):
@@ -200,7 +200,7 @@ class TestWhoGetsWhichButton:
         assert response.context["save_href"] == f"{save_url(campaign)}?deployment=3"
         body = response.content.decode()
         assert "Save to log" in body
-        assert 'aria-label="Share"' in body
+        assert 'aria-label="Share result"' in body
 
     def test_a_player_may_save_record_and_share(self, client, campaign, player):
         response = client.get(generator_url(campaign), self.query)
@@ -213,7 +213,7 @@ class TestWhoGetsWhichButton:
         assert not response.context["save_href"]
         body = response.content.decode()
         assert "Save to log" not in body
-        assert 'aria-label="Share"' in body
+        assert 'aria-label="Share result"' in body
 
 
 def saved_events():
@@ -330,12 +330,13 @@ class TestSaving:
         assert response.status_code == 404
 
 
-def test_the_campaign_page_offers_the_generator_to_every_reader(
+def test_the_campaign_page_keeps_the_generator_in_shared_navigation(
     client, campaign, stranger
 ):
     body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
-    assert generator_url(campaign) in body
-    assert "Record a battle" not in body
+    assert generator_url(campaign) not in body
+    assert reverse("n26-generate-scenario") in body
+    assert "Record battle" not in body
 
 
 class TestRecordingTheResult:
@@ -358,8 +359,8 @@ class TestRecordingTheResult:
         assert [r.roll for r in response.context["scenario_results"]] == [6, 2]
         assert not response.context["form"]["scenario"].value()
         body = response.content.decode()
-        assert "Scenario components" in body
-        assert "View scenario details" in body
+        assert "Scenario" in body
+        assert "Full details" in body
         assert 'type="hidden" name="deployment" value="6"' in body
         assert "Generate scenario" not in body
 

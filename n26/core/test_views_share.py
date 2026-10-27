@@ -51,12 +51,16 @@ def share_host(body, url):
 def test_share_props_keep_the_link_and_known_button_shape():
     assert share_props(url="/sheet/", message="Copied.", size="sm", variant="text") == {
         "url": "/sheet/",
+        "label": "Share",
+        "compact": True,
         "message": "Copied.",
         "size": "sm",
         "variant": "text",
     }
     assert share_props(url=None, message=None, size="huge", variant="nope") == {
         "url": "",
+        "label": "Share",
+        "compact": True,
         "message": "Link copied.",
         "size": "xs",
         "variant": "ghost",

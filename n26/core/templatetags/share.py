@@ -18,10 +18,19 @@ VARIANTS = (
 
 
 @register.simple_tag
-def share_props(url="", message="Link copied.", size="xs", variant="ghost"):
+def share_props(
+    url="",
+    message="Link copied.",
+    size="xs",
+    variant="ghost",
+    label="Share",
+    compact=True,
+):
     """The link React shares, and the button shape it draws."""
     return {
         "url": "" if url is None else str(url),
+        "label": "Share" if label is None else str(label),
+        "compact": bool(compact),
         "message": "Link copied." if message is None else str(message),
         "size": size if size in SIZES else "xs",
         "variant": variant if variant in VARIANTS else "ghost",

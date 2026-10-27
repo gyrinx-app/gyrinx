@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
+{% load navigation react %}
 {% block head_title %}{% if battle %}Edit {{ battle.title }}{% else %}Record a battle{% endif %}{% endblock %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
@@ -32,11 +32,8 @@
         </c-slot>
         {% csrf_token %}
         {% if battle %}{{ form.revision }}{{ form.stake_versions }}{% endif %}
-        {% for field in form %}
-            {% if field.name in form.scenario_keys %}{{ field }}{% endif %}
-        {% endfor %}
-        <c-n26.form-section title="The battle">
-            <c-ui.field label="Scenario *"
+        <c-n26.form-section>
+            <c-ui.field label="Name"
                         error="x"
                         :form="form"
                         name="scenario"
@@ -44,29 +41,23 @@
                 <c-ui.input id="battle-scenario"
                             name="scenario"
                             maxlength="200"
-                            required
                             value="{{ form.scenario.value|default:'' }}" />
             </c-ui.field>
-            {% if scenario_results %}
-                {% comment %}
-                The generated scenario, saved with the battle. Its rolls ride as
-                hidden fields, so a form that comes back with an error keeps
-                them; the view checks each one again on save.
-                {% endcomment %}
-                <section aria-labelledby="battle-scenario-components"
-                         class="flex flex-col gap-3 rounded-box border border-box-border p-4">
-                    <h3 id="battle-scenario-components" class="font-semibold">Scenario components</h3>
-                    {% include "n26/includes/scenario_summary.html" with results=scenario_results %}
-                    <details>
-                        <summary class="cursor-pointer text-sm font-medium">View scenario details</summary>
-                        <div class="mt-3">{% include "n26/includes/scenario_results.html" with results=scenario_results %}</div>
-                    </details>
-                </section>
+            {% if not battle %}
+                {% react_host "battle-scenario" battle_scenario %}
+                    {% for field in form %}{% if field.name in form.scenario_keys %}{{ field }}{% endif %}{% endfor %}
+                    {% if scenario_results %}
+                        <h3 class="font-semibold">Scenario</h3>
+                        {% include "n26/includes/scenario_summary.html" with results=scenario_results %}
+                        <details>
+                            <summary>Full details</summary>
+                            {% include "n26/includes/scenario_results.html" with results=scenario_results %}
+                        </details>
+                    {% endif %}
+                {% endreact_host %}
             {% endif %}
             {% if scenario_wrong %}
-                <p class="text-sm text-red-600 dark:text-red-400">
-                    This link names a scenario component that is not on its table, so no scenario is attached. Generate the scenario again.
-                </p>
+                <p class="text-sm text-red-600 dark:text-red-400">This link names a scenario component that is not on its table. Generate the scenario again.</p>
             {% endif %}
             <c-ui.field label="Date *" error="x" :form="form" name="date" for="battle-date">
                 <c-ui.input id="battle-date"

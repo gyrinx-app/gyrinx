@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
+{% load navigation react %}
 {% comment %}
 The scenario generator outside a campaign, from the N26 menu, for campaign
 and skirmish play. The campaign's own generator is scenario_generator.html.
@@ -14,7 +14,7 @@ view rolls once and redirects to an address holding the result and the
 picks, so Share passes the same scenario on and Generate again keeps
 the picks. Nothing here is saved, so anyone signed in may use it.
 
-Under the result, Print opens the scenario's print page. Save to campaign
+Under the result, Print opens the scenario's print page. Connect to battle
 and Record a battle open a dialog, named in the address, that asks which
 of the reader's campaigns the scenario is for.
 {% endcomment %}
@@ -25,7 +25,7 @@ of the reader's campaigns the scenario is for.
 {% block content %}
     <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <c-n26.page-header title="Generate a scenario"
-                           lead="Roll or choose components for a battle. Nothing is saved until you save the scenario to a campaign or record a battle.">
+                           lead="Roll or choose components for a battle. Use the result to create a battle or connect it to an existing battle.">
             {% if scenario %}
                 <c-slot name="breadcrumb_actions">
                     <c-n26.share :url="share_url" />
@@ -36,6 +36,8 @@ of the reader's campaigns the scenario is for.
             <form method="get"
                   action="{% url 'n26-generate-scenario' %}"
                   class="flex flex-col gap-5 rounded-box border border-box-border p-4 sm:p-5">
+                {% if request.GET.campaign %}<input type="hidden" name="campaign" value="{{ request.GET.campaign }}">{% endif %}
+                {% if request.GET.battle %}<input type="hidden" name="battle" value="{{ request.GET.battle }}">{% endif %}
                 <c-n26.form-section title="Scenario components"
                                     description="Leave a component out if you already have it covered.">
                     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
@@ -58,7 +60,7 @@ of the reader's campaigns the scenario is for.
                     </div>
                 </c-n26.form-section>
                 <c-ui.error :form="form" name="__all__" />
-                <div class="flex flex-wrap items-center justify-end gap-2 border-t border-box-border pt-4">
+                <div class="flex flex-wrap items-center justify-end gap-2 pt-4">
                     <c-ui.button type="submit" name="generate" value="1" variant="success">
                         {% if scenario %}
                             Generate again
@@ -80,19 +82,26 @@ of the reader's campaigns the scenario is for.
                     are offered when the reader has a campaign to do them in; a
                     dialog then asks which.
                     {% endcomment %}
-                    <div class="flex flex-wrap items-center justify-end gap-2 border-t border-box-border pt-4">
+                    <div class="flex flex-wrap items-center justify-end gap-2 pt-4">
+                        <c-n26.share :url="share_url"
+                                     label="Share result"
+                                     size="sm"
+                                     variant="ghost"
+                                     :compact="False" />
                         <c-ui.button href="{{ print_url }}">
                             <span class="flex items-center justify-center gap-2">
                                 <c-n26.icon name="printer" class="size-4" />
                                 Print
                             </span>
                         </c-ui.button>
-                        {% if may_record %}
+                        {% if may_connect %}
                             <c-ui.button href="{{ save_url }}">
-                                Save to campaign
+                                Connect to battle
                             </c-ui.button>
+                        {% endif %}
+                        {% if may_record %}
                             <c-ui.button variant="primary" href="{{ record_url }}">
-                                Record a battle
+                                Create a battle
                             </c-ui.button>
                         {% endif %}
                     </div>
@@ -103,40 +112,6 @@ of the reader's campaigns the scenario is for.
         </div>
     </div>
     {% if dialog %}
-        {% comment %}
-        The dialog asks which of the reader's campaigns the scenario is for.
-        The scenario rides as hidden fields; the dialog's own form posts it.
-        {% endcomment %}
-        {% if dialog == "save" %}
-            <c-n26.dialog id="scenario-save-dialog"
-                          title="Save to campaign"
-                          lead="Give this scenario a name and save it to a campaign log."
-                          action="{{ dialog_action }}"
-                          cancel_url="{{ dialog_cancel_url }}"
-                          submit_label="Save scenario">
-                {% include "n26/includes/scenario_dialog_fields.html" with form=dialog_form %}
-                <c-ui.field label="Scenario name *"
-                            description="{{ dialog_form.name.help_text }}"
-                            error="x"
-                            :form="dialog_form"
-                            name="name"
-                            for="scenario-name">
-                    <c-ui.input id="scenario-name"
-                                name="name"
-                                maxlength="200"
-                                required
-                                value="{{ dialog_form.name.value|default:'' }}" />
-                </c-ui.field>
-            </c-n26.dialog>
-        {% else %}
-            <c-n26.dialog id="scenario-record-dialog"
-                          title="Record a battle"
-                          lead="Choose the campaign to record the battle in. You name the battle on the next page."
-                          action="{{ dialog_action }}"
-                          cancel_url="{{ dialog_cancel_url }}"
-                          submit_label="Continue">
-                {% include "n26/includes/scenario_dialog_fields.html" with form=dialog_form %}
-            </c-n26.dialog>
-        {% endif %}
+        {% react_island "scenario-dialog" scenario_dialog %}
     {% endif %}
 {% endblock content %}

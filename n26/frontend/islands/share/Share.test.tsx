@@ -58,6 +58,22 @@ function prevented(link: HTMLElement, init: MouseEventInit = {}) {
 }
 
 describe("Share", () => {
+    it("shares the result URL with its custom label", () => {
+        const share = vi.fn().mockResolvedValue(undefined);
+        installShare(share);
+        const url = "/n26/scenario/?deployment=4&objective=5&side_job=2&crew=1";
+        render(<Share {...props} url={url} label="Share result" />);
+        const link = screen.getByRole<HTMLAnchorElement>("link", {
+            name: "Share result",
+        });
+        expect(screen.getByText("Share result")).toBeTruthy();
+        expect(prevented(link)).toBe(true);
+        expect(share).toHaveBeenCalledWith({ url: link.href });
+        expect(link.href).toContain(
+            "deployment=4&objective=5&side_job=2&crew=1",
+        );
+    });
+
     it("draws the extra-small ghost link and hides the word below sm", () => {
         const link = renderShare();
         expect(link.getAttribute("href")).toBe("/n26/g/1/");

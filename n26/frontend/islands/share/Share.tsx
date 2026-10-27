@@ -8,6 +8,8 @@ import {
 
 export type ShareProps = {
     url: string;
+    label?: string;
+    compact?: boolean;
     message: string;
     size: ButtonLinkSize;
     variant: ButtonLinkVariant;
@@ -32,7 +34,14 @@ function isAbort(error: unknown) {
     );
 }
 
-export function Share({ url, message, size, variant }: ShareProps) {
+export function Share({
+    url,
+    message,
+    size,
+    variant,
+    label = "Share",
+    compact = true,
+}: ShareProps) {
     const [copied, setCopied] = useState(false);
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -106,12 +115,14 @@ export function Share({ url, message, size, variant }: ShareProps) {
                 href={url}
                 size={size}
                 variant={variant}
-                aria-label="Share"
-                className={FIT}
+                aria-label={label}
+                className={compact ? FIT : "inline-flex items-center gap-1.5"}
                 onClick={onClick}
             >
                 <Icon name="share-2" className="size-3.5" strokeWidth={1.7} />
-                <span className="hidden sm:inline">Share</span>
+                <span className={compact ? "hidden sm:inline" : undefined}>
+                    {label}
+                </span>
             </ButtonLink>
             {/* Mounted from the start so a reader announces the text when it appears. */}
             <span

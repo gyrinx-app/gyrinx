@@ -305,6 +305,12 @@ gtm_container_id, messages, user.
                 Goes before help does as the bar narrows; the drawer's copy is
                 what a narrow reader gets instead.
                     {% endcomment %}
+                    <a href="{% url 'n26-generate-scenario' %}"
+                       title="Scenario generator"
+                       aria-label="Scenario generator"
+                       class="hidden shrink-0 items-center rounded-control p-1.5 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-ring lg:inline-flex dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-white">
+                        <c-n26.icon name="swords" class="size-5" />
+                    </a>
                     <a href="{% url 'core:dice' %}"
                        title="Dice roller"
                        aria-label="Dice roller"

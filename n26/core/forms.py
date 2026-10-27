@@ -678,7 +678,7 @@ class BattleForm(ScenarioComponentsMixin, forms.Form):
     as one ``scenario_rolls`` mapping.
     """
 
-    scenario = forms.CharField(max_length=200, label="Scenario")
+    scenario = forms.CharField(max_length=200, label="Name", required=False)
 
     date = forms.DateField(
         label="Date",
@@ -728,6 +728,7 @@ class BattleForm(ScenarioComponentsMixin, forms.Form):
                 del self.fields[name]
             self.add_scenario_fields()
         else:
+            self.fields["scenario"].required = True
             self.initial.update(
                 scenario=battle.scenario,
                 date=battle.date.isoformat(),
@@ -1312,12 +1313,39 @@ class ScenarioCampaignForm(CampaignChoiceMixin, ScenarioComponentsMixin, forms.F
         return cleaned
 
 
-class SaveScenarioToCampaignForm(CampaignChoiceMixin, SaveScenarioForm):
-    """A generated scenario, its name, and the campaign to save it to."""
+class ConnectScenarioToBattleForm(ScenarioCampaignForm):
+    """A generated scenario and an existing battle in a chosen campaign."""
+
+    revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
 
     def __init__(self, *args, campaigns, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.add_campaign_field(campaigns)
+        from django.core.exceptions import ValidationError
+
+        from n26.core.models import Battle
+
+        super().__init__(*args, campaigns=campaigns, **kwargs)
+        chosen = (
+            self.data.get("campaign") if self.is_bound else self.initial.get("campaign")
+        )
+        try:
+            battles = (
+                Battle.objects.filter(
+                    campaign_id=chosen, campaign__in=campaigns, archived=False
+                )
+                if chosen
+                else Battle.objects.none()
+            )
+        except ValidationError, ValueError, TypeError:
+            battles = Battle.objects.none()
+        self.fields["battle"] = forms.ModelChoiceField(
+            queryset=battles,
+            label="Battle",
+            empty_label="Select a battle",
+            error_messages={
+                "required": "Select a battle.",
+                "invalid_choice": "Select a battle from this campaign.",
+            },
+        )
 
 
 class OpenTablesForm(forms.Form):

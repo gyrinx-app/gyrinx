@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation action_menu %}
+{% load navigation action_menu react %}
 {% block head_title %}{{ battle.title }}{% endblock %}
 {% block nav_switcher %}
     {% campaign_switcher campaign as campaign_switcher_ %}
@@ -20,6 +20,10 @@
                         {{ battle.title }}
                     </c-ui.breadcrumbs.item>
                 </c-ui.breadcrumbs>
+            </c-slot>
+            <c-slot name="breadcrumb_actions">
+                {% url 'n26-battle' campaign.pk battle.pk as battle_share_url %}
+                <c-n26.share :url="battle_share_url" />
             </c-slot>
             {% if yours and not battle.archived %}
                 <c-slot name="actions">
@@ -51,37 +55,42 @@
                 </form>
             {% endif %}
         {% endif %}
-        {% if not battle.scenario %}<p class="text-sm text-muted">Scenario not recorded.</p>{% endif %}
-        {% if scenario_results %}
-            <section class="border border-box-border bg-surface p-4 sm:p-5"
+        <div class="grid items-start gap-6 lg:grid-cols-3">
+            <section class="min-w-0 border border-box-border bg-surface p-4 sm:p-5"
+                     aria-labelledby="battle-outcome-heading">
+                <h2 id="battle-outcome-heading" class="text-sm font-medium text-muted">Outcome</h2>
+                <p class="mt-1 text-xl font-semibold">{{ battle.result_label }}</p>
+                {% if stake %}
+                    <div class="mt-4 border-t border-box-border pt-3">{% include "n26/includes/battle_stake.html" %}</div>
+                {% endif %}
+                {% if battle.result == "not_recorded" and yours and not battle.archived %}
+                    <c-ui.button size="sm"
+                                 variant="primary"
+                                 class="mt-3"
+                                 href="{% url 'n26-campaign-edit-battle' campaign.pk battle.pk %}#outcome">
+                        Record outcome
+                    </c-ui.button>
+                {% elif may_record_outcome %}
+                    <c-ui.button size="sm"
+                                 variant="primary"
+                                 class="mt-3"
+                                 href="{% url 'n26-campaign-battle-outcome' campaign.pk battle.pk %}">
+                        Record outcome
+                    </c-ui.button>
+                {% endif %}
+            </section>
+            <section class="min-w-0 border border-box-border bg-surface p-4 sm:p-5 lg:col-span-2"
                      aria-labelledby="battle-scenario-heading">
                 <h2 id="battle-scenario-heading" class="mb-3 text-lg font-semibold">Scenario</h2>
-                {% include "n26/includes/scenario_results.html" with results=scenario_results %}
+                {% if battle_scenario %}
+                    {% react_host "battle-scenario" battle_scenario %}
+                        {% include "n26/includes/battle_scenario.html" %}
+                    {% endreact_host %}
+                {% else %}
+                    {% include "n26/includes/battle_scenario.html" %}
+                {% endif %}
             </section>
-        {% endif %}
-        <section class="border border-box-border bg-surface p-4 sm:p-5"
-                 aria-labelledby="battle-outcome-heading">
-            <h2 id="battle-outcome-heading" class="text-sm font-medium text-muted">Outcome</h2>
-            <p class="mt-1 text-xl font-semibold">{{ battle.result_label }}</p>
-            {% if stake %}
-                <div class="mt-4 border-t border-box-border pt-3">{% include "n26/includes/battle_stake.html" %}</div>
-            {% endif %}
-            {% if battle.result == "not_recorded" and yours and not battle.archived %}
-                <c-ui.button size="sm"
-                             variant="primary"
-                             class="mt-3"
-                             href="{% url 'n26-campaign-edit-battle' campaign.pk battle.pk %}#outcome">
-                    Record outcome
-                </c-ui.button>
-            {% elif may_record_outcome %}
-                <c-ui.button size="sm"
-                             variant="primary"
-                             class="mt-3"
-                             href="{% url 'n26-campaign-battle-outcome' campaign.pk battle.pk %}">
-                    Record outcome
-                </c-ui.button>
-            {% endif %}
-        </section>
+        </div>
         <section aria-labelledby="battle-participants-heading">
             <h2 id="battle-participants-heading" class="mb-3 text-lg font-semibold">Participants</h2>
             <ul class="grid gap-4 md:grid-cols-2">

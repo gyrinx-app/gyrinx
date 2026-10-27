@@ -118,7 +118,7 @@ OBJECTIVE = ScenarioTable(
             roll=2,
             name="Turf War: ",
             text=(
-                'Starting with Round 3 – If only one player has models that are not Seriously Injured/Damaged within 9" of the centre of the board during the Check For Victory step of the End Phase, they are the winner. If only one player has a model left on the board, they are the winner. If no players have any models left on the board, the battle is a draw.'
+                'Starting with Round 3 — If only one player has models that are not Seriously Injured/Damaged within 9" of the centre of the board during the Check For Victory step of the End Phase, they are the winner. If only one player has a model left on the board, they are the winner. If no players have any models left on the board, the battle is a draw.'
             ),
         ),
         ScenarioEntry(
@@ -146,7 +146,7 @@ OBJECTIVE = ScenarioTable(
             roll=6,
             name="Burn Them Out:",
             text=(
-                'The Defender places an objective/marker in the Attacker’s deployment zone, then the Attacker places one in the Defender’s deployment zone. They take turns until each has placed 3 objectives. Each objective must be 6" from all other objectives – where possible. During the Check For Victory step of the End Phase, if a gang controls an objective in the opponent’s deployment zone they score 1 VP and remove the objective. The winner is the first to 2 VP. If both players have 2 VP or no players have any models left on the board, the battle is a draw.'
+                'The Defender places an objective/marker in the Attacker’s deployment zone, then the Attacker places one in the Defender’s deployment zone. They take turns until each has placed 3 objectives. Each objective must be 6" from all other objectives — where possible. During the Check For Victory step of the End Phase, if a gang controls an objective in the opponent’s deployment zone they score 1 VP and remove the objective. The winner is the first to 2 VP. If both players have 2 VP or no players have any models left on the board, the battle is a draw.'
             ),
         ),
     ),
@@ -173,14 +173,14 @@ SIDE_JOB = ScenarioTable(
             roll=3,
             name="Settle a Score:",
             text=(
-                "After both starting Crews have deployed, randomly select one of your opponent’s models (who is not the Leader) – declare them your target. During the Check For Victory step of the End Phase of any round: If the target model had been taken OoA or left the board for any reason, then your gang has accomplished this Side Job."
+                "After both starting Crews have deployed, randomly select one of your opponent’s models (who is not the Leader) — declare them your target. During the Check For Victory step of the End Phase of any round: If the target model had been taken OoA or left the board for any reason, then your gang has accomplished this Side Job."
             ),
         ),
         ScenarioEntry(
             roll=4,
             name="Crippling Strike:",
             text=(
-                "During the Check For Victory step of the End Phase of any round – if at least half of your opponent’s models left on the board are Seriously Injured/Damaged or Engaged, then your gang has accomplished this Side Job."
+                "During the Check For Victory step of the End Phase of any round — if at least half of your opponent’s models left on the board are Seriously Injured/Damaged or Engaged, then your gang has accomplished this Side Job."
             ),
         ),
         ScenarioEntry(
@@ -194,7 +194,7 @@ SIDE_JOB = ScenarioTable(
             roll=6,
             name="Protect the Future:",
             text=(
-                "After both crews are deployed – randomly select one of your Prospects who is on the board to be ‘protected’ and announce they have been selected. If the selected Fighter is still on the board at the end of the battle, your gang has accomplished this Side Job. (If you have no Prospects, select a Ganger; if you have no Gangers, generate a new Side Job)."
+                "After both crews are deployed — randomly select one of your Prospects who is on the board to be ‘protected’ and announce they have been selected. If the selected Fighter is still on the board at the end of the battle, your gang has accomplished this Side Job. (If you have no Prospects, select a Ganger; if you have no Gangers, generate a new Side Job)."
             ),
         ),
     ),
@@ -207,37 +207,37 @@ CREW = ScenarioTable(
             roll=1,
             name="Escalating Engagement:",
             text=(
-                "Both players use Hybrid(3+D3) for their Starting Crew. Both gangs use the Reinforcements(5) rule – D3 Reinforcements arrive each round starting from the 1st."
+                "Both players use Hybrid (3+D3) for their Starting Crew. Both gangs use the Reinforcements (5) rule — D3 Reinforcements arrive each round starting from the 1st."
             ),
         ),
         ScenarioEntry(
             roll=2,
             name="Hold Nothing Back:",
-            text=("Both players use Custom(10) to determine their Starting Crew."),
+            text=("Both players use Custom (10) to determine their Starting Crew."),
         ),
         ScenarioEntry(
             roll=3,
             name="Patrol:",
-            text=("Both gangs use Hybrid(3+4) to determine their Starting Crew."),
+            text=("Both gangs use Hybrid (3+4) to determine their Starting Crew."),
         ),
         ScenarioEntry(
             roll=4,
             name="Surprise Attack:",
             text=(
-                "The Attacker uses Hybrid(4+4) to determine their Starting Crew. Defender uses Custom(3). The Defender uses Reinforcements(7) rule – D3 Reinforcements arriving each round starting with the 1st."
+                "The Attacker uses Hybrid (4+4) to determine their Starting Crew. Defender uses Custom (3). The Defender uses Reinforcements (7) rule — D3 Reinforcements arriving each round starting with the 1st."
             ),
         ),
         ScenarioEntry(
             roll=5,
             name="Strike Force:",
             text=(
-                "Attacker and Defender both use Custom(5) to determine their Starting Crew."
+                "Attacker and Defender both use Custom (5) to determine their Starting Crew."
             ),
         ),
         ScenarioEntry(
             roll=6,
             name="Scouting Force:",
-            text=("Both gangs use Hybrid(D3+5) to determine their Starting Crew."),
+            text=("Both gangs use Hybrid (D3+5) to determine their Starting Crew."),
         ),
     ),
 )

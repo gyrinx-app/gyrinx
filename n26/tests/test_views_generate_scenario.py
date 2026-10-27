@@ -14,7 +14,6 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from n26.core.campaigns import campaign_operation
-from n26.core.history import campaign_history
 from n26.core.models import CampaignEvent
 from n26.library.scenario_tables import table
 from n26.tests.sandbox.actions import found_campaign
@@ -96,7 +95,7 @@ def test_the_page_opens_with_the_four_components_set_to_roll(client, campaign):
     }
     body = response.content.decode()
     assert "Roll a D6" in body and "Leave out" in body
-    assert 'aria-label="Share"' not in body
+    assert 'aria-label="Share result"' not in body
 
 
 def test_a_signed_out_reader_is_sent_to_sign_in(client, campaign):
@@ -118,7 +117,7 @@ def test_generating_rolls_every_table_by_default(client, campaign):
     ]
     body = response.content.decode()
     assert "Generate again" in body
-    assert 'aria-label="Share"' in body
+    assert 'aria-label="Share result"' in body
 
 
 def test_a_pick_can_choose_an_entry_or_leave_a_table_out(client, campaign):
@@ -211,9 +210,9 @@ class TestWhoGetsWhichAction:
         assert response.context["may_record"]
         body = response.content.decode()
         assert f'href="{print_url()}?deployment=3"' in body
-        assert "Save to campaign" in body
-        assert "Record a battle" in body
-        assert 'aria-label="Share"' in body
+        assert "Connect to battle" in body
+        assert "Create a battle" in body
+        assert 'aria-label="Share result"' in body
 
     def test_an_accepted_player_may_print_save_and_record(
         self, client, campaign, player
@@ -228,13 +227,13 @@ class TestWhoGetsWhichAction:
         assert response.context["dialog"] is None
         body = response.content.decode()
         assert f'href="{print_url()}?deployment=3"' in body
-        assert "Save to campaign" not in body
-        assert 'aria-label="Share"' in body
+        assert "Connect to battle" not in body
+        assert 'aria-label="Share result"' in body
 
     def test_no_actions_without_a_scenario(self, client, campaign):
         response = client.get(generator_url())
         assert not response.context["may_record"]
-        assert "Save to campaign" not in response.content.decode()
+        assert "Connect to battle" not in response.content.decode()
 
 
 def saved_events():
@@ -266,11 +265,11 @@ class TestTheCampaignDialogs:
         offered = [
             c.name for c in response.context["dialog_form"].fields["campaign"].queryset
         ]
-        assert offered == ["Ash Wastes", "Dust Falls"]
+        assert offered == ["Ash Wastes"]
         body = response.content.decode()
-        assert "Save to campaign" in body
-        assert 'type="hidden" name="deployment" value="3"' in body
-        assert "Scenario name" in body
+        assert "Connect to battle" in body
+        assert response.context["scenario_dialog"]["rolls"] == {"deployment": 3}
+        assert "name" not in response.context["dialog_form"].fields
 
     def test_the_record_dialog_asks_only_for_the_campaign(
         self, client, campaign, player
@@ -293,102 +292,179 @@ class TestTheCampaignDialogs:
         assert parse_qs(urlparse(page.context["dialog_cancel_url"]).query) == query
 
 
-class TestSaving:
-    def test_a_player_saves_a_named_scenario_to_a_campaign(
-        self, client, campaign, player
+@pytest.fixture
+def battle(campaign):
+    from datetime import date
+
+    with campaign_operation(campaign, actor=campaign.owner) as act:
+        return act.record_battle(date(2026, 10, 26), scenario="Sump clash")
+
+
+def connection_data(campaign, battle, **extra):
+    return {
+        "campaign": str(campaign.pk),
+        "battle": str(battle.pk),
+        "revision": battle.revision,
+        "deployment": "6",
+        "crew": "2",
+        **extra,
+    }
+
+
+class TestConnecting:
+    def test_connecting_keeps_the_battle_name_and_records_the_change(
+        self, client, campaign, battle
     ):
-        response = client.post(
-            f"{save_url()}?side_job_pick=leave",
-            {
-                "campaign": campaign.pk,
-                "deployment": "6",
-                "crew": "2",
-                "name": "Dust-up at the sump",
-            },
-        )
+        response = client.post(save_url(), connection_data(campaign, battle))
         assert response.status_code == 302
-        assert parse_qs(urlparse(response["Location"]).query) == {
-            "side_job_pick": ["leave"],
-            "deployment": ["6"],
-            "crew": ["2"],
+        assert response["Location"] == reverse(
+            "n26-battle", args=[campaign.pk, battle.pk]
+        )
+        battle.refresh_from_db()
+        assert battle.scenario == "Sump clash"
+        assert battle.scenario_rolls == {"deployment": 6, "crew": 2}
+        assert battle.revision == 1
+        assert (
+            CampaignEvent.objects.filter(
+                battle=battle, kind=CampaignEvent.Kind.BATTLE_EDITED
+            ).count()
+            == 1
+        )
+        assert not saved_events().exists()
+
+    def test_selecting_a_campaign_lists_its_battles_and_no_others(
+        self, client, campaign, battle, campaign_type
+    ):
+        from datetime import date
+
+        other = found_campaign("Other", campaign_type, owner=campaign.owner)
+        with campaign_operation(other, actor=other.owner) as act:
+            act.record_battle(date(2026, 10, 26), scenario="Other battle")
+        response = client.get(
+            generator_url(),
+            {"deployment": "3", "dialog": "save", "campaign": str(campaign.pk)},
+        )
+        offered = response.context["scenario_dialog"]["battles"]
+        assert [b["value"] for b in offered] == [str(battle.pk)]
+        assert "name" not in response.context["dialog_form"].fields
+
+    def test_battles_are_not_loaded_until_a_campaign_is_chosen(
+        self, client, campaign, battle
+    ):
+        response = client.get(generator_url(), {"deployment": "3", "dialog": "save"})
+        assert response.context["scenario_dialog"]["battles"] == []
+
+    def test_a_battle_from_another_campaign_is_refused(
+        self, client, campaign, battle, campaign_type
+    ):
+        other = found_campaign("Other", campaign_type, owner=campaign.owner)
+        response = client.post(save_url(), connection_data(other, battle))
+        assert "battle" in response.context["dialog_form"].errors
+        battle.refresh_from_db()
+        assert battle.scenario_rolls == {}
+
+    def test_an_accepted_player_cannot_amend_an_existing_battle(
+        self, client, campaign, battle, player
+    ):
+        assert not client.get(generator_url(), {"deployment": "3"}).context[
+            "may_connect"
+        ]
+        response = client.post(save_url(), connection_data(campaign, battle))
+        assert "campaign" in response.context["dialog_form"].errors
+        battle.refresh_from_db()
+        assert battle.scenario_rolls == {}
+        from n26.core.operations import Refusal
+
+        with pytest.raises(Refusal, match="Only the arbitrator"):
+            with campaign_operation(campaign, actor=player) as act:
+                act.connect_scenario(battle, {"crew": 2}, revision=0)
+
+    def test_a_stale_revision_does_not_overwrite_a_later_scenario(
+        self, client, campaign, battle
+    ):
+        data = connection_data(campaign, battle)
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.connect_scenario(battle, {"crew": 1}, revision=0)
+        response = client.post(save_url(), data)
+        assert "This battle changed." in response.content.decode()
+        battle.refresh_from_db()
+        assert battle.scenario_rolls == {"crew": 1}
+        assert response.context["scenario_dialog"]["rolls"] == {
+            "deployment": 6,
+            "crew": 2,
         }
-        saved = saved_events().get()
-        assert saved.campaign == campaign
-        assert saved.actor == player
-        assert saved.note == "deployment=6,crew=2 Dust-up at the sump"
 
-        acts = campaign_history(campaign, viewer=player)
-        line = "".join(span.text for span in acts[-1].spans)
-        assert line == (
-            "saved the scenario Dust-up at the sump: "
-            f"Deployment 6 ({name_of('deployment', 6)}), "
-            f"Crew 2 ({name_of('crew', 2)})"
-        )
-        # The log links to the campaign's own generator, as every saved
-        # scenario's line does.
-        campaign_generator = reverse("n26-scenario-generator", args=[campaign.pk])
-        assert acts[-1].spans[0].href.startswith(campaign_generator + "?")
-
-    def test_the_arbitrator_saves_too(self, client, campaign):
-        client.post(
-            save_url(), {"campaign": campaign.pk, "objective": "1", "name": "G"}
-        )
-        assert saved_events().get().actor == campaign.owner
-
-    @pytest.mark.parametrize("name", ["", "   ", "x" * 201])
-    def test_a_missing_or_long_name_reopens_the_dialog_with_entries_kept(
-        self, client, campaign, player, name
+    @pytest.mark.parametrize("component", ["7", "bad"])
+    def test_an_invalid_component_does_not_change_the_battle(
+        self, client, campaign, battle, component
     ):
         response = client.post(
-            save_url(), {"campaign": campaign.pk, "deployment": "1", "name": name}
+            save_url(), connection_data(campaign, battle, deployment=component)
         )
         assert response.status_code == 200
+        assert response.context["dialog_form"].errors
+        battle.refresh_from_db()
+        assert battle.scenario_rolls == {}
+
+    def test_an_empty_scenario_is_refused(self, client, campaign, battle):
+        data = connection_data(campaign, battle)
+        del data["deployment"], data["crew"]
+        response = client.post(save_url(), data)
+        assert response.context["dialog_form"].errors
+        battle.refresh_from_db()
+        assert battle.scenario_rolls == {}
+
+    def test_an_archived_battle_is_not_offered_or_changed(
+        self, client, campaign, battle
+    ):
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.remove_battle(battle, revision=0)
+        response = client.post(save_url(), connection_data(campaign, battle))
+        assert "battle" in response.context["dialog_form"].errors
+        assert response.context["scenario_dialog"]["battles"] == []
+
+    def test_an_archived_campaign_is_refused(self, client, campaign, battle):
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            act.archive()
+        response = client.post(save_url(), connection_data(campaign, battle))
+        assert "campaign" in response.context["dialog_form"].errors
+
+    def test_a_missing_battle_reopens_the_dialog(self, client, campaign, battle):
+        data = connection_data(campaign, battle)
+        del data["battle"]
+        response = client.post(save_url(), data)
+        assert "battle" in response.context["dialog_form"].errors
         assert response.context["dialog"] == "save"
-        body = response.content.decode()
-        assert "Enter a scenario name of up to 200 characters." in body
-        assert 'type="hidden" name="deployment" value="1"' in body
-        assert [r.roll for r in response.context["scenario"]] == [1]
-        assert not saved_events().exists()
 
-    def test_a_campaign_must_be_chosen(self, client, campaign, player):
-        response = client.post(save_url(), {"deployment": "1", "name": "Grudge"})
-        assert response.status_code == 200
-        assert "Select a campaign." in response.content.decode()
-        assert 'value="Grudge"' in response.content.decode()
-        assert not saved_events().exists()
-
-    def test_a_component_off_its_table_refuses_the_whole_scenario(
-        self, client, campaign, player
+    def test_repeating_the_connection_does_not_add_another_event(
+        self, client, campaign, battle
     ):
-        response = client.post(
-            save_url(),
-            {"campaign": campaign.pk, "deployment": "7", "objective": "2", "name": "G"},
+        client.post(save_url(), connection_data(campaign, battle))
+        battle.refresh_from_db()
+        client.post(save_url(), connection_data(campaign, battle))
+        assert (
+            CampaignEvent.objects.filter(
+                battle=battle, kind=CampaignEvent.Kind.BATTLE_EDITED
+            ).count()
+            == 1
         )
-        assert response.status_code == 200
-        assert "A scenario component is not on its table." in response.content.decode()
-        assert not saved_events().exists()
 
-    def test_nothing_to_save_is_refused(self, client, campaign, player):
-        response = client.post(save_url(), {"campaign": campaign.pk, "name": "G"})
-        assert "There is no scenario to save." in response.content.decode()
-        assert not saved_events().exists()
+    def test_more_battles_do_not_add_queries_per_battle(self, client, campaign, battle):
+        from datetime import date
 
-    def test_a_campaign_the_reader_has_no_place_in_is_refused(
-        self, client, campaign, stranger
-    ):
-        response = client.post(
-            save_url(), {"campaign": campaign.pk, "deployment": "1", "name": "x"}
-        )
-        assert response.status_code == 200
-        assert not saved_events().exists()
+        query = {"deployment": "3", "dialog": "save", "campaign": str(campaign.pk)}
+        client.get(generator_url(), query)
+        with CaptureQueriesContext(connection) as small:
+            client.get(generator_url(), query)
+        with campaign_operation(campaign, actor=campaign.owner) as act:
+            for i in range(12):
+                act.record_battle(date(2026, 10, 26), scenario=f"Battle {i}")
+        with CaptureQueriesContext(connection) as large:
+            response = client.get(generator_url(), query)
+        assert len(response.context["scenario_dialog"]["battles"]) == 13
+        assert len(large) <= len(small)
 
-    def test_an_archived_campaign_is_refused(self, client, archived, player):
-        client.post(
-            save_url(), {"campaign": archived.pk, "deployment": "1", "name": "x"}
-        )
-        assert not saved_events().exists()
-
-    def test_saving_needs_a_post(self, client, campaign, player):
+    def test_connecting_requires_a_post(self, client, campaign):
         assert client.get(save_url()).status_code == 404
 
 
@@ -449,13 +525,186 @@ class TestPrinting:
         assert client.get(print_url(), query).status_code == 404
 
 
-def test_the_menu_offers_this_generator_and_the_campaign_keeps_its_own(
+def test_the_menu_offers_the_generator_without_a_campaign_header_button(
     client, campaign
 ):
     body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
     assert f'href="{generator_url()}"' in body
     assert "Scenario generator" in body
     campaign_generator = reverse("n26-scenario-generator", args=[campaign.pk])
-    assert f'href="{campaign_generator}"' in body
-    assert "Generate scenario" in body
+    assert f'href="{campaign_generator}"' not in body
+    assert "Generate scenario" not in body
     assert "Record battle" in body
+
+
+def test_inline_generation_returns_the_chosen_result_without_saving(client, campaign):
+    response = client.get(
+        generator_url(),
+        {
+            "generate": "1",
+            "format": "json",
+            "deployment_pick": "4",
+            "side_job_pick": "leave",
+        },
+    )
+    assert response.status_code == 200
+    rolls = response.json()["rolls"]
+    assert rolls["deployment"] == 4
+    assert "side_job" not in rolls
+    assert set(rolls) == {"deployment", "objective", "crew"}
+    assert not saved_events().exists()
+
+
+def test_inline_generation_reports_an_empty_selection(client, campaign):
+    response = client.get(
+        generator_url(),
+        {
+            "generate": "1",
+            "format": "json",
+            **{
+                key + "_pick": "leave"
+                for key in ("deployment", "objective", "side_job", "crew")
+            },
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["errors"]
+
+
+def test_a_battle_link_keeps_its_campaign_and_battle_when_generating(
+    client, campaign, battle
+):
+    response = client.get(
+        generator_url(),
+        {"generate": "1", "campaign": str(campaign.pk), "battle": str(battle.pk)},
+    )
+    query = parse_qs(urlparse(response["Location"]).query)
+    assert query["campaign"] == [str(campaign.pk)]
+    assert query["battle"] == [str(battle.pk)]
+    page = client.get(response["Location"])
+    connection = client.get(page.context["save_url"])
+    assert connection.context["scenario_dialog"]["battle"] == str(battle.pk)
+    assert connection.context["scenario_dialog"]["revision"] == battle.revision
+
+
+def test_an_invalid_battle_link_does_not_expose_another_battle(client, campaign):
+    response = client.get(
+        generator_url(),
+        {
+            "deployment": "1",
+            "dialog": "save",
+            "campaign": str(campaign.pk),
+            "battle": "not-an-id",
+        },
+    )
+    assert response.status_code == 200
+    assert response.context["scenario_dialog"]["revision"] is None
+
+
+def test_battle_creation_accepts_an_optional_name_and_generated_components(
+    client, campaign
+):
+    from n26.core.models import Battle
+
+    url = reverse("n26-campaign-add-battle", args=[campaign.pk])
+    page = client.get(url)
+    assert not page.context["form"].fields["scenario"].required
+    assert page.context["form"].fields["scenario"].label == "Name"
+    response = client.post(url, {"date": "2026-10-26", "deployment": "4", "crew": "2"})
+    assert response.status_code == 302
+    created = Battle.objects.get(campaign=campaign)
+    assert created.scenario == "Battle #1"
+    assert created.scenario_rolls == {"deployment": 4, "crew": 2}
+    detail = client.get(response["Location"])
+    assert 'aria-label="Share result"' not in detail.content.decode()
+    assert "View scenario" in detail.content.decode()
+    assert "Generate again" in detail.content.decode()
+
+
+def test_a_battle_without_components_offers_generation(client, campaign, battle):
+    response = client.get(reverse("n26-battle", args=[campaign.pk, battle.pk]))
+    assert "Generate scenario" in response.content.decode()
+    assert "battle=" + str(battle.pk) in response.context["scenario_generate_url"]
+
+
+def test_saved_battle_supplies_the_inline_editor_only_to_its_arbitrator(
+    client, campaign, battle, player
+):
+    url = reverse("n26-battle", args=[campaign.pk, battle.pk])
+    assert client.get(url).context["battle_scenario"] is None
+    client.force_login(campaign.owner)
+    props = client.get(url).context["battle_scenario"]
+    assert props["save"]["battle"] == str(battle.pk)
+    assert props["save"]["revision"] == battle.revision
+
+
+def test_inline_save_returns_the_battle_url_and_refuses_stale_changes(
+    client, campaign, battle
+):
+    response = client.post(
+        save_url(), {**connection_data(campaign, battle), "format": "json"}
+    )
+    assert response.status_code == 200
+    assert response.json()["url"] == reverse(
+        "n26-battle", args=[campaign.pk, battle.pk]
+    )
+    assert response.json()["revision"] == 1
+    response = client.post(
+        save_url(), {**connection_data(campaign, battle, crew="1"), "format": "json"}
+    )
+    assert response.status_code == 400
+    assert "This battle changed." in response.json()["errors"][0]
+    battle.refresh_from_db()
+    assert battle.scenario_rolls == {"deployment": 6, "crew": 2}
+
+
+def test_inline_generation_attaches_chosen_components_and_clears_old_values(
+    client, campaign, battle
+):
+    data = {
+        **connection_data(campaign, battle),
+        "format": "json",
+        "generate": "1",
+        "deployment_pick": "leave",
+        "objective_pick": "leave",
+        "side_job_pick": "leave",
+        "crew_pick": "3",
+    }
+    response = client.post(save_url(), data)
+    assert response.status_code == 200
+    assert response.json()["rolls"] == {"crew": 3}
+    battle.refresh_from_db()
+    assert battle.scenario_rolls == {"crew": 3}
+    stale = client.post(save_url(), {**data, "crew_pick": "4"})
+    assert stale.status_code == 400
+    battle.refresh_from_db()
+    assert battle.scenario_rolls == {"crew": 3}
+
+
+@pytest.mark.parametrize("choice", ["9", "leave"])
+def test_inline_generation_rejects_invalid_or_empty_choices(
+    client, campaign, battle, choice
+):
+    response = client.post(
+        save_url(),
+        {
+            **connection_data(campaign, battle),
+            "format": "json",
+            "generate": "1",
+            "deployment_pick": "leave",
+            "objective_pick": "leave",
+            "side_job_pick": "leave",
+            "crew_pick": choice,
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["errors"]
+    battle.refresh_from_db()
+    assert battle.scenario_rolls == {}
+
+
+def test_archived_campaign_does_not_expose_a_battle_page(client, campaign, battle):
+    campaign.archived = True
+    campaign.save(update_fields=["archived"])
+    response = client.get(reverse("n26-battle", args=[campaign.pk, battle.pk]))
+    assert response.status_code == 404
