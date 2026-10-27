@@ -984,6 +984,7 @@ class TestBattlesOnTheCampaignsPage:
         drawn = self.page(client, campaign)
         assert "Battles" in drawn
         assert "No battles yet." in drawn
+        assert "Show all" not in drawn
 
     def test_recording_one_draws_it_and_logs_it(self, client, campaign, gang):
         client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
@@ -1075,12 +1076,19 @@ class TestBattlesOnTheCampaignsPage:
         assert f"Show all {BATTLES_ON_THE_PAGE + 2} battles" in drawn
         assert f'href="/n26/campaigns/{campaign.pk}/battles/"' in drawn
 
-    def test_a_short_campaign_offers_no_more(self, client, campaign):
-        for day in range(1, BATTLES_ON_THE_PAGE + 1):
+    def test_a_short_campaign_still_links_to_the_battles_page(self, client, campaign):
+        for day in range(1, 4):
             Battle.objects.create(campaign=campaign, date=date(2026, 8, day))
         drawn = self.page(client, campaign)
-        assert len(self.battles_drawn(drawn)) == BATTLES_ON_THE_PAGE
-        assert "Show all" not in drawn
+        assert len(self.battles_drawn(drawn)) == 3
+        assert "Show all 3 battles" in drawn
+        assert f'href="/n26/campaigns/{campaign.pk}/battles/"' in drawn
+
+    def test_one_battle_links_without_a_count(self, client, campaign):
+        Battle.objects.create(campaign=campaign, date=date(2026, 8, 1))
+        drawn = self.page(client, campaign)
+        assert "Show all battles" in drawn
+        assert "Show all 1 battles" not in drawn
 
     def test_another_campaigns_battle_is_not_reachable(
         self, client, campaign, arbitrator, campaign_type
