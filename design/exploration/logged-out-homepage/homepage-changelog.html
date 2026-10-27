@@ -1,0 +1,5 @@
+<c-n26.changelog href="https://gyrinx.app/changelog/?tag=N26" empty="Nothing new yet.">
+  {% for entry in entries|slice:":3" %}
+    <c-n26.changelog.entry title="{{ entry.title }}" date="{{ entry.date }}" href="{{ entry.href }}" :body="entry.body" />
+  {% endfor %}
+</c-n26.changelog>
