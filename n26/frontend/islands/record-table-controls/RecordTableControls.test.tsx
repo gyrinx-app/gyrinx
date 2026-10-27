@@ -10,7 +10,7 @@ afterEach(() => {
     document.body.innerHTML = "";
 });
 
-async function listings() {
+async function listings(mineOnly: boolean | null = null) {
     document.body.innerHTML = `
         <section data-record-table id="gangs">
           <div id="gang-controls"></div><span data-record-count></span>
@@ -37,6 +37,7 @@ async function listings() {
                     { value: "Goliath", label: "Goliath" },
                     { value: "Escher", label: "Escher" },
                 ],
+                mineOnly,
             }),
         );
         disposers.push(
@@ -127,5 +128,45 @@ describe("Independent listing filters", () => {
         expect(
             form.querySelector<HTMLInputElement>('input[name="q"]')?.value,
         ).toBe("rust");
+    });
+
+    it.each([true, false])(
+        "submits the current search with the changed ownership scope (mineOnly=%s)",
+        async (mineOnly) => {
+            const user = await listings(mineOnly);
+            const field = screen.getByRole("searchbox", {
+                name: "Search gangs",
+            });
+            const form = field.closest("form")!;
+            const submissions: FormData[] = [];
+            vi.spyOn(form, "requestSubmit").mockImplementation(() => {
+                submissions.push(new FormData(form));
+            });
+            await user.type(field, "rust");
+            const filters = screen.getByRole("group", { name: "Filters" });
+            const toggle = within(filters).getByRole("switch", {
+                name: "Your gangs only",
+            });
+            expect(toggle.getAttribute("aria-checked")).toBe(String(mineOnly));
+            await user.click(toggle);
+
+            expect(submissions).toHaveLength(1);
+            expect(submissions[0].get("q")).toBe("rust");
+            expect(submissions[0].get("everyone")).toBe(mineOnly ? "1" : null);
+            expect(form.getAttribute("action")).toBe("/n26/gangs/");
+        },
+    );
+
+    it("keeps everyone's gangs selected when submitting a new search", async () => {
+        const user = await listings(false);
+        const field = screen.getByRole("searchbox", { name: "Search gangs" });
+        const form = field.closest("form")!;
+        const submit = vi
+            .spyOn(form, "requestSubmit")
+            .mockImplementation(() => {});
+        await user.type(field, "ashen{Enter}");
+        expect(submit).toHaveBeenCalledOnce();
+        expect(new FormData(form).get("everyone")).toBe("1");
+        expect(new FormData(form).get("q")).toBe("ashen");
     });
 });

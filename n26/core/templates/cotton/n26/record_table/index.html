@@ -4,20 +4,35 @@
 Child rows expose data-record-row facets for the controls; only this table's rows are filtered.
 React owns the search and type controls. The row markup stays server-rendered.
 Live typing only hides rows already on the page. Submitting Search asks the server for more.
-Anything in filters asks the server and reloads.
+mine_only adds an ownership toggle; changing it submits the query and scope to action.
+Omit mine_only on lists with no ownership filter. False includes everyone's records.
 The rows wrapper is a query container. A gang row's wide layout keys off that, not the viewport.
 {% endcomment %}
 
 <c-vars :type_options="[]" noun="gangs" singular="gang" action="" query="" empty=""
-        filters="" :total="None" :shown="None" class="" />
+        :mine_only="None" :total="None" :shown="None" class="" />
 
 {% load record_tables react %}
-{% record_table_controls action query noun singular type_options as controls %}
+{% record_table_controls action query noun singular type_options mine_only as controls %}
 <div data-record-table class="flex flex-col gap-3 {{ class }}">
     {% react_host "record-table-controls" controls %}
-        <c-n26.search-bar :action="action" :value="query" placeholder="Search {{ noun }}" />
+        <form action="{{ action }}" method="get" class="flex flex-wrap items-center gap-3">
+            <div class="flex w-full min-w-0 max-w-xl basis-96 grow items-center gap-2">
+                <c-n26.search-bar :nested="True" :value="query" placeholder="Search {{ noun }}" />
+                <c-ui.button type="submit" variant="primary">Search</c-ui.button>
+            </div>
+            {% if mine_only == False %}<input type="hidden" name="everyone" value="1">{% endif %}
+            {% if mine_only != None %}
+                <c-n26.action-bar>
+                    {% if mine_only %}
+                        <c-n26.link href="{{ action }}?everyone=1{% if query %}&amp;q={{ query|urlencode }}{% endif %}">Show everyone's {{ noun }}</c-n26.link>
+                    {% else %}
+                        <c-n26.link href="{{ action }}{% if query %}?q={{ query|urlencode }}{% endif %}">Show your {{ noun }} only</c-n26.link>
+                    {% endif %}
+                </c-n26.action-bar>
+            {% endif %}
+        </form>
     {% endreact_host %}
-    {% if filters %}<div class="flex flex-wrap items-center gap-2">{{ filters }}</div>{% endif %}
 
     <p class="text-sm text-muted">
         <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100" data-record-count>{{ shown }}</span>
