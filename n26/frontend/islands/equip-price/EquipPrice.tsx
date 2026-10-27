@@ -39,6 +39,7 @@ export type OptionChangeProps = {
     choices: PickGroup[];
     before: number;
     held: string[];
+    refunds?: { setKey: string; entries: { key: string; paid: number }[] }[];
     resolution: ResolutionGroup[];
     initialSelections?: Record<string, string[]>;
     focusedChoice?: FocusedChoice;
@@ -196,13 +197,25 @@ function OptionChange(props: OptionChangeProps) {
     const unchanged =
         setKeys.size === props.held.length &&
         props.held.every((key) => setKeys.has(key));
+    const refunded = [
+        ...new Map(
+            (props.refunds ?? [])
+                .filter((group) => !setKeys.has(group.setKey))
+                .flatMap((group) =>
+                    group.entries.map(
+                        (entry) => [entry.key, entry.paid] as const,
+                    ),
+                ),
+        ).values(),
+    ].reduce((sum, paid) => sum + paid, 0);
     const difference =
         resolved === null
             ? null
             : unchanged
               ? 0
               : resolved.reduce((sum, option) => sum + option.price, 0) -
-                props.before;
+                props.before -
+                refunded;
     return (
         <>
             <OptionChoices

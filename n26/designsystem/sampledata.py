@@ -3457,6 +3457,7 @@ def owned_context():
                 "choices": pick_group_props(choices),
                 "before": 35,
                 "held": sorted(held_options),
+                "refunds": [],
                 "resolution": [
                     {
                         "choose": group.choose,

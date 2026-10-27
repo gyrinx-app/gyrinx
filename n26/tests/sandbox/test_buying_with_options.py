@@ -27,12 +27,14 @@ from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled
 from n26.tests.sandbox.actions import (
     assign,
+    attach,
     buy,
     create_category,
     create_collection,
     create_option_group,
     create_wargear,
     create_weapon,
+    create_weapon_accessory,
     found_gang,
     hire,
     offer_option,
@@ -795,9 +797,55 @@ class TestTheWayToChangeThem:
         assert preview["resolution"][-1]["options"][0]["price"] == 7
         assert len(preview["choices"]) == 2
 
+    def test_a_hand_made_change_options_url_for_a_weapon_draws_no_dialog(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        client.force_login(owner)
+        client.post(equip_url(fighter, house_list), {"thing": key_of(cutter)})
+        gun = Assignment.objects.get(
+            miniature_root=fighter,
+            weapon__name="Cutter grenade launchers",
+            archived=False,
+        )
+        response = client.get(f"{equip_url(fighter, house_list)}&rechoose={gun.pk}")
+        assert response.status_code == 200
+        assert response.context["dialog"] is None
+
 
 class TestChangingThem:
     """The swap settles on the thing's own line, in either direction."""
+
+    def test_paid_equipment_under_a_departing_option_is_in_the_preview_refund(
+        self, client, owner, gang, fighter, house_list, cutter
+    ):
+        from n26.core.models import LedgerEntry
+
+        client.force_login(owner)
+        client.post(equip_url(fighter, house_list), {"thing": key_of(cutter)})
+        entry = LedgerEntry.objects.get(assignment__wargear=cutter)
+        gun = Assignment.objects.get(
+            miniature_root=fighter,
+            weapon__name="Cutter grenade launchers",
+            archived=False,
+        )
+        sight = attach(gun, create_weapon_accessory("Cutter sight", price=20), paid=20)
+        response = client.get(
+            f"{equip_url(fighter, house_list)}&rechoose={entry.assignment_id}"
+        )
+        preview = response.context["dialog"]["price_preview"]
+        refundable = [row for group in preview["refunds"] for row in group["entries"]]
+        assert refundable == [{"key": str(sight.pk), "paid": 20}]
+        gang.refresh_from_db()
+        before = gang.credits
+        client.post(
+            reverse("n26-rechoose", args=[entry.assignment_id]),
+            {"list": str(house_list.pk), choice_field(cutter, 0): "2"},
+        )
+        gang.refresh_from_db()
+        assert gang.credits - before == 5
+        sight.refresh_from_db()
+        assert sight.archived
+        assert_reconciled(gang)
 
     @pytest.mark.parametrize("fixed_first", [True, False])
     def test_fixed_group_order_controls_a_named_shared_sets_price(

@@ -608,11 +608,16 @@ def owned_dialog(request, host: EquipHost):
     if kind == "rechoose":
         from n26.core.browse import offered_choices
         from n26.core.listing import pick_group_props, pick_groups
+        from n26.core.operations import option_refunds
+        from n26.library.models.assignable import Optioned
 
         thing = assignment.assignable
+        if not isinstance(thing, Optioned) or not thing.offers_a_choice:
+            return None
         recorded = list(assignment.chosen_options.select_related("default_set"))
         taken = {row.default_set_id for row in recorded}
         choices = pick_groups(offered_choices(thing), thing_key(thing), taken=taken)
+        refunds = option_refunds(assignment, [row.default_set for row in recorded])
         return dialog | {
             "title": f"Change {name}'s options",
             "choices": choices,
@@ -621,6 +626,18 @@ def owned_dialog(request, host: EquipHost):
                 "choices": pick_group_props(choices),
                 "before": sum(row.default_set.price for row in recorded),
                 "held": sorted(str(key) for key in taken),
+                "refunds": [
+                    {
+                        "setKey": str(key),
+                        "entries": [
+                            {"key": str(row.pk), "paid": entry.paid}
+                            for row in rows
+                            if (entry := getattr(row, "ledger_entry", None)) is not None
+                            and entry.paid
+                        ],
+                    }
+                    for key, rows in refunds.items()
+                ],
                 "resolution": [
                     {
                         "choose": group.choose if group is not None else "one",

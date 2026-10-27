@@ -324,6 +324,67 @@ describe("option price previews", () => {
 });
 
 describe("ordered resolution and loading focus", () => {
+    it("includes paid equipment refunds only when its option departs", () => {
+        render(
+            <EquipPrice
+                changing
+                choices={groups}
+                before={25}
+                held={["launchers"]}
+                resolution={resolutionOf(groups)}
+                refunds={[
+                    {
+                        setKey: "launchers",
+                        entries: [{ key: "sight", paid: 20 }],
+                    },
+                ]}
+            />,
+        );
+        expect(screen.getByRole("status").textContent).toBe("No price change");
+        fireEvent.click(
+            screen.getByRole("radio", { name: "Plasma guns +15¢" }),
+        );
+        expect(screen.getByRole("status").textContent).toBe(
+            "Options refund 5¢",
+        );
+        fireEvent.click(screen.getByRole("radio", { name: "Launchers" }));
+        expect(screen.getByRole("status").textContent).toBe("No price change");
+    });
+
+    it("refunds a paid descendant shared by departing options once", () => {
+        const picked = [
+            groups[0],
+            {
+                ...groups[1],
+                options: groups[1].options.map((option) => ({
+                    ...option,
+                    checked: true,
+                })),
+            },
+        ];
+        render(
+            <EquipPrice
+                changing
+                choices={picked}
+                before={45}
+                held={["launchers", "smoke"]}
+                resolution={resolutionOf(picked)}
+                refunds={[
+                    {
+                        setKey: "launchers",
+                        entries: [{ key: "shared", paid: 20 }],
+                    },
+                    { setKey: "smoke", entries: [{ key: "shared", paid: 20 }] },
+                ]}
+            />,
+        );
+        fireEvent.click(screen.getByRole("radio", { name: "Light guns −5¢" }));
+        fireEvent.click(screen.getByRole("radio", { name: "None" }));
+        expect(screen.getByRole("status").textContent).toBe(
+            "Options refund 45¢",
+        );
+    });
+
     it.each([true, false])(
         "resolves a named shared set with fixed group first: %s",
         (fixedFirst) => {
