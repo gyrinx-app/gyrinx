@@ -308,7 +308,9 @@ def test_the_operation_validates_winners_from_the_battle_participants(
     assert battle.result == Battle.Result.NOT_RECORDED
 
 
-def test_new_battles_still_require_a_scenario(campaign, player):
-    with pytest.raises(Refusal, match="Enter a scenario name"):
-        with campaign_operation(campaign, actor=player) as act:
-            act.record_battle(date(2026, 10, 25), [], scenario="")
+def test_new_battles_receive_a_number_when_no_name_is_given(campaign, player):
+    with campaign_operation(campaign, actor=player) as act:
+        first = act.record_battle(date(2026, 10, 25), [], scenario="")
+        second = act.record_battle(date(2026, 10, 25), [], scenario=" ")
+    assert first.scenario == "Battle #1"
+    assert second.scenario == "Battle #2"

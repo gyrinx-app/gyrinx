@@ -130,6 +130,13 @@ from n26.core.views.profiles import (
     user_profile,
     user_profile_by_id,
 )
+from n26.core.views.scenarios import (
+    campaign_print_scenario,
+    generate_scenario,
+    print_scenario,
+    record_scenario_battle,
+    save_scenario_to_campaign,
+)
 from n26.core.views.skills import skills
 from n26.core.views.switchers import switcher_page
 from n26.core.views.trade_points import fighter_hire_time_action
@@ -190,6 +197,11 @@ __all__ = [
     "roll_starting_asset",
     "save_scenario",
     "scenario_generator",
+    "generate_scenario",
+    "campaign_print_scenario",
+    "print_scenario",
+    "record_scenario_battle",
+    "save_scenario_to_campaign",
     "campaign_tables",
     "new_table",
     "campaign_table",

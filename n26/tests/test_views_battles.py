@@ -109,10 +109,10 @@ def test_campaign_lists_battle_result_above_participating_gangs(
 class TestBattleForm:
     """A new battle has no outcome; the outcome is recorded by editing it."""
 
-    def test_a_new_battle_asks_only_for_scenario_and_date(self):
+    def test_a_new_battle_requires_a_date_and_allows_an_optional_name(self):
         form = BattleForm({}, playing=Gang.objects.none())
         assert not form.is_valid()
-        assert set(form.errors) == {"scenario", "date"}
+        assert set(form.errors) == {"date"}
         assert "result" not in form.fields
         assert "winners" not in form.fields
 
@@ -367,7 +367,7 @@ class TestBattlePages:
         legacy = Battle.objects.create(campaign=campaign, date=date(2026, 8, 3))
         detail = client.get(address(campaign, legacy)).content.decode()
         assert "Battle on 3 Aug 2026" in detail
-        assert "Scenario not recorded." in detail
+        assert "No generated scenario attached." in detail
         assert "Not recorded" in detail
         campaign_page = client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
         assert address(campaign, legacy) in campaign_page

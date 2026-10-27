@@ -1,0 +1,22 @@
+{% if scenario_results %}
+    {% include "n26/includes/scenario_summary.html" with results=scenario_results %}
+    <details class="mt-3">
+        <summary class="cursor-pointer text-sm font-medium">Full details</summary>
+        <div class="mt-3">{% include "n26/includes/scenario_results.html" with results=scenario_results %}</div>
+    </details>
+    <div class="mt-4 flex flex-wrap items-center gap-2">
+        <c-ui.button href="{{ scenario_print_url }}" size="sm">
+            Print
+        </c-ui.button>
+        <c-ui.button href="{{ scenario_share_url }}" size="sm">
+            View scenario
+        </c-ui.button>
+        {% if yours and not battle.archived %}<c-ui.button href="{{ scenario_generate_url }}"
+             size="sm">Generate again</c-ui.button>{% endif %}
+    </div>
+{% else %}
+    <p class="text-sm text-muted">No generated scenario attached.</p>
+    {% if yours and not battle.archived %}<c-ui.button href="{{ scenario_generate_url }}"
+             size="sm"
+             class="mt-3">Generate scenario</c-ui.button>{% endif %}
+{% endif %}

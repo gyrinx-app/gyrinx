@@ -1,14 +1,22 @@
 # N26 Scenario Generator: what it does
 
-The Scenario Generator gives an N26 campaign a quick way to set up a battle.
-For each of four scenario tables, a player rolls a D6, chooses an entry, or
-leaves the table out. They can then share the result, save it to the
-campaign log, or take it to **Record a battle**.
+The Scenario Generator is a quick way to set up a battle. For each of four
+scenario tables, a player rolls a D6, chooses an entry, or leaves the table
+out. They can then share the result, save it to a campaign log, or take it to
+**Record a battle**.
 
 ## Where to find it
 
-Every campaign's **Battles** box has a **Generate scenario** button next to
-**Record a battle**. Anyone who can read the campaign sees it.
+There are two ways in:
+
+- **From a battle.** Battle creation offers optional inline generation. A
+  saved battle offers **Generate scenario** or **Generate again** inline,
+  attaching each generated result immediately.
+- **From the menu.** **Scenario generator** is in the N26 menu, after
+  **Campaigns**, at `/n26/scenario/`. Anyone signed in can use it, for
+  campaign or skirmish play. It asks which campaign to use when connecting a scenario or
+  creating a battle. See
+  [Outside a campaign](#outside-a-campaign).
 
 ## The four tables
 
@@ -44,14 +52,15 @@ chosen and omitted components set for the next generation.
 On a wide screen the choices sit on the left and the scenario on the right.
 On a phone the choices come first.
 
-Generating saves nothing. A player can generate a scenario, play the game,
+Standalone generation and battle-creation previews save nothing. A player can generate a scenario, play the game,
 and record the battle afterwards, or never record it.
 
-## Doing something with the result
+## Actions in the campaign-specific generator
 
 | Action | Who can use it | What it does |
 | --- | --- | --- |
 | **Share** | Everyone who can read the campaign | Copies a link to the scenario on a desktop, or opens the share sheet on a phone. Anyone who opens the link sees the same scenario. |
+| **Print** | Everyone who can read the campaign | Opens a print page with the scenario laid out as on screen, one card per component, with the Deployment map. **Print** on that page opens the browser's print dialog, which can also save a PDF. **Back to scenario** returns to the campaign's generator. |
 | **Save to log** | The arbitrator and accepted players | Opens **Save scenario**, which asks for a scenario name and adds one line to the campaign log. |
 | **Record a battle** | The arbitrator and accepted players | Opens **Record a battle** with the scenario attached. The player names the battle and records it as usual. |
 
@@ -63,34 +72,43 @@ A saved scenario appears in the log like this:
 The line links back to the scenario. A recorded battle appears in the log in
 the usual way, for example "recorded Vent ambush on 2026-10-12".
 
+## Outside a campaign
+
+The generator is available from the N26 menu and the swords shortcut on wide screens.
+The compact header share control and **Share result** beside **Print** both share
+an address containing the exact generated components. No identifier or saved
+record is needed to reproduce that result.
+
+| Action | Who can use it | What it does |
+| --- | --- | --- |
+| **Share result** and **Print** | Anyone signed in | Share the exact result or open its print page. |
+| **Connect to battle** | Campaign arbitrators | Select a campaign, then one of its active battles. Connects the components without changing the battle's name, participants or outcome. |
+| **Create a battle** | Arbitrators and accepted players | Select a campaign and open its battle form with the result attached. |
+
+The connection dialog loads battles only after a campaign is selected. Archived
+campaigns and battles are excluded. Replacing an attached scenario shows a warning.
+The server checks the campaign, battle and permissions again, and refuses a stale
+battle revision. Connecting appends a battle-edit event; repeating an unchanged
+connection adds no duplicate event. Names belong to battles, so the dialog has no
+scenario-name field. A successful connection opens the selected battle page.
+
 ## The battle record
 
-On **Record a battle**, a **Scenario components** box lists each component
-under the scenario name. **View scenario details** opens the full
-descriptions and the map. If the form shows an error, the scenario and
-everything else already entered stay in place.
+The creation form has an optional **Name**. A blank name becomes **Battle #N**,
+where N counts the campaign's battles, including archived battles. Naming and
+creation occur under the campaign lock.
 
-The battle keeps its scenario, and the battle's page shows it in a
-**Scenario** section.
+**Generate scenario** produces an optional compact preview without submitting the
+battle or clearing the name, date or participants. **Table options** offers the
+same four component choices as the main generator. The preview can be regenerated
+or removed, and its full result can be opened in another tab. The server validates
+the hidden components when the battle is saved.
 
-## Checks
-
-- **Saving** needs a scenario name of up to 200 characters, the same rule as
-  a battle's scenario.
-- **A component that is not on its table is refused.** For example, a link
-  naming Deployment 7 is not used, even if its other components are valid.
-  A component that was left out is fine.
-- **Archived campaigns** cannot have scenarios saved to them.
-
-## Decisions
-
-- Generating a scenario saves nothing. Players save a scenario or record a
-  battle only when they want to.
-- A saved scenario adds one line to the log.
-- Battles and saved scenarios store which entries came up, not a copy of
-  their text. If the table wording is revised, older records show the new
-  wording.
-- Rolled and chosen results are treated the same. A link does not prove who
-  rolled a scenario, or how many times they rolled.
-- Letting players record a battle's outcome later is a separate change with
-  its own pull request.
+The battle page puts Outcome first and places the compact scenario beside it on
+wide screens. The scenario offers expandable details, **Print** and **View
+scenario**. The full-result link opens the standalone
+generator with the exact components. Arbitrators can generate or regenerate directly on the battle page using the
+same options as battle creation. Each generated result is
+attached immediately, without leaving the page or requiring a separate save.
+The battle revision is checked so a concurrent edit cannot be overwritten; a
+refused attachment leaves the displayed saved result intact.

@@ -84,7 +84,7 @@ def test_the_page_opens_with_the_four_components_set_to_roll(client, campaign):
     }
     body = response.content.decode()
     assert "Roll a D6" in body and "Leave out" in body
-    assert 'aria-label="Share"' not in body
+    assert 'aria-label="Share result"' not in body
 
 
 def test_a_signed_out_reader_is_sent_to_sign_in(client, campaign):
@@ -106,7 +106,7 @@ def test_generating_rolls_every_table_by_default(client, campaign):
     ]
     body = response.content.decode()
     assert "Generate again" in body
-    assert 'aria-label="Share"' in body
+    assert 'aria-label="Share result"' in body
 
 
 def test_a_pick_can_choose_an_entry_or_leave_a_table_out(client, campaign):
@@ -200,7 +200,7 @@ class TestWhoGetsWhichButton:
         assert response.context["save_href"] == f"{save_url(campaign)}?deployment=3"
         body = response.content.decode()
         assert "Save to log" in body
-        assert 'aria-label="Share"' in body
+        assert 'aria-label="Share result"' in body
 
     def test_a_player_may_save_record_and_share(self, client, campaign, player):
         response = client.get(generator_url(campaign), self.query)
@@ -213,7 +213,7 @@ class TestWhoGetsWhichButton:
         assert not response.context["save_href"]
         body = response.content.decode()
         assert "Save to log" not in body
-        assert 'aria-label="Share"' in body
+        assert 'aria-label="Share result"' in body
 
 
 def saved_events():
@@ -330,12 +330,13 @@ class TestSaving:
         assert response.status_code == 404
 
 
-def test_the_campaign_page_offers_the_generator_to_every_reader(
+def test_the_campaign_page_keeps_the_generator_in_shared_navigation(
     client, campaign, stranger
 ):
     body = client.get(reverse("n26-campaign", args=[campaign.pk])).content.decode()
-    assert generator_url(campaign) in body
-    assert "Record a battle" not in body
+    assert generator_url(campaign) not in body
+    assert reverse("n26-generate-scenario") in body
+    assert "Record battle" not in body
 
 
 class TestRecordingTheResult:
@@ -358,8 +359,8 @@ class TestRecordingTheResult:
         assert [r.roll for r in response.context["scenario_results"]] == [6, 2]
         assert not response.context["form"]["scenario"].value()
         body = response.content.decode()
-        assert "Scenario components" in body
-        assert "View scenario details" in body
+        assert "Scenario" in body
+        assert "Full details" in body
         assert 'type="hidden" name="deployment" value="6"' in body
         assert "Generate scenario" not in body
 
@@ -512,3 +513,57 @@ class TestRecordingTheResult:
         assert battle.scenario_rolls == {}
         page = client.get(reverse("n26-battle", args=[campaign.pk, battle.pk]))
         assert page.context["scenario_results"] == []
+
+
+def campaign_print_url(campaign):
+    return reverse("n26-campaign-scenario-print", args=[campaign.pk])
+
+
+class TestPrintingFromTheCampaign:
+    def test_print_comes_first_for_whoever_may_record(self, client, campaign):
+        response = client.get(
+            generator_url(campaign), {"deployment": "4", "side_job_pick": "leave"}
+        )
+        body = response.content.decode()
+        print_link = f'href="{campaign_print_url(campaign)}?side_job_pick=leave&amp;deployment=4"'
+        assert print_link in body
+        assert body.index(print_link) < body.index("Save to log")
+
+    def test_a_reader_who_may_not_record_may_still_print(
+        self, client, campaign, stranger
+    ):
+        body = client.get(generator_url(campaign), {"deployment": "4"}).content.decode()
+        assert f'href="{campaign_print_url(campaign)}?deployment=4"' in body
+        assert "Save to log" not in body
+
+    def test_the_print_page_returns_to_the_campaign_generator(self, client, campaign):
+        response = client.get(
+            campaign_print_url(campaign),
+            {"crew": "3", "deployment": "4", "side_job_pick": "leave"},
+        )
+        assert response.status_code == 200
+        assert [r.table.key for r in response.context["scenario"]] == [
+            "deployment",
+            "crew",
+        ]
+        body = response.content.decode()
+        assert "Your scenario" in body
+        assert "window.print()" in body
+        assert "scenarios/deployment-4.png" in body
+        back = urlparse(response.context["back_url"])
+        assert back.path == generator_url(campaign)
+        assert parse_qs(back.query) == {
+            "side_job_pick": ["leave"],
+            "deployment": ["4"],
+            "crew": ["3"],
+        }
+
+    @pytest.mark.parametrize("query", [{}, {"deployment": "7"}])
+    def test_nothing_to_print_is_not_found(self, client, campaign, query):
+        assert client.get(campaign_print_url(campaign), query).status_code == 404
+
+    def test_an_unknown_campaign_is_not_found(self, client, campaign):
+        url = reverse(
+            "n26-campaign-scenario-print", args=["01ARZ3NDEKTSV4RRFFQ69G5FAV"]
+        )
+        assert client.get(url, {"deployment": "4"}).status_code == 404

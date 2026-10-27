@@ -131,11 +131,10 @@ reader's other campaigns — the same pattern a gang's screens use.
             </c-slot>
         {% endif %}
         {% comment %}
-        Generating a scenario saves nothing, so every reader gets it.
-        Recording the battle is for the players and the arbitrator.
+        Recording a battle is for accepted players and the arbitrator.
         {% endcomment %}
         <c-slot name="battles_actions">
-            <c-n26.button-group>
+            <div class="flex flex-wrap items-center gap-2">
                 {% if yours %}
                     {% url 'n26-campaign-archived-battles' campaign.pk as archived_battles_url %}
                     {% link_actions "Archived battles" archived_battles_url as battle_actions %}
@@ -144,19 +143,14 @@ reader's other campaigns — the same pattern a gang's screens use.
                                        variant="ghost"
                                        align="end" />
                 {% endif %}
-                <c-ui.button size="sm"
-                             variant="default"
-                             href="{% url 'n26-scenario-generator' campaign.pk %}">
-                    Generate scenario
-                </c-ui.button>
                 {% if may_record %}
                     <c-ui.button size="sm"
                                  variant="primary"
                                  href="{% url 'n26-campaign-add-battle' campaign.pk %}">
-                        Record a battle
+                        Record battle
                     </c-ui.button>
                 {% endif %}
-            </c-n26.button-group>
+            </div>
         </c-slot>
         <c-slot name="players">
             <p class="mb-3 text-sm text-muted" data-player-counts>{{ player_count }} accepted player{{ player_count|pluralize }} · {{ invitation_count }} pending invitation{{ invitation_count|pluralize }}</p>

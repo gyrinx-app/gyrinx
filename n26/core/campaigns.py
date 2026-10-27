@@ -450,6 +450,9 @@ class CampaignOperation:
         from n26.core.scenarios import parse, rolls_of
 
         self._require_recorder()
+        scenario = (
+            scenario or ""
+        ).strip() or f"Battle #{self.campaign.battles.count() + 1}"
         scenario_found, wrong = parse(scenario_rolls or {})
         if wrong:
             raise Refusal(
@@ -654,6 +657,33 @@ class CampaignOperation:
             CampaignEvent.Kind.SCENARIO_SAVED,
             note=history_note(rolls_of(found), name),
         )
+
+    def connect_scenario(self, battle, rolls, *, revision):
+        """Attach generated components without changing the battle's name or outcome."""
+        from n26.core.operations import Refusal
+        from n26.core.scenarios import parse, rolls_of
+
+        self._require_recorder()
+        if self.actor.pk != self.campaign.owner_id:
+            raise Refusal("Only the arbitrator can connect a scenario to a battle.")
+        battle = self._locked_battle(battle)
+        if battle.revision != revision:
+            raise Refusal("This battle changed. Reload it before saving your changes.")
+        found, wrong = parse(rolls)
+        if wrong or not found:
+            raise Refusal("Generate a valid scenario before connecting it to a battle.")
+        rolls = rolls_of(found)
+        if battle.scenario_rolls == rolls:
+            return battle
+        battle.scenario_rolls = rolls
+        battle.revision += 1
+        battle.save(update_fields=["scenario_rolls", "revision", "modified"])
+        self.event(
+            CampaignEvent.Kind.BATTLE_EDITED,
+            battle=battle,
+            note=f"{battle.title} on {battle.date.isoformat()}",
+        )
+        return battle
 
     def edit_battle(
         self,

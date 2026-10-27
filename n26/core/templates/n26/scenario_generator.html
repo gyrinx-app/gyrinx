@@ -84,16 +84,31 @@ may use it.
                     </p>
                 {% elif scenario %}
                     {% include "n26/includes/scenario_results.html" with results=scenario %}
-                    {% if record_href %}
-                        <div class="flex flex-wrap items-center justify-end gap-2 border-t border-box-border pt-4">
+                    {% comment %}
+                    Print is for every reader: it saves nothing. Saving and
+                    recording are for whoever may record in the campaign.
+                    {% endcomment %}
+                    <div class="flex flex-wrap items-center justify-end gap-2 border-t border-box-border pt-4">
+                        <c-n26.share :url="share_url"
+                                     label="Share result"
+                                     size="sm"
+                                     variant="ghost"
+                                     :compact="False" />
+                        <c-ui.button href="{{ print_url }}">
+                            <span class="flex items-center justify-center gap-2">
+                                <c-n26.icon name="printer" class="size-4" />
+                                Print
+                            </span>
+                        </c-ui.button>
+                        {% if record_href %}
                             <c-ui.button href="{{ save_href }}">
                                 Save to log
                             </c-ui.button>
                             <c-ui.button variant="primary" href="{{ record_href }}">
                                 Record a battle
                             </c-ui.button>
-                        </div>
-                    {% endif %}
+                        {% endif %}
+                    </div>
                 {% else %}
                     <p class="text-sm text-muted">Choose what to roll, then generate the scenario. It appears here.</p>
                 {% endif %}

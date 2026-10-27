@@ -10,6 +10,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch, Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from n26.core.battle_permissions import may_record_gang
@@ -120,6 +121,29 @@ def battle(request, pk, battle_pk):
         .prefetch_related("actor__badge_grants")
         .first()
     )
+    from urllib.parse import urlencode
+
+    rolls_query = urlencode(found.scenario_rolls or {})
+    scenario_url = reverse("n26-generate-scenario")
+    scenario_share_url = (
+        f"{scenario_url}?{rolls_query}" if rolls_query else scenario_url
+    )
+    scenario_generate_url = f"{scenario_url}?{urlencode({'campaign': str(campaign.pk), 'battle': str(found.pk)})}"
+    scenario_editor = None
+    if campaign.owner_id == request.user.pk and not found.archived:
+        from django.middleware.csrf import get_token
+
+        from n26.core.views.scenario_props import battle_scenario_props
+
+        scenario_editor = battle_scenario_props(found.scenario_rolls or {})
+        scenario_editor["save"] = {
+            "action": reverse("n26-generate-scenario-save"),
+            "csrfToken": get_token(request),
+            "campaign": str(campaign.pk),
+            "battle": str(found.pk),
+            "revision": found.revision,
+            "printUrl": reverse("n26-scenario-print"),
+        }
     return render(
         request,
         "n26/battle.html",
@@ -133,6 +157,10 @@ def battle(request, pk, battle_pk):
             "yours": campaign.owner_id == request.user.pk,
             "may_record_outcome": may_record_outcome(found, request.user),
             "scenario_results": results(found.scenario_rolls or {}),
+            "scenario_share_url": scenario_share_url,
+            "scenario_print_url": f"{reverse('n26-scenario-print')}?{rolls_query}",
+            "scenario_generate_url": scenario_generate_url,
+            "battle_scenario": scenario_editor,
         },
     )
 

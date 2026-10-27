@@ -1,0 +1,117 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation react %}
+{% comment %}
+The scenario generator outside a campaign, from the N26 menu, for campaign
+and skirmish play. The campaign's own generator is scenario_generator.html.
+On wide screens the scenario
+components sit on the left and the generated scenario on the right, with
+room for the descriptions and the deployment map; on a phone the
+components come first.
+
+Each table has one native select: Roll a D6, Leave out, or one of its
+six entries. The form is a GET, because generating saves nothing: the
+view rolls once and redirects to an address holding the result and the
+picks, so Share passes the same scenario on and Generate again keeps
+the picks. Nothing here is saved, so anyone signed in may use it.
+
+Under the result, Print opens the scenario's print page. Connect to battle
+and Record a battle open a dialog, named in the address, that asks which
+of the reader's campaigns the scenario is for.
+{% endcomment %}
+{% block head_title %}Generate a scenario{% endblock head_title %}
+{% block nav_items %}
+    {% include "n26/_nav.html" with here="scenario" %}
+{% endblock %}
+{% block content %}
+    <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <c-n26.page-header title="Generate a scenario"
+                           lead="Roll or choose components for a battle. Use the result to create a battle or connect it to an existing battle.">
+            {% if scenario %}
+                <c-slot name="breadcrumb_actions">
+                    <c-n26.share :url="share_url" />
+                </c-slot>
+            {% endif %}
+        </c-n26.page-header>
+        <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+            <form method="get"
+                  action="{% url 'n26-generate-scenario' %}"
+                  class="flex flex-col gap-5 rounded-box border border-box-border p-4 sm:p-5">
+                {% if request.GET.campaign %}<input type="hidden" name="campaign" value="{{ request.GET.campaign }}">{% endif %}
+                {% if request.GET.battle %}<input type="hidden" name="battle" value="{{ request.GET.battle }}">{% endif %}
+                <c-n26.form-section title="Scenario components"
+                                    description="Leave a component out if you already have it covered.">
+                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                        {% for field in form %}
+                            <c-ui.field label="{{ field.label }}"
+                                        error="x"
+                                        :form="form"
+                                        name="{{ field.html_name }}"
+                                        for="{{ field.auto_id }}">
+                                <c-ui.select.native id="{{ field.auto_id }}"
+                                                    name="{{ field.html_name }}"
+                                                    placeholder="">
+                                    {% for value, label in field.field.choices %}
+                                        <option value="{{ value }}"
+                                                {% if value == field.value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </c-ui.select.native>
+                            </c-ui.field>
+                        {% endfor %}
+                    </div>
+                </c-n26.form-section>
+                <c-ui.error :form="form" name="__all__" />
+                <div class="flex flex-wrap items-center justify-end gap-2 pt-4">
+                    <c-ui.button type="submit" name="generate" value="1" variant="success">
+                        {% if scenario %}
+                            Generate again
+                        {% else %}
+                            Generate scenario
+                        {% endif %}
+                    </c-ui.button>
+                </div>
+            </form>
+            <c-n26.section id="scenario" title="Your scenario" class="scroll-mt-24">
+                {% if wrong %}
+                    <p class="text-sm text-red-600 dark:text-red-400">
+                        This link names a component that is not on its table. Generate the scenario again.
+                    </p>
+                {% elif scenario %}
+                    {% include "n26/includes/scenario_results.html" with results=scenario %}
+                    {% comment %}
+                    Print is everybody's: it saves nothing. Saving and recording
+                    are offered when the reader has a campaign to do them in; a
+                    dialog then asks which.
+                    {% endcomment %}
+                    <div class="flex flex-wrap items-center justify-end gap-2 pt-4">
+                        <c-n26.share :url="share_url"
+                                     label="Share result"
+                                     size="sm"
+                                     variant="ghost"
+                                     :compact="False" />
+                        <c-ui.button href="{{ print_url }}">
+                            <span class="flex items-center justify-center gap-2">
+                                <c-n26.icon name="printer" class="size-4" />
+                                Print
+                            </span>
+                        </c-ui.button>
+                        {% if may_connect %}
+                            <c-ui.button href="{{ save_url }}">
+                                Connect to battle
+                            </c-ui.button>
+                        {% endif %}
+                        {% if may_record %}
+                            <c-ui.button variant="primary" href="{{ record_url }}">
+                                Create a battle
+                            </c-ui.button>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <p class="text-sm text-muted">Choose what to roll, then generate the scenario. It appears here.</p>
+                {% endif %}
+            </c-n26.section>
+        </div>
+    </div>
+    {% if dialog %}
+        {% react_island "scenario-dialog" scenario_dialog %}
+    {% endif %}
+{% endblock content %}

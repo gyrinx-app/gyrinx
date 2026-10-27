@@ -678,7 +678,7 @@ class BattleForm(ScenarioComponentsMixin, forms.Form):
     as one ``scenario_rolls`` mapping.
     """
 
-    scenario = forms.CharField(max_length=200, label="Scenario")
+    scenario = forms.CharField(max_length=200, label="Name", required=False)
 
     date = forms.DateField(
         label="Date",
@@ -728,6 +728,7 @@ class BattleForm(ScenarioComponentsMixin, forms.Form):
                 del self.fields[name]
             self.add_scenario_fields()
         else:
+            self.fields["scenario"].required = True
             self.initial.update(
                 scenario=battle.scenario,
                 date=battle.date.isoformat(),
@@ -1293,6 +1294,74 @@ class SaveScenarioForm(ScenarioComponentsMixin, forms.Form):
         if not self.errors and not cleaned["scenario_rolls"]:
             self.add_error(None, "There is no scenario to save. Generate one first.")
         return cleaned
+
+
+class CampaignChoiceMixin:
+    """A campaign to use a generated scenario in, chosen from the campaigns
+    the reader may record in. For the generator outside a campaign, which
+    has to ask. ``campaigns`` has no default: a queryset built without one
+    would accept a campaign the reader has no place in."""
+
+    def add_campaign_field(self, campaigns):
+        self.fields["campaign"] = forms.ModelChoiceField(
+            queryset=campaigns,
+            label="Campaign",
+            empty_label="Select a campaign",
+            error_messages={
+                "required": "Select a campaign.",
+                "invalid_choice": "Select one of your campaigns.",
+            },
+        )
+
+
+class ScenarioCampaignForm(CampaignChoiceMixin, ScenarioComponentsMixin, forms.Form):
+    """A generated scenario and the campaign to record a battle in."""
+
+    def __init__(self, *args, campaigns, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.add_campaign_field(campaigns)
+        self.add_scenario_fields()
+
+    def clean(self):
+        cleaned = self.gather_scenario(super().clean())
+        if not self.errors and not cleaned["scenario_rolls"]:
+            self.add_error(None, "There is no scenario. Generate one first.")
+        return cleaned
+
+
+class ConnectScenarioToBattleForm(ScenarioCampaignForm):
+    """A generated scenario and an existing battle in a chosen campaign."""
+
+    revision = forms.IntegerField(min_value=0, widget=forms.HiddenInput)
+
+    def __init__(self, *args, campaigns, **kwargs):
+        from django.core.exceptions import ValidationError
+
+        from n26.core.models import Battle
+
+        super().__init__(*args, campaigns=campaigns, **kwargs)
+        chosen = (
+            self.data.get("campaign") if self.is_bound else self.initial.get("campaign")
+        )
+        try:
+            battles = (
+                Battle.objects.filter(
+                    campaign_id=chosen, campaign__in=campaigns, archived=False
+                )
+                if chosen
+                else Battle.objects.none()
+            )
+        except ValidationError, ValueError, TypeError:
+            battles = Battle.objects.none()
+        self.fields["battle"] = forms.ModelChoiceField(
+            queryset=battles,
+            label="Battle",
+            empty_label="Select a battle",
+            error_messages={
+                "required": "Select a battle.",
+                "invalid_choice": "Select a battle from this campaign.",
+            },
+        )
 
 
 class OpenTablesForm(forms.Form):

@@ -15,6 +15,30 @@ def may_record_campaign(campaign, user):
     )
 
 
+def recording_campaigns(user):
+    """The campaigns this reader may record in, by name: the ones they
+    arbitrate and the ones they have accepted a place in, not archived.
+    The same rule as ``may_record_campaign``, for a list to choose from."""
+    from django.db.models import Q
+
+    from n26.core.models import Campaign, CampaignParticipant
+
+    if user is None or not user.is_authenticated:
+        return Campaign.objects.none()
+    return (
+        Campaign.objects.filter(archived=False)
+        .filter(
+            Q(owner=user)
+            | Q(
+                participants__user=user,
+                participants__state=CampaignParticipant.State.ACCEPTED,
+            )
+        )
+        .distinct()
+        .order_by("name")
+    )
+
+
 def may_record_outcome(battle, user):
     """Whether this reader may record a battle's outcome on its own page.
 
