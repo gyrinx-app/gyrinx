@@ -140,13 +140,32 @@ def _live_feed_or_404(token):
 
 
 def _recent_battles(campaign):
+    """The newest battles as the campaign's Battles page reads them: each
+    gang with its type and starting crew, and the stake. Player names are
+    left out of every feed, because a feed is public."""
+    from n26.core.views.battles import _battle_lines
     from n26.core.views.campaigns import BATTLES_ON_THE_PAGE
 
-    return list(
-        campaign.battles.filter(archived=False).prefetch_related("gangs", "winners")[
-            :BATTLES_ON_THE_PAGE
-        ]
+    return _battle_lines(campaign, limit=BATTLES_ON_THE_PAGE)
+
+
+def battle_summary(line):
+    """One battle in a sentence, for RSS items: result, gangs, stake."""
+    gangs = ", ".join(
+        f"{entry.gang.name} ({entry.gang.gang_type.name}"
+        + (f", {entry.starting} starting" if entry.starting is not None else "")
+        + ")"
+        for entry in line.gangs
     )
+    summary = f"{line.battle.result_label}. Gangs: {gangs or 'none named'}."
+    if line.stake:
+        summary += (
+            f" Stake: {line.stake} ({line.stake.asset.asset_type.label_singular})"
+        )
+        if line.battle.stake_awarded_to:
+            summary += f", to {line.battle.stake_awarded_to.name}"
+        summary += "."
+    return summary
 
 
 @xframe_options_exempt
@@ -169,12 +188,13 @@ def campaign_feed(request, token):
         else "",
     }
     if feed.section == CampaignFeed.Section.BATTLES:
-        battles = _recent_battles(campaign)
-        context["battles"] = battles
+        lines = _recent_battles(campaign)
+        context["lines"] = lines
         recorded = campaign.battles.filter(archived=False).count()
         summary = f"{recorded} battle{'s' if recorded != 1 else ''} recorded."
-        if battles:
-            summary += f" Latest: {battles[0].title}, {battles[0].result_label}."
+        if lines:
+            latest = lines[0].battle
+            summary += f" Latest: {latest.title}, {latest.result_label}."
     else:
         sheet = render_campaign(campaign, viewer=None, with_owner_badges=False)
         if feed.section == CampaignFeed.Section.GANGS:
@@ -253,27 +273,26 @@ class BattlesRss(Feed):
     def items(self, feed):
         return _recent_battles(feed.campaign)
 
-    def item_title(self, battle):
-        return battle.title
+    def item_title(self, line):
+        return line.battle.title
 
-    def item_description(self, battle):
-        gangs = ", ".join(gang.name for gang, _ in battle.gang_outcomes)
-        return f"{battle.result_label}. Gangs: {gangs or 'none named'}."
+    def item_description(self, line):
+        return battle_summary(line)
 
-    def item_link(self, battle):
+    def item_link(self, line):
         # Battle pages need a sign-in, so every item opens the feed's page.
-        return self.link(self.feed) + f"#battle-{battle.pk}"
+        return self.link(self.feed) + f"#battle-{line.battle.pk}"
 
-    def item_guid(self, battle):
-        return str(battle.pk)
+    def item_guid(self, line):
+        return str(line.battle.pk)
 
     item_guid_is_permalink = False
 
-    def item_pubdate(self, battle):
-        return datetime.combine(battle.date, time(12), tzinfo=UTC)
+    def item_pubdate(self, line):
+        return datetime.combine(line.battle.date, time(12), tzinfo=UTC)
 
-    def item_updateddate(self, battle):
-        return battle.modified
+    def item_updateddate(self, line):
+        return line.battle.modified
 
     def __call__(self, request, *args, **kwargs):
         response = super().__call__(request, *args, **kwargs)

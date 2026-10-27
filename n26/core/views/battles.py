@@ -202,9 +202,10 @@ class BattleListLine:
         )
 
 
-def _battle_lines(campaign):
-    """Each battle that is not archived, with its gangs, their starting
-    crew sizes and its stake, read in a fixed number of queries."""
+def _battle_lines(campaign, limit=None):
+    """Each battle that is not archived, newest first, with its gangs,
+    their starting crew sizes and its stake, read in a fixed number of
+    queries. ``limit`` keeps only that many of the newest."""
     # A pet saved as a crew member goes with its owner and is not counted,
     # as on the battle's own page.
     starting = Q(
@@ -232,6 +233,8 @@ def _battle_lines(campaign):
             ),
         )
     )
+    if limit is not None:
+        battles = battles[:limit]
     lines = []
     for found in battles:
         crews = {crew.gang_id: crew.starting_count for crew in found.crews.all()}

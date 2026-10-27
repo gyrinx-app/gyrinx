@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from gyrinx.site.models import Availability, FeatureFlag
 from n26.core.campaigns import campaign_operation
-from n26.core.models import CampaignFeed
+from n26.core.models import Battle, CampaignFeed
 from n26.flags import CAMPAIGN_FEEDS
 from n26.tests.sandbox.actions import found_campaign, found_gang
 
@@ -171,3 +171,49 @@ class TestTheRssFeed:
         response = client.get(reverse("n26-campaign-feed-rss", args=[feed.token]))
 
         assert response.status_code == 404
+
+
+@pytest.fixture
+def two_battles(campaign, gang_type):
+    player = User.objects.create_user("ganger-gertie")
+    gang = found_gang("Venom Sisters", gang_type, owner=player)
+    with campaign_operation(campaign, actor=campaign.owner) as act:
+        act.add_gang(gang)
+        kept = act.record_battle(
+            datetime.date(2026, 10, 14),
+            [gang],
+            scenario="Sabotage",
+            result="winners",
+            winners=[gang],
+        )
+        archived = act.record_battle(
+            datetime.date(2026, 10, 15), [gang], scenario="Ambush"
+        )
+    Battle.objects.filter(pk=archived.pk).update(archived=True)
+    return kept, archived
+
+
+class TestTheBattlesFeedRows:
+    def test_the_page_shows_gang_types_but_no_players(
+        self, client, campaign, gang_type, two_battles
+    ):
+        feed = CampaignFeed.objects.create(
+            campaign=campaign, section="battles", target="google_sites"
+        )
+
+        page = client.get(reverse("n26-campaign-feed", args=[feed.token])).text
+
+        assert "Sabotage" in page
+        assert gang_type.name in page
+        assert "ganger-gertie" not in page
+
+    def test_archived_battles_are_left_out(self, client, campaign, two_battles):
+        feed = CampaignFeed.objects.create(
+            campaign=campaign, section="battles", target="rss"
+        )
+
+        rss = client.get(reverse("n26-campaign-feed-rss", args=[feed.token])).text
+
+        assert "<title>Sabotage</title>" in rss
+        assert "Ambush" not in rss
+        assert "ganger-gertie" not in rss

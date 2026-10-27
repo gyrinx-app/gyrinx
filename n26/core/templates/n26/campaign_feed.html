@@ -77,30 +77,49 @@ Facebook, Discord and Slack read to draw a pasted link as a card.
                     <p class="text-sm text-muted">No gangs in this campaign yet.</p>
                 {% endif %}
             {% elif feed.section == "battles" %}
-                {% if battles %}
+                {% comment %}
+                The rows the campaign's Battles page reads, without the
+                players: a feed is public, so it names gangs and nobody else.
+                {% endcomment %}
+                {% if lines %}
                     <ul class="divide-y divide-box-border">
-                        {% for battle in battles %}
-                            <li class="py-2" id="battle-{{ battle.pk }}">
+                        {% for line in lines %}
+                            <li class="py-2" id="battle-{{ line.battle.pk }}">
                                 <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                                    <span class="mr-auto font-medium">{{ battle.title }}</span>
+                                    <span class="mr-auto font-medium">{{ line.battle.title }}</span>
                                     <time class="text-xs tabular-nums text-muted"
-                                          datetime="{{ battle.date|date:'Y-m-d' }}">{{ battle.date|date:"j M Y" }}</time>
-                                    <span class="text-xs text-muted">{{ battle.result_label }}</span>
+                                          datetime="{{ line.battle.date|date:'Y-m-d' }}">{{ line.battle.date|date:"j M Y" }}</time>
+                                    <span class="text-xs text-muted">{{ line.battle.result_label }}</span>
                                 </div>
-                                <ul class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted">
-                                    {% for gang, won in battle.gang_outcomes %}
+                                <ul class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                                    {% for entry in line.gangs %}
                                         <li>
-                                            <c-n26.color-swatch color="{{ gang.colour }}" />
-                                            {{ gang.name }}
-                                            {% if won %}
-                                                <c-n26.icon name="trophy"
-                                                            label="Winner"
-                                                            stroke_width="2"
-                                                            class="inline-block size-4 align-[-0.15em] text-accent" />
-                                            {% endif %}
+                                            <span class="font-medium">
+                                                <c-n26.color-swatch color="{{ entry.gang.colour }}" />
+                                                {{ entry.gang.name }}
+                                                {% if entry.won %}
+                                                    <c-n26.icon name="trophy"
+                                                                label="Winner"
+                                                                stroke_width="2"
+                                                                class="inline-block size-4 align-[-0.15em] text-accent" />
+                                                {% endif %}
+                                            </span>
+                                            <span class="text-xs text-muted">
+                                                {{ entry.gang.gang_type.name }}
+                                                {% if entry.starting is not None %}· {{ entry.starting }} starting{% endif %}
+                                            </span>
                                         </li>
+                                    {% empty %}
+                                        <li class="text-muted">No gangs named</li>
                                     {% endfor %}
                                 </ul>
+                                {% if line.stake %}
+                                    <p class="mt-1 text-xs text-muted">
+                                        Stake: <span class="font-medium text-ink-900">{{ line.stake }}</span>
+                                        · {{ line.stake.asset.asset_type.label_singular }}
+                                        {% if line.battle.stake_awarded_to %}· to {{ line.battle.stake_awarded_to.name }}{% endif %}
+                                    </p>
+                                {% endif %}
                             </li>
                         {% endfor %}
                     </ul>
