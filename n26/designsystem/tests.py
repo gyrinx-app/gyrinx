@@ -540,6 +540,19 @@ class TestTheOwnedDialogsPage:
     """The two questions the panel grew reach the gallery drawn, not as a
     polite fallback."""
 
+    def test_the_change_options_example_has_live_preview_props(self, reader):
+        import json
+
+        page = reader.get("/n26/design/c/owned-dialog/")
+        soup = BeautifulSoup(page.content, "html.parser")
+        host = soup.select_one('[data-react-name="equip-price"]')
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+        assert props["changing"]
+        assert props["before"] == 35
+        assert props["held"] == ["Ridge-runner harpoon", "Ridge-runner spikes"]
+        assert props["choices"][0]["options"][1]["checked"]
+        assert props["choices"][1]["options"][0]["checked"]
+
     def test_the_gallery_page_renders_its_examples(self, reader):
         page = reader.get("/n26/design/c/owned-dialog/").content.decode()
         assert "Fitting an accessory" in page

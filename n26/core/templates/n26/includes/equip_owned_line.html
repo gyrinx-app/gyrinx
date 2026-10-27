@@ -31,18 +31,19 @@ held, the count stands where Buy would be and opens the row onto what they have.
             <div class="n26-cp-inset">
                 <c-n26.owned-lines :copies="row.copies" :htmx="htmx" />
                 <div class="mt-1 border-t border-box-border pt-1">
-                    <div class="flex min-h-9 items-center gap-2">
-                        <span class="min-w-0 flex-1 text-sm text-muted">Buy another</span>
-                        {# A div: the price box is its own element, and a span cannot hold one. #}
-                        <div class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
-                            {% include "n26/includes/equip_price.html" with field=row.buy.price_field quoted=row.buy.price label=row.buy.marked_name %}
-                        </div>
-                        <span class="flex shrink-0 items-center gap-1">
-                            {% include "n26/includes/row_action.html" with action=row.buy.buy %}
-                        </span>
-                    </div>
                     {% if row.buy.choices %}
-                        {% include "n26/includes/equip_choices.html" with choices=row.buy.choices %}
+                        {% include "n26/includes/equip_purchase.html" with row=row.buy repeat=True %}
+                    {% else %}
+                        <div class="flex min-h-9 items-center gap-2">
+                            <span class="min-w-0 flex-1 text-sm text-muted">Buy another</span>
+                            {# A div: the price box is its own element, and a span cannot hold one. #}
+                            <div class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
+                                {% include "n26/includes/equip_price.html" with field=row.buy.price_field quoted=row.buy.price label=row.buy.marked_name %}
+                            </div>
+                            <span class="flex shrink-0 items-center gap-1">
+                                {% include "n26/includes/row_action.html" with action=row.buy.buy %}
+                            </span>
+                        </div>
                     {% endif %}
                     {% if row.buy.options %}
                         {% include "n26/includes/equip_options.html" with row=row.buy %}

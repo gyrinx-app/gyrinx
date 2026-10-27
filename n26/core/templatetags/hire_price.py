@@ -30,3 +30,20 @@ def price_box_props(field, quoted, label="", price_cap="", element_id=""):
 
 register.simple_tag(price_box_props, name="hire_price_props")
 register.simple_tag(price_box_props, name="equip_price_props")
+
+
+@register.simple_tag
+def equip_purchase_props(row, price_cap="", repeat=False):
+    """Purchase controls from the prepared listing, without querying content."""
+    from n26.core.listing import pick_group_props
+
+    return price_box_props(row.price_field, row.price, row.marked_name, price_cap) | {
+        "choices": pick_group_props(row.choices),
+        "purchase": {
+            "name": row.marked_name,
+            "repeat": bool(repeat),
+            "tradePoints": row.trade_points,
+            "exclusive": row.is_exclusive,
+            "buy": {"label": row.buy.label, "target": row.buy.target},
+        },
+    }

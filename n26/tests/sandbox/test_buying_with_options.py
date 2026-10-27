@@ -16,7 +16,10 @@ costs on this list, and what a swap adds to it.
 Rule *names* only; the rulebook's words are copyright (n26/AGENTS.md).
 """
 
+import json
+
 import pytest
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
 from django.urls import reverse
 
@@ -24,12 +27,15 @@ from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled
 from n26.tests.sandbox.actions import (
     assign,
+    attach,
     buy,
     create_category,
     create_collection,
+    create_default_set,
     create_option_group,
     create_wargear,
     create_weapon,
+    create_weapon_accessory,
     found_gang,
     hire,
     offer_option,
@@ -246,6 +252,27 @@ class TestWhatTheRowAsks:
 
 class TestWhatTheScreenDraws:
     """Controls on the row, working with no script running."""
+
+    def test_the_price_and_options_share_one_island_with_the_server_prices(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        client.force_login(owner)
+        response = client.get(equip_url(fighter, house_list))
+        soup = BeautifulSoup(response.content, "html.parser")
+        box = soup.find("input", attrs={"name": price_field(cutter)})
+        host = box.find_parent(attrs={"data-react-name": "equip-price"})
+        props = json.loads(soup.find(id=host["data-react-props"]).string)
+
+        assert props["quoted"] == 150
+        assert props["purchase"]["buy"]["target"] == key_of(cutter)
+        assert len(host.select('input[type="radio"]')) == 5
+        assert not host.select("[data-react-name]")
+        assert [option["surcharge"] for option in props["choices"][0]["options"]] == [
+            0,
+            10,
+            15,
+        ]
+        assert props["choices"][1]["options"][0]["price"] == 20
 
     def test_every_option_is_a_radio_named_what_the_purchase_reads_back(
         self, client, owner, fighter, house_list, cutter
@@ -723,6 +750,14 @@ class TestTheWayToChangeThem:
 
         assert [option.checked for option in guns.options] == [False, False, True]
         assert fittings.nothing_taken
+        preview = response.context["dialog"]["price_preview"]
+        assert preview["changing"]
+        assert preview["before"] == 15
+        assert [option["checked"] for option in preview["choices"][0]["options"]] == [
+            False,
+            False,
+            True,
+        ]
 
     def test_a_set_the_copy_took_from_says_so(
         self, client, owner, fighter, house_list, cutter
@@ -740,9 +775,205 @@ class TestTheWayToChangeThem:
         assert not fittings.nothing_taken
         assert [option.checked for option in fittings.options] == [True]
 
+    def test_a_fixed_option_is_included_in_the_change_preview(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        fixed = create_option_group(cutter, "Fixed fittings", choose="one")
+        offer_option(
+            cutter,
+            "Fixed fitting",
+            price=7,
+            thing=create_wargear("Fixed fitting"),
+            group=fixed,
+        )
+        client.force_login(owner)
+        client.post(
+            equip_url(fighter, house_list),
+            {"thing": key_of(cutter), choice_field(cutter, 0): "2"},
+        )
+        copy_id = cutter_row(client, owner, fighter, house_list).copies[0].id
+        response = client.get(f"{equip_url(fighter, house_list)}&rechoose={copy_id}")
+        preview = response.context["dialog"]["price_preview"]
+        assert preview["before"] == 22
+        assert preview["resolution"][-1]["options"][0]["price"] == 7
+        assert len(preview["choices"]) == 2
+
+    def test_a_hand_made_change_options_url_for_a_weapon_draws_no_dialog(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        client.force_login(owner)
+        client.post(equip_url(fighter, house_list), {"thing": key_of(cutter)})
+        gun = Assignment.objects.get(
+            miniature_root=fighter,
+            weapon__name="Cutter grenade launchers",
+            archived=False,
+        )
+        response = client.get(f"{equip_url(fighter, house_list)}&rechoose={gun.pk}")
+        assert response.status_code == 200
+        assert response.context["dialog"] is None
+
 
 class TestChangingThem:
     """The swap settles on the thing's own line, in either direction."""
+
+    def test_paid_equipment_under_a_departing_option_is_in_the_preview_refund(
+        self, client, owner, gang, fighter, house_list, cutter
+    ):
+        from n26.core.models import LedgerEntry
+
+        client.force_login(owner)
+        client.post(equip_url(fighter, house_list), {"thing": key_of(cutter)})
+        entry = LedgerEntry.objects.get(assignment__wargear=cutter)
+        gun = Assignment.objects.get(
+            miniature_root=fighter,
+            weapon__name="Cutter grenade launchers",
+            archived=False,
+        )
+        sight = attach(gun, create_weapon_accessory("Cutter sight", price=20), paid=20)
+        response = client.get(
+            f"{equip_url(fighter, house_list)}&rechoose={entry.assignment_id}"
+        )
+        preview = response.context["dialog"]["price_preview"]
+        refundable = [row for group in preview["refunds"] for row in group["entries"]]
+        assert refundable == [{"key": str(sight.pk), "paid": 20}]
+        gang.refresh_from_db()
+        before = gang.credits
+        client.post(
+            reverse("n26-rechoose", args=[entry.assignment_id]),
+            {"list": str(house_list.pk), choice_field(cutter, 0): "2"},
+        )
+        gang.refresh_from_db()
+        assert gang.credits - before == 5
+        sight.refresh_from_db()
+        assert sight.archived
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("fixed_first", [True, False])
+    def test_fixed_group_order_controls_a_named_shared_sets_price(
+        self, client, owner, gang, fighter, default_pack, fixed_first
+    ):
+        from n26.core.models import LedgerEntry
+
+        mount = create_wargear("Ordered mount", price=100)
+        fixed = create_option_group(
+            mount, "Fixed guns", choose="one", position=0 if fixed_first else 1
+        )
+        optional = create_option_group(
+            mount,
+            "Optional guns",
+            choose="one-or-none",
+            position=1 if fixed_first else 0,
+        )
+        standard = offer_option(
+            mount,
+            "Fixed guns",
+            price=25,
+            thing=create_wargear("Fixed guns"),
+            group=fixed,
+        )
+        offer_option(
+            mount, "Shared guns", default_set=standard.default_set, group=optional
+        )
+        fitting = offer_option(
+            mount, "Fitting", price=7, thing=create_wargear("Fitting"), group=optional
+        )
+        collection = create_collection("Ordered equipment", entries=[mount])
+        assign(collection, gang=gang)
+        client.force_login(owner)
+        client.post(
+            equip_url(fighter, collection),
+            {"thing": key_of(mount), choice_field(mount, 0): "1"},
+        )
+        entry = LedgerEntry.objects.get(assignment__wargear=mount)
+        preview_url = f"{equip_url(fighter, collection)}&rechoose={entry.assignment_id}"
+        preview = client.get(preview_url).context["dialog"]["price_preview"]
+        assert preview["before"] == 32
+        assert set(preview["held"]) == {
+            str(standard.default_set_id),
+            str(fitting.default_set_id),
+        }
+        assert [group["choose"] for group in preview["resolution"]] == (
+            ["one", "one-or-none"] if fixed_first else ["one-or-none", "one"]
+        )
+        gang.refresh_from_db()
+        before = gang.credits
+        payload = {"list": str(collection.pk), choice_field(mount, 0): "0"}
+        client.post(reverse("n26-rechoose", args=[entry.assignment_id]), payload)
+        gang.refresh_from_db()
+        assert gang.credits - before == (7 if fixed_first else -18)
+        assert_reconciled(gang)
+        before = gang.credits
+        client.post(reverse("n26-rechoose", args=[entry.assignment_id]), payload)
+        gang.refresh_from_db()
+        assert gang.credits == before
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("mode", ["one", "one-or-none"])
+    def test_shared_set_preview_prices_match_saving_and_unchanged_is_free(
+        self, client, owner, gang, fighter, default_pack, mode
+    ):
+        from n26.core.models import LedgerEntry
+
+        mount = create_wargear("Shared-set mount", price=100)
+        standard = offer_option(
+            mount, "Standard guns", price=25, thing=create_wargear("Standard guns")
+        )
+        upgrade = offer_option(
+            mount, "Upgraded guns", price=40, thing=create_wargear("Upgraded guns")
+        )
+        shared = create_option_group(mount, "Shared guns", choose=mode)
+        offer_option(
+            mount, "Extra guns", default_set=standard.default_set, group=shared
+        )
+        extra = None
+        if mode == "one-or-none":
+            extra = offer_option(
+                mount,
+                "Extra fitting",
+                price=7,
+                thing=create_wargear("Extra fitting"),
+                group=shared,
+            )
+        collection = create_collection("Shared equipment", entries=[mount])
+        assign(collection, gang=gang)
+        client.force_login(owner)
+        choices = {choice_field(mount, 0): "1"}
+        if mode == "one-or-none":
+            choices[choice_field(mount, 1)] = "1"
+        client.post(equip_url(fighter, collection), {"thing": key_of(mount), **choices})
+        entry = LedgerEntry.objects.get(assignment__wargear=mount)
+        preview_url = f"{equip_url(fighter, collection)}&rechoose={entry.assignment_id}"
+        preview = client.get(preview_url).context["dialog"]["price_preview"]
+        assert preview["before"] == (47 if extra else 65)
+        assert set(preview["held"]) == {
+            str((extra or standard).default_set_id),
+            str(upgrade.default_set_id),
+        }
+
+        gang.refresh_from_db()
+        before = gang.credits
+        choices[choice_field(mount, 0)] = "0"
+        if mode == "one-or-none":
+            choices[choice_field(mount, 1)] = "0"
+        client.post(
+            reverse("n26-rechoose", args=[entry.assignment_id]),
+            {"list": str(collection.pk), **choices},
+        )
+        gang.refresh_from_db()
+        assert gang.credits - before == (-3 if extra else 15)
+        assert_reconciled(gang)
+
+        preview = client.get(preview_url).context["dialog"]["price_preview"]
+        assert preview["before"] == 25
+        assert preview["held"] == [str(standard.default_set_id)]
+        before = gang.credits
+        client.post(
+            reverse("n26-rechoose", args=[entry.assignment_id]),
+            {"list": str(collection.pk), **choices},
+        )
+        gang.refresh_from_db()
+        assert gang.credits == before
+        assert_reconciled(gang)
 
     def bought(self, client, owner, fighter, house_list, cutter, **picked):
         client.force_login(owner)
@@ -1041,8 +1272,64 @@ class TestScaling:
     """The offer rides the listing's own prefetches: a collection full of
     mounts asks the database no more than a collection with one."""
 
+    def test_change_options_queries_do_not_grow_with_held_grants(
+        self, client, owner, gang, fighter, default_pack
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.models import LedgerEntry
+
+        mounts = []
+        for count in (2, 12):
+            weapons = [
+                create_weapon(f"Grant {count}-{index}", profiles=[("Standard", 0)])
+                for index in range(count)
+            ]
+            bundle = create_default_set(f"Grant bundle {count}", members=weapons)
+            mount = create_wargear(f"Grant mount {count}", price=100)
+            offer_option(mount, "Standard bundle", default_set=bundle)
+            offer_option(
+                mount,
+                "Other bundle",
+                price=10,
+                thing=create_wargear(f"Other grant {count}"),
+            )
+            mounts.append((mount, weapons))
+        collection = create_collection(
+            "Grant equipment", entries=[mount for mount, _ in mounts]
+        )
+        assign(collection, gang=gang)
+        client.force_login(owner)
+        urls = []
+        for mount, weapons in mounts:
+            client.post(equip_url(fighter, collection), {"thing": key_of(mount)})
+            carrier = LedgerEntry.objects.get(assignment__wargear=mount).assignment_id
+            for weapon in weapons:
+                gun = Assignment.objects.get(
+                    miniature_root=fighter, weapon=weapon, archived=False
+                )
+                attach(
+                    gun,
+                    create_weapon_accessory(f"Sight for {weapon.name}", price=1),
+                    paid=1,
+                )
+            urls.append(f"{equip_url(fighter, collection)}&rechoose={carrier}")
+
+        def measure(url):
+            client.get(url)
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(url)
+                assert response.status_code == 200
+                assert response.context["dialog"]["price_preview"]["refunds"]
+            return len(queries)
+
+        assert measure(urls[0]) == measure(urls[1])
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
     def test_a_list_of_optioned_things_costs_no_more_queries_to_browse(
-        self, gang, default_pack
+        self, client, gang, default_pack
     ):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
@@ -1075,6 +1362,20 @@ class TestScaling:
             return len(captured.captured_queries)
 
         assert measure(small) == measure(big)
+
+        # The rendered preview serialises prepared options without per-item queries.
+        def page_queries(collection):
+            assign(collection, gang=gang)
+            client.force_login(gang.owner)
+            url = reverse("n26-equip-gang", args=[gang.pk]) + f"?list={collection.pk}"
+            client.get(url)
+            with CaptureQueriesContext(connection) as captured:
+                response = client.get(url)
+                assert response.status_code == 200
+                assert b'"purchase"' in response.content
+            return len(captured)
+
+        assert page_queries(small) == page_queries(big)
 
     def test_the_same_holds_for_a_swept_listing(self, gang, default_pack):
         """A trading post finds its stock by rule rather than by row, so

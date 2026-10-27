@@ -400,15 +400,10 @@ OFFERED = {
 
 @dataclass(frozen=True)
 class _Set:
-    """What an option would bring, as far as a drawing needs to know.
-
-    Only its identity is read here: a control starts picked when the
-    thing being drawn holds this set, and the gallery holds nothing that
-    could be fetched. The option's own name serves, because two options
-    of one offer never share it.
-    """
+    """The identity and price of an option's set, without database access."""
 
     pk: str
+    price: int
 
 
 def _offered_choices(name):
@@ -421,7 +416,7 @@ def _offered_choices(name):
                     name=option,
                     surcharge=surcharge,
                     is_default=(choose == "one" and position == 0),
-                    default_set=_Set(option),
+                    default_set=_Set(option, surcharge),
                 )
                 for position, (option, surcharge) in enumerate(options)
             ),
@@ -3350,9 +3345,15 @@ def _stock(name):
 
 def owned_context():
     """What a fighter is carrying, and the things that can happen to it."""
-    from n26.core.listing import copy_row, pick_groups
+    from n26.core.listing import copy_row, pick_group_props, pick_groups
 
     named = {"cancel_url": "#", "action": "#", "list": "", "name": "Meltagun"}
+    held_options = {"Ridge-runner harpoon", "Ridge-runner spikes"}
+    choices = pick_groups(
+        _offered_choices("Ridge-runner"),
+        "library.wargear:ridge-runner",
+        taken=held_options,
+    )
     return {
         "owned_copies": [
             copy_row(thing) for entries in carried().values() for thing in entries
@@ -3450,11 +3451,24 @@ def owned_context():
             "kind": "rechoose",
             "name": "Ridge-runner",
             "title": "Change Ridge-runner's options",
-            "choices": pick_groups(
-                _offered_choices("Ridge-runner"),
-                "library.wargear:ridge-runner",
-                taken={"Ridge-runner harpoon", "Ridge-runner spikes"},
-            ),
+            "choices": choices,
+            "price_preview": {
+                "changing": True,
+                "choices": pick_group_props(choices),
+                "before": 35,
+                "held": sorted(held_options),
+                "refunds": [],
+                "resolution": [
+                    {
+                        "choose": group.choose,
+                        "options": [
+                            {"setKey": option.set_key, "price": option.price}
+                            for option in group.options
+                        ],
+                    }
+                    for group in choices
+                ],
+            },
             "submit_label": "Save options",
             "submit_variant": "success",
         },
