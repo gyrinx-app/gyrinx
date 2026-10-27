@@ -621,13 +621,15 @@ def owned_dialog(request, host: EquipHost):
                 "choices": pick_group_props(choices),
                 "before": sum(row.default_set.price for row in recorded),
                 "held": sorted(str(key) for key in taken),
-                "fixed": [
+                "resolution": [
                     {
-                        "setKey": str(offered[0].default_set.pk),
-                        "price": offered[0].price,
+                        "choose": group.choose if group is not None else "one",
+                        "options": [
+                            {"setKey": str(option.pk), "price": option.price}
+                            for option in options
+                        ],
                     }
-                    for group, offered in thing.grouped_offers()
-                    if (group is None or group.choose == "one") and len(offered) == 1
+                    for group, options in thing.grouped_options()
                 ],
             },
             "submit_label": "Save options",

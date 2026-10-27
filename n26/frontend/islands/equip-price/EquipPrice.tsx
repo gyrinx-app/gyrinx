@@ -1,6 +1,13 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "../../ui";
-import { OptionChoices, type PickGroup, useChoices } from "./OptionChoices";
+import {
+    OptionChoices,
+    type PickGroup,
+    type FocusedChoice,
+    type ResolutionGroup,
+    resolveOptions,
+    useChoices,
+} from "./OptionChoices";
 
 export type EquipPriceProps = {
     field: string;
@@ -17,6 +24,7 @@ export type EquipPriceProps = {
     selectionEnd?: number | null;
     choices?: PickGroup[];
     initialSelections?: Record<string, string[]>;
+    focusedChoice?: FocusedChoice;
     purchase?: {
         name: string;
         repeat: boolean;
@@ -31,8 +39,9 @@ export type OptionChangeProps = {
     choices: PickGroup[];
     before: number;
     held: string[];
-    fixed?: { setKey: string; price: number }[];
+    resolution: ResolutionGroup[];
     initialSelections?: Record<string, string[]>;
+    focusedChoice?: FocusedChoice;
 };
 
 export function EquipPrice(props: EquipPriceProps | OptionChangeProps) {
@@ -159,7 +168,11 @@ function Purchase(props: EquipPriceProps) {
                 </span>
             </div>
             <div className={purchase.repeat ? "" : "n26-cp-inset"}>
-                <OptionChoices groups={props.choices ?? []} {...choices} />
+                <OptionChoices
+                    groups={props.choices ?? []}
+                    {...choices}
+                    focusedChoice={props.focusedChoice}
+                />
                 <p
                     role="status"
                     className="py-1 text-right text-sm font-semibold tabular-nums text-ink-900 dark:text-ink-100"
@@ -174,29 +187,40 @@ function Purchase(props: EquipPriceProps) {
 }
 
 function OptionChange(props: OptionChangeProps) {
-    const choices = useChoices(
-        props.choices,
-        props.initialSelections,
-        props.fixed,
+    const choices = useChoices(props.choices, props.initialSelections);
+    const resolved = resolveOptions(
+        props.resolution,
+        choices.picked.map((option) => option.setKey),
     );
-    // Settlement leaves the same set identities unchanged; changed selections
-    // include each selected occurrence when calculating their price.
+    const setKeys = new Set(resolved?.map((option) => option.setKey));
     const unchanged =
-        choices.setKeys.size === props.held.length &&
-        props.held.every((key) => choices.setKeys.has(key));
-    const difference = unchanged ? 0 : choices.price - props.before;
+        setKeys.size === props.held.length &&
+        props.held.every((key) => setKeys.has(key));
+    const difference =
+        resolved === null
+            ? null
+            : unchanged
+              ? 0
+              : resolved.reduce((sum, option) => sum + option.price, 0) -
+                props.before;
     return (
         <>
-            <OptionChoices groups={props.choices} {...choices} />
+            <OptionChoices
+                groups={props.choices}
+                {...choices}
+                focusedChoice={props.focusedChoice}
+            />
             <p
                 role="status"
                 className="pt-2 text-sm font-semibold tabular-nums text-ink-900 dark:text-ink-100"
             >
-                {difference > 0
-                    ? `Options charge ${difference}¢`
-                    : difference < 0
-                      ? `Options refund ${-difference}¢`
-                      : "No price change"}
+                {difference === null
+                    ? "Price preview unavailable."
+                    : difference > 0
+                      ? `Options charge ${difference}¢`
+                      : difference < 0
+                        ? `Options refund ${-difference}¢`
+                        : "No price change"}
             </p>
         </>
     );

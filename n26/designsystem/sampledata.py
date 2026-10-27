@@ -3457,7 +3457,16 @@ def owned_context():
                 "choices": pick_group_props(choices),
                 "before": 35,
                 "held": sorted(held_options),
-                "fixed": [],
+                "resolution": [
+                    {
+                        "choose": group.choose,
+                        "options": [
+                            {"setKey": option.set_key, "price": option.price}
+                            for option in group.options
+                        ],
+                    }
+                    for group in choices
+                ],
             },
             "submit_label": "Save options",
             "submit_variant": "success",

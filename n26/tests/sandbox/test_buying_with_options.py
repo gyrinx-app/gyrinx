@@ -792,12 +792,72 @@ class TestTheWayToChangeThem:
         response = client.get(f"{equip_url(fighter, house_list)}&rechoose={copy_id}")
         preview = response.context["dialog"]["price_preview"]
         assert preview["before"] == 22
-        assert [option["price"] for option in preview["fixed"]] == [7]
+        assert preview["resolution"][-1]["options"][0]["price"] == 7
         assert len(preview["choices"]) == 2
 
 
 class TestChangingThem:
     """The swap settles on the thing's own line, in either direction."""
+
+    @pytest.mark.parametrize("fixed_first", [True, False])
+    def test_fixed_group_order_controls_a_named_shared_sets_price(
+        self, client, owner, gang, fighter, default_pack, fixed_first
+    ):
+        from n26.core.models import LedgerEntry
+
+        mount = create_wargear("Ordered mount", price=100)
+        fixed = create_option_group(
+            mount, "Fixed guns", choose="one", position=0 if fixed_first else 1
+        )
+        optional = create_option_group(
+            mount,
+            "Optional guns",
+            choose="one-or-none",
+            position=1 if fixed_first else 0,
+        )
+        standard = offer_option(
+            mount,
+            "Fixed guns",
+            price=25,
+            thing=create_wargear("Fixed guns"),
+            group=fixed,
+        )
+        offer_option(
+            mount, "Shared guns", default_set=standard.default_set, group=optional
+        )
+        fitting = offer_option(
+            mount, "Fitting", price=7, thing=create_wargear("Fitting"), group=optional
+        )
+        collection = create_collection("Ordered equipment", entries=[mount])
+        assign(collection, gang=gang)
+        client.force_login(owner)
+        client.post(
+            equip_url(fighter, collection),
+            {"thing": key_of(mount), choice_field(mount, 0): "1"},
+        )
+        entry = LedgerEntry.objects.get(assignment__wargear=mount)
+        preview_url = f"{equip_url(fighter, collection)}&rechoose={entry.assignment_id}"
+        preview = client.get(preview_url).context["dialog"]["price_preview"]
+        assert preview["before"] == 32
+        assert set(preview["held"]) == {
+            str(standard.default_set_id),
+            str(fitting.default_set_id),
+        }
+        assert [group["choose"] for group in preview["resolution"]] == (
+            ["one", "one-or-none"] if fixed_first else ["one-or-none", "one"]
+        )
+        gang.refresh_from_db()
+        before = gang.credits
+        payload = {"list": str(collection.pk), choice_field(mount, 0): "0"}
+        client.post(reverse("n26-rechoose", args=[entry.assignment_id]), payload)
+        gang.refresh_from_db()
+        assert gang.credits - before == (7 if fixed_first else -18)
+        assert_reconciled(gang)
+        before = gang.credits
+        client.post(reverse("n26-rechoose", args=[entry.assignment_id]), payload)
+        gang.refresh_from_db()
+        assert gang.credits == before
+        assert_reconciled(gang)
 
     @pytest.mark.parametrize("mode", ["one", "one-or-none"])
     def test_shared_set_preview_prices_match_saving_and_unchanged_is_free(

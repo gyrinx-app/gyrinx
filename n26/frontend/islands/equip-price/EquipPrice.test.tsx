@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { mount } from "./entry";
 import { EquipPrice, type EquipPriceProps } from "./EquipPrice";
-import type { PickGroup } from "./OptionChoices";
+import type { PickGroup, ResolutionGroup } from "./OptionChoices";
 
 const props: EquipPriceProps = {
     field: "sword:price",
@@ -79,6 +79,9 @@ const purchaseProps: EquipPriceProps = {
     },
 };
 
+const resolutionOf = (groups: PickGroup[]): ResolutionGroup[] =>
+    groups.map(({ choose, options }) => ({ choose, options }));
+
 describe("option price previews", () => {
     it("uses the server's first-option default for an unselected required group", () => {
         render(
@@ -95,6 +98,7 @@ describe("option price previews", () => {
                 ]}
                 before={0}
                 held={[]}
+                resolution={resolutionOf([groups[0]])}
             />,
         );
         expect(
@@ -177,6 +181,7 @@ describe("option price previews", () => {
                 choices={groups}
                 before={25}
                 held={["launchers"]}
+                resolution={resolutionOf(groups)}
             />,
         );
         expect(screen.getByRole("status").textContent).toBe("No price change");
@@ -205,11 +210,15 @@ describe("option price previews", () => {
         document.body.appendChild(host);
         host.querySelector<HTMLInputElement>('input[type="number"]')!.value =
             "140";
+        host.querySelector<HTMLInputElement>('input[type="radio"]')!.focus();
         let unmount = () => {};
         act(() => {
             unmount = mount(host, purchaseProps);
         });
         expect(screen.getByRole("status").textContent).toBe("Total 155¢");
+        expect(document.activeElement).toBe(
+            screen.getByRole("radio", { name: "Plasma guns +15¢" }),
+        );
         expect(
             screen.getByRole<HTMLInputElement>("radio", {
                 name: "Plasma guns +15¢",
@@ -226,9 +235,13 @@ describe("option price previews", () => {
                 choices={[groups[0]]}
                 before={32}
                 held={["launchers", "fixed"]}
-                fixed={[
-                    { setKey: "launchers", price: 25 },
-                    { setKey: "fixed", price: 7 },
+                resolution={[
+                    ...resolutionOf([groups[0]]),
+                    {
+                        choose: "one",
+                        options: [{ setKey: "launchers", price: 25 }],
+                    },
+                    { choose: "one", options: [{ setKey: "fixed", price: 7 }] },
                 ]}
             />,
         );
@@ -276,7 +289,15 @@ describe("option price previews", () => {
                     choices={fixed ? [guns] : [guns, shared]}
                     before={fixed ? 65 : 47}
                     held={[fixed ? "launchers" : "extra", "plasma"]}
-                    fixed={fixed ? [{ setKey: "launchers", price: 25 }] : []}
+                    resolution={[
+                        ...resolutionOf([guns]),
+                        fixed
+                            ? {
+                                  choose: "one",
+                                  options: [{ setKey: "launchers", price: 25 }],
+                              }
+                            : resolutionOf([shared])[0],
+                    ]}
                 />,
             );
             expect(screen.getByRole("status").textContent).toBe(
@@ -300,6 +321,79 @@ describe("option price previews", () => {
             }
         },
     );
+});
+
+describe("ordered resolution and loading focus", () => {
+    it.each([true, false])(
+        "resolves a named shared set with fixed group first: %s",
+        (fixedFirst) => {
+            const optional: PickGroup = {
+                ...groups[1],
+                options: [
+                    {
+                        ...groups[0].options[0],
+                        name: "Shared guns",
+                        checked: false,
+                    },
+                    {
+                        name: "Fitting",
+                        value: "1",
+                        setKey: "fitting",
+                        price: 7,
+                        surcharge: 7,
+                        surchargeLabel: "+7¢",
+                        checked: true,
+                    },
+                ],
+            };
+            const fixed: ResolutionGroup = {
+                choose: "one",
+                options: [{ setKey: "launchers", price: 25 }],
+            };
+            const resolution = fixedFirst
+                ? [fixed, ...resolutionOf([optional])]
+                : [...resolutionOf([optional]), fixed];
+            render(
+                <EquipPrice
+                    changing
+                    choices={[optional]}
+                    before={32}
+                    held={["launchers", "fitting"]}
+                    resolution={resolution}
+                />,
+            );
+            expect(screen.getByRole("status").textContent).toBe(
+                "No price change",
+            );
+            fireEvent.click(screen.getByRole("radio", { name: "Shared guns" }));
+            expect(screen.getByRole("status").textContent).toBe(
+                fixedFirst ? "Options refund 7¢" : "Options charge 18¢",
+            );
+        },
+    );
+
+    it("restores a focused option when the change dialog mounts", () => {
+        const host = document.createElement("div");
+        host.innerHTML =
+            '<input type="radio" name="mount:option:0" value="0" checked><input type="radio" name="mount:option:1" value="" checked>';
+        document.body.appendChild(host);
+        host.querySelector<HTMLInputElement>("input")!.focus();
+        let unmount = () => {};
+        act(() => {
+            unmount = mount(host, {
+                changing: true,
+                choices: groups,
+                before: 25,
+                held: ["launchers"],
+                resolution: resolutionOf(groups),
+            });
+        });
+        expect(document.activeElement).toBe(
+            screen.getByRole("radio", { name: "Launchers" }),
+        );
+        act(() => unmount());
+        host.remove();
+    });
 });
 
 describe("EquipPrice", () => {
