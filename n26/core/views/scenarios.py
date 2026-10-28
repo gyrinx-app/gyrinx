@@ -32,6 +32,35 @@ def _generator_url(query):
     return f"{here}?{urlencode(query)}#scenario" if query else here
 
 
+def side_job_changes(request, form, here, extra=None):
+    """A redirect for Add side job, a side job's remove button, or a side
+    job menu that changes what it lists, keeping the scenario in view.
+    None for any other request, such as Generate."""
+    from n26.core.scenarios import parse, rolls_of
+
+    if "generate" in request.GET:
+        return None
+    form.is_valid()
+    if any(key != "__all__" for key in form.errors):
+        return None
+    if "add_side_job" in request.GET:
+        picks = form.with_side_job_added()
+    elif "remove_side_job" in request.GET:
+        try:
+            place = int(request.GET["remove_side_job"])
+        except ValueError:
+            place = 0
+        picks = form.with_side_job_removed(place)
+    elif "update" in request.GET:
+        picks = form.chosen_picks()
+    else:
+        return None
+    found, wrong = parse(request.GET)
+    rolls = {} if wrong else rolls_of(found)
+    query = urlencode({**picks, **rolls, **(extra or {})})
+    return redirect(f"{here}?{query}#scenario-components")
+
+
 def _picks(request):
     """The non-default picks the address carries, so actions keep them."""
     from n26.core.forms import ScenarioGeneratorForm
@@ -140,6 +169,7 @@ def _render_generator(request, *, dialog=None, dialog_form=None, data=None):
             "form": form,
             "scenario": scenario,
             "wrong": wrong,
+            "rolls": rolls,
             "share_url": _generator_url(state).removesuffix("#scenario"),
             "print_url": f"{reverse('n26-scenario-print')}?{urlencode(rolls)}",
             "save_url": _generator_url({**state, **connection, "dialog": SAVE}),
@@ -169,15 +199,18 @@ def generate_scenario(request):
     from n26.core.forms import ScenarioGeneratorForm
 
     form = ScenarioGeneratorForm(request.GET)
+    connection = {
+        key: request.GET[key] for key in ("campaign", "battle") if request.GET.get(key)
+    }
+    changed = side_job_changes(
+        request, form, reverse("n26-generate-scenario"), connection
+    )
+    if changed:
+        return changed
     if "generate" in request.GET and form.is_valid():
         rolls = form.generate()
         if request.GET.get("format") == "json":
             return JsonResponse({"rolls": rolls})
-        connection = {
-            key: request.GET[key]
-            for key in ("campaign", "battle")
-            if request.GET.get(key)
-        }
         return redirect(_generator_url({**form.chosen_picks(), **rolls, **connection}))
     if "generate" in request.GET and request.GET.get("format") == "json":
         return JsonResponse(
@@ -220,10 +253,10 @@ def save_scenario_to_campaign(request):
                 status=400,
             )
         data = request.POST.copy()
-        from n26.library.scenario_tables import TABLES
+        from n26.library.scenario_tables import SIDE_JOB_KEYS, TABLES
 
-        for table in TABLES:
-            data.pop(table.key, None)
+        for key in [table.key for table in TABLES] + list(SIDE_JOB_KEYS):
+            data.pop(key, None)
         data.update(generator.generate())
     form = ConnectScenarioToBattleForm(
         data,
