@@ -674,9 +674,13 @@ class CampaignOperation:
         goes to)`` pairs, and is left as it is unless given.
         ``stake_revisions`` maps each asset's id to the ownership revision
         the editor saw. See ``_settle_stakes`` for what changing them moves.
+        Only the arbitrator can edit a battle, so only they stake and award
+        assets.
         """
         from n26.core.operations import Refusal
 
+        if self.actor is None or self.actor.pk != self.campaign.owner_id:
+            raise Refusal("Only the arbitrator can edit a battle.")
         battle = self._locked_battle(battle)
         if battle.revision != revision:
             raise Refusal("This battle changed. Reload it before saving your changes.")

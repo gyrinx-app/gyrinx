@@ -448,6 +448,29 @@ class TestWhoMovesTheStake:
         assert holder(table) == table.choir
         assert staked(table) is None
 
+    def test_a_player_cannot_stake_or_award_through_the_operation(self, table):
+        with campaign_operation(table.campaign, actor=table.arbitrator) as act:
+            act.invite(table.player)
+        with campaign_operation(table.campaign, actor=table.player) as act:
+            act.answer_invitation(table.player, accepted=True)
+
+        with pytest.raises(Refusal, match="Only the arbitrator can edit a battle"):
+            with campaign_operation(table.campaign, actor=table.player) as act:
+                act.edit_battle(
+                    table.battle,
+                    scenario="Stand-off",
+                    date=date(2026, 9, 20),
+                    gangs=[table.choir, table.kings],
+                    result="not_recorded",
+                    winners=[],
+                    revision=table.battle.revision,
+                    stakes=[(table.ruins, table.kings)],
+                )
+
+        assert staked(table) is None
+        assert holder(table) == table.choir
+        assert moves(table) == []
+
     def test_the_gang_owner_sees_the_stake_read_only(self, client, table):
         stake_as(table, table.kings)
         client.force_login(table.player)
