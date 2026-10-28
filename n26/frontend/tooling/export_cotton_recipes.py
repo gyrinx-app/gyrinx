@@ -1278,6 +1278,7 @@ def recipes():
                 "arrow-down",
                 "arrow-right",
                 "pencil",
+                "trash-2",
             )
         },
     }

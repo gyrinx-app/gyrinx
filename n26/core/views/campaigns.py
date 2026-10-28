@@ -1055,7 +1055,7 @@ def scenario_generator(request, pk):
     from n26.core.campaign_permissions import may_record_campaign
     from n26.core.forms import ScenarioGeneratorForm
     from n26.core.scenarios import parse, rolls_of
-    from n26.core.views.scenarios import side_job_changes
+    from n26.core.views.scenarios import reroll_dialog, side_job_changes
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=True)
     here = reverse("n26-scenario-generator", args=[found.pk])
@@ -1073,6 +1073,7 @@ def scenario_generator(request, pk):
     if wrong:
         scenario = []
     rolls = rolls_of(scenario)
+    reroll, reroll_links = reroll_dialog(request, here, rolls)
     record_href = save_href = ""
     if scenario and may_record_campaign(found, request.user):
         record_href = (
@@ -1092,6 +1093,8 @@ def scenario_generator(request, pk):
             "rolls": rolls,
             "wrong": wrong,
             "share_url": request.get_full_path(),
+            "scenario_reroll": reroll,
+            "reroll_links": reroll_links,
             "record_href": record_href,
             "save_href": save_href,
             # Print saves nothing, so whoever can read the campaign gets it.

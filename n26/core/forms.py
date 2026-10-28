@@ -1386,6 +1386,19 @@ class ScenarioGeneratorForm(forms.Form):
             del picks[place - 1]
         return self.chosen_picks(picks)
 
+    def with_side_job_set(self, place, set_key, results):
+        """The picks with the menu that gave the scenario's side job at
+        ``place`` rolling on the set ``set_key``, so a reroll on another set
+        holds on Generate again. ``results`` counts the scenario's side
+        jobs; the picks are unchanged unless each menu with a set gave one."""
+        picks = self.side_job_picks()
+        giving = [
+            at for at, pick in enumerate(picks) if pick not in ("", self.LEAVE_OUT)
+        ]
+        if len(giving) == results and 0 < place <= results:
+            picks[giving[place - 1]] = set_key
+        return self.chosen_picks(picks)
+
     def side_job_menus(self):
         """Each side job menu as the generator draws it: before a set is
         picked, the sets; after, Roll a D6, the set's jobs and Change set.

@@ -68,7 +68,7 @@ Once a set is picked, the same list shows **Roll a D6**, that set's six jobs
 and, at the bottom, **Change set**, which goes back to the list of sets.
 
 **Add side job** below the last list adds another, up to six. Each side job
-list after the first has a **−** button that removes it; the later side jobs
+list after the first has a dustbin button that removes it; the later side jobs
 move up. Without JavaScript, picking a set and pressing **Generate scenario**
 rolls on that set.
 
@@ -76,6 +76,14 @@ rolls on that set.
 name, its number, its full description and, for Deployment, its map. Your
 choices stay set, and the button changes to **Generate again**. Pressing it
 rolls again for every table still set to **Roll a D6**.
+
+Each side job in the result has **Reroll** beside its heading. It opens a
+dialog that asks which set to roll on, starting with the side job's own set.
+**Reroll** rolls that one side job again and keeps the rest of the scenario,
+for when the wrong set was picked before generating. The new side job is never
+one the scenario already has from that set, including the one it replaces,
+unless the set has no other. The side job's menu then shows the new set, so
+**Generate again** keeps it.
 
 Include at least one component. Saving or cancelling a save keeps your
 chosen and omitted components set for the next generation.
@@ -134,9 +142,10 @@ where N counts the campaign's battles, including archived battles. Naming and
 creation occur under the campaign lock.
 
 **Generate scenario** produces an optional compact preview without submitting the
-battle or clearing the name, date or participants. **Table options** offers the
+battle or clearing the name, date or participants. **Scenario options** offers the
 same choices as the main generator, including the side job sets, **Add side
-job** and **−**. The preview can be regenerated
+job** and the dustbin buttons, and **Full details** has **Reroll** beside each
+side job. The preview can be regenerated
 or removed, and its full result can be opened in another tab. The server validates
 the hidden components when the battle is saved.
 

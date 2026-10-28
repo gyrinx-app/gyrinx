@@ -33,9 +33,9 @@ def _generator_url(query):
 
 
 def side_job_changes(request, form, here, extra=None):
-    """A redirect for Add side job, a side job's remove button, or a side
-    job menu that changes what it lists, keeping the scenario in view.
-    None for any other request, such as Generate."""
+    """A redirect for Add side job, a side job's remove button, a side
+    job menu that changes what it lists, or a side job's Reroll, keeping
+    the scenario in view. None for any other request, such as Generate."""
     from n26.core.scenarios import parse, rolls_of
 
     if "generate" in request.GET:
@@ -53,12 +53,74 @@ def side_job_changes(request, form, here, extra=None):
         picks = form.with_side_job_removed(place)
     elif "update" in request.GET:
         picks = form.chosen_picks()
+    elif "reroll_set" in request.GET:
+        return _rerolled(request, form, here, extra)
     else:
         return None
     found, wrong = parse(request.GET)
     rolls = {} if wrong else rolls_of(found)
     query = urlencode({**picks, **rolls, **(extra or {})})
     return redirect(f"{here}?{query}#scenario-components")
+
+
+def _rerolled(request, form, here, extra):
+    """A redirect to the scenario with the side job ``reroll`` names rolled
+    again on the set ``reroll_set`` names, and the rest kept. A side job or
+    set that is not there leaves the scenario as it was."""
+    from n26.core.scenarios import parse, reroll_side_job, rolls_of
+    from n26.library.scenario_tables import SIDE_JOB_KEYS
+
+    found, wrong = parse(request.GET)
+    key = request.GET.get("reroll", "")
+    set_key = request.GET["reroll_set"]
+    rolls = None if wrong else reroll_side_job(found, key, set_key)
+    if rolls is None:
+        picks, rolls = form.chosen_picks(), ({} if wrong else rolls_of(found))
+    else:
+        side_jobs = sum(1 for result in found if result.table.side_job_set)
+        picks = form.with_side_job_set(SIDE_JOB_KEYS.index(key) + 1, set_key, side_jobs)
+    query = urlencode({**picks, **rolls, **(extra or {})})
+    return redirect(f"{here}?{query}#scenario")
+
+
+def reroll_dialog(request, here, rolls, extra=None):
+    """The ``scenario-reroll`` island's props when the address names a
+    side job of the scenario shown under ``reroll``, else None, and each
+    side job's Reroll link, by key.
+
+    The dialog asks which set to roll on. It submits the address's picks
+    and rolls back to ``here`` with ``reroll_set``, for ``side_job_changes``.
+    """
+    from n26.core.forms import ScenarioGeneratorForm
+    from n26.core.scenarios import parse
+    from n26.library.scenario_tables import SIDE_JOB_KEYS, SIDE_JOB_SETS
+
+    form = ScenarioGeneratorForm(request.GET)
+    state = {
+        **(form.chosen_picks() if form.is_valid() else {}),
+        **rolls,
+        **(extra or {}),
+    }
+    links = {
+        key: f"{here}?{urlencode({**state, 'reroll': key})}#scenario"
+        for key in rolls
+        if key in SIDE_JOB_KEYS
+    }
+    key = request.GET.get("reroll", "")
+    if key not in links:
+        return None, links
+    found, _ = parse(rolls)
+    (result,) = [r for r in found if r.table.key == key]
+    return {
+        "title": f"Reroll {result.table.name.lower()}",
+        "action": here,
+        "cancelUrl": f"{here}?{urlencode(state)}#scenario",
+        "fields": [
+            [name, str(value)] for name, value in {**state, "reroll": key}.items()
+        ],
+        "sets": [{"value": s.key, "label": s.label} for s in SIDE_JOB_SETS],
+        "set": result.table.side_job_set.key,
+    }, links
 
 
 def _picks(request):
@@ -114,6 +176,11 @@ def _render_generator(request, *, dialog=None, dialog_form=None, data=None):
             initial={**rolls, **connection},
         )
 
+    reroll, reroll_links = (
+        reroll_dialog(request, reverse("n26-generate-scenario"), rolls, connection)
+        if not dialog
+        else (None, {})
+    )
     picks_query = f"?{urlencode(picks)}" if picks else ""
     action = (
         reverse(
@@ -177,6 +244,8 @@ def _render_generator(request, *, dialog=None, dialog_form=None, data=None):
             "may_record": may_record,
             "may_connect": may_connect,
             "scenario_dialog": dialog_props,
+            "scenario_reroll": reroll,
+            "reroll_links": reroll_links,
             "dialog": dialog,
             "dialog_form": dialog_form,
             "dialog_action": action,

@@ -1,5 +1,5 @@
 {% extends "n26/layouts/base.html" %}
-{% load navigation %}
+{% load navigation react %}
 {% comment %}
 The scenario generator for one campaign. On wide screens the scenario
 components sit on the left and the generated scenario on the right, with
@@ -100,4 +100,7 @@ may use it.
             </c-n26.section>
         </div>
     </div>
+    {% if scenario_reroll %}
+        {% react_island "scenario-reroll" scenario_reroll %}
+    {% endif %}
 {% endblock content %}

@@ -300,3 +300,49 @@ it("reads a battle's side job saved before there were sets as General", () => {
     );
     expect(screen.getAllByText("The Package").length).toBeGreaterThan(0);
 });
+
+it("rerolls one side job on the set chosen and keeps the rest", async () => {
+    HTMLDialogElement.prototype.showModal = vi.fn(function (
+        this: HTMLDialogElement,
+    ) {
+        this.setAttribute("open", "");
+    });
+    HTMLDialogElement.prototype.close = vi.fn(function (
+        this: HTMLDialogElement,
+    ) {
+        this.removeAttribute("open");
+    });
+    const request = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+            rolls: { crew: 2, side_job: "escher-5", side_job_2: "escher-5" },
+        }),
+    });
+    vi.stubGlobal("fetch", request);
+    render(
+        <BattleScenario
+            {...withSideJobs}
+            rolls={{ crew: "2", side_job: "escher-5", side_job_2: "general-2" }}
+        />,
+    );
+    expect(screen.queryByRole("button", { name: "Reroll Crew" })).toBeNull();
+    fireEvent.click(
+        screen.getByRole("button", { name: "Reroll Side job 2 (General)" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Reroll side job 2" });
+    const menu = screen.getByLabelText("Side job set");
+    expect(menu).toHaveProperty("value", "general");
+    expect(dialog.closest("section")).toBeNull();
+    fireEvent.change(menu, { target: { value: "escher" } });
+    fireEvent.click(screen.getByRole("button", { name: "Reroll" }));
+    await waitFor(() => expect(request).toHaveBeenCalled());
+    const url = new URL(request.mock.calls[0][0]);
+    expect(url.searchParams.get("crew_pick")).toBe("2");
+    expect(url.searchParams.get("objective_pick")).toBe("leave");
+    expect(url.searchParams.get("side_job_pick")).toBe("escher-5");
+    expect(url.searchParams.get("side_job_2_pick")).toBe("escher");
+    expect(url.searchParams.get("side_jobs")).toBe("2");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await screen.findAllByText("Side job 2 (Escher)");
+});
