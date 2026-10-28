@@ -1,16 +1,19 @@
-"""The scenario generator's four tables: Deployment, Objective, Side job
-and Crew, each rolled on a D6.
+"""The scenario generator's tables, each rolled on a D6: Deployment,
+Objective and Crew, then any number of side jobs, up to
+``SIDE_JOB_LIMIT``, each from a set of side jobs the reader picks.
 
 These are game content, original to Gyrinx, and fixed: they ship with
 the code rather than being authored in the library's pages, so they are
 constants here. ``n26.core.scenarios`` reads them to roll, check and
 describe a scenario.
 
-Each table's ``key`` and each entry's ``roll`` are what links and saved
-battles name, so they must not change. Names and text can be revised;
-a battle shows its entries as they read now.
+Each table's ``key``, each side job set's ``key`` and each entry's
+``roll`` are what links and saved battles name, so they must not change.
+Names and text can be revised; a battle shows its entries as they read
+now. Text between asterisks, ``*like this*``, is drawn in bold.
 """
 
+import re
 from dataclasses import dataclass
 
 
@@ -31,15 +34,56 @@ class ScenarioEntry:
         or spaces when written as a heading; a sentence leaves them off."""
         return self.name.strip().rstrip(":").strip()
 
+    def parts(self):
+        """The text as ``(words, bold)`` pairs, split at the asterisks."""
+        return [
+            (words, index % 2 == 1)
+            for index, words in enumerate(_BOLD.split(self.text))
+            if words
+        ]
+
+    @property
+    def plain(self):
+        """The text without the asterisks that mark bold."""
+        return self.text.replace("*", "")
+
+
+_BOLD = re.compile(r"\*([^*]+)\*")
+
 
 @dataclass(frozen=True)
 class ScenarioTable:
-    """One of the four tables. ``key`` is what URLs and stored battles
-    use; ``name`` is what a reader sees."""
+    """One table. ``key`` is what URLs and stored battles use; ``name`` is
+    what a reader sees. A side job in a scenario is drawn from a table for
+    its place, "Side job 2", whose ``side_job_set`` is the set it came
+    from."""
 
     key: str
     name: str
     entries: tuple[ScenarioEntry, ...]
+    side_job_set: SideJobSet | None = None
+
+    def entry(self, roll):
+        """The entry a roll lands on, or None for a roll off the table."""
+        for entry in self.entries:
+            if entry.roll == roll:
+                return entry
+        return None
+
+
+@dataclass(frozen=True)
+class SideJobSet:
+    """A set of six side jobs to roll on, such as the Escher ones. ``key``
+    is what links and stored battles use, with the roll: "escher-3"."""
+
+    key: str
+    name: str
+    entries: tuple[ScenarioEntry, ...]
+
+    @property
+    def label(self):
+        """The set as the generator's menu names it."""
+        return f"{self.name} side jobs"
 
     def entry(self, roll):
         """The entry a roll lands on, or None for a roll off the table."""
@@ -151,9 +195,9 @@ OBJECTIVE = ScenarioTable(
         ),
     ),
 )
-SIDE_JOB = ScenarioTable(
-    key="side_job",
-    name="Side job",
+GENERAL_SIDE_JOBS = SideJobSet(
+    key="general",
+    name="General",
     entries=(
         ScenarioEntry(
             roll=1,
@@ -242,8 +286,142 @@ CREW = ScenarioTable(
     ),
 )
 
-#: Every table, in the order the generator shows them.
-TABLES = (DEPLOYMENT, OBJECTIVE, SIDE_JOB, CREW)
+ESCHER_SIDE_JOBS = SideJobSet(
+    key="escher",
+    name="Escher",
+    entries=(
+        ScenarioEntry(
+            roll=1,
+            name="Chemical Reign:",
+            text=(
+                "Keep count of each time an enemy Fighter loses a wound to a weapon with the Toxic (X) trait. If, during the Check For Victory step of any round, this count is at least 3, you have accomplished this Side Job."
+            ),
+        ),
+        ScenarioEntry(
+            roll=2,
+            name="Maiden, Mother, Matriarch:",
+            text=(
+                'If, during the Check For Victory step of any round, you have a Prospect, a Ganger AND a Leader or Champion, each Active or Suppressed, all within 6" of the centre of the battlefield, you have accomplished this Side Job.'
+            ),
+        ),
+        ScenarioEntry(
+            roll=3,
+            name="Hunt Together:",
+            text=(
+                "If a friendly Fighter and a pet both performed a Charge or Engage action against the same enemy Fighter in the same round, you have accomplished this Side Job in the Check For Victory step of that round."
+            ),
+        ),
+        ScenarioEntry(
+            roll=4,
+            name="Cut Off the Head:",
+            text=(
+                "If every enemy Leader and Champion is Out of Action or Seriously Injured during the Check For Victory step of any round, you have accomplished this Side Job."
+            ),
+        ),
+        ScenarioEntry(
+            roll=5,
+            name="Experimental Chem:",
+            text=(
+                'At the start of the battle, after all Fighters are deployed, choose one of your Fighters to carry 3 doses of an experimental Stimm. They can use a dose with the *Administer Dose* action. Roll a D6 for the effect: 1 – they suffer an L1 wound that ignores saves; 2 – they are Suppressed; 3+ – their Move increases by 1" for the rest of the battle. If all 3 doses are used, you have accomplished this Side Job.'
+            ),
+        ),
+        ScenarioEntry(
+            roll=6,
+            name="Murder Run:",
+            text=(
+                "If, during the Check For Victory step of any round, 3 enemy Fighters are Out of Action or Seriously Injured, you have accomplished this Side Job."
+            ),
+        ),
+    ),
+)
+GOLIATH_SIDE_JOBS = SideJobSet(
+    key="goliath",
+    name="Goliath",
+    entries=(
+        ScenarioEntry(
+            roll=1,
+            name="Pit Fight:",
+            text=(
+                "Randomly select one of your deployed Fighters. If that Fighter *only* uses weapons with the *Melee* trait for the entire battle, you have accomplished this Side Job."
+            ),
+        ),
+        ScenarioEntry(
+            roll=2,
+            name="Personal Vendetta:",
+            text=(
+                "Pick your Leader or one of your Champions, and the enemy Leader or one of their Champions (or any other Fighter if neither is available). If, at the end of the battle, your Fighter has taken that enemy Fighter Out of Action, you have accomplished this Side Job."
+            ),
+        ),
+        ScenarioEntry(
+            roll=3,
+            name="Wreck the Place:",
+            text=(
+                'Any Active Fighter in your gang within the enemy’s deployment zone (or within 6" of the centre of the board if there is no DZ) may perform the Vandalise (Single) action: roll a D6 and add their Strength. On a total of 6 or more, they have vandalised the area. If your gang does this twice or more by the end of the battle, you have accomplished this Side Job.'
+            ),
+        ),
+        ScenarioEntry(
+            roll=4,
+            name="Maximum Force:",
+            text=(
+                "If, by the end of the battle, your gang has taken 3 enemy Fighters Out of Action with Fight actions, you have accomplished this Side Job."
+            ),
+        ),
+        ScenarioEntry(
+            roll=5,
+            name="Hold the Forge:",
+            text=(
+                'Select a piece of terrain at least 12" from your deployment zone (or any piece if you have no DZ). If, at the end of the battle, there are no enemy models within 3" of it, you have accomplished this Side Job.'
+            ),
+        ),
+        ScenarioEntry(
+            roll=6,
+            name="Prove Your Worth!:",
+            text=(
+                "If, during any round, a friendly Fighter was Engaged by *two* enemy Fighters *at the same time*, and at the end of that round is still on the board and not Seriously Injured, you have accomplished this Side Job."
+            ),
+        ),
+    ),
+)
+
+#: The tables every scenario may use, in the order the generator shows
+#: them. Side jobs come after them.
+TABLES = (DEPLOYMENT, OBJECTIVE, CREW)
+
+#: The side job sets, in the order the generator's menu lists them.
+SIDE_JOB_SETS = (GENERAL_SIDE_JOBS, ESCHER_SIDE_JOBS, GOLIATH_SIDE_JOBS)
+
+#: The most side jobs one scenario may have.
+SIDE_JOB_LIMIT = 6
+
+
+def side_job_key(place):
+    """The key a scenario's side job is stored under, by its place from 1:
+    "side_job" for the first, as before there could be more, then
+    "side_job_2" and on."""
+    return "side_job" if place == 1 else f"side_job_{place}"
+
+
+#: Every side job key, first to last.
+SIDE_JOB_KEYS = tuple(side_job_key(place) for place in range(1, SIDE_JOB_LIMIT + 1))
+
+
+def side_job_set(key):
+    """The side job set with this key, or None."""
+    for found in SIDE_JOB_SETS:
+        if found.key == key:
+            return found
+    return None
+
+
+def side_job_table(place, found):
+    """The table a scenario's side job at ``place`` is drawn from: the
+    entries of the set ``found``, named for the place."""
+    return ScenarioTable(
+        key=side_job_key(place),
+        name=f"Side job {place}",
+        entries=found.entries,
+        side_job_set=found,
+    )
 
 
 def table(key):

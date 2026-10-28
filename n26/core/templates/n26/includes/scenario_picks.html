@@ -1,0 +1,79 @@
+{% load static %}
+{% comment %}
+The generator form's menus, shared by the generator in the menu and the
+campaign's own: one native select for each of Deployment, Objective and
+Crew, then one for each side job.
+
+A side job's menu first lists the side job sets. Once a set is picked,
+the page redraws it with Roll a D6, that set's jobs and Change set. An
+option that changes the menu has data-switch; scenario-picks.js submits
+the form through the hidden Update button when one is picked. Without
+JavaScript, Generate rolls on the set picked. Add side job and each
+extra side job's remove button submit the form too. The view redirects
+all three to a clean address, keeping the scenario in view, which the
+hidden fields under the menus carry.
+
+form is an n26.core.forms.ScenarioGeneratorForm; rolls is the scenario
+shown, as {key: value}.
+{% endcomment %}
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+    {% for field in form.table_fields %}
+        <c-ui.field label="{{ field.label }}"
+                    error="x"
+                    :form="form"
+                    name="{{ field.html_name }}"
+                    for="{{ field.auto_id }}">
+            <c-ui.select.native id="{{ field.auto_id }}" name="{{ field.html_name }}" placeholder="">
+                {% for value, label in field.field.choices %}
+                    <option value="{{ value }}" {% if value == field.value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </c-ui.select.native>
+        </c-ui.field>
+    {% endfor %}
+    {% for menu in form.side_job_menus %}
+        <c-ui.field label="{{ menu.label }}"
+                    error="x"
+                    :form="form"
+                    name="{{ menu.name }}"
+                    for="{{ menu.id }}">
+            <div class="flex items-center gap-2">
+                <div class="min-w-0 flex-1">
+                    <c-ui.select.native id="{{ menu.id }}"
+                                        name="{{ menu.name }}"
+                                        placeholder=""
+                                        data-scenario-menu>
+                        {% for value, label, switch in menu.options %}
+                            <option value="{{ value }}"
+                                    {% if switch %}data-switch{% endif %}
+                                    {% if value == menu.value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </c-ui.select.native>
+                </div>
+                {% if menu.place > 1 %}
+                    <c-ui.button type="submit"
+                                 name="remove_side_job"
+                                 value="{{ menu.place }}"
+                                 data-busy="off"
+                                 aria-label="Remove side job {{ menu.place }}"
+                                 title="Remove side job {{ menu.place }}">
+                        <c-n26.icon name="minus" class="size-4" />
+                    </c-ui.button>
+                {% endif %}
+            </div>
+        </c-ui.field>
+    {% endfor %}
+</div>
+{% if form.may_add_side_job %}
+    <div>
+        <c-ui.button type="submit" name="add_side_job" value="1" size="sm" data-busy="off">
+            <span class="inline-flex items-center gap-2">
+                <c-n26.icon name="plus" class="size-4" />
+                Add side job
+            </span>
+        </c-ui.button>
+    </div>
+{% endif %}
+<input type="hidden" name="side_jobs" value="{{ form.side_job_count }}">
+<button type="submit" name="update" value="1" hidden data-scenario-update></button>
+{% for key, value in rolls.items %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+<script defer src="{% static 'n26/scenario-picks.js' %}"></script>

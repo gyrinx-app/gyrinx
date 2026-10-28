@@ -1055,10 +1055,14 @@ def scenario_generator(request, pk):
     from n26.core.campaign_permissions import may_record_campaign
     from n26.core.forms import ScenarioGeneratorForm
     from n26.core.scenarios import parse, rolls_of
+    from n26.core.views.scenarios import side_job_changes
 
     found = _any_campaign_or_404(request, pk, with_owner_badge=True)
     here = reverse("n26-scenario-generator", args=[found.pk])
     form = ScenarioGeneratorForm(request.GET)
+    changed = side_job_changes(request, form, here)
+    if changed:
+        return changed
     valid = form.is_valid()
 
     if "generate" in request.GET and valid:
@@ -1085,6 +1089,7 @@ def scenario_generator(request, pk):
             "campaign": found,
             "form": form,
             "scenario": scenario,
+            "rolls": rolls,
             "wrong": wrong,
             "share_url": request.get_full_path(),
             "record_href": record_href,

@@ -70,3 +70,33 @@ def test_describe_names_each_table_roll_and_entry():
         f"Deployment 6 ({table('deployment').entry(6).label}), "
         f"Crew 2 ({table('crew').entry(2).label})"
     )
+
+
+def test_side_jobs_come_last_numbered_in_order_with_their_sets():
+    found, wrong = parse(
+        {"side_job_3": "goliath-1", "side_job": 2, "crew": "4", "side_job_2": ""}
+    )
+    assert wrong == []
+    assert [result.heading for result in found] == [
+        "Crew",
+        "Side job 1 (General)",
+        "Side job 2 (Goliath)",
+    ]
+    assert rolls_of(found) == {
+        "crew": 4,
+        "side_job": "general-2",
+        "side_job_2": "goliath-1",
+    }
+
+
+@pytest.mark.parametrize("value", ["orlock-2", "escher-7", "escher-", "-3", 9, 2.0])
+def test_a_side_job_off_its_set_is_wrong(value):
+    found, wrong = parse({"side_job": value})
+    assert [each.key for each in wrong] == ["side_job"]
+
+
+def test_a_history_note_round_trips_side_jobs():
+    rolls = {"crew": 2, "side_job": "escher-3"}
+    saved, name = read_history_note(history_note(rolls, "Sump clash"))
+    assert rolls_of(results(saved)) == rolls
+    assert name == "Sump clash"

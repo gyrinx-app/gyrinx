@@ -7,7 +7,8 @@ room for the descriptions and the deployment map; on a phone the
 components come first.
 
 Each table has one native select: Roll a D6, Leave out, or one of its
-six entries. The form is a GET, because generating saves nothing: the
+six entries. Side jobs follow, as many as the reader adds, each from a
+set; includes/scenario_picks.html draws the menus. The form is a GET, because generating saves nothing: the
 view rolls once and redirects to an address holding the result and the
 picks, so Share passes the same scenario on and Generate again keeps
 the picks. Nothing here is saved, so anyone who can read the campaign
@@ -42,28 +43,12 @@ may use it.
         </c-n26.page-header>
         <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
             <form method="get"
+                  id="scenario-components"
                   action="{% url 'n26-scenario-generator' campaign.pk %}"
-                  class="flex flex-col gap-5 rounded-box border border-box-border p-4 sm:p-5">
+                  class="flex scroll-mt-24 flex-col gap-5 rounded-box border border-box-border p-4 sm:p-5">
                 <c-n26.form-section title="Scenario components"
                                     description="Leave a component out if you already have it covered.">
-                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-                        {% for field in form %}
-                            <c-ui.field label="{{ field.label }}"
-                                        error="x"
-                                        :form="form"
-                                        name="{{ field.html_name }}"
-                                        for="{{ field.auto_id }}">
-                                <c-ui.select.native id="{{ field.auto_id }}"
-                                                    name="{{ field.html_name }}"
-                                                    placeholder="">
-                                    {% for value, label in field.field.choices %}
-                                        <option value="{{ value }}"
-                                                {% if value == field.value %}selected{% endif %}>{{ label }}</option>
-                                    {% endfor %}
-                                </c-ui.select.native>
-                            </c-ui.field>
-                        {% endfor %}
-                    </div>
+                    {% include "n26/includes/scenario_picks.html" %}
                 </c-n26.form-section>
                 <c-ui.error :form="form" name="__all__" />
                 <div class="flex flex-wrap items-center justify-end gap-2 border-t border-box-border pt-4">
