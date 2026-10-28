@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, ButtonLink, Field, NativeSelect } from "../../ui";
+import { createPortal } from "react-dom";
+import {
+    Button,
+    ButtonLink,
+    Dialog,
+    Field,
+    FormActions,
+    Icon,
+    NativeSelect,
+} from "../../ui";
 
 type Entry = {
     roll: number;
@@ -16,7 +25,8 @@ type SideJobSet = {
     entries: Entry[];
 };
 
-type Result = { key: string; heading: string; entry: Entry };
+// A side job's result also names its set, so it can be rolled again.
+type Result = { key: string; heading: string; entry: Entry; set?: string };
 
 // A side job pick: "" until a set is picked, "leave", a set's key to
 // roll on it, or a set's key and roll for one of its jobs, "escher-3".
@@ -65,6 +75,12 @@ export function BattleScenario(props: BattleScenarioProps) {
     const sideJobSets = props.sideJobSets ?? [];
     const [pending, setPending] = useState(false);
     const [error, setError] = useState("");
+    // The side job whose Reroll dialog is open, and the set picked in it.
+    const [reroll, setReroll] = useState<{
+        key: string;
+        heading: string;
+        set: string;
+    } | null>(null);
     const root = useRef<HTMLElement>(null);
     const request = useRef<AbortController | null>(null);
     useEffect(() => {
@@ -112,13 +128,60 @@ export function BattleScenario(props: BattleScenarioProps) {
                 key,
                 heading: `Side job ${place} (${set.name})`,
                 entry,
+                set: set.key,
             });
     }
     const results = invalid ? [] : found;
     const query = new URLSearchParams(
         Object.entries(rolls).filter(([, value]) => value),
     );
-    async function generate() {
+    // The menus as they are set, for Generate.
+    function menuChoices() {
+        const choices = new URLSearchParams({ generate: "1", format: "json" });
+        for (const [key, value] of Object.entries(picks))
+            choices.set(key + "_pick", value);
+        if (sideJobKeys.length) {
+            sidePicks.forEach((pick, index) => {
+                if (pick) choices.set(sideJobKeys[index] + "_pick", pick);
+            });
+            choices.set("side_jobs", String(sidePicks.length));
+        }
+        return choices;
+    }
+    // The scenario as it is, but with one side job rolled on another set.
+    function rerollChoices(target: string, set: string) {
+        const choices = new URLSearchParams({ generate: "1", format: "json" });
+        for (const table of props.tables)
+            choices.set(table.key + "_pick", rolls[table.key] || "leave");
+        const sideJobs = results.filter((result) => result.set);
+        sideJobs.forEach((result, index) =>
+            choices.set(
+                sideJobKeys[index] + "_pick",
+                result.key === target
+                    ? set
+                    : `${result.set}-${result.entry.roll}`,
+            ),
+        );
+        choices.set("side_jobs", String(sideJobs.length));
+        return choices;
+    }
+    // After a reroll, the menu that gave that side job rolls on its new
+    // set too, when each menu with a set still gave one side job.
+    function pickRerolledSet(target: string, set: string) {
+        const sideJobs = results.filter((result) => result.set);
+        const giving = sidePicks.flatMap((pick, index) =>
+            pick && pick !== "leave" ? [index] : [],
+        );
+        if (giving.length !== sideJobs.length) return;
+        const at = giving[sideJobs.findIndex((r) => r.key === target)];
+        setSidePicks(
+            sidePicks.map((pick, index) => (index === at ? set : pick)),
+        );
+    }
+    async function generate(
+        choices = menuChoices(),
+        done: () => void = () => {},
+    ) {
         if (request.current) return;
         const controller = new AbortController();
         request.current = controller;
@@ -128,18 +191,6 @@ export function BattleScenario(props: BattleScenarioProps) {
             ? "The scenario could not be attached. Reload the battle and try again."
             : "The scenario could not be generated. Try again.";
         try {
-            const choices = new URLSearchParams({
-                generate: "1",
-                format: "json",
-            });
-            for (const [key, value] of Object.entries(picks))
-                choices.set(key + "_pick", value);
-            if (sideJobKeys.length) {
-                sidePicks.forEach((pick, index) => {
-                    if (pick) choices.set(sideJobKeys[index] + "_pick", pick);
-                });
-                choices.set("side_jobs", String(sidePicks.length));
-            }
             let response: Response;
             if (props.save) {
                 const body = new FormData();
@@ -183,6 +234,7 @@ export function BattleScenario(props: BattleScenarioProps) {
                     ]),
                 ),
             );
+            done();
         } catch {
             if (!controller.signal.aborted) setError(failure);
         } finally {
@@ -223,11 +275,30 @@ export function BattleScenario(props: BattleScenarioProps) {
                             Full details
                         </summary>
                         <div className="mt-3 space-y-3">
-                            {results.map(({ key, heading, entry }) => (
+                            {results.map(({ key, heading, entry, set }) => (
                                 <div key={key}>
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                                        {heading}
-                                    </p>
+                                    <div className="flex flex-wrap items-baseline gap-x-3">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                                            {heading}
+                                        </p>
+                                        {set && (
+                                            <Button
+                                                variant="text"
+                                                className="text-sm"
+                                                disabled={pending}
+                                                aria-label={`Reroll ${heading}`}
+                                                onClick={() =>
+                                                    setReroll({
+                                                        key,
+                                                        heading,
+                                                        set,
+                                                    })
+                                                }
+                                            >
+                                                Reroll
+                                            </Button>
+                                        )}
+                                    </div>
                                     <h4 className="font-semibold">
                                         {entry.name}
                                     </h4>
@@ -249,7 +320,7 @@ export function BattleScenario(props: BattleScenarioProps) {
             )}
             <details>
                 <summary className="cursor-pointer text-sm font-medium">
-                    Table options
+                    Scenario options
                 </summary>
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {props.tables.map((table) => (
@@ -362,6 +433,7 @@ export function BattleScenario(props: BattleScenarioProps) {
                                         {index > 0 && (
                                             <Button
                                                 size="sm"
+                                                variant="ghost"
                                                 disabled={pending}
                                                 aria-label={`Remove side job ${index + 1}`}
                                                 title={`Remove side job ${index + 1}`}
@@ -374,7 +446,7 @@ export function BattleScenario(props: BattleScenarioProps) {
                                                     )
                                                 }
                                             >
-                                                −
+                                                <Icon name="trash-2" />
                                             </Button>
                                         )}
                                     </div>
@@ -403,7 +475,7 @@ export function BattleScenario(props: BattleScenarioProps) {
                 </p>
             )}
             <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={generate} disabled={pending} size="sm">
+                <Button onClick={() => generate()} disabled={pending} size="sm">
                     {pending
                         ? "Generating…"
                         : results.length
@@ -442,6 +514,55 @@ export function BattleScenario(props: BattleScenarioProps) {
                     </>
                 )}
             </div>
+            {/* On the battle form this panel sits inside the page's form,
+                and a dialog's form may not nest in it. */}
+            {reroll &&
+                createPortal(
+                    <Dialog
+                        title={`Reroll ${reroll.heading.split(" (")[0].toLowerCase()}`}
+                        lead="Choose the set to roll on. The rest of the scenario stays the same."
+                        onDismiss={() => setReroll(null)}
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            const { key, set } = reroll;
+                            setReroll(null);
+                            generate(rerollChoices(key, set), () =>
+                                pickRerolledSet(key, set),
+                            );
+                        }}
+                    >
+                        <Field label="Side job set" htmlFor="reroll-set">
+                            <NativeSelect
+                                id="reroll-set"
+                                value={reroll.set}
+                                onChange={(event) =>
+                                    setReroll({
+                                        ...reroll,
+                                        set: event.target.value,
+                                    })
+                                }
+                            >
+                                {sideJobSets.map((each) => (
+                                    <option key={each.key} value={each.key}>
+                                        {each.label}
+                                    </option>
+                                ))}
+                            </NativeSelect>
+                        </Field>
+                        <FormActions>
+                            <Button
+                                variant="ghost"
+                                onClick={() => setReroll(null)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit" variant="success">
+                                Reroll
+                            </Button>
+                        </FormActions>
+                    </Dialog>,
+                    document.body,
+                )}
         </section>
     );
 }

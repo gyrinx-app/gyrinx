@@ -249,3 +249,95 @@ def test_the_log_names_each_side_job_with_its_set(client, campaign):
     text = log.content.decode()
     assert "Side job 1: Escher 3 (Hunt Together)" in text
     assert "Side job 2: Goliath 1 (Pit Fight)" in text
+
+
+def reroll_island(response):
+    return response.context["scenario_reroll"]
+
+
+@pytest.mark.parametrize("campaign_page", [False, True])
+def test_each_side_job_in_a_result_has_a_reroll_link(client, campaign, campaign_page):
+    here = (
+        reverse("n26-scenario-generator", args=[campaign.pk])
+        if campaign_page
+        else reverse(GENERATOR)
+    )
+    response = client.get(here, {"crew": "2", "side_job": "escher-3"})
+    page = response.content.decode()
+    assert 'aria-label="Reroll Side job 1 (Escher)"' in page
+    assert "Reroll Crew" not in page
+    assert reroll_island(response) is None
+    link = response.context["reroll_links"]["side_job"]
+    opened = client.get(link)
+    props = reroll_island(opened)
+    assert props["title"] == "Reroll side job 1"
+    assert props["set"] == "escher"
+    assert [s["value"] for s in props["sets"]] == ["general", "escher", "goliath"]
+    assert ["side_job", "escher-3"] in props["fields"]
+    assert ["reroll", "side_job"] in props["fields"]
+    assert 'data-react-name="scenario-reroll"' in opened.content.decode()
+
+
+def test_reroll_rolls_one_side_job_on_the_set_chosen_and_keeps_the_rest(
+    client, campaign
+):
+    response = client.get(
+        reverse(GENERATOR),
+        {
+            "crew": "2",
+            "side_job": "general-1",
+            "side_job_2": "escher-4",
+            "side_job_pick": "general",
+            "side_job_2_pick": "escher-4",
+            "side_jobs": "2",
+            "reroll": "side_job",
+            "reroll_set": "goliath",
+        },
+    )
+    assert response.status_code == 302
+    assert response["Location"].endswith("#scenario")
+    query = query_of(response["Location"])
+    assert query["crew"] == ["2"]
+    assert query["side_job"][0].startswith("goliath-")
+    assert query["side_job_2"] == ["escher-4"]
+    # The menu rolls on the new set too, for Generate again.
+    assert query["side_job_pick"] == ["goliath"]
+    assert query["side_job_2_pick"] == ["escher-4"]
+    assert "reroll" not in query
+
+
+def test_a_reroll_never_repeats_a_side_job_from_the_same_set(client, campaign):
+    rolls = {
+        "side_job": "escher-1",
+        "side_job_2": "escher-2",
+        "side_job_3": "escher-3",
+        "side_job_4": "escher-4",
+        "side_job_5": "escher-5",
+        "side_job_6": "goliath-1",
+    }
+    for _ in range(5):
+        response = client.get(
+            reverse(GENERATOR),
+            {**rolls, "reroll": "side_job_6", "reroll_set": "escher"},
+        )
+        assert query_of(response["Location"])["side_job_6"] == ["escher-6"]
+
+
+def test_a_reroll_of_a_missing_side_job_or_set_changes_nothing(client, campaign):
+    for extra in (
+        {"reroll": "side_job_2", "reroll_set": "escher"},
+        {"reroll": "side_job", "reroll_set": "orlock"},
+    ):
+        response = client.get(reverse(GENERATOR), {"side_job": "escher-3", **extra})
+        assert query_of(response["Location"]) == {"side_job": ["escher-3"]}
+    response = client.get(reverse(GENERATOR), {"crew": "2", "reroll": "side_job"})
+    assert reroll_island(response) is None
+
+
+def test_a_campaign_reroll_returns_to_the_campaign_generator(client, campaign):
+    here = reverse("n26-scenario-generator", args=[campaign.pk])
+    response = client.get(
+        here, {"side_job": "escher-3", "reroll": "side_job", "reroll_set": "general"}
+    )
+    assert response["Location"].startswith(here + "?")
+    assert query_of(response["Location"])["side_job"][0].startswith("general-")

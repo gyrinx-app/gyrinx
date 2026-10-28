@@ -83,6 +83,23 @@ def roll_side_jobs(picks, rng=None):
     return values
 
 
+def reroll_side_job(found, key, set_key, rng=None):
+    """The rolls of the scenario ``found`` with its side job under ``key``
+    rolled again on the set ``set_key``, keeping everything else.
+
+    The new job is never one the scenario already has from that set,
+    including the job it replaces, unless the set has no other. None when
+    the scenario has no side job under ``key`` or there is no such set.
+    """
+    chosen = side_job_set(set_key)
+    side_jobs = [(r.table.side_job_set, r.roll) for r in found if r.table.side_job_set]
+    keys = {r.table.key for r in found if r.table.side_job_set}
+    if chosen is None or key not in keys:
+        return None
+    value = roll_side_jobs([*side_jobs, (chosen, None)], rng)[-1]
+    return {**rolls_of(found), key: value}
+
+
 def read_side_job(value):
     """``(set, entry)`` for a stored side job value, "escher-3", or a bare
     roll from the General set. Either is None for a value that is not a

@@ -51,12 +51,13 @@ shown, as {key: value}.
                 </div>
                 {% if menu.place > 1 %}
                     <c-ui.button type="submit"
+                                 variant="ghost"
                                  name="remove_side_job"
                                  value="{{ menu.place }}"
                                  data-busy="off"
                                  aria-label="Remove side job {{ menu.place }}"
                                  title="Remove side job {{ menu.place }}">
-                        <c-n26.icon name="minus" class="size-4" />
+                        <c-n26.icon name="trash-2" class="size-4" />
                     </c-ui.button>
                 {% endif %}
             </div>
@@ -66,10 +67,7 @@ shown, as {key: value}.
 {% if form.may_add_side_job %}
     <div>
         <c-ui.button type="submit" name="add_side_job" value="1" size="sm" data-busy="off">
-            <span class="inline-flex items-center gap-2">
-                <c-n26.icon name="plus" class="size-4" />
-                Add side job
-            </span>
+            + Add side job
         </c-ui.button>
     </div>
 {% endif %}

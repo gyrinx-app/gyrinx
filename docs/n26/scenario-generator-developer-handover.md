@@ -51,6 +51,7 @@ developer can maintain or extend it. For what the feature does, see
 | `n26/tests/test_views_scenario_generator.py` | View tests for generating, saving, permissions and recording a battle. |
 | `n26/tests/test_views_scenario_side_jobs.py` | View tests for side job sets: the menus, adding and removing, rolling without repeats, older links, bold text, battles and the log. |
 | `n26/core/templates/n26/includes/scenario_picks.html` | The menus shared by both generators, including the side job menus. |
+| `n26/frontend/islands/scenario-reroll/` | The generators' **Reroll** dialog, which asks which set to roll a side job on. |
 | `n26/core/static/n26/scenario-picks.js` | Redraws a side job menu when a set or **Change set** is picked. |
 
 ### Changed
@@ -136,7 +137,7 @@ Every redirect is built with `reverse(...)`.
   for a named job. Older links' `roll` and bare rolls read as General.
   `side_job_menus()` gives the template each menu's label and options;
   options that redraw the menu are marked `switch`.
-- **Add side job**, each **−** button, and a menu option marked `switch`
+- **Add side job**, each remove (dustbin) button, and a menu option marked `switch`
   submit the form with `add_side_job`, `remove_side_job=N` or `update`.
   `side_job_changes` in `n26/core/views/scenarios.py` redirects these to a
   clean address keeping the scenario shown, anchored at
@@ -144,6 +145,13 @@ Every redirect is built with `reverse(...)`.
   hidden Update button when a `switch` option is chosen. Both generators use
   `side_job_changes` and the shared include
   `n26/core/templates/n26/includes/scenario_picks.html`.
+- A side job's **Reroll** link adds `reroll=<key>` to the address.
+  `reroll_dialog` in `n26/core/views/scenarios.py` then gives the
+  `scenario-reroll` island its props, and each side job's link for
+  `includes/scenario_results.html` (`reroll_links`). The dialog submits the
+  address's picks and rolls with `reroll_set`; `side_job_changes` passes that
+  to `_rerolled`, which calls `reroll_side_job` in `n26/core/scenarios.py` and
+  sets that side job's menu to the new set with `with_side_job_set`.
 - `generate()` resolves the scenario.
 - Leaving every component out produces a form error. A side job alone is
   enough.
@@ -234,7 +242,11 @@ battle's name and outcome. No migration is required.
 The `battle-scenario` island supplies an optional compact preview on creation.
 Its props, from `n26/core/views/scenario_props.py`, include `sideJobSets`,
 `sideJobKeys` and `sideJobLimit`, so the island draws the same side job menus
-and sends the same `<key>_pick` and `side_jobs` values.
+and sends the same `<key>_pick` and `side_jobs` values. Its **Reroll** dialog
+sends the current result as named picks, with the chosen set for the one side
+job, so the server rolls only that one. The dialog is drawn in a portal on
+`document.body`, because on the battle form the island sits inside the page's
+form.
 It calls the existing generator with `generate=1&format=json`; rolls are still
 chosen on the server. Component validation remains in `BattleForm` and
 `record_battle`. A blank battle name is assigned `Battle #N` under the campaign

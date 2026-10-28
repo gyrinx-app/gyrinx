@@ -100,3 +100,16 @@ def test_a_history_note_round_trips_side_jobs():
     saved, name = read_history_note(history_note(rolls, "Sump clash"))
     assert rolls_of(results(saved)) == rolls
     assert name == "Sump clash"
+
+
+def test_reroll_side_job_rolls_only_that_side_job():
+    from n26.core.scenarios import reroll_side_job
+
+    found, _ = parse({"crew": "2", "side_job": "escher-3", "side_job_2": "goliath-1"})
+    rolls = reroll_side_job(found, "side_job_2", "escher", random.Random(1))  # nosec B311
+    assert rolls["crew"] == 2
+    assert rolls["side_job"] == "escher-3"
+    assert rolls["side_job_2"].startswith("escher-")
+    assert rolls["side_job_2"] != "escher-3"
+    assert reroll_side_job(found, "side_job_3", "escher") is None
+    assert reroll_side_job(found, "side_job", "orlock") is None
