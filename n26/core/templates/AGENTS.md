@@ -41,6 +41,10 @@ interactive template. The component gallery instructions live in
   still returns 200. Repeat the component in `{% if %}` branches and pass each
   original dotted path. Rendered text uses `attr="{{ name }}"` without the
   colon. `scripts/check_cotton.py` rejects the colon form.
+- `<c-n26.share url="{{ share_url }}">` keeps a query string's `&`. Cotton
+  hands the component an escaped string, and `share_props` decodes it once
+  before the island JSON. `:url="share_url"` passes the Python string through
+  and is left unchanged. Do not decode the URL again in the template.
 - A `{% if %}` inside a `<c-...>` opening tag is not parsed. Cotton emits the
   source as junk attributes. Do not write `{% if %}` there to toggle `disabled`.
 - HTML boolean attributes are live when present. `:disabled="False"` still
