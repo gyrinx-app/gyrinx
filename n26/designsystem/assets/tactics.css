@@ -760,14 +760,24 @@
     color: var(--tactic-label);
     font-size: 11px;
 }
-/* Lines fill the card's body behind where notes would be, and take no
-   room in the flow, so fitting the (empty) notes leaves them be. */
-.n26-tactics-print-view .n26-tactic-content {
-    position: relative;
+/* A printed card with no notes is ruled down its whole body, with the
+   bonus label, if any, under the lines. Nothing is fitted (useFittedRules
+   skips it), so the lines keep their spacing. */
+.n26-tactics-print-view .n26-tactic-content:has(.n26-tactic-notes-lines) {
+    display: flex;
+    flex-direction: column;
+}
+.n26-tactics-print-view .n26-tactic-rules:has(.n26-tactic-notes-lines) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.n26-tactics-print-view .n26-tactic-bonus {
+    text-align: right;
 }
 .n26-tactic-notes-lines {
-    position: absolute;
-    inset: 1em 0.75em;
+    flex: 1;
+    min-height: 3.2em;
     background: repeating-linear-gradient(
         transparent 0 calc(1.6em - 1px),
         var(--tactic-line) calc(1.6em - 1px) 1.6em
