@@ -44,8 +44,9 @@ export function TacticCard({
     };
 }) {
     const content = useRef<HTMLDivElement>(null);
-    // A printed card shrinks its notes to fit; on screen the box scrolls.
-    useFittedRules(content, card, printView);
+    // A printed card shrinks its notes to fit; on screen the box scrolls,
+    // and a printed card without notes has only lines to draw.
+    useFittedRules(content, card, printView && Boolean(card.notes));
     return (
         <article
             className="n26-tactic-card"
