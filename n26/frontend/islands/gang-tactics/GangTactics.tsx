@@ -36,6 +36,10 @@ export type GangTacticsProps = {
     csrfToken: string;
     rollUrl: string;
     batchUrl: string;
+    /** Where the owner saves a card's notes, with TACTIC for its pk. */
+    notesUrl: string;
+    /** The site's TinyMCE, which the owner's notes boxes load. */
+    editorScript: string;
     /** Every set in the library: a bonus card may come from any of them. */
     bonusChoices: GangTacticsProps["tableChoices"];
     bonusUrl: string;
@@ -69,7 +73,8 @@ export function GangTactics(props: GangTacticsProps) {
               : "grid",
     );
     const [active, setActive] = useState(0);
-    const [columns, setColumns] = useState(5);
+    // Four across leaves room on each card for its notes box and links.
+    const [columns, setColumns] = useState(4);
     const [screenScale, setScreenScale] = useState(1);
     const [lastStart, setLastStart] = useState(Math.max(0, cards.length - 1));
     const [generationOpen, setGenerationOpen] = useState(false);
@@ -456,6 +461,26 @@ export function GangTactics(props: GangTacticsProps) {
                 selected={selected.has(card.pk)}
                 printView={printView}
                 onToggle={() => toggleCard(card.pk)}
+                notes={
+                    yours
+                        ? {
+                              saveUrl: props.notesUrl.replace(
+                                  "TACTIC",
+                                  card.pk,
+                              ),
+                              csrfToken: props.csrfToken,
+                              editorScript: props.editorScript,
+                              onSaved: (notes) =>
+                                  setCards((shown) =>
+                                      shown.map((one) =>
+                                          one.tactic === card.tactic
+                                              ? { ...one, notes }
+                                              : one,
+                                      ),
+                                  ),
+                          }
+                        : undefined
+                }
             />
         </li>
     ));
@@ -913,9 +938,9 @@ export function GangTactics(props: GangTacticsProps) {
                 )}
                 {cards.length > 0 && (
                     <p className="n26-tactics-disclaimer text-xs text-muted">
-                        All text is provided for reference only. Please consult
-                        the official Necromunda Skirmish books/journals for
-                        official wording.
+                        Suggested summaries are a guide, not the rules. Check
+                        the official Necromunda Skirmish books and journals for
+                        the full wording.
                     </p>
                 )}
             </section>

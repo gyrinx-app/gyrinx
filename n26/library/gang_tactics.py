@@ -24,10 +24,6 @@ from dataclasses import dataclass
 SLOT_TYPE = "Gang Tactic"
 SLOT_TYPE_PLURAL = "Gang Tactics"
 
-#: Game terms of several words that the tactics' rules text uses. Each is
-#: one keyword, so its small words are drawn as part of it.
-KEYWORD_PHRASES = ("Out of Action", "Out of Ammo")
-
 
 @dataclass(frozen=True)
 class SeedTable:

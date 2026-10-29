@@ -1403,6 +1403,30 @@ class Operation:
         self.event(None, LedgerEvent.Kind.TACTIC_DISCARDED, note=note)
         return held
 
+    def edit_tactic_notes(self, pickable, notes):
+        """Store the owner's notes on one tactic, and say they changed.
+
+        ``notes`` is already cleaned (``clean_tactics_notes``). Kept per
+        gang and tactic, so a tactic rolled again finds them. As
+        ``edit_notes``: unchanged notes write nothing, and the journal
+        names the tactic and never the words.
+        """
+        from n26.core.models import GangTacticNotes
+
+        kept = (
+            GangTacticNotes.objects.select_for_update()
+            .filter(gang=self.gang, pickable=pickable)
+            .first()
+        )
+        if (kept.notes if kept else "") == notes:
+            return kept
+        if kept is None:
+            kept = GangTacticNotes(gang=self.gang, pickable=pickable)
+        kept.notes = notes
+        kept.save()
+        self.event(None, LedgerEvent.Kind.TACTIC_NOTES_EDITED, note=pickable.name)
+        return kept
+
     def reroll_tactic(self, held, table, rng=None):
         """Swap one Gang Tactic for a new roll (``n26.core.tactics``)."""
         from n26.core.tactics import reroll_tactic

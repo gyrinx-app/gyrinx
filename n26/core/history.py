@@ -1046,6 +1046,8 @@ def _tell(e, row, alive):
             return (Span(f"discarded the Gang Tactic {e.note}"),), "gang"
         case Kind.TACTIC_REROLLED:
             return (Span(f"re-rolled the Gang Tactic {e.note}"),), "gang"
+        case Kind.TACTIC_NOTES_EDITED:
+            return (Span(f"edited the notes on the Gang Tactic {e.note}"),), "gang"
         case Kind.NOTED:
             # About no model, so about the gang — as a rename is.
             if model is None:

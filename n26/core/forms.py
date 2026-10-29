@@ -1565,6 +1565,32 @@ class CampaignGroupingForm(forms.Form):
         return colours
 
 
+class TacticNotesForm(forms.Form):
+    """One Gang Tactics card's notes box. One field, one save.
+
+    Optional, because saving an empty box clears the
+    notes. Unlike the other notes boxes, what arrives is cleaned before it
+    is stored (``clean_tactics_notes``), and the length is checked on the
+    cleaned text, so a paste heavy with markup still fits once stripped.
+    The raw limit only stops a request far bigger than any paste.
+    """
+
+    notes = forms.CharField(required=False, strip=False, max_length=100_000)
+
+    def clean_notes(self):
+        from n26.core.templatetags.richtext import (
+            TACTICS_NOTES_MAX_LENGTH,
+            clean_tactics_notes,
+        )
+
+        notes = clean_tactics_notes(self.cleaned_data["notes"])
+        if len(notes) > TACTICS_NOTES_MAX_LENGTH:
+            raise forms.ValidationError(
+                "These notes are too long to save. Shorten them and try again."
+            )
+        return notes
+
+
 class RollTacticsForm(forms.Form):
     """Which table to roll Gang Tactics on, and how many to roll.
 

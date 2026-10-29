@@ -16,8 +16,9 @@ const props: GangTacticsProps = {
             table_name: "Escher",
             dice_label: "D6",
             roll: 3,
-            timing: [],
-            effect: [],
+            tactic: "chem-queen",
+            notes: "",
+            suggested_notes: "",
             developed: false,
             reference: "Book · Page 42",
             tableKey: "escher",
@@ -37,6 +38,8 @@ const props: GangTacticsProps = {
     count: "1",
     errors: {},
     csrfToken: "token",
+    notesUrl: "/tactics/TACTIC/notes/",
+    editorScript: "",
     rollUrl: "/tactics/",
     batchUrl: "/tactics/batch/",
     bonusChoices: [
@@ -150,7 +153,7 @@ test("reroll retains the dialog and current cards after a server refusal", async
 
 test("the reference-only disclaimer follows the cards, and only when there are cards", () => {
     const disclaimer =
-        "All text is provided for reference only. Please consult the official Necromunda Skirmish books/journals for official wording.";
+        "Suggested summaries are a guide, not the rules. Check the official Necromunda Skirmish books and journals for the full wording.";
     const view = render(<GangTactics {...props} />);
     expect(screen.getByText(disclaimer)).toBeTruthy();
     view.unmount();
