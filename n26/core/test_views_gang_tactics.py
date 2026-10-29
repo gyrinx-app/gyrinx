@@ -16,7 +16,7 @@ from django.urls import reverse
 
 from n26.core.models import Gang, GangTactic, LedgerEvent
 from n26.core.operations import Refusal, operation
-from n26.core.tactics import allowance, cards, held, keywords, tables
+from n26.core.tactics import allowance, cards, held, tables
 from n26.library.models import Picklist, PicklistMember, Subtype
 
 pytestmark = pytest.mark.django_db
@@ -428,94 +428,211 @@ class TestCampaignFlag:
         assert re.search(r'"tooManyTactics":\s*true', response.content.decode())
 
 
-class TestTheTextSwitch:
+def notes_file(tmp_path, monkeypatch, table, name, timing, effect):
+    """A local tactics notes file with one row, named in the environment."""
+    path = tmp_path / "tactics-notes.csv"
+    path.write_text(f"table,name,timing,effect\n{table},{name},{timing},{effect}\n")
+    monkeypatch.setenv("N26_TACTICS_NOTES", str(path))
+
+
+class TestSuggestedTacticsNotes:
     def test_off_the_card_gives_the_page_reference(self, tester, gang, roster):
         with operation(gang, actor=tester) as op:
             op.roll_tactics(key("Escher"), 1)
-        (card,) = cards(held(gang), show_text=False)
+        (card,) = cards(held(gang), suggest=False)
         assert card.reference == "Page 42 - Underhive Journal: Escher"
-        assert card.timing == () and card.effect == ()
+        assert card.suggested_notes == ""
 
-    def test_on_the_card_reads_the_local_text(
+    def test_on_the_card_suggests_a_summary_from_the_local_file(
         self, tester, gang, roster, tmp_path, monkeypatch
     ):
         with operation(gang, actor=tester) as op:
             (gained,) = op.roll_tactics(key("Escher"), 1)
-        text = tmp_path / "tactics.csv"
-        text.write_text(
-            "table,name,timing,effect\n"
-            f"escher,{gained.pickable.name},When a Fighter moves.,They move.\n"
+        notes_file(
+            tmp_path, monkeypatch, "escher", gained.pickable.name, "Now.", "They move."
         )
-        monkeypatch.setenv("N26_GANG_TACTICS_TEXT", str(text))
-        (card,) = cards(held(gang), show_text=True)
-        assert "".join(run.text for run in card.timing) == "When a Fighter moves."
+        (card,) = cards(held(gang), suggest=True)
+        assert card.suggested_notes == (
+            "<p><strong>Timing:</strong> Now.</p>"
+            "<p><strong>Effect:</strong> They move.</p>"
+        )
+
+    def test_the_suggestion_is_escaped(
+        self, tester, gang, roster, tmp_path, monkeypatch
+    ):
+        with operation(gang, actor=tester) as op:
+            (gained,) = op.roll_tactics(key("Escher"), 1)
+        notes_file(
+            tmp_path,
+            monkeypatch,
+            "escher",
+            gained.pickable.name,
+            "<script>alert(1)</script>",
+            "<b>x</b>",
+        )
+        (card,) = cards(held(gang), suggest=True)
+        assert "<script>" not in card.suggested_notes
+        assert "&lt;script&gt;" in card.suggested_notes
+        assert "<b>" not in card.suggested_notes
 
     def test_the_page_follows_the_switch(
         self, client, tester, gang, roster, tmp_path, monkeypatch
     ):
-        """The reference is always available; rules text follows the switch."""
+        """The reference is always there; the suggestion follows the switch."""
         from gyrinx.site.models import Availability, FeatureFlag
-        from n26.flags import GANG_TACTICS_TEXT
+        from n26.flags import TACTICS_NOTES
 
         with operation(gang, actor=tester) as op:
             (gained,) = op.roll_tactics(key("Escher"), 1)
-        text = tmp_path / "tactics.csv"
-        text.write_text(
-            "table,name,timing,effect\n"
-            f"Escher,{gained.pickable.name},When a Fighter moves.,They move.\n"
+        notes_file(
+            tmp_path, monkeypatch, "Escher", gained.pickable.name, "Now.", "They move."
         )
-        monkeypatch.setenv("N26_GANG_TACTICS_TEXT", str(text))
         reference = "Page 42 - Underhive Journal: Escher"
         (card,) = client.get(page(gang)).context["tactics_island"]["cards"]
         assert card["reference"] == reference
-        assert card["effect"] == ()
+        assert card["suggested_notes"] == ""
         FeatureFlag.objects.create(
-            slug=GANG_TACTICS_TEXT, name="Text", availability=Availability.EVERYONE
+            slug=TACTICS_NOTES, name="Tactics notes", availability=Availability.EVERYONE
         )
         (card,) = client.get(page(gang)).context["tactics_island"]["cards"]
         assert card["reference"] == reference
-        assert "".join(run["text"] for run in card["effect"]) == "They move."
+        assert "They move." in card["suggested_notes"]
 
-    def test_on_without_words_the_card_still_gives_the_reference(
+    def test_on_without_a_file_the_card_still_gives_the_reference(
         self, tester, gang, roster, monkeypatch
     ):
-        monkeypatch.delenv("N26_GANG_TACTICS_TEXT", raising=False)
+        monkeypatch.delenv("N26_TACTICS_NOTES", raising=False)
         with operation(gang, actor=tester) as op:
             op.roll_tactics(key("Escher"), 1)
-        (card,) = cards(held(gang), show_text=True)
-        assert card.effect == ()
+        (card,) = cards(held(gang), suggest=True)
+        assert card.suggested_notes == ""
         assert card.reference
 
 
-def bold(text):
-    return "".join(
-        f"[{run.text}]" if run.keyword else run.text for run in keywords(text)
+def save_notes(client, gang, tactic, notes):
+    return client.post(
+        reverse("n26-gang-tactic-notes", args=[gang.pk, tactic.pk]), {"notes": notes}
     )
 
 
-class TestKeywords:
-    def test_a_capitalised_word_mid_sentence_is_a_keyword(self):
-        assert (
-            bold("Then a friendly Fighter moves.") == "Then a friendly [Fighter] moves."
+class TestSavingTacticsNotes:
+    def test_the_owner_saves_notes_onto_the_card(self, client, tester, gang, roster):
+        with operation(gang, actor=tester) as op:
+            (gained,) = op.roll_tactics(key("Escher"), 1)
+        client.force_login(tester)
+        response = save_notes(client, gang, gained, "<p>Use on <b>turn 2</b>.</p>")
+        assert response.status_code == 200
+        assert response.json() == {"notes": "<p>Use on <b>turn 2</b>.</p>"}
+        (card,) = cards(held(gang), suggest=False)
+        assert card.notes == "<p>Use on <b>turn 2</b>.</p>"
+
+    def test_saving_is_logged_without_the_words(self, client, tester, gang, roster):
+        with operation(gang, actor=tester) as op:
+            (gained,) = op.roll_tactics(key("Escher"), 1)
+        client.force_login(tester)
+        save_notes(client, gang, gained, "<p>Secret plan.</p>")
+        save_notes(client, gang, gained, "<p>Secret plan.</p>")
+        (event,) = LedgerEvent.objects.filter(
+            gang=gang, kind=LedgerEvent.Kind.TACTIC_NOTES_EDITED
+        )
+        assert event.note == gained.pickable.name
+
+    def test_everything_but_emphasis_and_lists_is_stripped(
+        self, client, tester, gang, roster
+    ):
+        with operation(gang, actor=tester) as op:
+            (gained,) = op.roll_tactics(key("Escher"), 1)
+        client.force_login(tester)
+        pasted = (
+            '<h1 style="color:red">Big</h1><script>alert(1)</script>'
+            '<p onclick="x()" class="y"><a href="javascript:x()">link</a> '
+            '<img src="x" onerror="x()"><span style="font-size:90px">'
+            "<u>under</u></span></p><table><tr><td>cell</td></tr></table>"
+            "<ul><li><em>one</em></li></ul>"
+        )
+        stored = save_notes(client, gang, gained, pasted).json()["notes"]
+        assert stored == (
+            "Big<p>link <u>under</u></p>\ncell<ul><li><em>one</em></li></ul>"
         )
 
-    def test_the_first_word_of_a_sentence_is_not(self):
-        assert bold("Select one. The Fighter moves.") == (
-            "Select one. The [Fighter] moves."
-        )
+    def test_notes_too_long_once_cleaned_are_refused(
+        self, client, tester, gang, roster
+    ):
+        from n26.core.templatetags.richtext import TACTICS_NOTES_MAX_LENGTH
 
-    def test_neighbouring_keywords_join(self):
-        assert bold("Play this Gang Tactic now.") == "Play this [Gang Tactic] now."
-
-    def test_a_known_phrase_is_one_keyword(self):
-        assert bold("They go Out of Action, then Out of Ammo.") == (
-            "They go [Out of Action], then [Out of Ammo]."
+        with operation(gang, actor=tester) as op:
+            (gained,) = op.roll_tactics(key("Escher"), 1)
+        client.force_login(tester)
+        response = save_notes(
+            client, gang, gained, "x" * (TACTICS_NOTES_MAX_LENGTH + 1)
         )
+        assert response.status_code == 400
+        assert "too long" in response.json()["error"]
+        assert not gang.tactic_notes.exists()
 
-    def test_a_bracket_after_a_keyword_joins_it(self):
-        assert (
-            bold('With the Blast (3"/5") trait.') == 'With the [Blast (3"/5")] trait.'
-        )
+    def test_markup_that_cleans_away_does_not_count_against_the_length(
+        self, client, tester, gang, roster
+    ):
+        from n26.core.templatetags.richtext import TACTICS_NOTES_MAX_LENGTH
+
+        with operation(gang, actor=tester) as op:
+            (gained,) = op.roll_tactics(key("Escher"), 1)
+        client.force_login(tester)
+        words = TACTICS_NOTES_MAX_LENGTH // 2
+        pasted = '<span style="color:red">x</span>' * words
+        assert len(pasted) > TACTICS_NOTES_MAX_LENGTH
+        response = save_notes(client, gang, gained, pasted)
+        assert response.status_code == 200
+        assert response.json()["notes"] == "x" * words
+
+    def test_someone_else_cannot_save(self, client, gang, roster, tester):
+        with operation(gang, actor=tester) as op:
+            (gained,) = op.roll_tactics(key("Escher"), 1)
+        client.force_login(User.objects.create_user("stranger"))
+        assert save_notes(client, gang, gained, "<p>Mine now.</p>").status_code == 404
+        assert not gang.tactic_notes.exists()
+
+    def test_signed_out_cannot_save(self, client, gang, roster, tester):
+        with operation(gang, actor=tester) as op:
+            (gained,) = op.roll_tactics(key("Escher"), 1)
+        response = save_notes(client, gang, gained, "<p>Hello.</p>")
+        assert response.status_code == 302
+        assert not gang.tactic_notes.exists()
+
+    def test_a_discarded_card_cannot_take_notes(self, client, tester, gang, roster):
+        with operation(gang, actor=tester) as op:
+            (gained,) = op.roll_tactics(key("Escher"), 1)
+            op.discard_tactic(gained, note="")
+        client.force_login(tester)
+        assert save_notes(client, gang, gained, "<p>Late.</p>").status_code == 404
+
+    def test_notes_come_back_when_the_tactic_is_rolled_again(
+        self, client, tester, gang, roster
+    ):
+        with operation(gang, actor=tester) as op:
+            (gained,) = op.roll_tactics(key("Escher"), 1)
+        client.force_login(tester)
+        save_notes(client, gang, gained, "<p>Kept.</p>")
+        with operation(gang, actor=tester) as op:
+            op.discard_tactic(gained, note="")
+            op.gain_tactic(
+                picklist=gained.picklist,
+                pickable=gained.pickable,
+                roll=gained.roll,
+                dice=gained.picklist.dice,
+                source=None,
+                note="",
+            )
+        (card,) = cards(held(gang), suggest=False)
+        assert card.pk != str(gained.pk)
+        assert card.notes == "<p>Kept.</p>"
+
+    def test_only_the_owner_is_given_the_editor(self, client, tester, gang, roster):
+        island = client.get(page(gang)).context["tactics_island"]
+        assert island["editorScript"] == ""
+        client.force_login(tester)
+        island = client.get(page(gang)).context["tactics_island"]
+        assert island["editorScript"].endswith("tinymce.min.js")
 
 
 class TestRerollingSeveral:
@@ -595,7 +712,7 @@ class TestBonusCards:
     def test_the_card_is_marked(self, tester, gang, roster):
         with operation(gang, actor=tester) as op:
             op.roll_bonus_tactics(key("Universal"), 1)
-        (card,) = cards(held(gang), show_text=False)
+        (card,) = cards(held(gang), suggest=False)
         assert card.bonus
 
     def test_someone_else_cannot_draw(self, client, gang, roster):

@@ -183,3 +183,33 @@ def safe_rich_text(value):
             strip_comments=True,
         )
     )
+
+
+#: What a Gang Tactics card's notes may hold. The card is small and fixed,
+#: so a paste keeps its emphasis, paragraphs and lists and loses anything
+#: that would change the card's size or colours or lead off it: no links,
+#: pictures, headings, tables or styles, and no attributes at all.
+TACTICS_NOTES_TAGS = {"p", "br", "strong", "b", "em", "i", "u", "ul", "ol", "li"}
+
+#: The most a card's notes may hold, in characters of HTML. Far more than
+#: fits on a card, and small enough that no save can bloat a row.
+TACTICS_NOTES_MAX_LENGTH = 5000
+
+
+def clean_tactics_notes(value):
+    """Tactics notes cut down to ``TACTICS_NOTES_TAGS``, with no attributes.
+
+    Run on the way in, so a row never holds more than a card can draw, and
+    again on the way out, as every stored rich text is. Returns a plain
+    string: a caller putting it in a template still goes through
+    ``safe_rich_text``, and React draws it only after this has run.
+    """
+    if not value:
+        return ""
+    return bleach.clean(
+        _DROP_WITH_CONTENT.sub("", str(value)),
+        tags=TACTICS_NOTES_TAGS,
+        attributes={},
+        strip=True,
+        strip_comments=True,
+    ).strip()

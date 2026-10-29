@@ -9,8 +9,9 @@ const card: Card = {
     table_name: "Escher",
     dice_label: "D6",
     roll: 3,
-    timing: [{ text: "Play this tactic.", keyword: true }],
-    effect: [],
+    tactic: "chem-queen",
+    notes: "<p>Play this tactic.</p>",
+    suggested_notes: "",
     developed: false,
     reference: "Page 42 - Underhive Journal: Escher",
     tableKey: "escher",
@@ -31,7 +32,7 @@ test("body text grows up to its maximum while reserving 20 percent", () => {
     const fitted = fitRules(100, 14, (size) => Math.ceil(size) * 20);
     expect(Math.ceil(fitted) * 20).toBeLessThanOrEqual(80);
 });
-test("click, Space and Enter select the same card without bolding keywords", () => {
+test("click, Space and Enter select the same card", () => {
     const toggle = vi.fn();
     render(
         <TacticCard
@@ -62,22 +63,63 @@ test("print cards have no selection interaction", () => {
     expect(toggle).not.toHaveBeenCalled();
 });
 
-test("a bonus card says so under its rules, not in the footer", () => {
+test("a bonus card says so under the Save notes button, not in the footer", () => {
     const view = render(
         <TacticCard
             card={{
                 ...card,
-                effect: [{ text: "They move.", keyword: false }],
                 bonus: true,
             }}
             selected={false}
             printView={false}
             onToggle={() => {}}
+            notes={{
+                saveUrl: "/notes/",
+                csrfToken: "token",
+                editorScript: "/tinymce.js",
+                onSaved: () => {},
+            }}
         />,
     );
     const label = screen.getByText("Bonus card");
-    expect(label.closest(".n26-tactic-rules")).toBeTruthy();
+    const save = screen.getByRole("button", { name: "Save notes" });
+    expect(label.previousElementSibling?.contains(save)).toBe(true);
     expect(view.container.querySelector("footer")?.textContent).not.toContain(
         "Bonus",
     );
+});
+
+test("a printed bonus card still says so", () => {
+    render(
+        <TacticCard
+            card={{ ...card, bonus: true }}
+            selected={false}
+            printView
+            onToggle={() => {}}
+        />,
+    );
+    expect(screen.getByText("Bonus card")).toBeTruthy();
+});
+
+test("a printed card shows only the saved notes, or lines to write on", () => {
+    const { container, rerender } = render(
+        <TacticCard
+            card={{ ...card, suggested_notes: "<p>Suggested.</p>" }}
+            selected={false}
+            printView
+            onToggle={() => {}}
+        />,
+    );
+    expect(screen.getByText("Play this tactic.")).toBeTruthy();
+    expect(screen.queryByText("Suggested.")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+    rerender(
+        <TacticCard
+            card={{ ...card, notes: "" }}
+            selected={false}
+            printView
+            onToggle={() => {}}
+        />,
+    );
+    expect(container.querySelector(".n26-tactic-notes-lines")).toBeTruthy();
 });
