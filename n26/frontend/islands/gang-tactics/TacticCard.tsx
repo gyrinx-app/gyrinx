@@ -1,23 +1,26 @@
 import { useRef } from "react";
 import { Icon } from "../../ui";
 import { useFittedRules } from "./useFittedRules";
+import { TacticNotes } from "./TacticNotes";
 
-type Words = { text: string; keyword: boolean };
 export type Card = {
     pk: string;
     name: string;
     table_name: string;
     dice_label: string;
     roll: number;
-    timing: Words[];
-    effect: Words[];
+    /** The tactic the notes are kept against. */
+    tactic: string;
+    /** The owner's saved tactics notes, cleaned by the server. */
+    notes: string;
+    /** A suggested summary to start notes from, escaped by the server. */
+    suggested_notes: string;
     developed: boolean;
     reference: string;
     tableKey: string;
     /** Drawn as a bonus, outside the ranks' allowance. */
     bonus?: boolean;
 };
-const words = (runs: Words[]) => runs.map((run) => run.text).join("");
 const referenceText = (reference: string) =>
     reference.replace(/^(Pages?\s+[\d/–—, -]+?)\s+-\s+(.+)$/i, "$2 · $1");
 
@@ -26,14 +29,24 @@ export function TacticCard({
     selected,
     printView,
     onToggle,
+    notes,
 }: {
     card: Card;
     selected: boolean;
     printView: boolean;
     onToggle: () => void;
+    /** For the owner: where and how this card's notes are saved. */
+    notes?: {
+        saveUrl: string;
+        csrfToken: string;
+        editorScript: string;
+        onSaved: (notes: string) => void;
+    };
 }) {
     const content = useRef<HTMLDivElement>(null);
-    useFittedRules(content, card);
+    // A printed card shrinks its notes to fit; on screen the box scrolls,
+    // and a printed card without notes has only lines to draw.
+    useFittedRules(content, card, printView && Boolean(card.notes));
     return (
         <article
             className="n26-tactic-card"
@@ -62,19 +75,32 @@ export function TacticCard({
             </header>
             <div className="n26-tactic-content" ref={content}>
                 <div className="n26-tactic-rules">
-                    {card.timing.length > 0 && (
-                        <div className="n26-tactic-rule">
-                            <h4>Timing</h4>
-                            <p>{words(card.timing)}</p>
-                        </div>
+                    {printView ? (
+                        card.notes ? (
+                            // Cleaned by the server (clean_tactics_notes).
+                            <div
+                                className="n26-tactic-notes-box"
+                                dangerouslySetInnerHTML={{ __html: card.notes }}
+                            />
+                        ) : (
+                            <div
+                                className="n26-tactic-notes-lines"
+                                aria-label="Space for notes"
+                            />
+                        )
+                    ) : (
+                        <TacticNotes
+                            name={card.name}
+                            notes={card.notes}
+                            suggested={card.suggested_notes}
+                            saveUrl={notes?.saveUrl}
+                            csrfToken={notes?.csrfToken}
+                            editorScript={notes?.editorScript}
+                            onSaved={notes?.onSaved}
+                            bonus={card.bonus}
+                        />
                     )}
-                    {card.effect.length > 0 && (
-                        <div className="n26-tactic-rule">
-                            <h4>Effect</h4>
-                            <p>{words(card.effect)}</p>
-                        </div>
-                    )}
-                    {card.bonus && (
+                    {printView && card.bonus && (
                         <p className="n26-tactic-bonus">Bonus card</p>
                     )}
                 </div>

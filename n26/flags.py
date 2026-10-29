@@ -22,8 +22,8 @@ from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_o
 
 __all__ = [
     "BUILT_IN_PROPAGATION",
-    "GANG_TACTICS_TEXT",
     "STAGED_CONTENT",
+    "TACTICS_NOTES",
     "enabled",
     "requires_flag",
     "switched_on",
@@ -38,9 +38,10 @@ BUILT_IN_PROPAGATION = "built-in-propagation"
 #: does, so a release can be rehearsed with a group before it is made.
 STAGED_CONTENT = "staged-content"
 
-#: Gang Tactics cards printing each tactic's timing and effect. Shut, a card
-#: prints the tactic's name and where to read it in the book. Read site-wide
-#: (``switched_on``), so every reader of a card sees the same words.
-GANG_TACTICS_TEXT = "gang-tactics-text"
+#: Gang Tactics cards offering tactics notes: a suggested summary of each
+#: tactic, read from a local file, that a reader can copy into their own
+#: notes. Helper text, not the official rules. Read site-wide
+#: (``switched_on``), so every reader of a card is offered the same words.
+TACTICS_NOTES = "tactics-notes"
 
-register_flags(BUILT_IN_PROPAGATION, STAGED_CONTENT, GANG_TACTICS_TEXT)
+register_flags(BUILT_IN_PROPAGATION, STAGED_CONTENT, TACTICS_NOTES)

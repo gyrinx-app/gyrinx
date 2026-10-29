@@ -17,17 +17,21 @@ The tables are library roll tables (``n26.library.gang_tactics``): a
 gang may roll on each one a modifier gives it, through a hidden slot of
 the ``Gang Tactic`` slot type.
 
-What a tactic's timing and effect say is rules text, which the edition
-does not store. Where ``N26_GANG_TACTICS_TEXT`` names a local CSV
-(columns ``table``, ``name``, ``timing``, ``effect``) and the
-``gang-tactics-text`` switch is on, the cards show its words; otherwise
-they show where the tactic is printed.
+A card's body is the owner's **tactics notes**: their own words about
+the tactic, kept per gang and tactic (``GangTacticNotes``), so a tactic
+rolled again later finds its notes waiting. The site never stores the
+rules themselves. Where ``N26_TACTICS_NOTES`` names a local CSV (columns
+``table``, ``name``, ``timing``, ``effect``) and the ``tactics-notes``
+switch is on, each card also offers a suggested summary built from it.
+That is helper text, not the official rules: it reaches the page only
+for a reader to copy into their own notes, and is never saved on its own.
 """
 
 import csv
 import os
-import re
 from dataclasses import dataclass
+
+from django.utils.html import escape
 
 from n26.core.operations import Refusal
 
@@ -60,23 +64,19 @@ class TacticCard:
     table_name: str
     dice_label: str
     roll: int
-    #: Each a tuple of ``Words``: the text in runs, keywords marked.
-    timing: tuple
-    effect: tuple
+    #: The tactic, which the owner's notes are kept against.
+    tactic: str
+    #: The owner's saved notes, cleaned to what a card may draw.
+    notes: str = ""
+    #: The suggested summary from the local tactics notes file, as HTML
+    #: with every word escaped. Empty where there is none.
+    suggested_notes: str = ""
     #: Rolled by the Develop Tactics action, or re-rolled from one that was.
     developed: bool = False
     #: Where the tactic is printed in the books.
     reference: str = ""
     #: Drawn as a bonus, outside the ranks' allowance.
     bonus: bool = False
-
-
-@dataclass(frozen=True)
-class Words:
-    """A run of a sentence, and whether it is a keyword."""
-
-    text: str
-    keyword: bool = False
 
 
 @dataclass(frozen=True)
@@ -297,23 +297,35 @@ def table_choices(gang, tactics, chosen="", *, bonus=False):
     ]
 
 
-def cards(tactics, show_text=None):
-    """The held tactics as cards, in the order they were rolled.
+def cards(tactics, suggest=None):
+    """The held tactics as cards, in the order they were rolled, each with
+    the gang's saved notes for that tactic.
 
-    ``show_text`` says whether the cards carry each tactic's timing and
-    effect; left out, the ``gang-tactics-text`` switch decides. Without
-    them a card says where to read the tactic instead: its summary.
+    ``suggest`` says whether the cards carry a suggested summary from the
+    tactics notes file; left out, the ``tactics-notes`` switch decides.
+    Every card says where the tactic is printed either way.
     """
+    from n26.core.models import GangTacticNotes
+    from n26.core.templatetags.richtext import clean_tactics_notes
     from n26.library.models.slots import Dice
 
-    if show_text is None:
-        from n26.flags import GANG_TACTICS_TEXT, switched_on
+    if suggest is None:
+        from n26.flags import TACTICS_NOTES, switched_on
 
-        show_text = switched_on(GANG_TACTICS_TEXT)
-    words = _tactics_text() if show_text else {}
+        suggest = switched_on(TACTICS_NOTES)
+    suggestions = _suggested_tactics_notes() if suggest else {}
+    tactics = list(tactics)
+    saved = {}
+    if tactics:
+        saved = dict(
+            GangTacticNotes.objects.filter(
+                gang_id=tactics[0].gang_id,
+                pickable_id__in=[tactic.pickable_id for tactic in tactics],
+            ).values_list("pickable_id", "notes")
+        )
     shown = []
     for tactic in tactics:
-        timing, effect = words.get(
+        timing, effect = suggestions.get(
             (_folded(tactic.picklist.name), _folded(tactic.pickable.name)), ("", "")
         )
         shown.append(
@@ -323,14 +335,26 @@ def cards(tactics, show_text=None):
                 table_name=tactic.picklist.name,
                 dice_label=Dice.label_for(tactic.picklist.dice),
                 roll=tactic.roll,
-                timing=keywords(timing),
-                effect=keywords(effect),
+                tactic=str(tactic.pickable_id),
+                notes=clean_tactics_notes(saved.get(tactic.pickable_id, "")),
+                suggested_notes=suggested_summary(timing, effect),
                 developed=tactic.action_record_id is not None,
                 bonus=tactic.bonus,
                 reference=tactic.pickable.summary,
             )
         )
     return shown
+
+
+def suggested_summary(timing, effect):
+    """A tactic's timing and effect as the HTML a notes box takes: one
+    paragraph each, labelled, every word escaped. Empty when both are."""
+    parts = [
+        f"<p><strong>{label}:</strong> {escape(text.strip())}</p>"
+        for label, text in (("Timing", timing), ("Effect", effect))
+        if text.strip()
+    ]
+    return "".join(parts)
 
 
 def roll_tactics(op, table_key, count, rng=None):
@@ -569,76 +593,6 @@ def too_many_tactics_sentence(gang):
     )
 
 
-#: A word, or the space between two.
-_TOKENS = re.compile(r"\s+|\S+")
-
-
-def keywords(text):
-    """Split rules text into runs, marking its keywords.
-
-    The books capitalise a game term mid-sentence (Fighter, Free action),
-    so a word that starts with a capital and does not open a sentence is
-    taken as one. Three more things count as part of a keyword: the small
-    words inside a known phrase (Out of Action), a bracket straight after
-    a keyword (Blast (3"/5")), and the space between two keywords, so
-    "Gang Tactic" is a single run. Punctuation after a keyword is not.
-    """
-    from n26.library.gang_tactics import KEYWORD_PHRASES
-
-    runs = []
-    opens_sentence = True
-    bracketed = False
-    for token in _TOKENS.findall(text):
-        if token.isspace():
-            runs.append([token, None])
-            continue
-        letters = token.lstrip("(\"'“‘")
-        after_keyword = _last_word_keyword(runs)
-        if bracketed or (token.startswith("(") and after_keyword):
-            keyword = True
-            bracketed = ")" not in token
-        else:
-            keyword = bool(letters[:1].isupper()) and not opens_sentence
-        word = token.rstrip(",.;:!?") if keyword else token
-        runs.append([word, keyword])
-        if word != token:
-            runs.append([token[len(word) :], False])
-        opens_sentence = token.rstrip("\"'”’)").endswith((".", "!", "?"))
-    _mark_phrases(runs, KEYWORD_PHRASES)
-    # A space takes the side of the words around it when both agree.
-    for at, run in enumerate(runs):
-        if run[1] is None:
-            before = runs[at - 1][1] if at else False
-            after = runs[at + 1][1] if at + 1 < len(runs) else False
-            run[1] = bool(before and after)
-    merged = []
-    for token, keyword in runs:
-        if merged and merged[-1][1] == keyword:
-            merged[-1][0] += token
-        else:
-            merged.append([token, keyword])
-    return tuple(Words(token, keyword) for token, keyword in merged)
-
-
-def _last_word_keyword(runs):
-    for token, keyword in reversed(runs):
-        if not token.isspace():
-            return bool(keyword) and token[-1:] not in ",.;:!?"
-    return False
-
-
-def _mark_phrases(runs, phrases):
-    """Mark every word of a known phrase as a keyword, wherever it sits."""
-    words = [at for at, (token, _) in enumerate(runs) if not token.isspace()]
-    for phrase in phrases:
-        wanted = phrase.split()
-        for start in range(len(words) - len(wanted) + 1):
-            found = words[start : start + len(wanted)]
-            if [runs[at][0] for at in found] == wanted:
-                for at in found:
-                    runs[at][1] = True
-
-
 def _rolled_note(table, landed, rolls):
     """What the log keeps: the tactic, and the rolls that found it."""
     said = f"{landed.label} ({table.name}, rolled {rolls[-1]}"
@@ -648,11 +602,11 @@ def _rolled_note(table, landed, rolls):
     return said + ")"
 
 
-def _tactics_text():
-    """The local timing and effect words, by table and tactic name, each
-    folded (``_folded``). Empty where no file is named or it cannot be
-    read."""
-    path = os.environ.get("N26_GANG_TACTICS_TEXT", "")
+def _suggested_tactics_notes():
+    """The local tactics notes file's timing and effect, by table and
+    tactic name, each folded (``_folded``). Empty where no file is named
+    or it cannot be read."""
+    path = os.environ.get("N26_TACTICS_NOTES", "")
     if not path:
         return {}
     try:

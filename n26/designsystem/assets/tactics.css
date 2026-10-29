@@ -641,3 +641,153 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }
+
+/* Tactics notes: the owner's words in the card's body. On screen the box
+   scrolls inside the card and its links sit under it, so a long note never
+   changes the card's size. In print the notes shrink to fit instead
+   (useFittedRules), and a card with none prints ruled lines to write on. */
+.n26-tactics-island:not(.n26-tactics-print-view) .n26-tactic-content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 8px;
+}
+.n26-tactics-island:not(.n26-tactics-print-view) .n26-tactic-rules {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.n26-tactic-notes {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.n26-tactic-notes-box {
+    position: relative;
+    flex: 1;
+    min-height: 3em;
+    overflow: auto;
+    margin: -3px -5px;
+    padding: 2px 4px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    outline: none;
+}
+.n26-tactic-notes-box[contenteditable="true"] {
+    border-style: dashed;
+    border-color: var(--tactic-line);
+    cursor: text;
+}
+.n26-tactic-notes-box[contenteditable="true"]:focus {
+    border-style: solid;
+    border-color: var(--tactic-label);
+}
+/* TinyMCE's placeholder; the editor runs without its skin, which would
+   otherwise draw it. */
+.n26-tactic-notes-box[data-mce-placeholder]:not(:focus)::before {
+    content: attr(data-mce-placeholder);
+    position: absolute;
+    color: var(--color-ink-500);
+}
+.n26-tactic-notes-box p + p,
+.n26-tactic-notes-box p + ul,
+.n26-tactic-notes-box p + ol,
+.n26-tactic-notes-box ul + p,
+.n26-tactic-notes-box ol + p {
+    margin-top: 0.6em;
+}
+.n26-tactic-notes-box ul {
+    list-style: disc;
+    padding-left: 1.2em;
+}
+.n26-tactic-notes-box ol {
+    list-style: decimal;
+    padding-left: 1.2em;
+}
+.n26-tactic-notes-box strong {
+    font-weight: 700;
+}
+.n26-tactic-notes-box em {
+    font-style: italic;
+}
+.n26-tactic-notes-box u {
+    text-decoration: underline;
+}
+.n26-tactic-notes-empty {
+    flex: 1;
+    color: var(--color-ink-500);
+    font-style: italic;
+}
+.n26-tactic-notes-actions {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.3;
+}
+.n26-tactic-notes-link {
+    color: var(--tactic-label);
+    text-align: left;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.n26-tactic-notes-save {
+    margin-left: auto;
+    padding: 3px 8px;
+    border: 1px solid var(--tactic-ink);
+    border-radius: 4px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+.n26-tactic-notes-save:not(:disabled):hover {
+    background: color-mix(in srgb, var(--tactic-ink) 10%, transparent);
+}
+.n26-tactic-notes-save:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.n26-tactic-notes-link:focus-visible,
+.n26-tactic-notes-save:focus-visible {
+    outline: 2px solid var(--tactic-label);
+    outline-offset: 2px;
+}
+.n26-tactic-notes-error {
+    color: var(--tactic-label);
+    font-size: 11px;
+}
+/* A printed card with no notes is ruled down its whole body, with the
+   bonus label, if any, under the lines. Nothing is fitted (useFittedRules
+   skips it), so the lines keep their spacing. */
+.n26-tactics-print-view .n26-tactic-content:has(.n26-tactic-notes-lines) {
+    display: flex;
+    flex-direction: column;
+}
+.n26-tactics-print-view .n26-tactic-rules:has(.n26-tactic-notes-lines) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.n26-tactics-print-view .n26-tactic-bonus {
+    text-align: right;
+}
+.n26-tactic-notes-lines {
+    flex: 1;
+    min-height: 3.2em;
+    background: repeating-linear-gradient(
+        transparent 0 calc(1.6em - 1px),
+        var(--tactic-line) calc(1.6em - 1px) 1.6em
+    );
+}
+
+/* On screen the label sits under the notes box's buttons, on the right,
+   so the box keeps the card's full width. */
+.n26-tactic-notes .n26-tactic-bonus {
+    flex-shrink: 0;
+    margin-top: 0;
+    text-align: right;
+}

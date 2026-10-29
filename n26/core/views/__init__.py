@@ -135,6 +135,7 @@ from n26.core.views.tactics import (
     batch_gang_tactics,
     bonus_gang_tactics,
     delete_gang_tactic,
+    gang_tactic_notes,
     gang_tactics,
     reroll_gang_tactic,
 )
@@ -232,6 +233,7 @@ __all__ = [
     "bonus_gang_tactics",
     "batch_gang_tactics",
     "delete_gang_tactic",
+    "gang_tactic_notes",
     "reroll_gang_tactic",
     "gang_sheet",
     "mark_fighter",

@@ -20,11 +20,12 @@ export function fitRules(
 export function useFittedRules(
     ref: RefObject<HTMLDivElement | null>,
     content: unknown,
+    enabled = true,
 ) {
     useLayoutEffect(() => {
         const box = ref.current;
         const rules = box?.firstElementChild as HTMLElement | null;
-        if (!box || !rules) return;
+        if (!enabled || !box || !rules) return;
         let disposed = false;
         const fit = () => {
             if (disposed || !box.clientHeight) return;
@@ -55,5 +56,5 @@ export function useFittedRules(
             window.removeEventListener("beforeprint", fit);
             window.removeEventListener("afterprint", fit);
         };
-    }, [ref, content]);
+    }, [ref, content, enabled]);
 }

@@ -234,6 +234,9 @@ class LedgerEvent(Base):
         # roll. The note names the tactic, and for a re-roll what replaced it.
         TACTIC_DISCARDED = "tactic_discarded", "Gang Tactic discarded"
         TACTIC_REROLLED = "tactic_rerolled", "Gang Tactic re-rolled"
+        # Journal-only: the owner's notes on a Gang Tactic saved. The note
+        # names the tactic, never what the notes say.
+        TACTIC_NOTES_EDITED = "tactic_notes_edited", "Gang Tactic notes edited"
 
         # An activity opening and closing (``n26.core.models.activity``).
         # Neither carries deltas; what the activity did is the events

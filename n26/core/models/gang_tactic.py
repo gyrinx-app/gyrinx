@@ -81,3 +81,41 @@ class GangTactic(Base, Archived):
 
     def __str__(self):
         return str(self.pickable)
+
+
+class GangTacticNotes(Base):
+    """The owner's notes on one tactic, for one gang.
+
+    Kept against the tactic rather than the rolled card, so discarding a
+    tactic and rolling it again later brings its notes back. Only the
+    gang's owner writes them, through ``Operation.edit_tactic_notes``;
+    anyone who can read the gang reads them on its cards.
+
+    The notes are the owner's words. A suggested summary they copied in
+    is theirs once saved, as pasted text would be. What may be stored is
+    cut down by ``clean_tactics_notes`` on the way in and again on the way
+    out.
+    """
+
+    gang = models.ForeignKey(
+        "n26.Gang", on_delete=models.CASCADE, related_name="tactic_notes"
+    )
+    pickable = models.ForeignKey(
+        "library.Pickable",
+        on_delete=models.PROTECT,
+        related_name="gang_tactic_notes",
+        help_text="The tactic these notes are about.",
+    )
+    notes = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = "gang tactic notes"
+        verbose_name_plural = "gang tactic notes"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["gang", "pickable"], name="gang_tactic_notes_once"
+            )
+        ]
+
+    def __str__(self):
+        return f"Notes on {self.pickable}"
