@@ -1,8 +1,8 @@
 # N26 Scenario Generator: what it does
 
-The Scenario Generator is a quick way to set up a battle. For each of four
-scenario tables, a player rolls a D6, chooses an entry, or leaves the table
-out. They can then share the result, save it to a campaign log, or take it to
+The Scenario Generator is a quick way to set up a battle. For each of three
+scenario tables, and for each side job, a player rolls a D6, chooses an entry,
+or leaves it out. They can then share the result, save it to a campaign log, or take it to
 **Record a battle**.
 
 ## Where to find it
@@ -18,7 +18,7 @@ There are two ways in:
   creating a battle. See
   [Outside a campaign](#outside-a-campaign).
 
-## The four tables
+## The tables
 
 Each table has six entries, one for each face of a D6. Each entry has a name
 and a description.
@@ -27,11 +27,28 @@ and a description.
 | --- | --- |
 | Deployment | Where each gang sets up. Each entry also has a map. |
 | Objective | How the battle is won. |
-| Side job | An extra goal a gang can complete. |
 | Crew | How each gang picks its starting crew. |
 
-The table wording and the Deployment maps are original content written for
-Gyrinx.
+### Side jobs
+
+A side job is an extra goal a gang can complete. Side jobs come in sets of six:
+
+| Set | For |
+| --- | --- |
+| General side jobs | Any gang. These are the side jobs from before there were sets. |
+| Escher side jobs | Escher gangs. |
+| Goliath side jobs | Goliath gangs. |
+
+A scenario can have up to six side jobs, each from any set. Within a set, a
+rolled side job is never the same as another one in the scenario, unless every
+job in that set is already taken. Side jobs are numbered in order: Side job 1,
+Side job 2 and so on.
+
+Some side jobs have words in bold, such as **only** or **at the same time**.
+The bold shows on the page, on the battle and in the print.
+
+The table wording, the side jobs and the Deployment maps are original content
+written for Gyrinx.
 
 ## Generating a scenario
 
@@ -41,10 +58,32 @@ The page has one drop-down list for each table. Each list offers:
 - **Leave out**, for a component the players already have covered
 - any of the table's six entries, chosen by name
 
+The side job lists come last, after Crew. A side job's list first offers:
+
+- **Choose a side job set**, the default, which adds no side job
+- **Leave out**
+- **General side jobs**, **Escher side jobs** and **Goliath side jobs**
+
+Once a set is picked, the same list shows **Roll a D6**, that set's six jobs
+and, at the bottom, **Change set**, which goes back to the list of sets.
+
+**Add side job** below the last list adds another, up to six. Each side job
+list after the first has a dustbin button that removes it; the later side jobs
+move up. Without JavaScript, picking a set and pressing **Generate scenario**
+rolls on that set.
+
 **Generate scenario** shows the result. The result gives each component its
 name, its number, its full description and, for Deployment, its map. Your
 choices stay set, and the button changes to **Generate again**. Pressing it
 rolls again for every table still set to **Roll a D6**.
+
+Each side job in the result has **Reroll** beside its heading. It opens a
+dialog that asks which set to roll on, starting with the side job's own set.
+**Reroll** rolls that one side job again and keeps the rest of the scenario,
+for when the wrong set was picked before generating. The new side job is never
+one the scenario already has from that set, including the one it replaces,
+unless the set has no other. The side job's menu then shows the new set, so
+**Generate again** keeps it.
 
 Include at least one component. Saving or cancelling a save keeps your
 chosen and omitted components set for the next generation.
@@ -67,7 +106,11 @@ and record the battle afterwards, or never record it.
 A saved scenario appears in the log like this:
 
 > **Alex** saved the scenario **Vent ambush**: Deployment 3 (Stand Off),
-> Objective 4 (Object Lesson), Crew 4 (Surprise Attack)
+> Objective 4 (Object Lesson), Crew 4 (Surprise Attack),
+> Side job 1: Escher 3 (Hunt Together), Side job 2: Goliath 1 (Pit Fight)
+
+Battles and log lines saved before there were sets show their one side job as
+Side job 1 from the General set.
 
 The line links back to the scenario. A recorded battle appears in the log in
 the usual way, for example "recorded Vent ambush on 2026-10-12".
@@ -99,8 +142,10 @@ where N counts the campaign's battles, including archived battles. Naming and
 creation occur under the campaign lock.
 
 **Generate scenario** produces an optional compact preview without submitting the
-battle or clearing the name, date or participants. **Table options** offers the
-same four component choices as the main generator. The preview can be regenerated
+battle or clearing the name, date or participants. **Scenario options** offers the
+same choices as the main generator, including the side job sets, **Add side
+job** and the dustbin buttons, and **Full details** has **Reroll** beside each
+side job. The preview can be regenerated
 or removed, and its full result can be opened in another tab. The server validates
 the hidden components when the battle is saved.
 

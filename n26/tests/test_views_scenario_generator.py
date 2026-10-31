@@ -65,7 +65,9 @@ def generated(client, campaign, **picks):
     return location, parse_qs(urlparse(location).query)
 
 
-def test_the_page_opens_with_the_four_components_set_to_roll(client, campaign):
+def test_the_page_opens_with_three_components_to_roll_and_a_side_job_to_choose(
+    client, campaign
+):
     response = client.get(generator_url(campaign))
     assert response.status_code == 200
     assert response.context["scenario"] == []
@@ -73,15 +75,15 @@ def test_the_page_opens_with_the_four_components_set_to_roll(client, campaign):
     assert [field.label for field in form] == [
         "Deployment",
         "Objective",
-        "Side job",
         "Crew",
+        "Side job 1",
     ]
     assert form.picks() == {
         "deployment": "roll",
         "objective": "roll",
-        "side_job": "roll",
         "crew": "roll",
     }
+    assert form.side_job_picks() == [""]
     body = response.content.decode()
     assert "Roll a D6" in body and "Leave out" in body
     assert 'aria-label="Share result"' not in body
@@ -94,14 +96,13 @@ def test_a_signed_out_reader_is_sent_to_sign_in(client, campaign):
     assert response.url == f"/accounts/login/?next={generator_url(campaign)}"
 
 
-def test_generating_rolls_every_table_by_default(client, campaign):
+def test_generating_rolls_every_table_and_no_side_job_by_default(client, campaign):
     location, query = generated(client, campaign)
-    assert set(query) == {"deployment", "objective", "side_job", "crew"}
+    assert set(query) == {"deployment", "objective", "crew"}
     response = client.get(location)
     assert [result.table.key for result in response.context["scenario"]] == [
         "deployment",
         "objective",
-        "side_job",
         "crew",
     ]
     body = response.content.decode()
@@ -123,7 +124,7 @@ def test_a_pick_can_choose_an_entry_or_leave_a_table_out(client, campaign):
 
     form = client.get(location).context["form"]
     assert form.picks()["deployment"] == "3"
-    assert form.picks()["side_job"] == "leave"
+    assert form.side_job_picks() == ["leave"]
 
 
 def test_sharing_keeps_query_separators_and_reproduces_the_complete_result(
@@ -143,7 +144,7 @@ def test_sharing_keeps_query_separators_and_reproduces_the_complete_result(
         int(query[key][0]) for key in ("deployment", "objective", "crew")
     ]
     assert shared.context["form"].picks()["deployment"] == "3"
-    assert shared.context["form"].picks()["side_job"] == "leave"
+    assert shared.context["form"].side_job_picks() == ["leave"]
 
 
 def test_leaving_every_table_out_explains_that_a_component_is_needed(client, campaign):
@@ -246,7 +247,7 @@ class TestSaving:
         assert parse_qs(urlparse(saved.url).query) == query
         again = client.get(saved.url)
         assert again.context["form"].picks()["deployment"] == "3"
-        assert again.context["form"].picks()["side_job"] == "leave"
+        assert again.context["form"].side_job_picks() == ["leave"]
 
     def test_the_save_page_shows_the_scenario_and_asks_for_a_name(
         self, client, campaign, player

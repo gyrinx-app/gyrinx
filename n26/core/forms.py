@@ -625,8 +625,8 @@ def stake_noun(stakes):
 
 class ScenarioComponentsMixin:
     """A generated scenario carried through a form as hidden fields, one
-    per scenario table and named by its key, the same shape as the
-    generator's own address.
+    per scenario table and side job and named by its key, the same shape
+    as the generator's own address.
 
     The fields are hidden, so a value that is not on its table is said as
     one error on the form rather than lost on a field nobody sees. The
@@ -634,7 +634,7 @@ class ScenarioComponentsMixin:
     """
 
     def add_scenario_fields(self):
-        from n26.library.scenario_tables import TABLES
+        from n26.library.scenario_tables import SIDE_JOB_KEYS, TABLES
 
         self.scenario_keys = []
         for table in TABLES:
@@ -646,20 +646,25 @@ class ScenarioComponentsMixin:
                 choices=[(entry.roll, entry.name) for entry in table.entries],
                 widget=forms.HiddenInput,
             )
+        for key in SIDE_JOB_KEYS:
+            self.scenario_keys.append(key)
+            self.fields[key] = forms.CharField(
+                required=False, max_length=20, widget=forms.HiddenInput
+            )
 
     def gather_scenario(self, cleaned):
-        if any(key in self.errors for key in self.scenario_keys):
+        from n26.core.scenarios import parse, rolls_of
+
+        found, wrong = parse({key: cleaned.get(key) for key in self.scenario_keys})
+        if wrong or any(key in self.errors for key in self.scenario_keys):
             for key in self.scenario_keys:
                 self.errors.pop(key, None)
             self.add_error(
                 None,
                 "A scenario component is not on its table. Generate the scenario again.",
             )
-        cleaned["scenario_rolls"] = {
-            key: cleaned[key]
-            for key in self.scenario_keys
-            if cleaned.get(key) is not None
-        }
+            found = []
+        cleaned["scenario_rolls"] = rolls_of(found)
         for key in self.scenario_keys:
             cleaned.pop(key, None)
         return cleaned
@@ -1199,16 +1204,29 @@ class ScenarioGeneratorForm(forms.Form):
     """What to do with each scenario table: roll it, leave it out, or use
     a named entry. Every table rolls unless the reader says otherwise.
 
+    Then any number of side jobs, up to ``SIDE_JOB_LIMIT``, each with one
+    menu. It first offers the side job sets; once a set is picked, it
+    offers Roll a D6, that set's jobs, and Change set to go back. A side
+    job adds nothing until a set is picked.
+
     Read from the query string, since generating saves nothing. A pick's
     field is ``<key>_pick``, so the table's own key stays free for the
-    result it landed on and a link carries both.
+    result it landed on and a link carries both. ``side_jobs`` is how many
+    side job menus there are.
     """
 
     ROLL = "roll"
     LEAVE_OUT = "leave"
+    CHOOSE_SET = ""
+    SIDE_JOBS = "side_jobs"
 
     def __init__(self, *args, **kwargs):
-        from n26.library.scenario_tables import TABLES
+        from n26.library.scenario_tables import (
+            SIDE_JOB_LIMIT,
+            SIDE_JOB_SETS,
+            TABLES,
+            side_job_key,
+        )
 
         super().__init__(*args, **kwargs)
         self.tables = TABLES
@@ -1225,10 +1243,43 @@ class ScenarioGeneratorForm(forms.Form):
                     "invalid_choice": f"Select an option for {table.name}."
                 },
             )
+        try:
+            count = int((self.data or {}).get(self.SIDE_JOBS) or 1)
+        except ValueError:
+            count = 1
+        self.side_job_count = min(max(count, 1), SIDE_JOB_LIMIT)
+        # Every pick a side job menu can send, whichever it shows; "roll"
+        # and a bare roll are from links made before there were sets.
+        side_job_choices = [
+            (self.CHOOSE_SET, "Choose a side job set"),
+            (self.LEAVE_OUT, "Leave out"),
+            (self.ROLL, "Roll a D6"),
+        ] + [(str(roll), str(roll)) for roll in range(1, 7)]
+        for found in SIDE_JOB_SETS:
+            side_job_choices.append((found.key, found.label))
+            side_job_choices += [
+                (f"{found.key}-{entry.roll}", entry.label) for entry in found.entries
+            ]
+        self.side_job_names = []
+        for place in range(1, self.side_job_count + 1):
+            name = f"{side_job_key(place)}_pick"
+            self.side_job_names.append(name)
+            self.fields[name] = forms.ChoiceField(
+                required=False,
+                label=f"Side job {place}",
+                choices=side_job_choices,
+                error_messages={
+                    "invalid_choice": f"Select an option for Side job {place}."
+                },
+            )
 
     @staticmethod
     def pick_name(table):
         return f"{table.key}_pick"
+
+    def table_fields(self):
+        """The bound fields for Deployment, Objective and Crew."""
+        return [self[self.pick_name(table)] for table in self.tables]
 
     def picks(self):
         """Each table's pick as ``{key: pick}``, rolling where none is given."""
@@ -1237,39 +1288,164 @@ class ScenarioGeneratorForm(forms.Form):
             for table in self.tables
         }
 
+    def side_job_picks(self):
+        """Each side job menu's pick, first to last: a set's key to roll on
+        it, a set's key and roll for that job, "leave", or "" for none. Picks from
+        links made before there were sets are read as the General set."""
+        from n26.library.scenario_tables import GENERAL_SIDE_JOBS
+
+        picks = []
+        for name in self.side_job_names:
+            pick = self.cleaned_data.get(name) or self.CHOOSE_SET
+            if pick == self.ROLL:
+                pick = GENERAL_SIDE_JOBS.key
+            elif pick.isdigit():
+                pick = f"{GENERAL_SIDE_JOBS.key}-{pick}"
+            picks.append(pick)
+        return picks
+
+    def _side_job_choice(self, pick):
+        """``(set, roll)`` for a side job pick, with None for a roll to
+        make; ``(None, None)`` for a pick that adds no side job."""
+        from n26.library.scenario_tables import side_job_set
+
+        set_key, _, roll = pick.partition("-")
+        found = side_job_set(set_key) if set_key else None
+        return found, (int(roll) if found and roll else None)
+
     def generate(self, rng=None):
         """``{key: roll}`` for the tables not left out: a D6 for the ones to
-        roll, the named entry for the rest."""
-        from n26.core.scenarios import roll
+        roll, the named entry for the rest. Then the side jobs, numbered
+        from 1 in the order of their menus."""
+        from n26.core.scenarios import roll, roll_side_jobs
+        from n26.library.scenario_tables import side_job_key
 
         picks = self.picks()
         rolled = roll(
             [key for key, pick in picks.items() if pick == self.ROLL], rng=rng
         )
-        return {
+        generated = {
             key: rolled[key] if pick == self.ROLL else int(pick)
             for key, pick in picks.items()
             if pick != self.LEAVE_OUT
         }
+        choices = [self._side_job_choice(pick) for pick in self.side_job_picks()]
+        side_jobs = roll_side_jobs([choice for choice in choices if choice[0]], rng=rng)
+        for place, value in enumerate(side_jobs, start=1):
+            generated[side_job_key(place)] = value
+        return generated
 
     def clean(self):
         cleaned = super().clean()
-        if not self.errors and all(
-            pick == self.LEAVE_OUT for pick in self.picks().values()
+        if (
+            not self.errors
+            and all(pick == self.LEAVE_OUT for pick in self.picks().values())
+            and not any(
+                self._side_job_choice(pick)[0] for pick in self.side_job_picks()
+            )
         ):
             raise forms.ValidationError(
                 "Select at least one component to roll or include."
             )
         return cleaned
 
-    def chosen_picks(self):
-        """The picks that are not the default, for a link to carry."""
+    def chosen_picks(self, side_job_picks=None):
+        """The picks that are not the default, for a link to carry, with
+        ``side_job_picks`` in place of the reader's when given."""
         picks = self.picks()
-        return {
+        chosen = {
             self.pick_name(table): picks[table.key]
             for table in self.tables
             if picks[table.key] != self.ROLL
         }
+        from n26.library.scenario_tables import side_job_key
+
+        if side_job_picks is None:
+            side_job_picks = self.side_job_picks()
+        for place, pick in enumerate(side_job_picks, start=1):
+            if pick:
+                chosen[f"{side_job_key(place)}_pick"] = pick
+        if len(side_job_picks) > 1:
+            chosen[self.SIDE_JOBS] = len(side_job_picks)
+        return chosen
+
+    def with_side_job_added(self):
+        """The picks with one more side job menu, up to the limit."""
+        from n26.library.scenario_tables import SIDE_JOB_LIMIT
+
+        picks = self.side_job_picks()
+        if len(picks) < SIDE_JOB_LIMIT:
+            picks.append(self.CHOOSE_SET)
+        return self.chosen_picks(picks)
+
+    def with_side_job_removed(self, place):
+        """The picks without the side job menu at ``place``, counted from
+        1. The first menu is never removed."""
+        picks = self.side_job_picks()
+        if 1 < place <= len(picks):
+            del picks[place - 1]
+        return self.chosen_picks(picks)
+
+    def with_side_job_set(self, place, set_key, results):
+        """The picks with the menu that gave the scenario's side job at
+        ``place`` rolling on the set ``set_key``, so a reroll on another set
+        holds on Generate again. ``results`` counts the scenario's side
+        jobs; the picks are unchanged unless each menu with a set gave one."""
+        picks = self.side_job_picks()
+        giving = [
+            at for at, pick in enumerate(picks) if pick not in ("", self.LEAVE_OUT)
+        ]
+        if len(giving) == results and 0 < place <= results:
+            picks[giving[place - 1]] = set_key
+        return self.chosen_picks(picks)
+
+    def side_job_menus(self):
+        """Each side job menu as the generator draws it: before a set is
+        picked, the sets; after, Roll a D6, the set's jobs and Change set.
+        An option that changes which menu shows has ``switch`` set."""
+        from n26.library.scenario_tables import SIDE_JOB_SETS
+
+        picks = (
+            self.side_job_picks()
+            if self.is_bound and self.is_valid()
+            else [self.CHOOSE_SET] * self.side_job_count
+        )
+        menus = []
+        for place, (name, pick) in enumerate(
+            zip(self.side_job_names, picks, strict=True), start=1
+        ):
+            found, _ = self._side_job_choice(pick)
+            if found:
+                label = f"Side job {place}: {found.label}"
+                options = [(found.key, "Roll a D6", False)] + [
+                    (f"{found.key}-{entry.roll}", f"{entry.roll}. {entry.label}", False)
+                    for entry in found.entries
+                ]
+                options.append((self.CHOOSE_SET, "Change set", True))
+            else:
+                label = f"Side job {place}"
+                options = [
+                    (self.CHOOSE_SET, "Choose a side job set", False),
+                    (self.LEAVE_OUT, "Leave out", False),
+                ] + [(each.key, each.label, True) for each in SIDE_JOB_SETS]
+            menus.append(
+                {
+                    "place": place,
+                    "name": name,
+                    "id": f"id_{name}",
+                    "label": label,
+                    "value": pick,
+                    "options": options,
+                    "field": self[name],
+                }
+            )
+        return menus
+
+    @property
+    def may_add_side_job(self):
+        from n26.library.scenario_tables import SIDE_JOB_LIMIT
+
+        return self.side_job_count < SIDE_JOB_LIMIT
 
 
 class SaveScenarioForm(ScenarioComponentsMixin, forms.Form):
