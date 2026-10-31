@@ -1304,6 +1304,7 @@ export {
 export { RangeMenu } from "./RangeMenu";
 export {
     MenuButton,
+    MenuAction,
     MenuGroup,
     MenuLink,
     MenuSeparator,

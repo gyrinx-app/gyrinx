@@ -82,6 +82,18 @@ The roll controls submit through the surrounding form.
                                             :checked="outcome.checked" />
                 {% endfor %}
             </c-n26.radio-cards>
+        {% elif stage == "choose" and table_choices %}
+            <c-n26.radio-cards label="Roll on" :form="form" name="table" min="12rem">
+                {% for choice in table_choices %}
+                    <c-n26.radio-cards.card name="table"
+                                            value="{{ choice.value }}"
+                                            label="{{ choice.label }}"
+                                            description="{{ choice.description }}"
+                                            :checked="choice.checked"
+                                            :disabled="choice.full"
+                                            reason="{{ choice.description }}" />
+                {% endfor %}
+            </c-n26.radio-cards>
         {% elif stage == "choose" or stage == "correct" %}
             <c-n26.form-section title="Choose tier">
                 <c-ui.error :form="form" name="selection" />
@@ -201,6 +213,24 @@ The roll controls submit through the surrounding form.
                         </div>
                     </div>
                 </div>
+                {% if developed %}
+                    <div class="mt-5 rounded-box border border-box-border p-4"
+                         data-developed-tactic>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-muted">Gang Tactic gained</p>
+                        <h3 class="font-semibold text-ink-900 dark:text-ink-100">{{ developed.name }}</h3>
+                        <p class="text-sm text-muted">{{ developed.table_name }} · {{ developed.dice_label }} {{ developed.roll }}</p>
+                        <c-n26.link href="{{ tactics_href }}" class="mt-2 inline-block text-sm">
+                            See Gang Tactics
+                        </c-n26.link>
+                    </div>
+                {% elif tactics_href %}
+                    <p class="mt-5 text-sm">
+                        The tactic this action rolled has since been deleted or re-rolled.
+                        <c-n26.link href="{{ tactics_href }}">
+                            See Gang Tactics
+                        </c-n26.link>
+                    </p>
+                {% endif %}
                 {% if receipt %}
                     <div class="mt-5 max-w-sm">
                         <h3 class="mb-2 text-sm font-semibold text-ink-900 dark:text-ink-100">Result</h3>

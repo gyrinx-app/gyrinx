@@ -1166,6 +1166,7 @@ def create_outcome(
     augment_carried_item=None,
     resolve_advancement=None,
     apply_changes=None,
+    generate_gang_tactic=None,
     **kwargs,
 ):
     """A reusable named result with one typed operation configuration."""
@@ -1175,11 +1176,13 @@ def create_outcome(
         "AugmentCarriedItem": "augment_carried_item",
         "ResolveAdvancement": "resolve_advancement",
         "ApplyChanges": "apply_changes",
+        "GenerateGangTactic": "generate_gang_tactic",
     }
     configured = {
         "augment_carried_item": augment_carried_item,
         "resolve_advancement": resolve_advancement,
         "apply_changes": apply_changes,
+        "generate_gang_tactic": generate_gang_tactic,
     }
     if operation is not None:
         field = fields.get(type(operation).__name__)
@@ -1196,6 +1199,13 @@ def augment_carried_item(slot_type, **kwargs):
     from n26.library.models import AugmentCarriedItem
 
     return AugmentCarriedItem.objects.create(slot_type=slot_type, **kwargs)
+
+
+@guarded_write
+def generate_gang_tactic(**kwargs):
+    from n26.library.models import GenerateGangTactic
+
+    return GenerateGangTactic.objects.create(**kwargs)
 
 
 @guarded_write

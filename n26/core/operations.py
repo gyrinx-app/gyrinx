@@ -1350,6 +1350,78 @@ class Operation:
         """The gang's story, as ``edit_lore`` keeps a model's."""
         return self._write_prose(self.gang, "lore", lore, LedgerEvent.Kind.LORE_EDITED)
 
+    def gain_tactic(
+        self,
+        *,
+        picklist,
+        pickable,
+        roll,
+        dice,
+        source,
+        note,
+        kind=None,
+        action_record=None,
+        bonus=False,
+    ):
+        """Add one rolled Gang Tactic to the gang, and say so.
+
+        ``n26.core.tactics.roll_tactics`` decides what was rolled and
+        whose share it spends; this only writes it down.
+        """
+        from n26.core.models import GangTactic
+
+        gained = GangTactic.objects.create(
+            gang=self.gang,
+            picklist=picklist,
+            pickable=pickable,
+            roll=roll,
+            source=source,
+            action_record=action_record,
+            bonus=bonus,
+        )
+        self.event(
+            None,
+            kind or LedgerEvent.Kind.TACTIC_GAINED,
+            roll=roll,
+            dice=dice,
+            note=note,
+            action_record=action_record,
+        )
+        return gained
+
+    def discard_tactic(self, held, note):
+        """Discard one of the gang's Gang Tactics, and say so.
+
+        Archived rather than deleted, so the record of the roll stays; the
+        token it spent is free to roll again.
+        """
+        from n26.core.models import GangTactic
+
+        held = GangTactic.objects.select_for_update().get(pk=held.pk)
+        if held.archived:
+            raise Refusal("That Gang Tactic has already gone.")
+        held.archive()
+        self.event(None, LedgerEvent.Kind.TACTIC_DISCARDED, note=note)
+        return held
+
+    def reroll_tactic(self, held, table, rng=None):
+        """Swap one Gang Tactic for a new roll (``n26.core.tactics``)."""
+        from n26.core.tactics import reroll_tactic
+
+        return reroll_tactic(self, held, table, rng)
+
+    def roll_bonus_tactics(self, table, count, rng=None):
+        """Draw ``count`` bonus tactics from any table (``n26.core.tactics``)."""
+        from n26.core.tactics import roll_bonus_tactics
+
+        return roll_bonus_tactics(self, table, count, rng)
+
+    def roll_tactics(self, table, count, rng=None):
+        """Roll ``count`` Gang Tactics on one table (``n26.core.tactics``)."""
+        from n26.core.tactics import roll_tactics
+
+        return roll_tactics(self, table, count, rng)
+
     def set_gang_image(self, upload, clear=False):
         """The gang's picture, handled as ``set_image`` handles a model's."""
         return self._write_picture(self.gang, upload, clear)
