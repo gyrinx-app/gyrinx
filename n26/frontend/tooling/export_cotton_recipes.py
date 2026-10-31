@@ -447,6 +447,31 @@ def radio_cards_recipe():
     }
 
 
+def rich_text_mode_recipe():
+    """Class strings for the Edit and Preview switch.
+
+    They live on the fallback in the cotton template, which is what shows
+    before the island mounts. A class that leaves that template fails here.
+    """
+    text = (
+        Path(__file__).resolve().parents[2] / "core/templates/cotton/n26/rich_text.html"
+    ).read_text()
+
+    def one(marker):
+        match = re.search(rf"{marker}\s+class=\"([^\"]*)\"", text)
+        if match is None:
+            raise ValueError(f"Rich text switch markup changed: {marker}")
+        return " ".join(match.group(1).split())
+
+    return {
+        "group": one("data-rich-text-switch"),
+        "active": one("data-rich-text-edit"),
+        "idle": one("data-rich-text-idle"),
+        "preview": one("data-rich-text-preview"),
+        "empty": one("data-rich-text-empty"),
+    }
+
+
 def filter_menu_recipe():
     """Extract the static presentation of the composed filter menu.
 
@@ -1220,6 +1245,7 @@ def recipes():
         "actionBarPlain": classes(
             "<c-n26.action-bar>Control</c-n26.action-bar>", "div"
         )[0],
+        "richTextMode": rich_text_mode_recipe(),
         "search": dict(
             zip(
                 ("root", "group", "icon", "label", "input", "clear"),

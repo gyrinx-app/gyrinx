@@ -6,13 +6,15 @@ Do not add a safe filter on that path.
 
 Load n26/richtext.js before form.media so the skin is patched before TinyMCE inits.
 
-Preview uses x-html of the editor's live content, not the sanitiser.
+Preview reads the editor's live content, not the sanitiser.
 It is what you are typing.
 The page must render form.media once. Without it the widget stays a plain textarea.
 Once per page, not per field: every editor shares the one script.
-Keep the editor on x-show, not x-if. Hiding must not rebuild TinyMCE and drop undo history.
+The editor stays in the page while Preview is showing. Hiding it must not rebuild TinyMCE and drop undo history.
+:toggle="False" draws the editor without the Edit and Preview switch.
 {% endcomment %}
 
+{% load richtext rich_text_mode react %}
 <c-vars
     field=""
     value=""
@@ -25,8 +27,6 @@ Keep the editor on x-show, not x-if. Hiding must not rebuild TinyMCE and drop un
     class=""
 />
 
-{% load richtext %}
-
 {% if field %}
     <c-ui.field label="{{ label }}"
                 description="{{ description }}"
@@ -34,35 +34,36 @@ Keep the editor on x-show, not x-if. Hiding must not rebuild TinyMCE and drop un
                 :form="form"
                 name="{{ name }}"
                 class="{{ class }}">
-        {# json_dumps makes a JS literal. HTML-escaping this string would break the Alpine data. #}
-        <div x-data="richText({{ value|safe_rich_text|json_dumps }})">
-            {% if toggle %}
-
-                <div class="mb-2 inline-flex rounded-control border border-box-border p-0.5 text-sm">
-                    <button type="button" @click="show('edit')"
-                            :class="mode === 'edit' ? 'bg-accent text-accent-foreground' : 'text-muted hover:text-accent'"
-                            class="rounded-[calc(var(--radius-control)*0.66)] px-3 py-1 font-medium transition-colors focus-ring">
-                        Edit
-                    </button>
-                    <button type="button" @click="show('preview')"
-                            :class="mode === 'preview' ? 'bg-accent text-accent-foreground' : 'text-muted hover:text-accent'"
-                            class="rounded-[calc(var(--radius-control)*0.66)] px-3 py-1 font-medium transition-colors focus-ring">
-                        Preview
-                    </button>
+        {% if toggle %}
+            {# The editor stays outside the island. React replaces the host's children, and a textarea inside it would be removed before TinyMCE can bind. #}
+            {% rich_text_mode_props initial=value as props_ %}
+            <div data-rich-text>
+                {% react_host "rich-text-mode" props_ %}
+                    <div data-rich-text-switch
+                         class="mb-2 inline-flex rounded-control border border-box-border p-0.5 text-sm">
+                        <button type="button"
+                                data-rich-text-edit
+                                class="rounded-[calc(var(--radius-control)*0.66)] px-3 py-1 font-medium transition-colors focus-ring bg-accent text-accent-foreground">
+                            Edit
+                        </button>
+                        <button type="button"
+                                data-rich-text-idle
+                                class="rounded-[calc(var(--radius-control)*0.66)] px-3 py-1 font-medium transition-colors focus-ring text-muted hover:text-accent">
+                            Preview
+                        </button>
+                    </div>
+                {% endreact_host %}
+                <div data-rich-text-editor>{{ field }}</div>
+                {# After the editor, so hiding the editor reveals the preview in the same place. #}
+                <div data-rich-text-preview
+                     class="rich-text min-h-[200px] rounded-control border border-box-border p-4"
+                     hidden>
+                    <p data-rich-text-empty class="text-muted">Nothing to preview yet.</p>
                 </div>
-            {% endif %}
-
-            <div x-show="mode === 'edit'">{{ field }}</div>
-
-            <div x-show="mode === 'preview'" x-cloak
-                 class="rich-text min-h-[200px] rounded-control border border-box-border p-4">
-                <template x-if="!html.trim()">
-                    <p class="text-muted">Nothing to preview yet.</p>
-                </template>
-                {# Live editor HTML, not the sanitiser. Preview is what you are typing. #}
-                <div x-html="html"></div>
             </div>
-        </div>
+        {% else %}
+            {{ field }}
+        {% endif %}
     </c-ui.field>
 {% else %}
     <div {{ attrs }} class="rich-text {{ class }}">{{ value|safe_rich_text }}</div>
