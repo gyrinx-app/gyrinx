@@ -1,4 +1,4 @@
-FROM python:3.14.8-slim
+FROM python:3.14.10-slim
 
 ENV PYTHONUNBUFFERED=1 \
     # prevents python creating .pyc files
