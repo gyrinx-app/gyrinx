@@ -154,6 +154,24 @@ def test_skill_tells_agents_empty_reviews_are_not_no_copilot_review():
     assert "reviewsInProgressTruncated" in text
 
 
+def test_docs_name_the_copilot_review_request_that_creates_an_event():
+    """REST reviewers[]=Copilot returns 200 and starts no review.
+
+    Finch (25 Oct), oriole (11 Oct) and hake (16 Oct) each hit a different
+    wrong body. ``gh pr edit --add-reviewer @copilot`` is the request that
+    creates a review_requested event.
+    """
+    command = "gh pr edit <number> --add-reviewer @copilot"
+    skill = SKILL.read_text()
+    agents = (ROOT / "AGENTS.md").read_text()
+    assert command in skill
+    assert command in agents
+    assert "reviewers[]=Copilot" in skill
+    assert "reviewers[]=Copilot" in agents
+    assert "returns 422" in skill
+    assert "returns 422" in agents
+
+
 def test_fulfilled_team_request_is_not_in_progress():
     annotate = _annotate()
     team = {"__typename": "Team", "name": "core", "combinedSlug": "org/core"}
