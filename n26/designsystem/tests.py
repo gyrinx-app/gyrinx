@@ -48,6 +48,7 @@ class TestTheReactMarks:
             "pick-list",
             "quick-switcher",
             "filter-menu",
+            "rich-text",
             "share",
             "switch",
         } <= react
@@ -176,6 +177,29 @@ class TestTheQuickSwitchersPage:
         assert "The chevron on its own" in page
         assert "A long list, narrowed" in page
         assert "#the-rust-sermon" in page
+
+
+class TestTheRichTextPage:
+    """Edit and Preview are a React island. The textarea stays in the form."""
+
+    def test_the_editor_is_outside_the_switch(self, reader):
+        page = reader.get("/n26/design/c/rich-text/").content.decode()
+        assert "The editor" in page
+        assert "Edit and Preview" in page
+        assert "Editor only" in page
+        soup = BeautifulSoup(page, "html.parser")
+        hosts = soup.select("[data-react-name='rich-text-mode']")
+        assert len(hosts) == 2
+        for host in hosts:
+            assert host.find("textarea") is None
+            shell = host.find_parent(attrs={"data-rich-text": True})
+            assert shell is not None
+            assert shell.find("textarea") is not None
+        # Editor, Edit and Preview, and the editor-only demo. The last posts
+        # a textarea and draws no switch.
+        assert len(soup.select("textarea.tinymce")) == 3
+        assert page.count("Nothing to preview yet.") == 2
+        assert "richText(" not in page
 
 
 class TestTheFilterMenuPage:

@@ -2509,7 +2509,7 @@ GROUPS: list[Group] = [
                     "A TinyMCE editor field, and the safe renderer for what it "
                     "produces."
                 ),
-                needs=(ALPINE, "TinyMCE", "form.media"),
+                needs=("TinyMCE", "form.media"),
                 notes=(
                     "Pass a bound field to render the editor with its Edit and "
                     "Preview switch. Pass only value to render the saved article, "
@@ -2518,7 +2518,9 @@ GROUPS: list[Group] = [
                     "It is wrapped in c-ui.field, so label, description and errors "
                     "work as they do on c-ui.input. The page must render {{ "
                     "form.media }} once, and load n26/richtext.js before it, or the "
-                    "widget stays a plain textarea."
+                    "widget stays a plain textarea. The switch hides the editor "
+                    "without removing it, so undo history is still there after "
+                    "Preview."
                 ),
             ),
             Component(
