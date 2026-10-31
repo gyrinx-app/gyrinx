@@ -18,6 +18,7 @@ from n26.core.models.campaign import (
     CampaignMembership,
     CampaignParticipant,
 )
+from n26.core.models.campaign_feed import CampaignFeed
 from n26.core.models.campaign_roll import CampaignRoll
 from n26.core.models.counter_tracking import CounterTracking
 from n26.core.models.crew import BattleCrew, CrewMember
@@ -52,6 +53,7 @@ __all__ = [
     "Campaign",
     "CampaignAsset",
     "CampaignEvent",
+    "CampaignFeed",
     "CampaignRoll",
     "CampaignMembership",
     "CampaignParticipant",
