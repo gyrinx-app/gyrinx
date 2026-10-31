@@ -3,7 +3,8 @@ name: pr-comments
 description: |
   Fetch all PR comments, reviews, and review threads in a single GraphQL call.
   Use when you need to check PR feedback, address review comments, see review
-  status, or understand what reviewers are asking for on a pull request.
+  status, request a Copilot review, or understand what reviewers are asking
+  for on a pull request.
 user-invocable: false
 ---
 
@@ -11,6 +12,24 @@ user-invocable: false
 
 Fetch and display all comments, reviews, and review threads for a pull request.
 Uses a single GraphQL query via `scripts/fetch-pr-comments.sh` in this skill's directory.
+
+## Requesting a Copilot review
+
+Start the review with the GitHub CLI special reviewer. This is the command
+that creates a `review_requested` timeline event:
+
+```bash
+gh pr edit <number> --add-reviewer @copilot
+```
+
+`@copilot` may be quoted. Two REST `requested_reviewers` bodies do not start
+a review:
+
+- `reviewers[]=Copilot` returns 200 and adds no timeline event.
+- `reviewers[]=copilot-pull-request-reviewer` (no `[bot]` suffix) returns 422.
+
+Before requesting again, read `reviewsInProgress` below. GitHub drops Copilot
+from `reviewRequests` while a lite review is running.
 
 ## Fetching the data
 
@@ -33,7 +52,8 @@ Adapt your presentation based on context.
    `reviewRequests` and `reviews` does not mean no review is in progress. A
    `ReviewRequestedEvent` for `copilot-pull-request-reviewer` with no later
    review from that bot is the in-progress signal. Do not start a new Copilot
-   review or treat the PR as unreviewed until that entry clears. If
+   review (see Requesting a Copilot review) or treat the PR as unreviewed
+   until that entry clears. If
    `reviewsInProgressTruncated` is true, some reviews or request events were not
    fetched, so say `reviewsInProgress` may be wrong.
 3. **Inline review threads** — Group by file path. For each thread show:

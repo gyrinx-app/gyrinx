@@ -200,6 +200,14 @@ opening a PR. Give commit and PR titles a conventional prefix and name the
 affected component or path. Mark completed work ready for review unless the
 user requested a draft.
 
+Request a Copilot review with `gh pr edit <number> --add-reviewer @copilot`.
+That special reviewer creates the `review_requested` event. POST
+`requested_reviewers` with `reviewers[]=Copilot` returns 200 and adds no
+timeline event; `reviewers[]=copilot-pull-request-reviewer` (no `[bot]`)
+returns 422. The [`pr-comments`](.agents/skills/pr-comments/SKILL.md) skill
+has the same command. Do not request again while `reviewsInProgress` still
+names Copilot.
+
 Assume the technical lead has no prior context. Start with the resulting
 behaviour, name the affected page, model or command, and explain internal terms
 once. Include concrete verification or steps to try the change. Keep PR
