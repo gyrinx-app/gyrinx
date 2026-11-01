@@ -1,3 +1,4 @@
+import { initialiseTrades } from "./trade-model.js";
 import {
     defaults,
     outcomeLabels,
@@ -381,7 +382,7 @@ export function normalise(state) {
             throw new Error("Saved automatic cycle timing is invalid.");
         if (state.limit !== null || !state.pattern) state.autoCycles = null;
     }
-    return addPastExamples(state);
+    return initialiseTrades(addPastExamples(state));
 }
 function renumber(state) {
     state.cycles.forEach((cycle, index) => {

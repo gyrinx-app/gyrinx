@@ -1,0 +1,320 @@
+.tr-workspace {
+    display: grid;
+    gap: 24px;
+}
+.tr-heading h1 {
+    font-size: 28px;
+    font-weight: 600;
+}
+.tr-heading > p {
+    color: var(--color-muted);
+    margin-top: 8px;
+    font-size: 14px;
+}
+.tr-participants {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: 20px;
+    padding: 24px;
+}
+.tr-participants > svg {
+    align-self: center;
+}
+.tr-offers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+}
+.tr-offer {
+    border: 1px solid var(--cp-border);
+    border-top: 3px solid var(--tr-colour);
+    background: var(--cp-surface);
+    min-width: 0;
+}
+.tr-offer > header {
+    padding: 20px;
+    border-bottom: 1px solid var(--cp-border);
+    display: grid;
+    gap: 16px;
+}
+.tr-gang {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    min-width: 0;
+}
+.tr-gang h2 {
+    font-size: 18px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+.tr-gang p {
+    font-size: 12px;
+    color: var(--color-muted);
+    margin-top: 3px;
+}
+.tr-gang-icon {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--tr-colour) 12%, var(--cp-surface));
+    color: var(--tr-colour);
+    border: 1px solid color-mix(in srgb, var(--tr-colour) 40%, transparent);
+}
+.tr-gang-icon img {
+    width: 30px;
+    height: 30px;
+}
+.tr-editor,
+.tr-summary {
+    padding: 20px;
+    display: grid;
+    gap: 20px;
+}
+.tr-editor fieldset {
+    display: grid;
+    gap: 12px;
+}
+.tr-editor legend,
+.tr-summary h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--color-muted);
+}
+.tr-summary section {
+    border-top: 1px solid var(--cp-border);
+    padding-top: 16px;
+}
+.tr-holding {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    padding: 8px 0;
+}
+.tr-holding > :last-child {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+}
+.tr-holding strong {
+    font-size: 24px;
+}
+.tr-card-foot {
+    padding: 16px 20px;
+    border-top: 1px solid var(--cp-border);
+    display: flex;
+    gap: 8px;
+}
+.tr-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 0;
+}
+.tr-actions > div {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.tr-banner {
+    border: 1px solid var(--cp-border);
+    padding: 16px;
+    display: flex;
+    align-items: start;
+    gap: 12px;
+    background: color-mix(in srgb, var(--cp-accent) 5%, var(--cp-surface));
+}
+.tr-banner p {
+    font-size: 12px;
+    color: var(--color-muted);
+    margin-top: 4px;
+}
+.tr-settings,
+.tr-events {
+    padding: 20px;
+    display: grid;
+    gap: 16px;
+}
+.tr-events > li {
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--cp-border);
+    font-size: 14px;
+}
+.tr-note-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin-top: 8px;
+}
+.tr-settings > button {
+    justify-self: start;
+}
+.tr-list {
+    padding: 20px;
+}
+.tr-list > button {
+    display: flex;
+    width: 100%;
+    text-align: left;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--cp-border);
+}
+.tr-list > button > span:first-of-type {
+    flex: 1;
+}
+.history-menu-panel button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.tr-menu-option {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.tr-demo-account {
+    max-width: 240px;
+}
+.tr-log-link {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    margin-top: 6px;
+    font-size: 12px;
+}
+@media (max-width: 639px) {
+    .tr-offers,
+    .tr-participants {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    .tr-participants > svg {
+        display: none;
+    }
+    .tr-actions {
+        align-items: start;
+        flex-direction: column;
+    }
+    .tr-offer > header,
+    .tr-editor,
+    .tr-summary {
+        padding: 16px;
+    }
+    .tr-heading h1 {
+        font-size: 24px;
+    }
+}
+.dark .tr-gang-icon img {
+    filter: invert(1);
+}
+.tr-demo-account select {
+    color: var(--history-ink);
+}
+
+.cp-page .history-menu-panel > .tr-notification {
+    white-space: normal;
+    min-width: 230px;
+    max-width: 320px;
+}
+.tr-workspace {
+    --tr-success: var(--color-green-700);
+}
+.dark .tr-workspace {
+    --tr-success: var(--color-green-500);
+}
+.tr-offer-accepted {
+    background: color-mix(in srgb, var(--tr-success) 5%, var(--cp-surface));
+}
+.tr-accepted-label {
+    color: var(--tr-success);
+    background: color-mix(in srgb, var(--tr-success) 12%, var(--cp-surface));
+    gap: 6px;
+}
+.tr-banner.tr-completed {
+    border-color: color-mix(in srgb, var(--tr-success) 45%, var(--cp-border));
+    background: color-mix(in srgb, var(--tr-success) 8%, var(--cp-surface));
+}
+.tr-completed > svg,
+.tr-completed strong {
+    color: var(--tr-success);
+}
+.tr-transfer-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    padding: 20px;
+    font-size: 14px;
+}
+.tr-transfer-summary h3,
+.tr-transfer-summary h4,
+.tr-legacy-notes h3 {
+    font-weight: 600;
+}
+.tr-transfer-summary ul {
+    list-style: disc;
+    padding-left: 20px;
+    margin: 12px 0;
+}
+.tr-transfer-summary h4 {
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+.tr-legacy-notes {
+    padding: 20px;
+    border-top: 1px solid var(--cp-border);
+    font-size: 12px;
+}
+@media (max-width: 639px) {
+    .tr-transfer-summary {
+        grid-template-columns: 1fr;
+    }
+}
+.tr-transfer-route {
+    display: grid;
+    gap: 8px;
+}
+.tr-transfer-route .tr-gang-icon {
+    width: 32px;
+    height: 32px;
+}
+.tr-transfer-route .tr-gang-icon img {
+    width: 24px;
+    height: 24px;
+}
+.tr-transfer-route .tr-gang {
+    gap: 8px;
+}
+.tr-transfer-route .tr-identity-name {
+    font-size: 14px;
+}
+.tr-transfer-to {
+    margin-left: 40px;
+}
+.tr-undo {
+    padding: 20px;
+    display: grid;
+    gap: 16px;
+    font-size: 14px;
+}
+.tr-undo > button {
+    justify-self: start;
+}
+.tr-event-offer {
+    margin-top: 10px;
+    border-left: 2px solid var(--cp-border);
+    padding-left: 12px;
+    font-size: 12px;
+}
+.tr-event-offer ul {
+    list-style: disc;
+    margin: 6px 0;
+    padding-left: 16px;
+}

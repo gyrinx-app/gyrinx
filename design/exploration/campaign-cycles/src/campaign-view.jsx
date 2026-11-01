@@ -1,13 +1,16 @@
+import { isCampaignEntry } from "./trade-model.js";
 import * as M from "./campaign-model.js";
 import React, { useEffect, useState } from "react";
 import {
+    Handshake,
+    Bell,
     ChevronDown,
     Dices,
     Menu as MenuIcon,
     Share2,
     SunMoon,
 } from "lucide-react";
-import { Button } from "./controls.jsx";
+import { Button, Icon } from "./controls.jsx";
 import { Menu } from "./surface-controls.jsx";
 import { Cotton } from "./campaign-cotton.jsx";
 import templates from "./campaign-base.json";
@@ -48,7 +51,15 @@ export function CampaignFrame({ children }) {
         </>
     );
 }
-export function CampaignNavigation({ state, dark, setDark, navigate }) {
+export function CampaignNavigation({
+    state,
+    dark,
+    setDark,
+    navigate,
+    actor,
+    commit,
+    openTrade,
+}) {
     return (
         <Cotton
             name="nav"
@@ -71,13 +82,47 @@ export function CampaignNavigation({ state, dark, setDark, navigate }) {
                 ),
                 actions: (
                     <>
+                        <Menu
+                            label="Notifications"
+                            icon={Bell}
+                            text={
+                                (state.tradeNotifications || []).filter(
+                                    (n) => n.owner === actor && !n.read,
+                                ).length || null
+                            }
+                        >
+                            {!(state.tradeNotifications || []).some(
+                                (n) => n.owner === actor,
+                            ) && (
+                                <p className="p-4 text-sm">No notifications.</p>
+                            )}
+                            {(state.tradeNotifications || [])
+                                .filter((n) => n.owner === actor)
+                                .map((n) => (
+                                    <button
+                                        className="tr-notification"
+                                        key={n.id}
+                                        onClick={() => {
+                                            commit((s) => {
+                                                s.tradeNotifications.find(
+                                                    (v) => v.id === n.id,
+                                                ).read = true;
+                                            }, "Notification read.");
+                                            openTrade(n.trade);
+                                        }}
+                                    >
+                                        {!n.read ? "Unread · " : ""}
+                                        {n.text}
+                                    </button>
+                                ))}
+                        </Menu>
                         <Button
                             icon={SunMoon}
                             title="Toggle theme"
                             aria-label="Toggle theme"
                             onClick={() => setDark(!dark)}
                         />
-                        <Menu label="Open account menu" text="louis">
+                        <Menu label="Open account menu" text={actor}>
                             <button onClick={() => navigate("dashboard")}>
                                 Campaign dashboard
                             </button>
@@ -109,6 +154,9 @@ export function CampaignSubpageHeader({ state, tab, navigate }) {
             schedule: "Phases & cycles",
             battles: "Battles",
             activity: "Campaign log",
+            trade: "Trades",
+            trades: "Trades",
+            edit: "Edit campaign",
         }[tab] || state.name;
     return (
         <>
@@ -138,17 +186,26 @@ export function CampaignSubpageHeader({ state, tab, navigate }) {
         </>
     );
 }
-export function CampaignActivity({ state, all = false }) {
+export function CampaignActivity({ state, all = false, openTrade }) {
+    const entries = state.entries.filter(isCampaignEntry);
     return (
         <ol className="divide-y divide-box-border text-sm">
-            {(all ? state.entries : state.entries.slice(0, 8)).map((e) => (
+            {(all ? entries : entries.slice(0, 8)).map((e) => (
                 <li key={e.id} className="py-3 first:pt-0">
                     <div className="text-xs text-muted mb-1">
-                        louis ·{" "}
+                        {e.actor || "louis"} ·{" "}
                         {e.cycleName ||
                             state.cycles.find((c) => c.id === e.cycle)?.name}
                     </div>
                     <p>{e.text}</p>
+                    {e.trade && (
+                        <button
+                            className="tr-log-link"
+                            onClick={() => openTrade?.(e.trade)}
+                        >
+                            View trade record
+                        </button>
+                    )}
                 </li>
             ))}
         </ol>
@@ -272,7 +329,16 @@ function CampaignGangs({ state }) {
                             WEALTH: g.rating + g.credits,
                             REPUTATION: g.reputation,
                             INCOME: gangIncome(g.id),
-                            TERRITORIES: territoryNames(g.id) || "—",
+                            TERRITORIES: state.tradeHoldings
+                                ? state.tradeHoldings
+                                      .filter(
+                                          (h) =>
+                                              h.owner === g.id &&
+                                              h.id.startsWith("territory-"),
+                                      )
+                                      .map((h) => h.name)
+                                      .join(", ") || "—"
+                                : territoryNames(g.id) || "—",
                         }}
                     />
                 )),
@@ -281,6 +347,12 @@ function CampaignGangs({ state }) {
     );
 }
 function CampaignAssets({ state }) {
+    const held = territories.map(([name, holder, income], i) => [
+        name,
+        state.tradeHoldings?.find((h) => h.id === `territory-${i}`)?.owner ||
+            holder,
+        income,
+    ]);
     return (
         <Cotton
             name="assets"
@@ -289,7 +361,7 @@ function CampaignAssets({ state }) {
                 ASSET_UNCLAIMED: territories.filter((t) => !t[1]).length,
             }}
             slots={{
-                entries: territories.map(([name, holder, income]) => (
+                entries: held.map(([name, holder, income]) => (
                     <Cotton
                         key={name}
                         name={holder ? "assetRow" : "unclaimedAssetRow"}
@@ -348,6 +420,8 @@ function useMediaQuery(value) {
 export function CampaignDashboard({
     state,
     arbitrator,
+    actor,
+    openTrade,
     navigate,
     setModal,
     reopen,
@@ -395,6 +469,29 @@ export function CampaignDashboard({
                 onClick={() => setModal({ kind: "roll" })}
             />
             <Menu label="More actions">
+                <button
+                    className="tr-menu-option"
+                    disabled={
+                        !state.tradingEnabled ||
+                        !state.gangs.some((g) => g.owner === actor)
+                    }
+                    title={
+                        !state.tradingEnabled
+                            ? "Trading is disabled by the arbitrator"
+                            : !state.gangs.some((g) => g.owner === actor)
+                              ? "You need a gang in this campaign"
+                              : "Trades"
+                    }
+                    onClick={() => navigate("trades")}
+                >
+                    <Icon icon={Handshake} size={16} />
+                    Trades
+                </button>
+                {arbitrator && (
+                    <button onClick={() => navigate("edit")}>
+                        Edit campaign
+                    </button>
+                )}
                 <button onClick={() => navigate("schedule")}>
                     {arbitrator
                         ? "Manage phases & cycles"
@@ -492,7 +589,9 @@ export function CampaignDashboard({
                         Record a battle
                     </Button>
                 ),
-                activity: <CampaignActivity state={state} />,
+                activity: (
+                    <CampaignActivity state={state} openTrade={openTrade} />
+                ),
                 "log-actions": (
                     <>
                         <Button
