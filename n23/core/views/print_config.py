@@ -96,6 +96,7 @@ def print_config_create(request, list_id):
             "include_actions": False,
             "include_dead_fighters": False,
             "include_xp": True,
+            "include_classic_extras": True,
             "include_lore_notes": False,
         }
 
