@@ -71,6 +71,26 @@ query returns.
 - If the data contains an ERROR, report it clearly and suggest how to fix it
   (e.g. provide a PR number, check `gh auth status`).
 
+### Stale base.sha
+
+GitHub can dismiss a fresh approval with "The merge-base changed after approval"
+while the head commit is unchanged. The stored `base.sha` is then older than the
+base branch, and compare already reports that branch tip as the merge base.
+
+Run:
+
+`.agents/skills/pr-comments/scripts/stale_pr_base.py PR_NUMBER`
+
+Exit 2 means that stale case. The script prints:
+
+`gh api --method PATCH repos/OWNER/REPO/pulls/PR_NUMBER -f base=BASE_BRANCH`
+
+`BASE_BRANCH` is the pull request's current base. A different name retargets
+the pull request. `--apply` sends the PATCH. It does not restore a dismissed
+approval, so request the review again afterwards. Exit 0 means the pull request
+does not contain the base tip, or `base.sha` is already that tip. Leave a real
+merge-base change alone.
+
 ### Follow-up capabilities
 
 You can help the user with any of the following based on the fetched data:

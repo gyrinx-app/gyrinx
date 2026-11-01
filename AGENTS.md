@@ -195,6 +195,15 @@ that has not been fast-forwarded makes `git diff main...HEAD` include weeks
 of already-merged files. `scripts/check_microcopy.py --diff` uses
 `origin/main` when that ref exists.
 
+GitHub can dismiss a fresh approval with "The merge-base changed after
+approval" while the head commit is unchanged. The pull request's stored
+`base.sha` is then behind the base branch even though compare already uses
+that branch tip as the merge base. Check with
+`.agents/skills/pr-comments/scripts/stale_pr_base.py <number>`. Exit 2 prints
+`gh api --method PATCH repos/<owner>/<repo>/pulls/<number> -f base=<base-branch>`.
+`<base-branch>` is the pull request's current base. A different name retargets
+it. `--apply` sends the PATCH and does not restore the dismissed approval.
+
 Read [`.github/COMMIT_STYLE.md`](.github/COMMIT_STYLE.md) before committing or
 opening a PR. Give commit and PR titles a conventional prefix and name the
 affected component or path. Mark completed work ready for review unless the
