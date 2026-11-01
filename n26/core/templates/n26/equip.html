@@ -273,7 +273,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
                         <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
                             {% for category in section.categories %}
                                 {% if category.name %}
-                                    <c-n26.collection-picker.category :name="category.name">
+                                    <c-n26.collection-picker.category :name="category.name" :open="categories_open">
                                         {% for row in category.rows %}
                                             {% include "n26/includes/equip_row.html" %}
                                         {% endfor %}
