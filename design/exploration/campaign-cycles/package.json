@@ -5,7 +5,7 @@
   "scripts": {
     "build": "vite build && tailwindcss --input src/theme.css --output dist/theme.css --minify && node build-shadow-theme.mjs",
     "start": "vite preview --host 127.0.0.1 --port 8768 --strictPort",
-    "check": "node check_campaign.mjs && node check_campaign_automatic.mjs && node check_campaign_responsive.mjs",
+    "check": "node check_campaign.mjs && node check_campaign_automatic.mjs && node check_campaign_responsive.mjs && node check_trades.mjs",
     "format:check": "prettier --check \"src/*.{js,jsx,css}\" \"*.mjs\" \"*.js\" \"package*.json\""
   },
   "dependencies": {

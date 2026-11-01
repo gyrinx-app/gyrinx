@@ -1,7 +1,16 @@
+import { initialiseTrades } from "./trade-model.js";
 import { useEffect, useRef, useState } from "react";
 import * as M from "./campaign-model.js";
 
-const views = new Set(["dashboard", "schedule", "battles", "activity"]);
+const views = new Set([
+    "dashboard",
+    "schedule",
+    "battles",
+    "activity",
+    "trades",
+    "trade",
+    "edit",
+]);
 export function readRoute(search = location.search) {
     const params = new URLSearchParams(search);
     return {
@@ -15,11 +24,13 @@ export function useCampaignState() {
         try {
             const raw = localStorage.getItem(M.storageKey);
             return {
-                state: raw ? M.normalise(JSON.parse(raw)) : M.defaults(),
+                state: initialiseTrades(
+                    raw ? M.normalise(JSON.parse(raw)) : M.defaults(),
+                ),
                 blocked: false,
             };
         } catch {
-            return { state: M.defaults(), blocked: true };
+            return { state: initialiseTrades(M.defaults()), blocked: true };
         }
     });
     const [state, setState] = useState(loaded.state),
@@ -51,7 +62,9 @@ export function useCampaignState() {
                     }
                 }
             }
-            const draft = reset ? M.defaults() : structuredClone(latest);
+            const draft = initialiseTrades(
+                reset ? M.defaults() : structuredClone(latest),
+            );
             operation(draft);
             if (reset) {
                 blocked.current = false;

@@ -24,3 +24,9 @@ export const territoryNames = (id) =>
         .join(", ");
 export const gangIncome = (id) =>
     territories.filter((t) => t[1] === id).reduce((n, t) => n + t[2], 0);
+
+export const gangIcons = {
+    nightshade: "escher",
+    iron: "orlock",
+    sump: "cawdor",
+};

@@ -51,6 +51,9 @@ recipes = {
         )[0]
         for variant in ("default", "primary", "success", "ghost", "subtle", "text")
     },
+    "tradeAcceptedBadge": classes(
+        '<c-ui.badge variant="pill" color="green">Accepted</c-ui.badge>', "span"
+    )[0],
     "input": input_recipe(),
     "select": native_select_recipe(),
     "textarea": classes('<c-ui.textarea size="sm" height="sm" />', "textarea")[0],
@@ -77,6 +80,7 @@ source = source.replace('@source "', f'@source "{relative}/')
 source = source.replace(":root", ":host")
 source = source.replace(".dark {", ":host(.dark), .dark {")
 (HERE / "src/theme.css").write_text(
-    source + '\n@source "./";\n@import "./surface.css";\n@import "./campaign.css";\n'
+    source
+    + '\n@source "./";\n@import "./surface.css";\n@import "./campaign.css";\n@import "./trade.css";\n'
 )
 print("Prepared campaign Cotton trees, recipes and shadow theme.")

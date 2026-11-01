@@ -1,3 +1,4 @@
+import { TradeScreen, TradeList, TradeSettings } from "./trade.jsx";
 import React, { useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { Plus, Swords, X, RotateCcw, CircleCheck } from "lucide-react";
@@ -39,6 +40,10 @@ import {
 function App() {
     const { state, update, reset, persistError, storageBlocked } =
         useCampaignState();
+    const [actor, setActor] = useState(
+        () => new URLSearchParams(location.search).get("account") || "louis",
+    );
+    const tradeId = new URLSearchParams(location.search).get("trade");
     const [modal, setModal] = useState(null),
         [message, setMessage] = useState(""),
         [error, setError] = useState(""),
@@ -64,11 +69,21 @@ function App() {
             await update(operation);
             setMessage(success);
             close(true);
+            return true;
         } catch (error) {
             setError(error.message);
+            return false;
         } finally {
             saving.current = false;
         }
+    }
+    function openTrade(id) {
+        const url = new URL(location.href);
+        if (id) url.searchParams.set("trade", id);
+        else url.searchParams.delete("trade");
+        url.searchParams.set("account", actor);
+        history.replaceState({}, "", url);
+        navigate("trade");
     }
     const visibleBattles = state.battles.filter(
         (b) => battleCycle === "all" || b.cycle === battleCycle,
@@ -81,11 +96,16 @@ function App() {
                     dark={dark}
                     setDark={setDark}
                     navigate={navigate}
+                    actor={actor}
+                    commit={commit}
+                    openTrade={openTrade}
                 />
                 <CampaignFrame>
                     <div
                         className={
-                            tab === "dashboard" ? "" : "max-w-3xl space-y-8"
+                            ["dashboard", "trade"].includes(tab)
+                                ? ""
+                                : "max-w-3xl space-y-8"
                         }
                     >
                         {tab !== "dashboard" && (
@@ -100,6 +120,26 @@ function App() {
                             aria-label="Demo viewing mode"
                         >
                             <span className="cp-help">Viewing as {viewer}</span>
+                            <div className="tr-demo-account">
+                                <Select
+                                    compact
+                                    label="Demo account"
+                                    value={actor}
+                                    onChange={(value) => {
+                                        setActor(value);
+                                        const url = new URL(location.href);
+                                        url.searchParams.set("account", value);
+                                        history.replaceState({}, "", url);
+                                    }}
+                                    options={[
+                                        ...new Set(
+                                            state.gangs.map((g) => g.owner),
+                                        ),
+                                    ]
+                                        .concat("visitor")
+                                        .map((v) => [v, `Player: ${v}`])}
+                                />
+                            </div>
                             <Button
                                 variant="default"
                                 onClick={() =>
@@ -135,6 +175,8 @@ function App() {
                         {tab === "dashboard" && (
                             <CampaignDashboard
                                 state={state}
+                                actor={actor}
+                                openTrade={openTrade}
                                 arbitrator={arbitrator}
                                 navigate={navigate}
                                 setModal={setModal}
@@ -174,10 +216,39 @@ function App() {
                                 rewardTable={<RewardTable phase={phase} />}
                             />
                         )}
+                        {tab === "trade" && (
+                            <TradeScreen
+                                key={`${tradeId || "new"}-${actor}`}
+                                state={state}
+                                actor={actor}
+                                tradeId={tradeId}
+                                commit={commit}
+                                open={openTrade}
+                            />
+                        )}
+                        {tab === "trades" && (
+                            <TradeList
+                                state={state}
+                                actor={actor}
+                                open={openTrade}
+                                create={() => openTrade(null)}
+                            />
+                        )}
+                        {tab === "edit" && (
+                            <TradeSettings
+                                state={state}
+                                arbitrator={arbitrator && actor === "louis"}
+                                commit={commit}
+                            />
+                        )}
                         {tab === "activity" && (
                             <Card title="Campaign log">
                                 <div className="p-4">
-                                    <CampaignActivity state={state} all />
+                                    <CampaignActivity
+                                        state={state}
+                                        all
+                                        openTrade={openTrade}
+                                    />
                                 </div>
                             </Card>
                         )}

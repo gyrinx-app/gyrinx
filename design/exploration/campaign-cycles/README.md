@@ -57,6 +57,45 @@ an explicit reset. Storage failures leave edits in memory and show a message.
   snapshots. Entry credits go to each demo gang's stash when a phase changes,
   including re-entry, without repeating for consecutive same-phase cycles.
 
+## Campaign gang trading
+
+More actions → **Trades** opens the participant's trades. Trading starts disabled.
+Use More actions → Edit campaign to enable it, then Start a trade. The account
+selector previews louis, mira, tom or a visitor. Select your campaign gang and
+another player's gang, offer stash equipment, credits or assets/resources,
+and include an optional note as part of your offer.
+
+Opening a trade logs it and simulates a whole-platform inbox notification for
+the target owner. Each owner edits only their own offer. Either acceptance
+locks both offers and their notes. The other player can accept, decline or
+counter-offer; a counter-offer clears acceptance. An accepting player can
+cancel their pending acceptance and return to editing. Both acceptances
+complete the exchange and transfer the offered credits and holdings.
+
+Completed pages retain the offers and notes, a transfer summary with gang
+colours/icons, opening/closing times and detailed history, newest first.
+New offer events save snapshots of exactly what was offered. The main
+campaign feed records openings, closures, undo requests and agreed undos;
+each links back to the trade. Existing undo requests are backfilled once
+from the retained trade history.
+
+Either participant can request an undo after completion. The other player
+must accept before credits and holdings return. Requests can be declined
+or cancelled. Undo validates ownership, stash assignments, reservations and
+net credit balances before returning anything; failure changes neither
+gang. Stale requests and repeated returns are rejected. The original record
+remains available as Undone, including its agreed notes. Undo remains
+available when new trading is disabled.
+
+All accounts, inbox entries, inventories, transfers and ledger-like events
+are simulations in the existing browser-local campaign state. Equipment
+must be unassigned and in the stash. Accepted offers reserve holdings and
+credits against other trades; other campaign demo mutations do not enforce
+those reservations. Earlier open-trade notes migrate into the author's
+offer and clear acceptance for review. Earlier completed notes are retained
+as notes outside the accepted offer. Historical offer details that were not
+recorded are not reconstructed.
+
 The browser checks timing while open and catches up missed boundaries on
 reopening, in batches of 100. It cannot execute while all tabs are closed.
 Web Locks serialize manual and automatic writes across tabs where supported;
@@ -82,6 +121,7 @@ shadow boundary prevents host styles from overriding the demo.
 | `src/campaign-view.jsx`, `src/campaign-cotton.jsx` | Cotton-backed dashboard and tables |
 | `src/campaign-schedule.jsx`, `src/campaign-drag.js` | Schedule controls and temporary drag previews |
 | `src/campaign-forms.jsx`, `src/campaign-ui.jsx` | Forms and campaign presentation |
+| `src/trade-model.js`, `src/trade.jsx`, `src/trade.css` | Trade transitions, offers, history and undo UI |
 | `src/controls.jsx`, `src/surface-controls.jsx`, `src/surface.css` | Native controls and Cotton-derived adapters |
 | `campaign_templates.py`, `prepare.py` | Build-time Cotton trees, recipes and theme |
 
@@ -97,7 +137,10 @@ Set `CHROME_PATH` to use installed Chrome. `CAMPAIGN_ORIGIN` overrides the test
 origin. Tests use fresh browser contexts and preserve the interactive demo.
 They cover model invariants, migrations, validation, calendar edges, grants,
 patterns, drag previews, storage recovery, two-tab timing, stale forms, keyboard
-use and 80 long-name/viewer/viewport combinations. Captures are written to `qa/`.
+use and 80 long-name/viewer/viewport combinations. Trading checks cover
+permissions, stash-only equipment, offer locking, notes, reservations,
+notifications, lifecycle logs, transfer snapshots, mutual undo and atomic
+return failures. Captures are written to `qa/`.
 
 ## Production integration
 
@@ -105,9 +148,14 @@ This exploration intentionally uses a local JavaScript model. Integration needs
 server-enforced permissions, campaign operations and durable event records;
 atomic and idempotent grants, battle rewards and scheduler runs; a policy for
 backdated battles and linked ledger entries; and a server scheduler that runs
-without a browser. Effects are descriptive only. Territory transfers and
-per-gang post-cycle completion are outside the prototype. No production jobs,
-notifications, gang ledgers or campaign records are changed.
+without a browser. Effects are descriptive only. Territory ownership transfers are simulated by trades; production territory
+consequences and per-gang post-cycle completion remain outside the prototype. No production jobs,
+notifications, gang ledgers or campaign records are changed. Production trading
+needs server-authorised operations, durable immutable offer snapshots,
+transactional reservations shared by every credit/holding mutation,
+concurrency/version checks, compensating ledger transfers for mutually
+approved undo, and an explicit read policy. Whole-platform notifications
+should use `n26.notifications.deliver` after commit with the trade URL.
 
 Use the application's page shell, typed React adapters and operation pipeline
 when implementing the agreed design. Browser storage, synthetic account names,
