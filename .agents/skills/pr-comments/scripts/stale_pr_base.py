@@ -21,7 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
+import subprocess  # nosec B404 — runs only fixed gh commands against the GitHub API
 import urllib.parse
 
 _REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -122,7 +122,7 @@ def _require_sha(value: str, label: str) -> None:
 
 
 def _gh(*args: str) -> str:
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B607 — fixed argv; gh resolved from PATH like every repo tool
         ["gh", *args],
         check=False,
         capture_output=True,
