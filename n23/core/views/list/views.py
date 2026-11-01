@@ -582,6 +582,9 @@ class ListPrintView(generic.DetailView):
         self.print_config = print_config
         context["print_config"] = print_config
         context["print_orientation"] = _print_orientation(self.request, print_config)
+        context["show_classic_extras"] = (
+            not print_config or print_config.include_classic_extras
+        )
 
         # Card style: normally part of a saved PrintConfig, but a crew print has
         # no config, so ?style= picks it straight from the URL (the crew page's
