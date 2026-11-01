@@ -673,8 +673,19 @@ class ListPrintView(generic.DetailView):
         # Attributes and assets appear on both sheets — as side cards on the web
         # sheet, gathered onto the gang plate on the classic one (#1816).
         # Recent actions are web-only: the classic sheet has no card for them.
-        want_attributes = not print_config or print_config.include_attributes
-        want_assets = not print_config or print_config.include_assets
+        # Crew sheets default to fighter cards; saved configurations can opt
+        # the gang-level panels back in.
+        include_gang_panels = print_crew is None
+        want_attributes = (
+            print_config.include_attributes if print_config else include_gang_panels
+        )
+        want_assets = (
+            print_config.include_assets if print_config else include_gang_panels
+        )
+        want_actions = (
+            print_config.include_actions if print_config else include_gang_panels
+        )
+        context["print_include_attributes"] = want_attributes
 
         if want_attributes:
             context["attributes"] = get_list_attributes(list_obj)
@@ -685,7 +696,7 @@ class ListPrintView(generic.DetailView):
 
         if not use_classic:
             # Add recent campaign actions if configured to be included
-            if not print_config or print_config.include_actions:
+            if want_actions:
                 context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
 
         # Lore & Notes cards, printed among the fighter cards when the config
