@@ -1,9 +1,11 @@
-"""How a native multiple select shows what is chosen.
+"""How a native select shows its options.
 
-No database: the kit paints every option the input's own fill, so a
-chosen row and an unchosen one read as the same. The override drops
-that fill on a list and marks option:checked instead.
+A one-of-many menu colours options inside an optgroup, not only the
+select's direct children. A multiple select is a list, so the chosen row
+is marked on its own.
 """
+
+from pathlib import Path
 
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
@@ -51,3 +53,19 @@ class TestAMultipleSelectShowsWhatIsChosen:
         assert "appearance-none" in html
         assert "background-image" in html
         assert "multiple" not in html[html.index("<select") : html.index(">")]
+        assert "[&>option]" not in html
+
+
+class TestAGroupedMenuKeepsItsTextReadable:
+    """Lasting-injury results are options inside an optgroup. The menu
+    colours have to reach those rows and the group label."""
+
+    def test_menu_colours_cover_grouped_options(self):
+        css = (
+            Path(__file__).resolve().parents[1] / "designsystem" / "assets" / "app.css"
+        ).read_text()
+
+        assert "select:not(.n26-select-multiple) option" in css
+        assert "select:not(.n26-select-multiple) optgroup" in css
+        dark = css.split(".dark select:not(.n26-select-multiple) option", 1)[1]
+        assert "color: var(--color-ink-100)" in dark.split("}", 1)[0]

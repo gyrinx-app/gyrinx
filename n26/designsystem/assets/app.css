@@ -1783,6 +1783,23 @@ a[data-busy="on"] {
     content: none;
 }
 
+/* A one-of-many menu colours every option, including one nested in an
+ * optgroup, and the group label. Grouped rows are not direct children;
+ * without their own colour they inherit the select's light text onto the
+ * menu's white ground. A multiple select is a list on the page and is
+ * marked below, so it is left out of this pair. */
+select:not(.n26-select-multiple) option,
+select:not(.n26-select-multiple) optgroup {
+    background-color: var(--color-white);
+    color: var(--color-ink-900);
+}
+
+.dark select:not(.n26-select-multiple) option,
+.dark select:not(.n26-select-multiple) optgroup {
+    background-color: var(--color-ink-900);
+    color: var(--color-ink-100);
+}
+
 /* A native <select multiple> is a list, not a dropdown. The kit paints
  * every option the input's fill, which hides the browser's selected
  * highlight in both modes — and its chevron is for a one-of-many

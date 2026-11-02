@@ -5,6 +5,7 @@ Put option or optgroup elements in the slot.
 size is padding and type, not the HTML size attribute.
 multiple adds n26-select-multiple. app.css uses that class for the selected-option mark and a list min-height.
 The placeholder option is only for a single select. A multiple select has no placeholder option.
+Menu colours for a single select live in app.css. They have to reach options inside an optgroup: a direct-child selector misses those rows, and they inherit the select's light text on the menu's white ground.
 class is not declared. A caller class= lands in attrs and the browser drops every select style.
 {% endcomment %}
 
@@ -47,7 +48,6 @@ class is not declared. A caller class= lands in attrs and the browser drops ever
            {% else %}
              appearance-none bg-[right_0.5rem_center] bg-no-repeat
              {{ size_classes|get_item:size }}
-             [&>option]:text-ink-900 [&>option]:dark:text-ink-100 [&>option]:bg-white [&>option]:dark:bg-ink-900
            {% endif %}
            bg-[var(--color-input-bg)] shadow-[var(--shadow-input)]
            text-ink-900 dark:text-ink-100
