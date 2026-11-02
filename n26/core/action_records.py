@@ -398,6 +398,10 @@ def active_action_record(fighter, action):
             action=action,
             state=ActionRecord.State.STARTED,
         )
+        .exclude(
+            allowance__source_kind=ActionAllowance.Source.BATTLE,
+            allowance__is_active=False,
+        )
         .filter(
             Q(allowance__source_id=fighter.membership_id)
             | Q(
@@ -1046,7 +1050,14 @@ def reopen_action(op, record):
     others = ActionRecord.objects.filter(
         fighter=record.fighter, action=record.action, state__in=RESERVING_STATES
     ).exclude(pk=record.pk)
-    if others.filter(state=ActionRecord.State.STARTED).exists():
+    if (
+        others.filter(state=ActionRecord.State.STARTED)
+        .exclude(
+            allowance__source_kind=ActionAllowance.Source.BATTLE,
+            allowance__is_active=False,
+        )
+        .exists()
+    ):
         raise Refusal(
             "You cannot undo this while another flow for this action is started. "
             "Finish that flow, or mark it as applied by hand, first."

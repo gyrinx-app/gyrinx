@@ -481,3 +481,105 @@ def test_a_maximum_length_action_name_can_be_granted_held_and_restored(setup):
             post_battle_revision__report=s.report
         ).values_list("note", flat=True)
     )
+
+
+def test_allowance_validation_accepts_its_report_and_rejects_another_gang(
+    setup, gang_type
+):
+    from django.core.exceptions import ValidationError
+
+    s = setup
+    apply(s, 5)
+    allowance = ActionAllowance.objects.get(source_kind="battle")
+    allowance.full_clean()
+    other = found_gang("Other gang", gang_type, owner=s.owner, budget=1000)
+    other_report = start_report(other, actor=s.owner, request_key=uuid4())
+    allowance.report = other_report
+    with pytest.raises(ValidationError, match="report must belong"):
+        allowance.full_clean()
+
+
+def test_a_held_rolled_flow_keeps_its_history_without_blocking_a_later_battle(
+    setup, client
+):
+    s = setup
+    apply(s, 5)
+    with operation(s.gang, actor=s.owner) as op:
+        held = op.start_action(s.fighter, s.action, uuid4())
+        op.record_action_roll(held, s.outcome.operation, uuid4(), rolled=9)
+    held.refresh_from_db()
+    original_roll = held.advancement_selection.roll_event_id
+    apply(s, 4, correction=True)
+    second_report = start_report(s.gang, actor=s.owner, request_key=uuid4())
+    apply(s, 5, report=second_report)
+    later = ActionAllowance.objects.get(report=second_report)
+    client.force_login(s.owner)
+    edit = client.get(reverse("n26-edit-fighter", args=[s.fighter.pk]))
+    panel = next(
+        p for p in edit.context["action_panels"] if p.action_id == str(s.action.pk)
+    )
+    assert panel.start_href
+    assert str(later.pk) in panel.start_href
+    assert panel.drafts[0].problem and panel.drafts[0].suspended
+    start = client.get(panel.start_href)
+    assert start.status_code == 200
+    response = client.post(
+        reverse("n26-action-start", args=[s.fighter.pk, s.action.pk]),
+        {
+            "request_key": str(uuid4()),
+            "allowance": str(later.pk),
+            "outcome": str(s.outcome.pk),
+        },
+    )
+    assert response.status_code == 302
+    new = ActionRecord.objects.get(allowance=later)
+    assert new.pk != held.pk and new.state == "started"
+    held.refresh_from_db()
+    assert held.advancement_selection.roll_event_id == original_roll
+    assert held.state == "started"
+    with pytest.raises(Refusal, match="On hold"):
+        with operation(s.gang, actor=s.owner) as op:
+            op.record_action_roll(held, s.outcome.operation, uuid4(), rolled=12)
+    with operation(s.gang, actor=s.owner) as op:
+        op.record_action_roll(new, s.outcome.operation, uuid4(), rolled=12)
+        new.refresh_from_db()
+        new = op.review_action(
+            new, outcome=s.outcome, terms={"pickable_id": str(s.pick.pk)}
+        )
+        new = op.complete_action(
+            new, revision=new.revision, review=new.review, outcome=s.outcome
+        )
+    snapshot = advancement_undo_snapshot(new)
+    with operation(s.gang, actor=s.owner) as op:
+        new = op.undo_action(new, expected=snapshot)
+        new = op.apply_action_by_hand(new)
+        new = op.reopen_action(new)
+    assert new.state == "started"
+    apply(s, 5, correction=True)
+    held.refresh_from_db()
+    assert held.allowance.is_active
+    assert held.advancement_selection.roll_event_id == original_roll
+    assert ActionRecord.objects.filter(action=s.action).count() == 2
+
+
+def test_the_model_cards_direct_picker_cannot_bypass_a_held_action(setup, client):
+    from bs4 import BeautifulSoup
+
+    s = setup
+    apply(s, 5)
+    with operation(s.gang, actor=s.owner) as op:
+        record = op.start_action(s.fighter, s.action, uuid4())
+        op.record_action_roll(record, s.outcome.operation, uuid4(), rolled=9)
+    apply(s, 4, correction=True)
+    client.force_login(s.owner)
+    edit = client.get(reverse("n26-edit-fighter", args=[s.fighter.pk]))
+    links = BeautifulSoup(edit.content, "html.parser").find_all("a", href=True)
+    picker = next(link["href"] for link in links if "/choose/" in link["href"])
+    target = reverse("n26-action-flow", args=[s.fighter.pk, record.pk, "resume"])
+    assert client.get(picker).url == target
+    assert client.post(picker, {"pick": str(s.pick.pk)}).url == target
+    held = client.get(target, follow=True)
+    assert "On hold" in held.content.decode()
+    assert not Assignment.objects.filter(
+        miniature_root=s.fighter, pickable=s.pick, archived=False
+    ).exists()

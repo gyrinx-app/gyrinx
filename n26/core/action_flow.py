@@ -39,6 +39,7 @@ class ActionUseLink:
     variant: str = "primary"
     earned_threshold: str = ""
     report_href: str = ""
+    suspended: bool = False
 
 
 @dataclass
@@ -393,6 +394,12 @@ def action_panels(fighter, *, card, computed, counter_tracking_active=True):
                         when=record.created,
                         earned=record.allowance_id is not None,
                         problem=problem,
+                        suspended=bool(
+                            record.allowance_id
+                            and draft_allowances[record.allowance_id].source_kind
+                            == ActionAllowance.Source.BATTLE
+                            and not draft_allowances[record.allowance_id].is_active
+                        ),
                         variant="default" if problem else "primary",
                         earned_threshold=earned_threshold(
                             draft_allowances.get(record.allowance_id)

@@ -152,14 +152,12 @@ class ActionAllowance(Base):
 
     def clean(self):
         super().clean()
-        if (
-            self.report_id
-            and self.fighter_id
-            and self.report.gang_id != self.fighter.gang_id
-        ):
-            raise ValidationError(
-                {"report": "The report must belong to this model's gang."}
-            )
+        if self.report_id and self.fighter_id:
+            membership = self.fighter.membership
+            if membership is None or self.report.gang_id != membership.gang_id:
+                raise ValidationError(
+                    {"report": "The report must belong to this model's gang."}
+                )
         if self.fighter_id and self.source_id:
             if self.fighter.membership_id != self.source_id:
                 raise ValidationError(

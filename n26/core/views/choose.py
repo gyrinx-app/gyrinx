@@ -611,6 +611,24 @@ def choose(request, pk, slot):
 
     gang = _own_gang_or_404(request, pk)
     found = find_slot(gang, slot)
+    from n26.core.models import ActionAllowance, ActionRecord
+
+    battle_action = (
+        ActionRecord.objects.filter(
+            gang=gang,
+            advancement_selection__slot_assignment=found.anchor,
+            allowance__source_kind=ActionAllowance.Source.BATTLE,
+        ).first()
+        if getattr(found.anchor, "slot_id", None) is not None
+        else None
+    )
+    if battle_action is not None:
+        return redirect(
+            "n26-action-flow",
+            pk=battle_action.fighter_id,
+            record_id=battle_action.pk,
+            step="resume",
+        )
     # The list is built for this reader: staged picks are on it only for
     # somebody who may see staged content, and the click below and the
     # roll panel are read against the same list.
