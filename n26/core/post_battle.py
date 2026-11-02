@@ -121,6 +121,7 @@ class ModelResult:
     xp_blocked: str
     xp_award_assignment_id: str | None = None
     xp_recorded: int = 0
+    battle_awards: list[str] = field(default_factory=list)
     is_vehicle: bool = False
     profile_name: str = ""
     owned_by: str = ""
@@ -234,6 +235,7 @@ class PostBattlePlan:
     correcting: bool = False
     gang_counters: list[CounterChange] = field(default_factory=list)
     # Resolved objects are private execution data, never template inputs.
+    _battle_allowances: list = field(default_factory=list, repr=False)
     _writes: list = field(default_factory=list, repr=False)
     _removals: list = field(default_factory=list, repr=False)
     _status_restores: dict = field(default_factory=dict, repr=False)
@@ -1299,6 +1301,19 @@ def preview_report(report, *, actor, payload=None):
         .distinct("miniature_id")
         .values_list("miniature_id", "post_battle_revision__report_id")
     }
+    from n26.core.access import actions_for
+    from n26.core.allowances import preview_battle_allowances
+    from n26.library.models import Action
+
+    battle_rules = {
+        action.pk: action
+        for action in Action.objects.filter(
+            battle_allowance_rule__isnull=False
+        ).select_related("battle_allowance_rule")
+    }
+    battle_allowances = list(
+        report.action_allowances.select_related("action").prefetch_related("records")
+    )
     for model_id, card in gang_card.members.items():
         model_id = str(model_id)
         miniature = card.miniature
@@ -1730,6 +1745,23 @@ def preview_report(report, *, actor, payload=None):
                 "note": note,
             }
         )
+        changes, allowance_facts, allowance_errors = preview_battle_allowances(
+            report,
+            miniature,
+            xp,
+            accesses=actions_for(miniature, card=card, computed=compute(card, index))
+            if active and battle_rules
+            else [],
+            rules=battle_rules if active else {},
+            existing=battle_allowances,
+        )
+        plan._battle_allowances.extend(changes)
+        result.battle_awards = [
+            f"{'Earns' if allowance is None else 'Restores' if enabled else 'Puts on hold'} one use of {action}."
+            for _, action, _, allowance, enabled in changes
+        ]
+        facts.extend(allowance_facts)
+        model_errors.extend(allowance_errors)
         facts.append(["xp", model_id, result.xp_assignment_id])
         errors.extend(f"{miniature.name}: {error}" for error in model_errors)
     plan.review = sha256(
@@ -1884,6 +1916,9 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                         op.move(assignment, gang.stash, note="Post-battle equipment")
                     else:
                         op.remove(assignment, note="Equipment lost after battle")
+            from n26.core.allowances import apply_battle_allowances
+
+            apply_battle_allowances(op, report, plan._battle_allowances)
             op.event(
                 None, LedgerEvent.Kind.POST_BATTLE, note="Post-battle results recorded"
             )
@@ -1993,6 +2028,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                     "xp_after": m.xp_after,
                     "xp_change": m.xp_change,
                     "xp_award_assignment_id": m.xp_award_assignment_id,
+                    "battle_awards": m.battle_awards,
                     "status_before": m.status,
                     "status_after": m.final_status,
                     "status_revision_after": (

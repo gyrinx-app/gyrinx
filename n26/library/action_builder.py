@@ -176,6 +176,12 @@ def create_from_draft(raw):
         if table.counter_id != counter.pk:
             raise ValidationError("The rank table must use the selected counter.")
         allowance = authoring.rank_allowance_rule(counter)
+    elif mode == "battle":
+        if timing != "post_cycle":
+            raise ValidationError("Battle XP uses need after-cycle timing.")
+        allowance = authoring.battle_allowance_rule(
+            _integer(draft.get("minimumXp"), "battle XP threshold", minimum=1)
+        )
     elif mode != "free":
         raise ValidationError("Choose how uses work.")
     outcomes = [_outcome(spec) for spec in specs]

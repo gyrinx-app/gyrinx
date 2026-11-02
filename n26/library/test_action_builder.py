@@ -575,3 +575,37 @@ class TestAuthoringPages:
         response = admin_client.post(url, {"act": "use_limit", "use_limit": "any"})
         assert response.status_code == 200
         assert b"You cannot change this action&#x27;s use limit" in response.content
+
+
+def test_a_battle_xp_allowance_is_authored_with_an_existing_outcome(default_pack):
+    from n26.library import authoring as a
+
+    kind = a.create_slot_type("Names")
+    table = a.create_picklist("Names", kind)
+    slot = a.create_slot("Name", kind, table)
+    outcome = a.create_outcome("Name", a.resolve_advancement(slot))
+    action = create_from_draft(
+        draft(
+            name="Earn a name",
+            useMode="battle",
+            minimumXp="5",
+            prices=[],
+            outcomes=[{"existing": str(outcome.pk)}],
+        )
+    )
+    assert action.battle_allowance_rule.minimum_xp == 5
+    assert action.allowance_rule == action.battle_allowance_rule
+    assert not action.use_price.exists()
+    assert action.outcomes.get().outcome == outcome
+    for value in ("0", "-1", "1.5", "", True):
+        with pytest.raises(ValidationError):
+            create_from_draft(
+                draft(
+                    name="Invalid",
+                    useMode="battle",
+                    minimumXp=value,
+                    prices=[],
+                    outcomes=[{"existing": str(outcome.pk)}],
+                )
+            )
+    assert not Action.objects.filter(name="Invalid").exists()

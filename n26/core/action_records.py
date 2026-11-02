@@ -153,6 +153,8 @@ def _allowance_source_kind(action):
         return ActionAllowance.Source.RECRUITMENT
     if action.rank_allowance_rule_id is not None:
         return ActionAllowance.Source.RANK
+    if action.battle_allowance_rule_id is not None:
+        return ActionAllowance.Source.BATTLE
     return None
 
 
@@ -253,6 +255,9 @@ def _content_snapshot(action):
             if action.rank_allowance_rule_id
             else None
         ),
+        "battle_allowance_rule": str(action.battle_allowance_rule_id)
+        if action.battle_allowance_rule_id
+        else None,
         "outcomes": outcomes,
     }
 
@@ -1046,7 +1051,12 @@ def reopen_action(op, record):
             "You cannot undo this while another flow for this action is started. "
             "Finish that flow, or mark it as applied by hand, first."
         )
-    threshold = record.allowance.threshold if record.allowance_id else None
+    threshold = (
+        record.allowance.threshold
+        if record.allowance_id
+        and record.allowance.source_kind == ActionAllowance.Source.RANK
+        else None
+    )
     if (
         threshold is not None
         and others.filter(

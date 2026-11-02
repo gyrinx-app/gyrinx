@@ -41,9 +41,13 @@ class ActionAllowanceQuerySet(models.QuerySet):
 
     def eligible(self):
         """Earned uses whose original rank threshold is still met."""
-        return self.with_progression_value().filter(
-            ~models.Q(source_kind="rank")
-            | models.Q(progression_value__gte=models.F("threshold"))
+        return (
+            self.with_progression_value()
+            .filter(is_active=True)
+            .filter(
+                ~models.Q(source_kind="rank")
+                | models.Q(progression_value__gte=models.F("threshold"))
+            )
         )
 
     def unused(self):
@@ -61,6 +65,7 @@ class ActionAllowance(Base):
     class Source(models.TextChoices):
         RECRUITMENT = "recruitment", "Recruitment"
         RANK = "rank", "Rank"
+        BATTLE = "battle", "Battle XP"
 
     action = models.ForeignKey(
         "library.Action", on_delete=models.PROTECT, related_name="allowances"
@@ -88,6 +93,15 @@ class ActionAllowance(Base):
         related_name="granted_allowances",
     )
 
+    report = models.ForeignKey(
+        "n26.PostBattleReport",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="action_allowances",
+    )
+    is_active = models.BooleanField(default=True)
+
     objects = ActionAllowanceQuerySet.as_manager()
 
     class Meta:
@@ -98,14 +112,23 @@ class ActionAllowance(Base):
                 condition=(
                     models.Q(
                         source_kind="recruitment",
+                        report__isnull=True,
                         threshold__isnull=True,
                         rank_table__isnull=True,
                     )
                     | models.Q(
                         source_kind="rank",
+                        report__isnull=True,
                         threshold__isnull=False,
                         threshold__gt=0,
                         rank_table__isnull=False,
+                    )
+                    | models.Q(
+                        source_kind="battle",
+                        report__isnull=False,
+                        threshold__isnull=False,
+                        threshold__gt=0,
+                        rank_table__isnull=True,
                     )
                 ),
                 name="action_allowance_source_is_whole",
@@ -120,10 +143,23 @@ class ActionAllowance(Base):
                 condition=models.Q(source_kind="rank"),
                 name="action_allowance_rank_once",
             ),
+            models.UniqueConstraint(
+                fields=["action", "fighter", "report"],
+                condition=models.Q(source_kind="battle"),
+                name="action_allowance_battle_once",
+            ),
         ]
 
     def clean(self):
         super().clean()
+        if (
+            self.report_id
+            and self.fighter_id
+            and self.report.gang_id != self.fighter.gang_id
+        ):
+            raise ValidationError(
+                {"report": "The report must belong to this model's gang."}
+            )
         if self.fighter_id and self.source_id:
             if self.fighter.membership_id != self.source_id:
                 raise ValidationError(

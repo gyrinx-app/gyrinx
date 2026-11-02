@@ -13,6 +13,45 @@ const props: ActionBuilderProps = {
 };
 
 describe("action builder", () => {
+    it("saves a battle XP threshold and requires a positive whole number", async () => {
+        const user = userEvent.setup();
+        const { container } = render(<ActionBuilder {...props} />);
+        await user.click(screen.getByRole("button", { name: "2. Uses" }));
+        await user.click(
+            screen.getByRole("radio", { name: /Earn a use from battle XP/ }),
+        );
+        const threshold = screen.getByRole("spinbutton", {
+            name: "Minimum XP in one battle",
+        });
+        expect((threshold as HTMLInputElement).value).toBe("5");
+        await user.clear(threshold);
+        await user.type(threshold, "0");
+        await user.click(screen.getByRole("button", { name: "4. Review" }));
+        expect(
+            screen.getByText("Enter a battle XP threshold of at least 1."),
+        ).toBeTruthy();
+        await user.click(screen.getByRole("button", { name: "2. Uses" }));
+        await user.clear(
+            screen.getByRole("spinbutton", {
+                name: "Minimum XP in one battle",
+            }),
+        );
+        await user.type(
+            screen.getByRole("spinbutton", {
+                name: "Minimum XP in one battle",
+            }),
+            "6",
+        );
+        await user.click(screen.getByRole("button", { name: "4. Review" }));
+        const draft = JSON.parse(
+            (container.querySelector('input[name="draft"]') as HTMLInputElement)
+                .value,
+        );
+        expect(draft.useMode).toBe("battle");
+        expect(draft.minimumXp).toBe("6");
+        expect(draft.timing).toBe("post_cycle");
+    });
+
     it("normalises malformed returned drafts instead of crashing", async () => {
         const user = userEvent.setup();
         render(
@@ -214,7 +253,9 @@ describe("action builder", () => {
             ).disabled,
         ).toBe(true);
         expect(
-            screen.getByText("Rank uses need after-cycle timing."),
+            screen.getByText(
+                "Rank and battle XP uses need after-cycle timing.",
+            ),
         ).toBeTruthy();
     });
 });

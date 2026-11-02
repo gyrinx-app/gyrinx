@@ -105,6 +105,25 @@ class RankAllowanceRule(Content):
         verbose_name = "rank allowance rule"
 
 
+class BattleAllowanceRule(Content):
+    """Earn one use when a model receives enough XP in one post-battle report."""
+
+    family = Family.FOUNDATION
+    minimum_xp = models.PositiveIntegerField(
+        default=5,
+        help_text="The total XP award needed in one battle to earn one use.",
+    )
+
+    class Meta:
+        verbose_name = "battle allowance rule"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(minimum_xp__gt=0),
+                name="battle_allowance_positive_xp",
+            ),
+        ]
+
+
 class Action(Content, Assignable, UsableBy):
     """A flow that takes a fighter through a sequence of steps.
 
@@ -138,6 +157,14 @@ class Action(Content, Assignable, UsableBy):
         related_name="action",
     )
 
+    battle_allowance_rule = models.OneToOneField(
+        BattleAllowanceRule,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="action",
+    )
+
     class Meta:
         ordering = ["name"]
         constraints = [
@@ -149,8 +176,20 @@ class Action(Content, Assignable, UsableBy):
             ),
             exclusive_has_no_trade_points("action"),
             models.CheckConstraint(
-                condition=models.Q(recruitment_allowance_rule__isnull=True)
-                | models.Q(rank_allowance_rule__isnull=True),
+                condition=(
+                    models.Q(
+                        recruitment_allowance_rule__isnull=True,
+                        rank_allowance_rule__isnull=True,
+                    )
+                    | models.Q(
+                        recruitment_allowance_rule__isnull=True,
+                        battle_allowance_rule__isnull=True,
+                    )
+                    | models.Q(
+                        rank_allowance_rule__isnull=True,
+                        battle_allowance_rule__isnull=True,
+                    )
+                ),
                 name="action_at_most_one_allowance_rule",
             ),
         ]
@@ -160,11 +199,25 @@ class Action(Content, Assignable, UsableBy):
 
     @property
     def allowance_rule(self):
-        return self.recruitment_allowance_rule or self.rank_allowance_rule
+        return (
+            self.recruitment_allowance_rule
+            or self.rank_allowance_rule
+            or self.battle_allowance_rule
+        )
 
     def clean(self):
         super().clean()
-        if self.recruitment_allowance_rule_id and self.rank_allowance_rule_id:
+        if (
+            sum(
+                bool(value)
+                for value in (
+                    self.recruitment_allowance_rule_id,
+                    self.rank_allowance_rule_id,
+                    self.battle_allowance_rule_id,
+                )
+            )
+            > 1
+        ):
             raise ValidationError("An action can have only one allowance rule.")
         if self.allowance_rule and self.pk and self.use_price.exists():
             raise ValidationError(

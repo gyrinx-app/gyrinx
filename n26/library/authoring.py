@@ -1059,6 +1059,7 @@ def create_action(
     allowance_rule=None,
     recruitment_allowance_rule=None,
     rank_allowance_rule=None,
+    battle_allowance_rule=None,
     usable_by_profile_types=(),
     usable_by_subtypes=(),
     usable_by_profiles=(),
@@ -1072,12 +1073,19 @@ def create_action(
         Action,
         ActionOutcome,
         ActionPriceComponent,
+        BattleAllowanceRule,
+        RankAllowanceRule,
         RecruitmentAllowanceRule,
     )
 
     rules = [
         rule
-        for rule in (allowance_rule, recruitment_allowance_rule, rank_allowance_rule)
+        for rule in (
+            allowance_rule,
+            recruitment_allowance_rule,
+            rank_allowance_rule,
+            battle_allowance_rule,
+        )
         if rule is not None
     ]
     if len(rules) > 1:
@@ -1089,11 +1097,12 @@ def create_action(
         )
     rule_kwargs = {}
     if allowance_rule is not None:
-        field = (
-            "recruitment_allowance_rule"
-            if isinstance(allowance_rule, RecruitmentAllowanceRule)
-            else "rank_allowance_rule"
-        )
+        fields = {
+            RecruitmentAllowanceRule: "recruitment_allowance_rule",
+            RankAllowanceRule: "rank_allowance_rule",
+            BattleAllowanceRule: "battle_allowance_rule",
+        }
+        field = fields[type(allowance_rule)]
         rule_kwargs[field] = allowance_rule
     action = Action.objects.create(
         name=name,
@@ -1307,6 +1316,17 @@ def recruitment_allowance_rule(**kwargs):
     from n26.library.models import RecruitmentAllowanceRule
 
     return RecruitmentAllowanceRule.objects.create(**kwargs)
+
+
+@guarded_write
+def battle_allowance_rule(minimum_xp=5, **kwargs):
+    """Earn one use for a qualifying XP award in one battle."""
+    from n26.library.models import BattleAllowanceRule
+
+    rule = BattleAllowanceRule(minimum_xp=minimum_xp, **kwargs)
+    rule.full_clean()
+    rule.save()
+    return rule
 
 
 @guarded_write

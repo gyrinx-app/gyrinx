@@ -1,4 +1,4 @@
-"""Grant durable fighter-action allowances at their two rule boundaries."""
+"""Grant durable fighter-action allowances at recruitment, ranks and battles."""
 
 from django.db import transaction
 
@@ -10,6 +10,8 @@ from n26.core.models import ActionAllowance, CounterValue, LedgerEvent
 
 def allowance_hold_reason(allowance):
     """Explain a held use loaded with ``with_progression_value`` and its table."""
+    if not allowance.is_active:
+        return f"On hold until this report awards at least {allowance.threshold} XP."
     if allowance.source_kind != ActionAllowance.Source.RANK:
         return ""
     if (
@@ -250,7 +252,11 @@ def clone_unused_allowances(op, source, clone):
     if not op.counter_tracking_active:
         return []
     copied = []
-    unused = source.action_allowances.unused().order_by("created", "pk")
+    unused = (
+        source.action_allowances.unused()
+        .exclude(source_kind=ActionAllowance.Source.BATTLE)
+        .order_by("created", "pk")
+    )
     for allowance in unused:
         duplicate = ActionAllowance.objects.create(
             action=allowance.action,
@@ -268,3 +274,72 @@ def clone_unused_allowances(op, source, clone):
         duplicate.save(update_fields=["granted_event", "modified"])
         copied.append(duplicate)
     return copied
+
+
+def preview_battle_allowances(report, fighter, xp, *, accesses, rules, existing):
+    """Describe grants and holds without changing earned uses or their history."""
+    by_action = {row.action_id: row for row in existing if row.fighter_id == fighter.pk}
+    desired = {key: (row.action, row.threshold, row) for key, row in by_action.items()}
+    for access in accesses:
+        action = rules.get(access.action.pk)
+        if action is not None and action.pk not in desired:
+            desired[action.pk] = (action, action.battle_allowance_rule.minimum_xp, None)
+    changes, facts, errors = [], [], []
+    for action_id, (action, threshold, allowance) in desired.items():
+        active = xp >= threshold
+        records = list(allowance.records.all()) if allowance else []
+        facts.append(
+            [
+                "battle-allowance",
+                str(fighter.pk),
+                str(action_id),
+                threshold,
+                active,
+                str(allowance.pk) if allowance else None,
+                allowance.is_active if allowance else None,
+                [(str(record.pk), record.state, record.revision) for record in records],
+            ]
+        )
+        if allowance is None and not active:
+            continue
+        if allowance is not None and allowance.is_active == active:
+            continue
+        if not active and any(
+            record.state in ("completed", "applied_by_hand") for record in records
+        ):
+            errors.append(
+                f"You cannot lower this award below {threshold} XP because {action} has already been used. "
+                "Undo its result first, or record an XP adjustment separately."
+            )
+            continue
+        changes.append((fighter, action, threshold, allowance, active))
+    return changes, facts, errors
+
+
+def apply_battle_allowances(op, report, changes):
+    """Apply the reviewed grants or holds inside the report's locked operation."""
+    for fighter, action, threshold, allowance, active in changes:
+        if allowance is None:
+            allowance, created = ActionAllowance.objects.get_or_create(
+                action=action,
+                fighter=fighter,
+                report=report,
+                source_kind=ActionAllowance.Source.BATTLE,
+                defaults={"source": _membership(fighter), "threshold": threshold},
+            )
+            if not created:
+                continue
+            allowance.granted_event = op.event(
+                fighter,
+                LedgerEvent.Kind.GRANTED,
+                note=f"Earned one use of {action} for {threshold}+ XP in this battle.",
+            )
+            allowance.save(update_fields=["granted_event", "modified"])
+        else:
+            allowance.is_active = active
+            allowance.save(update_fields=["is_active", "modified"])
+            op.event(
+                fighter,
+                LedgerEvent.Kind.AMENDED,
+                note=f"{'Restored' if active else 'Put on hold'} one use of {action} after correcting this battle's XP.",
+            )

@@ -29,7 +29,8 @@ type Draft = {
     name: string;
     timing: "recruitment" | "post_cycle";
     acquisitionPrice: string;
-    useMode: "paid" | "recruitment" | "rank" | "free";
+    useMode: "paid" | "recruitment" | "rank" | "battle" | "free";
+    minimumXp: string;
     prices: Price[];
     rankCounter: string;
     rankTable: string;
@@ -83,6 +84,7 @@ function defaultDraft(props: ActionBuilderProps): Draft {
         timing: "post_cycle",
         acquisitionPrice: "0",
         useMode: "paid",
+        minimumXp: "5",
         prices: [
             { resource: "credits", payer: "gang", counter: "", amount: "" },
         ],
@@ -163,12 +165,14 @@ function readDraft(props: ActionBuilderProps): Draft {
             useMode:
                 draft.useMode === "recruitment" ||
                 draft.useMode === "rank" ||
+                draft.useMode === "battle" ||
                 draft.useMode === "free"
                     ? draft.useMode
                     : "paid",
             prices: Array.isArray(draft.prices)
                 ? draft.prices.map(readPrice).filter((price) => price !== null)
                 : defaults.prices,
+            minimumXp: string(draft.minimumXp, defaults.minimumXp),
             rankCounter: string(draft.rankCounter, defaults.rankCounter),
             rankTable: string(draft.rankTable),
             outcomes: Array.isArray(draft.outcomes)
@@ -185,6 +189,8 @@ function readDraft(props: ActionBuilderProps): Draft {
 function priceText(draft: Draft, props: ActionBuilderProps): string {
     if (draft.useMode === "recruitment") return "One use at recruitment";
     if (draft.useMode === "rank") return "Uses earned from ranks";
+    if (draft.useMode === "battle")
+        return `One use for ${draft.minimumXp}+ XP in one battle`;
     if (draft.useMode === "free") return "No use price";
     if (
         !draft.prices.length ||
@@ -224,8 +230,11 @@ function issues(draft: Draft): string[] {
     if (!draft.name.trim()) found.push("Name the action.");
     if (draft.useMode === "recruitment" && draft.timing !== "recruitment")
         found.push("Recruitment uses need recruitment timing.");
-    if (draft.useMode === "rank" && draft.timing !== "post_cycle")
-        found.push("Rank uses need after-cycle timing.");
+    if (
+        (draft.useMode === "rank" || draft.useMode === "battle") &&
+        draft.timing !== "post_cycle"
+    )
+        found.push("Rank and battle XP uses need after-cycle timing.");
     if (!draft.outcomes.length) found.push("Add at least one outcome.");
     draft.outcomes.forEach((outcome, index) => {
         if (outcome.existing) return;
@@ -265,6 +274,11 @@ function issues(draft: Draft): string[] {
             ))
     )
         found.push("Set every part of the use price, or choose no use price.");
+    if (
+        draft.useMode === "battle" &&
+        (!/^\d+$/.test(draft.minimumXp) || Number(draft.minimumXp) < 1)
+    )
+        found.push("Enter a battle XP threshold of at least 1.");
     if (draft.useMode === "rank" && !draft.rankTable)
         found.push("Choose a rank table.");
     return found;
@@ -462,6 +476,11 @@ export function ActionBuilder(props: ActionBuilderProps) {
                                             "One use per threshold crossed.",
                                         ],
                                         [
+                                            "battle",
+                                            "Earn a use from battle XP",
+                                            "One use for a qualifying XP award in one battle.",
+                                        ],
+                                        [
                                             "free",
                                             "No use price",
                                             "No payment or allowance.",
@@ -482,7 +501,10 @@ export function ActionBuilder(props: ActionBuilderProps) {
                                                     timing:
                                                         value === "recruitment"
                                                             ? "recruitment"
-                                                            : value === "rank"
+                                                            : value ===
+                                                                    "rank" ||
+                                                                value ===
+                                                                    "battle"
                                                               ? "post_cycle"
                                                               : draft.timing,
                                                 })
@@ -641,6 +663,32 @@ export function ActionBuilder(props: ActionBuilderProps) {
                                         + Add another part
                                     </Button>
                                 </section>
+                            )}
+                            {draft.useMode === "battle" && (
+                                <div className={field}>
+                                    <label
+                                        className={label}
+                                        htmlFor="minimum-battle-xp"
+                                    >
+                                        Minimum XP in one battle
+                                    </label>
+                                    <Input
+                                        id="minimum-battle-xp"
+                                        type="number"
+                                        min="1"
+                                        value={draft.minimumXp}
+                                        onChange={(event) =>
+                                            update({
+                                                minimumXp: event.target.value,
+                                            })
+                                        }
+                                    />
+                                    <p className="text-sm text-muted">
+                                        Corrections below this award put an
+                                        unused choice on hold. Undo a completed
+                                        result before lowering its award.
+                                    </p>
+                                </div>
                             )}
                             {draft.useMode === "rank" && (
                                 <div className="grid gap-4 sm:grid-cols-2">

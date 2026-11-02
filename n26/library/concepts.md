@@ -347,7 +347,7 @@ An **action** is an assignable capability a fighter may use at recruitment or af
 
 An action lists one or more **outcomes** in order. Each outcome has one typed operation: augment one carried item's tier ladder, resolve an advancement slot, or apply an ordered set of counter changes and pick removals. Several actions may list the same outcome.
 
-An optional **allowance rule** says when one use is earned. Recruitment grants one use when recruitment completes. A rank rule grants uses when an increase to its counter crosses thresholds in the fighter's effective rank table. An action with an allowance has no use price.
+An optional **allowance rule** says when one use is earned. Recruitment grants one use when recruitment completes. A rank rule grants uses when an increase to its counter crosses thresholds in the fighter's effective rank table. A battle rule grants one use when a post-battle report awards at least its minimum XP to the fighter. Each qualifying report grants independently. Corrections below the minimum hold unresolved uses; completed results must be undone first. The original report remains linked to the earned use. An action with an allowance has no use price.
 
 A **rank table** is an assignable progression schedule for one counter. It may name an initial title, shown before the first threshold. Its positive thresholds are unique and ordered by their numeric value; each may name the title shown from that value until the next threshold. Profiles may bring actions and rank tables as built-ins, and modifiers may give or take them away like other assignables.
 

@@ -84,6 +84,7 @@
                             <h3 class="font-semibold">{{ model.name }}</h3>
                             <span class="text-sm text-muted">{% if model.participated %}Took part{% else %}Did not take part{% endif %}</span>
                         </div>
+                        {% for award in model.battle_awards %}<p class="text-sm text-muted">{{ award }}</p>{% endfor %}
                         {% if model.xp_changed %}
                             <p class="text-sm">
                                 {% if model.xp_change %}{{ model.xp_change|stringformat:'+d' }} XP ·{% endif %}

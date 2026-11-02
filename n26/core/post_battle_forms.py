@@ -326,6 +326,7 @@ class ReportModel:
         """Whether the summary lists this model: something it records."""
         return bool(
             self.xp_changes
+            or self.result.battle_awards
             or self.named_effects
             or self.status_changes
             or self.result.status_conflict
@@ -349,6 +350,7 @@ class ReportModel:
             f"{change.after - change.before:+d} {change.name} ({change.before} → {change.after})"
             for change in self.result.moving_counters
         )
+        awards.extend(self.result.battle_awards)
         return awards
 
     @property
@@ -756,6 +758,7 @@ def receipt_models(receipt):
             or model.get("effects")
             or model.get("equipment_changed")
             or changed["counters"]
+            or model.get("battle_awards")
             or model.get("note_appended")
         ):
             continue
