@@ -12,7 +12,7 @@ import pytest
 from django.contrib.staticfiles import finders
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import Error, expect, sync_playwright
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("GYRINX_BROWSER_TESTS") != "1",
@@ -49,7 +49,12 @@ def test_keyboard_and_link_selection_manage_focus():
     """
 
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
+        # Prefer the installed Google Chrome: it updates itself, so it gets
+        # browser security fixes before Playwright bundles them.
+        try:
+            browser = playwright.chromium.launch(channel="chrome", headless=True)
+        except Error:
+            browser = playwright.chromium.launch(headless=True)
         page = browser.new_page()
         page.set_content(page_html)
 

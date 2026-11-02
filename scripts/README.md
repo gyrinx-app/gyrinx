@@ -46,10 +46,10 @@ Automated UI screenshot utility using Playwright for capturing views without man
 
 **Requirements:**
 
-- Playwright is a locked dependency, so `uv sync --locked` installs it
+- Playwright is in the locked `dev` group, so `uv sync --locked` installs it. The production image installs with `--no-dev` and leaves it out.
 - Run through `.codex/run.sh` so the script uses the worktree's database and port
 - The named local staff user is created with password `password` and no superuser access
-- Chromium browser will be automatically installed on first run
+- The script uses your installed Google Chrome, which updates itself with browser security fixes. Without Chrome, it uses Playwright's bundled Chromium and installs it on first run.
 
 **Output:**
 
