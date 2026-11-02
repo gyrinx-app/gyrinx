@@ -341,5 +341,7 @@ def apply_battle_allowances(op, report, changes):
             op.event(
                 fighter,
                 LedgerEvent.Kind.AMENDED,
-                note=f"{'Restored' if active else 'Put on hold'} one use of {action} after correcting this battle's XP.",
+                note=f"{'Restored' if active else 'Held'} one use of {action} after an XP correction."[
+                    :255
+                ],
             )

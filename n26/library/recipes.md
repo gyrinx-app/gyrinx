@@ -1045,9 +1045,10 @@ advancement outcome. In **Actions → New action**, choose **Earn a use from
 battle XP**, set **Minimum XP in one battle** to **5**, and select the legendary
 name outcome. Grant the action to the eligible Orlock fighter entries.
 
-Applying a post-battle report grants one use when the fighter's **XP gained**
-award is at least 5. Lifetime XP and the size of a correction do not affect this
-award. Each later qualifying report can grant another use. The model's action
+Applying a post-battle report grants one use when the fighter's total XP award
+is at least 5, including XP from injury results and other recorded effects.
+Lifetime XP and the size of a correction do not affect this award. Each later
+qualifying report can grant another use. The model's action
 history links a selected name back to its report.
 
 Correcting an award below 5 puts an unresolved choice on hold. Correcting it

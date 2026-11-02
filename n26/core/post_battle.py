@@ -122,6 +122,7 @@ class ModelResult:
     xp_award_assignment_id: str | None = None
     xp_recorded: int = 0
     battle_awards: list[str] = field(default_factory=list)
+    battle_xp_award: int = 0
     is_vehicle: bool = False
     profile_name: str = ""
     owned_by: str = ""
@@ -1066,6 +1067,22 @@ def _manual_xp_sources(report, old_models):
     return pins
 
 
+def _recorded_xp_awards(report, previous):
+    """Recover a report's cumulative award independently of later XP changes."""
+    if previous is None:
+        return {}
+    models = previous.receipt.get("models", [])
+    if all("battle_xp_award" in model for model in models):
+        return {model["id"]: model["battle_xp_award"] for model in models}
+    awards = defaultdict(int)
+    for receipt in report.revisions.filter(
+        sequence__lte=report.latest_sequence
+    ).values_list("receipt", flat=True):
+        for model in receipt.get("models", []):
+            awards[model["id"]] += model.get("xp_after", 0) - model.get("xp_before", 0)
+    return awards
+
+
 def preview_report(report, *, actor, payload=None):
     _require_editor(report, actor)
     payload = normalise(_draft(report.draft if payload is None else payload))
@@ -1093,6 +1110,7 @@ def preview_report(report, *, actor, payload=None):
     )
     old = normalise(previous.inputs if previous else {})
     old_models = {m["id"]: m for m in old.get("models", [])}
+    recorded_xp_awards = _recorded_xp_awards(report, previous)
     xp_sources = _manual_xp_sources(report, old_models)
     old_occurrences = previous.receipt.get("occurrences", {}) if previous else {}
     # Each model's status before the report was first applied.
@@ -1745,10 +1763,13 @@ def preview_report(report, *, actor, payload=None):
                 "note": note,
             }
         )
+        result.battle_xp_award = (
+            recorded_xp_awards.get(model_id, 0) + result.xp_after - result.xp_before
+        )
         changes, allowance_facts, allowance_errors = preview_battle_allowances(
             report,
             miniature,
-            xp,
+            result.battle_xp_award,
             accesses=actions_for(miniature, card=card, computed=compute(card, index))
             if active and battle_rules
             else [],
@@ -2029,6 +2050,7 @@ def apply_report(report, *, actor, generation, revision, submission_key, review)
                     "xp_change": m.xp_change,
                     "xp_award_assignment_id": m.xp_award_assignment_id,
                     "battle_awards": m.battle_awards,
+                    "battle_xp_award": m.battle_xp_award,
                     "status_before": m.status,
                     "status_after": m.final_status,
                     "status_revision_after": (

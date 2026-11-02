@@ -78,7 +78,7 @@ def setup(default_pack, gang_type, make_profile, make_statline):
     )
 
 
-def save_award(s, xp, *, report=None):
+def save_award(s, xp, *, report=None, effects=()):
     report = report or s.report
     report.refresh_from_db()
     return save_draft(
@@ -88,16 +88,23 @@ def save_award(s, xp, *, report=None):
         revision=report.draft_revision,
         payload={
             "participation_confirmed": True,
-            "models": [{"id": str(s.fighter.pk), "participated": True, "xp": xp}],
+            "models": [
+                {
+                    "id": str(s.fighter.pk),
+                    "participated": True,
+                    "xp": xp,
+                    "effects": list(effects),
+                }
+            ],
         },
     )
 
 
-def apply(s, xp, *, correction=False, report=None):
+def apply(s, xp, *, correction=False, report=None, effects=()):
     report = report or s.report
     if correction:
         report = start_correction(report, actor=s.owner)
-    report = save_award(s, xp, report=report)
+    report = save_award(s, xp, report=report, effects=effects)
     plan = preview_report(report, actor=s.owner)
     assert plan.valid, plan.errors
     revision = apply_report(
@@ -390,3 +397,87 @@ def test_battle_allowance_reads_stay_batched_as_more_fighters_are_in_the_report(
         hire(s.gang, profile, name)
     after = reads()
     assert before == after == (1, 1)
+
+
+@library_setup
+def xp_result(s):
+    kind = a.create_slot_type("XP injury result", is_lasting_effect=True)
+    pick = a.create_pickable(
+        "Lesson",
+        kind,
+        effects=[(a.targets_model(), a.op_changes_counter(s.xp, "add", 2))],
+    )
+    table = a.create_picklist("XP results", kind, members=[pick])
+    slot = a.create_slot("XP result", kind, table, min_picks=0, max_picks=100)
+    with operation(s.gang, actor=s.owner) as op:
+        op.assign(slot, miniature=s.fighter)
+    plan = preview_report(s.report, actor=s.owner)
+    offered = next(
+        slot
+        for slot in plan.models[0].effect_slots
+        if any(option.value == str(pick.pk) for option in slot.options)
+    )
+    return {
+        "id": str(uuid4()),
+        "slot": offered.key,
+        "pick": str(pick.pk),
+        "choices": {},
+    }
+
+
+def test_xp_from_results_and_the_entered_award_qualify_together(setup):
+    s = setup
+    effect = xp_result(s)
+    revision = apply(s, 3, effects=[effect])
+    assert revision.receipt["models"][0]["battle_xp_award"] == 5
+    allowance = ActionAllowance.objects.get(source_kind="battle")
+    with operation(s.gang, actor=s.owner) as op:
+        op.tally(s.counter, 30)
+    corrected = apply(s, 4, correction=True, effects=[effect])
+    assert corrected.receipt["models"][0]["battle_xp_award"] == 6
+    assert ActionAllowance.objects.filter(source_kind="battle").count() == 1
+    apply(s, 2, correction=True, effects=[effect])
+    allowance.refresh_from_db()
+    assert not allowance.is_active
+    assert_reconciled(s.gang)
+
+
+def test_removing_an_xp_result_holds_the_choice_even_when_entered_xp_is_unchanged(
+    setup,
+):
+    s = setup
+    effect = xp_result(s)
+    apply(s, 3, effects=[effect])
+    revision = apply(s, 3, correction=True)
+    assert revision.receipt["models"][0]["battle_xp_award"] == 3
+    assert not ActionAllowance.objects.get(source_kind="battle").is_active
+
+
+def test_old_receipts_recover_the_combined_report_award_before_a_correction(setup):
+    from n26.core.models import PostBattleRevision
+
+    s = setup
+    effect = xp_result(s)
+    revision = apply(s, 3, effects=[effect])
+    receipt = revision.receipt
+    receipt["models"][0].pop("battle_xp_award")
+    PostBattleRevision.objects.filter(pk=revision.pk).update(receipt=receipt)
+    corrected = apply(s, 4, correction=True, effects=[effect])
+    assert corrected.receipt["models"][0]["battle_xp_award"] == 6
+    assert ActionAllowance.objects.get(source_kind="battle").is_active
+
+
+@library_setup
+def test_a_maximum_length_action_name_can_be_granted_held_and_restored(setup):
+    s = setup
+    a.revise(s.action, name="L" * 200)
+    apply(s, 5)
+    apply(s, 4, correction=True)
+    apply(s, 5, correction=True)
+    assert ActionAllowance.objects.get(source_kind="battle").is_active
+    assert all(
+        len(note) <= 255
+        for note in LedgerEvent.objects.filter(
+            post_battle_revision__report=s.report
+        ).values_list("note", flat=True)
+    )
