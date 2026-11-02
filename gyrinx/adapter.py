@@ -1,7 +1,9 @@
 import json
 import logging
+from io import BytesIO
 
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.mfa.adapter import DefaultMFAAdapter
 from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 
@@ -75,3 +77,20 @@ class CustomAccountAdapter(DefaultAccountAdapter):
 
         msg = self.render_mail(template_prefix, email, context, headers=headers)
         msg.send()
+
+
+class CustomMFAAdapter(DefaultMFAAdapter):
+    def build_totp_svg(self, url: str) -> str:
+        """Draw the authenticator QR on a white plate.
+
+        The stock image is a transparent SVG with black modules. On a dark page
+        those modules sit on the page colour, and a dark color-scheme paints the
+        SVG canvas black, so the code cannot be scanned.
+        """
+        import qrcode
+        from qrcode.image.svg import SvgPathFillImage
+
+        img = qrcode.make(url, image_factory=SvgPathFillImage)
+        buf = BytesIO()
+        img.save(buf)
+        return buf.getvalue().decode("utf8")
