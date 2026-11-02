@@ -31,23 +31,6 @@
                     </c-ui.breadcrumbs.item>
                 </c-ui.breadcrumbs>
             </c-slot>
-            <c-slot name="actions">
-                <label class="flex items-center gap-2 text-sm" for="matchmaker-matchups">
-                    Matchups
-                    <span class="w-20">
-                        <c-ui.input id="matchmaker-matchups"
-                                    name="matchups"
-                                    type="number"
-                                    min="1"
-                                    max="10"
-                                    step="1"
-                                    inputmode="numeric"
-                                    required
-                                    value="{{ form.matchups.value|default:1 }}" />
-                    </span>
-                </label>
-                <c-ui.error :form="form" name="matchups" class="basis-full text-right" />
-            </c-slot>
             <c-n26.form-section title="Matchup">
                 <c-n26.radio-cards label="Type of matchup"
                                    :form="form"
@@ -81,14 +64,36 @@
                 </c-n26.radio-cards>
                 <c-ui.error :form="form" name="ways" />
                 <div class="flex flex-col gap-1">
-                    <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
-                        <input type="checkbox"
-                               name="allow_rematches"
-                               {% if form.allow_rematches.value %}checked{% endif %}
-                               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                        <span class="text-sm text-ink-900 dark:text-ink-100">Allow rematches</span>
-                    </label>
-                    <p class="text-sm text-muted">Two gangs whose latest battle was against each other can meet again in a battle of the same size or smaller. They can always meet in a larger battle.</p>
+                    {# The past-matches box shows only while Allow rematches is ticked; the server ignores it otherwise. #}
+                    <div class="group/rematch flex flex-col gap-1">
+                        <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
+                            <input type="checkbox"
+                                   name="allow_rematches"
+                                   {% if form.allow_rematches.value %}checked{% endif %}
+                                   class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                            <span class="text-sm text-ink-900 dark:text-ink-100">Allow rematches</span>
+                        </label>
+                        <p class="text-sm text-muted">Two gangs whose latest battle was against each other can meet again in a battle of the same size or smaller. They can always meet in a larger battle.</p>
+                        <div class="ml-6 hidden flex-col gap-1 group-has-[:checked]/rematch:!flex">
+                            <label class="flex flex-wrap items-center gap-2 text-sm text-ink-900 dark:text-ink-100"
+                                   for="matchmaker-rematch-window">
+                                Allow rematch within
+                                <span class="w-20">
+                                    <c-ui.input id="matchmaker-rematch-window"
+                                                name="rematch_window"
+                                                type="number"
+                                                min="1"
+                                                max="10"
+                                                step="1"
+                                                inputmode="numeric"
+                                                value="{{ form.rematch_window.value|default:1 }}" />
+                                </span>
+                                past matches
+                            </label>
+                            <p class="text-sm text-muted">1 allows any rematch. A higher number keeps apart two gangs that met in that many of either gang's past matches.</p>
+                            <c-ui.error :form="form" name="rematch_window" />
+                        </div>
+                    </div>
                     <label class="mt-2 flex min-h-9 cursor-pointer items-center gap-2.5">
                         <input type="checkbox"
                                name="allow_uneven"

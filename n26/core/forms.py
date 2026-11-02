@@ -868,9 +868,9 @@ class BattleOutcomeForm(forms.Form):
 class MatchmakerForm(forms.Form):
     """The arbitrator's choice of gangs and matchup rules for a random draw.
 
-    Only available gangs can be ticked. Whether the ticked gangs fill the
-    matchups is checked here; whether they can meet without a rematch is
-    found by drawing.
+    Only available gangs can be ticked. The ticked gangs decide how many
+    matchups there are. Whether they can meet without a rematch is found by
+    drawing.
     """
 
     mode = forms.ChoiceField(
@@ -885,19 +885,17 @@ class MatchmakerForm(forms.Form):
         error_messages={"invalid": "Enter a number of gangs from 2 to 8."},
     )
     allow_rematches = forms.BooleanField(required=False, label="Allow rematches")
+    rematch_window = forms.IntegerField(
+        required=False,
+        initial=1,
+        label="Past matches",
+        error_messages={"invalid": "Enter a number of past matches from 1 to 10."},
+    )
     allow_uneven = forms.BooleanField(required=False, label="Allow uneven sides")
     gangs = forms.MultipleChoiceField(
         required=False,
         widget=forms.CheckboxSelectMultiple,
         error_messages={"invalid_choice": "Select available gangs from this campaign."},
-    )
-    matchups = forms.IntegerField(
-        initial=1,
-        label="Matchups",
-        error_messages={
-            "required": "Enter a number of matchups from 1 to 10.",
-            "invalid": "Enter a number of matchups from 1 to 10.",
-        },
     )
 
     def __init__(self, *args, entrants, **kwargs):
@@ -915,21 +913,28 @@ class MatchmakerForm(forms.Form):
             raise ValidationError("Enter a number of gangs from 2 to 8.")
         return ways
 
-    def clean_matchups(self):
-        matchups = self.cleaned_data["matchups"]
-        if not matchmaking.MIN_MATCHUPS <= matchups <= matchmaking.MAX_MATCHUPS:
-            raise ValidationError("Enter a number of matchups from 1 to 10.")
-        return matchups
+    def clean_rematch_window(self):
+        window = self.cleaned_data.get("rematch_window")
+        if not self.data.get("allow_rematches"):
+            return None
+        if window is None:
+            return 1
+        if not 1 <= window <= matchmaking.MAX_LOOKBACK:
+            raise ValidationError("Enter a number of past matches from 1 to 10.")
+        return window
 
     def clean(self):
         cleaned = super().clean()
         if self.errors:
             return cleaned
+        # Unticked, only the latest battle counts. Ticked, 1 allows any
+        # rematch and a higher number counts that many recent battles.
+        window = cleaned["rematch_window"]
+        cleaned["lookback"] = 1 if window is None else (0 if window == 1 else window)
         try:
             matchmaking.matchup_sizes(
                 len(cleaned["gangs"]),
                 cleaned["ways"],
-                cleaned["matchups"],
                 allow_uneven=cleaned["allow_uneven"],
             )
         except matchmaking.NoMatchup as exc:

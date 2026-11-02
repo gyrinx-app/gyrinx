@@ -435,14 +435,13 @@ def matchmaker(request, pk):
                 mode=data["mode"],
                 ways=data["ways"],
                 allow_uneven=data["allow_uneven"],
-                allow_rematches=data["allow_rematches"],
+                lookback=data["lookback"],
                 matchups=tuple(
                     matchmaking.make_matchups(
                         form.selected(),
                         ways=data["ways"],
-                        matchups=data["matchups"],
                         allow_uneven=data["allow_uneven"],
-                        allow_rematches=data["allow_rematches"],
+                        lookback=data["lookback"],
                     )
                 ),
             )

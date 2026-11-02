@@ -1,14 +1,15 @@
 """Random matchups of a campaign's gangs, proposed for battles not yet fought.
 
 The arbitrator ticks the gangs to match and chooses pairs or larger battles.
-Every ticked gang must play: the gangs fill the matchups exactly, or, when
-uneven sides are allowed, one spare gang joins the matchup that holds the
-highest-rated gang.
+Every ticked gang must play, so the number of matchups follows from the
+number of gangs. When uneven sides are allowed, one spare gang joins the
+matchup that holds the highest-rated gang.
 
-Unless rematches are allowed, two gangs may not meet again when either gang's
-latest battle included the other and the new battle has no more gangs than
-that one. Only the latest battle counts, so gangs that have fought someone
-else since may meet again, and gangs may always meet in a larger battle.
+Two gangs are a rematch when one of either gang's recent battles included
+the other and the new battle has no more gangs than that one, so gangs may
+always meet in a larger battle. How many recent battles count is the
+lookback: 1 (the latest battle only) unless rematches are allowed, when the
+arbitrator chooses it, and 0 checks nothing.
 
 A gang is unavailable while it is in a battle with no result yet, or in a
 battle dated after today. It is shown but cannot be ticked.
@@ -21,10 +22,9 @@ from django.core import signing
 
 from n26.core.models import Battle, Gang
 
-MIN_MATCHUPS = 1
-MAX_MATCHUPS = 10
 MIN_WAYS = 2
 MAX_WAYS = 8
+MAX_LOOKBACK = 10
 TITLE_LENGTH = 200
 DRAW_SALT = "n26.campaign-matchmaker-draw"
 
@@ -50,13 +50,21 @@ class Entrant:
     id: str
     name: str
     rating: int
-    last_opponents: frozenset[str] = frozenset()
-    last_size: int = 0
+    #: (opponent ids, gangs in the battle) for each recent battle, newest first.
+    recent: tuple[tuple[frozenset[str], int], ...] = ()
     unavailable: str = ""
 
     @property
     def available(self):
         return not self.unavailable
+
+    @property
+    def last_opponents(self):
+        return self.recent[0][0] if self.recent else frozenset()
+
+    @property
+    def last_size(self):
+        return self.recent[0][1] if self.recent else 0
 
 
 @dataclass(frozen=True)
@@ -71,20 +79,20 @@ class Matchup:
             label = " vs ".join(gang.name for gang in self.gangs)
         else:
             label = f"{len(self.gangs)}-way match"
-        title = f"Pre-made match {number}: {label}"
+        title = f"Matchup {number}: {label}"
         if len(title) > TITLE_LENGTH:
             title = title[: TITLE_LENGTH - 1].rstrip() + "…"
         return title
 
 
 def campaign_entrants(campaign, today):
-    """The campaign's playing gangs by name, with availability and last opponents."""
+    """The campaign's playing gangs by name, with availability and recent battles."""
     gangs = Gang.objects.filter(
         campaign_memberships__campaign=campaign,
         campaign_memberships__left__isnull=True,
         archived=False,
     ).order_by("name")
-    busy, latest, players = {}, {}, {}
+    busy, history, players = {}, {}, {}
     taken = (
         Battle.gangs.through.objects.filter(
             battle__campaign=campaign, battle__archived=False
@@ -97,7 +105,7 @@ def campaign_entrants(campaign, today):
             busy[gang_id] = "In a battle with no result yet"
         elif date > today:
             busy.setdefault(gang_id, "In a battle dated after today")
-        latest.setdefault(gang_id, battle_id)
+        history.setdefault(gang_id, []).append(battle_id)
         players.setdefault(battle_id, set()).add(gang_id)
     return [
         Entrant(
@@ -105,67 +113,82 @@ def campaign_entrants(campaign, today):
             name=gang.name,
             rating=gang.rating,
             unavailable=busy.get(gang.pk, ""),
-            last_opponents=frozenset(
-                str(other)
-                for other in players.get(latest.get(gang.pk), ())
-                if other != gang.pk
+            recent=tuple(
+                (
+                    frozenset(
+                        str(other) for other in players[battle] if other != gang.pk
+                    ),
+                    len(players[battle]),
+                )
+                for battle in history.get(gang.pk, ())[:MAX_LOOKBACK]
             ),
-            last_size=len(players.get(latest.get(gang.pk), ())),
         )
         for gang in gangs
     ]
 
 
-def matchup_sizes(count, ways, matchups, *, allow_uneven):
+def matchup_sizes(count, ways, *, allow_uneven):
     """How many gangs play in each matchup, largest first.
 
-    Raises `NoMatchup` when `count` gangs cannot fill the matchups.
+    Raises `NoMatchup` when `count` gangs cannot be split into battles of
+    `ways`, with at most one spare gang when uneven sides are allowed.
     """
     if count < MIN_WAYS:
         raise NoMatchup("Select at least 2 gangs.")
-    needed = ways * matchups
-    if count == needed:
+    matchups, spare = divmod(count, ways)
+    if matchups == 0:
+        raise NoMatchup(f"Select at least {ways} gangs for battles of {ways}.")
+    if spare == 0:
         return [ways] * matchups
-    if count == needed + 1 and allow_uneven:
+    if spare == 1 and allow_uneven:
         return [ways + 1] + [ways] * (matchups - 1)
-    if count == needed + 1:
+    lower, upper = matchups * ways, (matchups + 1) * ways
+    if spare == 1:
         raise NoMatchup(
-            f"Select {needed} gangs, or tick Allow uneven sides to add a spare gang."
+            f"Select {lower} or {upper} gangs, or tick Allow uneven sides "
+            "to add a spare gang."
         )
-    gangs = "gang" if needed == 1 else "gangs"
     if allow_uneven:
-        raise NoMatchup(f"Select {needed} or {needed + 1} {gangs}.")
-    raise NoMatchup(f"Select {needed} {gangs}.")
+        raise NoMatchup(
+            f"Select {lower}, {lower + 1} or {upper} gangs for battles of {ways}."
+        )
+    raise NoMatchup(f"Select {lower} or {upper} gangs for battles of {ways}.")
 
 
-def rematch(a, b, size):
-    """Whether a battle of `size` gangs would repeat either gang's latest battle.
+def rematch(a, b, size, lookback=1):
+    """Whether a battle of `size` gangs repeats one of either gang's recent battles.
 
-    A larger battle than the latest one is never a rematch.
+    Only the latest `lookback` battles of each gang count, and a battle with
+    more gangs than the earlier one is never a rematch.
     """
-    return (b.id in a.last_opponents and size <= a.last_size) or (
-        a.id in b.last_opponents and size <= b.last_size
-    )
+
+    def met(gang, other):
+        return any(
+            other.id in opponents and size <= played
+            for opponents, played in gang.recent[:lookback]
+        )
+
+    return met(a, b) or met(b, a)
 
 
 def make_matchups(
     gangs,
     *,
     ways,
-    matchups,
     allow_uneven=False,
-    allow_rematches=False,
+    lookback=1,
     avoid=frozenset(),
     rng=None,
 ):
-    """Shuffle `gangs` into matchups.
+    """Shuffle `gangs` into battles of `ways`.
 
-    `avoid` holds sets of gang ids that must not be proposed again as a
-    matchup. Raises `NoMatchup` when no combination meets the rules.
+    `lookback` is how many of each gang's recent battles rule out a rematch;
+    0 allows any. `avoid` holds sets of gang ids that must not be proposed
+    again as a matchup. Raises `NoMatchup` when no combination meets the rules.
     """
     rng = rng or random.SystemRandom()
     gangs = list(gangs)
-    sizes = matchup_sizes(len(gangs), ways, matchups, allow_uneven=allow_uneven)
+    sizes = matchup_sizes(len(gangs), ways, allow_uneven=allow_uneven)
     rng.shuffle(gangs)
     if sizes[0] > ways:
         # The spare gang joins the highest-rated gang, which fills the larger
@@ -175,7 +198,9 @@ def make_matchups(
         gangs.insert(0, top)
 
     def compatible(group, gang, size):
-        return allow_rematches or not any(rematch(gang, other, size) for other in group)
+        return not lookback or not any(
+            rematch(gang, other, size, lookback) for other in group
+        )
 
     steps = 0
 
@@ -202,6 +227,11 @@ def make_matchups(
     if found is None:
         if avoid:
             raise NoMatchup("Select more results to rematch.")
+        if lookback > 1:
+            raise NoMatchup(
+                f"Every way to match these gangs is a rematch within {lookback} "
+                "past matches. Enter a lower number, or select different gangs."
+            )
         raise NoMatchup(
             "Every way to match these gangs is a rematch. "
             "Tick Allow rematches, or select different gangs."
@@ -230,7 +260,7 @@ class Draw:
     mode: str
     ways: int
     allow_uneven: bool
-    allow_rematches: bool
+    lookback: int
     matchups: tuple[Matchup, ...]
 
     def titled(self):
@@ -248,7 +278,7 @@ class Draw:
                 "mode": self.mode,
                 "ways": self.ways,
                 "allow_uneven": self.allow_uneven,
-                "allow_rematches": self.allow_rematches,
+                "lookback": self.lookback,
                 "matchups": [
                     [gang.id for gang in matchup.gangs] for matchup in self.matchups
                 ],
@@ -289,7 +319,7 @@ class Draw:
             mode=data["mode"],
             ways=data["ways"],
             allow_uneven=data["allow_uneven"],
-            allow_rematches=data["allow_rematches"],
+            lookback=data["lookback"],
             matchups=tuple(matchups),
         )
 
@@ -318,9 +348,8 @@ class Draw:
             make_matchups(
                 [gang for matchup in picked for gang in matchup.gangs],
                 ways=self.ways,
-                matchups=len(picked),
                 allow_uneven=self.allow_uneven,
-                allow_rematches=self.allow_rematches,
+                lookback=self.lookback,
                 avoid={frozenset(gang.id for gang in m.gangs) for m in picked},
                 rng=rng,
             )
