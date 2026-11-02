@@ -2224,3 +2224,39 @@ class TestChancerQueryGrowth:
                 attach_to=chancer.pickable,
             )
         assert measure() == one
+
+
+class TestSharedRandomAdvancementModifiers:
+    def test_suppressing_one_carrier_keeps_the_other_carriers_random_requirement(
+        self, client, monkeypatch, advancement
+    ):
+        first = a.create_rule("First random-skill rule")
+        second = a.create_rule("Second random-skill rule")
+        shared = a.modifier(
+            "Shared random Primary advancement",
+            a.targets_model(),
+            a.ef_randomises_skill_advancements(advancement.primary),
+        )
+        a.attach_modifiers_to(first, [shared])
+        a.attach_modifiers_to(second, [shared])
+        a.modifier(
+            "Suppress the first random-skill rule",
+            a.targets_model(),
+            a.ef_removes(first),
+            attach_to=advancement.profile,
+        )
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.assign(first, miniature=advancement.fighter)
+            surviving = op.assign(second, miniature=advancement.fighter)
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        page = client.get(url)
+        assert page.context["skill_random"] is True
+        assert "skill_id" not in page.context["form"].fields
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.remove(surviving)
+        assert client.get(url).context["skill_random"] is False

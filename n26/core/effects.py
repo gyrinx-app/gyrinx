@@ -65,6 +65,7 @@ to be gone is put back.
 
 from __future__ import annotations
 
+from copy import copy
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -1275,13 +1276,16 @@ def compute(card, index):
                             )
                         )
                     elif isinstance(effect, RandomisesSkillAdvancements):
-                        computed.random_skill_advancements.append(effect)
+                        # Retraction removes applications by identity, so a
+                        # shared modifier needs one object per carrier.
+                        randomised = copy(effect)
+                        computed.random_skill_advancements.append(randomised)
                         log.applied.append(
                             _Applied(
                                 source_key,
                                 computed,
                                 "random_skill_advancements",
-                                effect,
+                                randomised,
                             )
                         )
                     elif isinstance(effect, OffersChoice):
