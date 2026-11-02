@@ -698,3 +698,61 @@ def test_a_displayed_xp_minimum_does_not_reduce_the_recorded_award(setup, legacy
     corrected = apply(s, 6, correction=True)
     assert corrected.receipt["models"][0]["battle_xp_award"] == 6
     assert ActionAllowance.objects.filter(source_kind="battle").count() == 1
+
+
+@pytest.mark.parametrize("next_kind", ["battle", "rank"])
+@library_setup
+def test_a_reused_membership_slot_belongs_to_its_current_flow(setup, client, next_kind):
+    s = setup
+    slot = s.outcome.operation.slot
+    with operation(s.gang, actor=s.owner) as op:
+        shared = op.assign(slot, miniature=s.fighter, caused_by=s.fighter.membership)
+    apply(s, 5)
+    with operation(s.gang, actor=s.owner) as op:
+        old = op.start_action(s.fighter, s.action, uuid4())
+        op.record_action_roll(old, s.outcome.operation, uuid4(), rolled=9)
+        old = op.apply_action_by_hand(old)
+    if next_kind == "battle":
+        other_report = start_report(s.gang, actor=s.owner, request_key=uuid4())
+        apply(s, 5, report=other_report)
+        action = s.action
+    else:
+        action = a.create_action(
+            "Rank name choice",
+            "post_cycle",
+            outcomes=[s.outcome],
+            allowance_rule=a.rank_allowance_rule(s.xp),
+        )
+        ranks = a.create_rank_table("Name ranks", s.xp, thresholds=[6])
+        with operation(s.gang, actor=s.owner) as op:
+            op.assign(action, miniature=s.fighter)
+            op.assign(ranks, miniature=s.fighter)
+            op.tally(s.counter, 1)
+    with operation(s.gang, actor=s.owner) as op:
+        current = op.start_action(s.fighter, action, uuid4())
+        op.record_action_roll(current, s.outcome.operation, uuid4(), rolled=12)
+    current.refresh_from_db()
+    old.refresh_from_db()
+    assert old.advancement_selection.slot_assignment_id == shared.pk
+    assert current.advancement_selection.slot_assignment_id == shared.pk
+    client.force_login(s.owner)
+    key = f"{s.fighter.pk}:{shared.pk}:{slot.pk}"
+    picker = reverse("n26-choose", args=[s.gang.pk, key])
+    page = client.get(picker)
+    if next_kind == "battle":
+        assert page.url == reverse(
+            "n26-action-flow", args=[s.fighter.pk, current.pk, "resume"]
+        )
+    else:
+        assert page.status_code == 200
+    with operation(s.gang, actor=s.owner) as op:
+        current = op.review_action(
+            current, outcome=s.outcome, terms={"pickable_id": str(s.pick.pk)}
+        )
+        current = op.complete_action(
+            current, revision=current.revision, review=current.review, outcome=s.outcome
+        )
+    assert current.state == "completed"
+    assert Assignment.objects.filter(
+        miniature_root=s.fighter, pickable=s.pick, archived=False
+    ).exists()

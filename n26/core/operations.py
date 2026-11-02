@@ -2684,7 +2684,9 @@ class Operation:
         from n26.core.action_records import battle_action_for_slot
         from n26.core.allowances import require_allowance_available
 
-        battle_action = battle_action_for_slot(anchor)
+        battle_action = battle_action_for_slot(
+            anchor, record=kwargs.get("action_record")
+        )
         if battle_action is not None:
             require_allowance_available(battle_action.allowance)
             if getattr(kwargs.get("action_record"), "pk", None) != battle_action.pk:
