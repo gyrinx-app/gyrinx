@@ -10,6 +10,7 @@ Exclusive lines show E and skip the trade-points figure.
 Every slot this line draws must stay in c-vars. An undeclared slot is not empty. The name falls through to the page context.
 A partial that walks a context variable called rows would then print that list inside the line.
 price_control replaces the figure. :price is still required, and is still what the filter reads.
+body replaces the heading and can include its option controls. rows still follows it.
 Details bring their own inset. This pane does not indent, because a card with its own edge would look stepped twice.
 {% endcomment %}
 
@@ -26,6 +27,7 @@ Details bring their own inset. This pane does not indent, because a card with it
     :open="False"
     :notes="[]"
     price_control=""
+    body=""
     state=""
     row_key=""
     :redrawn="False"
@@ -61,6 +63,9 @@ Details bring their own inset. This pane does not indent, because a card with it
 
      {% if redrawn and row_key %}hx-swap-oob="true"{% endif %}
      class="min-h-11 px-1 py-1 hover:bg-ink-500/5 {{ class }}">
+    {% if body %}
+        {{ body }}
+    {% else %}
     <div class="flex min-h-9 items-center gap-2">
 
     <span class="flex min-w-0 flex-1 items-center gap-2 text-sm text-ink-900 dark:text-ink-100">
@@ -98,6 +103,7 @@ Details bring their own inset. This pane does not indent, because a card with it
 
     {% if actions %}<span class="flex shrink-0 items-center gap-1">{{ actions }}</span>{% endif %}
     </div>
+    {% endif %}
 
     {% if rows %}<div class="n26-cp-inset">{{ rows }}</div>{% endif %}
 

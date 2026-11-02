@@ -15,10 +15,8 @@ that it is green — see n26/includes/row_action.html.
 
   --- the price is a box ---
 
-The catalogue is a price list, not a tariff: a table that has agreed a discount
-types it in and buys. So the price column holds an input, and what is in it is
-what the gang is charged. The server bounds it — the min and max here only save
-a reader the round trip.
+The price input holds the base payment. The server adds the selected options'
+surcharges when it records the purchase.
 
 The number the row arrived quoting is kept beside it, so a changed box can say
 by how much. The delta grows leftwards out of the price column, which leaves
@@ -32,26 +30,21 @@ every input in the list on the same column however many rows have one.
                               :disclosure="False"
                               row_key="{{ row.key }}"
                               :redrawn="redrawn">
-    <c-slot name="price_control">
-        {% include "n26/includes/equip_price.html" with field=row.price_field quoted=row.price label=row.marked_name %}
-    </c-slot>
-    {% comment %}
-    Both kinds of extra row go in the one slot: the choices buying this asks
-    for, then the parts that ride along with it. Nothing carries both today —
-    a weapon has ammo and a wargear has options — and one slot means neither
-    has to know about the other if something ever does.
-    {% endcomment %}
-    {% if row.choices or row.options %}
-        <c-slot name="rows">
-            {% if row.choices %}
-                {% include "n26/includes/equip_choices.html" with choices=row.choices %}
-            {% endif %}
-            {% if row.options %}
-                {% include "n26/includes/equip_options.html" %}
-            {% endif %}
+    {% if row.choices %}
+        <c-slot name="body">
+            {% include "n26/includes/equip_purchase.html" with repeat=False %}
+        </c-slot>
+    {% else %}
+        <c-slot name="price_control">
+            {% include "n26/includes/equip_price.html" with field=row.price_field quoted=row.price label=row.marked_name %}
+        </c-slot>
+        <c-slot name="actions">
+            {% include "n26/includes/row_action.html" with action=row.buy %}
         </c-slot>
     {% endif %}
-    <c-slot name="actions">
-        {% include "n26/includes/row_action.html" with action=row.buy %}
-    </c-slot>
+    {% if row.options %}
+        <c-slot name="rows">
+            {% include "n26/includes/equip_options.html" %}
+        </c-slot>
+    {% endif %}
 </c-n26.collection-picker.item>

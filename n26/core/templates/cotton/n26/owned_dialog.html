@@ -13,6 +13,7 @@ Put the csrf token in the default slot.
 Set htmx only on a screen that holds every host the response names.
 A page that draws one panel per weapon must pass a distinct id. The accessory field uses that id.
 {% endcomment %}
+{% load react %}
 
 <c-vars
     :dialog="None"
@@ -88,7 +89,9 @@ A page that draws one panel per weapon must pass a distinct id. The accessory fi
 
     {% if dialog.kind == "rechoose" %}
         <div class="-my-0.5">
-            {% include "n26/includes/equip_choices.html" with choices=dialog.choices %}
+            {% react_host "equip-price" dialog.price_preview %}
+                {% include "n26/includes/equip_choices.html" with choices=dialog.choices %}
+            {% endreact_host %}
         </div>
     {% endif %}
 

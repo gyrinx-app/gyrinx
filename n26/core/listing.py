@@ -143,6 +143,9 @@ class GroupOption:
     #: standard one, and changing what something already holds starts on
     #: what it holds.
     checked: bool = False
+    #: Change previews compare full set prices, including a priced default.
+    price: int = 0
+    set_key: str = ""
 
     @property
     def surcharge_label(self):
@@ -381,6 +384,12 @@ def pick_groups(offered, key, taken=None):
                     name=option.name,
                     value=str(position),
                     surcharge=option.surcharge,
+                    price=option.default_set.price
+                    if option.default_set is not None
+                    else 0,
+                    set_key=str(option.default_set.pk)
+                    if option.default_set is not None
+                    else "",
                     is_default=option.is_default,
                     checked=(
                         option.is_default
@@ -401,6 +410,30 @@ def pick_groups(offered, key, taken=None):
         )
         for index, group in enumerate(offered)
     )
+
+
+def pick_group_props(groups):
+    """JSON-safe option controls, with prices for purchase and change previews."""
+    return [
+        {
+            "choose": group.choose,
+            "field": group.field,
+            "nothingTaken": group.nothing_taken,
+            "options": [
+                {
+                    "name": option.name,
+                    "value": option.value,
+                    "surcharge": option.surcharge,
+                    "surchargeLabel": option.surcharge_label,
+                    "price": option.price,
+                    "setKey": option.set_key,
+                    "checked": option.checked,
+                }
+                for option in group.options
+            ],
+        }
+        for group in groups
+    ]
 
 
 def listing_row(line):
