@@ -1040,10 +1040,15 @@ default visibility needs to change.
 
 ## Earn a legendary name from battle XP
 
-Create a legendary name slot and its picklist of names. Use that slot in an
-advancement outcome. In **Actions → New action**, choose **Earn a use from
-battle XP**, set **Minimum XP in one battle** to **5**, and select the legendary
-name outcome. Grant the action to the eligible Orlock fighter entries.
+Create a legendary name slot type and its names as pickables. Create a picklist
+with **Dice** set to **2D6** and **Roll selects** set to **Every row at or below
+the roll**. Add each name with **Roll low** and **Roll high** both set to **2**.
+Every roll then offers all the names.
+
+Create a slot using that picklist and use it in a **Resolve advancement** outcome.
+In **Actions → New action**, choose **Earn a use from battle XP**, set
+**Minimum XP in one battle** to **5**, and select the legendary name outcome.
+Grant the action to the eligible Orlock fighter entries.
 
 Applying a post-battle report grants one use when the fighter's total XP award
 is at least 5, including XP from injury results and other recorded effects.
