@@ -115,7 +115,7 @@ def test_an_author_can_clone_the_seeded_fighter_advancement_table(client, defaul
     assert membership_values(copy) == membership_values(table)
     response = client.post(url, {"name": "Orlock advancement table"})
     assert response.status_code == 200
-    assert response.context["form"].errors
+    assert "already exists" in response.context["form"].errors["name"][0]
 
 
 def test_cloning_is_staff_only_and_get_does_not_write(client, table):

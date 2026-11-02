@@ -1420,6 +1420,12 @@ def clone_picklist(picklist, name):
     name = name.strip()
     if not name:
         raise ValidationError({"name": "Give the copy a name."})
+    if Picklist.objects.filter(
+        pack=picklist.pack, slot_type=picklist.slot_type, name__iexact=name
+    ).exists():
+        raise ValidationError(
+            {"name": "A picklist with this name already exists for this slot type."}
+        )
     copy = Picklist(
         name=name,
         pack=picklist.pack,
