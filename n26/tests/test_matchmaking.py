@@ -119,7 +119,6 @@ class TestMatchmakerPage:
 
     def draw(self, client, campaign, gangs, **params):
         params.setdefault("mode", "pairs")
-        params.setdefault("matchups", 1)
         params["gangs"] = [str(gang.pk) for gang in gangs]
         page = client.get(self.url(campaign), params)
         assert page.status_code == 200
@@ -165,24 +164,27 @@ class TestMatchmakerPage:
         record(campaign, arbitrator, date(2026, 9, 1), gangs["Adam"], gangs["Ben"])
         record(campaign, arbitrator, date(2026, 9, 2), gangs["Chris"], gangs["David"])
         client.force_login(arbitrator)
-        soup = self.draw(client, campaign, gangs.values(), matchups=2)
+        soup = self.draw(client, campaign, gangs.values())
         titles = [title.get_text(strip=True) for title in soup.select(RESULT_TITLES)]
         assert len(titles) == 2
         for title in titles:
-            assert title.startswith("Pre-made match")
+            assert title.startswith("Matchup ")
             assert not {"Adam", "Ben"} <= set(title.split())
             assert not {"Chris", "David"} <= set(title.split())
 
     def test_drawing_saves_nothing(self, client, arbitrator, campaign, gangs):
         client.force_login(arbitrator)
-        self.draw(client, campaign, gangs.values(), matchups=2)
+        self.draw(client, campaign, gangs.values())
         assert not campaign.battles.exists()
 
     @pytest.mark.parametrize(
         "params, message",
         [
-            ({"matchups": 2}, "Select 4 gangs."),
-            ({"matchups": 11}, "Enter a number of matchups from 1 to 10."),
+            ({"mode": "more", "ways": 3}, "Select at least 3 gangs for battles of 3."),
+            (
+                {"allow_rematches": "on", "rematch_window": 11},
+                "Enter a number of past matches from 1 to 10.",
+            ),
             ({"mode": "more", "ways": 9}, "Enter a number of gangs from 2 to 8."),
         ],
     )
@@ -212,6 +214,35 @@ class TestMatchmakerPage:
         assert "Select at least 2 gangs." in soup.get_text()
         assert not soup.select(RESULT_TITLES)
 
+    def test_the_ticked_gangs_decide_how_many_matchups(
+        self, client, arbitrator, campaign, gangs
+    ):
+        client.force_login(arbitrator)
+        assert (
+            len(self.draw(client, campaign, gangs.values()).select(RESULT_TITLES)) == 2
+        )
+        soup = self.draw(client, campaign, gangs.values(), mode="more", ways=4)
+        assert [t.get_text(strip=True) for t in soup.select(RESULT_TITLES)] == [
+            "Matchup 1: 4-way match"
+        ]
+
+    def test_the_rematch_window_counts_past_matches(
+        self, client, arbitrator, campaign, gangs
+    ):
+        record(campaign, arbitrator, date(2026, 9, 1), gangs["Adam"], gangs["Chris"])
+        record(campaign, arbitrator, date(2026, 9, 2), gangs["Adam"], gangs["Ben"])
+        record(campaign, arbitrator, date(2026, 9, 3), gangs["Chris"], gangs["David"])
+        client.force_login(arbitrator)
+        # Adam met Chris two battles ago; each has played someone else since.
+        pair = [gangs["Adam"], gangs["Chris"]]
+        soup = self.draw(client, campaign, pair, allow_rematches="on", rematch_window=2)
+        assert "a rematch within 2 past matches" in soup.get_text()
+        soup = self.draw(client, campaign, pair, allow_rematches="on", rematch_window=1)
+        assert soup.select(RESULT_TITLES)
+        # Unticked, the number is ignored and only the latest battle counts.
+        soup = self.draw(client, campaign, pair, rematch_window=5)
+        assert soup.select(RESULT_TITLES)
+
     def test_it_asks_for_rematches_when_nothing_else_works(
         self, client, arbitrator, campaign, gangs
     ):
@@ -231,8 +262,8 @@ class TestPreviewActions:
     def url(self, campaign, query=""):
         return reverse("n26-campaign-matchmaker", args=[campaign.pk]) + query
 
-    def draw(self, client, campaign, gangs, matchups=2):
-        query = f"?mode=pairs&allow_rematches=on&matchups={matchups}" + "".join(
+    def draw(self, client, campaign, gangs):
+        query = "?mode=pairs&allow_rematches=on" + "".join(
             f"&gangs={gang.pk}" for gang in gangs
         )
         soup = BeautifulSoup(
@@ -266,7 +297,7 @@ class TestPreviewActions:
         assert response["Location"] == reverse("n26-campaign", args=[campaign.pk])
         battle = campaign.battles.get()
         assert battle.scenario == title.get_text(strip=True)
-        assert battle.scenario.startswith("Pre-made match 2: ")
+        assert battle.scenario.startswith("Matchup 2: ")
         assert battle.date == timezone.localdate() + timedelta(days=7)
         assert battle.result == "not_recorded"
         assert battle.gangs.count() == 2
@@ -343,7 +374,7 @@ class TestPreviewActions:
         with pytest.raises(Refusal, match="Only the arbitrator"):
             with campaign_operation(campaign, actor=player) as act:
                 act.pre_record_matchups(
-                    [("Pre-made match 1: Adam vs Ben", [gangs["Adam"], gangs["Ben"]])],
+                    [("Matchup 1: Adam vs Ben", [gangs["Adam"], gangs["Ben"]])],
                     today=timezone.localdate(),
                 )
 
@@ -358,7 +389,7 @@ def test_the_page_does_not_query_per_gang_or_battle(
     url = reverse("n26-campaign-matchmaker", args=[campaign.pk])
 
     def count():
-        query = "?mode=pairs&allow_rematches=on&matchups=2" + "".join(
+        query = "?mode=pairs&allow_rematches=on" + "".join(
             f"&gangs={gang.pk}" for gang in gangs.values()
         )
         client.get(url + query)
