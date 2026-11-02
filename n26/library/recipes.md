@@ -991,6 +991,24 @@ campaign type: counter Income, amount 10, per counter Reputation. Its income
 contribution follows the gang’s current reputation, including territory boons.
 Collect credits manually.
 
+## Make an Orlock advancement table
+
+1. Open **Content library → Picklists → Fighter advancement table**.
+2. Click **Clone this picklist…**, enter **Orlock advancement table**, and click
+   **Clone**. The copy keeps the standard results and their thresholds.
+3. Create a pickable of the **Advancement** slot type for the legendary name
+   result. Give it a modifier that offers the legendary name choice.
+4. Open the copied table's results and add that pickable with a lowest and
+   highest roll of **6**. Threshold selection makes it available on 6 or more,
+   alongside the standard results available at that roll.
+5. Create a separate advancement slot using the copied table, then an
+   advancement outcome and action using that slot. Reuse the standard XP rank
+   table for the action's rank allowance.
+
+Adding, removing or reordering results on the copy leaves the original table
+unchanged. The result definitions and their modifiers stay shared; editing one
+of those definitions changes every table that uses it.
+
 ## Configure Trading Post visits
 
 Visit Trading Post is a built-in action: it has its own screen for choosing

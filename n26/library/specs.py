@@ -1415,6 +1415,10 @@ def _build_registry():
             },
         ),
         Spec(
+            authoring.clone_picklist,
+            {"name": Text(source=(Picklist, "name"))},
+        ),
+        Spec(
             authoring.add_picklist_member,
             {
                 # A list offers one slot type's pickables, so the picker

@@ -6073,6 +6073,35 @@ def coverage(picklist, members=None):
 
 
 @staff_member_required
+def picklist_clone(request, pk):
+    """Staff can name a copy before editing its independent memberships."""
+    from n26.library.models import Picklist
+
+    picklist = get_object_or_404(Picklist, pk=pk)
+    spec = specs()["clone_picklist"]
+    form_class = generate_form(spec)
+    form = form_class(request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            with transaction.atomic():
+                copy = spec.verb(picklist, **form.verb_data())
+        except ValidationError as refused:
+            _refuse_content_form(form, refused)
+        except IntegrityError:
+            form.add_error(
+                "name", "A picklist with this name already exists for this slot type."
+            )
+        else:
+            messages.success(request, f"Cloned {picklist} as {copy}.")
+            return redirect("authoring-detail", kind="picklist", pk=copy.pk)
+    return render(
+        request,
+        "authoring/picklist_clone.html",
+        {"picklist": picklist, "form": form},
+    )
+
+
+@staff_member_required
 def picklist_table(request, pk):
     """One roll table, whole: its rows in roll order, and whether its
     bands cover the die.

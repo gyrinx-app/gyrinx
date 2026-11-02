@@ -661,6 +661,11 @@ urlpatterns = [
     # roll table's gaps and overlaps are facts about the whole list, and
     # the picklist's own page shows only one row at a time.
     path(
+        "authoring/picklists/<str:pk>/clone/",
+        authoring_views.picklist_clone,
+        name="authoring-picklist-clone",
+    ),
+    path(
         "authoring/picklists/<str:pk>/table/",
         authoring_views.picklist_table,
         name="authoring-picklist-table",
