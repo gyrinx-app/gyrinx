@@ -348,7 +348,9 @@ def _skill_step(request, fighter, record, configured, chosen, groups, *, correct
         skill_random=random,
         skill_resolved=resolved,
         skill_selected=str(selected) if resolved else "",
-        skill_title=f"Select a {chosen.choice_noun}",
+        skill_title=f"Roll for a {chosen.choice_noun}"
+        if chosen.forced_random
+        else f"Select a {chosen.choice_noun}",
         skill_empty=f"No {chosen.choice_noun} is available for this result.",
         skill_attempts=attempts,
         skill_roll=_skill_roll_props(

@@ -119,6 +119,7 @@ The roll controls submit through the surrounding form.
                                                 :wrap="True">
                             {% if threshold_roll %}<span class="block text-muted">Roll {{ choice.option.roll_minimum }}+</span>{% endif %}
                             <span class="block text-muted">Rating +{{ choice.option.rating }}¢</span>
+                            {% if choice.option.forced_random %}<span class="block text-muted">Roll for this skill.</span>{% endif %}
                         </c-n26.radio-cards.card>
                     {% empty %}
                         <p class="text-muted">No advancement can change this model.</p>

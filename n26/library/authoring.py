@@ -2879,6 +2879,14 @@ def ef_hides_categories(collection, categories):
 
 
 @guarded_write
+def ef_randomises_skill_advancements(from_section):
+    """Roll skill advancements from the named section randomly."""
+    from n26.library.models import RandomisesSkillAdvancements
+
+    return RandomisesSkillAdvancements.objects.create(from_section=from_section)
+
+
+@guarded_write
 def ef_places(category, section):
     """For the bearer, that set sits under this section of its
     collection — ``ef_places(powers, skills_primary)``."""

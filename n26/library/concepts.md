@@ -201,6 +201,11 @@ A **Gives something** modifier can grant wargear as free kit. Each grant gives a
 
 A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power has the same shape: its home is a category too. Category placements determine whether its family is Primary or Secondary for a model. Skill offers with **Also offers powers from** set to that collection allow its placed power families as substitutes, including in advancements. Skill-only and power-only offers remain separate choices. A power's annotation carries what the book prints in brackets ("(Free)", "Continuous Effect").
 
+A **Rolls skill advancements randomly** modifier replaces skill selection with
+a D6 roll for one collection section, such as Primary. It keeps access to the
+section's sets and applies only while its carrier is held. Completed
+advancements retain their recorded selection method.
+
 Both print on the card under their own headings. They arrive built in, given by a modifier, or chosen through an offered choice, and reach whoever holds them.
 
 ### Other types

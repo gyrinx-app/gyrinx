@@ -1,5 +1,6 @@
 """Persist and resolve fighter advancement rolls and skill or power choices."""
 
+from copy import copy
 from dataclasses import dataclass
 from types import SimpleNamespace
 
@@ -39,6 +40,7 @@ class AdvancementOption:
     roll_minimum: int | None = None
     landed: bool = True
     choice_noun: str = "skill"
+    forced_random: bool = False
 
     @property
     def choice_set_noun(self):
@@ -305,7 +307,7 @@ def _fighter_state(record, additions=()):
     }
 
 
-def _skill_offer(pickable):
+def _skill_offer(pickable, *, record=None, computed=None):
     from n26.library.models import OffersChoice, Power, Skill
 
     found = [
@@ -316,7 +318,44 @@ def _skill_offer(pickable):
     ]
     if len(found) > 1:
         raise ValueError(f"{pickable} offers more than one skill choice.")
-    return found[0] if found else None
+    if not found:
+        return None
+    offer = found[0]
+    if record is None:
+        return offer
+    mode = offer.mode
+    selection = (
+        getattr(record, "skill_selection", None)
+        if record.state == ActionRecord.State.COMPLETED
+        else None
+    )
+    if (
+        record.state == ActionRecord.State.COMPLETED
+        and selection is not None
+        and selection.skill_assignment_id
+        and record.advancement_selection.intended_pick_id == pickable.pk
+    ):
+        # A completed result retains the resolution method it recorded,
+        # even after the fighter loses the modifier that required it.
+        mode = selection.mode
+    elif (
+        offer.mode != offer.Mode.RANDOM
+        and offer.of_kind.model_class() is Skill
+        and offer.from_section_id is not None
+    ):
+        if computed is None:
+            card, _selection, _skill_selection = _counterfactual_card(record)
+            computed = compute(card, build_modifier_index(carriers(card)))
+        if any(
+            effect.from_section_id == offer.from_section_id
+            for effect in computed.random_skill_advancements
+        ):
+            mode = offer.Mode.RANDOM
+    if mode == offer.mode:
+        return offer
+    effective = copy(offer)
+    effective.mode = mode
+    return effective
 
 
 def _choice_noun(offer):
@@ -425,11 +464,10 @@ def _listed_skills(
     ]
 
 
-def _gainable(record, pickable, *, evaluation=None, skills_for=None):
+def _gainable(record, pickable, *, offer, evaluation=None, skills_for=None):
     stat = _stat_gainable(record.fighter, pickable, evaluation=evaluation)
     if stat is not None:
         return stat
-    offer = _skill_offer(pickable)
     return (
         bool(skills_for(offer) if skills_for else _listed_skills(record, offer))
         if offer
@@ -696,7 +734,7 @@ def _effect_text(pickable, index=None, seen=None):
 
 
 def advancement_options(record, configured):
-    options, _skills_for = _advancement_read(record, configured)
+    options, _skills_for, _offers = _advancement_read(record, configured)
     return options
 
 
@@ -770,14 +808,20 @@ def _advancement_read(record, configured):
             )
         return skill_cache[offer.pk]
 
-    offers = {member.pk: _skill_offer(member.pickable) for member in members}
+    offers = {
+        member.pickable_id: _skill_offer(
+            member.pickable, record=record, computed=computed
+        )
+        for member in members
+    }
 
     gainable = {}
     for member in members:
-        offer = offers[member.pk]
+        offer = offers[member.pickable_id]
         can_gain = _gainable(
             record,
             member.pickable,
+            offer=offer,
             evaluation=evaluation,
             skills_for=skills_for,
         )
@@ -787,7 +831,9 @@ def _advancement_read(record, configured):
             and offer is not None
             and offer.mode == offer.Mode.RANDOM
         ):
-            recorded = recorded_skill(record, configured, member.pickable_id)
+            recorded = recorded_skill(
+                record, configured, member.pickable_id, offer=offer
+            )
             can_gain = recorded is not None and any(
                 skill.pk == recorded.pk for skill in skills_for(offer)
             )
@@ -801,17 +847,24 @@ def _advancement_read(record, configured):
             str(member.pickable),
             member.pickable.rating_contribution,
             gainable[member.pk],
-            offers[member.pk] is not None,
-            offers[member.pk].mode if offers[member.pk] else "",
+            offers[member.pickable_id] is not None,
+            offers[member.pickable_id].mode if offers[member.pickable_id] else "",
             _effect_text(member.pickable, index),
             member.roll_low,
             member in landed,
-            _choice_noun(offers[member.pk]) if offers[member.pk] else "skill",
+            _choice_noun(offers[member.pickable_id])
+            if offers[member.pickable_id]
+            else "skill",
+            bool(
+                offers[member.pickable_id]
+                and offers[member.pickable_id].mode == "random"
+                and _skill_offer(member.pickable).mode == "select"
+            ),
         )
         for member in offered
     )
 
-    return options, skills_for
+    return options, skills_for, offers
 
 
 def skill_options(record, configured, pickable_id):
@@ -820,19 +873,14 @@ def skill_options(record, configured, pickable_id):
 
 
 def _skill_options(record, configured, pickable_id, *, read):
-    options, skills_for = read
+    options, skills_for, offers = read
     option = next(
         (option for option in options if option.id == str(pickable_id)),
         None,
     )
     if option is None or not option.gainable:
         raise Refusal("That result is not available for this advancement.")
-    pickable = (
-        result_slot(record, configured)
-        .picklist.members.get(pickable_id=pickable_id)
-        .pickable
-    )
-    offer = _skill_offer(pickable)
+    offer = next(offer for key, offer in offers.items() if str(key) == str(pickable_id))
     if offer is None:
         return {}
     grouped = {}
@@ -851,14 +899,14 @@ def _skill_access(record, configured, pickable_id):
     return "any" if offer.from_section_id is None else offer.from_section.name.lower()
 
 
-def recorded_skill(record, configured, pickable_id):
+def recorded_skill(record, configured, pickable_id, *, offer=None):
     """Return the immutable random result only when it belongs to this choice."""
     pickable = (
         result_slot(record, configured)
         .picklist.members.get(pickable_id=pickable_id)
         .pickable
     )
-    offer = _skill_offer(pickable)
+    offer = offer or _skill_offer(pickable, record=record)
     if offer is None or offer.mode != offer.Mode.RANDOM:
         return None
     selection = getattr(record, "skill_selection", None)
@@ -1007,7 +1055,8 @@ def record_skill_roll(
     )
     if member is None:
         raise Refusal("That result is not available for this advancement.")
-    offer = _skill_offer(member.pickable)
+    read = _advancement_read(record, configured)
+    offer = read[2].get(member.pickable_id)
     if offer is None or offer.mode != offer.Mode.RANDOM:
         raise Refusal("That advancement result does not use a random skill roll.")
     selection, _ = SkillSelection.objects.select_for_update().get_or_create(
@@ -1027,7 +1076,7 @@ def record_skill_roll(
                 )
             return attempt
     selection.mode = SkillSelection.Mode.RANDOM
-    options = skill_options(record, configured, pickable_id)
+    options = _skill_options(record, configured, pickable_id, read=read)
     category = next((row for row in options if str(row.pk) == str(skill_set_id)), None)
     if category is None:
         raise Refusal("That skill set is not available for this advancement.")
@@ -1128,12 +1177,12 @@ def _resolved(record, configured, terms):
         .picklist.members.get(pickable_id=pickable_id)
         .pickable
     )
-    offer, skill = _skill_offer(pickable), None
+    offer, skill = read[2][pickable.pk], None
     if offer is not None:
         kind_name = _choice_noun(offer)
         options = _skill_options(record, configured, pickable_id, read=read)
         if offer.mode == offer.Mode.RANDOM:
-            skill = recorded_skill(record, configured, pickable_id)
+            skill = recorded_skill(record, configured, pickable_id, offer=offer)
             available = {row.pk for rows in options.values() for row in rows}
             if skill is None or skill.pk not in available:
                 raise Refusal(f"Roll D6 again for an available {kind_name}.")

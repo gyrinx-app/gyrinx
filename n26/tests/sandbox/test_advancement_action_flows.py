@@ -141,7 +141,9 @@ def _start(client, advancement):
         },
     )
     assert response.status_code == 302
-    return ActionRecord.objects.get(fighter=advancement.fighter)
+    return ActionRecord.objects.get(
+        fighter=advancement.fighter, allowance=advancement.allowance
+    )
 
 
 def _post_roll(client, advancement, record):
@@ -1875,3 +1877,350 @@ class TestAdvancementHoldsAndUndo:
         with operation(advancement.gang, actor=advancement.owner) as op:
             op.tally(advancement.xp, 1)
         assert _waiting(advancement)
+
+
+@pytest.fixture
+@library_setup
+def chancer(advancement):
+    kind = a.create_slot_type("Legendary name")
+    pick = a.create_pickable("Chancer", kind)
+    for section in (advancement.primary, advancement.secondary):
+        a.modifier(
+            f"Chancer: random {section.name} advancements",
+            a.targets_model(),
+            a.ef_randomises_skill_advancements(section),
+            attach_to=pick,
+        )
+    table = a.create_picklist("Legendary names", kind)
+    a.add_picklist_member(table, pick)
+    slot = a.create_slot("Legendary name", kind, table)
+    with operation(advancement.gang, actor=advancement.owner) as op:
+        anchor = op.assign(slot, miniature=advancement.fighter)
+        return op.choose(anchor, pick)
+
+
+def _record_chancer_skill(client, advancement, skill_url, rolled):
+    page = client.get(skill_url)
+    assert page.context["skill_random"] is True
+    assert page.context["skill_title"] == "Roll for a skill"
+    assert "skill_id" not in page.context["form"].fields
+    response = client.post(
+        skill_url,
+        {
+            "request_key": str(uuid4()),
+            "roll_mode": "record",
+            "rolled": rolled,
+            "skill_set_id": page.context["skill_groups"][0]["key"],
+        },
+    )
+    assert response.status_code == 302
+    return response.url
+
+
+class TestChancerSkillAdvancements:
+    """A legendary name changes the resolution method without removing skill access."""
+
+    @pytest.mark.parametrize("tier,rolled", [("primary", 2), ("secondary", 1)])
+    def test_selected_skills_are_rolled_and_the_result_is_recorded(
+        self, client, monkeypatch, advancement, chancer, tier, rolled
+    ):
+        from n26.core.operations import Refusal
+
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results[tier]
+        )
+        skill = advancement.skills[tier]
+        forged = client.post(skill_url, {"skill_id": str(skill.pk)})
+        assert forged.status_code == 200
+        record.refresh_from_db()
+        with pytest.raises(Refusal, match="Roll D6 again"):
+            with operation(advancement.gang, actor=advancement.owner) as op:
+                op.review_action(
+                    record,
+                    outcome=advancement.outcome,
+                    terms={
+                        "pickable_id": str(advancement.results[tier].pk),
+                        "skill_id": str(skill.pk),
+                    },
+                )
+        skill_url = _record_chancer_skill(client, advancement, skill_url, rolled)
+        reviewed = client.post(skill_url, {"review_skill": "1"})
+        assert reviewed.status_code == 302
+        page = client.get(reviewed.url)
+        record.refresh_from_db()
+        assert record.review["target"]["skill_mode"] == "random"
+        completed = client.post(
+            reviewed.url, {"review": page.context["form"]["review"].value()}
+        )
+        assert completed.status_code == 302
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.COMPLETED
+        selection = record.skill_selection
+        assert selection.mode == "random"
+        assert selection.selected == skill
+        assert selection.skill_assignment.skill == skill
+        assert selection.random_attempts[-1]["roll"] == rolled
+        authored = advancement.results[tier].modifiers.get().effect
+        assert authored.mode == "select"
+        advancement.gang.refresh_from_db()
+        assert_reconciled(advancement.gang)
+
+    def test_an_owned_random_result_requires_another_roll(
+        self, client, monkeypatch, advancement, chancer
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        skill_url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        skill_url = _record_chancer_skill(client, advancement, skill_url, 1)
+        page = client.get(skill_url)
+        assert not page.context["skill_resolved"]
+        assert "No available skill was rolled." in page.content.decode()
+        skill_url = _record_chancer_skill(client, advancement, skill_url, 2)
+        assert client.get(skill_url).context["skill_selected"] == "Dodge"
+        record.refresh_from_db()
+        assert [a["roll"] for a in record.skill_selection.random_attempts] == [1, 2]
+
+    @pytest.mark.parametrize("key,random", [("random", True), ("any", False)])
+    def test_other_advancement_modes_remain_unchanged(
+        self, client, monkeypatch, advancement, chancer, key, random
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        url = _choose_result(client, advancement, record, advancement.results[key])
+        assert client.get(url).context["skill_random"] is random
+
+    def test_removing_the_name_restores_selection_for_an_unfinished_advancement(
+        self, client, monkeypatch, advancement, chancer
+    ):
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        assert client.get(url).context["skill_random"] is True
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.remove(chancer)
+        page = client.get(url)
+        assert page.context["skill_random"] is False
+        assert "skill_id" in page.context["form"].fields
+        card = build_card(advancement.fighter)
+        computed = compute(card, build_modifier_index(carriers(card)))
+        assert {p.section.pk for p in computed.placements} == {
+            advancement.primary.pk,
+            advancement.secondary.pk,
+        }
+        assert Assignment.objects.filter(
+            miniature_root=advancement.fighter,
+            skill=advancement.skills["owned"],
+            archived=False,
+        ).exists()
+
+    def test_completed_random_results_keep_their_mode_after_the_name_is_removed(
+        self, client, monkeypatch, advancement, chancer
+    ):
+        from n26.core.advancements import advancement_options, recorded_skill
+
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        url = _record_chancer_skill(client, advancement, url, 2)
+        reviewed = client.post(url, {"review_skill": "1"})
+        page = client.get(reviewed.url)
+        assert (
+            client.post(
+                reviewed.url, {"review": page.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+        record.refresh_from_db()
+        attempts = record.skill_selection.random_attempts
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.remove(chancer)
+        record.refresh_from_db()
+        configured = advancement.outcome.operation
+        option = next(
+            o
+            for o in advancement_options(record, configured)
+            if o.id == str(advancement.results["primary"].pk)
+        )
+        assert option.skill_mode == "random"
+        assert (
+            recorded_skill(record, configured, option.id)
+            == advancement.skills["primary"]
+        )
+        assert record.skill_selection.random_attempts == attempts
+        assert (
+            record.skill_selection.skill_assignment.skill
+            == advancement.skills["primary"]
+        )
+        assert_reconciled(advancement.gang)
+
+
+class TestChancerAuthoring:
+    def test_the_composer_can_create_and_edit_the_random_advancement_effect(
+        self, client, advancement, chancer
+    ):
+        from n26.library.forms import ModifierComposerForm
+
+        data = {
+            "scope_kind": "targets_model",
+            "effect_kind": "ef_randomises_skill_advancements",
+            "what-from_section": str(advancement.primary.pk),
+            "conditions-TOTAL_FORMS": "0",
+            "conditions-INITIAL_FORMS": "0",
+        }
+        form = ModifierComposerForm(data, attach_to=chancer.pickable)
+        assert form.is_valid(), form.errors
+        modifier = form.save()
+        advancement.owner.is_staff = True
+        advancement.owner.save(update_fields=["is_staff"])
+        client.force_login(advancement.owner)
+        url = reverse("authoring-modifier", args=[modifier.pk])
+        page = client.get(url)
+        assert page.status_code == 200
+        assert (
+            "must roll skill advancements from Primary randomly"
+            in page.content.decode()
+        )
+        data["what-from_section"] = str(advancement.secondary.pk)
+        response = client.post(url, data)
+        assert response.status_code == 302
+        modifier.refresh_from_db()
+        assert modifier.effect.from_section == advancement.secondary
+
+    def test_effects_and_their_descriptions_are_loaded_before_evaluation(
+        self, advancement, chancer, django_assert_num_queries
+    ):
+        from n26.core.card import build_card, build_modifier_index, carriers
+        from n26.core.effects import compute
+        from n26.library.prose import sentence_for
+        from n26.library.references import reading_sentences
+
+        card = build_card(advancement.fighter)
+        index = build_modifier_index(carriers(card))
+        with django_assert_num_queries(0):
+            computed = compute(card, index)
+        assert {e.from_section_id for e in computed.random_skill_advancements} == {
+            advancement.primary.pk,
+            advancement.secondary.pk,
+        }
+        modifiers = list(reading_sentences(chancer.pickable.modifiers.all()))
+        with django_assert_num_queries(0):
+            assert all(
+                "must roll skill advancements" in sentence_for(m).text
+                for m in modifiers
+            )
+
+
+class TestChancerChangesBetweenAdvancements:
+    def test_a_later_advancement_can_select_a_skill_after_chancer_is_removed(
+        self, client, monkeypatch, advancement, chancer
+    ):
+        _load_rolls(monkeypatch, 12, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        url = _record_chancer_skill(client, advancement, url, 2)
+        reviewed = client.post(url, {"review_skill": "1"})
+        page = client.get(reviewed.url)
+        assert (
+            client.post(
+                reviewed.url, {"review": page.context["form"]["review"].value()}
+            ).status_code
+            == 302
+        )
+        ranks = Assignment.objects.get(
+            miniature_root=advancement.fighter, rank_table__isnull=False, archived=False
+        ).rank_table
+        a.add_rank_threshold(ranks, 8)
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.remove(chancer)
+            op.tally(advancement.xp, 4)
+        advancement.allowance = ActionAllowance.objects.get(
+            fighter=advancement.fighter, threshold=8
+        )
+        later = _start(client, advancement)
+        _post_roll(client, advancement, later)
+        url = _choose_result(
+            client, advancement, later, advancement.results["secondary"]
+        )
+        page = client.get(url)
+        assert page.context["skill_random"] is False
+        reviewed = client.post(
+            url, {"skill_id": str(advancement.skills["secondary"].pk)}
+        )
+        assert reviewed.status_code == 302
+        later.refresh_from_db()
+        assert later.review["target"]["skill_mode"] == "select"
+        record.refresh_from_db()
+        assert record.skill_selection.mode == "random"
+        assert (
+            record.skill_selection.skill_assignment.skill
+            == advancement.skills["primary"]
+        )
+
+    def test_removing_chancer_invalidates_an_unconfirmed_random_review(
+        self, client, monkeypatch, advancement, chancer
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+        url = _record_chancer_skill(client, advancement, url, 2)
+        reviewed = client.post(url, {"review_skill": "1"})
+        page = client.get(reviewed.url)
+        token = page.context["form"]["review"].value()
+        with operation(advancement.gang, actor=advancement.owner) as op:
+            op.remove(chancer)
+        client.post(reviewed.url, {"review": token})
+        record.refresh_from_db()
+        assert record.state == ActionRecord.State.STARTED
+        assert record.skill_selection.skill_assignment_id is None
+
+
+class TestChancerQueryGrowth:
+    def test_more_random_advancement_modifiers_do_not_add_per_modifier_queries(
+        self, client, monkeypatch, advancement, chancer
+    ):
+        _load_rolls(monkeypatch, 12)
+        record = _start(client, advancement)
+        _post_roll(client, advancement, record)
+        url = _choose_result(
+            client, advancement, record, advancement.results["primary"]
+        )
+
+        def measure():
+            client.get(url)
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(url)
+            assert response.status_code == 200
+            assert response.context["skill_random"] is True
+            return len(queries)
+
+        one = measure()
+        for i in range(5):
+            a.modifier(
+                f"Extra random advancement {i}",
+                a.targets_model(),
+                a.ef_randomises_skill_advancements(advancement.primary),
+                attach_to=chancer.pickable,
+            )
+        assert measure() == one
