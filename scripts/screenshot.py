@@ -49,7 +49,7 @@ from gyrinx.debug_login import (  # noqa: E402
 )
 
 try:
-    from playwright.async_api import async_playwright
+    from playwright.async_api import Error, async_playwright
     from playwright.sync_api import sync_playwright  # noqa: F401
 except ImportError:
     print("Error: Playwright is not installed.")
@@ -123,14 +123,15 @@ def check_server_running(host="localhost", port=None):
 
 
 def ensure_browser_installed():
-    """Check if Chromium is installed and install it if necessary."""
+    """Check that Google Chrome or Chromium launches, installing Chromium if neither does."""
     try:
-        # Check if chromium is already installed by trying to import and use it
         from playwright.sync_api import sync_playwright
 
         with sync_playwright() as p:
-            # Try to launch chromium to verify it's installed
-            browser = p.chromium.launch(headless=True)
+            try:
+                browser = p.chromium.launch(channel="chrome", headless=True)
+            except Error:
+                browser = p.chromium.launch(headless=True)
             browser.close()
         return True
     except Exception:
@@ -243,8 +244,12 @@ class ScreenshotCapture:
         latest_filepath = output_path / latest_filename
 
         async with async_playwright() as p:
-            # Launch browser
-            browser = await p.chromium.launch(headless=True)
+            # Prefer the installed Google Chrome: it updates itself, so it gets
+            # browser security fixes before Playwright bundles them.
+            try:
+                browser = await p.chromium.launch(channel="chrome", headless=True)
+            except Error:
+                browser = await p.chromium.launch(headless=True)
 
             # Create context with viewport
             viewport_config = VIEWPORTS.get(viewport, VIEWPORTS["desktop"])
@@ -463,9 +468,8 @@ def main():
 
             print("✓ Playwright is installed")
 
-            # Check if Chromium is installed
             if ensure_browser_installed():
-                print("✓ Chromium browser is installed")
+                print("✓ Google Chrome or Chromium launches")
             else:
                 print("✗ Chromium browser installation failed")
                 sys.exit(1)

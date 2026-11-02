@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise a running Help page in Chromium.
+"""Exercise a running Help page in Google Chrome, or Playwright's Chromium without it.
 
 Run through .codex/run.sh against the worktree server. Optional screenshots are
 saved locally; this command neither seeds data nor changes application records.
@@ -8,7 +8,7 @@ saved locally; this command neither seeds data nor changes application records.
 import argparse
 from pathlib import Path
 
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import Error, expect, sync_playwright
 
 
 def check(
@@ -174,7 +174,12 @@ def main():
     if args.screenshots:
         args.screenshots.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
+        # Prefer the installed Google Chrome: it updates itself, so it gets
+        # browser security fixes before Playwright bundles them.
+        try:
+            browser = playwright.chromium.launch(channel="chrome")
+        except Error:
+            browser = playwright.chromium.launch()
         for theme in ("light", "dark"):
             for width in (375, 768, 1024, 1440):
                 context = browser.new_context(
