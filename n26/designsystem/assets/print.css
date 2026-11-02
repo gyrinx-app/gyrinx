@@ -1204,25 +1204,17 @@
     }
 
     .n26-print-tactics .n26-tactic-item .n26-tactic-card {
-        --tactic-ink: var(--color-ink-900);
-        --tactic-label: var(--color-red-900);
-        --tactic-line: color-mix(
-            in srgb,
-            var(--color-stone-800) 32%,
-            transparent
-        );
-        --tactic-strip: var(--color-stone-300);
-        --tactic-plate: var(--color-stone-950);
-        --tactic-background:
-            linear-gradient(#ffffffad, #ffffffad),
-            url("./print/tactics-paper.jpg") center / cover;
+        --tactic-unit: var(--tactic-scale, 1);
+        --tactic-band: calc(4mm * var(--tactic-unit));
+        --tactic-heading-height: calc(14mm * var(--tactic-unit));
         width: calc(76mm * var(--tactic-scale, 1));
         height: calc(111mm * var(--tactic-scale, 1));
         box-sizing: border-box;
-        padding-top: calc(2mm * var(--tactic-scale, 1));
+        padding-top: var(--tactic-band);
         border: calc(0.25mm * var(--tactic-scale, 1)) solid
             var(--color-stone-950);
-        border-radius: calc(2.4mm * var(--tactic-scale, 1));
+        --tactic-bevel-top: calc(2mm * var(--tactic-unit));
+        --tactic-bevel-bottom: calc(4mm * var(--tactic-unit));
         color-scheme: light;
         box-shadow: none;
         transform: none;
@@ -1233,31 +1225,29 @@
         -webkit-print-color-adjust: economy;
     }
 
+    .n26-print-tactics .n26-tactic-card::after {
+        box-shadow: none;
+    }
+
     .n26-print-tactics .n26-tactic-item .n26-tactic-nameplate {
         print-color-adjust: exact;
         -webkit-print-color-adjust: exact;
-        flex-basis: calc(14mm * var(--tactic-scale, 1));
         padding: calc(2mm * var(--tactic-scale, 1))
             calc(3.4mm * var(--tactic-scale, 1));
-        background: transparent;
+        background: var(--tactic-background);
+    }
+
+    /* Draw the black paper directly: PDF mask compositing can leave a seam. */
+    .n26-print-tactics .n26-tactic-nameplate::before {
+        mask: none;
+        background:
+            linear-gradient(#000 0 0) top / 100% calc(100% - 6px) no-repeat,
+            url("./print/nameplate.png") center / 100% 100% no-repeat;
     }
 
     .n26-print-tactics .n26-tactic-nameplate h3 {
         font-size: calc(13.5pt * var(--tactic-scale, 1));
         line-height: 1.15;
-    }
-
-    .n26-print-tactics .n26-tactic-item .n26-tactic-strip {
-        padding: calc(3mm * var(--tactic-scale, 1))
-            calc(3.4mm * var(--tactic-scale, 1))
-            calc(1.6mm * var(--tactic-scale, 1));
-        color: var(--color-stone-800);
-        font-size: calc(7.5pt * var(--tactic-scale, 1));
-        line-height: 1.4;
-    }
-
-    .n26-print-tactics .n26-tactic-roll strong {
-        font-size: calc(9pt * var(--tactic-scale, 1));
     }
 
     .n26-print-tactics .n26-tactic-content {
@@ -1272,27 +1262,11 @@
     }
 
     .n26-print-tactics .n26-tactic-footer {
-        margin-inline: calc(3.4mm * var(--tactic-scale, 1));
-        padding: calc(2mm * var(--tactic-scale, 1)) 0
+        padding: calc(2mm * var(--tactic-scale, 1))
+            calc(3.4mm * var(--tactic-scale, 1))
             calc(3mm * var(--tactic-scale, 1));
         font-size: calc(7pt * var(--tactic-scale, 1));
         line-height: 1.4;
-    }
-
-    .n26-print-tactics .n26-tactic-nameplate::before {
-        /* Chromium's PDF mask raster leaves a rectangular seam. The same
-         * silhouette can be printed directly without the mask. */
-        mask: none;
-        background: url("./print/nameplate.png") center / 100% 100% no-repeat;
-        bottom: calc(-1.6mm * var(--tactic-scale, 1));
-    }
-    .n26-print-tactics .n26-tactic-rule + .n26-tactic-rule {
-        margin-top: calc(3mm * var(--tactic-scale, 1));
-    }
-    .n26-print-tactics .n26-tactic-content h4 {
-        margin-bottom: calc(1.3mm * var(--tactic-scale, 1));
-    }
-    .n26-print-tactics .n26-tactic-footer {
         gap: calc(2mm * var(--tactic-scale, 1));
     }
     .n26-print-tactics .n26-tactic-footer svg {

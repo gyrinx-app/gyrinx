@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Icon } from "../../ui";
 
 /** The part of a TinyMCE editor the notes box uses. */
 type Editor = {
@@ -77,6 +78,7 @@ export function TacticNotes({
     editorScript,
     onSaved,
     bonus,
+    gangDetails,
 }: {
     name: string;
     notes: string;
@@ -88,6 +90,7 @@ export function TacticNotes({
     onSaved?: (notes: string) => void;
     /** Drawn as a bonus: said under the buttons, where the card has room. */
     bonus?: boolean;
+    gangDetails?: ReactNode;
 }) {
     const editable = Boolean(saveUrl && editorScript);
     const box = useRef<HTMLDivElement>(null);
@@ -121,7 +124,7 @@ export function TacticNotes({
                     valid_elements: VALID_ELEMENTS,
                     valid_styles: {},
                     formats: { underline: { inline: "u", exact: true } },
-                    placeholder: "Your notes on this tactic",
+                    placeholder: "Add notes",
                     setup: (made: Editor) => {
                         made.on("input change undo redo SetContent", () =>
                             setDraft(made.getContent()),
@@ -220,14 +223,23 @@ export function TacticNotes({
             onPointerDown={keep}
         >
             {editable ? (
-                <div
-                    ref={box}
-                    className="n26-tactic-notes-box"
-                    role="textbox"
-                    aria-multiline="true"
-                    aria-label={`Notes on ${name}`}
-                    dangerouslySetInnerHTML={{ __html: initial }}
-                />
+                <div className="n26-tactic-notes-editor">
+                    <div
+                        ref={box}
+                        className="n26-tactic-notes-box"
+                        role="textbox"
+                        aria-multiline="true"
+                        aria-label={`Notes on ${name}`}
+                        dangerouslySetInnerHTML={{ __html: initial }}
+                    />
+                    <span
+                        className="n26-tactic-notes-prompt"
+                        aria-hidden="true"
+                    >
+                        <Icon name="mouse-pointer-click" strokeWidth={1.7} />
+                        Add notes
+                    </span>
+                </div>
             ) : draft ? (
                 <div
                     className="n26-tactic-notes-box"
@@ -236,8 +248,9 @@ export function TacticNotes({
             ) : (
                 <p className="n26-tactic-notes-empty">No notes yet.</p>
             )}
-            {(suggested || editable) && (
+            {(suggested || editable || gangDetails) && (
                 <div className="n26-tactic-notes-actions">
+                    {gangDetails}
                     {suggested && isSuggestion
                         ? // Only the owner can empty the box; a reader is
                           // already looking at the suggestion.

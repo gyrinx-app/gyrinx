@@ -23,6 +23,8 @@ import {
 export type GangTacticsProps = {
     cards: Card[];
     yours: boolean;
+    gangColour?: string;
+    gangColourChoices?: string[];
     toGenerate: number;
     tableChoices: {
         value: string;
@@ -46,8 +48,20 @@ export type GangTacticsProps = {
     printView: boolean;
     initialLayout: string;
 };
+/** Change a preview option without losing selection or other URL options. */
+function updateQuery(name: string, value: string | null) {
+    const url = new URL(location.href);
+    if (value === null) url.searchParams.delete(name);
+    else url.searchParams.set(name, value);
+    history.pushState({}, "", url);
+}
+
 export function GangTactics(props: GangTacticsProps) {
     const { yours, printView } = props;
+    const [colour, setColour] = useState(props.gangColour || "ink");
+    const [longNames, setLongNames] = useState(
+        () => new URL(location.href).searchParams.get("names") === "long",
+    );
     const [cards, setCards] = useState(props.cards);
     const [toGenerate, setToGenerate] = useState(props.toGenerate);
     const [tableChoices, setTableChoices] = useState(props.tableChoices);
@@ -96,7 +110,15 @@ export function GangTactics(props: GangTacticsProps) {
     );
     useEffect(() => {
         const onPop = () => {
-            const value = new URL(location.href).searchParams.get("layout");
+            const params = new URL(location.href).searchParams;
+            setLongNames(params.get("names") === "long");
+            const colour = params.get("colour");
+            setColour(
+                colour && props.gangColourChoices?.includes(colour)
+                    ? colour
+                    : props.gangColour || "ink",
+            );
+            const value = params.get("layout");
             setLayout(
                 value === "grid" || value === "carousel"
                     ? value
@@ -115,9 +137,7 @@ export function GangTactics(props: GangTacticsProps) {
     }, []);
     function chooseLayout(value: string) {
         setLayout(value);
-        const url = new URL(location.href);
-        url.searchParams.set("layout", value);
-        history.pushState({}, "", url);
+        updateQuery("layout", value);
     }
     function show(index: number) {
         const el = track.current;
@@ -165,6 +185,8 @@ export function GangTactics(props: GangTacticsProps) {
     function printSelected() {
         const url = new URL(props.rollUrl, location.origin);
         url.searchParams.set("print", "1");
+        url.searchParams.set("colour", colour);
+        if (longNames) url.searchParams.set("names", "long");
         selected.forEach((pk) => url.searchParams.append("selected", pk));
         window.open(url.toString(), "_blank", "noopener");
     }
@@ -416,7 +438,7 @@ export function GangTactics(props: GangTacticsProps) {
             ))}
         </MenuButton>
     );
-    const cardItems = cards.map((card) => (
+    const cardItems = cards.map((card, index) => (
         <li
             key={card.pk}
             className="n26-tactic-item n26-print-tactic-item"
@@ -457,7 +479,14 @@ export function GangTactics(props: GangTacticsProps) {
                 </div>
             )}
             <TacticCard
-                card={card}
+                card={
+                    longNames && index === 0
+                        ? {
+                              ...card,
+                              name: "An Unexpected Opportunity in the Underhive",
+                          }
+                        : card
+                }
                 selected={selected.has(card.pk)}
                 printView={printView}
                 onToggle={() => toggleCard(card.pk)}
@@ -489,6 +518,7 @@ export function GangTactics(props: GangTacticsProps) {
             className={`n26-tactics-island ${printView ? "n26-tactics-print-view" : ""}`}
             style={
                 {
+                    "--tactic-theme": `var(--color-${colour}-500)`,
                     "--tactic-scale": scale / 100,
                     "--tactic-columns": columns,
                     "--tactic-screen-scale": screenScale,
@@ -743,6 +773,40 @@ export function GangTactics(props: GangTacticsProps) {
                         )}
                     </div>
                 </>
+            )}
+            {!printView && Boolean(props.gangColourChoices?.length) && (
+                <div className="n26-tactics-colour-preview">
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={longNames}
+                            onChange={(event) => {
+                                const enabled = event.target.checked;
+                                setLongNames(enabled);
+                                updateQuery("names", enabled ? "long" : null);
+                            }}
+                        />
+                        Long name example
+                    </label>
+                    <label>
+                        <span>Preview gang colour</span>
+                        <NativeSelect
+                            controlSize="sm"
+                            value={colour}
+                            onChange={(event) => {
+                                setColour(event.target.value);
+                                updateQuery("colour", event.target.value);
+                            }}
+                        >
+                            {props.gangColourChoices?.map((colour) => (
+                                <option key={colour} value={colour}>
+                                    {colour.charAt(0).toUpperCase() +
+                                        colour.slice(1)}
+                                </option>
+                            ))}
+                        </NativeSelect>
+                    </label>
+                </div>
             )}
             <section
                 className="n26-tactics-collection"

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, type CSSProperties } from "react";
 import { Icon } from "../../ui";
 import { useFittedRules } from "./useFittedRules";
 import { TacticNotes } from "./TacticNotes";
@@ -20,6 +20,7 @@ export type Card = {
     tableKey: string;
     /** Drawn as a bonus, outside the ranks' allowance. */
     bonus?: boolean;
+    gangIcon?: string;
 };
 const referenceText = (reference: string) =>
     reference.replace(/^(Pages?\s+[\d/–—, -]+?)\s+-\s+(.+)$/i, "$2 · $1");
@@ -46,7 +47,45 @@ export function TacticCard({
     const content = useRef<HTMLDivElement>(null);
     // A printed card shrinks its notes to fit; on screen the box scrolls,
     // and a printed card without notes has only lines to draw.
-    useFittedRules(content, card, printView && Boolean(card.notes));
+    useFittedRules(content, card.notes, printView && Boolean(card.notes));
+    const gangIcon = card.gangIcon ? (
+        <span
+            className="n26-tactic-gang-icon"
+            role="img"
+            aria-label={
+                card.table_name === "Universal"
+                    ? "Custom gang"
+                    : `${card.table_name} gang`
+            }
+            title={
+                card.table_name === "Universal"
+                    ? "Universal tactics"
+                    : `${card.table_name} tactics`
+            }
+            style={
+                {
+                    "--tactic-gang-icon": `url("${card.gangIcon}")`,
+                } as CSSProperties
+            }
+        />
+    ) : null;
+    const gangDetails = (
+        <div className="n26-tactic-identity">
+            {gangIcon}
+            <div className="n26-tactic-identity-copy">
+                <span>{card.table_name} gang tactics</span>
+                <span
+                    className="n26-tactic-roll"
+                    aria-label={`${card.dice_label} roll ${card.roll}`}
+                >
+                    <span>{card.dice_label}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{card.roll}</span>
+                    {card.developed && <span>· Developed</span>}
+                </span>
+            </div>
+        </div>
+    );
     return (
         <article
             className="n26-tactic-card"
@@ -68,10 +107,12 @@ export function TacticCard({
                       }
             }
         >
-            <header className="n26-tactic-nameplate">
-                <h3 id={`tactic-${card.pk}`} title={card.name}>
-                    {card.name}
-                </h3>
+            <header className="n26-tactic-header">
+                <div className="n26-tactic-nameplate">
+                    <h3 id={`tactic-${card.pk}`} title={card.name}>
+                        {card.name}
+                    </h3>
+                </div>
             </header>
             <div className="n26-tactic-content" ref={content}>
                 <div className="n26-tactic-rules">
@@ -98,21 +139,16 @@ export function TacticCard({
                             editorScript={notes?.editorScript}
                             onSaved={notes?.onSaved}
                             bonus={card.bonus}
+                            gangDetails={gangDetails}
                         />
                     )}
                     {printView && card.bonus && (
                         <p className="n26-tactic-bonus">Bonus card</p>
                     )}
                 </div>
-            </div>
-            <div className="n26-tactic-strip">
-                <span>
-                    {card.table_name} gang tactics
-                    {card.developed ? " · Developed" : ""}
-                </span>
-                <span className="n26-tactic-roll">
-                    {card.dice_label} <strong>{card.roll}</strong>
-                </span>
+                {printView && (
+                    <div className="n26-tactic-print-gang">{gangDetails}</div>
+                )}
             </div>
             {card.reference && (
                 <footer className="n26-tactic-footer">
