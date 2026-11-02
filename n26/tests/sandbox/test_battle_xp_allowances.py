@@ -78,7 +78,7 @@ def setup(default_pack, gang_type, make_profile, make_statline):
     )
 
 
-def save_award(s, xp, *, report=None, effects=()):
+def save_award(s, xp, *, report=None, effects=(), counters=None):
     report = report or s.report
     report.refresh_from_db()
     return save_draft(
@@ -94,17 +94,18 @@ def save_award(s, xp, *, report=None, effects=()):
                     "participated": True,
                     "xp": xp,
                     "effects": list(effects),
+                    "counters": counters or {},
                 }
             ],
         },
     )
 
 
-def apply(s, xp, *, correction=False, report=None, effects=()):
+def apply(s, xp, *, correction=False, report=None, effects=(), counters=None):
     report = report or s.report
     if correction:
         report = start_correction(report, actor=s.owner)
-    report = save_award(s, xp, report=report, effects=effects)
+    report = save_award(s, xp, report=report, effects=effects, counters=counters)
     plan = preview_report(report, actor=s.owner)
     assert plan.valid, plan.errors
     revision = apply_report(
@@ -583,3 +584,117 @@ def test_the_model_cards_direct_picker_cannot_bypass_a_held_action(setup, client
     assert not Assignment.objects.filter(
         miniature_root=s.fighter, pickable=s.pick, archived=False
     ).exists()
+
+
+@pytest.mark.parametrize("held", [False, True])
+@library_setup
+def test_an_interstitial_cannot_settle_an_earned_battle_choice(setup, client, held):
+    s = setup
+    apply(s, 5)
+    slot = s.outcome.operation.slot
+    a.create_interstitial("Name choice screen", slots=[slot])
+    with operation(s.gang, actor=s.owner) as op:
+        record = op.start_action(s.fighter, s.action, uuid4())
+        op.record_action_roll(record, s.outcome.operation, uuid4(), rolled=9)
+    if held:
+        apply(s, 4, correction=True)
+    record.refresh_from_db()
+    selection = record.advancement_selection
+    original_roll = selection.roll_event_id
+    key = f"{s.fighter.pk}:{selection.slot_assignment_id}:{slot.pk}"
+    here = reverse("n26-next", args=[s.gang.pk]) + f"?ask={key}"
+    client.force_login(s.owner)
+    page = client.get(here)
+    assert page.status_code == 200
+    assert f'name="thing:{key}"' in page.content.decode()
+    response = client.post(
+        here, {f"thing:{key}": f"library.pickable:{s.pick.pk}"}, follow=True
+    )
+    assert (
+        "On hold" in response.content.decode()
+        if held
+        else "earned action flow" in response.content.decode()
+    )
+    assert not Assignment.objects.filter(
+        miniature_root=s.fighter, pickable=s.pick, archived=False
+    ).exists()
+    record.refresh_from_db()
+    assert record.advancement_selection.roll_event_id == original_roll
+    assert record.state == "started"
+
+
+@pytest.mark.parametrize("held", [False, True])
+def test_choosing_at_the_operation_boundary_requires_the_earned_battle_flow(
+    setup, held
+):
+    s = setup
+    apply(s, 5)
+    with operation(s.gang, actor=s.owner) as op:
+        record = op.start_action(s.fighter, s.action, uuid4())
+        op.record_action_roll(record, s.outcome.operation, uuid4(), rolled=9)
+    if held:
+        apply(s, 4, correction=True)
+    record.refresh_from_db()
+    with pytest.raises(Refusal, match="On hold" if held else "earned action flow"):
+        with operation(s.gang, actor=s.owner) as op:
+            op.choose(
+                record.advancement_selection.slot_assignment,
+                s.pick,
+                slot=s.outcome.operation.slot,
+            )
+    assert not Assignment.objects.filter(
+        miniature_root=s.fighter, pickable=s.pick, archived=False
+    ).exists()
+
+
+def remove_frozen_award(revision):
+    from n26.core.models import PostBattleRevision
+
+    receipt = revision.receipt
+    receipt["models"][0].pop("battle_xp_award")
+    PostBattleRevision.objects.filter(pk=revision.pk).update(receipt=receipt)
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+@library_setup
+def test_displayed_xp_contributions_do_not_count_as_battle_awards(setup, legacy):
+    s = setup
+    influence = a.create_counter("Influence")
+    a.modifier(
+        "Influence displays XP",
+        a.targets_model(),
+        a.ef_contributes_to_counter(s.xp, 5, per_counter=influence),
+        attach_to=s.fighter.membership.profile,
+    )
+    with operation(s.gang, actor=s.owner) as op:
+        counter = op.assign(influence, miniature=s.fighter)
+        op.open_counter(counter, 0)
+    first = apply(s, 0, counters={str(counter.pk): 1})
+    assert first.receipt["models"][0]["xp_after"] == 5
+    assert first.receipt["models"][0]["battle_xp_award"] == 0
+    assert not ActionAllowance.objects.filter(source_kind="battle").exists()
+    if legacy:
+        remove_frozen_award(first)
+    corrected = apply(s, 0, correction=True, counters={str(counter.pk): 2})
+    assert corrected.receipt["models"][0]["battle_xp_award"] == 0
+    assert not ActionAllowance.objects.filter(source_kind="battle").exists()
+    qualifying = apply(s, 5, correction=True, counters={str(counter.pk): 2})
+    assert qualifying.receipt["models"][0]["battle_xp_award"] == 5
+    assert ActionAllowance.objects.filter(source_kind="battle").count() == 1
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+@library_setup
+def test_a_displayed_xp_minimum_does_not_reduce_the_recorded_award(setup, legacy):
+    s = setup
+    a.revise(s.xp, minimum=1)
+    first = apply(s, 5)
+    assert first.receipt["models"][0]["xp_before"] == 1
+    assert first.receipt["models"][0]["xp_after"] == 5
+    assert first.receipt["models"][0]["battle_xp_award"] == 5
+    assert ActionAllowance.objects.filter(source_kind="battle").count() == 1
+    if legacy:
+        remove_frozen_award(first)
+    corrected = apply(s, 6, correction=True)
+    assert corrected.receipt["models"][0]["battle_xp_award"] == 6
+    assert ActionAllowance.objects.filter(source_kind="battle").count() == 1

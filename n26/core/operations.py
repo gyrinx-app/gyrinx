@@ -2681,6 +2681,15 @@ class Operation:
         if anchor.archived or anchor.gang_root_id != self.gang.pk:
             raise Refusal("That choice is no longer available.")
 
+        from n26.core.action_records import battle_action_for_slot
+        from n26.core.allowances import require_allowance_available
+
+        battle_action = battle_action_for_slot(anchor)
+        if battle_action is not None:
+            require_allowance_available(battle_action.allowance)
+            if getattr(kwargs.get("action_record"), "pk", None) != battle_action.pk:
+                raise Refusal("Choose this result through its earned action flow.")
+
         if offer is None:
             # A slot's own assignment says which choice it is without being
             # told; a named offer has already said.

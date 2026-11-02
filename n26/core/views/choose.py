@@ -611,17 +611,9 @@ def choose(request, pk, slot):
 
     gang = _own_gang_or_404(request, pk)
     found = find_slot(gang, slot)
-    from n26.core.models import ActionAllowance, ActionRecord
+    from n26.core.action_records import battle_action_for_slot
 
-    battle_action = (
-        ActionRecord.objects.filter(
-            gang=gang,
-            advancement_selection__slot_assignment=found.anchor,
-            allowance__source_kind=ActionAllowance.Source.BATTLE,
-        ).first()
-        if getattr(found.anchor, "slot_id", None) is not None
-        else None
-    )
+    battle_action = battle_action_for_slot(found.anchor)
     if battle_action is not None:
         return redirect(
             "n26-action-flow",
@@ -910,8 +902,15 @@ def _write_pick(op, request, gang, slot_key, found, offer, wanted, *, dropped=""
     rules will not take. ``None`` comes back where the reader chose
     none: the standing pick is taken back and nothing is written.
     """
+    from n26.core.action_records import battle_action_for_slot
+    from n26.core.allowances import require_allowance_available
     from n26.core.operations import Refusal
     from n26.core.render import NONE_KEY
+
+    battle_action = battle_action_for_slot(found.anchor)
+    if battle_action is not None:
+        require_allowance_available(battle_action.allowance)
+        raise Refusal("Choose this result through its earned action flow.")
 
     rolled_on = _roll_posted(request, gang, found)
     if wanted == NONE_KEY and not dropped:

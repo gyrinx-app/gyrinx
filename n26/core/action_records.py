@@ -389,6 +389,20 @@ def _target_snapshot(record, configured, terms, *, quote=None):
     raise LibraryError(f"{type(configured).__name__} is not handled yet.")
 
 
+def battle_action_for_slot(anchor):
+    """The earned battle use that owns a stored advancement choice."""
+    if getattr(anchor, "slot_id", None) is None:
+        return None
+    return (
+        ActionRecord.objects.select_related("allowance")
+        .filter(
+            advancement_selection__slot_assignment=anchor,
+            allowance__source_kind=ActionAllowance.Source.BATTLE,
+        )
+        .first()
+    )
+
+
 def active_action_record(fighter, action):
     """Resume the oldest current-source draft without changing older duplicates."""
     return (

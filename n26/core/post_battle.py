@@ -798,10 +798,11 @@ def _project_counters(card, index, plan, result, facts, manual=None):
     ``manual`` is the change this report still has to make to each counter
     by hand, keyed by assignment id. Returns result deltas for counters other
     than XP, newly created counters, and projected stored balances keyed by
-    library counter.
+    library counter, and the stored XP change.
     """
     manual = manual or {}
     effect_deltas = defaultdict(int)
+    xp_delta = result.xp_change
     created = {}
     counters = {}
     by_assignment = {}
@@ -820,10 +821,18 @@ def _project_counters(card, index, plan, result, facts, manual=None):
             counters.setdefault(node.assignable.pk, []).append(held)
             by_assignment[str(node.assignment.pk)] = held
     reversed_deltas = defaultdict(int)
-    for _, _, events in plan._removals:
+    for _, root, events in plan._removals:
         for event in events:
             if event.kind == LedgerEvent.Kind.TALLIED and event.counter_delta:
                 reversed_deltas[str(event.assignment_id)] -= event.counter_delta
+                if (
+                    str(root.miniature_root_id) == result.id
+                    and event.assignment is not None
+                    and event.assignment.counter_id
+                    and event.assignment.counter.name.casefold()
+                    == XP_COUNTER.casefold()
+                ):
+                    xp_delta -= event.counter_delta
     for key, delta in reversed_deltas.items():
         held = by_assignment.get(key)
         if held is not None:
@@ -835,6 +844,8 @@ def _project_counters(card, index, plan, result, facts, manual=None):
     for key, delta in manual.items():
         if key in by_assignment:
             by_assignment[key][0] += delta
+            if by_assignment[key][2].name.casefold() == XP_COUNTER.casefold():
+                xp_delta += delta
     moved = {key for key, delta in reversed_deltas.items() if delta} | {
         key for key, delta in manual.items() if delta
     }
@@ -880,6 +891,8 @@ def _project_counters(card, index, plan, result, facts, manual=None):
             )
             if held[2].name.casefold() != XP_COUNTER.casefold() and held[1] is not None:
                 effect_deltas[held[1]] += held[0] - before
+            elif held[2].name.casefold() == XP_COUNTER.casefold():
+                xp_delta += held[0] - before
     local_sources = {
         node.assignable.pk
         for node in card.all_nodes()
@@ -895,6 +908,7 @@ def _project_counters(card, index, plan, result, facts, manual=None):
             for key, values in counters.items()
             if key in local_sources or key in created
         },
+        xp_delta,
     )
 
 
@@ -1074,12 +1088,21 @@ def _recorded_xp_awards(report, previous):
     models = previous.receipt.get("models", [])
     if all("battle_xp_award" in model for model in models):
         return {model["id"]: model["battle_xp_award"] for model in models}
-    awards = defaultdict(int)
-    for receipt in report.revisions.filter(
-        sequence__lte=report.latest_sequence
-    ).values_list("receipt", flat=True):
-        for model in receipt.get("models", []):
-            awards[model["id"]] += model.get("xp_after", 0) - model.get("xp_before", 0)
+    awards = {
+        model["id"]: model.get("xp", 0) for model in previous.inputs.get("models", [])
+    }
+    event_models = {
+        event_id: occurrence["model_id"]
+        for occurrence in previous.receipt.get("occurrences", {}).values()
+        for event_id in occurrence.get("event_ids", [])
+    }
+    for event_id, delta in LedgerEvent.objects.filter(
+        pk__in=event_models,
+        kind=LedgerEvent.Kind.TALLIED,
+        assignment__counter__name__iexact=XP_COUNTER,
+    ).values_list("pk", "counter_delta"):
+        model_id = event_models[str(event_id)]
+        awards[model_id] = awards.get(model_id, 0) + (delta or 0)
     return awards
 
 
@@ -1256,7 +1279,7 @@ def preview_report(report, *, actor, payload=None):
             continue
         events = list(
             LedgerEvent.objects.filter(pk__in=held["event_ids"]).select_related(
-                "assignment__counter_value"
+                "assignment__counter_value", "assignment__counter"
             )
         )
         for event in events:
@@ -1702,7 +1725,7 @@ def preview_report(report, *, actor, payload=None):
             - recorded.get(key, 0)
             for key, value in {**recorded, **entered}.items()
         }
-        effect_deltas, created, projected = _project_counters(
+        effect_deltas, created, projected, xp_delta = _project_counters(
             card, index, plan, result, facts, manual
         )
         sources = projection_sources(card.all_nodes(), readings)
@@ -1763,9 +1786,7 @@ def preview_report(report, *, actor, payload=None):
                 "note": note,
             }
         )
-        result.battle_xp_award = (
-            recorded_xp_awards.get(model_id, 0) + result.xp_after - result.xp_before
-        )
+        result.battle_xp_award = recorded_xp_awards.get(model_id, 0) + xp_delta
         changes, allowance_facts, allowance_errors = preview_battle_allowances(
             report,
             miniature,
