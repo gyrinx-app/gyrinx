@@ -63,17 +63,34 @@ def side_job_changes(request, form, here, extra=None):
     return redirect(f"{here}?{query}#scenario-components")
 
 
+REROLL_REFUSED = (
+    "That side job could not be rolled again. Reload the page and try again."
+)
+
+
+def rerolled_rolls(data):
+    """The rolls of the scenario ``data`` holds with the side job
+    ``reroll`` names rolled again on the set ``reroll_set`` names, or None
+    when the scenario is wrong or has no such side job or set."""
+    from n26.core.scenarios import parse, reroll_side_job
+
+    found, wrong = parse(data)
+    if wrong:
+        return None
+    return reroll_side_job(found, data.get("reroll", ""), data.get("reroll_set", ""))
+
+
 def _rerolled(request, form, here, extra):
     """A redirect to the scenario with the side job ``reroll`` names rolled
     again on the set ``reroll_set`` names, and the rest kept. A side job or
     set that is not there leaves the scenario as it was."""
-    from n26.core.scenarios import parse, reroll_side_job, rolls_of
+    from n26.core.scenarios import parse, rolls_of
     from n26.library.scenario_tables import SIDE_JOB_KEYS
 
     found, wrong = parse(request.GET)
     key = request.GET.get("reroll", "")
     set_key = request.GET["reroll_set"]
-    rolls = None if wrong else reroll_side_job(found, key, set_key)
+    rolls = rerolled_rolls(request.GET)
     if rolls is None:
         picks, rolls = form.chosen_picks(), ({} if wrong else rolls_of(found))
     else:
@@ -271,6 +288,12 @@ def generate_scenario(request):
     connection = {
         key: request.GET[key] for key in ("campaign", "battle") if request.GET.get(key)
     }
+    # The battle form's preview rerolls one side job here.
+    if "reroll_set" in request.GET and request.GET.get("format") == "json":
+        rolls = rerolled_rolls(request.GET)
+        if rolls is None:
+            return JsonResponse({"errors": [REROLL_REFUSED]}, status=400)
+        return JsonResponse({"rolls": rolls})
     changed = side_job_changes(
         request, form, reverse("n26-generate-scenario"), connection
     )
@@ -327,6 +350,17 @@ def save_scenario_to_campaign(request):
         for key in [table.key for table in TABLES] + list(SIDE_JOB_KEYS):
             data.pop(key, None)
         data.update(generator.generate())
+    elif request.POST.get("reroll_set"):
+        # A battle's Reroll: one side job rolled again, the rest kept.
+        rolls = rerolled_rolls(request.POST)
+        if rolls is None:
+            return JsonResponse({"errors": [REROLL_REFUSED]}, status=400)
+        data = request.POST.copy()
+        from n26.library.scenario_tables import SIDE_JOB_KEYS, TABLES
+
+        for key in [table.key for table in TABLES] + list(SIDE_JOB_KEYS):
+            data.pop(key, None)
+        data.update(rolls)
     form = ConnectScenarioToBattleForm(
         data,
         campaigns=recording_campaigns(request.user).filter(owner=request.user),

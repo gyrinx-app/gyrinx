@@ -338,11 +338,45 @@ it("rerolls one side job on the set chosen and keeps the rest", async () => {
     fireEvent.click(screen.getByRole("button", { name: "Reroll" }));
     await waitFor(() => expect(request).toHaveBeenCalled());
     const url = new URL(request.mock.calls[0][0]);
-    expect(url.searchParams.get("crew_pick")).toBe("2");
-    expect(url.searchParams.get("objective_pick")).toBe("leave");
-    expect(url.searchParams.get("side_job_pick")).toBe("escher-5");
-    expect(url.searchParams.get("side_job_2_pick")).toBe("escher");
-    expect(url.searchParams.get("side_jobs")).toBe("2");
+    expect(url.searchParams.get("reroll")).toBe("side_job_2");
+    expect(url.searchParams.get("reroll_set")).toBe("escher");
+    expect(url.searchParams.get("crew")).toBe("2");
+    expect(url.searchParams.get("side_job")).toBe("escher-5");
+    expect(url.searchParams.get("side_job_2")).toBe("general-2");
+    expect(url.searchParams.get("generate")).toBeNull();
+    // The menu that gave that side job now rolls on its new set.
+    expect(
+        screen.getByLabelText("Side job 2: Escher side jobs"),
+    ).toHaveProperty("value", "escher");
     expect(screen.queryByRole("dialog")).toBeNull();
     await screen.findAllByText("Side job 2 (Escher)");
+});
+
+it("keeps a saved battle's side jobs when generating again", async () => {
+    const request = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+            rolls: { side_job: "escher-5", side_job_2: "general-2" },
+        }),
+    });
+    vi.stubGlobal("fetch", request);
+    render(
+        <BattleScenario
+            {...withSideJobs}
+            rolls={{ side_job: "escher-5", side_job_2: "2" }}
+        />,
+    );
+    expect(
+        screen.getByLabelText("Side job 1: Escher side jobs"),
+    ).toHaveProperty("value", "escher");
+    expect(
+        screen.getByLabelText("Side job 2: General side jobs"),
+    ).toHaveProperty("value", "general");
+    fireEvent.click(screen.getByRole("button", { name: "Generate again" }));
+    await waitFor(() => expect(request).toHaveBeenCalled());
+    const url = new URL(request.mock.calls[0][0]);
+    expect(url.searchParams.get("side_job_pick")).toBe("escher");
+    expect(url.searchParams.get("side_job_2_pick")).toBe("general");
+    expect(url.searchParams.get("side_jobs")).toBe("2");
 });

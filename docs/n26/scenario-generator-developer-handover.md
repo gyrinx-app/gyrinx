@@ -152,6 +152,11 @@ Every redirect is built with `reverse(...)`.
   address's picks and rolls with `reroll_set`; `side_job_changes` passes that
   to `_rerolled`, which calls `reroll_side_job` in `n26/core/scenarios.py` and
   sets that side job's menu to the new set with `with_side_job_set`.
+- An address with side jobs but no side job menus, such as a battle's **View
+  scenario** link or a log link, gets one menu per side job, rolling on its
+  set (`_side_job_menus_from_results`). So that a menu set back to **Choose a
+  side job set** is not taken for that case, `chosen_picks` then keeps
+  `side_jobs` in the address even for one menu.
 - `generate()` resolves the scenario.
 - Leaving every component out produces a form error. A side job alone is
   enough.
@@ -242,9 +247,12 @@ battle's name and outcome. No migration is required.
 The `battle-scenario` island supplies an optional compact preview on creation.
 Its props, from `n26/core/views/scenario_props.py`, include `sideJobSets`,
 `sideJobKeys` and `sideJobLimit`, so the island draws the same side job menus
-and sends the same `<key>_pick` and `side_jobs` values. Its **Reroll** dialog
-sends the current result as named picks, with the chosen set for the one side
-job, so the server rolls only that one. The dialog is drawn in a portal on
+and sends the same `<key>_pick` and `side_jobs` values. Its menus start with one for
+each side job the battle or preview already has, rolling on its set, so
+**Generate again** keeps them. Its **Reroll** dialog sends the current result
+with `reroll=<key>&reroll_set=<set>&format=json`, to the generator for a
+preview or to the connection endpoint for a saved battle; both call
+`rerolled_rolls`, so the replaced job is never given back. The dialog is drawn in a portal on
 `document.body`, because on the battle form the island sits inside the page's
 form.
 It calls the existing generator with `generate=1&format=json`; rolls are still

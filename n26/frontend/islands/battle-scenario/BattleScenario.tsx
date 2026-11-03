@@ -70,9 +70,22 @@ export function BattleScenario(props: BattleScenarioProps) {
     const [rolls, setRolls] = useState(props.rolls);
     const [revision, setRevision] = useState(props.save?.revision);
     const [picks, setPicks] = useState<Record<string, string>>({});
-    const [sidePicks, setSidePicks] = useState<string[]>([""]);
     const sideJobKeys = props.sideJobKeys ?? [];
     const sideJobSets = props.sideJobSets ?? [];
+    // A saved battle's side jobs each start with a menu rolling on their
+    // set, so Generate again keeps them.
+    const [sidePicks, setSidePicks] = useState<string[]>(() => {
+        const sets = sideJobKeys.flatMap((key) => {
+            const value = props.rolls[key];
+            if (!value) return [];
+            const set = setOf(
+                value.includes("-") ? value : "general",
+                sideJobSets,
+            );
+            return set ? [set.key] : [];
+        });
+        return sets.length ? sets : [""];
+    });
     const [pending, setPending] = useState(false);
     const [error, setError] = useState("");
     // The side job whose Reroll dialog is open, and the set picked in it.
@@ -148,21 +161,16 @@ export function BattleScenario(props: BattleScenarioProps) {
         }
         return choices;
     }
-    // The scenario as it is, but with one side job rolled on another set.
+    // The scenario as it is, for the server to roll one side job again on
+    // the set chosen, never giving back the job it replaces.
     function rerollChoices(target: string, set: string) {
-        const choices = new URLSearchParams({ generate: "1", format: "json" });
-        for (const table of props.tables)
-            choices.set(table.key + "_pick", rolls[table.key] || "leave");
-        const sideJobs = results.filter((result) => result.set);
-        sideJobs.forEach((result, index) =>
-            choices.set(
-                sideJobKeys[index] + "_pick",
-                result.key === target
-                    ? set
-                    : `${result.set}-${result.entry.roll}`,
-            ),
-        );
-        choices.set("side_jobs", String(sideJobs.length));
+        const choices = new URLSearchParams({
+            format: "json",
+            reroll: target,
+            reroll_set: set,
+        });
+        for (const [key, value] of Object.entries(rolls))
+            if (value) choices.set(key, value);
         return choices;
     }
     // After a reroll, the menu that gave that side job rolls on its new

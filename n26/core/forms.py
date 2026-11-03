@@ -1229,6 +1229,7 @@ class ScenarioGeneratorForm(forms.Form):
         )
 
         super().__init__(*args, **kwargs)
+        self._side_job_menus_from_results()
         self.tables = TABLES
         for table in TABLES:
             self.fields[self.pick_name(table)] = forms.ChoiceField(
@@ -1272,6 +1273,29 @@ class ScenarioGeneratorForm(forms.Form):
                     "invalid_choice": f"Select an option for Side job {place}."
                 },
             )
+
+    def _side_job_menus_from_results(self):
+        """Give an address that holds side jobs but no side job menus, such
+        as a battle's View scenario link, one menu for each side job, rolling
+        on its set, so Generate again keeps them."""
+        from n26.core.scenarios import read_side_job
+        from n26.library.scenario_tables import SIDE_JOB_KEYS, side_job_key
+
+        data = self.data or {}
+        self._holds_side_jobs = any(data.get(key) for key in SIDE_JOB_KEYS)
+        if self.SIDE_JOBS in data or any(
+            f"{key}_pick" in data for key in SIDE_JOB_KEYS
+        ):
+            return
+        found = [
+            read_side_job(data.get(key))[0] for key in SIDE_JOB_KEYS if data.get(key)
+        ]
+        if not found or None in found:
+            return
+        self.data = data = data.copy()
+        data[self.SIDE_JOBS] = str(len(found))
+        for place, each in enumerate(found, start=1):
+            data[f"{side_job_key(place)}_pick"] = each.key
 
     @staticmethod
     def pick_name(table):
@@ -1365,7 +1389,12 @@ class ScenarioGeneratorForm(forms.Form):
         for place, pick in enumerate(side_job_picks, start=1):
             if pick:
                 chosen[f"{side_job_key(place)}_pick"] = pick
-        if len(side_job_picks) > 1:
+        # The count also marks a menu set back to Choose a side job set while
+        # the scenario still has side jobs, so the address is not read as
+        # one without menus.
+        if len(side_job_picks) > 1 or (
+            self.CHOOSE_SET in side_job_picks and self._holds_side_jobs
+        ):
             chosen[self.SIDE_JOBS] = len(side_job_picks)
         return chosen
 

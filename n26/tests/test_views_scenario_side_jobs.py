@@ -329,7 +329,10 @@ def test_a_reroll_of_a_missing_side_job_or_set_changes_nothing(client, campaign)
         {"reroll": "side_job", "reroll_set": "orlock"},
     ):
         response = client.get(reverse(GENERATOR), {"side_job": "escher-3", **extra})
-        assert query_of(response["Location"]) == {"side_job": ["escher-3"]}
+        assert query_of(response["Location"]) == {
+            "side_job": ["escher-3"],
+            "side_job_pick": ["escher"],
+        }
     response = client.get(reverse(GENERATOR), {"crew": "2", "reroll": "side_job"})
     assert reroll_island(response) is None
 
@@ -341,3 +344,98 @@ def test_a_campaign_reroll_returns_to_the_campaign_generator(client, campaign):
     )
     assert response["Location"].startswith(here + "?")
     assert query_of(response["Location"])["side_job"][0].startswith("general-")
+
+
+def test_a_link_with_side_jobs_but_no_menus_keeps_them_on_generate_again(
+    client, campaign
+):
+    # A battle's View scenario link and a log link hold results only.
+    link = {"crew": "2", "side_job": "escher-3", "side_job_2": "goliath-1"}
+    page = client.get(reverse(GENERATOR), link)
+    menus = page.context["form"].side_job_menus()
+    assert [menu["value"] for menu in menus] == ["escher", "goliath"]
+    _, query = generated(client, **link)
+    assert query["side_job"][0].startswith("escher-")
+    assert query["side_job_2"][0].startswith("goliath-")
+
+
+def test_change_set_on_the_only_side_job_is_not_undone(client, campaign):
+    response = client.get(
+        reverse(GENERATOR),
+        {"side_job": "escher-3", "side_job_pick": "", "side_jobs": "1", "update": "1"},
+    )
+    query = query_of(response["Location"])
+    assert query["side_jobs"] == ["1"]
+    assert "side_job_pick" not in query
+    page = client.get(response["Location"])
+    assert page.context["form"].side_job_menus()[0]["value"] == ""
+
+
+def test_a_preview_reroll_never_returns_the_side_job_it_replaces(client, campaign):
+    # Every Escher job but 6 is taken or being replaced, so 6 is the only roll.
+    rolls = {
+        "side_job": "escher-1",
+        "side_job_2": "escher-2",
+        "side_job_3": "escher-3",
+        "side_job_4": "escher-4",
+        "side_job_5": "escher-5",
+    }
+    for _ in range(5):
+        response = client.get(
+            reverse(GENERATOR),
+            {
+                **rolls,
+                "format": "json",
+                "reroll": "side_job_5",
+                "reroll_set": "escher",
+            },
+        )
+        assert response.json()["rolls"]["side_job_5"] == "escher-6"
+    refused = client.get(
+        reverse(GENERATOR),
+        {
+            "side_job": "escher-1",
+            "format": "json",
+            "reroll": "side_job_2",
+            "reroll_set": "escher",
+        },
+    )
+    assert refused.status_code == 400
+
+
+def test_a_battle_reroll_replaces_only_that_side_job(client, campaign):
+    with campaign_operation(campaign, actor=campaign.owner) as act:
+        battle = act.record_battle(
+            date(2026, 11, 3),
+            scenario="Sump clash",
+            scenario_rolls={
+                "crew": 2,
+                "side_job": "escher-1",
+                "side_job_2": "escher-2",
+                "side_job_3": "escher-3",
+                "side_job_4": "escher-4",
+                "side_job_5": "escher-5",
+            },
+        )
+    response = client.post(
+        reverse("n26-generate-scenario-save"),
+        {
+            "format": "json",
+            "campaign": str(campaign.pk),
+            "battle": str(battle.pk),
+            "revision": battle.revision,
+            **battle.scenario_rolls,
+            "reroll": "side_job_3",
+            "reroll_set": "escher",
+        },
+    )
+    assert response.status_code == 200
+    battle.refresh_from_db()
+    assert battle.scenario_rolls == {
+        "crew": 2,
+        "side_job": "escher-1",
+        "side_job_2": "escher-2",
+        "side_job_3": "escher-6",
+        "side_job_4": "escher-4",
+        "side_job_5": "escher-5",
+    }
